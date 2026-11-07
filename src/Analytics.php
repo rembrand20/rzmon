@@ -576,7 +576,7 @@ final class Analytics
         }
         $lastBk = $r['backups']['rzmon'];
         if (!$lastBk || strtotime((string) $lastBk) < time() - 8 * 86400) {
-            $out[] = [1, '🗄️', $lastBk ? t('De laatste back-up van RzMon zelf is van {d}', ['d' => date('d-m-Y', strtotime((string) $lastBk))]) : t('Er is nog geen back-up van RzMon zelf'), 'settings/backup'];
+            $out[] = [1, '🗄️', $lastBk ? t('De laatste back-up van RzSense zelf is van {d}', ['d' => date('d-m-Y', strtotime((string) $lastBk))]) : t('Er is nog geen back-up van RzSense zelf'), 'settings/backup'];
         }
         // 1.108.0: slimme voorstellen die openstaan (melden na N, vaste onderhoudsvensters, afhankelijkheden)
         if ($nAdv = Advice::openCount()) {
@@ -631,7 +631,7 @@ final class Analytics
         $to = date('Y-m-t', strtotime($from));
         $r = I18n::forNotify(fn() => self::report("$from..$to"));
         $body = I18n::forNotify(fn() => self::monthlyText($r, $month));
-        $subject = I18n::forNotify(fn() => t('RzMon-maandrapport {m}', ['m' => strftime_month($month)]));
+        $subject = I18n::forNotify(fn() => t('RzSense-maandrapport {m}', ['m' => strftime_month($month)]));
         return Mailer::send($subject, $body);
     }
 
@@ -655,7 +655,7 @@ final class Analytics
     {
         $k = $r['kpi'];
         $dur = fn(?int $s) => $s === null ? '–' : ($s >= 3600 ? I18n::dec((string) round($s / 3600, 1)) . ' ' . t('uur') : max(1, (int) round($s / 60)) . ' min');
-        $l = [t('RzMon-maandrapport {m}', ['m' => strftime_month($month)]), str_repeat('=', 40), '',
+        $l = [t('RzSense-maandrapport {m}', ['m' => strftime_month($month)]), str_repeat('=', 40), '',
             t('Score: {s}/100', ['s' => $k['score']]),
             t('Beschikbaarheid: {p}%', ['p' => $k['avail'][0] !== null ? I18n::dec((string) round($k['avail'][0], 2)) : '–']) . self::pctDelta($k['avail'][0], $k['avail'][1]),
             t('Storingen (naar critical): {n}', ['n' => (int) $k['incidents'][0]]) . self::pctDelta($k['incidents'][0], $k['incidents'][1], true),
@@ -675,7 +675,7 @@ final class Analytics
             $l[] = '  ✔ ' . t('niets dringends');
         }
         $l[] = '';
-        $l[] = t('Meer in RzMon: tabblad 📊 Analyse.');
+        $l[] = t('Meer in RzSense: tabblad 📊 Analyse.');
         return implode("\n", $l);
     }
 }

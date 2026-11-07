@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * Netwerkscan (1.103.0): wat er allemaal op je lokale netwerken zit (Instellingen → Toegang → Lokale netwerken).
- * - Elk uur een lichte ronde: een ping naar elk adres, daarna de ARP-tabel van de RzMon-server (MAC-adressen, ook van
+ * - Elk uur een lichte ronde: een ping naar elk adres, daarna de ARP-tabel van de RzSense-server (MAC-adressen, ook van
  *   apparaten die niet op ping antwoorden) en de DNS-naam van nieuwe apparaten.
  * - Een paar keer per dag een diepere ronde: open poorten, NetBIOS-naam, SSDP/UPnP (merk en model), mDNS (als avahi-browse
  *   er is) en de titel van de webpagina. Daaruit een gok wat voor apparaat het is.
@@ -219,7 +219,7 @@ final class NetScan
         return $out;
     }
 
-    /** Is dit een adres van de RzMon-server zelf? (1.105.2) */
+    /** Is dit een adres van de RzSense-server zelf? (1.105.2) */
     public static function isOwnIp(string $ip): bool
     {
         return in_array($ip, ['127.0.0.1', '::1'], true) || array_key_exists($ip, self::ownInterfaces());
@@ -771,7 +771,7 @@ final class NetScan
 
     // ------------------------------------------------------------------ voor de pagina
 
-    /** Alle apparaten, met of ze in RzMon staan en wat er riskant openstaat */
+    /** Alle apparaten, met of ze in RzSense staan en wat er riskant openstaat */
     public static function list(): array
     {
         $hosts = q('SELECT id, name, address, agent_ips FROM hosts')->fetchAll();
@@ -790,12 +790,12 @@ final class NetScan
             $r['blocked'] = json_decode((string) ($r['blocked'] ?? ''), true) ?: null;
             $h = $byAddr[$r['ip']] ?? ($r['hostname'] ? ($byAddr[strtolower((string) $r['hostname'])] ?? $byAddr[strtolower(preg_replace('/\..*$/', '', (string) $r['hostname']))] ?? null) : null);
             $r['host'] = $h ? ['id' => (int) $h['id'], 'name' => $h['name']] : null;
-            $r['self'] = in_array($r['ip'], $own, true);   // de RzMon-server zelf
+            $r['self'] = in_array($r['ip'], $own, true);   // de RzSense-server zelf
             if ($r['self']) {
-                $r['host'] ??= ['id' => 0, 'name' => 'RzMon'];
+                $r['host'] ??= ['id' => 0, 'name' => 'RzSense'];
                 $r['kind'] = 'server';
             }
-            $r['label'] = $r['self'] && !$r['name'] ? t('RzMon-server (deze server)') : self::label($r);
+            $r['label'] = $r['self'] && !$r['name'] ? t('RzSense-server (deze server)') : self::label($r);
             $r['risky'] = array_values(array_intersect(self::RISKY, $r['ports']));
             if ($r['kind'] === 'nas' || $r['kind'] === 'server' || $r['host']) {
                 $r['risky'] = array_values(array_diff($r['risky'], [3389]));   // RDP op een server: normaal
@@ -915,19 +915,19 @@ final class NetScan
         $ip = (string) $r['ip'];
         $own = array_keys(self::ownInterfaces());
         return match (true) {
-            $ip === $byIp => t('Dit is het apparaat waarmee je nu in RzMon zit'),
-            in_array($ip, $own, true) => t('Dit is de RzMon-server zelf'),
+            $ip === $byIp => t('Dit is het apparaat waarmee je nu in RzSense zit'),
+            in_array($ip, $own, true) => t('Dit is de RzSense-server zelf'),
             $ip === self::gateway() => t('Dit is je router (standaardgateway); dan valt je hele netwerk om'),
             in_array($ip, NetLinks::ownIps(), true) => t('Dit is je UniFi-controller of een AdGuard-server; die weren sluit je zelf buiten'),
             (bool) q("SELECT 1 FROM hosts WHERE address = ? OR CONCAT(' ', COALESCE(agent_ips, ''), ' ') LIKE ? LIMIT 1", [$ip, '% ' . $ip . ' %'])->fetchColumn()
-                => t('Dit apparaat staat in RzMon als server; haal het daar eerst weg'),
+                => t('Dit apparaat staat in RzSense als server; haal het daar eerst weg'),
             Whitelist::ip($ip) => t('{ip} staat op de whitelist (IDS → Blokkades)', ['ip' => $ip]),
             default => null,
         };
     }
 
     /**
-     * Een apparaat weren: van het wifi (UniFi, op MAC), geen DNS meer (AdGuard, op IP) en geen toegang tot RzMon en je
+     * Een apparaat weren: van het wifi (UniFi, op MAC), geen DNS meer (AdGuard, op IP) en geen toegang tot RzSense en je
      * servers (op IP). $days 0 = tot je het weer toelaat. @return array{ok: bool, done: list<string>, errors: list<string>}
      */
     public static function block(int $id, array $via, int $days, string $reason, string $by, string $byIp): array
@@ -961,7 +961,7 @@ final class NetScan
             if ($e === true || str_contains((string) $e, 'al ')) {
                 $done[] = 'rzmon';
             } else {
-                $errors[] = 'RzMon: ' . $e;
+                $errors[] = 'RzSense: ' . $e;
             }
             foreach (q("SELECT id FROM hosts WHERE mode = 'agent' AND enabled = 1")->fetchAll(PDO::FETCH_COLUMN) as $hid) {
                 Ids::block((int) $hid, $ip, $days > 0 ? $days * 24 : null, $reason, $by, $byIp);   // al geblokkeerd: geen probleem
@@ -980,7 +980,7 @@ final class NetScan
 
     public static function viaLabels(array $via): array
     {
-        return array_map(fn($v) => ['unifi' => t('UniFi (wifi)'), 'adguard' => t('AdGuard (DNS)'), 'rzmon' => t('RzMon en je servers')][$v] ?? $v, $via);
+        return array_map(fn($v) => ['unifi' => t('UniFi (wifi)'), 'adguard' => t('AdGuard (DNS)'), 'rzmon' => t('RzSense en je servers')][$v] ?? $v, $via);
     }
 
     /** Weer toelaten: alles terugdraaien wat bij het weren gedaan is */
@@ -1021,7 +1021,7 @@ final class NetScan
         foreach (q("SELECT id, blocked FROM net_devices WHERE blocked IS NOT NULL")->fetchAll() as $r) {
             $b = json_decode((string) $r['blocked'], true) ?: [];
             if (!empty($b['until']) && strtotime((string) $b['until']) <= time()) {
-                self::unblock((int) $r['id'], 'RzMon', true);
+                self::unblock((int) $r['id'], 'RzSense', true);
             }
         }
     }

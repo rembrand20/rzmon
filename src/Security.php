@@ -2,11 +2,11 @@
 declare(strict_types=1);
 
 /**
- * Beveiliging van RzMon zelf (1.57.0):
- * - geblokkeerde IP-adressen en netwerken: heel RzMon (webpagina, inloggen, API en agents) geeft dan 403;
+ * Beveiliging van RzSense zelf (1.57.0):
+ * - geblokkeerde IP-adressen en netwerken: heel RzSense (webpagina, inloggen, API en agents) geeft dan 403;
  * - ⚠️ niet-geautoriseerde verbindingen (agent met een fout token of een verkeerde sleutel, een verkeerde
  *   API-sleutel, 3 mislukte logins binnen 10 minuten): in Meldingen en altijd naar Pushover;
- * - ℹ️ logins in RzMon en agents die (opnieuw) verbinden: altijd in Meldingen, de rest volgt de rij Info.
+ * - ℹ️ logins in RzSense en agents die (opnieuw) verbinden: altijd in Meldingen, de rest volgt de rij Info.
  */
 final class Security
 {
@@ -96,7 +96,7 @@ final class Security
             if (ip_in_list($own, [$n])) {
                 return $own === $mine
                     ? t('Daarmee blokkeer je jezelf ({ip}); dat kan niet', ['ip' => $mine])
-                    : t('Daarmee blokkeer je de RzMon-server zelf ({ip}); dat kan niet', ['ip' => $own]);
+                    : t('Daarmee blokkeer je de RzSense-server zelf ({ip}); dat kan niet', ['ip' => $own]);
             }
         }
         q('INSERT INTO rz_blocks (net, reason, created_by, created_at, until, auto, hits, last_hit) VALUES (?, ?, ?, ?, ?, ?, 0, NULL)
@@ -141,7 +141,7 @@ final class Security
     private static function liftedInfo(string $net, string $how): void
     {
         Monitor::sysInfo('ip_unblock', null, null, '✅ ' . t('Blokkade opgeheven: {net}', ['net' => $net]),
-            fn() => t('{net} heeft weer toegang tot RzMon', ['net' => $net]) . " · $how", str_contains($net, '/') ? null : $net);
+            fn() => t('{net} heeft weer toegang tot RzSense', ['net' => $net]) . " · $how", str_contains($net, '/') ? null : $net);
     }
 
     /**
@@ -176,7 +176,7 @@ final class Security
     }
 
     /**
-     * Overzicht voor IDS → Blokkades (1.83.0): alles wat nu geblokkeerd is (IP's in RzMon, accounts,
+     * Overzicht voor IDS → Blokkades (1.83.0): alles wat nu geblokkeerd is (IP's in RzSense, accounts,
      * IDS per server) en wat eerder geblokkeerd was (opgeheven of verlopen, zo lang als de meldingen bewaard worden).
      * Per regel: src (rz | user | ids), id, value, type (ip | net | user), cc, where, reason, since, until, by, hits.
      */
@@ -191,14 +191,14 @@ final class Security
                 continue;
             }
             $active[] = ['src' => 'rz', 'id' => (int) $b['id'], 'value' => $b['net'], 'type' => str_contains((string) $b['net'], '/') ? 'net' : 'ip', 'cc' => $cc((string) $b['net']),
-                'where' => 'RzMon', 'reason' => $b['reason'], 'since' => $b['created_at'], 'until' => $b['until'], 'by' => $b['created_by'], 'auto' => (int) $b['auto'],
+                'where' => 'RzSense', 'reason' => $b['reason'], 'since' => $b['created_at'], 'until' => $b['until'], 'by' => $b['created_by'], 'auto' => (int) $b['auto'],
                 'hits' => (int) $b['hits'], 'last_hit' => $b['last_hit'], 'wl' => $wlIp((string) $b['net'])];
         }
         foreach (q('SELECT id, username, locked_at, locked_until, locked_ip, locked_reason FROM users WHERE locked_at IS NOT NULL ORDER BY locked_at DESC')->fetchAll() as $u) {
             if (!self::accountLocked($u)) {
                 continue;
             }
-            $active[] = ['src' => 'user', 'id' => (int) $u['id'], 'value' => $u['username'], 'type' => 'user', 'cc' => null, 'where' => 'RzMon',
+            $active[] = ['src' => 'user', 'id' => (int) $u['id'], 'value' => $u['username'], 'type' => 'user', 'cc' => null, 'where' => 'RzSense',
                 'reason' => $u['locked_reason'] ?: t('te veel mislukte logins'), 'ip' => $u['locked_ip'], 'ip_cc' => $u['locked_ip'] ? $cc((string) $u['locked_ip']) : null,
                 'since' => $u['locked_at'], 'until' => $u['locked_until'], 'by' => t('de inlogbeveiliging'), 'auto' => 1, 'wl' => Whitelist::user((string) $u['username'])];
         }
@@ -212,7 +212,7 @@ final class Security
         foreach (q('SELECT * FROM block_log WHERE removed_at >= NOW() - INTERVAL ? DAY ORDER BY removed_at DESC LIMIT 500', [$days])->fetchAll() as $b) {
             $user = $b['kind'] === 'user';
             $history[] = ['src' => $b['kind'], 'value' => $b['value'], 'type' => $user ? 'user' : (str_contains((string) $b['value'], '/') ? 'net' : 'ip'),
-                'cc' => $user ? null : $cc((string) $b['value']), 'ip' => $b['ip'], 'where' => 'RzMon', 'reason' => $b['reason'] ?: ($user ? t('te veel mislukte logins') : null),
+                'cc' => $user ? null : $cc((string) $b['value']), 'ip' => $b['ip'], 'where' => 'RzSense', 'reason' => $b['reason'] ?: ($user ? t('te veel mislukte logins') : null),
                 'since' => $b['created_at'], 'until' => $b['until'], 'by' => $b['created_by'], 'removed_at' => $b['removed_at'], 'removed_by' => $b['removed_by']];
         }
         foreach (q('SELECT b.*, h.name AS host_name FROM ids_blocks b JOIN hosts h ON h.id = b.host_id
@@ -263,12 +263,12 @@ final class Security
                 $base = rtrim((string) config('base_url', ''), '/');
                 if ($c['pushover'] && Push::enabled()) {
                     $r = Push::send($title, $msg . "\n" . date('d-m-Y H:i:s'), (int) $c['prio'],
-                        $base !== '' ? ['url' => "$base/#alerts", 'url_title' => t('Open RzMon')] : []);
+                        $base !== '' ? ['url' => "$base/#alerts", 'url_title' => t('Open RzSense')] : []);
                     $sent = $r['ok'];
                     $r['error'] && $err[] = $r['error'];
                 }
                 if ($c['email'] && setting('email_enabled', '0') === '1') {
-                    $r = Mailer::send($title, $msg . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzMon: $base/" : ''));
+                    $r = Mailer::send($title, $msg . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzSense: $base/" : ''));
                     $mail = $r['ok'];
                     $r['ok'] || $err[] = 'E-mail: ' . $r['error'];
                 }
@@ -288,7 +288,7 @@ final class Security
         }
     }
 
-    // ------------------------------------------------------------------ logins in RzMon
+    // ------------------------------------------------------------------ logins in RzSense
 
     /** Geslaagde login (wachtwoord, met 2FA, of een onthouden apparaat) */
     /** Voor "Mijn laatste logins" (Mijn account): gelukt of mislukt, per account */

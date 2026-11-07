@@ -6,8 +6,8 @@ declare(strict_types=1);
  * de uitleg in drie delen:
  * - Waarom: de regel in gewone taal, met de drempel die werd overschreden;
  * - Trigger: de feiten die het deden afgaan (uit het incident, zonder de acties);
- * - Actie: wat RzMon deed, met de stand van nu (bevestigd, mislukt, verlopen, opgeheven), of in de modus Leren wat
- *   RzMon in de modus Blokkeren zou hebben gedaan.
+ * - Actie: wat RzSense deed, met de stand van nu (bevestigd, mislukt, verlopen, opgeheven), of in de modus Leren wat
+ *   RzSense in de modus Blokkeren zou hebben gedaan.
  * De acties worden niet apart bewaard maar steeds afgeleid uit de blokkades, gestopte processen, isolatie en status;
  * zo klopt de stand altijd, ook bij oude incidenten.
  */
@@ -81,7 +81,7 @@ final class Protect
                 'sev' => 1, 'acts' => ['block'], 'toggle' => ['weblog_block', '0', 'IP blokkeren'], 'm' => $in(['web_attack'])],
             ['id' => 'scanner', 'g' => 'web', 'title' => 'Onschuldige scanner', 'what' => 'Een webaanval van een bekende, onschuldige scanner (GreyNoise: Shodan, Censys …).',
                 'sev' => 1, 'acts' => ['close'], 'toggle' => ['ti_close_benign', '1', 'vanzelf afhandelen'],
-                'm' => static fn(array $i) => $i['status'] === 'done' && str_starts_with((string) $i['handled_by'], 'RzMon (') && in_array($i['type'], ['web_attack', 'web_payload'], true)],
+                'm' => static fn(array $i) => $i['status'] === 'done' && str_starts_with((string) $i['handled_by'], 'RzSense (') && in_array($i['type'], ['web_attack', 'web_payload'], true)],
             // ⚙️ Processen en bestanden
             ['id' => 'webshell', 'g' => 'proc', 'title' => 'Webshell', 'what' => 'Een webserver die een shell start, of een nieuw script met webshell-code in een webmap.', 'sev' => 2,
                 'acts' => ['kill'], 'toggle' => ['edr_kill', '1', 'proces stoppen'],
@@ -101,7 +101,7 @@ final class Protect
                     || self::rule($i, ['rz-persist', 'rz-sshkey', 'rz-preload', 'rz-kmod', 'rz-setuid', 'rz-history'])],
             ['id' => 'containers', 'g' => 'proc', 'title' => 'Containers', 'what' => 'Een shell in een container, een container met volledige rechten, of uitbreken naar de server.',
                 'sev' => 1, 'acts' => ['notify'], 'toggle' => null, 'm' => static fn(array $i) => self::rule($i, ['rz-ctr-priv', 'rz-ctr-exec', 'rz-escape'])],
-            ['id' => 'sigma', 'g' => 'proc', 'title' => 'Sigma-regels', 'what' => '121 Linux-regels van SigmaHQ; bij een critical regel stopt RzMon het proces.', 'sev' => 1,
+            ['id' => 'sigma', 'g' => 'proc', 'title' => 'Sigma-regels', 'what' => '121 Linux-regels van SigmaHQ; bij een critical regel stopt RzSense het proces.', 'sev' => 1,
                 'acts' => ['notify', 'kill'], 'toggle' => ['edr_sigma', '1', 'Sigma-regels'],
                 'm' => static fn(array $i) => $i['type'] === 'edr' && !str_starts_with((string) $i['dkey'], 'rz-')],
             ['id' => 'harden', 'g' => 'proc', 'title' => 'Beveiliging verslechterd', 'what' => 'Een instelling van de server werd minder veilig (SSH, firewall, updates …).', 'sev' => 1,
@@ -132,7 +132,7 @@ final class Protect
                 'm' => static fn(array $i) => str_contains((string) $i['detail'], '🌐 ' . t('bekende aanvaller')),
                 'why' => static fn() => t('Een IP met een score van {n} of hoger (AbuseIPDB-percentage, of 80–90 bij GreyNoise, Shodan en abuse.ch).', ['n' => (int) setting('ti_block_score', '80')]),
                 'attention' => static fn() => ThreatIntel::on() && trim((string) setting('ti_abuseipdb_key', '')) === '' ? t('Nog geen AbuseIPDB-sleutel (Instellingen → IDS → Dreigingsinformatie).') : null],
-            ['id' => 'ti_report', 'g' => 'ti', 'title' => 'Melden bij AbuseIPDB', 'what' => 'Wie RzMon automatisch blokkeert, gaat naar AbuseIPDB (hooguit één keer per dag per IP).', 'sev' => 0,
+            ['id' => 'ti_report', 'g' => 'ti', 'title' => 'Melden bij AbuseIPDB', 'what' => 'Wie RzSense automatisch blokkeert, gaat naar AbuseIPDB (hooguit één keer per dag per IP).', 'sev' => 0,
                 'acts' => ['report'], 'toggle' => ['ti_report', '0', 'melden'], 'm' => null,
                 'stat' => static fn() => t('{n} gemeld', ['n' => ThreatIntel::status()['reported']])],
         ];
@@ -168,7 +168,7 @@ final class Protect
         return $card ? t($card['what']) : '';
     }
 
-    /** Trigger: de feiten uit het incident, zonder wat RzMon deed en zonder de uitleg die al bij Waarom staat */
+    /** Trigger: de feiten uit het incident, zonder wat RzSense deed en zonder de uitleg die al bij Waarom staat */
     private static function trigger(array $inc, string $why): string
     {
         $parts = array_filter(array_map('trim', explode(' · ', (string) $inc['detail'])), static fn($p) => $p !== '' && $p !== $why
@@ -177,7 +177,7 @@ final class Protect
     }
 
     /**
-     * Wat RzMon deed, met de stand van nu. $ctx (optioneel, voor een lange lijst): voorgeladen blokkades, gestopte
+     * Wat RzSense deed, met de stand van nu. $ctx (optioneel, voor een lange lijst): voorgeladen blokkades, gestopte
      * processen en isolatie. @return array<array{t: string, icon: string, text: string, ok: ?bool}>
      */
     public static function actions(array $inc, ?array $card, ?array $ctx = null): array
@@ -237,7 +237,7 @@ final class Protect
         if (str_contains((string) $inc['detail'], '⚠️')) {
             $out[] = ['t' => 'escalate', 'icon' => '⚠️', 'ok' => true, 'text' => t('critical gemaakt (bekende aanvaller)')];
         }
-        if ($inc['status'] === 'done' && str_starts_with((string) $inc['handled_by'], 'RzMon (')) {
+        if ($inc['status'] === 'done' && str_starts_with((string) $inc['handled_by'], 'RzSense (')) {
             $out[] = ['t' => 'close', 'icon' => '✔', 'ok' => true, 'text' => t('vanzelf afgehandeld: {why}', ['why' => trim(substr((string) $inc['handled_by'], 7), ' ()')])];
         }
         // Niets gedaan terwijl de kaart dat wel kan: in de modus Leren zeggen wat er zou gebeuren

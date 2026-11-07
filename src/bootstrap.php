@@ -19,9 +19,9 @@ const SECRET_SETTINGS = ['pushover_token', 'ntfy_token', 'smtp_pass', 'mqtt_pass
 
 // RZMON_CONFIG: een ander configbestand (tests op een aparte database)
 define('SM_CONFIG_FILE', getenv('RZMON_CONFIG') ?: SM_ROOT . '/config.php');
-// Versie van RzMon: de enige bron is het bestand VERSION (bijwerken met tools/bump-version.sh)
+// Versie van RzSense: de enige bron is het bestand VERSION (bijwerken met tools/bump-version.sh)
 define('RZMON_VERSION', trim((string) @file_get_contents(SM_ROOT . '/VERSION')) ?: '0.0.0');
-// Nieuwste agent: eigen nummer, los van RzMon (agent/VERSION; bijwerken met tools/bump-version.sh agent …)
+// Nieuwste agent: eigen nummer, los van RzSense (agent/VERSION; bijwerken met tools/bump-version.sh agent …)
 define('AGENT_LATEST', trim((string) @file_get_contents(SM_ROOT . '/agent/VERSION')) ?: RZMON_VERSION);
 
 // Zonder config.php draait de app in setup-modus (zie public/setup.php).
@@ -89,8 +89,8 @@ function q(string $sql, array $params = []): PDOStatement
 }
 
 /**
- * Opdracht die RzMon zelf start (1.132.0): met het geheime kenmerk van deze RzMon ervoor (": rzmon:<kenmerk>;", doet
- * niets). Zo herkent de agent op deze server alles wat RzMon start, en wat daaruit voortkomt, als "van RzMon"; een andere
+ * Opdracht die RzSense zelf start (1.132.0): met het geheime kenmerk van deze RzSense ervoor (": rzmon:<kenmerk>;", doet
+ * niets). Zo herkent de agent op deze server alles wat RzSense start, en wat daaruit voortkomt, als "van RzSense"; een andere
  * webapp onder dezelfde gebruiker kent het kenmerk niet.
  */
 function rz_sh(string $cmd): string
@@ -217,7 +217,7 @@ function now(): string
 
 /**
  * Wachtwoorden (1.143.0): Argon2id als PHP dat kan, anders bcrypt. Bestaande (bcrypt-)wachtwoorden blijven werken;
- * bij de eerstvolgende geslaagde login zet RzMon ze ongemerkt om (password_needs_rehash).
+ * bij de eerstvolgende geslaagde login zet RzSense ze ongemerkt om (password_needs_rehash).
  */
 function password_algo(): string
 {
@@ -238,8 +238,8 @@ function csp_nonce(): string
 
 /**
  * Beveiligingsheaders (1.143.0) voor de HTML-pagina's (en met $html = false voor de API):
- * - Content-Security-Policy: alleen scripts van RzMon zelf (en de inline scripts met de nonce van dit verzoek), geen plug-ins,
- *   formulieren en <base> alleen naar RzMon. Stijlen mogen inline (veel kleine style="…"). Noodknop: 'csp' => false in config.php.
+ * - Content-Security-Policy: alleen scripts van RzSense zelf (en de inline scripts met de nonce van dit verzoek), geen plug-ins,
+ *   formulieren en <base> alleen naar RzSense. Stijlen mogen inline (veel kleine style="…"). Noodknop: 'csp' => false in config.php.
  * - Insluiten in een frame (bv. een Home Assistant-paneel) blijft standaard mogelijk; beperken met
  *   'frame_ancestors' => "'self' https://ha.voorbeeld.nl" in config.php.
  * - nosniff, een zuinige Referrer-Policy en geen camera/microfoon/locatie.
@@ -269,7 +269,7 @@ function security_headers(bool $html = true): void
     }
 }
 
-// Geblokkeerde IP-adressen en netwerken (Instellingen → ⛔ Blokkades): heel RzMon geeft 403. Niet voor cron of de terminal.
+// Geblokkeerde IP-adressen en netwerken (Instellingen → ⛔ Blokkades): heel RzSense geeft 403. Niet voor cron of de terminal.
 // Daarna: beheer alleen via https (doorsturen naar het beheeradres, HSTS), zie src/Https.php.
 if (PHP_SAPI !== 'cli' && is_configured()) {
     Security::enforce();

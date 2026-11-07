@@ -2,10 +2,10 @@
 declare(strict_types=1);
 
 /**
- * Attack Flow (RzMon 1.152.0): aanvaller → doelwit → dienst → afloop, op basis van de aanvalskaart (Ids::flows).
+ * Attack Flow (RzSense 1.152.0): aanvaller → doelwit → dienst → afloop, op basis van de aanvalskaart (Ids::flows).
  *
  * Belangrijk onderscheid: een lijn is "waargenomen" als iets het verkeer echt zag (auth.log, de log van een webdienst,
- * Suricata, de firewall/honeypot of de agent die een verbinding zag). "Afgeleid" is een verband dat RzMon uit
+ * Suricata, de firewall/honeypot of de agent die een verbinding zag). "Afgeleid" is een verband dat RzSense uit
  * meldingen legt (een keten, dreigingsinformatie, of "deze server werd aangevallen en valt nu zelf aan"). Zo wordt een
  * vermoeden nooit als bewezen verkeer getoond.
  */
@@ -78,7 +78,7 @@ final class AttackFlow
                 !$obs => ['k' => 'unconfirmed'],
                 default => ['k' => 'open'],
             };
-            $f['lines'][$i] += ['obs' => $obs, 'via' => $via ?? (in_array('chain', $types, true) ? 'keten' : 'RzMon'), 'outcome' => $outcome];
+            $f['lines'][$i] += ['obs' => $obs, 'via' => $via ?? (in_array('chain', $types, true) ? 'keten' : 'RzSense'), 'outcome' => $outcome];
         }
         // Afgeleid: een server die eerst werd aangevallen en daarna zelf (als intern IP) een bron is
         $pivots = [];
@@ -323,7 +323,7 @@ final class AttackFlow
             [$ip, $since])->fetchAll();
         foreach ($incs as $i) {
             $rows[] = ['at' => $i['created_at'], 'k' => 'inc', 'host' => $i['host'], 'sport' => null, 'dport' => $i['dport'] !== null ? (int) $i['dport'] : null,
-                'proto' => $i['proto'] !== null ? strtoupper((string) $i['proto']) : null, 'what' => $i['title'], 'via' => 'RzMon', 'st' => 'detect', 'id' => (int) $i['id']];
+                'proto' => $i['proto'] !== null ? strtoupper((string) $i['proto']) : null, 'what' => $i['title'], 'via' => 'RzSense', 'st' => 'detect', 'id' => (int) $i['id']];
         }
         // Bewijs bij de meldingen (Suricata, verbindingen van de agent, webverzoeken)
         if ($incs) {
@@ -353,10 +353,10 @@ final class AttackFlow
         foreach (q('SELECT b.*, h.name AS host FROM ids_blocks b JOIN hosts h ON h.id = b.host_id WHERE b.ip = ? AND (b.created_at >= ? OR b.removed_at IS NULL) ORDER BY b.created_at DESC LIMIT 50',
             [$ip, $since])->fetchAll() as $b) {
             $rows[] = ['at' => $b['created_at'], 'k' => 'block', 'host' => $b['host'], 'sport' => null, 'dport' => null, 'proto' => null,
-                'what' => t('IP geblokkeerd') . ($b['until'] ? ' ' . t('tot {t}', ['t' => $b['until']]) : ' ' . t('(blijvend)')) . ($b['reason'] !== '' ? ' · ' . $b['reason'] : ''), 'via' => 'RzMon', 'st' => 'action'];
+                'what' => t('IP geblokkeerd') . ($b['until'] ? ' ' . t('tot {t}', ['t' => $b['until']]) : ' ' . t('(blijvend)')) . ($b['reason'] !== '' ? ' · ' . $b['reason'] : ''), 'via' => 'RzSense', 'st' => 'action'];
             if ($b['removed_at'] !== null) {
                 $rows[] = ['at' => $b['removed_at'], 'k' => 'unblock', 'host' => $b['host'], 'sport' => null, 'dport' => null, 'proto' => null,
-                    'what' => t('blokkade opgeheven'), 'via' => 'RzMon', 'st' => 'info'];
+                    'what' => t('blokkade opgeheven'), 'via' => 'RzSense', 'st' => 'info'];
             } elseif ($b['until'] === null || $b['until'] > now()) {
                 $active[] = ['host' => $b['host'], 'host_id' => (int) $b['host_id'], 'at' => $b['created_at'], 'until' => $b['until'], 'hits' => (int) $b['hits'], 'reason' => $b['reason']];
             }

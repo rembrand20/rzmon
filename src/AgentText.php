@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * Vaste teksten die de agent zelf meestuurt (diepere servicecontrole, extra tests, sockets, logbestanden, commando's,
- * Podman, certificaten, Home Assistant, bijwerken), vertaald in RzMon. Zo hoeft de agent niet bijgewerkt te worden.
+ * Podman, certificaten, Home Assistant, bijwerken), vertaald in RzSense. Zo hoeft de agent niet bijgewerkt te worden.
  * Herkent alleen hele zinnen; al het andere (uitvoer van commando's, systeemmeldingen) blijft zoals het is.
  */
 final class AgentText
@@ -76,9 +76,9 @@ final class AgentText
         '/^geen geldige pakketnamen ontvangen$/' => 'geen geldige pakketnamen ontvangen',
         '/^systemd-run mislukt$/' => 'systemd-run mislukt',
         // bijwerken
-        '/^downloaden van de nieuwe versie bij RzMon mislukt$/' => 'downloaden van de nieuwe versie bij RzMon mislukt',
+        '/^downloaden van de nieuwe versie bij (?:RzMon|RzSense) mislukt$/' => 'downloaden van de nieuwe versie bij RzSense mislukt',
         '/^controlegetal \(SHA-256\) klopt niet: download onvolledig of onderweg gewijzigd$/' => 'controlegetal (SHA-256) klopt niet: download onvolledig of onderweg gewijzigd',
-        '/^de download is geen geldige RzMon-agent (.*)$/' => 'de download is geen geldige RzMon-agent {a}',
+        '/^de download is geen geldige (?:RzMon|RzSense)-agent (.*)$/' => 'de download is geen geldige RzSense-agent {a}',
         '/^systemd-run mislukt; werk bij met: sudo rzmon-agent-setup --update$/' => 'systemd-run mislukt; werk bij met: sudo rzmon-agent-setup --update',
     ];
 

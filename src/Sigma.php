@@ -6,7 +6,7 @@ declare(strict_types=1);
  * gebeurtenis van een server houden. Twee bronnen, zelfde vorm:
  * - de Linux-regels van SigmaHQ (rules/sigma-linux.json, omgezet met tools/sigma-convert.py; licentie DRL 1.1: bij elke
  *   treffer staan de titel, de auteur en de bron);
- * - de eigen regels van RzMon (EdrRules), met Nederlandse uitleg en een automatische reactie.
+ * - de eigen regels van RzSense (EdrRules), met Nederlandse uitleg en een automatische reactie.
  *
  * Een regel: 'sel' (benoemde selecties: een lijst van AND-groepen, OR ertussen) en 'cond' (boom met ref/and/or/not).
  * Een voorwaarde: veld, bewerking (eq, glob, contains, startswith, endswith, re, cidr, exists, null), waarden, all.

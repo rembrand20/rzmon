@@ -533,8 +533,8 @@ ok(!q("SELECT 1 FROM ids_incidents WHERE dkey = '192.168.1.90|old.malware.evil.e
 DnsWatch::$fetch = null;
 save_setting('adguard_urls', '');
 
-section('RzMon zelf: toegestaan, nooit ingrijpen (1.114.0)');
-ok(in_array("0\tedrself\t" . SM_ROOT, array_map(static fn($l) => implode("\t", array_slice(explode("\t", $l), 0, 3)), Edr::agentLines($hc)), true), 'agent krijgt de map van RzMon (om RzMon zelf te herkennen)');
+section('RzSense zelf: toegestaan, nooit ingrijpen (1.114.0)');
+ok(in_array("0\tedrself\t" . SM_ROOT, array_map(static fn($l) => implode("\t", array_slice(explode("\t", $l), 0, 3)), Edr::agentLines($hc)), true), 'agent krijgt de map van RzSense (om RzSense zelf te herkennen)');
 Chain::reset();
 $sig0 = (int) q('SELECT COUNT(*) FROM ids_signals')->fetchColumn();
 $inc0 = (int) q('SELECT COUNT(*) FROM ids_incidents')->fetchColumn();
@@ -544,23 +544,23 @@ $r = Edr::process($hc, ['ev' => [
     ['k' => 'x', 't' => time(), 'pid' => 8003, 'uid' => 0, 'u' => 'root', 'exe' => '/usr/bin/awk', 'comm' => 'awk', 'pc' => 'rzmon-agent.sh', 'cmd' => 'awk {print}', 'own' => 'agent'],
     ['k' => 'n', 't' => time(), 'dir' => 'out', 'pid' => 8004, 'st' => 6, 'comm' => 'bash', 'exe' => '/usr/bin/bash', 'u' => 'root', 'rip' => '203.0.113.200', 'rp' => 4444, 'lp' => 50000, 'own' => 'agent']]]);
 ok($r === [] && (int) q('SELECT COUNT(*) FROM ids_incidents')->fetchColumn() === $inc0 && (int) q('SELECT COUNT(*) FROM ids_signals')->fetchColumn() === $sig0,
-    'RzMon zelf (ook iets wat op een webshell lijkt): geen incident, niets gestopt, niet voor ketens');
+    'RzSense zelf (ook iets wat op een webshell lijkt): geen incident, niets gestopt, niet voor ketens');
 $would = q("SELECT data FROM edr_events WHERE host_id = ? AND own = 'rzmon' AND kind = 'x'", [$hc['id']])->fetchColumn();
-ok($would && str_contains((string) json_decode((string) $would, true)['_would'], 'Webserver start een shell'), 'groene regel: zou rz-webshell raken, maar is RzMon zelf');
+ok($would && str_contains((string) json_decode((string) $would, true)['_would'], 'Webserver start een shell'), 'groene regel: zou rz-webshell raken, maar is RzSense zelf');
 $sum = json_decode((string) q("SELECT data FROM edr_events WHERE host_id = ? AND kind = 'o' AND own = 'agent' ORDER BY id DESC LIMIT 1", [$hc['id']])->fetchColumn(), true);
 ok(($sum['n']['exec'] ?? 0) === 2 && count($sum['s'] ?? []) === 2, 'agent: één samengevatte groene regel per rapport (2 processen)');
 ok(q("SELECT 1 FROM edr_events WHERE host_id = ? AND own = 'agent' AND kind = 'n'", [$hc['id']])->fetchColumn() !== false, 'verbinding van de agent die op een reverse shell lijkt: groen, met de regel erbij');
 $f = Edr::feed(50, (int) $hc['id']);
 $f2 = Edr::feed(50, (int) $hc['id'], false, 0, false);
 ok(array_filter($f, static fn($e) => $e['own'] === 'agent' && $e['kind'] === 'own') && !array_filter($f2, static fn($e) => $e['own'] !== null), 'Live: groene regels, en te verbergen');
-// Verkeer van of naar RzMon (Suricata, DNS): toegestaan
+// Verkeer van of naar RzSense (Suricata, DNS): toegestaan
 save_setting('rz_own_ips', json_encode(['10.0.0.9']));
 $inc0 = (int) q('SELECT COUNT(*) FROM ids_incidents')->fetchColumn();
 Suricata::process($hc, [['2026-10-28T10:00:01+0100', '10.0.0.9', 40000, '10.0.0.3', 22, 'TCP', 2010937, 'ET SCAN Suspicious inbound to SSH (nmap)', 'Attempted Information Leak', 1, 'allowed']]);
 DnsWatch::check([['client' => '10.0.0.9', 'client_info' => ['name' => 'rzmon'], 'question' => ['name' => 'x.malware.evil.example'], 'reason' => 'NotFilteredNotFound', 'status' => 'NOERROR', 'time' => date('c')]]);
 ok((int) q('SELECT COUNT(*) FROM ids_incidents')->fetchColumn() === $inc0 && (int) q("SELECT COUNT(*) FROM edr_events WHERE own = 'net' AND kind IN ('s', 'd')")->fetchColumn() === 2,
-    'netwerkscan van RzMon (Suricata) en DNS van RzMon: geen incident, wel een groene regel');
-ok(Ids::protectedIp('10.0.0.9') && Ids::autoBlock($hc, '10.0.0.9', 'test') === null, 'RzMon wordt nooit geblokkeerd');
+    'netwerkscan van RzSense (Suricata) en DNS van RzSense: geen incident, wel een groene regel');
+ok(Ids::protectedIp('10.0.0.9') && Ids::autoBlock($hc, '10.0.0.9', 'test') === null, 'RzSense wordt nooit geblokkeerd');
 
 section('Bescherming: waarom, trigger en actie (1.115.0)');
 save_setting('ids_mode', 'block');
@@ -583,7 +583,7 @@ ok(Protect::describe($ws)['actions'][0]['ok'] === true, 'stand bijgewerkt: gesto
 save_setting('ids_mode', 'learn');
 $wl = Ids::raise($hd, 1, 'web_payload', 'swag|203.0.113.151', 'Webaanval vanaf 203.0.113.151: SQL-injectie', '1 verdachte verzoek(en)', '203.0.113.151');
 $x = Protect::describe(q('SELECT * FROM ids_incidents WHERE id = ?', [$wl])->fetch());
-ok(($x['actions'][0]['t'] ?? '') === 'learn' && str_contains($x['actions'][0]['text'], 'IP blokkeren'), 'modus Leren: wat RzMon in Blokkeren zou doen');
+ok(($x['actions'][0]['t'] ?? '') === 'learn' && str_contains($x['actions'][0]['text'], 'IP blokkeren'), 'modus Leren: wat RzSense in Blokkeren zou doen');
 $p = Protect::pushText($bf);
 ok(str_contains($p, 'Waarom: Meer dan 10') && str_contains($p, 'Trigger: Gebruikers') && str_contains($p, 'Actie: ↩'), 'Pushover: waarom, trigger en actie');
 $all = Protect::describeAll(q('SELECT * FROM ids_incidents WHERE id IN (?, ?)', [$bf, $wl])->fetchAll());
@@ -677,15 +677,15 @@ $cnt = (int) q('SELECT COUNT(*) FROM ids_exceptions')->fetchColumn();
 q('DELETE FROM ids_exceptions');
 $imp = Exceptions::import($exp, 'ci');
 ok($imp['added'] === $cnt && !$imp['skipped'] && (int) q("SELECT scope_val FROM ids_exceptions WHERE name = 'Healthchecks'")->fetchColumn() === (int) $ha, 'exporteren en importeren (server op naam terug naar zijn id)');
-// Eigen processen: het kenmerk van RzMon in een opdracht
+// Eigen processen: het kenmerk van RzSense in een opdracht
 $mark = Edr::selfMark();
 ok(preg_match('/^[0-9a-f]{24}$/', $mark) === 1 && rz_sh('id') === ": rzmon:$mark; id" && Edr::isSelfCmd(rz_sh('getent hosts 1.2.3.4')) && Edr::isSelfCmd('/bin/sh -c /usr/bin/php ' . SM_ROOT . '/cron/run.php')
-    && !Edr::isSelfCmd(': rzmon:ffffffffffffffffffffffff; id'), 'kenmerk van RzMon: in elke opdracht, en alleen het echte kenmerk telt');
+    && !Edr::isSelfCmd(': rzmon:ffffffffffffffffffffffff; id'), 'kenmerk van RzSense: in elke opdracht, en alleen het echte kenmerk telt');
 $c0 = (int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'edr'", [$ha])->fetchColumn();
 Edr::process($host, ['ev' => [['k' => 'x', 't' => time(), 'pid' => 7070, 'st' => 1, 'uid' => 48, 'u' => 'apache', 'exe' => '/usr/bin/bash', 'comm' => 'sh', 'argv' => ['sh', '-c', 'x'], 'cmd' => rz_sh('timeout 2 getent hosts 1.2.3.4'), 'pc' => 'php-fpm']]]);
 $row = q("SELECT * FROM edr_events WHERE host_id = ? ORDER BY id DESC LIMIT 1", [$ha])->fetch();
 ok((int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'edr'", [$ha])->fetchColumn() === $c0 && $row['own'] === 'rzmon' && !str_contains((string) $row['data'], $mark),
-    'opdracht van RzMon (php-fpm → sh): geen webshell-melding, eigen regel, en het kenmerk wordt niet bewaard');
+    'opdracht van RzSense (php-fpm → sh): geen webshell-melding, eigen regel, en het kenmerk wordt niet bewaard');
 save_setting('ids_mode', 'learn');
 
 // 1.133.0: handmatige back-ups opruimen (0 = alles bewaren); geüploade blijven altijd
@@ -1012,12 +1012,12 @@ ok($fails0(fn() => AgentCrypto::open('{"rzenc":1,"t":1}', [$kA]), 'onvolledig'),
 // Nieuwe sleutel: de oude blijft nog even geldig (beide in de lijst), de nieuwe werkt meteen
 [$p2, $u2] = AgentCrypto::open($envelope($kA, 'oud'), [$kB, $kA]);
 ok($p2 === 'oud' && $u2 === $kA, 'versleuteling: na een nieuwe sleutel werkt de vorige nog (overgangstijd)');
-// Antwoord van RzMon: de agent kan het controleren en uitpakken, en het hoort bij zijn verzoek (nonce)
+// Antwoord van RzSense: de agent kan het controleren en uitpakken, en het hoort bij zijn verzoek (nonce)
 $resp = json_decode(AgentCrypto::seal('{"ok":true}', $kA, $nonce), true);
 $subA = static fn(string $label) => hash_hmac('sha256', $label, (string) hex2bin($kA));
 $macOk = hash_equals(hash_hmac('sha256', "rzenc1r|{$resp['t']}|{$resp['rn']}|{$resp['iv']}|{$resp['d']}", (string) hex2bin($subA('mac'))), $resp['m']);
 $dec = openssl_decrypt((string) base64_decode($resp['d']), 'aes-256-cbc', (string) hex2bin($subA('enc')), OPENSSL_RAW_DATA, (string) hex2bin($resp['iv']));
-ok($macOk && $dec === '{"ok":true}' && $resp['rn'] === $nonce, 'versleuteling: antwoord van RzMon is gebonden aan het verzoek en voor de agent te controleren');
+ok($macOk && $dec === '{"ok":true}' && $resp['rn'] === $nonce, 'versleuteling: antwoord van RzSense is gebonden aan het verzoek en voor de agent te controleren');
 // Ondertekende GET (zonder inhoud): kenmerk:tijd:nonce:HMAC
 $gn = bin2hex(random_bytes(16));
 $gt = time();
@@ -1383,7 +1383,7 @@ q("INSERT INTO checks (host_id, type, name, target, status, last_message, proble
 $aiC = (int) db()->lastInsertId();
 $ctx = Ai::context('check', $aiC);
 ok(str_contains($ctx['text'], 'ai-host') && str_contains($ctx['text'], 'Poort 22 onbereikbaar') && ($ctx['diag']['via'] ?? '') === 'rzmon' && $ctx['actions'] === [],
-    'context van een check: server, melding, netwerkdiagnose door RzMon (geen agent), geen herstelacties');
+    'context van een check: server, melding, netwerkdiagnose door RzSense (geen agent), geen herstelacties');
 q('DELETE FROM hosts WHERE id = ?', [$aiH]);
 save_setting('ai_on', '0');
 [, , $rb] = Ai::request(['provider' => 'openai', 'url' => 'x', 'key' => 'k', 'model' => 'o3-2025-04-16', 'max_tokens' => 1500], 's', 'p');
@@ -1749,7 +1749,7 @@ ok(is_array($mds['sec']) && isset($mds['sec']['inc'], $mds['sec']['blk_today'], 
     && is_array($mds['net']) && array_key_exists('wan', $mds['net']) && is_array($mds['net']['top']),
     'mDS: beveiliging (incidenten, blokkades, logins, kwetsbaarheden, datalekken) en netwerk (internet, maand, nieuwe apparaten, top 3) zonder fouten');
 
-// 1.183.0: Netwerk → Ontdekken: poorten, domeinen (eerst leren), aanwezigheid, voorstellen en met één klik in RzMon
+// 1.183.0: Netwerk → Ontdekken: poorten, domeinen (eerst leren), aanwezigheid, voorstellen en met één klik in RzSense
 q("DELETE FROM net_devices WHERE mac = 'ee:ee:ee:00:01:83'");
 q("INSERT INTO net_devices (mac, ip, random_mac, vendor, kind, status, ports, info, first_seen, last_seen) VALUES ('ee:ee:ee:00:01:83', '10.183.0.9', 0, 'Reolink', 'camera', 'new', '[80,554]', '{}', NOW(), NOW())");
 $ndId = (int) db()->lastInsertId();
@@ -1772,7 +1772,7 @@ ok(in_array('ports_new', $ndKinds, true) && in_array('ports_gone', $ndKinds, tru
     && $ndPres === ((1 << 3) | (1 << 5)) && array_column($ndSug, 'key') === ['ping', 'p80', 'p554']
     && count($ndChecks) === 2 && $ndChecks[1]['target'] === 'http://10.183.0.9/' && q('SELECT kind FROM hosts WHERE id = ?', [$ndHost])->fetchColumn() === 'camera'
     && q('SELECT status FROM net_devices WHERE id = ?', [$ndId])->fetchColumn() === 'known',
-    'ontdekken: nieuwe en gesloten poort, nieuw domein pas na het leren (lokaal genegeerd), uren gezien, voorstel per poort, met één klik in RzMon');
+    'ontdekken: nieuwe en gesloten poort, nieuw domein pas na het leren (lokaal genegeerd), uren gezien, voorstel per poort, met één klik in RzSense');
 q('DELETE FROM checks WHERE host_id = ?', [$ndHost]);
 q('DELETE FROM hosts WHERE id = ?', [$ndHost]);
 q('DELETE FROM net_events WHERE device_id = ?', [$ndId]);
@@ -1819,7 +1819,7 @@ ok($bz['score'] === 100 && $bz['exploit'] === 60 && $bz['talk'] >= 30 && $bzQuie
     'rugbaarheid: alles = 100 (exploits 60), stil = 0, SSVC en map voor CISA, AI-oordeel, Mastodon alleen via https naar een naam, stijging in 7 dagen');
 q("DELETE FROM vuln_buzz WHERE cve = 'CVE-2099-7001'");
 q("DELETE FROM vuln_cve WHERE cve = 'CVE-2099-7001'");
-// 1.178.0: algemene SNMP-instelling (een server volgt hem of heeft eigen instellingen) en 🧪 Test (RzMon-deel + zelftest van de agent)
+// 1.178.0: algemene SNMP-instelling (een server volgt hem of heeft eigen instellingen) en 🧪 Test (RzSense-deel + zelftest van de agent)
 save_setting(SnmpMonitor::GLOBAL_KEY, '');
 $sgNo = SnmpMonitor::clean(['on' => 1, 'use' => 'global'], null);
 save_setting(SnmpMonitor::GLOBAL_KEY, json_encode(['v' => '3', 'port' => 161, 'user' => 'rzmon', 'level' => 'authPriv', 'auth_proto' => 'SHA256', 'auth_pass' => 'geheimgeheim', 'priv_proto' => 'AES', 'priv_pass' => 'geheimgeheim2']));
@@ -1925,7 +1925,7 @@ ok($smS === STATUS_WARN && $smV === 57.0 && !str_contains((string) $smM, 'midclt
     'TrueNAS: geen temperaturen via midclt, dan die uit SMART (slapende schijf en vreemde namen overgeslagen)');
 q('DELETE FROM hosts WHERE id = ?', [$tnH]);
 
-// 1.205.0: agents wachten tijdens een update van RzMon (aankondigen, vrijgave, samenvatting, geen "agent stil")
+// 1.205.0: agents wachten tijdens een update van RzSense (aankondigen, vrijgave, samenvatting, geen "agent stil")
 section('Update: agents wachten op de vrijgave');
 q("INSERT INTO hosts (name, address, mode, enc_seen, agent_version, agent_seen) VALUES ('ci-uh1', '10.0.9.1', 'agent', 1, '1.82.0', NOW()), ('ci-uh2', '10.0.9.2', 'agent', 1, '1.82.0', NOW()), ('ci-uh3', '10.0.9.3', 'agent', 1, '1.81.0', NOW())");
 $uh1 = (int) q("SELECT id FROM hosts WHERE name = 'ci-uh1'")->fetchColumn();

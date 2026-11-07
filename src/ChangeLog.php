@@ -11,7 +11,7 @@ declare(strict_types=1);
  */
 final class ChangeLog
 {
-    /** Instellingen die RzMon zelf bijhoudt (geen wijziging van een mens) */
+    /** Instellingen die RzSense zelf bijhoudt (geen wijziging van een mens) */
     private const VOLATILE = '/^(cron_|update_cache|update_auto_day|update_pinned_at|.*_state$|.*_seen$|.*_check_at$|.*_domain_at$|ipintel_|hibp_wait|hibp_last_error|hibp_domain_error|hibp_rpm|'
         . 'vuln_daily|vuln_last|vuln_kev|vuln_cache|selfcheck_|db_size_hist|task_watch|mqtt_last|mqtt_discovery|backup_last|backup_retry|backup_fail|templates_seeded|https_since|https_check|'
         . 'own_cert_|proxy_unknown|hsts_sent|cleanup_ignore|maintenance_|ids_weekly_last|agent_fb|enc_old|sec_|stealth_last|wl_last|tests_rev|.*_notified$)/';

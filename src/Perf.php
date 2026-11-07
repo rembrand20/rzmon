@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Snelheidsmeter (1.119.0): hoe lang verzoeken aan RzMon (interface, API, agents) en de onderdelen van een cron-ronde
+ * Snelheidsmeter (1.119.0): hoe lang verzoeken aan RzSense (interface, API, agents) en de onderdelen van een cron-ronde
  * duren. Per uur en per naam opgeteld in perf_stats (één regel per verzoek bijwerken; twee dagen bewaard), zodat je bij
  * Instellingen → Overzicht → Gezondheid ziet waar de tijd zit. Uit te zetten met perf_on.
  */
@@ -40,7 +40,7 @@ final class Perf
 
     /**
      * Agentrapport (1.129.0): de tijd sinds het vorige onderdeel op naam van dit onderdeel zetten, zodat je bij
-     * Gezondheid ziet wat RzMon met een rapport zo lang bezighoudt (IDS, endpoint-bewaking, checks …)
+     * Gezondheid ziet wat RzSense met een rapport zo lang bezighoudt (IDS, endpoint-bewaking, checks …)
      */
     public static function part(string $name): void
     {

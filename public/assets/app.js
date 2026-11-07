@@ -61,29 +61,29 @@ const TYPES = {
   podman:  { label: L('Containers (algemeen)'), target: null, unit: null, help: L('Algehele status van Podman en/of Docker op deze server: draait het, hoeveel containers draaien er, en zijn er containers gestopt met een fout, ongezond (healthcheck) of gepauzeerd, of pods niet in orde? Vereist de agent.') },
   container: { label: L('Container (Podman/Docker)'), target: L('Container'), unit: null, ph: L('naam, of gebruiker/naam (rootless)'), help: L('Eén check per container: de status (draait, healthcheck, herstarts) altijd, en daarnaast de CPU, RAM en disk die je hieronder aanvinkt, elk met eigen drempels. Kies de naam uit de lijst die de agent meldt.') },
   log:     { label: L('Logbestand (zoeken)'), target: L('Bron'), unit: 'treffers', warn: 5, crit: 20, ph: L('/var/log/secure, journal, journal:sshd of kernel'), help: L('De agent leest de nieuwe regels van een logbestand of het systemlog en telt hoeveel er op je zoekpatroon passen in de laatste periode (Instellingen → Alarmgedrag, standaard 15 min). Kies hieronder een voorinstelling of stel zelf in.') },
-  command: { label: L('Commando'), target: null, unit: null, help: L('De agent voert een commando uit op de server, en RzMon vergelijkt de uitvoer met het antwoord dat je verwacht. Alleen als commando\'s voor deze server aan staan (Instellingen → Agents → Commando-checks).') },
+  command: { label: L('Commando'), target: null, unit: null, help: L('De agent voert een commando uit op de server, en RzSense vergelijkt de uitvoer met het antwoord dat je verwacht. Alleen als commando\'s voor deze server aan staan (Instellingen → Agents → Commando-checks).') },
   path:    { label: L('Pad (traceroute)'), target: L('Doel'), unit: 'ms', warn: 50, crit: 150, ph: L('IP-adres of hostnaam, bv. 1.1.1.1'), help: L('Meet vanaf deze server het pad naar een doel: vertraging, jitter en verlies per hop, de switches (UniFi en de apparaten die je hieronder opgeeft) en de doorvoer (iperf3) binnen je netwerk. Agent 1.78.0 of nieuwer, met mtr of traceroute.') },
   truenas: { label: L('TrueNAS'), target: null, unit: null, help: L('Via de agent op TrueNAS SCALE (agent 1.77.0 of nieuwer, als root): TrueNAS zelf uitgelezen met midclt, zonder API-sleutel.') },
   pve:     { label: L('Proxmox VE'), target: null, unit: null, help: L('Via de agent op een Proxmox-host (agent 1.61.0 of nieuwer, als root): de guests (VM\'s en containers), back-ups, opslag en ZFS. Kies hieronder wat je wilt bewaken.') },
   ha:      { label: L('Home Assistant'), target: null, unit: null, help: L('Via de Home Assistant-add-on: de laatste automatische back-up, integraties die niet geladen zijn, of de systeemstatus van de Supervisor. Kies hieronder wat je wilt bewaken.') },
-  snmp:    { label: L('SNMP'),          target: null,            unit: null, help: L('RzMon leest het apparaat zelf uit via SNMP (switches, access points, NAS, UPS, printers, Proxmox…). Interfaces, schijven en voorraden kies je het makkelijkst via 📡 SNMP-checks bij de server.') },
+  snmp:    { label: L('SNMP'),          target: null,            unit: null, help: L('RzSense leest het apparaat zelf uit via SNMP (switches, access points, NAS, UPS, printers, Proxmox…). Interfaces, schijven en voorraden kies je het makkelijkst via 📡 SNMP-checks bij de server.') },
   reboot:  { label: L('Uptime'), target: null, unit: 'uur', help: L('Ziet wanneer de server opnieuw is opgestart (de uptime wordt korter) en stuurt dan een ℹ️ info-melding. De check zelf is altijd OK. Info staat standaard uit: zet hem aan bij Instellingen → 🔔 Meldingen (rij Info), of alleen voor deze check bij 🔔 Meldingen hieronder. Op agent-servers is agent 1.46.0 of nieuwer nodig.') },
-  heartbeat: { label: L('Heartbeat'), target: L('Naam (voor rzmon-hb)'), unit: null, ph: 'backup-db', help: L('Een script, cronjob of apparaat meldt zich zelf bij RzMon (rzmon-hb op een server met de agent, of de geheime URL). Komt er binnen het schema plus de speling niets binnen: WARNING, na twee keer de speling CRITICAL. Mislukt (fail) = CRITICAL. Met start en klaar meet RzMon de duur.') },
+  heartbeat: { label: L('Heartbeat'), target: L('Naam (voor rzmon-hb)'), unit: null, ph: 'backup-db', help: L('Een script, cronjob of apparaat meldt zich zelf bij RzSense (rzmon-hb op een server met de agent, of de geheime URL). Komt er binnen het schema plus de speling niets binnen: WARNING, na twee keer de speling CRITICAL. Mislukt (fail) = CRITICAL. Met start en klaar meet RzSense de duur.') },
   process: { label: L('Proces'),        target: L('Naam of patroon'), unit: null, ph: 'nginx', help: L('Draait het proces? Op naam (zoals in ps of top) of op een patroon in de opdrachtregel, eventueel alleen van één gebruiker. Draait het niet: CRITICAL. Daarnaast optioneel het aantal en het CPU- en RAM-gebruik. Is het herstart, dan komt er een ℹ️ info-melding. Op agent-servers kies je hem uit de lijst; agent 1.59.0 of nieuwer nodig.') },
   // 1.138.0: DNS, tijd, schijfgezondheid, UPS en MariaDB
   dns:     { label: L('DNS'), target: L('Naam'), unit: 'ms', warn: 200, crit: 1000, ph: 'example.com', help: L('Geeft deze naam antwoord? Kies het soort record en eventueel een eigen DNS-server (bv. je router of AdGuard) en de waarde die je verwacht. Geen antwoord of een andere waarde = CRITICAL; de waarde is de responstijd.') },
-  ntp:     { label: L('Tijd (NTP)'), target: L('NTP-server (optioneel)'), unit: 'ms', warn: 100, crit: 1000, ph: L('leeg = klok van deze server'), help: L('Loopt de klok goed? Op een server met de agent: de klok van die server (chrony of systemd-timesyncd), niet gesynchroniseerd = WARNING. Of vul een NTP-server in (bv. je router): dan vraagt RzMon die zelf. De waarde is de afwijking in ms.') },
+  ntp:     { label: L('Tijd (NTP)'), target: L('NTP-server (optioneel)'), unit: 'ms', warn: 100, crit: 1000, ph: L('leeg = klok van deze server'), help: L('Loopt de klok goed? Op een server met de agent: de klok van die server (chrony of systemd-timesyncd), niet gesynchroniseerd = WARNING. Of vul een NTP-server in (bv. je router): dan vraagt RzSense die zelf. De waarde is de afwijking in ms.') },
   smart:   { label: L('Schijfgezondheid (SMART)'), target: L('Schijf'), unit: '°C', warn: 55, crit: 65, ph: L('leeg = alle schijven'), help: L('Via de agent en smartctl (smartmontools): de gezondheidstest, de temperatuur (de drempels hierboven), slijtage van SSD\'s en NVMe (80% = WARNING, 90% = CRITICAL) en vervangen of twijfelachtige sectoren (WARNING). Schijven in slaapstand worden niet wakker gemaakt. Agent 1.70.0 of nieuwer.') },
   ups:     { label: L('UPS (NUT)'), target: L('UPS'), unit: '%', warn: 50, crit: 20, low: true, ph: L('leeg = de eerste'), help: L('Via de agent en NUT (upsc) op de server waar de UPS aan hangt: op de batterij = WARNING, batterij bijna leeg = CRITICAL, en de lading met de drempels hierboven. In het bericht de resterende tijd en de belasting. Agent 1.70.0 of nieuwer.') },
   mysql:   { label: L('Database (MariaDB, MySQL, PostgreSQL)'), target: L('Adres[:poort]'), unit: 'ms', warn: 500, crit: 2000, ph: L('leeg = adres van de server (poort 3306 of 5432)'), help: L('Bewaakt een database echt van binnen: verbindingen, lopende en trage query\'s, cache, replicatie, grootte en (PostgreSQL) vacuum. Kies het overzicht (alles in één check) of één waarde met eigen drempels en grafiek. Op een server met de agent leest de agent de database lokaal uit, zonder dat hij open op het netwerk hoeft. Alleen lezen; het wachtwoord gaat nooit terug naar de browser.') },
   // 1.170.0: domein, MQTT-broker en VPN
-  domain:  { label: L('Domein (verloopdatum)'), target: L('Domein'), unit: 'dagen', warn: 30, crit: 14, low: true, ph: 'example.nl', help: L('Wanneer verloopt je domein? RzMon vraagt het hooguit twee keer per dag op bij de registry (RDAP, de opvolger van WHOIS). Sommige registries, zoals die van .nl, publiceren geen verloopdatum: dan controleert RzMon of het domein nog geregistreerd en actief is (status als opheffing of quarantaine = CRITICAL).') },
-  mqtt:    { label: L('MQTT-broker'), target: L('Adres[:poort]'), unit: 'ms', warn: 500, crit: 2000, ph: L('leeg = adres van de server (poort 1883, met TLS 8883)'), help: L('RzMon logt in bij de broker (bv. Mosquitto), stuurt een testbericht en ontvangt het zelf weer: de waarde is die rondgang in ms. Lukt inloggen niet, of komt het bericht niet terug, dan CRITICAL. Daarnaast kun je een topic bekijken, bv. zigbee2mqtt/bridge/state met "online".') },
+  domain:  { label: L('Domein (verloopdatum)'), target: L('Domein'), unit: 'dagen', warn: 30, crit: 14, low: true, ph: 'example.nl', help: L('Wanneer verloopt je domein? RzSense vraagt het hooguit twee keer per dag op bij de registry (RDAP, de opvolger van WHOIS). Sommige registries, zoals die van .nl, publiceren geen verloopdatum: dan controleert RzSense of het domein nog geregistreerd en actief is (status als opheffing of quarantaine = CRITICAL).') },
+  mqtt:    { label: L('MQTT-broker'), target: L('Adres[:poort]'), unit: 'ms', warn: 500, crit: 2000, ph: L('leeg = adres van de server (poort 1883, met TLS 8883)'), help: L('RzSense logt in bij de broker (bv. Mosquitto), stuurt een testbericht en ontvangt het zelf weer: de waarde is die rondgang in ms. Lukt inloggen niet, of komt het bericht niet terug, dan CRITICAL. Daarnaast kun je een topic bekijken, bv. zigbee2mqtt/bridge/state met "online".') },
   vpn:     { label: L('VPN (Gluetun of WireGuard)'), target: null, unit: null, help: L('Werkt je VPN? Kies hieronder Gluetun of WireGuard.') },
   // 1.187.0: verkeer van een apparaat (uit UniFi)
   traffic: { label: L('Verkeer (UniFi)'), target: L('MAC- of IP-adres'), unit: 'Mbit/s', warn: 50, crit: 200, ph: L('leeg = adres van de server'), help: L('Hoeveel verkeer een apparaat doet, uit de tellers van UniFi (Netwerk → Verkeer per apparaat). Kies wat: de snelheid nu of de hoeveelheid vandaag. Warning en critical gaan af als het meer is dan je drempel.') },
-  // 1.157.0: de internetlijn, vanaf de server van RzMon
-  internet: { label: L('Internet'), target: null, unit: 'ms', warn: 50, crit: 150, help: L('Bewaakt je internetlijn vanaf de server van RzMon. Kies wat: ping, responstijd, download of upload. De snelheidstest draait op vaste tijden; abonnement, drempels en tijden staan bij Instellingen → Monitoring → Internet.') },
+  // 1.157.0: de internetlijn, vanaf de server van RzSense
+  internet: { label: L('Internet'), target: null, unit: 'ms', warn: 50, crit: 150, help: L('Bewaakt je internetlijn vanaf de server van RzSense. Kies wat: ping, responstijd, download of upload. De snelheidstest draait op vaste tijden; abonnement, drempels en tijden staan bij Instellingen → Monitoring → Internet.') },
   service: { label: L('Service'),       target: L('Servicenaam'),   unit: null, ph: 'nginx', help: L('De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.') },
 };
 // Voorinstellingen voor logbestanden: bron, zoekpatroon (regex, hoofdletters maakt niet uit) en drempels
@@ -184,7 +184,7 @@ const TN_METRICS = {
 const isTnHost = (h) => h.metrics.includes('truenas');
 /** VPN (1.170.0): Gluetun via zijn control server, of WireGuard via de agent */
 const VPN_METRICS = {
-  gluetun: { label: L('Gluetun (control server)'), target: L('Control server'), unit: null, ph: L('leeg = http://<adres van de server>:8000'), help: L('RzMon vraagt de control server van Gluetun of de VPN draait en via welk publiek IP het verkeer gaat. Is dat je eigen IP (van de internetlijn van RzMon), dan lekt de VPN: CRITICAL. Staat de control server achter een API-sleutel, vul die hieronder in.') },
+  gluetun: { label: L('Gluetun (control server)'), target: L('Control server'), unit: null, ph: L('leeg = http://<adres van de server>:8000'), help: L('RzSense vraagt de control server van Gluetun of de VPN draait en via welk publiek IP het verkeer gaat. Is dat je eigen IP (van de internetlijn van RzSense), dan lekt de VPN: CRITICAL. Staat de control server achter een API-sleutel, vul die hieronder in.') },
   wg: { label: L('WireGuard (via de agent)'), target: L('Peer'), unit: 's', warn: 300, crit: 900, ph: L('leeg = alle peers, of bv. wg0'), help: L('Hoe lang geleden de laatste handshake was (de oudste peer telt). Met verkeer of PersistentKeepalive is dat elke 2 minuten; een tunnel zonder verkeer en zonder keepalive maakt geen handshakes. Agent 1.75.0 als root nodig.') },
 };
 /** 1.200.0: wat een databasecheck bewaakt (zoals Db::UNITS); only = alleen bij die database */
@@ -314,7 +314,7 @@ const idsDayOpen = {};
 
 // ---------------------------------------------------------------- API
 // ---------------------------------------------------------------- 1.202.0: laadteller per pagina
-/* Opent een pagina (of een tabblad op een pagina), dan telt RzMon de verzoeken die daarbij vertrekken. Duurt het
+/* Opent een pagina (of een tabblad op een pagina), dan telt RzSense de verzoeken die daarbij vertrekken. Duurt het
    langer dan 0,4 s: een dun balkje bovenaan, een teller in het kruimelpad en een draaiertje bij het menu-item.
    Na 1,5 s: de pols-animatie over de pagina (niet over het hele scherm), met per onderdeel ✓ of …. Na 8 s: een
    melding met de gewone duur en ↻ Opnieuw. Verversen op de achtergrond telt nooit mee (dat loopt niet via pageWait). */
@@ -451,7 +451,7 @@ async function apiRaw(action, body, params = {}, retried = false) {
   for (let i = 0; ; i++) {
     try { res = await fetch('api.php?' + qs, opts); break; }
     catch (ex) {
-      if (body || i >= 2) throw Object.assign(new Error(L('Geen verbinding met RzMon (het netwerk of de proxy verbrak de verbinding). Probeer het opnieuw.')), { status: 0, network: true, cause: ex });
+      if (body || i >= 2) throw Object.assign(new Error(L('Geen verbinding met RzSense (het netwerk of de proxy verbrak de verbinding). Probeer het opnieuw.')), { status: 0, network: true, cause: ex });
       await new Promise((ok) => setTimeout(ok, i ? 1200 : 300));
     }
   }
@@ -668,7 +668,7 @@ function fxSyncHash() {
   if (!page) return;
   const tab = FX_TAB[page];
   const plain = tab === 'dashboard' || tab === 'alerts' || (page === 'ids' && !fxActive(page)) || (page === 'vulns' && !$('#vuln-tabs') && !fxActive(page));
-  history.replaceState(null, '', '#' + (plain ? tab.split('/')[0] : tab) + fxQuery(page));
+  history.replaceState(null, '', '#' + hashName(plain ? tab.split('/')[0] : tab) + fxQuery(page));
 }
 /** Filters uit het adres (gaan voor op de bewaarde) */
 function fxFromQuery(page, qs) {
@@ -982,7 +982,7 @@ function toast(msg, type = 'ok', onClick = null) {
 }
 
 // ---- Contact met de agent (1.99.0): laatste en volgende contact, live bijgewerkt
-let clockSkew = 0;   // seconden dat de klok van RzMon voorloopt op die van de browser
+let clockSkew = 0;   // seconden dat de klok van RzSense voorloopt op die van de browser
 const nowS = () => Date.now() / 1000 + clockSkew;
 const syncClock = (ts) => { if (ts) clockSkew = +ts - Date.now() / 1000; };
 const clockText = (ts) => {
@@ -1069,7 +1069,7 @@ if (forgotForm) {
       $('#forgot-fields').hidden = true;
       $('#forgot-done').hidden = false;
       $('#forgot-done').innerHTML = r.no_mail
-        ? '⚠️ ' + L('RzMon kan op dit moment geen e-mail versturen. <b>Vraag een beheerder</b> om je wachtwoord opnieuw in te stellen.')
+        ? '⚠️ ' + L('RzSense kan op dit moment geen e-mail versturen. <b>Vraag een beheerder</b> om je wachtwoord opnieuw in te stellen.')
         : '✉️ ' + L('Als dit account bestaat en een e-mailadres heeft, is er een mail met een herstellink verstuurd. Kijk ook in je spammap. De link is 30 minuten geldig.');
       err.hidden = true;
     } catch (ex) { err.textContent = ex.message; err.hidden = false; }
@@ -1421,7 +1421,7 @@ function init() {
     }
     modal({
       title: '⛔ ' + L('IDS: blokkeren aanzetten'),
-      body: `<p style="margin-top:0">${L('RzMon gaat dan echt IP-adressen blokkeren op je servers (eigen nftables-tabel van de agent), bij brute force en als jij op ⛔ klikt. Je LAN, RzMon zelf en de lijst <i>Nooit blokkeren</i> worden nooit automatisch geblokkeerd; op TrueNAS wordt alleen gedetecteerd.')}</p>
+      body: `<p style="margin-top:0">${L('RzSense gaat dan echt IP-adressen blokkeren op je servers (eigen nftables-tabel van de agent), bij brute force en als jij op ⛔ klikt. Je LAN, RzSense zelf en de lijst <i>Nooit blokkeren</i> worden nooit automatisch geblokkeerd; op TrueNAS wordt alleen gedetecteerd.')}</p>
         ${xpHtml(L('Blokkeren kun je op een server zelf altijd uitzetten.'), L('Op een server zelf zet je blokkeren altijd uit met <code>IDS_BLOCK=0</code> in de instellingen van de agent. <b>Tip:</b> zet het de eerste keer aan terwijl je ook via de console kunt inloggen, voor het geval je jezelf buitensluit. Deze wijziging komt in het logboek.'))}
         ${confirmField('BLOKKEREN')}`,
       buttons: [{ label: L('Blokkeren aanzetten'), cls: 'primary', submit: true }],
@@ -1474,7 +1474,7 @@ function init() {
     const b = e.target.closest('[data-learn]');
     if (!b) return;
     const finish = b.dataset.learn === 'finish';
-    if (!confirm(finish ? L('Leren nu afronden? Vanaf nu meldt RzMon alles wat deze server nog niet deed.') : L('Opnieuw leren? Alles wat RzMon over deze server geleerd heeft, gaat weg; de komende dagen wordt er niets als afwijking gemeld.'))) return;
+    if (!confirm(finish ? L('Leren nu afronden? Vanaf nu meldt RzSense alles wat deze server nog niet deed.') : L('Opnieuw leren? Alles wat RzSense over deze server geleerd heeft, gaat weg; de komende dagen wordt er niets als afwijking gemeld.'))) return;
     try { await api('edr_learn', { host_id: +b.dataset.h, action: b.dataset.learn }); toast(finish ? L('Leren afgerond') : L('De server leert opnieuw')); loadAnom(); } catch (ex) { toast(ex.message, 'err'); }
   };
   $('#prot-cards').onchange = async (e) => {
@@ -1760,7 +1760,11 @@ function init() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
 }
 
+/** 1.214.0: in het adres heet Monitoring #monitoring (intern blijft het tabblad 'dashboard'; #dashboard werkt nog) */
+function hashName(n) { return String(n).replace(/^dashboard(?=$|\/|\?)/, 'monitoring').replace(/^monitoring\/checks(?=$|\?)/, 'monitoring'); }
+
 function showTab(name) {
+  name = String(name).replace(/^monitoring(?=$|\/|\?)/, 'dashboard');
   xpClose();
   // 1.171.4: terug op Monitoring vanaf een andere pagina: weer alles (filterknop en statusfilter terug naar Alle)
   if (/^dashboard\b/.test(String(name)) && ($('.tab-panel:not([hidden])') || {}).id !== 'tab-dashboard') { dashFilter = 'all'; statusFilter = null; }
@@ -1793,7 +1797,7 @@ function showTab(name) {
   { const m = $('#tab-more'); if (m) m.classList.toggle('active', MORE_TABS.includes(name)); }   // 1.196.0
   moveTabIndicator();
   $$('.tab-panel').forEach((p) => (p.hidden = p.id !== 'tab-' + name));
-  history.replaceState(null, '', '#' + name);
+  history.replaceState(null, '', '#' + hashName(name));
   fxSyncHash();
   sideMode(name);   // 1.167.0
   renderIsoBanner(name);   // 1.172.0
@@ -1834,7 +1838,7 @@ function crumbs() {
   const tabName = (t) => (t === 'settings' ? L('Instellingen') : t === 'account' ? L('Mijn account') : crumbText($(`#main-tabs .tab[data-tab="${t}"] .tab-lbl`) || $(`#main-tabs .tab[data-tab="${t}"]`)) || t);
   const parts = [{ l: '🏠', t: L('Start'), go: 'home' }];
   if (tab !== 'home') parts.push({ l: tabName(tab), go: CRUMB_DEF[tab] || tab });
-  if (tab === 'dashboard') parts.push({ l: crumbText($(`#mon-tabs [data-msub="${monSub}"]`)), go: 'dashboard/' + monSub });
+  if (tab === 'dashboard' && monSub !== 'checks') parts.push({ l: crumbText($(`#mon-tabs [data-msub="${monSub}"]`)), go: 'dashboard/' + monSub });   // 1.214.0: eerste subtabblad heet zelf Monitoring
   if (tab === 'net') parts.push({ l: crumbText($(`#net-tabs [data-nsub="${netSub}"]`)), go: 'net/' + netSub });
   if (tab === 'ids') parts.push({ l: crumbText($(`#ids-tabs [data-it="${idsTab}"]`)), go: 'ids/' + idsTab });
   if (tab === 'vulns' && $('#vuln-tabs')) parts.push({ l: crumbText($(`#vuln-tabs [data-vt="${vulnTab}"]`)), go: 'vulns/' + vulnTab });
@@ -2075,7 +2079,7 @@ function hostMax(h, type) {
   const v = h.checks.filter((c) => c.type === type && +c.enabled && !c.maintenance && c.last_value !== null && c.last_value !== undefined).map((c) => +c.last_value);
   return v.length ? Math.max(...v) : null;
 }
-/** Dagen tot de disk vol is, uit de trend die RzMon al bijhoudt (zelfde regel als Stats::diskForecast) */
+/** Dagen tot de disk vol is, uit de trend die RzSense al bijhoudt (zelfde regel als Stats::diskForecast) */
 function diskDays(c) {
   const t = c.trend_per_day !== null && c.trend_per_day !== undefined ? +c.trend_per_day : null;
   if (t === null || t <= 0.05 || +c.last_value >= 100) return null;
@@ -3300,7 +3304,7 @@ async function aiAsk(force) {
     if (cur === aiCur) aiShow(r.advice);
   } catch (ex) {
     if (cur !== aiCur) return;
-    // Een te lange vraag kan een time-out van de webserver geven terwijl RzMon doorgaat: blijven kijken
+    // Een te lange vraag kan een time-out van de webserver geven terwijl RzSense doorgaat: blijven kijken
     if (/504|502|time|Ongeldig antwoord/i.test(ex.message)) aiPoll(cur, null); else aiShow(null, ex.message);
   }
 }
@@ -3378,7 +3382,7 @@ document.addEventListener('click', async (e) => {
       if (!r0.advice) return;
       const r = await api('ai_feedback', { id: r0.advice.id, [fb.dataset.aiFb]: +fb.dataset.v });
       if (cur === aiCur) aiShow(r.advice);
-      toast(L('Dank je, dat onthoudt RzMon'));
+      toast(L('Dank je, dat onthoudt RzSense'));
     } catch (err) { toast(err.message, 'err'); }
     return;
   }
@@ -3447,7 +3451,7 @@ function aiCostRender(u) {
     kpi(L('Deze maand'), aiMoney(m.cost), (b > 0 ? L('van {b} budget', { b: aiMoney(b) }) + ' · ' : '') + L('{n} vragen · {t} tokens', { n: m.n, t: aiTok(m.tin + m.tout) }), b > 0 ? pct : null, pct >= 100 ? 'bad' : pct >= 80 ? 'warn' : ''),
     ...credits.map(([p, c]) => kpi(L('Tegoed {p}', { p: esc((u.models.find((x) => x.provider === p) || {}).label || p) }), '± ' + aiMoney(Math.max(0, c.left)),
       L('van {a} sinds {d}', { a: aiMoney(c.amount), d: aiDay(c.since) }), c.pct, c.pct <= 0 ? 'bad' : c.pct <= 20 ? 'warn' : '')),
-  ].join('') + (m.unpriced ? `<p class="muted small ai-kpi-note">⚠️ ${L('{n} adviezen deze maand zonder prijs: vul hieronder de prijs per model in, dan rekent RzMon ze alsnog mee.', { n: m.unpriced })}</p>` : '');
+  ].join('') + (m.unpriced ? `<p class="muted small ai-kpi-note">⚠️ ${L('{n} adviezen deze maand zonder prijs: vul hieronder de prijs per model in, dan rekent RzSense ze alsnog mee.', { n: m.unpriced })}</p>` : '');
   // Kosten per dag (30 dagen); zonder kosten (Ollama of geen prijzen): tokens per dag
   const byCost = u.days.some((d) => d.cost > 0), val = (d) => (byCost ? d.cost : d.tok), max = Math.max(...u.days.map(val), 0);
   $('#ai-cost-chart').innerHTML = max > 0 ? `<div class="ai-chart"><div class="ai-chart-h small"><b>${byCost ? L('Kosten per dag') : L('Tokens per dag')}</b> <span class="muted">${L('laatste 30 dagen')} · ${L('hoogste {v}', { v: byCost ? aiMoney(max) : aiTok(max) })}</span></div>
@@ -3543,7 +3547,7 @@ function renderNow() {
   let open = 0;
   if (state.badges) open = state.badges.dashboard + state.badges.alerts;   // nieuwe problemen + nieuwe meldingen
   else state.hosts.forEach((h) => +h.enabled && h.checks.forEach((c) => +c.enabled && !c.maintenance && +c.status === 2 && !c.acked_at && open++));
-  document.title = (open ? `(${open}) ` : '') + 'RzMon';
+  document.title = (open ? `(${open}) ` : '') + 'Rz//Sense AI';
 
   // Filterchips: alleen soorten die er zijn, met hun aantal
   const chips = DASH_FILTERS.map(([k, label, fn]) => [k, label(), state.hosts.filter(fn).length]).filter(([k, , n]) => k === 'all' || k === 'problems' || n);
@@ -3832,7 +3836,7 @@ function ccNetChart() {
   const devs = netData.devices, day = Date.now() - 86400e3;
   const online = devs.filter((x) => new Date(String(x.last_seen).replace(' ', 'T')).getTime() > day).length;
   const rows = [[L('Online (24 uur)'), online, 'var(--fx-ok)'], [L('Nieuw'), devs.filter((x) => x.status === 'new').length, 'var(--fx-wa)'],
-    [L('Riskante poort'), devs.filter((x) => x.risky.length && x.status !== 'ignored').length, 'var(--fx-cr)'], [L('In RzMon'), devs.filter((x) => x.host).length, 'var(--fx-cy)'],
+    [L('Riskante poort'), devs.filter((x) => x.risky.length && x.status !== 'ignored').length, 'var(--fx-cr)'], [L('In RzSense'), devs.filter((x) => x.host).length, 'var(--fx-cy)'],
     [L('Bekend'), devs.filter((x) => x.status === 'known').length, 'var(--fx-ou)'], [L('Genegeerd'), devs.filter((x) => x.status === 'ignored').length, 'var(--fx-mu)']];
   a.innerHTML = `<div class="cc-h"><span class="cc-hl">${esc(L('Apparaten · {n} in totaal', { n: devs.length }))}</span></div><div class="pg-hgrid">${ccHbars(rows)}</div>`;
 }
@@ -4433,7 +4437,7 @@ function labelLines(root) {
 function edrNoteDialog(h, keys) {
   modal({
     title: '🛡️ ' + L('Endpoint-bewaking op {name}', { name: h.name }),
-    body: `<p style="margin-top:0">${L('Op deze server ontbreekt iets voor de endpoint-bewaking. Zonder werkt de rest gewoon, maar ziet RzMon minder (bv. geen nieuwe processen zonder auditd).')}</p>
+    body: `<p style="margin-top:0">${L('Op deze server ontbreekt iets voor de endpoint-bewaking. Zonder werkt de rest gewoon, maar ziet RzSense minder (bv. geen nieuwe processen zonder auditd).')}</p>
       <p class="muted small">${L('Niet meer tonen geldt voor deze server en voor wat nu ontbreekt. Weer tonen kan in de Agent Manager, bij Functies.')}</p>`,
     buttons: [{ label: '🙈 ' + L('Niet meer tonen'), style: 'margin-right:auto', onClick: async () => {
       try { await edrHideSave(h.id, [...new Set([...edrHidden(h.id), ...keys])]); $('#modal').close(); toast(L('Wordt niet meer getoond voor {name}', { name: h.name })); } catch (ex) { toast(ex.message, 'err'); }
@@ -4950,7 +4954,7 @@ async function checkInfo(id, live = false, more = null) {
     ['Type', `${esc(t.label)}${c.target ? ` · <code>${esc(c.target)}</code>` : ''}`],
     ['Interval', fmtInterval(c.interval_sec)],
     ...(unit && (c.warn_threshold !== null || c.crit_threshold !== null) ? [[r.smart && r.smart.mode !== 'manual' ? L('Vaste drempels') : L('Drempels'), `${t.low ? L('onder') + ' ' : ''}${c.warn_threshold ?? '–'} / ${c.crit_threshold ?? '–'} ${esc(L(unit))}`
-      + (r.smart && r.smart.mode !== 'manual' ? ` <span class="muted small">(${r.smart.days >= r.smart.min_days ? L('niet in gebruik: slimme drempels') : L('in gebruik tot RzMon genoeg geleerd heeft')})</span>` : '')]] : []),
+      + (r.smart && r.smart.mode !== 'manual' ? ` <span class="muted small">(${r.smart.days >= r.smart.min_days ? L('niet in gebruik: slimme drempels') : L('in gebruik tot RzSense genoeg geleerd heeft')})</span>` : '')]] : []),
     [L('Laatste check'), c.last_checked ? ago(c.last_checked) + (c.run_ms !== null && c.run_ms !== undefined ? ` · ${L('duurde {n} ms', { n: (+c.run_ms).toLocaleString(LOCALE) })}` : '') : L('nog niet')],
     [L('Beschikbaar'), r.uptime.d1 === null ? `<span class="muted">${L('nog geen metingen')}</span>` : `${L('24 u')} <b>${fmtPct(r.uptime.d1)}</b> · ${L('7 d')} <b>${fmtPct(r.uptime.d7)}</b>`],
   ];
@@ -5054,7 +5058,7 @@ async function checkInfo(id, live = false, more = null) {
     // 1.200.0: database van binnen: versie, verbindingen, cache, replicatie, grootte en lopende query's
     const m = d.m || {}, cl = d.calc || {}, r = m.repl;
     const sizes = Object.entries(m.sizes || {}).slice(0, 5);
-    det = [[L('Database'), `<b>${esc(m.version || (m.engine === 'pgsql' ? 'PostgreSQL' : 'MariaDB/MySQL'))}</b> <span class="muted small">${d.via === 'agent' ? (d.where === 'container' ? L('via de agent, container {c}', { c: esc(d.container) }) : L('via de agent, lokaal')) : L('RzMon maakt verbinding')}</span>`],
+    det = [[L('Database'), `<b>${esc(m.version || (m.engine === 'pgsql' ? 'PostgreSQL' : 'MariaDB/MySQL'))}</b> <span class="muted small">${d.via === 'agent' ? (d.where === 'container' ? L('via de agent, container {c}', { c: esc(d.container) }) : L('via de agent, lokaal')) : L('RzSense maakt verbinding')}</span>`],
       m.uptime !== null && m.uptime !== undefined ? [L('Draait'), esc(durText(m.uptime))] : null,
       m.conn !== null && m.conn !== undefined ? [L('Verbindingen'), `<b class="${m.conn_pct >= 90 ? 'ct-bad' : ''}">${m.conn} / ${m.max_conn}</b> <span class="muted small">(${dec(String(m.conn_pct ?? 0))}%) · ${L('{n} actief', { n: m.active ?? 0 })}</span>`] : null,
       cl.qps !== null && cl.qps !== undefined ? [L('Query\'s per seconde'), dec(String(cl.qps))] : null,
@@ -5255,7 +5259,7 @@ async function loadSmartProposals() {
   if (!el) return;
   let r;
   try { r = await api('smart_proposals'); } catch (ex) { el.innerHTML = `<p class="err-txt small">${esc(ex.message)}</p>`; return; }
-  if (!r.list.length) { el.innerHTML = `<p class="muted small">${L('Nog geen voorstellen: RzMon heeft per check minstens 7 dagen meetwaarden nodig, of al je checks die kunnen leren staan al op slim.')}</p>`; return; }
+  if (!r.list.length) { el.innerHTML = `<p class="muted small">${L('Nog geen voorstellen: RzSense heeft per check minstens 7 dagen meetwaarden nodig, of al je checks die kunnen leren staan al op slim.')}</p>`; return; }
   el.innerHTML = `<div class="table-wrap"><table class="small smart-prop"><thead><tr><th><input type="checkbox" id="smart-all" ${isAdmin() ? '' : 'disabled'}></th><th>${L('Check')}</th><th>${L('Server')}</th>
       <th title="${esc(L('Dagen met een warning, met de drempels die nu gelden'))}">${L('Dagen met warning – nu')}</th><th title="${esc(L('Dagen met een warning als de check slimme drempels had gehad'))}">${L('– met slim')}</th><th>${L('Waarom')}</th></tr></thead><tbody>
     ${r.list.map((p) => `<tr class="${p.gain > 0 ? '' : 'smart-nogain'}"><td><input type="checkbox" data-smart-id="${p.id}" ${p.gain > 0 ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}></td>
@@ -5365,7 +5369,7 @@ async function loadStatusPage() {
         <button type="button" class="seg-btn ${link === 'external' ? 'active' : ''}" data-link="external" ${d.url_ext ? '' : 'disabled'}
           title="${esc(d.url_ext ? L('Link met het externe adres, voor buiten je netwerk') : L('Vul eerst de externe URL in (Instellingen → Server en PHP)'))}">🌐 ${L('Extern')}</button></div></div>
     <div class="copy-line"><pre class="code" id="sp-url">${esc(url())}</pre><button type="button" class="btn" id="sp-copy">${L('Kopieer')}</button></div>
-    <p class="hint">${d.url_ext ? '' : `${L('Wil je de link ook buiten je netwerk gebruiken? Vul dan de externe URL in.')} <a href="#" data-goto-set="server">${L('Naar Server en PHP')}</a> `}${d.has_base ? '' : L('Tip: vul bij Instellingen → Server en PHP het adres van RzMon in (Basis-URL). ')}${L('Een nieuwe link maken? Dan werkt de oude meteen niet meer.')}
+    <p class="hint">${d.url_ext ? '' : `${L('Wil je de link ook buiten je netwerk gebruiken? Vul dan de externe URL in.')} <a href="#" data-goto-set="server">${L('Naar Server en PHP')}</a> `}${d.has_base ? '' : L('Tip: vul bij Instellingen → Server en PHP het adres van RzSense in (Basis-URL). ')}${L('Een nieuwe link maken? Dan werkt de oude meteen niet meer.')}
       <button type="button" class="btn small-btn" id="sp-new">↻ ${L('Nieuwe link')}</button> <a href="${esc(url())}" target="_blank" rel="noopener" class="btn small-btn" id="sp-open">${L('Openen')} ↗</a></p>
     <div class="btn-row" style="margin-top:.8rem"><button type="button" class="btn primary" id="sp-save">${L('Opslaan')}</button></div>`;
   const rows = $('#sp-rows');
@@ -5552,7 +5556,7 @@ function modalError(msg) {
 }
 
 // ---------------------------------------------------------------- Host form
-/** Eerste optie bij Soort apparaat: wat RzMon zelf herkent */
+/** Eerste optie bij Soort apparaat: wat RzSense zelf herkent */
 function kindAutoText(h, k = null) {
   const auto = k || (h && h.id ? [h.kind_auto].find((x) => x && KIND_INFO[x]) || (isHa(h) ? 'smarthome' : ['agent', 'local'].includes(h.mode) ? 'server'
     : CAMERA_NAME.test(h.name || '') ? 'camera' : null) : null);
@@ -5907,7 +5911,7 @@ async function loadSnmpGlobal() {
   let r;
   try { r = await api('snmp_global'); } catch (ex) { box.innerHTML = `<p class="bad small">${esc(ex.message)}</p>`; return; }
   const nGlob = r.hosts.filter((x) => x.global).length;
-  box.innerHTML = `${r.available ? '' : `<div class="callout">⚠️ ${L('De PHP-extensie snmp ontbreekt op de RzMon-server. Rocky Linux: sudo dnf install php-snmp en herstart PHP (of voer install-rocky.sh opnieuw uit)')}</div>`}
+  box.innerHTML = `${r.available ? '' : `<div class="callout">⚠️ ${L('De PHP-extensie snmp ontbreekt op de RzSense-server. Rocky Linux: sudo dnf install php-snmp en herstart PHP (of voer install-rocky.sh opnieuw uit)')}</div>`}
     ${swsOpen({ id: 'snmpg-wrap', cb: 'id="snmpg-on"', icon: '🌐', title: L('Algemene instelling'), on: !!r.cfg,
       sub: r.cfg ? L('{n} apparaten gebruiken hem', { n: nGlob }) : L('uit: elk apparaat heeft dan eigen instellingen nodig') })}
       <div id="snmpg-fields">${snmpFieldsHtml(r.cfg)}</div>
@@ -6002,7 +6006,7 @@ function snmpHostFields(s) {
     <label class="switch"><input type="checkbox" name="snmp_own" ${own ? 'checked' : ''}><span></span> ${L('Eigen instellingen')} <span class="hint">${esc(snmpGlobalText())}</span></label>
     <div id="snmp-fields" ${own ? '' : 'hidden'}>${snmpFieldsHtml(s || state.snmp_global)}</div>
     <div class="snmp-test-row"><button type="button" class="btn" id="snmp-test">🔍 ${L('Test SNMP')}</button><span class="small" id="snmp-test-out"></span></div>
-    ${xpHtml(L('RzMon leest dit apparaat zelf uit via SNMP.'), L('<b>Wat het doet:</b> RzMon vraagt het apparaat zelf om gegevens (UDP-poort 161), zonder agent. <b>Instellen:</b> zet SNMP aan op het apparaat en geef het een community (v2c) of een gebruiker (v3). <b>Algemeen of eigen:</b> zonder <i>Eigen instellingen</i> gebruikt dit apparaat de algemene instelling uit <i>Instellingen → Koppelingen → SNMP</i>; verander je die, dan geldt dat meteen voor alle apparaten zonder eigen instellingen.'))}
+    ${xpHtml(L('RzSense leest dit apparaat zelf uit via SNMP.'), L('<b>Wat het doet:</b> RzSense vraagt het apparaat zelf om gegevens (UDP-poort 161), zonder agent. <b>Instellen:</b> zet SNMP aan op het apparaat en geef het een community (v2c) of een gebruiker (v3). <b>Algemeen of eigen:</b> zonder <i>Eigen instellingen</i> gebruikt dit apparaat de algemene instelling uit <i>Instellingen → Koppelingen → SNMP</i>; verander je die, dan geldt dat meteen voor alle apparaten zonder eigen instellingen.'))}
   </div></section>`;
 }
 
@@ -6304,7 +6308,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
   const { form } = modal({
     title: tpl ? `📋 ${tpl.name}: ${isNew ? L('check toevoegen') : c.name}` : isNew ? L('Check toevoegen – {name}', { name: h.name }) : L('Check bewerken – {name}', { name: c.name }),
     body: `
-      ${tpl ? `${xpHtml(L('Met {adres} en {naam} vult RzMon per server het juiste adres en de naam in.'), L('Gebruik <code>{adres}</code> en <code>{naam}</code> in het doel of de naam: die worden per server ingevuld (bijvoorbeeld <code>https://{adres}/</code>). <b>Opslaan</b> werkt alle gekoppelde servers bij, behalve checks die daar zelf zijn aangepast.'))}` : ''}
+      ${tpl ? `${xpHtml(L('Met {adres} en {naam} vult RzSense per server het juiste adres en de naam in.'), L('Gebruik <code>{adres}</code> en <code>{naam}</code> in het doel of de naam: die worden per server ingevuld (bijvoorbeeld <code>https://{adres}/</code>). <b>Opslaan</b> werkt alle gekoppelde servers bij, behalve checks die daar zelf zijn aangepast.'))}` : ''}
       ${!tpl && c.template_item_id ? `<div class="callout small">📋 ${L('Uit het sjabloon <b>{t}</b>.', { t: esc((state.tpl_items || {})[c.template_item_id] || '?') })}
         ${+c.tpl_override ? `${L('Op deze server aangepast: wijzigingen aan het sjabloon gaan hier niet meer mee.')} <button type="button" class="btn small-btn" id="tpl-reset">↩ ${L('Terug naar het sjabloon')}</button>`
           : L('Pas je hem hier aan, dan gaat hij niet meer mee met het sjabloon (terugzetten kan altijd).')}</div>` : ''}
@@ -6320,7 +6324,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
         <label>${L('Tussenliggende apparaten')} <span class="hint">${L('(optioneel: switches en andere apparaten op de weg, IP-adressen met komma\'s)')}</span>
           <input name="via" class="mono" list="path-via-list" value="${esc((opts.via || []).join(', '))}" placeholder="${L('bv. 192.168.2.5, 192.168.2.10')}">
           <datalist id="path-via-list">${pathViaOptions(h)}</datalist>
-          <span class="hint">${L('Een switch zie je niet in een traceroute; met zijn IP-adres pingt RzMon hem wel en zet hem op de juiste plek in het pad.')}</span>
+          <span class="hint">${L('Een switch zie je niet in een traceroute; met zijn IP-adres pingt RzSense hem wel en zet hem op de juiste plek in het pad.')}</span>
         </label>
         <label class="switch"><input type="checkbox" name="tp" ${opts.tp === 0 ? '' : 'checked'}><span></span> ${L('Doorvoer meten met iperf3')}</label>
         <div class="row2">
@@ -6359,7 +6363,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
           </label>
           <label>${L('Time-out')} <span class="hint">${L('seconden (1–60)')}</span><input name="cmd_timeout" type="number" min="1" max="60" value="${cmdCfg.timeout || 10}"></label>
         </div>
-        ${xpHtml(L('Hoe RzMon de uitvoer vergelijkt en hoe het commando draait.'), L('<b>Vergelijken:</b> spaties en regeleindes aan het begin en eind tellen niet mee. Een regex schrijf je zonder scheidingstekens, bijvoorbeeld <code>^ok\\b</code> of <code>temp=[0-5][0-9]</code>. <b>Uitvoeren:</b> het commando draait in <code>bash</code>, zonder invoer, als <code>nobody</code>, of als root als dat voor deze server is toegestaan.'))}
+        ${xpHtml(L('Hoe RzSense de uitvoer vergelijkt en hoe het commando draait.'), L('<b>Vergelijken:</b> spaties en regeleindes aan het begin en eind tellen niet mee. Een regex schrijf je zonder scheidingstekens, bijvoorbeeld <code>^ok\\b</code> of <code>temp=[0-5][0-9]</code>. <b>Uitvoeren:</b> het commando draait in <code>bash</code>, zonder invoer, als <code>nobody</code>, of als root als dat voor deze server is toegestaan.'))}
       </div>
       <div id="hb-wrap" hidden>${hbFields(c, h, opts)}</div>
       <div id="log-wrap" hidden>
@@ -6400,7 +6404,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
           <label>${L('Bewaken')} <select name="metric" id="db-metric">${Object.entries(DB_METRICS).map(([k, m]) => `<option value="${k}" ${(c.type === 'mysql' ? c.metric || 'overview' : 'overview') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select></label>
         </div>
         ${h.mode === 'agent' ? `<div class="row2">
-          <label>${L('Meten')} <select name="db_via"><option value="agent">${L('Via de agent (lokaal, aanbevolen)')}</option><option value="rzmon" ${c.type === 'mysql' && !isNew && (opts.via || 'rzmon') === 'rzmon' ? 'selected' : ''}>${L('RzMon maakt verbinding (netwerk)')}</option></select></label>
+          <label>${L('Meten')} <select name="db_via"><option value="agent">${L('Via de agent (lokaal, aanbevolen)')}</option><option value="rzmon" ${c.type === 'mysql' && !isNew && (opts.via || 'rzmon') === 'rzmon' ? 'selected' : ''}>${L('RzSense maakt verbinding (netwerk)')}</option></select></label>
           <label id="db-where-wrap">${L('Waar')} <select name="db_where"><option value="local">${L('Op de server zelf')}</option><option value="container" ${opts.where === 'container' ? 'selected' : ''}>${L('In een container')}</option></select></label>
         </div>
         <label id="db-ct-wrap">${L('Container')} <input name="db_container" list="db-ct-list" maxlength="160" value="${esc(opts.container || '')}" placeholder="mariadb"><datalist id="db-ct-list">${containers.map((x) => `<option value="${esc(x)}">`).join('')}</datalist></label>` : ''}
@@ -6497,7 +6501,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
       </div>
       <div id="ssl-from-wrap" hidden>
         <label>${L('Certificaat lezen')}
-          <select name="cert_from">${[['', L('Automatisch (bestand en localhost via de agent, de rest vanaf RzMon)')], ['rzmon', L('Vanaf RzMon (via het netwerk)')], ['agent', L('Op de server zelf (agent)')]]
+          <select name="cert_from">${[['', L('Automatisch (bestand en localhost via de agent, de rest vanaf RzSense)')], ['rzmon', L('Vanaf RzSense (via het netwerk)')], ['agent', L('Op de server zelf (agent)')]]
             .map(([v, l]) => `<option value="${v}" ${(opts.from || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
           <span class="hint">${L('Via de agent zie je wat de server zelf aanbiedt, ook op poorten die alleen lokaal open staan.')}</span>
         </label>
@@ -6631,7 +6635,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
       const r = await api('check_try', { ...payloadOf(Object.fromEntries(new FormData(form))), host_id: h.id, check_id: c.id || 0 });
       out.innerHTML = `<b>${ST_ICON[r.status] || ''} ${esc(STATUS[r.status] || '')}</b>${r.value != null ? ` · ${esc(dec(+r.value))}${(TYPES[form.type.value] || {}).unit ? ' ' + esc(L(TYPES[form.type.value].unit)) : ''}` : ''}
         <div class="small">${esc(r.message)}</div>${h.mode === 'agent' && ['service', 'log', 'command', 'container', 'podman', 'process'].includes(form.type.value)
-          ? `<div class="hint">${L('Op een agent-server gebruikt RzMon het laatste rapport; een nieuwe service, log of commando ziet de agent pas bij zijn volgende rapport.')}</div>` : ''}`;
+          ? `<div class="hint">${L('Op een agent-server gebruikt RzSense het laatste rapport; een nieuwe service, log of commando ziet de agent pas bij zijn volgende rapport.')}</div>` : ''}`;
     } catch (ex) { out.innerHTML = `<span class="bad">${esc(ex.message)}</span>`; }
     btn.disabled = false;
     out.scrollIntoView({ block: 'nearest' });
@@ -6700,7 +6704,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
       ? (where === 'container'
         ? L('De agent leest de database in de container uit met <code>docker exec</code> of <code>podman exec</code>. Zonder gebruiker: MariaDB/MySQL als root met het wachtwoord uit de container zelf (<code>MARIADB_ROOT_PASSWORD</code>), PostgreSQL als <code>postgres</code>.')
         : L('Zonder gebruiker leest de agent (als root) de database zonder wachtwoord: MariaDB/MySQL via de socket, PostgreSQL als gebruiker <code>postgres</code>. Op de server is de client nodig (<code>mariadb</code>/<code>mysql</code> of <code>psql</code>).'))
-        + ' ' + L('Een wachtwoord stuurt RzMon alleen naar een versleutelde agent.')
+        + ' ' + L('Een wachtwoord stuurt RzSense alleen naar een versleutelde agent.')
       : (eng === 'pgsql'
         ? L('Een gebruiker met alleen leesrechten:') + ' <code>CREATE ROLE rzmon_check LOGIN PASSWORD \'…\' IN ROLE pg_monitor;</code>'
         : L('Een gebruiker met alleen leesrechten:') + ' <code>CREATE USER \'rzmon_check\'@\'%\' IDENTIFIED BY \'…\'; GRANT PROCESS, REPLICATION CLIENT ON *.* TO \'rzmon_check\'@\'%\';</code>');
@@ -6820,12 +6824,12 @@ function checkForm(c, h, preset = {}, tpl = null) {
     const hv = $('#heal-sel').value;
     $('#heal-hint').innerHTML = !healOk ? '' : hv === 'restart'
       ? L('Draait de {w} niet, dan herstart de agent hem zelf, vóór zijn rapport. Lukt dat, dan krijg je alleen een ℹ️-melding; lukt het niet, de gewone melding. Hooguit één poging per 10 minuten en 3 per dag.', { w: typeSel.value === 'service' ? L('service') : L('container') })
-      : hv.startsWith('cmd:') ? L('Gaat deze check mis, dan voert de agent het herstelcommando uit (alleen via een versleutelde verbinding) en meldt RzMon pas als dat niet helpt, of na 5 minuten. Het commando zelf staat alleen op de server, in <code>/etc/rzmon-agent/heal.d/</code>.')
+      : hv.startsWith('cmd:') ? L('Gaat deze check mis, dan voert de agent het herstelcommando uit (alleen via een versleutelde verbinding) en meldt RzSense pas als dat niet helpt, of na 5 minuten. Het commando zelf staat alleen op de server, in <code>/etc/rzmon-agent/heal.d/</code>.')
       : L('Eigen herstelcommando\'s zet je op de server in <code>/etc/rzmon-agent/heal.d/</code> (uitvoerbaar, van root, niet door anderen te wijzigen); daarna staan ze hier.');
     if (smartOk && sm === 'guard' && $('[name=guard_threshold]', form).value === '' && setDefaults) $('[name=guard_threshold]', form).value = smartGuard(typeSel.value, isSnmp ? snmpSel.value : null) ?? '';
     $('#smart-hint').innerHTML = !smartOk ? '' : sm === 'manual' ? L('De drempels hierboven gelden altijd.')
-      : L('RzMon leert {n} dagen wat normaal is, per uur van de week; tot die tijd gelden de drempels hierboven. Daarna stelt hij ze elke nacht bij (hooguit 10% per nacht). Elke aanpassing staat in het wijzigingslogboek, terug te draaien.', { n: 7 })
-        + (sm === 'guard' ? ' ' + L('Vanaf het vangnet is het altijd CRITICAL, wat RzMon ook geleerd heeft.') : '');
+      : L('RzSense leert {n} dagen wat normaal is, per uur van de week; tot die tijd gelden de drempels hierboven. Daarna stelt hij ze elke nacht bij (hooguit 10% per nacht). Elke aanpassing staat in het wijzigingslogboek, terug te draaien.', { n: 7 })
+        + (sm === 'guard' ? ' ' + L('Vanaf het vangnet is het altijd CRITICAL, wat RzSense ook geleerd heeft.') : '');
     const words = $$('.thr-word', form);
     words[0].textContent = t.low ? L('Warning onder') : L('Warning vanaf');
     words[1].textContent = t.low ? L('Critical onder') : L('Critical vanaf');
@@ -6944,7 +6948,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     };
     $('[name=target]', form).addEventListener('input', () => { if (typeSel.value === 'service') renderSvcPick(); });
   }
-  // Proceskiezer (1.98.0): wat er nu draait op de server (agent, of RzMon zelf), filtert op wat je typt
+  // Proceskiezer (1.98.0): wat er nu draait op de server (agent, of RzSense zelf), filtert op wat je typt
   let procList = null;
   const loadProcs = () => {
     procList = [];
@@ -7206,7 +7210,7 @@ function portScan(h) {
     title: L('Poortscan – {name}', { name: h.name }),
     wide: true,
     body: `
-      ${xpHtml(L('Zoekt welke poorten op deze server open staan.'), L('RzMon scant vanaf zijn eigen server welke TCP-poorten op <code>{address}</code> open staan. Een open poort voeg je met één klik toe als TCP-check, zodat je een melding krijgt als de dienst wegvalt.', { address: esc(h.address) }))}
+      ${xpHtml(L('Zoekt welke poorten op deze server open staan.'), L('RzSense scant vanaf zijn eigen server welke TCP-poorten op <code>{address}</code> open staan. Een open poort voeg je met één klik toe als TCP-check, zodat je een melding krijgt als de dienst wegvalt.', { address: esc(h.address) }))}
       <div class="scan-form">
         <label>${L('Bereik')}
           <select id="scan-preset">
@@ -7484,7 +7488,7 @@ function agentOverview(keyText) {
         </div>
         <div class="ag-acts"><button type="button" class="btn small-btn primary" data-am="${h.id}">${L('Agent Manager')}</button>
           <button type="button" class="btn small-btn" data-pair="${h.id}" title="${esc(L('Koppelcode maken en de agent (opnieuw) koppelen'))}">🔗 ${L('Koppelen')}</button>
-          <button type="button" class="btn small-btn" data-url-host="${h.id}" title="${esc(L('Adres van RzMon voor deze agent wijzigen'))}">🌐 ${L('Adres')}</button></div>
+          <button type="button" class="btn small-btn" data-url-host="${h.id}" title="${esc(L('Adres van RzSense voor deze agent wijzigen'))}">🌐 ${L('Adres')}</button></div>
       </article>`;
   }
 }
@@ -7506,13 +7510,13 @@ function renderSecurity() {
   $('#conn-https').checked = c.https_only;
   $('#conn-ownkey').checked = !!c.ownkey_only;
   $('#conn-pin-info').innerHTML = !c.pin ? L('Uit: agents met <code>INSECURE=1</code> accepteren elk certificaat.')
-    : c.pin_value ? `${L('Vingerafdruk van RzMon')}: <code>sha256//${esc(c.pin_value.slice(0, 16))}…</code> · ${L('de agents krijgen hem vanzelf (versleuteld); bij een nieuw certificaat controleren ze het met hun sleutel')}`
-    : c.pin_value === '' ? (c.https ? L('Niet nodig: het certificaat van RzMon is geldig (bekende uitgever), de agents controleren het gewoon.') : L('Niet nodig: je opent RzMon via http. Met https en een eigen certificaat zet RzMon het vanzelf vast.'))
+    : c.pin_value ? `${L('Vingerafdruk van RzSense')}: <code>sha256//${esc(c.pin_value.slice(0, 16))}…</code> · ${L('de agents krijgen hem vanzelf (versleuteld); bij een nieuw certificaat controleren ze het met hun sleutel')}`
+    : c.pin_value === '' ? (c.https ? L('Niet nodig: het certificaat van RzSense is geldig (bekende uitgever), de agents controleren het gewoon.') : L('Niet nodig: je opent RzSense via http. Met https en een eigen certificaat zet RzSense het vanzelf vast.'))
     : L('De vingerafdruk is nog niet te bepalen (bv. achter een proxy); dat gebeurt bij het volgende rapport van een agent.');
   const wait = secInfo.hosts.filter((h) => h.agent_ip_new);
   $('#conn-ipwait').innerHTML = wait.map((h) => `<div class="callout ip-wait">⚠️ ${L('<b>{name}</b> wil verbinden vanaf <code>{ip}</code> en is geweigerd (bekend: {known}).', { name: esc(h.name), ip: esc(h.agent_ip_new), known: `<code>${esc(h.agent_ips || '–')}</code>` })}
       <span class="muted small">${esc(ago(h.agent_ip_new_at))}</span>
-      ${ipViaWan(h) ? `<br><span class="small bad">${L('Een publiek adres, terwijl deze agent tot nu toe uit je eigen netwerk kwam: waarschijnlijk gaat hij via je router naar buiten en weer naar binnen, omdat de naam van RzMon op die server niet naar je reverse proxy wijst (DNS-rewrite). Los dat liever daar op dan dit adres toe te staan.')}</span><br>` : ''}
+      ${ipViaWan(h) ? `<br><span class="small bad">${L('Een publiek adres, terwijl deze agent tot nu toe uit je eigen netwerk kwam: waarschijnlijk gaat hij via je router naar buiten en weer naar binnen, omdat de naam van RzSense op die server niet naar je reverse proxy wijst (DNS-rewrite). Los dat liever daar op dan dit adres toe te staan.')}</span><br>` : ''}
       <button type="button" class="btn primary" data-ip-allow="${h.id}">✔ ${L('Toestaan')}</button></div>`).join('');
   const keyText = (h) => +h.agent_key_seen === 1 ? `🔑 ${L('eigen sleutel')}${h.key_days != null ? ` <span class="muted">· ${L('{n} d oud', { n: h.key_days })}</span>` : ''}`
     : h.pairing ? `⏳ ${L('koppelcode klaar')}`
@@ -7537,7 +7541,7 @@ function initSecurity() {
   $('#enc-generate').onclick = () => modal({
     title: '🎲 ' + L('Sleutel genereren'),
     body: `<p style="margin-top:0">${secInfo && secInfo.enc.key ? L('Er komt een nieuwe sleutel. De agents krijgen hem bij hun volgende rapport (versleuteld met de huidige); de huidige sleutel blijft nog <b>24 uur</b> geldig, zodat er niets misgaat. Een agent die langer offline is, krijgt de nieuwe bij zijn eerste onversleutelde rapport, of geef hem mee met <code>--key</code>.')
-      : L('RzMon maakt een willekeurige sleutel van 32 bytes. De agents (1.49.0 of nieuwer) krijgen hem bij hun volgende rapport en versturen daarna alles versleuteld.')}</p>${confirmField('SLEUTEL')}`,
+      : L('RzSense maakt een willekeurige sleutel van 32 bytes. De agents (1.49.0 of nieuwer) krijgen hem bij hun volgende rapport en versturen daarna alles versleuteld.')}</p>${confirmField('SLEUTEL')}`,
     buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '🎲 ' + L('Genereren'), cls: 'primary', submit: true }],
     onSubmit: async (d) => { await api('enc_generate', { confirm: d.confirm }); toast(L('Nieuwe sleutel opgeslagen')); loadSecurity(); },
   });
@@ -7555,7 +7559,7 @@ function initSecurity() {
     // Uitzetten maakt de verbinding minder veilig: eerst bevestigen
     modal({
       title: '⚠️ ' + L('Minder veilig maken?'),
-      body: `<p style="margin-top:0">${e.target.id === 'conn-pin' ? L('Zonder vastgezet certificaat accepteren agents met <code>INSECURE=1</code> elk certificaat, ook dat van een nep-RzMon.')
+      body: `<p style="margin-top:0">${e.target.id === 'conn-pin' ? L('Zonder vastgezet certificaat accepteren agents met <code>INSECURE=1</code> elk certificaat, ook dat van een nep-RzSense.')
         : e.target.id === 'conn-https' ? L('Agents mogen dan ook weer via http verbinden (de berichten blijven versleuteld).')
           : e.target.id === 'conn-ownkey' ? L('Agents mogen zich dan weer met alleen een token melden (onversleuteld, zonder eigen sleutel).') : L('Agents worden dan vanaf elk IP-adres geaccepteerd (met hun sleutel).')}</p>${confirmField('UITZETTEN')}`,
       buttons: [{ label: L('Annuleren'), onClick: () => { $('#modal').close(); loadSecurity(); } }, { label: L('Uitzetten'), cls: 'danger', submit: true }],
@@ -7620,7 +7624,7 @@ function initSecurity() {
 
 // ---------------------------------------------------------------- Blokkades en whitelist (1.83.0)
 let blData = null, blTab = 'active', blShown = [];
-const BL_SRC = { rz: () => '⛔ ' + L('IP in RzMon'), user: () => '🔒 ' + L('Account'), ids: () => '🛡️ IDS' };
+const BL_SRC = { rz: () => '⛔ ' + L('IP in RzSense'), user: () => '🔒 ' + L('Account'), ids: () => '🛡️ IDS' };
 const WL_KIND = { ip: () => L('IP-adres of netwerk'), user: () => L('Account: nooit vergrendelen'), decoy: () => L('Geen honeypot-naam') };
 const WL_DAYS = [[1, L('1 dag')], [7, L('7 dagen')], [30, L('30 dagen')], [0, L('altijd')]];
 
@@ -7648,7 +7652,7 @@ function renderBlocks() {
     && (!qv || [x.value, x.ip, x.where, x.reason, x.by, x.removed_by, x.decoy, x.cc].some((v) => v && String(v).toLowerCase().includes(qv))));
   const when = (x) => act ? (x.until ? esc(fmtDateTime(x.until)) : `<b>${L('tot je deblokkeert')}</b>`)
     : x.removed_by ? L('opgeheven {t} door {who}', { t: esc(fmtDateTime(x.removed_at)), who: esc(x.removed_by) }) : L('verlopen {t}', { t: esc(fmtDateTime(x.removed_at)) });
-  const where = (x) => x.src === 'ids' ? esc(x.where) + (x.all ? `<br><span class="muted small" title="${esc(L('Automatische blokkades gelden op al je servers met de IDS op blokkeren'))}">🌐 ${L('alle servers')}</span>` : '') : 'RzMon';
+  const where = (x) => x.src === 'ids' ? esc(x.where) + (x.all ? `<br><span class="muted small" title="${esc(L('Automatische blokkades gelden op al je servers met de IDS op blokkeren'))}">🌐 ${L('alle servers')}</span>` : '') : 'RzSense';
   const btns = (x, i) => (act ? `<button type="button" class="btn small-btn" data-bl-lift="${i}" title="${esc(L('Blokkade meteen opheffen'))}">🔓 ${L('Deblokkeren')}</button> ` : '')
     + (!x.wl || x.decoy ? `<button type="button" class="btn small-btn" data-bl-wl="${i}" title="${esc(L('Op de whitelist zetten: nooit meer blokkeren'))}">✅ ${L('Whitelist')}</button>` : '');
   $('#blocks-list').innerHTML = blShown.length ? `<div class="table-scroll"><table class="vuln-table bl-table">
@@ -7672,7 +7676,7 @@ function renderBlocks() {
 /** Op de whitelist zetten; x = een regel uit het overzicht (dan kies je uit wat erbij hoort), of niets (zelf invullen) */
 function wlDialog(x = null) {
   const opts = [];
-  if (x && x.type !== 'user' && !x.wl) opts.push(['ip', x.value, x.type === 'net' ? L('Dit netwerk nooit blokkeren') : L('Dit IP-adres nooit blokkeren'), L('in RzMon en door het IDS op al je servers')]);
+  if (x && x.type !== 'user' && !x.wl) opts.push(['ip', x.value, x.type === 'net' ? L('Dit netwerk nooit blokkeren') : L('Dit IP-adres nooit blokkeren'), L('in RzSense en door het IDS op al je servers')]);
   if (x && x.type === 'user') opts.push(['user', x.value, L('Account {u} nooit vergrendelen', { u: x.value }), L('het IP-adres van de aanvaller wordt wel geblokkeerd')]);
   if (x && x.decoy) opts.push(['decoy', x.decoy, L('{u} is geen honeypot-naam', { u: x.decoy }), L('valt af van de honeypot-namen, op alle servers')]);
   const ip = !x || opts[0][0] === 'ip';
@@ -7731,7 +7735,7 @@ function blockDialog(ip) {
   const net = v4 ? ip.replace(/\.\d+$/, '.0/24') : ip.split(':').slice(0, 4).join(':') + '::/64';
   modal({
     title: '⛔ ' + L('{ip} blokkeren', { ip }),
-    body: `<p style="margin-top:0">${L('Een geblokkeerd adres krijgt nergens meer toegang tot RzMon: niet de webpagina, niet het inloggen, niet de API en geen agents.')}</p>
+    body: `<p style="margin-top:0">${L('Een geblokkeerd adres krijgt nergens meer toegang tot RzSense: niet de webpagina, niet het inloggen, niet de API en geen agents.')}</p>
       <label class="radio-row"><input type="radio" name="what" value="${esc(ip)}" checked><span>${L('Alleen dit adres')}: <code>${esc(ip)}</code></span></label>
       <label class="radio-row"><input type="radio" name="what" value="${esc(net)}"><span>${L('Het hele netwerk')}: <code>${esc(net)}</code></span></label>
       <label>${L('Reden')} <span class="hint">${L('(optioneel)')}</span><input name="reason" value="${esc(L('vanuit Meldingen'))}"></label>`,
@@ -7755,7 +7759,7 @@ function auditBadge(id) {
 function agentsCleanupDialog(after) {
   modal({
     title: '🧹 ' + L('Alle agents opruimen'),
-    body: `<p style="margin-top:0">${L('Dit doet RzMon:')}</p><ul class="small">
+    body: `<p style="margin-top:0">${L('Dit doet RzSense:')}</p><ul class="small">
       <li>${L('het oude token wissen van elke agent met een eigen sleutel;')}</li>
       <li>${L('als alle agents een eigen sleutel hebben: de algemene sleutel wissen en <b>alleen agents met een eigen sleutel</b> aanzetten (koppelen met een koppelcode blijft kunnen);')}</li>
       <li>${L('elke agent die zichzelf kan bijwerken installeert zichzelf opnieuw: eerst een reservekopie van de huidige agent en instellingen op de server, daarna de nieuwste agent met alleen de regels die nog nodig zijn.')}</li></ul>
@@ -7788,7 +7792,7 @@ function ipViaWan(h) {
 function connText(h) {
   const via = h.agent_fb_at ? `<b class="bad">⚠️ ${L('via reserve-adres')}</b> <span class="muted">${esc(ago(h.agent_fb_at))}</span>`
     : h.agent_conn === 'proxy' ? `🔒 ${L('https via proxy')}` : h.agent_conn === 'https' ? `🔒 https` : h.agent_conn === 'http' ? `<span class="warn-txt">🔓 http</span>` : '<span class="muted">–</span>';
-  return `${via}${h.agent_url ? `<br><span class="muted mono conn-url" title="${esc(L('Adres van RzMon dat de agent gebruikt'))}">${esc(h.agent_url)}</span>${specIcon(h.agent_url, h.agent_url_pin)}` : ''}`
+  return `${via}${h.agent_url ? `<br><span class="muted mono conn-url" title="${esc(L('Adres van RzSense dat de agent gebruikt'))}">${esc(h.agent_url)}</span>${specIcon(h.agent_url, h.agent_url_pin)}` : ''}`
     + (h.agent_url_fb ? `<br><span class="muted conn-url" title="${esc(L('Reserve-adres'))}">↪ ${esc(h.agent_url_fb)}</span>${specIcon(h.agent_url_fb, h.agent_url_fb_pin)}` : '')
     + (h.agent_url_status ? `<br><span class="small ${h.agent_url_status.startsWith('✘') ? 'bad' : h.agent_url_status.startsWith('⏳') ? 'muted' : 'good-txt'}">${esc(h.agent_url_status)}</span>` : '');
 }
@@ -7796,24 +7800,24 @@ function connText(h) {
 /** Hoe de agent een adres controleert (1.78.0): 📌 eigen certificaat vastgezet, 🔒 geldig certificaat, of niets bekend */
 function specIcon(url, spec) {
   if (!url || !spec) return '';
-  if (spec.startsWith('sha256//')) return ` <span title="${esc(L('Alleen het eigen certificaat van RzMon (vastgezet)'))}">📌</span>`;
+  if (spec.startsWith('sha256//')) return ` <span title="${esc(L('Alleen het eigen certificaat van RzSense (vastgezet)'))}">📌</span>`;
   return /^https:/.test(url) ? ` <span title="${esc(L('Geldig certificaat (gewone controle)'))}">🔒</span>` : '';
 }
 
-/** Wat er op een adres staat, gezien vanaf RzMon (1.78.0) */
+/** Wat er op een adres staat, gezien vanaf RzSense (1.78.0) */
 function urlTrustText(r) {
   if (!r) return '';
   return ({
-    own: `<span class="good-txt">🔒📌 ${L('het eigen certificaat van RzMon: de agent zet het vast (agent {v} nodig)', { v: '1.53.0' })}</span>`,
+    own: `<span class="good-txt">🔒📌 ${L('het eigen certificaat van RzSense: de agent zet het vast (agent {v} nodig)', { v: '1.53.0' })}</span>`,
     ca: `<span class="good-txt">🔒 ${L('geldig certificaat')}${r.issuer ? ` (${esc(r.issuer)})` : ''}</span>`,
     http: `<span class="warn-txt">🔓 ${L('http: niet versleuteld (de berichten zelf blijven wel versleuteld)')}</span>`,
-    other: `<span class="bad">✘ ${L('onbekend certificaat: niet van RzMon en niet vertrouwd')}</span>`,
-    err: `<span class="warn-txt">⚠️ ${L('vanaf RzMon niet bereikbaar')}${r.error ? `: ${esc(r.error)}` : ''} · ${L('de agent test het zelf')}</span>`,
+    other: `<span class="bad">✘ ${L('onbekend certificaat: niet van RzSense en niet vertrouwd')}</span>`,
+    err: `<span class="warn-txt">⚠️ ${L('vanaf RzSense niet bereikbaar')}${r.error ? `: ${esc(r.error)}` : ''} · ${L('de agent test het zelf')}</span>`,
   })[r.kind] || '';
 }
 
 /**
- * Venster: adres van RzMon en reserve-adres voor één agent (of alle agents). De agent test het nieuwe adres eerst
+ * Venster: adres van RzSense en reserve-adres voor één agent (of alle agents). De agent test het nieuwe adres eerst
  * (agent 1.51.0). Vanaf 1.78.0 een keuzelijst (IP-adressen, namen, beheeradres), http of https naar keuze, het
  * reserve-adres uit te zetten, en per adres wat er op staat (eigen certificaat = vastzetten, agent 1.53.0).
  */
@@ -7824,7 +7828,7 @@ async function agentUrlDialog(h = null) {
   const opts = o.options || [];
   const trust = new Map(opts.map((x) => [x.url, x]));
   const hosts = ((secInfo && secInfo.hosts) || state.hosts.filter((x) => x.mode === 'agent')).filter((x) => !h || +x.id === +h.id);
-  const src = { ip: L('IP-adres van RzMon'), dns: L('naam bij het IP-adres (DNS)'), host: L('hostnaam van RzMon'), cert: L('naam uit het certificaat'), admin: L('beheeradres (via je proxy)') };
+  const src = { ip: L('IP-adres van RzSense'), dns: L('naam bij het IP-adres (DNS)'), host: L('hostnaam van RzSense'), cert: L('naam uit het certificaat'), admin: L('beheeradres (via je proxy)') };
   // Advies: rechtstreeks (eigen certificaat) als gewoon adres, het beheeradres (DNS-rewrite naar de proxy) als reserve
   const own = opts.find((x) => x.kind === 'own');
   const admin = opts.find((x) => x.source === 'admin');
@@ -7840,9 +7844,9 @@ async function agentUrlDialog(h = null) {
       <div class="small url-trust" data-trust="${name}"></div>`;
   };
   modal({
-    title: '🌐 ' + (h ? L('Adres van RzMon – {name}', { name: h.name }) : L('Alle agents naar een ander adres')),
+    title: '🌐 ' + (h ? L('Adres van RzSense – {name}', { name: h.name }) : L('Alle agents naar een ander adres')),
     body: `<p class="small" style="margin-top:0">${L('De agent krijgt het nieuwe adres versleuteld, <b>test het eerst</b> (verbinding, certificaat en zijn eigen sleutel) en gebruikt het pas als alles klopt; anders blijft het oude adres. Het resultaat zie je na één of twee rapporten in de kolom <i>Verbinding</i>.')}</p>
-      <p class="small muted">💡 ${L('Advies: rechtstreeks naar RzMon (https op het IP-adres, het eigen certificaat wordt vastgezet) als gewoon adres, en je beheeradres (via de DNS-rewrite naar je proxy) als reserve. Zo hangen de agents niet af van je proxy.')}</p>
+      <p class="small muted">💡 ${L('Advies: rechtstreeks naar RzSense (https op het IP-adres, het eigen certificaat wordt vastgezet) als gewoon adres, en je beheeradres (via de DNS-rewrite naar je proxy) als reserve. Zo hangen de agents niet af van je proxy.')}</p>
       ${h && h.agent_url ? `<p class="small">${L('Nu')}: <code>${esc(h.agent_url)}</code>${specIcon(h.agent_url, h.agent_url_pin)}${h.agent_url_fb ? ` · ${L('reserve')}: <code>${esc(h.agent_url_fb)}</code>${specIcon(h.agent_url_fb, h.agent_url_fb_pin)}` : ''}</p>` : ''}
       <label>${L('Adres')}</label>${field('url', defUrl, false)}
       <label style="margin-top:.6rem">${L('Reserve-adres')} <span class="hint">${L('(als het adres hierboven niet bereikbaar is)')}</span></label>${field('fallback', defFb, true)}
@@ -7867,7 +7871,7 @@ async function agentUrlDialog(h = null) {
     const urls = [value('url'), value('fallback')].filter(Boolean);
     const out = [];
     const httpsOnly = hosts.filter((x) => x.agent_https === 'on' || (!x.agent_https && c.https_only));
-    if (urls.some((u) => /^http:/.test(u)) && httpsOnly.length) out.push(`⚠️ ${L('"Alleen via https" staat aan voor: {names}. Via http weigert RzMon hun rapporten.', { names: httpsOnly.map((x) => esc(x.name)).join(', ') })}`);
+    if (urls.some((u) => /^http:/.test(u)) && httpsOnly.length) out.push(`⚠️ ${L('"Alleen via https" staat aan voor: {names}. Via http weigert RzSense hun rapporten.', { names: httpsOnly.map((x) => esc(x.name)).join(', ') })}`);
     const pinMin = o.pinurl_min || '1.53.0';
     const old = hosts.filter((x) => !x.agent_version || verCmp(x.agent_version, pinMin) < 0);
     if (urls.some((u) => (trust.get(u) || {}).kind === 'own') && old.length) out.push(`⚠️ ${L('Voor het eigen certificaat is agent {v} nodig; deze worden overgeslagen: {names}. Werk ze eerst bij.', { v: pinMin, names: old.map((x) => esc(x.name)).join(', ') })}`);
@@ -7907,7 +7911,7 @@ async function agentUrlDialog(h = null) {
 /** Keuzelijst per server voor 📌 vastzetten of 🌐 vast IP-adres: algemene instelling (nu aan/uit), aan of uit */
 function connSelect(kind, h, globalOn, short = false) {
   const cur = ({ pin: h.pin_mode, ip: h.ip_lock, https: h.agent_https })[kind] || '';
-  return `<select data-host-conn="${kind}" data-host="${h.id}" title="${esc(({ pin: L('Certificaat van RzMon vastzetten'), ip: L('Alleen vanaf het bekende IP-adres'), https: L('Alleen via https') })[kind])}">`
+  return `<select data-host-conn="${kind}" data-host="${h.id}" title="${esc(({ pin: L('Certificaat van RzSense vastzetten'), ip: L('Alleen vanaf het bekende IP-adres'), https: L('Alleen via https') })[kind])}">`
     + [['', `${short ? L('algemeen') : L('algemene instelling')} (${globalOn ? L('aan') : L('uit')})`], ['on', L('aan')], ['off', L('uit')]]
       .map(([k, l]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${l}</option>`).join('') + '</select>';
 }
@@ -7919,7 +7923,7 @@ async function saveHostConn(sel, done) {
     if (!/UITZETTEN|wachtwoord|password|confirm/i.test(ex.message)) { toast(ex.message, 'err'); done(); return; }
     modal({
       title: '⚠️ ' + L('Minder veilig maken?'),
-      body: `<p style="margin-top:0">${({ pin: L('Zonder vastgezet certificaat accepteert deze agent met <code>INSECURE=1</code> elk certificaat, ook dat van een nep-RzMon.'),
+      body: `<p style="margin-top:0">${({ pin: L('Zonder vastgezet certificaat accepteert deze agent met <code>INSECURE=1</code> elk certificaat, ook dat van een nep-RzSense.'),
         ip: L('Deze agent wordt dan vanaf elk IP-adres geaccepteerd (met zijn sleutel).'), https: L('Deze agent mag dan ook weer via http verbinden (de berichten blijven versleuteld).') })[sel.dataset.hostConn]}</p>${confirmField('UITZETTEN')}`,
       buttons: [{ label: L('Annuleren'), onClick: () => { $('#modal').close(); done(); } }, { label: L('Uitzetten'), cls: 'danger', submit: true }],
       onSubmit: async (d) => { await send({ confirm: d.confirm }); toast(L('Opgeslagen')); done(); },
@@ -8376,10 +8380,16 @@ function lpPeriod() {
   return [now - r[2], now];
 }
 
+/** 1.214.0: de Logs-pagina komt binnen zoals Containers: kaarten, staafjes en regels na elkaar (een paar seconden lang) */
+function lpEnter(el) {
+  el.classList.remove('lp-enter'); void el.offsetWidth; el.classList.add('lp-enter');
+  clearTimeout(lpEnter.t); lpEnter.t = setTimeout(() => el.classList.remove('lp-enter'), 2500);
+}
 async function loadLogsPage() {
   const el = $('#logs-page');
   if (!el) return;
   if (!el.dataset.built) lpBuild(el);
+  lpEnter(el);   // 1.214.0: binnenkomen met een animatie, zoals de andere pagina's
   $$('#logs-sub [data-lp-sub]').forEach((b) => b.classList.toggle('active', b.dataset.lpSub === LP.sub));
   $('#lp-search').hidden = LP.sub !== 'search';
   $('#lp-in').hidden = LP.sub !== 'in';
@@ -8511,7 +8521,7 @@ async function lpSearch() {
   const fmt = (t) => { const d = new Date(t * 1000); return r.bucket >= 86400 ? d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' }) : r.bucket >= 3600 && to - from > 86400 ? d.toLocaleString(LOCALE, { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' }); };
   $('#lp-hist').innerHTML = r.hist.map((b, i) => {
     const n = b[0] + b[1] + b[2], s = r.start + i * r.bucket, sel = LP.hour && LP.hour[0] === s;
-    return `<button type="button" class="lp-b${sel ? ' sel' : ''}" data-lp-b="${i}" style="--h:${n ? Math.max(3, n / max * 100) : 0}%" title="${esc(fmt(s) + ': ' + L('{n} treffers', { n: dec(n) }))}"><i class="e" style="flex:${b[2]}"></i><i class="w" style="flex:${b[1]}"></i><i class="n" style="flex:${b[0]}"></i></button>`;
+    return `<button type="button" class="lp-b${sel ? ' sel' : ''}" data-lp-b="${i}" style="--b:${i};--h:${n ? Math.max(3, n / max * 100) : 0}%" title="${esc(fmt(s) + ': ' + L('{n} treffers', { n: dec(n) }))}"><i class="e" style="flex:${b[2]}"></i><i class="w" style="flex:${b[1]}"></i><i class="n" style="flex:${b[0]}"></i></button>`;
   }).join('');
   $('#lp-hist').setAttribute('aria-label', L('Treffers per tijdvak'));
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => r.start + Math.round(f * (r.hist.length - 1)) * r.bucket);
@@ -8526,6 +8536,7 @@ async function lpSearch() {
   };
   $('#lp-res').innerHTML = r.hits.length ? r.hits.map((h) => lpLine(h, mark)).join('')
     : `<p class="muted lp-empty">${(LP.facets && LP.facets.sources.length) ? L('Niets gevonden in deze periode.') : L('Nog geen logs. Kies per server welke logs hij stuurt: Agent Manager › kaart Logs.')}</p>`;
+  $$('#lp-res > .lp-ln').forEach((ln, k) => { if (k < 40) ln.style.setProperty('--i', k); });   // 1.214.0: na elkaar binnenkomen
   $('#lp-more').innerHTML = r.hits.length ? `${r.hits.length >= r.limit && r.limit < 1000 ? `<button type="button" class="btn" id="lp-more-btn">${L('Meer laden (100)')}</button>` : ''}
     <button type="button" class="btn" id="lp-csv">⤓ CSV</button><span class="muted small">${L('nieuwste eerst · {n} getoond', { n: dec(r.hits.length) })}</span>` : '';
 }
@@ -8771,7 +8782,7 @@ function amInit(h, body) {
   snmpWire();
 }
 
-/** 1.178.0: 🧪 Test: wat RzMon meteen weet en test, en (agent 1.79.0) wat de agent bij zijn volgende ronde over zichzelf meldt */
+/** 1.178.0: 🧪 Test: wat RzSense meteen weet en test, en (agent 1.79.0) wat de agent bij zijn volgende ronde over zichzelf meldt */
 async function agentTestDialog(h) {
   let r;
   try { r = await api('agent_selftest', { id: h.id }); } catch (ex) { return toast(ex.message, 'err'); }
@@ -8795,7 +8806,7 @@ async function agentTestDialog(h) {
     const all = [...x.server, ...(x.agent || [])];
     const [cls, txt] = x.pending && h.mode === 'agent' ? ['run', L('Bezig met testen…')] : verdict(all);
     return `<div class="at-hero at-${cls}"><span class="at-big" aria-hidden="true">${cls === 'run' ? '🧪' : icon[cls]}</span><div><b>${txt}</b><small>${esc(h.name)} · ${esc(h.address)}</small></div></div>
-      <div class="at-cols"><div><h3 class="at-h">🖥️ ${L('Vanuit RzMon')}</h3>${list(x.server)}</div>
+      <div class="at-cols"><div><h3 class="at-h">🖥️ ${L('Vanuit RzSense')}</h3>${list(x.server)}</div>
       ${h.mode === 'agent' ? `<div><h3 class="at-h">🤖 ${L('Op de server (door de agent zelf)')}</h3>${agentPart}</div>` : ''}</div>`;
   };
   modal({
@@ -8825,7 +8836,7 @@ function tickText(t) { return +t >= 120 ? `${+t / 60} min` : `${+t} s`; }
  * Installatiecommando met een koppelcode: eerst het installatiescript downloaden en controleren (SHA-256), dan
  * installeren; het script controleert de agent ook. Bij een eigen certificaat alleen dat certificaat (--pinnedpubkey).
  */
-/** Downloadsleutel (1.86.0): van buiten levert RzMon het installatiescript alleen hiermee */
+/** Downloadsleutel (1.86.0): van buiten levert RzSense het installatiescript alleen hiermee */
 const dlArg = () => (state.dl_key ? `&k=${state.dl_key}` : '');
 function pairCommand(base, r, extra = '') {
   const pin = r.pin && base.startsWith('https') ? r.pin : '';
@@ -8837,7 +8848,7 @@ const pairButton = () => `<div class="pair-box"><button type="button" class="btn
   <span class="muted small">${L('Eenmalig en 15 minuten geldig. De agent haalt er zijn eigen sleutel mee op; er gaat geen token of sleutel leesbaar over de lijn.')}</span></div>`;
 
 /**
- * Adres van RzMon in de installatiecommando's (1.130.0): de Basis-URL, maar mogen agents alleen via https (algemeen of
+ * Adres van RzSense in de installatiecommando's (1.130.0): de Basis-URL, maar mogen agents alleen via https (algemeen of
  * voor deze server) en is die http, dan hetzelfde adres met https. De agent komt dan meteen op https te staan.
  */
 function agentBase(h) {
@@ -8875,14 +8886,14 @@ function agentInstructions(h, pairNow = false) {
       </section>
       <section class="am-sec am-card need-admin" data-pk="sec" data-pw="4" style="--c: var(--crit)"><h3 class="am-h"><i aria-hidden="true">🛡️</i>${L('Beveiliging')}</h3>
         <p class="am-lead">${L('Wat de agent bewaakt en mag doen')}</p>
-        ${amRow(L('Endpoint-bewaking (EDR)'), L('processen, netwerk, bestanden en containers meteen bekeken; RzMon grijpt in bij een aanval'), amSw('host-edr', +(h.edr_on ?? 1)))}
+        ${amRow(L('Endpoint-bewaking (EDR)'), L('processen, netwerk, bestanden en containers meteen bekeken; RzSense grijpt in bij een aanval'), amSw('host-edr', +(h.edr_on ?? 1)))}
         <div id="host-edr-info" class="edr-host am-sub"></div>
         ${amRow(L('Commando-checks'), `<span id="host-commands-info">${L('laden…')}</span>`, amSw('host-cmd-own', false, 'title="' + esc(L('Eigen keuze voor deze server')) + '"'))}
         <div class="am-sub" id="host-cmd-sub" hidden>${swSeg('cmd', Object.entries(CMD_MODES), 'off')}</div>
       </section>
       <section class="am-sec am-card need-admin" data-pk="notify" data-pw="4" style="--c: var(--warn)"><h3 class="am-h"><i aria-hidden="true">🔔</i>${L('Meldingen')}</h3>
         <p class="am-lead">${L('Wanneer deze server zelf iets laat weten')}</p>
-        ${amRow('🐕 ' + L('Waakhond'), `<span id="host-wd-info">${L('deze agent stuurt zelf een pushbericht (Pushover of ntfy) als RzMon onbereikbaar is of de checks stilstaan')}</span>`, amSw('host-watchdog', +h.watchdog))}
+        ${amRow('🐕 ' + L('Waakhond'), `<span id="host-wd-info">${L('deze agent stuurt zelf een pushbericht (Pushover of ntfy) als RzSense onbereikbaar is of de checks stilstaan')}</span>`, amSw('host-watchdog', +h.watchdog))}
         <div class="am-sub" id="host-wd-sub" ${+h.watchdog ? '' : 'hidden'}>${L('melden na')} <input id="host-wd-min" type="number" min="2" max="120" value="${+h.watchdog_min || 5}" style="width:4.5rem"> ${L('min')}</div>
         ${amRow('ℹ️ ' + L('Info bij agent-updates'), L('volgt de algemene info-regel'), amSw('host-info-agent', +(h.info_agent ?? 1)))}
         ${edrHidden(h.id).length ? amRow('🙈 ' + L('Melding over ontbrekende onderdelen'), L('verborgen: {what}', { what: esc(edrHidden(h.id).join(', ')) }),
@@ -8892,18 +8903,18 @@ function agentInstructions(h, pairNow = false) {
         <p class="am-lead">${L('Schakelaar uit = de algemene instelling · aan = een eigen keuze voor deze server')}</p>
         ${amOwn('enc', '🔐 ' + L('Versleuteld versturen'), `${encSeenText(h)} · ${+h.agent_key_seen === 1 ? '🔑 ' + L('eigen sleutel') : L('nog geen eigen sleutel: koppel opnieuw (Onderhoud)')}`,
           h.enc || '', [['on', L('aan')], ['required', L('verplicht')], ['off', L('uit')]], L('algemene instelling'))}
-        ${amOwn('pin', '📌 ' + L('Certificaat van RzMon vastzetten'), '', h.pin_mode || '', [['on', L('aan')], ['off', L('uit')]], `${L('algemeen')}: ${state.conn_pin ? L('aan') : L('uit')}`)}
+        ${amOwn('pin', '📌 ' + L('Certificaat van RzSense vastzetten'), '', h.pin_mode || '', [['on', L('aan')], ['off', L('uit')]], `${L('algemeen')}: ${state.conn_pin ? L('aan') : L('uit')}`)}
         ${amOwn('ip', '🌐 ' + L('Alleen vanaf het bekende IP-adres'), '', h.ip_lock || '', [['on', L('aan')], ['off', L('uit')]], `${L('algemeen')}: ${state.conn_ip_lock ? L('aan') : L('uit')}`)}
         ${amOwn('https', '🔒 ' + L('Alleen via https'), '', h.agent_https || '', [['on', L('aan')], ['off', L('uit')]], `${L('algemeen')}: ${state.conn_https ? L('aan') : L('uit')}`)}
-        ${amRow('🌍 ' + L('Adres van RzMon'), connText(h), `<button type="button" class="btn small-btn" data-am-url>✏️ ${L('Wijzigen')}</button>`, ' am-url')}
+        ${amRow('🌍 ' + L('Adres van RzSense'), connText(h), `<button type="button" class="btn small-btn" data-am-url>✏️ ${L('Wijzigen')}</button>`, ' am-url')}
         ${h.agent_ip_new ? `<div class="callout">⚠️ ${L('Geweigerd vanaf het nieuwe IP-adres <code>{ip}</code>. Toestaan kan bij Instellingen → Agents → Standaardinstellingen.', { ip: esc(h.agent_ip_new) })}</div>` : ''}
       </section>
       <section class="am-sec am-card need-admin" data-pk="snmp" data-pw="4" style="--c: var(--purple, #7a49d9)"><h3 class="am-h"><i aria-hidden="true">📡</i>SNMP</h3>
-        <p class="am-lead">${L('RzMon leest het apparaat zelf uit (zonder agent)')}</p>
+        <p class="am-lead">${L('RzSense leest het apparaat zelf uit (zonder agent)')}</p>
         <div id="am-snmp">${amSnmp(h)}</div>
       </section>
       ${h.mode === 'agent' ? `<section class="am-sec am-card need-admin" data-pk="logs" data-pw="12" style="--c: var(--info, #2563eb)"><h3 class="am-h"><i aria-hidden="true">📜</i>${L('Logs')}</h3>
-        <p class="am-lead">${L('Welke logs deze server naar RzMon stuurt: gecomprimeerd en versleuteld, elke paar minuten')}</p>
+        <p class="am-lead">${L('Welke logs deze server naar RzSense stuurt: gecomprimeerd en versleuteld, elke paar minuten')}</p>
         <div id="am-logs"><p class="muted">${L('Laden…')}</p></div>
       </section>` : ''}
       <section class="am-sec am-card need-admin" data-pk="maint" data-pw="4" style="--c: var(--muted)"><h3 class="am-h"><i aria-hidden="true">🧰</i>${L('Onderhoud')}</h3>
@@ -8936,7 +8947,7 @@ function agentInstructions(h, pairNow = false) {
           <li>${L('Maak een koppelcode en voer het commando uit:')}
             <div data-pair-pane="truenas">${pairButton()}</div></li>
         </ol>
-        ${xpHtml(L('Wat het installatiescript op TrueNAS doet.'), L('<b>Pool:</b> de eerste pool wordt gekozen (niet <code>boot-pool</code>); een andere kies je met <code>--pool naam</code>. <b>Wat het doet:</b> het script zet de agent en de instellingen op de pool, maakt de cronjob <i>RzMon agent</i> aan (elke minuut, uitvoer verborgen) en stuurt een testrapport. <b>Al met de hand geïnstalleerd?</b> Dan worden je instellingen en cronjob overgenomen.'))}
+        ${xpHtml(L('Wat het installatiescript op TrueNAS doet.'), L('<b>Pool:</b> de eerste pool wordt gekozen (niet <code>boot-pool</code>); een andere kies je met <code>--pool naam</code>. <b>Wat het doet:</b> het script zet de agent en de instellingen op de pool, maakt de cronjob <i>RzSense agent</i> aan (elke minuut, uitvoer verborgen) en stuurt een testrapport. <b>Al met de hand geïnstalleerd?</b> Dan worden je instellingen en cronjob overgenomen.'))}
         ${xpHtml(L('Bijwerken, testen en verwijderen op TrueNAS, en een tip voor je pools.'), L('<b>Bijwerken:</b> met de knop hierboven. <b>Testen:</b> <code>bash /mnt/&lt;pool&gt;/rzmon-agent/rzmon-agent-setup --test</code>. <b>Verwijderen:</b> <code>… --uninstall</code>. <b>Tip:</b> een <b>Commando</b>-check met <code>zpool status -x</code> en het verwachte antwoord <code>all pools are healthy</code> bewaakt je pools.'))}
       </div>
       <div data-pane="ha" hidden>
@@ -8944,12 +8955,12 @@ function agentInstructions(h, pairNow = false) {
         <ol class="steps">
           <li>${L('In Home Assistant: <i>Instellingen → Add-ons → Add-on winkel</i> → ⋮ → <b>Repositories</b> → voeg <code>https://github.com/rembrand20/rzmon</code> toe.')}
             <span class="muted small">${L('(Of kopieer de map <code>ha-addon/rzmon_agent</code> naar de share <code>addons</code> met de <i>Samba share</i>-add-on.)')}</span></li>
-          <li>${L('⋮ → <b>Controleren op updates</b> en installeer <b>RzMon Agent</b>.')}</li>
+          <li>${L('⋮ → <b>Controleren op updates</b> en installeer <b>RzSense Agent</b>.')}</li>
           <li>${L('Tabblad <b>Configuratie</b>: vul de koppelcode in (eenmalig, 15 minuten geldig):')}</li>
         </ol>
         <div data-pair-pane="ha">${pairButton()}</div>
         <ol class="steps" start="4">
-          <li>${L('<b>Starten</b>. In het logboek moet <code>Verbonden met RzMon ✔</code> staan.')}</li>
+          <li>${L('<b>Starten</b>. In het logboek moet <code>Verbonden met RzSense ✔</code> staan.')}</li>
           <li>${L('Voeg hier checks toe met <b>＋</b>: <i>Service</i> <code>homeassistant</code>, <code>supervisor</code>, <code>updates</code> of <code>addon:&lt;slug&gt;</code>, en <i>Diskruimte</i> <code>/data</code>.')}</li>
         </ol>
         <p class="muted small">${L('Tip: zet er ook een ping-check en een TCP-check op poort 8123 bij. Die werken los van de agent.')}</p>
@@ -8959,7 +8970,7 @@ function agentInstructions(h, pairNow = false) {
       <div data-pair-pane="linux">${pairButton()}</div>
       ${xpHtml(L('Daarna: checks toevoegen, bijwerken of verwijderen.'), L('<b>Checks:</b> klik hier op <b>＋</b> en voeg checks toe (CPU, RAM, diskruimte, services). <b>Bijwerken:</b> met de knop hierboven, of <code>sudo rzmon-agent-setup --update</code>. <b>Verwijderen:</b> <code>sudo rzmon-agent-setup --uninstall</code>.'))}
       ${xpHtml(L('Komt er niets binnen? Er is een test die zegt wat er mis is.'), L('Voer op de server <code>sudo rzmon-agent-setup --test</code> uit. Die controleert stap voor stap de planning, het netwerk, het adres, het token en een proefrapport, en zegt wat er mis is.'))}
-      <p class="muted small">⚠️ ${L('De server moet RzMon kunnen bereiken op <code>{url}</code>. Klopt dat adres niet, pas dan de <i>Basis-URL</i> aan in Setup.', { url: esc(base) })}</p>
+      <p class="muted small">⚠️ ${L('De server moet RzSense kunnen bereiken op <code>{url}</code>. Klopt dat adres niet, pas dan de <i>Basis-URL</i> aan in Setup.', { url: esc(base) })}</p>
       <details class="small api-docs">
         <summary>${L('Oude manier: met het token (agent ouder dan 1.50.0)')}</summary>
       ${xpHtml(L('Zonder koppelcode werkt het ook, met het token.'), L('Zonder koppelcode stuurt de agent zijn token mee. Een agent van 1.50.0 of nieuwer krijgt bij zijn eerste versleutelde rapport alsnog een eigen sleutel.'))}
@@ -9009,8 +9020,8 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
     $$('[data-pair-pane]', body).forEach((p) => {
       const k = p.dataset.pairPane;
       p.innerHTML = head + (k === 'ha' ? copyLine(ha) : copyLine(pairCommand(base, r, k === 'truenas' ? ' --truenas' : '')))
-        + `<p class="muted small">${k === 'ha' ? L('Opslaan en de add-on (her)starten. In het logboek moet <code>Gekoppeld met RzMon</code> staan.')
-          : L('Het commando controleert eerst het installatiescript en de agent (SHA-256)')}${r.pin && base.startsWith('https') ? ' · 📌 ' + L('alleen het certificaat van deze RzMon') : ''}${base.startsWith('https') && !String(state.base_url || '').startsWith('https') ? ' · 🔒 ' + L('agents mogen alleen via https: daarom {url}', { url: `<code>${esc(base)}</code>` }) : ''}</p>`;
+        + `<p class="muted small">${k === 'ha' ? L('Opslaan en de add-on (her)starten. In het logboek moet <code>Gekoppeld met RzSense</code> staan.')
+          : L('Het commando controleert eerst het installatiescript en de agent (SHA-256)')}${r.pin && base.startsWith('https') ? ' · 📌 ' + L('alleen het certificaat van deze RzSense') : ''}${base.startsWith('https') && !String(state.base_url || '').startsWith('https') ? ' · 🔒 ' + L('agents mogen alleen via https: daarom {url}', { url: `<code>${esc(base)}</code>` }) : ''}</p>`;
     });
     const until = Date.now() + r.minutes * 60000;
     const tick = async () => {
@@ -9047,7 +9058,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
     if (e.target.closest('[data-agent-https]')) return agentUrlDialog(findHost(h.id));
     const cl = e.target.closest('[data-agent-clean]');
     if (cl) {
-      if (!confirm(L('Opruimen: RzMon wist het oude token van deze server, en de agent installeert zichzelf opnieuw (eerst een reservekopie van de huidige agent en instellingen, daarna zonder overbodige regels). Doorgaan?'))) return;
+      if (!confirm(L('Opruimen: RzSense wist het oude token van deze server, en de agent installeert zichzelf opnieuw (eerst een reservekopie van de huidige agent en instellingen, daarna zonder overbodige regels). Doorgaan?'))) return;
       cl.disabled = true;
       try {
         const r = await api('agents_cleanup', { id: h.id });
@@ -9353,7 +9364,7 @@ function verCmp(a, b) {
   for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
   return 0;
 }
-/** Agent-versie als tekst, met ⬆ als er een nieuwere agent is (eigen nummer, los van RzMon). */
+/** Agent-versie als tekst, met ⬆ als er een nieuwere agent is (eigen nummer, los van RzSense). */
 function agentVer(h) {
   const busy = h.agent_update_req ? ' <span title="' + L('Wordt bijgewerkt') + '">⏳</span>' : '';
   if (!h.agent_version) return h.agent_seen ? ` · ${L('versie onbekend')} ⬆${busy}` : '';
@@ -9469,9 +9480,9 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
       if (wdi && s.watchdog) {
         wdi.innerHTML = !s.watchdog.pushover ? `<span class="warn-txt">⚠️ ${L('Zet eerst Pushover of ntfy aan (Meldingen → Kanalen): de waakhond meldt via push')}</span>`
           : !s.watchdog.enc ? `<span class="warn-txt">⚠️ ${L('Werkt alleen versleuteld: koppel de agent met een koppelcode (de pushgegevens gaan naar de agent)')}</span>`
-          : s.watchdog.on ? `✔ ${L('actief: na {n} min zonder RzMon een pushbericht via {via}, en een bericht als de checks stilstaan', { n: s.watchdog.min, via: s.watchdog.push || 'Pushover' })}`
+          : s.watchdog.on ? `✔ ${L('actief: na {n} min zonder RzSense een pushbericht via {via}, en een bericht als de checks stilstaan', { n: s.watchdog.min, via: s.watchdog.push || 'Pushover' })}`
             + (/ntfy/.test(s.watchdog.push || '') && verCmp(s.agent_version || '0', '1.72.0') < 0 ? ` <span class="warn-txt">· ${L('ntfy vanaf agent 1.72.0')}</span>` : '')
-          : L('deze agent stuurt zelf een pushbericht (Pushover of ntfy) als RzMon onbereikbaar is of de checks stilstaan');
+          : L('deze agent stuurt zelf een pushbericht (Pushover of ntfy) als RzSense onbereikbaar is of de checks stilstaan');
       }
       const tw = toolsWarning(s.realtime && s.realtime.tools, s.update && s.update.via);
       if (tw) html += `<div class="small tools-warn">${tw}</div>`;
@@ -9676,8 +9687,8 @@ function edrSummary(e) {
     default: return esc(e.sig);
   }
 }
-/** Groene regel: iets van RzMon zelf, toegestaan (1.114.0) */
-const EDR_OWN = { agent: () => L('agent'), rzmon: () => 'RzMon', net: () => L('verkeer met RzMon'), exc: () => L('uitzondering') };
+/** Groene regel: iets van RzSense zelf, toegestaan (1.114.0) */
+const EDR_OWN = { agent: () => L('agent'), rzmon: () => 'RzSense', net: () => L('verkeer met RzSense'), exc: () => L('uitzondering') };
 function edrOwn(e) {
   const v = e.ev || {};
   const who = (EDR_OWN[e.own] || (() => e.own))() + (e.own === 'exc' && v._exc ? ': ' + v._exc : '');
@@ -9691,7 +9702,7 @@ function edrOwn(e) {
   if (e.kind === 'dns') return `${tag} ${esc(v.title || '')}`;
   if (e.kind === 'web') return `${tag} ${esc(v.method || '')} <code>${esc(v.uri || '')}</code> <span class="muted">${L('van {ip}', { ip: esc(v.ip) })}</span>`;
   if (e.kind === 'ids') return `${tag} ${esc(v.title || '')} <span class="muted small">${esc((v.detail || '').slice(0, 160))}</span>`;   // 1.132.0
-  return `${tag} ${edrSummary(e)}${v._would ? `<br><span class="muted small">${e.own === 'exc' ? L('zou {r} raken', { r: esc(v._would) }) : L('zou {r} raken, maar is RzMon zelf', { r: esc(v._would) })}</span>` : ''}`;
+  return `${tag} ${edrSummary(e)}${v._would ? `<br><span class="muted small">${e.own === 'exc' ? L('zou {r} raken', { r: esc(v._would) }) : L('zou {r} raken, maar is RzSense zelf', { r: esc(v._would) })}</span>` : ''}`;
 }
 async function loadEdrFeed() {
   const host = $('#edr-host').value, hits = $('#edr-hits').checked, own = $('#edr-own').checked;
@@ -9723,10 +9734,10 @@ function renderEdrRules() {
   const on = edrRules.rules.filter((r) => r.on).length;
   withMorph(() => {
     ruleBox().innerHTML = `<p class="small" style="margin-top:0"><b>${L('{on} van {n} regels aan.', { on, n: edrRules.rules.length })}</b>
-      ${edrRules.sigma_on ? '' : ` <span class="warn-txt">${L('Sigma-regels staan uit (Instellingen → IDS → Endpoint-bewaking).')}</span>`}</p>${xpHtml(L('Over de regels: van RzMon zelf en van SigmaHQ.'), L('<b>Bronnen:</b> de eigen regels van RzMon (met uitleg) en de Linux-regels van SigmaHQ (licentie DRL 1.1). <b>Uitzetten:</b> een regel uitzetten geldt voor alle servers; <i>Dit is normaal</i> bij een incident geldt voor één server.'))}
+      ${edrRules.sigma_on ? '' : ` <span class="warn-txt">${L('Sigma-regels staan uit (Instellingen → IDS → Endpoint-bewaking).')}</span>`}</p>${xpHtml(L('Over de regels: van RzSense zelf en van SigmaHQ.'), L('<b>Bronnen:</b> de eigen regels van RzSense (met uitleg) en de Linux-regels van SigmaHQ (licentie DRL 1.1). <b>Uitzetten:</b> een regel uitzetten geldt voor alle servers; <i>Dit is normaal</i> bij een incident geldt voor één server.'))}
       <div class="table-scroll"><table class="vuln-table rule-table"><thead><tr><th></th><th>${L('Regel')}</th><th>${L('Ernst')}</th><th>${L('Doet zelf')}</th><th>MITRE</th><th title="${esc(L('Treffers in de laatste 3 dagen'))}">${L('Treffers')}</th></tr></thead><tbody>
       ${list.map((r) => `<tr class="${r.on ? '' : 'muted'}" data-key="${esc(r.id)}"><td><label class="switch small need-admin"><input type="checkbox" data-rule="${esc(r.id)}" ${r.on ? 'checked' : ''}><span></span></label></td>
-        <td><b>${esc(r.title)}</b> <span class="badge">${r.src === 'sigma' ? 'Sigma' : 'RzMon'}</span><br><span class="small muted">${esc((r.what || '').slice(0, 260))}${r.src === 'sigma' ? ` · ${esc(r.author || '')} · <a href="${esc(r.url)}" target="_blank" rel="noopener">${L('bron')}</a>` : ''}</span></td>
+        <td><b>${esc(r.title)}</b> <span class="badge">${r.src === 'sigma' ? 'Sigma' : 'RzSense'}</span><br><span class="small muted">${esc((r.what || '').slice(0, 260))}${r.src === 'sigma' ? ` · ${esc(r.author || '')} · <a href="${esc(r.url)}" target="_blank" rel="noopener">${L('bron')}</a>` : ''}</span></td>
         <td class="nowrap">${r.sev === 2 ? '🔴 Critical' : '🟠 Warning'}</td><td class="small">${act(r.act) || '<span class="muted">–</span>'}</td>
         <td class="small mono">${r.tags.map((t) => `<a href="https://attack.mitre.org/techniques/${esc(t.replace('.', '/'))}/" target="_blank" rel="noopener">${esc(t)}</a>`).join(' ')}</td><td>${r.hits || ''}</td></tr>`).join('')}
       </tbody></table></div>`;
@@ -9772,7 +9783,7 @@ function renderExceptions() {
         <td>${p.scope === 'host' ? esc(p.host_names[0]) : L('alle servers ({n})', { n: p.host_names.length })}</td><td class="nowrap"><b>${(+p.hits).toLocaleString(LOCALE)}×</b></td><td class="nowrap muted">${esc(ago(p.last))}</td></tr>`).join('')}
       </tbody></table></div>
       <div class="btn-row"><button type="button" class="btn primary" id="exc-add">＋ ${L('Geselecteerde toevoegen')}</button>
-        <span class="muted small">${L('Aangevinkt: wat 20× of vaker terugkwam. Wat van RzMon of de agent zelf is, staat hier niet: dat herkent RzMon vanaf 1.132.0 (agent 1.67.0) vanzelf. Wijzigingen aan gevoelige bestanden (wachtwoorden, sudo, SSH-sleutels) worden nooit voorgesteld.')}</span></div>`;
+        <span class="muted small">${L('Aangevinkt: wat 20× of vaker terugkwam. Wat van RzSense of de agent zelf is, staat hier niet: dat herkent RzSense vanaf 1.132.0 (agent 1.67.0) vanzelf. Wijzigingen aan gevoelige bestanden (wachtwoorden, sudo, SSH-sleutels) worden nooit voorgesteld.')}</span></div>`;
   const rows = list.length ? `<div class="table-scroll"><table class="vuln-table small exc-list"><thead><tr><th></th><th>${L('Uitzondering')}</th><th>${L('Geldt voor')}</th><th>${L('Voorwaarden')}</th><th>${L('Raak')}</th><th></th></tr></thead><tbody>
       ${list.map((x) => `<tr class="${+x.enabled && !x.expired ? '' : 'muted'}"><td><label class="switch small"><input type="checkbox" data-exc-on="${x.id}" ${+x.enabled ? 'checked' : ''}><span></span></label></td>
         <td><b>${esc(x.name)}</b>${x.set_key && x.set_key !== 'found' ? ` <span class="badge">${esc(((excData.sets.find((s) => s.key === x.set_key)) || {}).name || x.set_key)}</span>` : x.set_key === 'found' ? ` <span class="badge">${L('voorstel')}</span>` : ''}
@@ -9782,7 +9793,7 @@ function renderExceptions() {
         <td class="nowrap"><button type="button" class="btn small-btn" data-exc-edit="${x.id}" title="${esc(L('Bewerken'))}">✎</button> <button type="button" class="btn small-btn" data-exc-del="${x.id}" title="${esc(L('Weghalen'))}">✕</button></td></tr>`).join('')}
       </tbody></table></div>` : `<p class="muted small">${L('Nog geen uitzonderingen.')}</p>`;
   withMorph(() => {
-    $('#edr-rules-set').innerHTML = `${xpHtml(L('Wat hier staat is normaal: geen melding en RzMon grijpt niet in.'), L('<b>Wat het doet:</b> wat op een uitzondering past, geeft geen melding, RzMon grijpt niet in en het telt niet mee voor afwijkingen. In <i>Live</i> zie je het wel als groene regel <i>✔ toegestaan</i>. <b>Nooit uit te zonderen:</b> malware (YARA), programma\'s in /dev/shm, lokaas, bekende kwade adressen en ketens.'))}
+    $('#edr-rules-set').innerHTML = `${xpHtml(L('Wat hier staat is normaal: geen melding en RzSense grijpt niet in.'), L('<b>Wat het doet:</b> wat op een uitzondering past, geeft geen melding, RzSense grijpt niet in en het telt niet mee voor afwijkingen. In <i>Live</i> zie je het wel als groene regel <i>✔ toegestaan</i>. <b>Nooit uit te zonderen:</b> malware (YARA), programma\'s in /dev/shm, lokaas, bekende kwade adressen en ketens.'))}
       <div class="btn-row"><button type="button" class="btn primary" id="exc-new">＋ ${L('Uitzondering')}</button>
         <button type="button" class="btn" id="exc-export">⇩ ${L('Exporteren')}</button>
         <label class="btn" for="exc-import">⇧ ${L('Importeren')}</label><input type="file" id="exc-import" accept="application/json,.json" hidden></div>
@@ -9938,7 +9949,7 @@ async function loadAnom() {
   $('#anom-info').textContent = !d.on ? L('Endpoint-bewaking staat uit (Instellingen → IDS → Endpoint-bewaking)') : !d.anom ? L('Afwijkingen staan uit (Instellingen → IDS → Endpoint-bewaking)') : '';
   withMorph(() => {
     $('#anom-learn').innerHTML = `<h3 class="set-sub" style="margin-top:0">🎓 ${L('Wat is normaal? (leren per server)')}</h3>
-      ${xpHtml(L('Elke server leert eerst {d} dagen wat normaal is.'), L('Elke server leert {d} dagen wat normaal is: welke programma\'s, gebruikers, verbindingen en poorten. Daarna meldt RzMon wat die server nog nooit deed. <b>Na een grote wijziging</b> (nieuwe software) kun je hem opnieuw laten leren.', { d: d.learn_days }))}
+      ${xpHtml(L('Elke server leert eerst {d} dagen wat normaal is.'), L('Elke server leert {d} dagen wat normaal is: welke programma\'s, gebruikers, verbindingen en poorten. Daarna meldt RzSense wat die server nog nooit deed. <b>Na een grote wijziging</b> (nieuwe software) kun je hem opnieuw laten leren.', { d: d.learn_days }))}
       ${d.hosts.length ? `<div class="table-scroll"><table class="vuln-table learn-table"><thead><tr><th>Server</th><th>${L('Leren')}</th><th>${L('Geleerd')}</th><th>${L('Afwijkingen (7 dagen)')}</th><th class="need-admin"></th></tr></thead><tbody>
       ${d.hosts.map((h) => `<tr data-key="lh${h.id}"><td><b>${esc(h.name)}</b>${h.on ? '' : ` <span class="muted small">(${L('uit')})</span>`}</td>
         <td>${h.learning ? `<span class="cl-meter"><span class="bar"><i style="width:${h.pct}%"></i></span> <span class="small">${L('dag {n} van {d}', { n: Math.max(1, h.day), d: h.days })}</span></span>`
@@ -9954,7 +9965,7 @@ async function loadAnom() {
           <span class="muted small">· ${esc(c.host)} · ${esc(fmtDateTime(c.created_at))}${c.hits > 1 ? ' · ' + L('{n}× gegroeid', { n: c.hits }) : ''} · ${c.status === 'open' ? `<b class="warn-txt">${L('open')}</b>` : '✔'}</span></div>
         ${chainSteps(c.steps)}${c.done.length ? `<p class="small">⛔ ${esc(c.done.join(', '))}</p>` : ''}</div>`).join('')
         : `<p class="muted">${L('Geen ketens 👌')}</p>`}
-      <details class="small"><summary>${L('Welke ketens herkent RzMon?')}</summary><ul>${Object.values(d.scenarios).map((s) => `<li><b>${esc(s.title)}</b>: ${esc(s.what)}</li>`).join('')}</ul></details>`;
+      <details class="small"><summary>${L('Welke ketens herkent RzSense?')}</summary><ul>${Object.values(d.scenarios).map((s) => `<li><b>${esc(s.title)}</b>: ${esc(s.what)}</li>`).join('')}</ul></details>`;
     $('#anom-list').innerHTML = `<h3 class="set-sub" style="margin-top:0">🧬 ${L('Afwijkingen')} <span class="muted small">${L('(vanaf score {n} ook een incident)', { n: d.min })}</span></h3>
       ${d.anomalies.length ? `<div class="edr-list">${d.anomalies.map((a) => `<div class="edr-row" data-key="a${a.id}">
         <span class="m-t" title="${esc(a.at)}">${esc(a.at.slice(5, 16).replace(' ', ' · '))}</span>${scoreTag(a.score)}
@@ -9976,7 +9987,7 @@ function renderMitre() {
   const cover = $('#mitre-cover').checked;
   const total = d.tactics.reduce((s, t) => s + t.n, 0);
   withMorph(() => {
-    $('#mitre-matrix').innerHTML = `${xpHtml(L('Alles wat RzMon de laatste {d} dagen zag, per stap van een aanval.', { d: d.days }) + (total ? '' : ' <b>' + L('Niets gezien 👌') + '</b>'), L('Alle treffers van de laatste {d} dagen (regels, afwijkingen en IDS-meldingen), gerangschikt naar de stappen van een aanval volgens <b>MITRE ATT&CK</b>, een bekende indeling van aanvalstechnieken. Klik op een techniek voor de meldingen.', { d: d.days }))}
+    $('#mitre-matrix').innerHTML = `${xpHtml(L('Alles wat RzSense de laatste {d} dagen zag, per stap van een aanval.', { d: d.days }) + (total ? '' : ' <b>' + L('Niets gezien 👌') + '</b>'), L('Alle treffers van de laatste {d} dagen (regels, afwijkingen en IDS-meldingen), gerangschikt naar de stappen van een aanval volgens <b>MITRE ATT&CK</b>, een bekende indeling van aanvalstechnieken. Klik op een techniek voor de meldingen.', { d: d.days }))}
       <div class="mitre-scroll"><div class="mitre-grid">${d.tactics.map((t) => {
         const techs = t.techs.filter((x) => x.n > 0 || (cover && x.nrules > 0));
         return `<div class="mt-col ${t.n ? 'hit' : ''}" data-key="${esc(t.slug)}"><div class="mt-head" title="${esc(t.name + ' (' + t.id + ')')}"><b>${esc(t.nl)}</b><span class="muted small">${esc(t.name)}</span>${t.n ? `<span class="mt-n">${t.n}</span>` : ''}</div>
@@ -10005,7 +10016,7 @@ async function mitreSignals(tech, tactic) {
 
 // ---------------------------------------------------------------- IDS: 🛡️ Bescherming en Waarom/Trigger/Actie (1.115.0)
 let protData = null;
-/** Labels met wat RzMon deed, achter de titel in de lijst (alleen echte acties, geen "gemeld") */
+/** Labels met wat RzSense deed, achter de titel in de lijst (alleen echte acties, geen "gemeld") */
 function actChips(p) {
   if (!p || !p.acts) return '';
   const short = { block: L('geblokkeerd'), kill: L('gestopt'), isolate: L('geïsoleerd'), close: L('afgehandeld'), learn: L('niet ingegrepen'), escalate: 'critical' };
@@ -10030,7 +10041,7 @@ function renderProt() {
   $('#it-n-prot').textContent = d.attention || '';
   withMorph(() => {
     $('#prot-mode').innerHTML = !d.enabled ? `<div class="prot-mode off">⚠️ ${L('Het IDS staat uit: er wordt niets bewaakt.')} <a href="#settings/ids" data-goto="settings/ids">${L('Aanzetten')}</a></div>`
-      : `<div class="prot-mode ${block ? 'block' : 'learn'}">${block ? '⛔ ' + L('Modus Blokkeren: RzMon voert de acties hieronder zelf uit.') : '🎓 ' + L('Modus Leren: alles wordt alleen gemeld, RzMon grijpt nergens in.')}
+      : `<div class="prot-mode ${block ? 'block' : 'learn'}">${block ? '⛔ ' + L('Modus Blokkeren: RzSense voert de acties hieronder zelf uit.') : '🎓 ' + L('Modus Leren: alles wordt alleen gemeld, RzSense grijpt nergens in.')}
         <a href="#settings/ids" data-goto="settings/ids" class="need-admin">${block ? L('Naar Leren') : L('Overschakelen naar Blokkeren')}</a>
         <br><span class="small muted">${L('{on} van {n} onderdelen aan', { on: d.on, n: d.total })}${d.attention ? ` · <span class="warn-txt">${L('{n} aandachtspunt(en)', { n: d.attention })}</span>` : ''}</span></div>`;
     $('#prot-cards').innerHTML = Object.entries(d.groups).map(([g, [icon, name]]) => `<h3 class="set-sub">${icon} ${esc(name)}</h3><div class="prot-grid">
@@ -10119,7 +10130,7 @@ function fimEditor(el, list, hostId, onChange) {
   return { get: () => rows.filter((r) => r.p).map((r) => ({ p: r.p, s: r.s })) };
 }
 
-/** Pad controleren zoals RzMon dat doet (Ids::cleanFim), zodat je het meteen ziet */
+/** Pad controleren zoals RzSense dat doet (Ids::cleanFim), zodat je het meteen ziet */
 function fimCheck(input) {
   const p = input.value.trim();
   input.setCustomValidity(!p || (p.startsWith('/') && p.replace(/\/+$/, '') !== '' && !/^\/(proc|sys|dev|run)(\/|$)/.test(p)) ? ''
@@ -10670,10 +10681,10 @@ async function hostSecDialog(hostId) {
       <div class="need-admin">
       ${d.truenas ? `<h3 class="set-sub">🗄️ ${L('TrueNAS: ingrijpen door het IDS')}</h3>
         <label class="switch"><input type="checkbox" data-tn-fw ${d.truenas.fw ? 'checked' : ''}><span></span> <b>${L('IDS mag hier blokkeren')}</b></label>
-        <p class="muted small">${L('Standaard alleen detecteren: TrueNAS beheert zijn eigen netwerk. Zet je dit aan (met je wachtwoord), dan mag het IDS aanvallers blokkeren en werkt de honeypot-poort, net als op andere servers. De agent gebruikt een eigen firewalltabel en zet die elke minuut terug, ook na een herstart of update van TrueNAS. Je lokale netwerken en RzMon worden nooit geblokkeerd. Agent 1.77.0 of nieuwer nodig.')}</p>
+        <p class="muted small">${L('Standaard alleen detecteren: TrueNAS beheert zijn eigen netwerk. Zet je dit aan (met je wachtwoord), dan mag het IDS aanvallers blokkeren en werkt de honeypot-poort, net als op andere servers. De agent gebruikt een eigen firewalltabel en zet die elke minuut terug, ook na een herstart of update van TrueNAS. Je lokale netwerken en RzSense worden nooit geblokkeerd. Agent 1.77.0 of nieuwer nodig.')}</p>
         ${d.truenas.fw && d.truenas.state === 'unsupported' ? `<p class="warn-txt small">⏳ ${L('Aangezet; de agent neemt het over bij zijn volgende ronde (agent 1.77.0 of nieuwer).')}</p>` : ''}` : ''}
       <h3 class="set-sub">🧱 ${L('Isoleren')}</h3>
-      ${xpHtml(L('Sluit de server af van alles behalve RzMon, je eigen netwerk en jou.'), L('<b>Bij een hack:</b> alleen RzMon, je lokale netwerken en jouw IP-adres ({ip}) kunnen er nog bij; al het andere verkeer (in, uit en containers) stopt. <b>Goed om te weten:</b> het vervalt vanzelf na de gekozen tijd, ook als RzMon onbereikbaar is.', { ip: `<code>${esc(d.my_ip)}</code>` }))}
+      ${xpHtml(L('Sluit de server af van alles behalve RzSense, je eigen netwerk en jou.'), L('<b>Bij een hack:</b> alleen RzSense, je lokale netwerken en jouw IP-adres ({ip}) kunnen er nog bij; al het andere verkeer (in, uit en containers) stopt. <b>Goed om te weten:</b> het vervalt vanzelf na de gekozen tijd, ook als RzSense onbereikbaar is.', { ip: `<code>${esc(d.my_ip)}</code>` }))}
       ${iso ? `<p><b class="danger-txt">🧱 ${L('Geïsoleerd tot {t}', { t: esc(fmtDateTime(d.iso.isolate_until)) })}</b> · ${L('door {by}', { by: esc(d.iso.isolate_by || '?') })} · <span class="muted">${esc(d.iso.isolate_state || '')}</span>
           <button type="button" class="btn" data-unisolate>🔓 ${L('Opheffen')}</button></p>`
         : `<div class="btn-row">${[1, 4, 24, 72].map((n) => `<button type="button" class="btn danger" data-isolate="${n}">🧱 ${n < 24 ? L('{n} uur', { n }) : n === 24 ? L('1 dag') : L('3 dagen')}</button>`).join('')}</div>
@@ -10703,7 +10714,7 @@ async function hostSecDialog(hostId) {
       let pw = '';
       if (on) {
         pw = await askConfirm({ title: L('IDS laten blokkeren op {name}?', { name: h.name }), danger: true, word: 'TOESTAAN', ok: L('Aanzetten'),
-          text: L('Het IDS mag dan aanvallers op deze TrueNAS blokkeren, met een eigen firewalltabel. Je lokale netwerken en RzMon worden nooit geblokkeerd.') });
+          text: L('Het IDS mag dan aanvallers op deze TrueNAS blokkeren, met een eigen firewalltabel. Je lokale netwerken en RzSense worden nooit geblokkeerd.') });
         if (pw === null) return;
       }
       await api('host_truenas_fw', { host_id: hostId, on: on ? 1 : 0, confirm: pw });
@@ -10718,7 +10729,7 @@ async function hostSecDialog(hostId) {
     try {
       if (isoB) {
         const pw = await askConfirm({ title: L('{name} isoleren?', { name: h.name }), danger: true, word: 'ISOLEREN', ok: '🧱 ' + L('Isoleren'),
-          text: L('Alleen RzMon, je lokale netwerken en jouw IP-adres kunnen er nog bij; al het andere verkeer stopt. Vervalt vanzelf na de gekozen tijd.') });
+          text: L('Alleen RzSense, je lokale netwerken en jouw IP-adres kunnen er nog bij; al het andere verkeer stopt. Vervalt vanzelf na de gekozen tijd.') });
         if (pw === null) return;
         await api('host_isolate', { host_id: hostId, hours: +isoB.dataset.isolate, confirm: pw });
         toast(L('{name} wordt geïsoleerd; de agent past het binnen een minuut toe', { name: h.name }));
@@ -10748,7 +10759,7 @@ function ipTlHtml(d) {
   return `<p style="margin-top:0" class="small">${ccTag(d.cc) ? ccTag(d.cc) + ' · ' : ''}${[d.internal ? '🏠 ' + L('je eigen netwerk') : '',
         d.bad ? '☠️ ' + L('bekende aanvaller ({list})', { list: esc(d.bad) }) : '',
         d.whitelist ? '✅ ' + L('op de whitelist') + (d.whitelist.until ? ` (${L('tot {t}', { t: esc(fmtDateTime(d.whitelist.until)) })})` : '') : '',
-        d.blocked_rz ? '⛔ ' + L('geblokkeerd in RzMon') : '', d.blocked_ids.length ? '⛔ ' + L('geblokkeerd op {list}', { list: esc(d.blocked_ids.join(', ')) }) : '',
+        d.blocked_rz ? '⛔ ' + L('geblokkeerd in RzSense') : '', d.blocked_ids.length ? '⛔ ' + L('geblokkeerd op {list}', { list: esc(d.blocked_ids.join(', ')) }) : '',
         d.first ? L('eerst gezien {t}', { t: esc(fmtDateTime(d.first)) }) : '', d.hosts.length ? L('servers: {list}', { list: esc(d.hosts.join(', ')) }) : ''].filter(Boolean).join(' · ') || L('Nog niets bekend van dit IP-adres.')}</p>
       ${d.events.length ? `<div class="tl">${d.events.map((x) => {
         const head = day(x.at) !== last ? `<div class="tl-day">${esc(new Date(x.at.replace(' ', 'T')).toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))}</div>` : '';
@@ -11010,7 +11021,7 @@ function renderIsoBanner(tab) {
   el.innerHTML = `<div class="iso-scan" aria-hidden="true"></div><div class="iso-grid" aria-hidden="true"></div>
     <div class="iso-head"><span class="iso-ic" aria-hidden="true"><i></i>🧱</span>
       <div><div class="iso-kick"><i class="af-blink"></i>${esc(list.length === 1 ? L('SERVER IN ISOLATIE') : L('{n} SERVERS IN ISOLATIE', { n: list.length }))}</div>
-      ${size === 'big' ? `<div class="iso-mut small">${L('Al het verkeer van en naar deze server is geblokkeerd. Alleen RzMon, je lokale netwerken en het IP-adres van wie isoleerde kunnen er nog bij.')}</div>` : ''}</div></div>
+      ${size === 'big' ? `<div class="iso-mut small">${L('Al het verkeer van en naar deze server is geblokkeerd. Alleen RzSense, je lokale netwerken en het IP-adres van wie isoleerde kunnen er nog bij.')}</div>` : ''}</div></div>
     <div class="iso-rows">${rows}</div>`;
   isoTick();
 }
@@ -11113,7 +11124,7 @@ function afHero(d, lv) {
       ids = `<b>${esc(L('IDS: geblokkeerd op {list} om {t}', { list: t.blocks.map((x) => x.host).join(', '), t: afTime(t.blocks[0].at) }))}</b>`
         + (hitsBlk ? ` <span>· ${esc(L('daarna {n} pogingen tegengehouden', { n: amN(hitsBlk) }))}</span>` : '')
         + (t.not_on && t.not_on.length ? ` <span class="af-warnc">· ${esc(L('nog niet op {list}', { list: t.not_on.join(', ') }))}</span>` : '');
-    } else if (t.blocked_rz) ids = `<b>${L('Geblokkeerd in RzMon')}</b>`;
+    } else if (t.blocked_rz) ids = `<b>${L('Geblokkeerd in RzSense')}</b>`;
     else { ids = `<b>${L('IDS: nog niet geblokkeerd')}</b>`; idsCls = 'warn'; }
     const canBlock = isAdmin() && !t.internal && ((t.not_on && t.not_on.length) || !(t.blocks || []).length);
     top = `<div class="af-hcard top s${t.sev}">
@@ -11335,11 +11346,11 @@ function afTimelineOpen() {
 }
 
 /** 1.152.0: Attack Flow — aanvaller → doelwit → dienst → afloop. Doorgetrokken lijn = waargenomen verkeer (auth.log,
- * de log van een webdienst, Suricata, de firewall of de agent); stippellijn = een verband dat RzMon uit meldingen afleidt.
+ * de log van een webdienst, Suricata, de firewall of de agent); stippellijn = een verband dat RzSense uit meldingen afleidt.
  * Een eigen server die zelf een bron wordt, staat links als interne aanvaller, met een lijn naar waar hij werd aangevallen. */
 const amSvc = (l) => [l.svc || L('dienst onbekend'), l.port ? (l.proto ? l.proto.toUpperCase() + ' ' : '') + l.port : ''].filter(Boolean).join(' · ');
 const AF_VIA = { 'auth.log': () => 'auth.log', weblog: () => L('log van de webdienst'), Suricata: () => 'Suricata', firewall: () => L('firewall'), agent: () => L('agent'),
-  keten: () => L('keten'), RzMon: () => L('meldingen') };
+  keten: () => L('keten'), RzSense: () => L('meldingen') };
 let afOpt = (() => { try { return JSON.parse(localStorage.getItem('rzmon-af') || '{}') || {}; } catch (e) { return {}; } })();
 afOpt = { inferred: afOpt.inferred !== false, group: afOpt.group !== false };
 const afSave = () => { try { localStorage.setItem('rzmon-af', JSON.stringify(afOpt)); } catch (e) { /* alleen voor nu */ } };
@@ -11469,7 +11480,7 @@ function afSummary(d, lines) {
   const login = d.counts.logins ? ` <b class="bad">${L('Er is {n} keer ingelogd.', { n: d.counts.logins })}</b>` : d.counts.fails ? ` <b>${L('Er is niet ingelogd.')}</b>` : '';
   const blk = d.blocks.length ? ' ' + L('Geblokkeerd op {list} sinds {t}.', { list: d.blocks.map((b) => b.host).join(', '), t: afTime(d.blocks[d.blocks.length - 1].at) })
     + (d.counts.stopped ? ' ' + L('Daarna zijn nog {n} pogingen tegengehouden.', { n: amN(d.counts.stopped) }) : '')
-    : d.blocked_rz ? ' ' + L('Geblokkeerd in RzMon.') : d.internal ? '' : ' ' + L('Niet geblokkeerd.');
+    : d.blocked_rz ? ' ' + L('Geblokkeerd in RzSense.') : d.internal ? '' : ' ' + L('Niet geblokkeerd.');
   return `${esc(who)} ${esc(parts.join(', '))}${esc(on)}.${login}${esc(blk)}`;
 }
 /** Pogingen per tijdvak, met de blokkade erin */
@@ -11503,7 +11514,7 @@ function afEventsTable(rows, max = 0) {
 }
 function afBlockBox(d) {
   return `<div class="af-box af-blk"><div><span class="muted small">${L('Blokkade')}</span><br>${d.blocks.length ? d.blocks.map((b) => `<span class="good">${amSvg('stop', 'am-ic sm')} ${esc(b.host)}</span> <span class="muted small">${b.until ? esc(L('tot {t}', { t: fmtDateTime(b.until) })) : esc(L('blijvend'))}${b.hits ? ' · ' + esc(L('{n} tegengehouden', { n: amN(b.hits) })) : ''}</span>`).join('<br>')
-      : d.blocked_rz ? `<span class="good">${L('geblokkeerd in RzMon')}</span>` : `<span class="warn-txt">${L('niet geblokkeerd')}</span>`}</div>
+      : d.blocked_rz ? `<span class="good">${L('geblokkeerd in RzSense')}</span>` : `<span class="warn-txt">${L('niet geblokkeerd')}</span>`}</div>
     ${d.not_blocked_on.length ? `<div><span class="muted small">${L('Nog niet geblokkeerd op')}</span><br>${esc(d.not_blocked_on.slice(0, 8).join(', '))}${d.not_blocked_on.length > 8 ? ' …' : ''}</div>` : ''}
     <div><span class="muted small">${L('Reputatie')}</span><br>${d.bad ? `<span class="bad">☠️ ${esc(L('bekende aanvaller ({list})', { list: d.bad }))}</span>` : d.internal ? esc(L('je eigen netwerk')) : '–'}</div></div>`;
 }
@@ -11535,7 +11546,7 @@ async function amDetail(ip) {
     title: main ? main.title : ip, wide: true,
     body: `<div class="am-pop af-pop">
       <p class="am-pills">${sev ? `<span class="am-pill s${sev}">${sev >= 2 ? L('Kritiek') : L('Waarschuwing')}</span>` : ''}
-        <span class="am-pill ${d.blocks.length || d.blocked_rz ? 'ok' : 'open'}">${d.blocks.length ? esc(L('Geblokkeerd op {list}', { list: d.blocks.map((b) => b.host).join(', ') })) : d.blocked_rz ? L('Geblokkeerd in RzMon') : L('Niet geblokkeerd')}</span>
+        <span class="am-pill ${d.blocks.length || d.blocked_rz ? 'ok' : 'open'}">${d.blocks.length ? esc(L('Geblokkeerd op {list}', { list: d.blocks.map((b) => b.host).join(', ') })) : d.blocked_rz ? L('Geblokkeerd in RzSense') : L('Niet geblokkeerd')}</span>
         <span class="am-pill">${obs ? L('Waargenomen') : L('Afgeleid')}</span>${d.incidents.length > 1 ? `<span class="am-pill">${esc(L('{n} meldingen samengevoegd', { n: d.incidents.length }))}</span>` : ''}
         ${d.internal ? `<span class="am-pill">${L('Eigen netwerk')}</span>` : ''}</p>
       <p class="af-sum"><b>${L('In het kort')}:</b> ${afSummary(d, lines)}</p>
@@ -11701,7 +11712,7 @@ async function fillIpInfo(box, ip, fresh = false) {
   try { d = await api('ip_info', null, fresh ? { ip, fresh: 1 } : { ip }); } catch (ex) { box.innerHTML = `<span class="bad small">${esc(ex.message)}</span>`; return; }
   const r = d.rdap || {};
   const rows = [
-    [L('Waar'), d.internal ? '🏠 ' + L('je eigen netwerk') + (d.rzmon_host ? ` · ${L('server {name} in RzMon', { name: `<b>${esc(d.rzmon_host)}</b>` })}` : '') : (ccTag(d.cc || r.country) || '–')],
+    [L('Waar'), d.internal ? '🏠 ' + L('je eigen netwerk') + (d.rzmon_host ? ` · ${L('server {name} in RzSense', { name: `<b>${esc(d.rzmon_host)}</b>` })}` : '') : (ccTag(d.cc || r.country) || '–')],
     [L('DNS-naam'), d.rdns && d.rdns.name ? `<code>${esc(d.rdns.name)}</code> ${d.rdns.confirmed ? `<span class="good small">✔ ${L('wijst terug naar dit IP')}</span>`
       : `<span class="warn-txt small">${L('wijst niet terug naar dit IP (niet te vertrouwen)')}</span>`}` : `<span class="muted">${d.rdns ? L('geen') : L('niet op te zoeken')}</span>`],
     ...(d.internal ? [] : [
@@ -11711,7 +11722,7 @@ async function fillIpInfo(box, ip, fresh = false) {
     ]),
     [L('Bekende aanvaller'), d.bad ? `<b class="bad">☠️ ${esc(d.bad)}</b>` : `<span class="muted">${L('niet op de lijsten')}</span>`],
     ...(d.ti ? tiRows(d.ti, ip) : (d.ti_on && !d.internal ? [[L('Dreigingsinformatie'), `<span class="muted">${L('niets bekend (of de limiet van vandaag is bereikt)')}</span>`]] : [])),
-    [L('In RzMon'), [d.whitelist ? '✅ ' + L('op de whitelist') : '', d.blocked_rz ? '⛔ ' + L('geblokkeerd in RzMon') : '', d.blocked_ids.length ? '⛔ ' + L('geblokkeerd op {list}', { list: esc(d.blocked_ids.join(', ')) }) : '',
+    [L('In RzSense'), [d.whitelist ? '✅ ' + L('op de whitelist') : '', d.blocked_rz ? '⛔ ' + L('geblokkeerd in RzSense') : '', d.blocked_ids.length ? '⛔ ' + L('geblokkeerd op {list}', { list: esc(d.blocked_ids.join(', ')) }) : '',
       d.events ? L('{n} gebeurtenissen sinds {t}', { n: d.events, t: esc(fmtDateTime(d.first)) }) : L('nog niet eerder gezien'), d.hosts.length ? L('servers: {list}', { list: esc(d.hosts.join(', ')) }) : ''].filter(Boolean).join(' · ')],
   ].filter(([, v]) => v !== '');
   box.innerHTML = `<table class="kv-table small">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>
@@ -11752,7 +11763,7 @@ function inspectHtml(list) {
     html += `<div class="insp-ev"><div class="insp-head">🔗 <b>${esc(r.title || '')}</b> ${(r.tactics || []).map((t) => `<span class="chip tac">${esc(tacticName(t))}</span>`).join('')}
         <span class="muted small">${esc(fmtDateTime(x.at))}</span></div>
       ${chainSteps(x.ev.steps || [], 'data-inc-step')}
-      ${(x.ev._done || []).length ? `<p class="small">⛔ ${L('RzMon deed')}: ${esc(x.ev._done.join(', '))}</p>` : ''}
+      ${(x.ev._done || []).length ? `<p class="small">⛔ ${L('RzSense deed')}: ${esc(x.ev._done.join(', '))}</p>` : ''}
       ${r.what ? `<p class="small muted">${esc(r.what)}</p>` : ''}
       <p class="small">${(r.tags || []).map(techLink).join(' ')}</p></div>`;
   }
@@ -11775,11 +11786,11 @@ function inspectHtml(list) {
         [L('Verkeer'), `<code>${esc(v.src)}:${esc(v.sport)} → ${esc(v.dst)}:${esc(v.dport)}</code> ${esc(v.proto || '')}`], [L('Ernst'), `${esc(v.sev)}${v.act === 'blocked' ? ' · ' + L('Suricata blokkeerde het') : ''}`]],
       ctr: [[L('Container'), `${esc(v.name)} <span class="muted">${esc(v.img || '')}</span>`], [L('Actie'), esc(v.act) + (+v.priv ? ' · --privileged' : '')], [L('Opdracht'), `<code>${esc(v.cmd || '')}</code>`]],
     }[x.kind] || [];
-    html += `<div class="insp-ev" data-evi="${k}" ${k > 0 ? 'hidden' : ''}><div class="insp-head">${EDR_KIND_IC[x.kind] || ''} <b>${esc(r.title || x.rule)}</b> <span class="badge">${r.src === 'sigma' ? 'Sigma' : r.src === 'anomaly' ? L('Afwijking') : r.src === 'suricata' ? 'Suricata' : 'RzMon'}</span>
+    html += `<div class="insp-ev" data-evi="${k}" ${k > 0 ? 'hidden' : ''}><div class="insp-head">${EDR_KIND_IC[x.kind] || ''} <b>${esc(r.title || x.rule)}</b> <span class="badge">${r.src === 'sigma' ? 'Sigma' : r.src === 'anomaly' ? L('Afwijking') : r.src === 'suricata' ? 'Suricata' : 'RzSense'}</span>
         ${(r.tags || []).map((t) => `<a class="chip" href="https://attack.mitre.org/techniques/${esc(t.replace('.', '/'))}/" target="_blank" rel="noopener">${esc(t)}</a>`).join('')}
         <span class="muted small">${esc(fmtDateTime(x.at))}</span></div>
       <table class="kv-table small">${rows.map(([k, val]) => `<tr><th>${k}</th><td>${val}</td></tr>`).join('')}
-        ${(v._done || []).length ? `<tr><th>${L('RzMon deed')}</th><td>⛔ ${esc(v._done.join(', '))}</td></tr>` : ''}</table>
+        ${(v._done || []).length ? `<tr><th>${L('RzSense deed')}</th><td>⛔ ${esc(v._done.join(', '))}</td></tr>` : ''}</table>
       ${r.what ? `<p class="small muted">${esc(r.what)}</p>` : ''}
       ${r.src === 'sigma' ? `<p class="small muted">${L('Sigma-regel van {a}', { a: esc(r.author || '?') })} · <a href="${esc(r.url)}" target="_blank" rel="noopener">${L('bron')}</a> · DRL 1.1${(r.fp || []).length ? ' · ' + L('kan ook: {fp}', { fp: esc(r.fp.join(', ')) }) : ''}</p>` : ''}</div>`;
   }
@@ -11914,7 +11925,7 @@ async function incidentDialog(id, nav = null) {
       }
       if (b.hasAttribute('data-inc-iso')) {
         const pw = await askConfirm({ title: L('{name} isoleren (24 uur)?', { name: i.host_name }), danger: true, word: 'ISOLEREN', ok: '🧱 ' + L('Isoleren'),
-          text: L('Alleen RzMon, je lokale netwerken en jouw IP-adres kunnen er nog bij; al het andere verkeer stopt. Vervalt vanzelf na de gekozen tijd.') });
+          text: L('Alleen RzSense, je lokale netwerken en jouw IP-adres kunnen er nog bij; al het andere verkeer stopt. Vervalt vanzelf na de gekozen tijd.') });
         if (pw === null) return;
         await api('host_isolate', { host_id: +i.host_id, hours: 24, confirm: pw, incident_id: +i.id });
         toast(L('{name} wordt geïsoleerd; de agent past het binnen een minuut toe', { name: i.host_name }));
@@ -11998,9 +12009,9 @@ function alertCols(a) {
   const det = alertDetail(a);
   const who = det ? (det.users ? det.users.join(', ') : det.user) || '?' : '';
   // Geweigerde verbinding, login of agent die verbindt: de titel (zonder het teken ervoor) is de "check"
-  if (a.kind === 'sec' || (a.kind === 'info' && !a.check_name && !t)) return { host: a.host_name || 'RzMon', check: a.title.replace(/^\S+\s+/, '') };
+  if (a.kind === 'sec' || (a.kind === 'info' && !a.check_name && !t)) return { host: a.host_name || 'RzSense', check: a.title.replace(/^\S+\s+/, '') };
   return {
-    host: a.host_name || (t ? t[1] : 'RzMon'),
+    host: a.host_name || (t ? t[1] : 'RzSense'),
     check: det ? `${AUTH_TYPES[det.type] || det.type} · ${who}${det.as && det.type === 'su' ? ' → ' + det.as : ''}` : a.check_name || (t ? t[2] : '–'),
   };
 }
@@ -12148,7 +12159,7 @@ function renderAlertTop(d) {
 const AL2_SHAPE = { crit: '⬣', warn: '▲', unk: '?', ok: '✓', ichk: 'ⓘ', isys: 'ⓘ', sec: '⛨', oth: '•' };
 const AL2_PROBLEM = ['crit', 'warn', 'unk'];
 const al2Rank = (k) => ({ crit: 3, warn: 2, unk: 1 }[k] || 0);
-/** Systeeminfo: info zonder check (RzMon bijgewerkt, agent bijgewerkt …) en ingelogd */
+/** Systeeminfo: info zonder check (RzSense bijgewerkt, agent bijgewerkt …) en ingelogd */
 const alertIsSys = (a) => (a.kind === 'info' && !a.check_id && !a.log_watch) || a.kind === 'auth';
 /** Soort voor de kleur: crit, warn, unk, ok, ichk (info van een check), isys (systeeminfo), sec (beveiliging), oth (bevestigd, onderhoud, flapt) */
 function alertKind2(a) {
@@ -12211,7 +12222,7 @@ function alertEpisodes(all) {
   ((state && state.hosts) || []).forEach((h) => h.checks.forEach((c) => checks.set(+c.id, c)));
   items.forEach((it) => {
     if (!it.ep || it.rec) return;
-    if (it.first.log_watch) { it.open = it.alerts.some((x) => x.lw_open); it.nowOk = !it.open; return; }   // 1.212.0: dat weet RzMon
+    if (it.first.log_watch) { it.open = it.alerts.some((x) => x.lw_open); it.nowOk = !it.open; return; }   // 1.212.0: dat weet RzSense
     const c = checks.get(+it.first.check_id);
     it.open = !!c && +c.status !== 0;
     it.nowOk = !c || +c.status === 0;
@@ -12576,7 +12587,7 @@ async function loadAccess() {
   f.session_idle.innerHTML = (a.session_idle_choices || []).map((m) => `<option value="${m}" ${m === a.session_idle ? 'selected' : ''}>${esc(idle(m))}</option>`).join('');
   $('#ip-status').innerHTML = `${L('Jouw IP-adres: {ip}', { ip: `<code>${esc(a.client_ip)}</code>` })}${a.client_ip !== a.remote_addr ? ` <span class="muted small">${L('(via proxy {ip})', { ip: esc(a.remote_addr) })}</span>` : ''}
     — ${a.client_trusted ? '<b class="yes">' + L('valt binnen je lokale netwerken') + '</b>' : '<b class="no">' + L('valt buiten je lokale netwerken') + '</b>'}
-    ${a.unknown_proxy ? `<div class="bad small">⚠️ ${L('Je komt via een proxy ({ip}) die niet bij Reverse proxy IP\'s staat: RzMon behandelt je daarom als extern.', { ip: esc(a.remote_addr) })}</div>` : ''}`;
+    ${a.unknown_proxy ? `<div class="bad small">⚠️ ${L('Je komt via een proxy ({ip}) die niet bij Reverse proxy IP\'s staat: RzSense behandelt je daarom als extern.', { ip: esc(a.remote_addr) })}</div>` : ''}`;
   settingsSummaries();
 }
 
@@ -12607,14 +12618,14 @@ async function loadHttps() {
 }
 
 /** Eén certificaat als blok: uitgever, namen, geldigheid, vingerafdruk */
-/** selfOk: het eigen certificaat van RzMon (nooddeur, agents): niet door een bekende uitgever ondertekend is dan normaal */
+/** selfOk: het eigen certificaat van RzSense (nooddeur, agents): niet door een bekende uitgever ondertekend is dan normaal */
 function certBlock(title, c, extra = '', selfOk = false) {
   if (!c) return '';
   if (!c.ok) return `<div class="cert-box bad"><div class="cert-h">${title}</div><div class="small"><b class="bad">✘ ${esc(c.error || L('geen verbinding'))}</b></div>${extra}</div>`;
   const left = c.days < 0 ? `<b class="bad">${L('VERLOPEN')}</b>` : c.days <= ((httpsInfo && httpsInfo.warn_days) || 14) ? `<b class="warn-txt">${L('nog {n} dagen', { n: c.days })}</b>` : L('nog {n} dagen', { n: c.days });
   const d = (t) => new Date(t * 1000).toLocaleDateString(LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });
   const own = selfOk && !c.trusted;   // eigen certificaat: self-signed, of van de eigen CA van de webserver (bv. mod_ssl op Rocky)
-  const trust = c.trusted ? `<b class="good">✔ ${L('vertrouwd')}</b>` : own || c.self_signed ? `<span class="muted" title="${esc(L('Niet ondertekend door een bekende uitgever. Voor het eigen certificaat van RzMon is dat normaal: de agents zetten het vast, en je browser vraagt eenmalig om "toch doorgaan".'))}">🔏 ${L('self-signed')}</span>` : `<b class="bad">✘ ${esc(c.error || L('niet vertrouwd'))}</b>`;
+  const trust = c.trusted ? `<b class="good">✔ ${L('vertrouwd')}</b>` : own || c.self_signed ? `<span class="muted" title="${esc(L('Niet ondertekend door een bekende uitgever. Voor het eigen certificaat van RzSense is dat normaal: de agents zetten het vast, en je browser vraagt eenmalig om "toch doorgaan".'))}">🔏 ${L('self-signed')}</span>` : `<b class="bad">✘ ${esc(c.error || L('niet vertrouwd'))}</b>`;
   const okish = (c.trusted || own) && c.days > ((httpsInfo && httpsInfo.warn_days) || 14);
   return `<div class="cert-box ${okish ? 'ok' : c.days >= 0 && (c.trusted || c.self_signed || own) ? 'warn' : 'bad'}">
     <div class="cert-h">${title} ${trust}</div>
@@ -12650,10 +12661,10 @@ function renderHttps() {
   if (h.admin_url && s.admin) {
     const dns = s.dns ? (s.dns.ips.length ? (s.dns.private ? `<div class="small"><span class="good">✔ ${L('DNS: {host} wijst intern naar {ip}', { host: esc(host), ip: esc(s.dns.ips.join(', ')) })}</span></div>`
       : `<div class="small"><span class="warn-txt">⚠️ ${L('DNS: {host} wijst naar {ip} (openbaar). Zet in AdGuard Home een DNS-rewrite naar het LAN-IP van SWAG.', { host: esc(host), ip: esc(s.dns.ips.join(', ')) })}</span></div>`)
-      : `<div class="small"><span class="bad">✘ ${L('DNS: {host} is vanaf de RzMon-server niet te vinden', { host: esc(host) })}</span></div>`) : '';
+      : `<div class="small"><span class="bad">✘ ${L('DNS: {host} is vanaf de RzSense-server niet te vinden', { host: esc(host) })}</span></div>`) : '';
     html += certBlock('🌍 ' + L('Beheeradres'), s.admin, dns);
   } else if (h.admin_url) html += `<p class="muted small">${L('Nog niet gecontroleerd: klik op Nu controleren.')}</p>`;
-  if (s.local) html += certBlock('🚪 ' + L('Nooddeur') + (h.door.includes('<') ? ` <span class="small muted">${esc(h.door)}</span>` : ` <a class="small" href="${esc(h.door)}">${esc(h.door)}</a>`), s.local, `<div class="muted small">${L('Alleen vanaf je interne netwerken; het certificaat van RzMon zelf.')}</div>`, true);
+  if (s.local) html += certBlock('🚪 ' + L('Nooddeur') + (h.door.includes('<') ? ` <span class="small muted">${esc(h.door)}</span>` : ` <a class="small" href="${esc(h.door)}">${esc(h.door)}</a>`), s.local, `<div class="muted small">${L('Alleen vanaf je interne netwerken; het certificaat van RzSense zelf.')}</div>`, true);
   if (h.checked_at) html += `<p class="muted small" style="margin:.3rem 0 0">${L('Gecontroleerd {ago}; daarna elke dag. ℹ️ {n} dagen voor het verloopt, ⚠️ als het verlopen of ongeldig is.', { ago: ago(h.checked_at), n: h.warn_days })}</p>`;
   $('#https-cert').innerHTML = html;
   // Schakelaars
@@ -12661,7 +12672,7 @@ function renderHttps() {
   $('#https-block').checked = h.http_login_block;
   $('#https-mfa').checked = h.mfa_external;
   $('#https-hsts').innerHTML = h.hsts ? (h.hsts.full_at ? L('HSTS: 1 dag (testfase). Na {d} zonder problemen met het certificaat vanzelf 1 jaar.', { d: esc(fmtDateTime(h.hsts.full_at)) }) : L('HSTS: 1 jaar.'))
-    : (h.admin_url && !r.on_admin ? L('Aanzetten kan alleen als je RzMon nu via het beheeradres opent.') : '');
+    : (h.admin_url && !r.on_admin ? L('Aanzetten kan alleen als je RzSense nu via het beheeradres opent.') : '');
   $('#https-mfa-info').innerHTML = h.no2fa.length ? L('Zonder 2FA (van buiten dan geweigerd): {names}', { names: h.no2fa.map(esc).join(', ') }) : L('Alle gebruikers hebben 2FA.');
   // Voorbeeld voor SWAG
   $('#https-conf').textContent = `## nginx/proxy-confs/rzmon.subdomain.conf\nserver {\n    listen 443 ssl;\n    listen [::]:443 ssl;\n    server_name ${host ? host.split('.')[0] : 'rzmon'}.*;\n    include /config/nginx/ssl.conf;\n    client_max_body_size 64m;\n\n    location / {\n        include /config/nginx/proxy.conf;\n        include /config/nginx/resolver.conf;\n        set $upstream_app ${s.server_ip || '192.168.1.10'};\n        set $upstream_port 80;\n        set $upstream_proto http;\n        proxy_pass $upstream_proto://$upstream_app:$upstream_port;\n    }\n}`;
@@ -12783,7 +12794,7 @@ async function agentCertDialog() {
   const httpAgents = d.scheme !== 'https';
   const where = !d.base ? `<span class="warn-txt">${L('Geen Basis-URL ingesteld (Setup); de agents gebruiken het adres uit hun installatiecommando.')}</span>`
     : httpAgents ? `<code>${esc(d.base)}</code> · 🔓 ${L('http: geen certificaat nodig. De berichten zijn wel versleuteld met de eigen sleutel van elke agent.')}`
-    : d.own ? `<code>${esc(d.base)}</code> · ${L('het eigen certificaat van RzMon (hieronder)')}`
+    : d.own ? `<code>${esc(d.base)}</code> · ${L('het eigen certificaat van RzSense (hieronder)')}`
     : `<code>${esc(d.base)}</code> · ${L('een ander certificaat, bv. van je reverse proxy (Let\'s Encrypt): dat vernieuwt de proxy zelf')}`;
   const pinRow = !d.pin_on ? `<p class="small muted">📌 ${L('Certificaat vastzetten staat uit.')}</p>`
     : d.pin ? `<p class="small cert-pin">📌 ${L('Vingerafdruk die de agents vastzetten')}: <code class="small">sha256//${esc(d.pin)}</code>
@@ -12804,28 +12815,28 @@ async function agentCertDialog() {
       <td class="small muted">${h.agent_pin_sent_at ? esc(ago(h.agent_pin_sent_at)) : ''}</td></tr>`;
   }).join('');
   const canRenew = d.paths && d.via !== 'cli';
-  // Klaargezet nieuw certificaat (1.78.0): de agents krijgen eerst de vingerafdruk, daarna wisselt RzMon
+  // Klaargezet nieuw certificaat (1.78.0): de agents krijgen eerst de vingerafdruk, daarna wisselt RzSense
   const nx = d.next;
   const waiting = (d.pinned || []).filter((a) => !a.ready);
   const nextBox = nx ? `<div class="callout">🔐 <b>${L('Nieuw certificaat klaargezet')}</b> <span class="muted small">${esc(ago(new Date(nx.at * 1000).toISOString()))}</span><br>
       <span class="small">${(d.pinned || []).length ? L('{r} van {t} agents hebben de nieuwe vingerafdruk.', { r: d.pinned.length - waiting.length, t: d.pinned.length }) : ''}
-      ${waiting.length ? L('Nog niet: {names}.', { names: waiting.map((a) => esc(a.name)).join(', ') }) + ' ' : ''}${L('RzMon wisselt zodra alle agents hem hebben, uiterlijk {d}.', { d: new Date(nx.deadline * 1000).toLocaleDateString(LOCALE) })}</span>
+      ${waiting.length ? L('Nog niet: {names}.', { names: waiting.map((a) => esc(a.name)).join(', ') }) + ' ' : ''}${L('RzSense wisselt zodra alle agents hem hebben, uiterlijk {d}.', { d: new Date(nx.deadline * 1000).toLocaleDateString(LOCALE) })}</span>
       <div class="btn-row" style="margin-top:.4rem">${canRenew ? `<button type="button" class="btn small-btn" data-cert-act>🔄 ${L('Nu wisselen')}</button>` : ''}
         <button type="button" class="btn small-btn" data-cert-cancel>${L('Annuleren')}</button></div></div>` : '';
   modal({
-    title: '🔐 ' + L('Certificaat van RzMon'),
+    title: '🔐 ' + L('Certificaat van RzSense'),
     wide: true,
     body: `
       <p class="small" style="margin-top:0"><b>${L('Adres van de agents')}:</b> ${where}</p>
       ${d.agent_cert && !d.own ? certBlock('🌍 ' + L('Certificaat op het adres van de agents'), d.agent_cert) : ''}
-      ${loc.ok === false ? `<div class="cert-box bad"><div class="cert-h">🚪 ${L('Eigen certificaat van RzMon (poort 443)')}</div><div class="small">✘ ${esc(loc.error || '')}</div></div>`
-        : certBlock('🚪 ' + L('Eigen certificaat van RzMon (poort 443)'), loc, `<div class="muted small">${L('Voor agents via https op het IP-adres, en de nooddeur.')}</div>`, true)}
+      ${loc.ok === false ? `<div class="cert-box bad"><div class="cert-h">🚪 ${L('Eigen certificaat van RzSense (poort 443)')}</div><div class="small">✘ ${esc(loc.error || '')}</div></div>`
+        : certBlock('🚪 ' + L('Eigen certificaat van RzSense (poort 443)'), loc, `<div class="muted small">${L('Voor agents via https op het IP-adres, en de nooddeur.')}</div>`, true)}
       ${pinRow}
       ${nextBox}
       ${d.hosts.length ? `<div class="table-scroll"><table class="vuln-table small"><thead><tr><th>${L('Agent')}</th><th>${L('Versie')}</th><th>📌 ${L('Certificaat')}</th><th>${L('Laatst gekregen')}</th></tr></thead><tbody>${hostRows}</tbody></table></div>` : ''}
       <h3 class="set-sub">🔄 ${L('Vernieuwen')}</h3>
       <p class="small muted" style="margin-top:0">${L('Een nieuw certificaat met een nieuwe sleutel, {n} jaar geldig. Agents met een vastgezet certificaat gaan vanzelf mee: ze krijgen de nieuwe vingerafdruk in een versleuteld antwoord. Je browser vraagt bij https op het IP-adres opnieuw om "toch doorgaan".', { n: Math.round(d.days / 365) })}</p>
-      ${(d.pinned || []).length ? `<p class="small">📌 ${L('{n} agent(s) zetten het eigen certificaat vast. RzMon zet het nieuwe daarom eerst klaar: de agents krijgen de nieuwe vingerafdruk, en pas als ze die allemaal hebben (uiterlijk na {d} dagen) gaat RzMon het nieuwe gebruiken. Zo weigert geen enkele agent het certificaat.', { n: d.pinned.length, d: d.next_days })}</p>` : ''}
+      ${(d.pinned || []).length ? `<p class="small">📌 ${L('{n} agent(s) zetten het eigen certificaat vast. RzSense zet het nieuwe daarom eerst klaar: de agents krijgen de nieuwe vingerafdruk, en pas als ze die allemaal hebben (uiterlijk na {d} dagen) gaat RzSense het nieuwe gebruiken. Zo weigert geen enkele agent het certificaat.', { n: d.pinned.length, d: d.next_days })}</p>` : ''}
       <div class="small"><b>${L('Namen in het nieuwe certificaat')}:</b> <span class="cert-names">${d.names.map((n) => `<span class="lc">${esc(n)}</span>`).join('')}</span></div>
       <label class="small">${L('Extra namen of IP-adressen')} <span class="hint">${L('(één per regel; de rest gaat automatisch)')}</span>
         <textarea id="cert-extra" rows="2" spellcheck="false" placeholder="nas.thuis.lan">${esc(d.extra)}</textarea></label>
@@ -12851,7 +12862,7 @@ async function agentCertDialog() {
 function agentCertDownload() {
   modal({
     title: '⬇ ' + L('Certificaat downloaden'),
-    body: `<p style="margin-top:0" class="small">${L('Zet het certificaat in je browser of besturingssysteem als vertrouwd: dan geeft https op het IP-adres van RzMon geen waarschuwing meer.')}</p>${confirmField('DOWNLOADEN')}`,
+    body: `<p style="margin-top:0" class="small">${L('Zet het certificaat in je browser of besturingssysteem als vertrouwd: dan geeft https op het IP-adres van RzSense geen waarschuwing meer.')}</p>${confirmField('DOWNLOADEN')}`,
     buttons: [{ label: L('Annuleren'), onClick: () => agentCertDialog() }, { label: L('Downloaden'), cls: 'primary', submit: true }],
     onSubmit: async (f) => {
       const r = await api('agent_cert_download', { confirm: f.confirm });
@@ -12877,7 +12888,7 @@ function agentCertRenew(d, what = 'renew') {
     body: activate
       ? `<p style="margin-top:0" class="small">${waiting.length ? L('Deze agents hebben de nieuwe vingerafdruk nog niet: {names}. Ze weigeren het nieuwe certificaat één keer en halen de vingerafdruk dan versleuteld op (meestal via hun reserve-adres).', { names: waiting.map((a) => esc(a.name)).join(', ') })
         : L('Alle agents hebben de nieuwe vingerafdruk.')}</p>${confirmField('WISSELEN')}`
-      : `<p style="margin-top:0" class="small">${L('RzMon maakt een nieuw certificaat voor: {names}. Het oude blijft als reservekopie naast het origineel staan; mislukt herladen, dan wordt het teruggezet.', { names: d.names.map(esc).join(', ') })}</p>
+      : `<p style="margin-top:0" class="small">${L('RzSense maakt een nieuw certificaat voor: {names}. Het oude blijft als reservekopie naast het origineel staan; mislukt herladen, dan wordt het teruggezet.', { names: d.names.map(esc).join(', ') })}</p>
         ${pinned ? `<label class="switch small"><input type="checkbox" name="now"><span></span> ${L('Meteen wisselen (niet wachten tot de agents de nieuwe vingerafdruk hebben)')}</label>` : ''}${confirmField('VERNIEUWEN')}`,
     buttons: [{ label: L('Annuleren'), onClick: () => agentCertDialog() }, { label: activate ? L('Nu wisselen') : L('Vernieuwen'), cls: 'danger', submit: true }],
     onSubmit: async (f) => {
@@ -12969,7 +12980,7 @@ async function loadApiKeys() {
 function apiKeyConfirm(title, data, save) {
   modal({
     title,
-    body: `<p style="margin-top:0">${L('Met het recht <b>⛔ IDS blokkeren</b> kan wie deze sleutel heeft IP-adressen blokkeren op je servers (als het IDS op <i>blokkeren</i> staat; in de leerstand wordt het alleen vastgelegd). Je LAN, RzMon zelf en de lijst <i>Nooit blokkeren</i> weigert de API altijd. Overweeg <i>Alleen vanaf</i> in te vullen.')}</p>
+    body: `<p style="margin-top:0">${L('Met het recht <b>⛔ IDS blokkeren</b> kan wie deze sleutel heeft IP-adressen blokkeren op je servers (als het IDS op <i>blokkeren</i> staat; in de leerstand wordt het alleen vastgelegd). Je LAN, RzSense zelf en de lijst <i>Nooit blokkeren</i> weigert de API altijd. Overweeg <i>Alleen vanaf</i> in te vullen.')}</p>
       ${confirmField('BLOKKEREN')}`,
     buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }],
     onSubmit: (d) => save({ ...data, confirm: d.confirm }),
@@ -13301,8 +13312,8 @@ const SET_IC = (d) => `<svg class="tab-ic set-ic" viewBox="0 0 24 24" aria-hidde
 const SET_NAV = [
   ['overzicht', SET_IC('<path d="M3 12h4l3 8 4-16 3 8h4"/>'), L('Overzicht'), [
     ['overview', L('Status'), ['overview'], L('Wat er nog aandacht nodig heeft, met een knop om het te regelen.')],
-    ['features', L('Functies'), ['features'], L('Alle functies van RzMon, met wat er aan staat en waar je het instelt.')],
-    ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzMon elke minuut uitvoert.')]]],
+    ['features', L('Functies'), ['features'], L('Alle functies van RzSense, met wat er aan staat en waar je het instelt.')],
+    ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzSense elke minuut uitvoert.')]]],
   ['checks', SET_IC('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>'), L('Monitoring'), [
     ['allchecks', L('Alle checks'), ['allchecks'], L('Alle checks van alle servers in één lijst, ook samen bewerken.')],
     ['templates', L('Sjablonen'), ['templates'], L('Vaste sets checks voor een nieuwe server.')],
@@ -13314,7 +13325,7 @@ const SET_NAV = [
     ['channels', L('Kanalen'), ['pushover', 'ntfy', 'email', 'webhook', 'chain'], L('Waar meldingen heen gaan: Pushover, ntfy, e-mail en webhooks.')],
     ['quiet', L('Stille uren'), ['quiet'], L('Profielen met een naam, gekoppeld aan groepen, servers en checks.')],
     ['rules', L('Wanneer melden'), ['confirm', 'notify', 'alarm'], L('Meldregels, stille uren en wanneer een probleem een melding wordt.')],
-    ['sysinfo', L('Systeemmeldingen'), ['sysinfo'], L('Meldingen over RzMon zelf, zoals updates en certificaten.')]]],
+    ['sysinfo', L('Systeemmeldingen'), ['sysinfo'], L('Meldingen over RzSense zelf, zoals updates en certificaten.')]]],
   ['ids', SET_IC('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'), L('IDS'), [
     ['ids', L('Algemeen'), ['ids'], L('Aan of uit, leren of blokkeren, brute force en honeypot.')],
     ['ids_prot', L('Beschermingen'), ['ids_prot'], L('Wat het IDS doet bij een aanval: per bescherming aan of uit, met de drempels.')],
@@ -13336,7 +13347,7 @@ const SET_NAV = [
     ['agentdef', L('Standaardinstellingen'), ['agentdef', 'enc'], L('Wat voor alle agents geldt: bijwerken, ritme, versleuteling en certificaat.')],
     ['commands', L('Commando-checks'), ['commands'], L('Eigen commando\'s die agents mogen uitvoeren.')]]],
   ['rapporten', SET_IC('<path d="M4 4h16v16H4z"/><path d="M4 8l8 5 8-5"/>'), L('Rapporten'), [
-    ['reports', L('Rapporten'), ['reports'], L('Alle overzichten die RzMon per e-mail of push verstuurt, en het Maandoverzicht.')]]],
+    ['reports', L('Rapporten'), ['reports'], L('Alle overzichten die RzSense per e-mail of push verstuurt, en het Maandoverzicht.')]]],
   ['koppelingen', SET_IC('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>'), L('Koppelingen'), [
     ['netlinks', L('UniFi en AdGuard'), ['netlinks'], L('Apparaten en DNS uit je UniFi-controller en AdGuard Home.')],
     ['snmp', 'SNMP', ['snmp'], L('Eén SNMP-instelling voor al je apparaten, met per apparaat een uitzondering.')],
@@ -13346,11 +13357,11 @@ const SET_NAV = [
     ['statuspage', L('Statuspagina'), ['statuspage'], L('Een openbare pagina met de status, via een geheime link.')]]],
   ['systeem', SET_IC('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'), L('Systeem'), [
     ['looks', L('Weergave'), ['looks'], L('De standaard weergave voor accounts die zelf nog niets kozen.')],
-    ['update', L('Bijwerken'), ['update'], L('Nieuwe versies van RzMon, met of zonder automatisch bijwerken.')],
+    ['update', L('Bijwerken'), ['update'], L('Nieuwe versies van RzSense, met of zonder automatisch bijwerken.')],
     ['backup', L('Back-up'), ['backup'], L('Automatische back-ups en terugzetten.')],
     ['db', L('Database en server'), ['dbconn', 'db', 'storage', 'dbuse', 'server', 'syscheck', 'cron'], L('Databaseverbinding, bewaartermijnen, tijdzone, PHP en de systeemcheck.'),
       [['database', L('Database'), ['dbconn', 'db', 'storage', 'dbuse']], ['server', L('Server'), ['server', 'syscheck', 'cron']]]],
-    ['perf', L('Prestaties en fouten'), ['perf', 'errors'], L('Hoe snel RzMon is, hoe lang een cron-ronde duurt, de traagste checks en PHP-fouten.')],
+    ['perf', L('Prestaties en fouten'), ['perf', 'errors'], L('Hoe snel RzSense is, hoe lang een cron-ronde duurt, de traagste checks en PHP-fouten.')],
     ['changelog', L('Wijzigingslogboek'), ['changelog'], L('Wie wat wijzigde, met terugdraaien.')],
     ['transfer', L('Exporteren en importeren'), ['transfer'], L('Servers, checks en instellingen overzetten.')]]],
 ];
@@ -13638,7 +13649,7 @@ async function loadSettingsHealth() {
   let items;
   try { items = (await api('settings_health')).items; } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const https = location.protocol === 'https:';
-  items.push({ key: 'https_client', status: https ? 'ok' : 'warn', title: 'HTTPS', detail: https ? L('de verbinding met RzMon is versleuteld') : L('je opent RzMon via http: wachtwoorden gaan onversleuteld over het netwerk'), section: 'access' });
+  items.push({ key: 'https_client', status: https ? 'ok' : 'warn', title: 'HTTPS', detail: https ? L('de verbinding met RzSense is versleuteld') : L('je opent RzSense via http: wachtwoorden gaan onversleuteld over het netwerk'), section: 'access' });
   const rank = { bad: 0, warn: 1, info: 2, ok: 3 };
   items.sort((a, b) => rank[a.status] - rank[b.status]);
   setHealth = {};
@@ -13928,7 +13939,7 @@ async function loadAccount() {
     if (!confirm(L('Tweestapsverificatie uitzetten? Inloggen kan daarna weer met alleen je wachtwoord.'))) return;
     try { await api('totp_reset', { id: me.id }); toast(L('2FA staat uit')); loadAccount(); } catch (ex) { toast(ex.message, 'err'); }
   };
-  $('#acct-devices-body').innerHTML = `${xpHtml(L('Waar je nu bent ingelogd, en welke apparaten RzMon onthoudt.'), L('Hier zie je waar je nu bent ingelogd. <b>Onthouden apparaat (📌):</b> blijft ingelogd zonder wachtwoord en 2FA. Het wordt vergeten na 30 dagen niet gebruiken, of als je je wachtwoord wijzigt.'))}
+  $('#acct-devices-body').innerHTML = `${xpHtml(L('Waar je nu bent ingelogd, en welke apparaten RzSense onthoudt.'), L('Hier zie je waar je nu bent ingelogd. <b>Onthouden apparaat (📌):</b> blijft ingelogd zonder wachtwoord en 2FA. Het wordt vergeten na 30 dagen niet gebruiken, of als je je wachtwoord wijzigt.'))}
     ${sessionRows(devices, false)}
     ${devices.some((d) => !d.current) ? `<button type="button" class="btn danger" id="acct-forget-all" style="margin-top:.6rem">${L('Alle andere apparaten uitloggen')}</button>` : ''}`;
   $('#acct-devices-body').onclick = async (e) => {
@@ -13955,7 +13966,7 @@ function accessTables(devices, passkeys, admin, current = null) {
     ${devices.map((d) => `<tr>${admin ? `<td>${esc(d.username)}</td>` : ''}<td>${devIcon(d.name)} <b>${esc(d.name)}</b>${d.current || +d.id === current ? ` <span class="badge">${L('dit apparaat')}</span>` : ''}</td>
       <td class="small">${esc(fmtDateTime(d.created_at))}<br><span class="muted mono">${esc(d.created_ip || '')}</span></td>
       <td class="small">${esc(ago(d.last_seen))}<br><span class="muted mono">${esc(d.last_ip || '')}</span>${cc(d.last_cc)}</td><td class="small">${+d.passkeys ? '🗝️ ' + d.passkeys : '–'}</td>
-      <td class="nowrap"><button type="button" class="icon-btn" data-acc-ren="dev:${d.id}" title="${esc(L('Hernoemen'))}">✎</button> <button type="button" class="icon-btn" data-acc-del="dev:${d.id}" title="${esc(L('Intrekken: kan RzMon niet meer van buiten openen'))}">✕</button></td></tr>`).join('')}</tbody></table></div>`
+      <td class="nowrap"><button type="button" class="icon-btn" data-acc-ren="dev:${d.id}" title="${esc(L('Hernoemen'))}">✎</button> <button type="button" class="icon-btn" data-acc-del="dev:${d.id}" title="${esc(L('Intrekken: kan RzSense niet meer van buiten openen'))}">✕</button></td></tr>`).join('')}</tbody></table></div>`
     : `<p class="muted small">${L('Nog geen apparaten toegestaan.')}</p>`;
   const pk = passkeys.length ? `<div class="table-scroll"><table class="vuln-table"><thead><tr>${admin ? `<th>${L('Gebruiker')}</th>` : ''}<th>${L('Passkey')}</th><th>${L('Domein')}</th><th>${L('Aangemaakt')}</th><th>${L('Laatst gebruikt')}</th><th></th></tr></thead><tbody>
     ${passkeys.map((p) => `<tr>${admin ? `<td>${esc(p.username)}</td>` : ''}<td>🗝️ <b>${esc(p.name)}</b>${p.device_name ? `<br><span class="muted small">${L('hoort bij {d}', { d: esc(p.device_name) })}</span>` : ''}</td>
@@ -13976,7 +13987,7 @@ async function accessAction(e, admin, reload) {
       if (!name) return;
       await api(kind === 'dev' ? 'device_rename' : 'passkey_rename', { id: +id, name, admin });
     } else {
-      if (!confirm(kind === 'dev' ? L('Dit apparaat intrekken? Het kan RzMon dan niet meer van buiten openen; de passkeys van dit apparaat worden ook verwijderd.') : L('Deze passkey verwijderen?'))) return;
+      if (!confirm(kind === 'dev' ? L('Dit apparaat intrekken? Het kan RzSense dan niet meer van buiten openen; de passkeys van dit apparaat worden ook verwijderd.') : L('Deze passkey verwijderen?'))) return;
       await api(kind === 'dev' ? 'device_revoke' : 'passkey_delete', { id: +id, admin });
       toast(kind === 'dev' ? L('Apparaat ingetrokken') : L('Passkey verwijderd'));
     }
@@ -13999,7 +14010,7 @@ function passkeyCreate(done) {
         cred = await navigator.credentials.create({ publicKey: { ...o, challenge: unb64u(o.challenge), user: { ...o.user, id: unb64u(o.user.id) },
           excludeCredentials: o.excludeCredentials.map((c) => ({ ...c, id: unb64u(c.id) })) } });
       } catch (ex) {
-        throw new Error(ex.name === 'InvalidStateError' ? L('Op dit apparaat staat al een passkey voor RzMon') : ex.name === 'NotAllowedError' ? L('Geannuleerd') : ex.message);
+        throw new Error(ex.name === 'InvalidStateError' ? L('Op dit apparaat staat al een passkey voor RzSense') : ex.name === 'NotAllowedError' ? L('Geannuleerd') : ex.message);
       }
       await api('passkey_reg_finish', { name: d.name, clientDataJSON: b64u(cred.response.clientDataJSON), attestationObject: b64u(cred.response.attestationObject) });
       toast(L('Passkey aangemaakt'));
@@ -14016,8 +14027,8 @@ async function loadAccountOutside() {
   const door = a.door_url ? (a.door_url.startsWith('/') ? location.origin + location.pathname.replace(/\/[^/]*$/, '') + a.door_url : a.door_url) : '';
   const isDev = a.current !== null;
   box.innerHTML = `<p class="muted small" style="margin-top:0">${a.ui_locked
-      ? L('Van buiten je eigen netwerk opent RzMon alleen op een <b>toegestaan apparaat</b> (anders een gewone 404). Zet dit apparaat thuis op de lijst, en maak er een <b>passkey</b> bij: dan log je onderweg in met Face ID of je vingerafdruk.')
-      : L('Een beheerder kan instellen dat RzMon van buiten alleen op <b>toegestane apparaten</b> opent. Je kunt je apparaten nu al op de lijst zetten, en een <b>passkey</b> maken om zonder wachtwoord in te loggen.')}</p>
+      ? L('Van buiten je eigen netwerk opent RzSense alleen op een <b>toegestaan apparaat</b> (anders een gewone 404). Zet dit apparaat thuis op de lijst, en maak er een <b>passkey</b> bij: dan log je onderweg in met Face ID of je vingerafdruk.')
+      : L('Een beheerder kan instellen dat RzSense van buiten alleen op <b>toegestane apparaten</b> opent. Je kunt je apparaten nu al op de lijst zetten, en een <b>passkey</b> maken om zonder wachtwoord in te loggen.')}</p>
     <div class="btn-row">
       ${isDev ? `<span class="good-txt">✔ ${L('Dit apparaat is toegestaan van buiten')}</span>`
         : a.can_trust ? `<button type="button" class="btn primary" id="acct-trust">📱 ${L('Dit apparaat ook van buiten toestaan')}</button>`
@@ -14029,7 +14040,7 @@ async function loadAccountOutside() {
     ${a.door && door ? `${xpHtml(L('Sleutel kwijt terwijl je onderweg bent? Bewaar dit adres.'), L('Ben je je sleutel kwijt (browser gewist, nieuwe telefoon) terwijl je onderweg bent? Open dan {url}: je krijgt een 404, maar er gaat een <b>noodlink</b> naar je e-mailadres (en Pushover voor een beheerder). Die werkt één keer en 15 minuten.', { url: `<code class="sel-all">${esc(door)}</code>` }))}` : ''}`;
   if ($('#acct-trust')) $('#acct-trust').onclick = () => modal({
     title: '📱 ' + L('Dit apparaat toestaan van buiten'),
-    body: `<p style="margin-top:0">${L('Dit apparaat krijgt een eigen sleutel (een cookie, 1 jaar). Daarmee opent RzMon ook van buiten je netwerk, alleen voor jouw account. Wis je de gegevens van je browser, dan moet je het opnieuw doen.')}</p>
+    body: `<p style="margin-top:0">${L('Dit apparaat krijgt een eigen sleutel (een cookie, 1 jaar). Daarmee opent RzSense ook van buiten je netwerk, alleen voor jouw account. Wis je de gegevens van je browser, dan moet je het opnieuw doen.')}</p>
       <label>${L('Naam')}<input name="name" value="${esc(navigator.userAgent.includes('iPhone') ? 'iPhone' : navigator.userAgent.includes('Android') ? 'Android' : L('Deze computer'))}" maxlength="100"></label>
       ${confirmField('TOESTAAN')}`,
     buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '📱 ' + L('Toestaan'), cls: 'primary', submit: true }],
@@ -14045,9 +14056,9 @@ async function loadStealth() {
   let s;
   try { s = await api('stealth_info'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const sw = (k, on, label, hint) => `<label class="switch"><input type="checkbox" data-stealth="${k}" ${on ? 'checked' : ''}><span></span> <span>${label}</span></label>${!hint ? '' : String(hint).startsWith('<div class="xp') ? `<div style="margin:-.3rem 0 .6rem 2.6rem">${hint}</div>` : `<p class="muted small" style="margin:-.3rem 0 .6rem 2.6rem">${hint}</p>`}`;   // 1.163.0: lange uitleg als Meer info
-  box.innerHTML = sw('hide', s.hide, L('<b>Niet herkenbaar</b> van buiten'), xpHtml(L('Van buiten geeft RzMon niets prijs.'), L('Geen naam of versie. Het agent-script krijgen alleen bekende agents of wie de downloadsleutel heeft; wie geweigerd wordt of onbekend is, krijgt een 404. Waarom iets geweigerd is, zie je bij Meldingen.')))
+  box.innerHTML = sw('hide', s.hide, L('<b>Niet herkenbaar</b> van buiten'), xpHtml(L('Van buiten geeft RzSense niets prijs.'), L('Geen naam of versie. Het agent-script krijgen alleen bekende agents of wie de downloadsleutel heeft; wie geweigerd wordt of onbekend is, krijgt een 404. Waarom iets geweigerd is, zie je bij Meldingen.')))
     + sw('ui', s.ui, L('Webinterface van buiten alleen op <b>toegestane apparaten</b>'), L('Zonder toegestaan apparaat ook geen inlogscherm. Elk apparaat hoort bij één gebruiker. Zet eerst je eigen apparaten op de lijst (Mijn account).')
-      + (s.ui && !s.devices_all.length ? ` <b class="warn-txt">${L('Er staat nog geen apparaat op de lijst: van buiten kan nu niemand in RzMon.')}</b>` : ''))
+      + (s.ui && !s.devices_all.length ? ` <b class="warn-txt">${L('Er staat nog geen apparaat op de lijst: van buiten kan nu niemand in RzSense.')}</b>` : ''))
     + sw('countries', s.countries, L('Alleen vanuit je <b>normale landen</b> ({list})', { list: esc(s.allowed_countries.join(', ') || '–') }),
       (s.geo_data ? L('In te stellen bij <a href="#settings/ids_attack" data-goto="settings/ids_attack">IDS: aanvallers en verkeer</a>. Zonder landgegevens geldt dit niet.') : `<span class="warn-txt">${L('Er zijn nog geen landgegevens (<a href="#settings/ids_attack" data-goto="settings/ids_attack">IDS: aanvallers en verkeer</a>); tot dan geldt dit niet.')}</span>`))
     + sw('door', s.door, L('<b>Noodlink</b> als je sleutel kwijt is'), xpHtml(L('Een link naar je e-mail als je sleutel kwijt is.'), L('Via een vast adres (zie Mijn account) gaat een link naar je e-mail (en Pushover voor een beheerder). Die werkt één keer en 15 minuten. Je krijgt altijd een melding als iemand hem aanvraagt.')))
@@ -14062,7 +14073,7 @@ async function loadStealth() {
     if (!c.checked && (c.dataset.stealth === 'hide' || c.dataset.stealth === 'ui')) {
       return modal({
         title: '⚠️ ' + L('Minder veilig maken?'),
-        body: `<p style="margin-top:0">${c.dataset.stealth === 'ui' ? L('Van buiten is het inlogscherm dan weer voor iedereen te zien.') : L('Van buiten is dan weer te zien dat hier RzMon draait, en welke versie.')}</p>${confirmField('UITZETTEN')}`,
+        body: `<p style="margin-top:0">${c.dataset.stealth === 'ui' ? L('Van buiten is het inlogscherm dan weer voor iedereen te zien.') : L('Van buiten is dan weer te zien dat hier RzSense draait, en welke versie.')}</p>${confirmField('UITZETTEN')}`,
         buttons: [{ label: L('Annuleren'), onClick: () => { $('#modal').close(); loadStealth(); } }, { label: L('Uitzetten'), cls: 'danger', submit: true }],
         onSubmit: (d) => save({ confirm: d.confirm }),
       });
@@ -14235,7 +14246,7 @@ function notifyEditor(el, cfg, enabled = {}) {
         <td class="nt-ch">${k === 'info' ? `<input type="checkbox" data-c="page" ${(ch.info || {}).page !== false ? 'checked' : ''}>` : `<span class="muted small" title="${L('Altijd')}">✓</span>`}</td>
       </tr>`;
     }).join('')}</tbody></table></div>
-    <p class="hint"><span class="nt-rep-hint">${L('Herhalen: elke X minuten opnieuw zolang het probleem blijft (0 = nooit).')}</span> ${L('Info: gebeurtenissen die geen storing zijn (herstart, vernieuwd certificaat, agent of RzMon bijgewerkt), stil via push; tijdens stille uren niet verstuurd, wel op de pagina Meldingen.')}</p>
+    <p class="hint"><span class="nt-rep-hint">${L('Herhalen: elke X minuten opnieuw zolang het probleem blijft (0 = nooit).')}</span> ${L('Info: gebeurtenissen die geen storing zijn (herstart, vernieuwd certificaat, agent of RzSense bijgewerkt), stil via push; tijdens stille uren niet verstuurd, wel op de pagina Meldingen.')}</p>
     <div class="flap-box">
       <label class="switch small"><input type="checkbox" data-flap="on" ${fl.on !== false ? 'checked' : ''}><span></span> <b>Anti-flapping</b></label>
       <div class="flap-fields">
@@ -14463,7 +14474,7 @@ function quietProfileDialog(p) {
 
 // ---------------------------------------------------------------- ℹ️ Systeeminfo: per melding de kanalen
 const SYSINFO_ROWS = [
-  ['RzMon', [['rzmon_update', '⬆ ' + L('RzMon bijgewerkt')]]],
+  ['RzSense', [['rzmon_update', '⬆ ' + L('RzSense bijgewerkt')]]],
   [L('Agents'), [['agent_update', '⬆ ' + L('Agent bijgewerkt')], ['agent_update_fail', '✘ ' + L('Agent bijwerken mislukt')], ['agent_connect', '🔌 ' + L('Agent verbonden')],
     ['agent_sec', '⚠️ ' + L('Agent verbindt niet veilig (en weer veilig)')]]],
   [L('Inloggen'), [['login_ok', '🔑 ' + L('Ingelogd')], ['login_fail', '❌ ' + L('Mislukte login')], ['server_login', '🖥️ ' + L('Login op een server, van binnen (SSH of console)')]]],
@@ -14477,8 +14488,8 @@ const SYSINFO_ROWS = [
   ['IDS', [['isolate', '🧱 ' + L('Server geïsoleerd of opgeheven')]]],
   [L('Netwerk'), [['net_new', '🆕 ' + L('Nieuw apparaat op het netwerk')], ['net_traffic', '📈 ' + L('Ongewoon netwerkverkeer (veel of \'s nachts)')], ['net_cap', '📶 ' + L('Datalimiet internet bijna of helemaal op')], ['path_change', '🛣️ ' + L('Pad naar een doel gewijzigd (pad-check, als die dat mag)')]]],
   [L('Checks'), [['smart_drift', '🧠 ' + L('Normaalwaarde stijgt sluipend (slimme drempels)')], ['smart_auto', '🧠 ' + L('Drempels zelf aangepast (naar slim)')], ['alert_auto', '🔔 ' + L('Melden na N zelf aangepast')], ['heal', '🩹 ' + L('Zelf hersteld (of herstel mislukt)')],
-    ['watchdog', '🐕 ' + L('Waakhond: RzMon was onbereikbaar of de checks stonden stil')]]],
-  ['RzMon', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],
+    ['watchdog', '🐕 ' + L('Waakhond: RzSense was onbereikbaar of de checks stonden stil')]]],
+  ['RzSense', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],
   [L('Logs'), [['logs_limit', '📜 ' + L('Daglimiet van een server bereikt')], ['logs_full', '📜 ' + L('Maximum bereikt: oudste dag weggegooid')], ['logs_watch_off', '📜 ' + L('Vaste zoekactie te traag, uitgezet')]]],   // 1.210.0
   [L('AI-advies'), [['ai_advice', '🤖 ' + L('Samenvatting van een automatisch advies')], ['ai_week', '📅 ' + L('Weekoverzicht')], ['ai_credit', '💳 ' + L('Tegoed of budget bijna op of op')]]],   // 1.173.0
 ];
@@ -14497,7 +14508,7 @@ function renderSysinfo() {
       return `<tr data-si="${k}"><td>${esc(label)}${k === 'sec' ? `<div class="muted small">${L('ook tijdens stille uren')}</div>` : ''}</td>
         ${SYSINFO_CH.map(([ch]) => {
           const fixed = k === 'sec' && ch === 'page';   // de telling per IP staat op de meldingenpagina
-          return `<td class="si-ch"><input type="checkbox" data-ch="${ch}" ${c[ch] || fixed ? 'checked' : ''} ${fixed ? `disabled title="${esc(L('Altijd: hier telt RzMon de pogingen per IP'))}"` : ''}></td>`;
+          return `<td class="si-ch"><input type="checkbox" data-ch="${ch}" ${c[ch] || fixed ? 'checked' : ''} ${fixed ? `disabled title="${esc(L('Altijd: hier telt RzSense de pogingen per IP'))}"` : ''}></td>`;
         }).join('')}
         <td><select data-prio ${c.pushover ? '' : 'disabled'}><option value="-1" ${+c.prio < 0 ? 'selected' : ''}>🔕 ${L('stil')}</option><option value="0" ${+c.prio >= 0 ? 'selected' : ''}>🔔 ${L('normaal')}</option></select></td>
         <td><button type="button" class="icon-btn" data-si-test title="${esc(L('Testmelding sturen naar de aangevinkte kanalen'))}">🧪</button></td></tr>`;
@@ -15294,8 +15305,8 @@ async function loadConn() {
       L('Wanneer iets erom vraagt, bijvoorbeeld REST-sensoren in Home Assistant.'), 'settings/api', L('API-sleutels'))}
     ${line('💓', L('Heartbeats'), i.heartbeats.length ? (i.heartbeats.length === 1 ? L('1 check') : L('{n} checks', { n: i.heartbeats.length })) + (hbLast ? ' · ' + L('laatst gemeld {t}', { t: esc(ago(hbLast)) }) : '') : L('geen'),
       L('Wanneer je scripts, cronjobs of apparaten zich melden.'), i.heartbeats.length ? 'dashboard' : '', L('Dashboard'))}
-    <h3 class="set-sub">⬆️ ${L('Achtergrondtaken van RzMon')}</h3>
-    ${xpHtml(L('Wat RzMon elke minuut op de achtergrond doet.'), L('RzMon draait elke minuut (cron): de checks naar je apparaten volgens hun interval, de meldingen naar Pushover, ntfy, e-mail en Home Assistant, en de taken hieronder.'))}
+    <h3 class="set-sub">⬆️ ${L('Achtergrondtaken van RzSense')}</h3>
+    ${xpHtml(L('Wat RzSense elke minuut op de achtergrond doet.'), L('RzSense draait elke minuut (cron): de checks naar je apparaten volgens hun interval, de meldingen naar Pushover, ntfy, e-mail en Home Assistant, en de taken hieronder.'))}
     ${table([L('Taak'), L('Hoe vaak'), L('Laatst gelukt'), L('Volgende'), L('Stand')], d.tasks.map((t) => `<tr${t.status === 'off' ? ' class="muted"' : ''}>
       <td><b>${esc(t.label)}</b>${t.error && t.status !== 'off' ? `<div class="bad small">${esc(t.error)}</div>` : ''}${t.note ? `<div class="muted small">${esc(t.note)}</div>` : ''}</td>
       <td class="small">${esc(t.every)}</td><td>${t.status === 'off' ? '–' : esc(tsAgo(t.last_ok))}</td>
@@ -15340,7 +15351,7 @@ const GZIP_APACHE = `# /etc/httpd/conf.d/rzmon-snelheid.conf  (daarna: systemctl
     Header set Cache-Control "public, max-age=2592000, immutable"
   </LocationMatch>
 </IfModule>`;
-const GZIP_NGINX = `# in het server-blok van RzMon  (daarna: nginx -t && systemctl reload nginx)
+const GZIP_NGINX = `# in het server-blok van RzSense  (daarna: nginx -t && systemctl reload nginx)
 gzip on;
 gzip_types text/plain text/css text/javascript application/javascript application/json image/svg+xml;
 location ~* /assets/.*\\.(js|css|svg|png|woff2|json)$ { expires 30d; add_header Cache-Control "public, immutable"; }`;
@@ -15390,7 +15401,7 @@ function perfWire(box) {
   const opt = $('#perf-optimize', box);
   if (opt) {
     opt.onclick = async () => {
-      if (!confirm(L('De database nu optimaliseren? RzMon kan tijdens het optimaliseren even trager reageren.'))) return;
+      if (!confirm(L('De database nu optimaliseren? RzSense kan tijdens het optimaliseren even trager reageren.'))) return;
       opt.disabled = true;
       opt.textContent = '⏳ ' + L('Bezig…');
       try {
@@ -15423,7 +15434,7 @@ function perfWire(box) {
   }).catch(() => { li.innerHTML = `<span class="ic">?</span><span><strong>${L('Compressie en cache van de webserver')}</strong><br><span class="muted small">${L('Kon niet gecontroleerd worden.')}</span></span>`; });
 }
 
-/** Gezondheid van RzMon (1.96.0): database, cron, traagste checks, PHP-fouten */
+/** Gezondheid van RzSense (1.96.0): database, cron, traagste checks, PHP-fouten */
 /** 1.151.0: grootte en groei van de database (Systeem → Database en server) */
 function selfDb(r) {
   if (!r) return '';
@@ -15476,7 +15487,7 @@ function configManual(r) {
   modal({
     title: L('config.php zelf plaatsen'),
     body: `<p style="margin-top:0">${L('De installatiemap is vergrendeld (zo hoort het). Zet deze inhoud als root in {path}:', { path: `<code>${esc(r.path)}</code>` })}</p>${copyBox('cfg-content', r.content)}
-      ${r.helper ? '' : xpHtml(L('Liever dat RzMon dit zelf doet? Installeer de hulpdienst.'), L('De hulpdienst slaat config.php voor je op terwijl de map vergrendeld blijft. Hij neemt alleen de vaste instellingen over (tijdzone, adressen, PHP en database), controleert alles opnieuw, test een nieuwe database eerst en maakt een reservekopie in /var/lib/rzmon/backups. Installeren of bijwerken op de server: <code>sudo bash {dir}/install/install-helper.sh</code>. Bij bijwerken via de knop in RzMon (Rocky/RHEL/AlmaLinux) gebeurt dat vanzelf.', { dir: esc(String(r.path || '').replace(/\/config\.php$/, '')) }))}`,
+      ${r.helper ? '' : xpHtml(L('Liever dat RzSense dit zelf doet? Installeer de hulpdienst.'), L('De hulpdienst slaat config.php voor je op terwijl de map vergrendeld blijft. Hij neemt alleen de vaste instellingen over (tijdzone, adressen, PHP en database), controleert alles opnieuw, test een nieuwe database eerst en maakt een reservekopie in /var/lib/rzmon/backups. Installeren of bijwerken op de server: <code>sudo bash {dir}/install/install-helper.sh</code>. Bij bijwerken via de knop in RzSense (Rocky/RHEL/AlmaLinux) gebeurt dat vanzelf.', { dir: esc(String(r.path || '').replace(/\/config\.php$/, '')) }))}`,
     buttons: [{ label: L('Sluiten'), cls: 'primary', submit: true }],
   });
   wireCopy($('#modal-body'));
@@ -15494,7 +15505,7 @@ async function loadSetupInfo() {
       <div class="row2"><label>memory_limit <span class="hint">${L('nu')} ${esc(d.php_now.memory_limit)}</span><input name="memory_limit" value="${esc(d.php.memory_limit || '')}" placeholder="${esc(L('bv. 256M'))}"></label>
         <label>max_execution_time <span class="hint">${L('sec')}</span><input name="max_execution_time" value="${esc(d.php.max_execution_time || '')}" placeholder="${esc(L('bv. 120'))}"></label></div>
       <label class="switch"><input type="checkbox" name="display_errors" ${d.php.display_errors === '1' ? 'checked' : ''}><span></span> ${L('display_errors (PHP-fouten op het scherm tonen)')}</label>
-      <p class="hint">${L('Deze PHP-waarden past RzMon zelf toe (via <code>ini_set</code>). Leeg = waarde uit php.ini. Zet display_errors alleen aan bij het debuggen.')}</p>
+      <p class="hint">${L('Deze PHP-waarden past RzSense zelf toe (via <code>ini_set</code>). Leeg = waarde uit php.ini. Zet display_errors alleen aan bij het debuggen.')}</p>
       <button class="btn primary">${L('Opslaan')}</button></form>`;
   $('#server-form').onsubmit = async (e) => {
     e.preventDefault();
@@ -15525,7 +15536,7 @@ async function loadSetupInfo() {
   };
   $('#dbconn-save').onclick = () => modal({
     title: '🔌 ' + L('Databaseverbinding opslaan'),
-    body: `<p style="margin-top:0">${L('RzMon gaat hierna de nieuwe database gebruiken en installeert of werkt daar de tabellen bij. De gegevens in de oude database gaan niet vanzelf mee: zet eerst een back-up terug in de nieuwe database als je verhuist.')}</p>${confirmField('DATABASE')}`,
+    body: `<p style="margin-top:0">${L('RzSense gaat hierna de nieuwe database gebruiken en installeert of werkt daar de tabellen bij. De gegevens in de oude database gaan niet vanzelf mee: zet eerst een back-up terug in de nieuwe database als je verhuist.')}</p>${confirmField('DATABASE')}`,
     buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: L('Opslaan'), cls: 'danger', submit: true }],
     onSubmit: async (f) => {
       const r = await api('setup_db_save', { ...vals(), confirm: f.confirm });
@@ -15537,7 +15548,7 @@ async function loadSetupInfo() {
 async function loadDbInfo() {
   try { dbInfo = await api('db_info'); } catch (ex) { return; }
   $('#db-status').innerHTML = L('Gebruiker {user} op {host}, database {db}', { user: `<code>${esc(dbInfo.db.user)}</code>`, host: `<code>${esc(dbInfo.db.host)}</code>`, db: `<code>${esc(dbInfo.db.name)}</code>` }) + ' · '
-    + (dbInfo.helper ? `<b class="good-txt">${L('hulpdienst actief')}</b>` : dbInfo.direct ? L('RzMon mag config.php zelf opslaan') : `<b class="warn-txt">${L('hulpdienst niet geïnstalleerd')}</b>`);
+    + (dbInfo.helper ? `<b class="good-txt">${L('hulpdienst actief')}</b>` : dbInfo.direct ? L('RzSense mag config.php zelf opslaan') : `<b class="warn-txt">${L('hulpdienst niet geïnstalleerd')}</b>`);
   settingsSummaries();
 }
 
@@ -15613,9 +15624,9 @@ async function setAgentCommands(hostId, mode, current, label, then) {
   }
   modal({
     title: `🖥️ ${L('Commando\'s toestaan')} – ${label}`,
-    body: `<p style="margin-top:0">${L('Hiermee mag RzMon commando\'s laten uitvoeren op {label}, <b>{mode}</b>.', { label: esc(label), mode: esc(CMD_MODES[target]) })}
-        ${(hostId ? L('Iedereen die in RzMon beheerder is, kan dan commando\'s op deze server draaien{extra}.', { extra: target === 'root' ? L(', <b>met volledige rechten</b>') : '' })
-          : L('Iedereen die in RzMon beheerder is, kan dan commando\'s op je agents draaien{extra}.', { extra: target === 'root' ? L(', <b>met volledige rechten</b>') : '' }))}</p>
+    body: `<p style="margin-top:0">${L('Hiermee mag RzSense commando\'s laten uitvoeren op {label}, <b>{mode}</b>.', { label: esc(label), mode: esc(CMD_MODES[target]) })}
+        ${(hostId ? L('Iedereen die in RzSense beheerder is, kan dan commando\'s op deze server draaien{extra}.', { extra: target === 'root' ? L(', <b>met volledige rechten</b>') : '' })
+          : L('Iedereen die in RzSense beheerder is, kan dan commando\'s op je agents draaien{extra}.', { extra: target === 'root' ? L(', <b>met volledige rechten</b>') : '' }))}</p>
       ${xpHtml(L('Op een server zelf kun je commando\'s altijd blokkeren.'), L('Op een server zelf blokkeer je het altijd met <code>COMMANDS=0</code> (of <code>COMMANDS=nobody</code>) in de instellingen van de agent. Deze wijziging komt in het logboek.'))}
       ${confirmField('TOESTAAN')}`,
     buttons: [{ label: L('Toestaan'), cls: 'primary', submit: true }],
@@ -15673,7 +15684,7 @@ function askConfirm({ title, text = '', word, ok = L('Bevestigen'), danger = fal
   });
 }
 
-// 1.206.0: per rol een vinkje in plaats van het wachtwoord (RzMon zegt in elke statusvraag of en tot wanneer)
+// 1.206.0: per rol een vinkje in plaats van het wachtwoord (RzSense zegt in elke statusvraag of en tot wanneer)
 let CONFIRM = { skip: false, lan: false, until: 0, always: [] };
 document.addEventListener('change', (e) => {
   if (!e.target.matches || !e.target.matches('.confirm-sure-cb')) return;
@@ -15702,17 +15713,17 @@ function dbRotateDialog() {
       <summary>${L('Via de terminal (als root)')}</summary>
       <p class="muted small">${L('Dit doet hetzelfde als de knop, en werkt altijd:')}</p>
       ${copyBox('cmd-rotate', info.cli_cmd || '')}
-      ${info.helper ? '' : `<p class="muted small" style="margin-top:.8rem">${L('Hulpdienst installeren, zodat de knop ook werkt als de RzMon-map vergrendeld is:')}</p>${copyBox('cmd-helper', info.helper_cmd || '')}`}
+      ${info.helper ? '' : `<p class="muted small" style="margin-top:.8rem">${L('Hulpdienst installeren, zodat de knop ook werkt als de RzSense-map vergrendeld is:')}</p>${copyBox('cmd-helper', info.helper_cmd || '')}`}
     </details>`;
   modal({
     title: '🔑 ' + L('Databasewachtwoord vernieuwen'),
     body: canClick ? `
-      <p style="margin-top:0">${L('RzMon maakt een nieuw wachtwoord van 32 tekens en slaat het op in de database en in <code>config.php</code>{extra}.', { extra: info.helper ? ' ' + L('(en in {file})', { file: '/root/rzmon-install.txt' }) : '' })}
-        ${L('Daarna test RzMon de verbinding; lukt dat niet, dan wordt het oude wachtwoord automatisch teruggezet.')}</p>
-      <p class="muted small">${L('Je ziet het nieuwe wachtwoord <b>één keer</b>. RzMon zelf heeft het niet nodig van je; bewaar het alleen als je zelf met de database wilt werken.')}</p>
+      <p style="margin-top:0">${L('RzSense maakt een nieuw wachtwoord van 32 tekens en slaat het op in de database en in <code>config.php</code>{extra}.', { extra: info.helper ? ' ' + L('(en in {file})', { file: '/root/rzmon-install.txt' }) : '' })}
+        ${L('Daarna test RzSense de verbinding; lukt dat niet, dan wordt het oude wachtwoord automatisch teruggezet.')}</p>
+      <p class="muted small">${L('Je ziet het nieuwe wachtwoord <b>één keer</b>. RzSense zelf heeft het niet nodig van je; bewaar het alleen als je zelf met de database wilt werken.')}</p>
       ${confirmField('VERNIEUWEN')}
       ${terminal}`
-      : `<p style="margin-top:0">${L('De RzMon-map is vergrendeld (veilig), en de <b>hulpdienst</b> die de wissel als root uitvoert is nog niet geïnstalleerd. Voer op de server één van deze commando\'s uit:')}</p>
+      : `<p style="margin-top:0">${L('De RzSense-map is vergrendeld (veilig), en de <b>hulpdienst</b> die de wissel als root uitvoert is nog niet geïnstalleerd. Voer op de server één van deze commando\'s uit:')}</p>
         <p class="small">${L('<b>1. Hulpdienst installeren</b> (eenmalig; daarna werkt deze knop):')}</p>${copyBox('cmd-helper', info.helper_cmd || '')}
         <p class="small" style="margin-top:1rem">${L('<b>2. Of nu meteen vernieuwen</b> in de terminal:')}</p>${copyBox('cmd-rotate', info.cli_cmd || '')}`,
     buttons: canClick ? [{ label: '🔑 ' + L('Vernieuwen'), cls: 'primary', submit: true }] : [{ label: L('Sluiten'), cls: 'primary', submit: true }],
@@ -15733,7 +15744,7 @@ function dbRotateDialog() {
 function showNewDbPassword(r) {
   modal({
     title: '✔ ' + L('Nieuw databasewachtwoord'),
-    body: `<p style="margin-top:0">${L('Opgeslagen en getest; RzMon werkt gewoon door. Dit wachtwoord wordt <b>niet opnieuw getoond</b>.')}</p>
+    body: `<p style="margin-top:0">${L('Opgeslagen en getest; RzSense werkt gewoon door. Dit wachtwoord wordt <b>niet opnieuw getoond</b>.')}</p>
       ${copyBox('new-db-pass', r.password)}
       ${(r.warnings || []).map((w) => `<p class="callout small">⚠️ ${esc(w)}</p>`).join('')}`,
     buttons: [{ label: L('Klaar'), cls: 'primary', submit: true }],
@@ -15742,7 +15753,7 @@ function showNewDbPassword(r) {
   loadDbInfo();
 }
 
-// ---------------------------------------------------------------- RzMon bijwerken
+// ---------------------------------------------------------------- RzSense bijwerken
 let updatePoll = null;
 
 /** Changelog-tekst (Markdown) als eenvoudige HTML: kopjes, opsommingen, vet, cursief en code. */
@@ -15772,7 +15783,7 @@ async function loadUpdate(force) {
   else if (u.latest) parts.push(`<span class="good-txt">✔ ${L('Dit is de nieuwste versie.')}</span>`);
   if (u.checked_at) parts.push(`<span class="muted">${L('Gecontroleerd {ago}.', { ago: ago(u.checked_at) })}</span>`);
   if (u.available && u.unavailable) {
-    parts.push(`<br><b class="warn-txt">${L('Bijwerken vanuit RzMon kan nog niet:')}</b> ${esc(u.unavailable)}. ${L('Voer één keer uit op de server:')}`
+    parts.push(`<br><b class="warn-txt">${L('Bijwerken vanuit RzSense kan nog niet:')}</b> ${esc(u.unavailable)}. ${L('Voer één keer uit op de server:')}`
       + copyBox('cmd-update-setup', 'curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/install-rocky.sh -o install-rocky.sh && sudo bash install-rocky.sh'));
   }
   st.innerHTML = parts.join(' ');
@@ -15807,7 +15818,7 @@ function showUpdateProgress(s, log) {
   </div>`;
 }
 
-let updateFails = 0;   // opeenvolgende keren geen antwoord (RzMon wordt herstart)
+let updateFails = 0;   // opeenvolgende keren geen antwoord (RzSense wordt herstart)
 let updatePollAt = 0;  // laatste vraag die een antwoord (of fout) kreeg; voor de waakhond hieronder
 function pollUpdate() {
   clearTimeout(updatePoll);
@@ -15825,7 +15836,7 @@ function pollUpdate() {
       return;
     }
     updatePollAt = Date.now();
-    // 1.206.1: een "klaar" van een update van vóór deze aanvraag (oude RzMon) is nog niet deze update
+    // 1.206.1: een "klaar" van een update van vóór deze aanvraag (oude RzSense) is nog niet deze update
     if (r.status && r.status.state === 'ok' && updReqAt && ((+r.status.started || +r.status.at || 0) * 1000) < updReqAt - 30000) {
       r.status = { state: 'queued', step: 'queued', message: L('Wachten op de hulpdienst…'), at: updReqAt / 1000, stuck: Date.now() - updReqAt > 120000 };
     }
@@ -15844,11 +15855,11 @@ setInterval(() => { if (updateDialogShown() && Date.now() - updatePollAt > 20000
 document.addEventListener('visibilitychange', () => { if (!document.hidden && updateDialogShown()) pollUpdate(); });
 
 // ---------------------------------------------------------------- Update-venster: vraag, voortgangsbalk en wat er gebeurt
-// Alleen het venster van de RzMon-update; dat van pakketten bijwerken (Kwetsbaarheden) heeft dezelfde opmaak, maar is vu-dlg
+// Alleen het venster van de RzSense-update; dat van pakketten bijwerken (Kwetsbaarheden) heeft dezelfde opmaak, maar is vu-dlg
 const updateDialogShown = () => $('#modal').open && !!$('#modal-body .upd-dlg:not(.vu-dlg)');
 let updatePct = 0;   // de balk gaat tijdens één update nooit terug
 
-// 1.204.0: de bijwerk-vensters (RzMon en Pakketten bijwerken) in een nieuw jasje: kop met versies, ring, tijdlijn, terminal
+// 1.204.0: de bijwerk-vensters (RzSense en Pakketten bijwerken) in een nieuw jasje: kop met versies, ring, tijdlijn, terminal
 const UPD_ARROW = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
 const UPD_SRV = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>';
 function updHead(title, chips = [], icon = UPD_ARROW) {
@@ -15927,7 +15938,7 @@ function updNotesBlock(notes) {
       ${notes.map((n) => `<div class="un-ver"><h3>${esc(n.version)} <span class="muted small">${esc(n.date)}</span></h3>${mdLite(n.text)}</div>`).join('')}</details></div>`;
 }
 
-// Tijden van deze update (in de browser): wanneer elke stap begon, en hoe lang RzMon onbereikbaar was
+// Tijden van deze update (in de browser): wanneer elke stap begon, en hoe lang RzSense onbereikbaar was
 let updT = {}, updT0 = 0, updEnd = 0, updDownAt = 0, updDownMs = 0, updBackup = null, updReqAt = 0;
 function updResetTimes() { updT = {}; updT0 = Date.now(); updEnd = 0; updDownAt = 0; updDownMs = 0; }
 
@@ -15938,15 +15949,15 @@ async function openUpdateDialog(pick = false) {
   if (u.status && ['queued', 'running'].includes(u.status.state)) { showUpdateDialog(u.status, '', true); pollUpdate(); return; }
   const versions = (u.versions || []).filter((v) => v.version !== u.current);
   if ((!u.available && !(pick && versions.length)) || u.unavailable) {
-    // Niets bij te werken, of het kan (nog) niet vanuit RzMon: de uitleg staat bij Instellingen
+    // Niets bij te werken, of het kan (nog) niet vanuit RzSense: de uitleg staat bij Instellingen
     showTab('settings/update');
     return;
   }
   const to = u.available ? u.latest : '?';
   modal({
-    title: L('RzMon bijwerken'),
+    title: L('RzSense bijwerken'),
     body: `<div class="upd-dlg upd-ask">
-      ${updHead(L('RzMon bijwerken'), [updChip(u.current), `<span id="upd-to">${updChip(to, true)}</span>`])}
+      ${updHead(L('RzSense bijwerken'), [updChip(u.current), `<span id="upd-to">${updChip(to, true)}</span>`])}
       <div class="upd-body">
         ${updNotesBlock(u.notes)}
         <div class="upd-opts">
@@ -15958,7 +15969,7 @@ async function openUpdateDialog(pick = false) {
         </div>
         ${versions.length ? `<div id="upd-older" class="callout small" hidden>${L('⚠️ <b>Terugzetten naar een oudere versie.</b> Je instellingen en gegevens blijven staan; de database blijft zoals hij is (nieuwere kolommen worden niet gebruikt). Wat er sindsdien bij kwam, werkt niet meer. Automatisch bijwerken pauzeert tot je weer naar de nieuwste gaat. Agents hoef je niet terug te zetten.')}
           ${confirmField('TERUGZETTEN')}</div>` : ''}
-        <div class="upd-facts"><span>${L('RzMon is tijdens het installeren even niet bereikbaar')}</span><span>${L('Agents houden hun metingen vast en geven tot {n} min geen alarm', { n: u.hold_min || 5 })}</span><span>${L('Dit venster laat zien hoe ver het is')}</span></div>
+        <div class="upd-facts"><span>${L('RzSense is tijdens het installeren even niet bereikbaar')}</span><span>${L('Agents houden hun metingen vast en geven tot {n} min geen alarm', { n: u.hold_min || 5 })}</span><span>${L('Dit venster laat zien hoe ver het is')}</span></div>
         ${(u.hold_old || []).length ? `<p class="callout small">⚠️ ${L('Deze agents zijn ouder dan {v} of onversleuteld en kunnen tijdens de update alarm geven: {names}', { v: '1.82.0', names: esc(u.hold_old.slice(0, 8).join(', ') + (u.hold_old.length > 8 ? ' …' : '')) })}</p>` : ''}
       </div></div>`,
     buttons: [
@@ -16025,7 +16036,7 @@ function showUpdateDialog(s, log, force = false) {
     body = `<div class="upd-dlg ok">${updHead(L('Bijgewerkt'), chips)}
       <div class="upd-body">
         <div class="upd-done"><span class="upd-check"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
-          <b>${L('RzMon draait nu op {v}', { v: esc(s.to || '') })}</b><span class="muted">${L('De pagina wordt over 3 seconden herladen.')}</span></div>
+          <b>${L('RzSense draait nu op {v}', { v: esc(s.to || '') })}</b><span class="muted">${L('De pagina wordt over 3 seconden herladen.')}</span></div>
         <div class="upd-stats">
           <div><b>${took > 1500 ? updSecs(took) : '–'}</b><small>${L('duur')}</small></div>
           <div><b>${updBackup === null ? '–' : updBackup ? '✓' : '✕'}</b><small>${L('back-up gemaakt')}</small></div>
@@ -16038,7 +16049,7 @@ function showUpdateDialog(s, log, force = false) {
     body = `<div class="upd-dlg ${s.state}">${updHead(s.state === 'error' ? L('Bijwerken mislukt') : L('Bezig met bijwerken…'), chips)}
       <div class="upd-body">
         <div class="upd-prog">${updRing(pct, s.state === 'error' ? L('gestopt') : L('{t} verstreken', { t: elapsed }))}${updSteps(UPDATE_STEPS, Math.max(cur, 0), s.state === 'queued' ? 'running' : s.state, detail, durs)}</div>
-        <div class="upd-restart" id="upd-now" ${updateFails ? '' : 'hidden'}><i></i>${L('RzMon wordt herstart; dit venster gaat vanzelf verder zodra hij terug is.')}</div>
+        <div class="upd-restart" id="upd-now" ${updateFails ? '' : 'hidden'}><i></i>${L('RzSense wordt herstart; dit venster gaat vanzelf verder zodra hij terug is.')}</div>
         ${s.state === 'queued' && s.stuck ? `<p class="warn-txt small">${L('De hulpdienst reageert niet. Controleer op de server:')} <code>systemctl status rzmon-update.path</code></p>` : ''}
         ${s.state === 'error' ? `<div class="upd-err"><b>${nothing ? L('Er is niets veranderd.') : L('Het bijwerken is gestopt.')}</b>
           <span>${nothing ? L('Je draait nog steeds op {v}.', { v: esc(s.from || (updateInfo && updateInfo.current) || '') }) : L('Kijk in het logboek wat er misging.')}${updBackup ? ' ' + L('De back-up van vandaag staat bij Instellingen → Back-up.') : ''}</span></div>` : ''}
@@ -16048,7 +16059,7 @@ function showUpdateDialog(s, log, force = false) {
   }
   if (updateDialogShown()) updKeepScroll(); else { updKept.log = null; updKept.scroll = null; }
   modal({
-    title: L('RzMon bijwerken'),
+    title: L('RzSense bijwerken'),
     body,
     buttons: s.state === 'ok' ? [{ label: L('Nu herladen'), cls: 'primary', onClick: () => location.reload() }]
       : s.state === 'error' ? [{ label: L('Sluiten'), onClick: () => $('#modal').close() }, { label: '↻ ' + L('Opnieuw proberen'), cls: 'primary', onClick: () => { $('#modal').close(); openUpdateDialog(); } }]
@@ -16087,7 +16098,7 @@ async function loadBackups() {
     return;
   }
   const parts = [];
-  if (b.last_error) parts.push(`<b class="bad">✘ ${L('Automatische back-up mislukt: {err}', { err: esc(b.last_error) })}</b> ${L('(RzMon probeert het elk uur opnieuw)')}`);
+  if (b.last_error) parts.push(`<b class="bad">✘ ${L('Automatische back-up mislukt: {err}', { err: esc(b.last_error) })}</b> ${L('(RzSense probeert het elk uur opnieuw)')}`);
   const lastAuto = b.list.find((x) => x.type === 'auto');
   if (lastAuto) parts.push(L('Laatste automatische: <b>{ago}</b>', { ago: ago(lastAuto.at) }));
   parts.push(b.next ? L('Volgende: {date}', { date: fmtDateTime(b.next) }) : L('Automatische back-up staat uit'));
@@ -16164,7 +16175,7 @@ function backupRestore(file) {
     body: `<p style="margin-top:0">${L('De database gaat terug naar <b>{date}</b>{server}.', { date: fmtDateTime(x.at), server: x.server ? ' ' + L('(server {name})', { name: esc(x.server) }) : '' })}
         ${L('Wat daarna is veranderd aan servers, checks, instellingen en gebruikers gaat verloren.')}</p>
       <ul class="small">
-        <li>${L('RzMon maakt eerst een <b>veiligheidsback-up</b> van nu. Daarmee kun je altijd terug.')}</li>
+        <li>${L('RzSense maakt eerst een <b>veiligheidsback-up</b> van nu. Daarmee kun je altijd terug.')}</li>
         <li>${L('Het back-upschema en het zip-wachtwoord blijven zoals ze nu zijn.')}</li>
         ${x.history ? '' : `<li>${L('Deze back-up is zonder meethistorie: de huidige grafieken blijven staan.')}</li>`}
         <li>${L('Gebruikers en wachtwoorden worden die uit de back-up; misschien moet je opnieuw inloggen.')}</li>
@@ -16302,7 +16313,7 @@ function iaCard(a) {
     ${open ? `<div class="ia-body">
       <div class="ia-why"><h4>${esc(L('Waarom (uit je gegevens)'))}</h4><ul>${a.why.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>
       <div class="ia-do"><h4>${esc(L('Wat te doen'))}</h4><p>${esc(a.do)}</p>${cmds}${a.note ? `<p class="small warn-txt">⚠ ${esc(a.note)}</p>` : ''}${a.check ? `<p class="small muted">${esc(L('Controleren'))}: <code>${esc(a.check)}</code></p>` : ''}</div>
-      <div class="ia-acts">${acts}<span class="ia-sp"></span>${a.status === 'done' ? `<span class="small warn-txt">${esc(L('RzMon ziet het nog; het verdwijnt vanzelf zodra het echt is opgelost.'))}</span>` : ''}${stBtns}</div>
+      <div class="ia-acts">${acts}<span class="ia-sp"></span>${a.status === 'done' ? `<span class="small warn-txt">${esc(L('RzSense ziet het nog; het verdwijnt vanzelf zodra het echt is opgelost.'))}</span>` : ''}${stBtns}</div>
       ${!admin && (a.acts || []).length < 1 ? '' : ''}</div>` : ''}</article>`;
 }
 
@@ -16385,7 +16396,7 @@ function iaClick(e) {
   if (t.dataset.iaCopy !== undefined) { const pre = t.parentElement.querySelector('pre'); navigator.clipboard?.writeText(pre.textContent).then(() => toast(L('Gekopieerd')), () => {}); return true; }
   if (t.dataset.iaSt && key) {
     api('insight_set', { key, status: t.dataset.iaSt }).then(async () => {
-      toast({ done: L('Gemarkeerd als gedaan; RzMon controleert het zelf'), later: L('7 dagen verborgen'), na: L('Verborgen: niet van toepassing'), open: L('Weer zichtbaar') }[t.dataset.iaSt]);
+      toast({ done: L('Gemarkeerd als gedaan; RzSense controleert het zelf'), later: L('7 dagen verborgen'), na: L('Verborgen: niet van toepassing'), open: L('Weer zichtbaar') }[t.dataset.iaSt]);
       await iaLoad(); renderAnalytics();
     }).catch((ex) => toast(ex.message, 'err'));
     return true;
@@ -16406,7 +16417,7 @@ function iaAction(a, x) {
   if (x.k === 'ids_block' || x.k === 'ids_on') {
     return modal({
       title: '⛔ ' + (x.k === 'ids_on' ? L('IDS aanzetten') : L('IDS: blokkeren aanzetten')),
-      body: `<div style="padding:1rem 1.2rem"><p style="margin-top:0">${L('RzMon gaat dan echt IP-adressen blokkeren op je servers (eigen nftables-tabel van de agent), bij brute force en als jij op ⛔ klikt. Je LAN, RzMon zelf en de lijst <i>Nooit blokkeren</i> worden nooit automatisch geblokkeerd; op TrueNAS wordt alleen gedetecteerd.')}</p>
+      body: `<div style="padding:1rem 1.2rem"><p style="margin-top:0">${L('RzSense gaat dan echt IP-adressen blokkeren op je servers (eigen nftables-tabel van de agent), bij brute force en als jij op ⛔ klikt. Je LAN, RzSense zelf en de lijst <i>Nooit blokkeren</i> worden nooit automatisch geblokkeerd; op TrueNAS wordt alleen gedetecteerd.')}</p>
         ${x.k === 'ids_block' ? confirmField('BLOKKEREN') : ''}</div>`,
       buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: x.k === 'ids_on' ? L('IDS aanzetten') : L('Blokkeren aanzetten'), cls: 'primary', submit: true }],
       onSubmit: async (d) => { await api('ids_set', x.k === 'ids_on' ? { enabled: true } : { mode: 'block', confirm: d.confirm }); await done(L('Gedaan')); },
@@ -16414,7 +16425,7 @@ function iaAction(a, x) {
   }
   if (x.k === 'set') {
     return modal({
-      title: a.title, body: `<div style="padding:1rem 1.2rem"><p style="margin-top:0">${esc(a.do)}</p><p class="muted small">${esc(L('Dit verandert een instelling van RzMon en komt in het wijzigingslogboek, waar je het kunt terugdraaien.'))}</p></div>`,
+      title: a.title, body: `<div style="padding:1rem 1.2rem"><p style="margin-top:0">${esc(a.do)}</p><p class="muted small">${esc(L('Dit verandert een instelling van RzSense en komt in het wijzigingslogboek, waar je het kunt terugdraaien.'))}</p></div>`,
       buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: L('Nu aanzetten'), cls: 'primary', submit: true }],
       onSubmit: async () => { await api('settings_save', { [x.name]: x.value }); await done(L('Instelling aangepast')); },
     });
@@ -16611,7 +16622,7 @@ function renderAnalytics() {
     ${b.hb.length ? anBox(L('Heartbeats (scripts en back-ups)'), `<table class="vuln-table an-table"><tbody>${b.hb.map((x) => `<tr><td><button type="button" class="link-btn" data-an-go="check:${x.id}">${esc(x.name)}</button><br><span class="muted small">${esc(x.host)}</span></td>
       <td>${+x.status === 0 ? '<span class="good-txt">✔</span>' : +x.status === 1 ? '<span class="warn-txt">⚠️</span>' : +x.status === 2 ? '<span class="crit-txt">✘</span>' : '<span class="muted">?</span>'}</td>
       <td class="small">${x.last ? esc(ago(new Date(x.last * 1000).toISOString())) : '–'}${x.dur ? ` · ${L('duur {d}', { d: anDur(x.dur) })}` : ''}</td></tr>`).join('')}</tbody></table>`) : ''}
-    ${anBox(L('RzMon zelf'), `<p class="small">${b.rzmon ? L('Laatste back-up van RzMon: {t}', { t: esc(fmtDateTime(b.rzmon)) }) : `<span class="warn-txt">${L('Nog geen back-up van RzMon zelf.')}</span>`}</p>
+    ${anBox(L('RzSense zelf'), `<p class="small">${b.rzmon ? L('Laatste back-up van RzSense: {t}', { t: esc(fmtDateTime(b.rzmon)) }) : `<span class="warn-txt">${L('Nog geen back-up van RzSense zelf.')}</span>`}</p>
       ${b.tasks_rz.length ? `<p class="small warn-txt">${L('Achtergrondtaken met een probleem: {list}', { list: esc(b.tasks_rz.map((t) => t.label).join(', ')) })}</p>` : `<p class="small good-txt">✔ ${L('Alle achtergrondtaken lopen.')}</p>`}`)}
   </div>`);
   // 🔔 Meldingen en ruis
@@ -16666,7 +16677,7 @@ const NET_KIND = {
   computer: ['💻', () => L('Computer')], phone: ['📱', () => L('Telefoon of tablet')], media: ['📺', () => L('Tv of media')], printer: ['🖨️', () => L('Printer')],
   camera: ['📷', () => L('Camera')], iot: ['💡', () => L('Slim apparaat (IoT)')], smarthome: ['🏠', () => L('Smart home')], unknown: ['❔', () => L('Onbekend')],
 };
-/** Soort in RzMon (hostForm) bij de soort uit de netwerkscan */
+/** Soort in RzSense (hostForm) bij de soort uit de netwerkscan */
 const NET_TO_HOST = { router: 'router', network: 'switch', server: 'server', nas: 'nas', printer: 'printer', camera: 'camera', smarthome: 'smarthome', iot: 'smarthome' };
 let netData = null;
 let netFilter = 'all';
@@ -16761,7 +16772,7 @@ function renderNetDisc() {
   const kpis = `<div class="kpis nd-kpis">
     <div class="kpi ${newDevs.length ? 'warn' : ''}"><div class="kpi-lbl">🆕 ${L('Nieuw en onbekend')}</div><div class="kpi-val">${newDevs.length}</div><div class="kpi-sub">${L('{n} deze week verschenen', { n: ev7.filter((e) => e.kind === 'new').length })}</div></div>
     <div class="kpi"><div class="kpi-lbl">🔄 ${L('Veranderingen')}</div><div class="kpi-val">${ev7.filter((e) => e.kind !== 'new').length}</div><div class="kpi-sub">${L('laatste 7 dagen')}</div></div>
-    <div class="kpi"><div class="kpi-lbl">💡 ${L('Voorstellen')}</div><div class="kpi-val">${d.suggestions.length}</div><div class="kpi-sub">${L('nog niet in RzMon')}</div></div>
+    <div class="kpi"><div class="kpi-lbl">💡 ${L('Voorstellen')}</div><div class="kpi-val">${d.suggestions.length}</div><div class="kpi-sub">${L('nog niet in RzSense')}</div></div>
     <div class="kpi"><div class="kpi-lbl">🟢 ${L('Nu online')}</div><div class="kpi-val">${onlineNow}<small>/${nd.devices.filter((x) => x.status !== 'ignored').length}</small></div><div class="kpi-sub">${L('het laatste uur gezien')}</div></div>
   </div>`;
   // Nieuw en onbekend, met nieuwe apparaten per dag
@@ -16790,16 +16801,16 @@ function renderNetDisc() {
       return `<div class="nd-row ${bad ? 'nd-bad' : ''}"><span class="nd-ic">${ic}</span>
         <div class="nd-t">${x ? devLink(x.id, x.label) : `<span class="muted">${L('(vergeten apparaat)')}</span>`} <span class="muted small">· ${esc(w)}</span><small>${esc(ndEvText(e, x))}</small></div>
         <span class="muted small nowrap" title="${esc(e.at)}">${esc(ago(e.at))}</span></div>`; }).join('')}</div>`
-      : `<p class="muted small">${L('Nog niets veranderd. RzMon houdt dit bij vanaf 1.183.0: nieuwe apparaten, een ander IP-adres, nieuwe of gesloten poorten, apparaten die al {g} dagen weg zijn{dom}.', { g: d.gone_days, dom: d.adguard ? L(' en nieuwe domeinen (via AdGuard, na {n} dagen leren)', { n: d.learn_days }) : '' })}</p>`}</section>`;
+      : `<p class="muted small">${L('Nog niets veranderd. RzSense houdt dit bij vanaf 1.183.0: nieuwe apparaten, een ander IP-adres, nieuwe of gesloten poorten, apparaten die al {g} dagen weg zijn{dom}.', { g: d.gone_days, dom: d.adguard ? L(' en nieuwe domeinen (via AdGuard, na {n} dagen leren)', { n: d.learn_days }) : '' })}</p>`}</section>`;
   // Voorstellen
   const sugHtml = `<section class="card nd-sec"><h3>💡 ${L('Voorstellen')} <span class="muted small">${L('apparaten die je waarschijnlijk wilt bewaken')}</span></h3>
     ${d.suggestions.length ? `<div class="nd-sug">${d.suggestions.slice(0, 24).map((s, i) => `<div class="nd-sc" data-nd-sug="${s.id}">
         <div class="nd-sh"><span class="nd-ic">${(NET_KIND[s.kind] || NET_KIND.unknown)[0]}</span><div>${devLink(s.id, s.label)}<small class="muted mono">${esc(s.ip)} · ${esc((NET_KIND[s.kind] || NET_KIND.unknown)[1]())}</small></div></div>
         <div class="nd-checks">${s.checks.map((c, j) => `<label class="nd-ck"><input type="checkbox" value="${esc(c.key)}" ${j < 3 ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}> ${esc(c.label)}${c.target && c.type !== 'tcp' ? '' : c.type === 'tcp' ? ` <span class="muted mono">:${esc(c.target)}</span>` : ''}</label>`).join('')}</div>
         ${s.snmp ? `<p class="muted small">📡 ${L('Ondersteunt dit apparaat SNMP? Zet dat daarna aan bij de server voor poorten, temperatuur en meer.')}</p>` : ''}
-        <div class="nd-acts need-admin"><button type="button" class="btn small-btn primary" data-nd-adopt="${s.id}">＋ ${L('In RzMon met deze checks')}</button>
+        <div class="nd-acts need-admin"><button type="button" class="btn small-btn primary" data-nd-adopt="${s.id}">＋ ${L('In RzSense met deze checks')}</button>
           <button type="button" class="btn small-btn" data-nd-form="${s.id}">✎ ${L('Zelf instellen')}</button><button type="button" class="icon-btn" data-nd-st="ignored:${s.id}" title="${esc(L('Negeren: niet meer voorstellen'))}">🙈</button></div>
-      </div>`).join('')}</div>` : `<p class="good-txt small">✔ ${L('Geen voorstellen: wat je wilt bewaken, staat al in RzMon.')}</p>`}</section>`;
+      </div>`).join('')}</div>` : `<p class="good-txt small">✔ ${L('Geen voorstellen: wat je wilt bewaken, staat al in RzSense.')}</p>`}</section>`;
   // Aanwezigheid
   const pdays = [];
   for (let i = 6; i >= 0; i--) pdays.push(new Date(Date.now() - i * 86400e3).toISOString().slice(0, 10));
@@ -16851,7 +16862,7 @@ async function ndClick(e) {
     ad.disabled = true;
     try {
       await api('net_adopt', { id: +ad.dataset.ndAdopt, checks, name: x?.name || x?.label || '' });
-      toast(L('{name} staat nu in RzMon met {n} checks', { name: x?.label || '', n: checks.length }));
+      toast(L('{name} staat nu in RzSense met {n} checks', { name: x?.label || '', n: checks.length }));
       await loadNet(); refresh();
     } catch (ex) { toast(ex.message, 'err'); ad.disabled = false; }
   }
@@ -17031,7 +17042,7 @@ function renderNetMap() {
   // Een apparaat als bolletje
   const dot = (x) => {
     const cls = [online(x) ? 'on' : 'off', x.status === 'new' ? 'new' : '', x.risky.length ? 'risky' : '', x.host ? 'rz' : '', nmKind && netKind(x) !== nmKind ? 'dim' : ''].join(' ');
-    const tip = [x.label, x.ip, x.vendor, online(x) ? L('online') : L('offline'), x.status === 'new' ? L('nieuw') : '', x.risky.length ? L('riskante poort') : '', x.host ? L('in RzMon') : ''].filter(Boolean).join(' · ');
+    const tip = [x.label, x.ip, x.vendor, online(x) ? L('online') : L('offline'), x.status === 'new' ? L('nieuw') : '', x.risky.length ? L('riskante poort') : '', x.host ? L('in RzSense') : ''].filter(Boolean).join(' · ');
     const t = netTr(x);
     const tb = t ? t.rx + t.tx : 0;
     return `<button type="button" class="nm-dot ${cls} ${tb >= 1e9 ? 'heavy' : ''}" data-nm-open="${x.id}" title="${esc(tip + (t ? ` · ↓ ${fmtBytes(t.rx)} ↑ ${fmtBytes(t.tx)} (24 u)` : ''))}" aria-label="${esc(tip)}"><span>${icon(x)}</span><small>${esc(x.label)}</small>${tb ? `<em class="nm-tr">${fmtBytes(tb)}</em>` : ''}</button>`;
@@ -17055,7 +17066,7 @@ function renderNetMap() {
     </div>
     <div class="nm-tr2"><section class="card nm-traffic"><h3>📊 ${L('Verkeer vandaag')}</h3>${trTopHtml(10)}</section>${wanHtml()}</div>
     <section class="card nm-map">
-      <div class="nm-legend small muted"><span><i class="lg on"></i> ${L('online')}</span><span><i class="lg off"></i> ${L('offline (24 uur niet gezien)')}</span><span><i class="lg new"></i> ${L('nieuw')}</span><span><i class="lg risky"></i> ${L('riskante poort')}</span><span><i class="lg rz"></i> ${L('in RzMon')}</span></div>
+      <div class="nm-legend small muted"><span><i class="lg on"></i> ${L('online')}</span><span><i class="lg off"></i> ${L('offline (24 uur niet gezien)')}</span><span><i class="lg new"></i> ${L('nieuw')}</span><span><i class="lg risky"></i> ${L('riskante poort')}</span><span><i class="lg rz"></i> ${L('in RzSense')}</span></div>
       <div class="nm-tree">
         <div class="nm-root"><div class="nm-inet">☁️ ${L('Internet')}</div><div class="nm-line"></div>
           <div class="nm-router">${router ? `<button type="button" class="nd-link" data-nm-open="${router.id}">🌐 ${esc(router.label)}</button><small class="muted mono">${esc(router.ip)}</small>` : `<b>🌐 ${L('Router')}</b><small class="muted">${L('nog niet herkend')}</small>`}</div>
@@ -17083,7 +17094,7 @@ function renderNetNow() {
     known: devs.filter((x) => x.status === 'known').length, ignored: devs.filter((x) => x.status === 'ignored').length, online: devs.filter(online).length,
     blocked: devs.filter((x) => x.blocked).length,
   };
-  $('#net-counts').innerHTML = [['new', '🆕', L('Nieuw'), 's1'], ['risky', '⚠️', L('Riskante poort'), 's2'], ['norz', '➕', L('Niet in RzMon'), 'si'], ['rz', '✔', L('In RzMon'), 's0']]
+  $('#net-counts').innerHTML = [['new', '🆕', L('Nieuw'), 's1'], ['risky', '⚠️', L('Riskante poort'), 's2'], ['norz', '➕', L('Niet in RzSense'), 'si'], ['rz', '✔', L('In RzSense'), 's0']]
     .map(([k, ic, w, cls]) => `<button type="button" class="hc ${cls} ${cnt[k] ? '' : 'zero'} ${netFilter === k ? 'on' : ''}" data-nf="${k}"><span class="hc-dot"></span><b>${cnt[k]}</b> <span class="hc-w">${ic} ${w}</span></button>`).join('');
   const st = d.state || {};
   $('#net-last').textContent = st.sweep_at ? L('laatste scan {t}', { t: ago(new Date(st.sweep_at * 1000).toISOString()) }) + (st.deep_at ? ' · ' + L('diep {t}', { t: ago(new Date(st.deep_at * 1000).toISOString()) }) : '') : '';
@@ -17099,11 +17110,11 @@ function renderNetNow() {
     <div class="kpi kpi-main"><div class="kpi-txt"><div class="kpi-lbl">${L('Apparaten')}</div><div class="kpi-val">${cnt.online}<small>/${cnt.all}</small></div>
       <div class="kpi-sub">${L('laatste 24 uur gezien')}</div></div></div>
     <div class="kpi ${cnt.new ? 'warn' : ''}"><div class="kpi-lbl">${L('Nieuw')}</div><div class="kpi-val">${cnt.new}</div><div class="kpi-sub">${cnt.new ? L('nog niet beoordeeld') : L('alles beoordeeld')}</div></div>
-    <div class="kpi"><div class="kpi-lbl">${L('Niet in RzMon')}</div><div class="kpi-val">${cnt.norz}</div><div class="kpi-sub">${L('{n} wel', { n: cnt.rz })}</div></div>
+    <div class="kpi"><div class="kpi-lbl">${L('Niet in RzSense')}</div><div class="kpi-val">${cnt.norz}</div><div class="kpi-sub">${L('{n} wel', { n: cnt.rz })}</div></div>
     <div class="kpi ${cnt.risky ? 'bad' : ''}"><div class="kpi-lbl">${L('Riskante poort open')}</div><div class="kpi-val">${cnt.risky}</div><div class="kpi-sub">${cnt.risky ? L('Telnet, FTP, VNC …') : L('niets gevonden')}</div></div>
     <div class="kpi"><div class="kpi-lbl">${L('Netwerken')}</div><div class="kpi-val kpi-val-txt">${esc(nets.scan.join(', ') || '–')}</div>
       <div class="kpi-sub">${st.sweep_ms ? L('scan duurde {s} s', { s: dec((st.sweep_ms / 1000).toFixed(1)) }) : ''}</div></div>`;
-  $('#net-filter').innerHTML = [['all', L('Alles')], ['new', '🆕 ' + L('Nieuw')], ['norz', L('Niet in RzMon')], ['known', L('Bekend')], ['risky', '⚠️ ' + L('Riskant')], ['blocked', '⛔ ' + L('Geweerd')], ['ignored', L('Genegeerd')]]
+  $('#net-filter').innerHTML = [['all', L('Alles')], ['new', '🆕 ' + L('Nieuw')], ['norz', L('Niet in RzSense')], ['known', L('Bekend')], ['risky', '⚠️ ' + L('Riskant')], ['blocked', '⛔ ' + L('Geweerd')], ['ignored', L('Genegeerd')]]
     .map(([k, l]) => `<button type="button" class="dchip ${netFilter === k ? 'on' : ''}" data-nf="${k}">${l} <b>${cnt[k]}</b></button>`).join('');
   const q = $('#net-search').value.trim().toLowerCase();
   const list = devs.filter((x) => (netFilter === 'all' ? x.status !== 'ignored' : netFilter === 'new' ? x.status === 'new' : netFilter === 'norz' ? !x.host && x.status !== 'ignored'
@@ -17130,14 +17141,14 @@ function renderNetNow() {
       const u = x.info.unifi || {};
       const sub = [kl(), x.name && x.hostname ? x.hostname : '', x.info.ssdp?.model || '', u.essid ? '📶 ' + u.essid + (u.ap ? ' · ' + u.ap : '') : u.wired ? '🔌 ' + L('bedraad') : ''].filter(Boolean).join(' · ');
       return `<tr class="${x.status === 'ignored' ? 'muted' : ''}" data-net="${x.id}"><td><button type="button" class="link-btn net-open" data-net-open="${x.id}"><span class="net-ic">${ic}</span> <b>${esc(x.label)}</b></button>
-          ${x.status === 'new' ? ` <span class="badge-root">${L('nieuw')}</span>` : ''}${x.blocked ? ` <span class="badge-root bad-badge" title="${esc(netBlockedText(x))}">⛔ ${L('geweerd')}</span>` : ''}${x.host ? ` <span class="badge" title="${esc(L('In RzMon als {name}', { name: x.host.name }))}">✔ RzMon</span>` : ''}
+          ${x.status === 'new' ? ` <span class="badge-root">${L('nieuw')}</span>` : ''}${x.blocked ? ` <span class="badge-root bad-badge" title="${esc(netBlockedText(x))}">⛔ ${L('geweerd')}</span>` : ''}${x.host ? ` <span class="badge" title="${esc(L('In RzSense als {name}', { name: x.host.name }))}">✔ RzSense</span>` : ''}
           <br><span class="muted small">${esc(sub)}</span></td>
         <td class="small"><span class="mono">${esc(x.ip)}</span>${online(x) ? '' : ` <span class="muted">(${L('offline')})</span>`}</td>
         <td class="small">${x.mac ? `<span class="mono">${esc(x.mac.toUpperCase())}</span>` : '–'}${+x.random_mac ? ` <span class="badge" title="${esc(L('Willekeurig MAC-adres (privé-wifiadres): telefoons en laptops gebruiken dat per netwerk, en soms wisselt het'))}">🎭 ${L('privé')}</span>` : ''}<br><span class="muted">${esc(x.vendor || '')}</span></td>
         <td class="small">${x.ports.length ? x.ports.map((p) => `<span class="port-tag ${x.risky.includes(p) ? 'bad' : ''}" title="${esc(x.risky.includes(p) ? d.risky_reasons[p] : '')}">${p}</span>`).join(' ') : `<span class="muted">${x.deep_at ? L('geen') : '…'}</span>`}</td>
         ${hasTr ? `<td class="small nowrap">${netTr(x) ? `${trSpark(netTr(x).spark)}<br>↓ ${fmtBytes(netTr(x).rx)} · ↑ ${fmtBytes(netTr(x).tx)}` : '<span class="muted">–</span>'}</td>` : ''}
         <td class="small">${esc(ago(x.last_seen))}<br><span class="muted">${L('sinds {d}', { d: esc(fmtDay(x.first_seen)) })}</span></td>
-        <td class="nowrap">${!x.host ? `<button type="button" class="btn small-btn need-admin" data-net-add="${x.id}" title="${esc(L('Toevoegen aan RzMon'))}">＋ RzMon</button>` : ''}
+        <td class="nowrap">${!x.host ? `<button type="button" class="btn small-btn need-admin" data-net-add="${x.id}" title="${esc(L('Toevoegen aan RzSense'))}">＋ RzSense</button>` : ''}
           ${x.status !== 'known' ? `<button type="button" class="icon-btn need-admin" data-net-st="known:${x.id}" title="${esc(L('Bekend: dit apparaat hoort hier'))}">✔</button>` : ''}
           ${x.status !== 'ignored' ? `<button type="button" class="icon-btn need-admin" data-net-st="ignored:${x.id}" title="${esc(L('Negeren: niet meer tonen'))}">🙈</button>` : `<button type="button" class="icon-btn need-admin" data-net-st="new:${x.id}" title="${esc(L('Weer tonen'))}">↩</button>`}</td></tr>`;
   };
@@ -17183,7 +17194,7 @@ function netDialog(x) {
         ${row('UPnP', i.ssdp ? esc([i.ssdp.name, i.ssdp.maker, i.ssdp.model, i.ssdp.type].filter(Boolean).join(' · ')) + (i.ssdp.server ? `<br><span class="muted small">${esc(i.ssdp.server)}</span>` : '') : '')}
         ${row(L('Webpagina'), i.http ? `${esc(i.http.title || '–')} <span class="muted small">(${L('poort {p}', { p: i.http.port })}${i.http.server ? ' · ' + esc(i.http.server) : ''})</span>` : '')}
         ${row(L('Open poorten'), x.ports.length ? x.ports.map((p) => `<span class="port-tag ${x.risky.includes(p) ? 'bad' : ''}">${p}</span>`).join(' ') : (x.deep_at ? L('geen gevonden') : L('nog niet gescand')))}
-        ${row(L('In RzMon'), x.host ? `✔ ${esc(x.host.name)}` : L('nee'))}
+        ${row(L('In RzSense'), x.host ? `✔ ${esc(x.host.name)}` : L('nee'))}
         ${row(L('Gezien'), `${esc(fmtDateTime(x.first_seen))} – ${esc(ago(x.last_seen))}`)}
       </table>
       ${x.risky.length ? `<div class="callout bad-callout"><b>⚠️ ${L('Riskante poorten')}</b><ul>${x.risky.map((p) => `<li><b>${p}</b>: ${esc(netData.risky_reasons[p] || '')}</li>`).join('')}</ul>
@@ -17203,7 +17214,7 @@ function netDialog(x) {
         if (!confirm(L('Dit apparaat vergeten? Bij de volgende scan komt het terug als nieuw, als het er nog is.'))) return;
         try { await api('net_forget', { id: +x.id }); $('#modal').close(); loadNet(); refresh(); } catch (ex) { toast(ex.message, 'err'); }
       } },
-      ...(!x.host ? [{ label: '＋ ' + L('Toevoegen aan RzMon'), onClick: () => { $('#modal').close(); netAddHost(x); } }] : []),
+      ...(!x.host ? [{ label: '＋ ' + L('Toevoegen aan RzSense'), onClick: () => { $('#modal').close(); netAddHost(x); } }] : []),
       x.blocked ? { label: '✅ ' + L('Weer toelaten'), onClick: () => netUnblock(x) } : { label: '⛔ ' + L('Weren'), cls: 'danger', onClick: () => netBlockDialog(x) },
       { label: L('Opslaan'), cls: 'primary', submit: true },
     ] : [{ label: L('Sluiten'), onClick: () => $('#modal').close() }],
@@ -17218,7 +17229,7 @@ function netDialog(x) {
 
 function netBlockedText(x) {
   const b = x.blocked || {};
-  const via = { unifi: L('UniFi (wifi)'), adguard: L('AdGuard (DNS)'), rzmon: L('RzMon en je servers') };
+  const via = { unifi: L('UniFi (wifi)'), adguard: L('AdGuard (DNS)'), rzmon: L('RzSense en je servers') };
   return [L('via {via}', { via: (b.via || []).map((v) => via[v] || v).join(', ') }), b.until ? L('tot {t}', { t: fmtDateTime(b.until) }) : L('tot je het weer toelaat'),
     L('door {by}', { by: b.by || '?' }), b.reason || ''].filter(Boolean).join(' · ');
 }
@@ -17236,7 +17247,7 @@ async function netDomains(x, box) {
   } catch (ex) { box.innerHTML = `<p class="bad">${esc(ex.message)}</p>`; }
 }
 
-/** Weren (1.104.0): van het wifi (UniFi), geen DNS (AdGuard) en geen toegang tot RzMon en je servers */
+/** Weren (1.104.0): van het wifi (UniFi), geen DNS (AdGuard) en geen toegang tot RzSense en je servers */
 function netBlockDialog(x) {
   const lk = netData.links || {};
   const canU = lk.unifi_block && x.mac, canA = lk.adguard;
@@ -17246,7 +17257,7 @@ function netBlockDialog(x) {
     body: `<p style="margin-top:0"><span class="mono">${esc(x.ip)}</span>${x.mac ? ` · <span class="mono">${esc(x.mac.toUpperCase())}</span>` : ''}${+x.random_mac ? ' · 🎭 ' + L('privé-adres: het apparaat kan een nieuw MAC-adres nemen') : ''}</p>
       ${opt('unifi', true, canU, '📶 ' + L('<b>UniFi</b>: niet meer op het wifi'), !lk.unifi_block ? L('UniFi niet ingesteld of alleen een API-sleutel') : L('geen MAC-adres bekend'))}
       ${opt('adguard', true, canA, '🌐 ' + L('<b>AdGuard</b>: geen DNS meer (geen internet via namen)'), L('AdGuard Home niet ingesteld'))}
-      ${opt('rzmon', true, true, '🛡️ ' + L('<b>RzMon en je servers</b>: geen toegang tot RzMon, en geblokkeerd op je servers met agent'), '')}
+      ${opt('rzmon', true, true, '🛡️ ' + L('<b>RzSense en je servers</b>: geen toegang tot RzSense, en geblokkeerd op je servers met agent'), '')}
       <div class="row2"><label>${L('Hoe lang')}<select name="days"><option value="1">${L('1 dag')}</option><option value="7">${L('7 dagen')}</option><option value="0">${L('Tot ik het weer toelaat')}</option></select></label>
         <label>${L('Reden')} <span class="hint">${L('(optioneel)')}</span><input name="reason" maxlength="200"></label></div>
       ${xpHtml(L('Weren werkt niet voor elk apparaat.'), L('<b>Bedraad:</b> een bedraad apparaat haal je niet van het netwerk via UniFi-wifi; daarvoor zet je de poort op de switch uit. <b>Eigen DNS of vast IP:</b> zo\'n apparaat komt langs AdGuard.'))}
@@ -17254,7 +17265,7 @@ function netBlockDialog(x) {
     buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '⛔ ' + L('Weren'), cls: 'danger', submit: true }],
     onSubmit: async (d) => {
       const r = await api('net_block', { id: +x.id, unifi: !!d.unifi, adguard: !!d.adguard, rzmon: !!d.rzmon, days: +d.days, reason: d.reason, confirm: d.confirm });
-      toast(L('Geweerd via {via}', { via: r.done.map((v) => ({ unifi: 'UniFi', adguard: 'AdGuard', rzmon: 'RzMon' }[v] || v)).join(', ') }) + (r.errors.length ? ' · ⚠️ ' + r.errors.join(' · ') : ''), r.errors.length ? 'err' : undefined);
+      toast(L('Geweerd via {via}', { via: r.done.map((v) => ({ unifi: 'UniFi', adguard: 'AdGuard', rzmon: 'RzSense' }[v] || v)).join(', ') }) + (r.errors.length ? ' · ⚠️ ' + r.errors.join(' · ') : ''), r.errors.length ? 'err' : undefined);
       loadNet();
     },
   });
@@ -17287,7 +17298,7 @@ const VULN_SEV = [['⚪', L('onbekend')], ['🔵', 'low'], ['🟡', 'medium'], [
 let vulnData = null;
 let vulnFilter = 'all';
 let vulnSharedErr = new Set();   // scanfouten die als één melding bovenaan staan
-// Open of dicht (1.93.0): standaard dicht; wat je open- of dichtklapt, onthoudt RzMon per account (h: servers, e: e-mailadressen).
+// Open of dicht (1.93.0): standaard dicht; wat je open- of dichtklapt, onthoudt RzSense per account (h: servers, e: e-mailadressen).
 // Met zoeken of een filter gaan de blokken met treffers tijdelijk open (vulnTmp); daarna weer jouw stand.
 const vulnTmp = { h: new Map(), e: new Map() };
 const vulnSaved = (kind, id) => ((PREFS.vuln_open || {})[kind] || []).map(String).includes(String(id));
@@ -17427,7 +17438,7 @@ function renderLeaks() {
   if ($('#vt-n-leak')) $('#vt-n-leak').textContent = open.length || '';
   // Meldingen bovenaan: geen sleutel, fouten
   $('#leak-banner').innerHTML = [
-    !d.has_key ? `<div class="v-banner info">ℹ️ <span>${L('Geen API-sleutel: alleen de wachtwoorden van RzMon-accounts worden gecontroleerd. Een sleutel vul je in bij Instellingen → Beveiliging → Datalekken.')}</span></div>` : '',
+    !d.has_key ? `<div class="v-banner info">ℹ️ <span>${L('Geen API-sleutel: alleen de wachtwoorden van RzSense-accounts worden gecontroleerd. Een sleutel vul je in bij Instellingen → Beveiliging → Datalekken.')}</span></div>` : '',
     d.last_error ? `<div class="v-banner">⚠️ <span><b>HIBP:</b> ${esc(d.last_error)}</span></div>` : '',
     d.domain_error ? `<div class="v-banner">⚠️ <span><b>${L('Domein')}:</b> ${esc(d.domain_error)}</span></div>` : '',
   ].join('');
@@ -17441,7 +17452,7 @@ function renderLeaks() {
       <div class="kpi-sub">${L('op {n} adressen', { n: hit.size })}</div></div>
     <div class="kpi ${pw.length ? 'bad' : ''}"><div class="kpi-lbl">${L('Met wachtwoorden')}</div><div class="kpi-val">${pw.length}</div>
       <div class="kpi-sub">${pw.length ? L('wijzig die wachtwoorden') : L('geen')}</div></div>
-    <div class="kpi ${pwUsers.length ? 'bad' : ''}"><div class="kpi-lbl">${L('Gelekte wachtwoorden in RzMon')}</div><div class="kpi-val">${pwUsers.length}</div>
+    <div class="kpi ${pwUsers.length ? 'bad' : ''}"><div class="kpi-lbl">${L('Gelekte wachtwoorden in RzSense')}</div><div class="kpi-val">${pwUsers.length}</div>
       <div class="kpi-sub">${pwUsers.length ? esc(pwUsers.map((u) => u.username).join(', ')) : L('geen bekend')}</div></div>
     <div class="kpi"><div class="kpi-lbl">${L('Nieuwste lek')}</div><div class="kpi-val kpi-val-txt">${newest ? esc(newest.title || newest.name) : '–'}</div>
       <div class="kpi-sub">${newest && newest.breach_date ? esc(fmtDay(newest.breach_date)) : ''}</div></div>`;
@@ -17937,7 +17948,7 @@ async function vulnUpgradeDialog(h, force, first) {
     : '⏳ ' + L('Bezig met bijwerken') + since;
   const after = st.state !== 'ok' ? ''
     : rescanned ? `<p class="good-txt small">🔍 ${L('Opnieuw gescand: de lijst met kwetsbaarheden is bijgewerkt.')}</p>`
-    : `<p class="muted small">🔍 ${L('RzMon scant opnieuw zodra de agent de nieuwe softwarelijst stuurt (meestal binnen een paar minuten).')}</p>`;
+    : `<p class="muted small">🔍 ${L('RzSense scant opnieuw zodra de agent de nieuwe softwarelijst stuurt (meestal binnen een paar minuten).')}</p>`;
   const pk = st.pkgs || [];
   let nowTxt = now.replace(/^[⏳✔✘] /, '');
   if (nowTxt.startsWith(label + ': ')) nowTxt = nowTxt.slice(label.length + 2);   // de stap staat er al boven
@@ -18517,7 +18528,7 @@ async function exposureDialog(hostId) {
           <td>${p.vuln ? `${urgPill(p.vuln.risk, [], true)} <button type="button" class="linkbtn" data-exp-cve="${esc(p.vuln.cve)}">${esc(p.vuln.cve)}</button>${p.vuln.kev ? ' ⚠️' : ''}${p.vuln.fixed ? ` <span class="muted small">→ ${esc(p.vuln.fixed)}</span>` : ''}` : '<span class="muted">–</span>'}</td></tr>`).join('')}
       </tbody></table></div>` : `<p class="muted small">${x.host.mode === 'agent' ? L('Geen poorten buiten localhost (of de agent stuurde ze nog niet).') : L('Alleen bekend voor servers met een agent.')}</p>`}
       ${x.incidents.length ? `<h3>${L('Open incidenten')}</h3><ul>${x.incidents.map((i) => `<li><button type="button" class="linkbtn" data-exp-inc="${i.id}">${esc(i.title)}</button></li>`).join('')}</ul>` : ''}
-      <p class="muted small">${L('Een schatting: RzMon kent je firewall niet. Een poort die op alle adressen luistert, kan van buiten toch dicht zijn.')}</p>
+      <p class="muted small">${L('Een schatting: RzSense kent je firewall niet. Een poort die op alle adressen luistert, kan van buiten toch dicht zijn.')}</p>
     </div>`,
     buttons: [{ label: L('Sluiten'), cls: 'primary', onClick: () => $('#modal').close() }],
   });
@@ -18827,7 +18838,7 @@ async function caseDialog(id) {
   if (!b) return;
   b.onclick = () => {
     const w = window.open('api.php?' + new URLSearchParams({ action: 'report', period: anPeriod }), '_blank');
-    if (!w) return toast(L('Sta pop-ups toe voor RzMon om het rapport te openen'), 'err');
+    if (!w) return toast(L('Sta pop-ups toe voor RzSense om het rapport te openen'), 'err');
     w.addEventListener('load', () => setTimeout(() => { try { w.print(); } catch (e) { /* zelf afdrukken */ } }, 300));
   };
 })();

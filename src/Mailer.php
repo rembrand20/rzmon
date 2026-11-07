@@ -156,12 +156,12 @@ final class Mailer
     {
         $headers = [
             'Date: ' . date('r'),
-            'From: ' . self::encodeHeader('RzMon') . " <$from>",
+            'From: ' . self::encodeHeader('RzSense') . " <$from>",
             'To: ' . implode(', ', $to),
             'Subject: ' . self::encodeHeader($subject),
             'Message-ID: <' . bin2hex(random_bytes(12)) . '@rzmon>',
             'MIME-Version: 1.0',
-            'X-Mailer: RzMon ' . RZMON_VERSION,
+            'X-Mailer: RzSense ' . RZMON_VERSION,
         ];
         $b64 = static fn(string $s): string => rtrim(chunk_split(base64_encode(str_replace("\n", "\r\n", str_replace(["\r\n", "\r"], "\n", $s))), 76, "\r\n"));
         if ($html === null) {

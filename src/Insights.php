@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * 1.155.0: slimme analyses voor de pagina Analyse. Elke analyse combineert gegevens uit verschillende bronnen
  * (agent, CVE-scan, IDS, netwerkscan, checks, instellingen) tot één advies: wat er is, waarom het telt (met het
- * bewijs uit je eigen gegevens) en wat je eraan doet. Een advies heeft een vaste sleutel, zodat RzMon bijhoudt wanneer
+ * bewijs uit je eigen gegevens) en wat je eraan doet. Een advies heeft een vaste sleutel, zodat RzSense bijhoudt wanneer
  * het verscheen, of je het hebt afgehandeld en wanneer het vanzelf is verdwenen (opgelost).
  *
  * Score: per onderdeel 100 min de open adviezen (hoog 18, middel 8, laag 2); de totaalscore is het gemiddelde.
@@ -202,7 +202,7 @@ final class Insights
                 array_push($out, ...self::$rule($c));
             } catch (Throwable $e) {
                 // Eén analyse die misgaat (bijvoorbeeld een ontbrekende tabel) mag de rest niet tegenhouden
-                error_log('RzMon analyse ' . $rule . ': ' . $e->getMessage());
+                error_log('RzSense analyse ' . $rule . ': ' . $e->getMessage());
             }
         }
         $eff = ['click' => 1, '5' => 5, '10' => 10, '15' => 15, '30' => 30, '60' => 60];
@@ -275,7 +275,7 @@ final class Insights
         return $out;
     }
 
-    /** Korte uitleg bij een kwetsbaarheid (uit de OSV-gegevens die RzMon al heeft) */
+    /** Korte uitleg bij een kwetsbaarheid (uit de OSV-gegevens die RzSense al heeft) */
     private static function summary(string $vulnId): string
     {
         static $cache = [];
@@ -426,7 +426,7 @@ final class Insights
                 $w['kev'] ? t('Aanvallers gebruiken deze kwetsbaarheid nu al: hij staat op de lijst van CISA met actief misbruikte kwetsbaarheden') : '',
                 t('Treft {p} op {h}', ['p' => implode(', ', array_slice($pkgs, 0, 4)), 'h' => implode(', ', $hosts)]),
                 $fixed ? t('Opgelost in {f}', ['f' => implode(', ', array_slice($fixed, 0, 3))]) : t('Er is nog geen update; houd de leverancier in de gaten'),
-                $new ? t('Nieuw: sinds {d} bekend bij RzMon', ['d' => date('d-m-Y', (int) strtotime((string) $first))]) : ''];
+                $new ? t('Nieuw: sinds {d} bekend bij RzSense', ['d' => date('d-m-Y', (int) strtotime((string) $first))]) : ''];
             $cmds = [];
             $acts = [];
             foreach (array_slice(array_keys($hosts), 0, 4) as $hid) {
@@ -665,7 +665,7 @@ final class Insights
             return [];
         }
         return [self::a('ids_learn', 'detect', $n > 50 ? 1 : 0, 55, 'click', t('Het IDS staat op Leren: aanvallen worden alleen gemeld'),
-            [t('{n} aanvalspogingen in de laatste 30 dagen zijn niet tegengehouden', ['n' => $n]), t('RzMon, je eigen netwerk en de whitelist worden nooit geblokkeerd')],
+            [t('{n} aanvalspogingen in de laatste 30 dagen zijn niet tegengehouden', ['n' => $n]), t('RzSense, je eigen netwerk en de whitelist worden nooit geblokkeerd')],
             t('Zet het IDS op Blokkeren.'), [], [['k' => 'ids_block']])];
     }
 
@@ -907,14 +907,14 @@ final class Insights
         return $out;
     }
 
-    /** 17. RzMon zelf: beheerders zonder tweestapsverificatie */
+    /** 17. RzSense zelf: beheerders zonder tweestapsverificatie */
     private static function rzmon(array $c): array
     {
         $rows = q("SELECT u.username FROM users u WHERE u.role = 'admin' AND (u.totp_secret IS NULL OR u.totp_secret = '') AND NOT EXISTS (SELECT 1 FROM passkeys p WHERE p.user_id = u.id)")->fetchAll(PDO::FETCH_COLUMN);
         if (!$rows) {
             return [];
         }
-        return [self::a('rz_2fa', 'access', 1, 45, '5', t('{n} beheerder(s) van RzMon zonder tweestapsverificatie', ['n' => count($rows)]),
+        return [self::a('rz_2fa', 'access', 1, 45, '5', t('{n} beheerder(s) van RzSense zonder tweestapsverificatie', ['n' => count($rows)]),
             [implode(', ', $rows), t('Een beheerder kan het IDS uitzetten en commando\'s op je servers laten uitvoeren')],
             t('Zet tweestapsverificatie (TOTP) of een passkey aan bij Mijn account.'), [], [['k' => 'go', 'go' => 'account']])];
     }
@@ -964,7 +964,7 @@ final class Insights
         }
         $last = $r['backups']['rzmon'] ?? null;
         if (!$last || strtotime((string) $last) < time() - 8 * 86400) {
-            $out[] = self::a('rz_backup', 'recovery', 1, 40, '5', $last ? t('De laatste back-up van RzMon zelf is van {d}', ['d' => date('d-m-Y', (int) strtotime((string) $last))]) : t('Er is nog geen back-up van RzMon zelf'),
+            $out[] = self::a('rz_backup', 'recovery', 1, 40, '5', $last ? t('De laatste back-up van RzSense zelf is van {d}', ['d' => date('d-m-Y', (int) strtotime((string) $last))]) : t('Er is nog geen back-up van RzSense zelf'),
                 [t('Daarin staan al je checks, instellingen en sleutels van de agents')], t('Zet automatische back-ups aan.'), [], [['k' => 'go', 'go' => 'settings/backup']]);
         }
         foreach (array_slice($r['noise']['quick'] ?? [], 0, 3) as $q) {

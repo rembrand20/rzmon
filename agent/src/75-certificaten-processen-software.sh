@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------- Certificaten
 lap certs
 # Per bron: onderwerp (CN), uitgever, vervaldatum (epoch) en of het certificaat vertrouwd wordt.
-# RzMon rekent zelf het aantal dagen uit, dus een uur oude gegevens zijn geen probleem.
+# RzSense rekent zelf het aantal dagen uit, dus een uur oude gegevens zijn geen probleem.
 cert_line() {  # bron cn uitgever not_after verify fout [aantal in de keten, eerste vervaldatum in de keten, cn daarvan]
     printf '{"source":"%s","cn":"%s","issuer":"%s","not_after":%s,"verify":%s,"error":"%s","chain_n":%s,"chain_min":%s,"chain_cn":"%s"},' \
         "$(json_escape "$1")" "$(json_escape "$2")" "$(json_escape "$3")" "${4:-null}" \
@@ -82,7 +82,7 @@ collect_certs() {
     done
 }
 certs=""
-# Te controleren: CERTS van deze server, plus wat je in RzMon gekozen hebt (regels "0 <tab> cert <tab> bron", 1.59.0)
+# Te controleren: CERTS van deze server, plus wat je in RzSense gekozen hebt (regels "0 <tab> cert <tab> bron", 1.59.0)
 cert_list="$CERTS"
 [ -r "${t_cache-}" ] && cert_list="$cert_list $(awk -F'\t' '$1 == "0" && $2 == "cert" && $3 !~ /[[:space:]]/ { print $3 }' "$t_cache" | head -200 | tr '\n' ' ')"
 cert_list=$(tr -s ' ' <<<"$cert_list"); cert_list=${cert_list# }; cert_list=${cert_list% }
@@ -108,8 +108,8 @@ fi
 
 # ---------------------------------------------------------------- Certificaten zoeken (1.59.0)
 lap cert_search
-# Bestanden met een certificaat in de mappen van CERT_DIRS (plus de mappen die je in RzMon opgeeft), om in RzMon
-# uit te kiezen. Eén keer per dag, of meteen als RzMon erom vraagt (regel "0 <tab> certscan <tab> teller").
+# Bestanden met een certificaat in de mappen van CERT_DIRS (plus de mappen die je in RzSense opgeeft), om in RzSense
+# uit te kiezen. Eén keer per dag, of meteen als RzSense erom vraagt (regel "0 <tab> certscan <tab> teller").
 # Overgeslagen: de CA-lijsten van het systeem en van programmeertalen (Python, Ruby), testmappen, CA-bundels (meer dan
 # 20 certificaten) en sleutels zonder certificaat.
 cert_found=""
@@ -147,9 +147,9 @@ fi
 
 # ---------------------------------------------------------------- Processen (1.59.0)
 lap procs
-# Proces-checks uit RzMon: "id <tab> proc <tab> name|pattern <tab> naam of patroon (base64) <tab> gebruiker".
+# Proces-checks uit RzSense: "id <tab> proc <tab> name|pattern <tab> naam of patroon (base64) <tab> gebruiker".
 # Per check: aantal, PID's, CPU (%), geheugen (kB) en wanneer het oudste proces startte (om een herstart te zien).
-# Plus een lijst van wat er draait (zonder kernelprocessen), om in RzMon uit te kiezen.
+# Plus een lijst van wat er draait (zonder kernelprocessen), om in RzSense uit te kiezen.
 procs_json=""; proc_list=""
 if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ]; then
     # LC_ALL=C (1.59.2): punt als decimaalteken en alleen ASCII (andere tekens als ?), zodat de JSON altijd klopt
@@ -184,9 +184,9 @@ if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ]; then
     fi
 fi
 
-# ---------------------------------------------------------------- Software (Kwetsbaarheden in RzMon)
+# ---------------------------------------------------------------- Software (Kwetsbaarheden in RzSense)
 lap software
-# Geïnstalleerde pakketten met de distributie: RzMon zoekt er de bekende kwetsbaarheden (CVE's) bij.
+# Geïnstalleerde pakketten met de distributie: RzSense zoekt er de bekende kwetsbaarheden (CVE's) bij.
 # De hele lijst één keer per dag, of eerder als de pakketdatabase verandert; anders alleen het controlegetal.
 pkgs_json=""; pk_hash=""; pk_mgr=""
 pk_dir="$t_dir/pkgs"
@@ -255,9 +255,9 @@ if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ] && mkdir -p "$pk_dir" 2>/dev/null && [
     fi
     if [ -s "$pk_list" ]; then
         pk_hash=$(sha1sum "$pk_list" | cut -c1-16)
-        # Alles meesturen als RzMon deze stand nog niet heeft; anders alleen het controlegetal.
-        # Agent 1.66.1: kwam er de vorige keer geen antwoord (bv. RzMon was te traag), dan eerst alleen het controlegetal:
-        # vaak heeft RzMon de lijst toen toch opgeslagen. Anders bleef de agent elke minuut de hele lijst sturen.
+        # Alles meesturen als RzSense deze stand nog niet heeft; anders alleen het controlegetal.
+        # Agent 1.66.1: kwam er de vorige keer geen antwoord (bv. RzSense was te traag), dan eerst alleen het controlegetal:
+        # vaak heeft RzSense de lijst toen toch opgeslagen. Anders bleef de agent elke minuut de hele lijst sturen.
         if [ "$(cat "$pk_dir/sent" 2>/dev/null)" != "$pk_hash" ] && [ "$(cat "$pk_dir/tried" 2>/dev/null)" = "$pk_hash" ]; then
             pkgs_json="{\"hash\":\"$pk_hash\"}"; rm -f "$pk_dir/tried"
         elif [ "$(cat "$pk_dir/sent" 2>/dev/null)" != "$pk_hash" ]; then
@@ -268,7 +268,7 @@ if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ] && mkdir -p "$pk_dir" 2>/dev/null && [
         fi
     fi
 fi
-# Uitkomst van "pakketten bijwerken" (opdracht uit RzMon) terugmelden: id, ok/error en het einde van de uitvoer (base64)
+# Uitkomst van "pakketten bijwerken" (opdracht uit RzSense) terugmelden: id, ok/error en het einde van de uitvoer (base64)
 pkg_result=""
 if [ -r "$pk_dir/upgrade.result" ]; then
     IFS=$'\t' read -r pr_id pr_st pr_log <"$pk_dir/upgrade.result"
@@ -276,9 +276,9 @@ if [ -r "$pk_dir/upgrade.result" ]; then
         && pkg_result="{\"id\":\"$pr_id\",\"ok\":$([ "$pr_st" = ok ] && echo true || echo false),\"log_b64\":\"$pr_log\"}"
 fi
 
-pkg_upgrade() {  # pkg_upgrade <antwoord van RzMon>: alleen dnf/yum/apt "upgrade" van de meegestuurde pakketnamen, als root
+pkg_upgrade() {  # pkg_upgrade <antwoord van RzSense>: alleen dnf/yum/apt "upgrade" van de meegestuurde pakketnamen, als root
     # Agent 1.63.0: of "install" (mode), alleen voor de onderdelen van de endpoint-bewaking (vaste lijst hieronder)
-    # Agent 1.66.0: met "own" (eigen pakketnamen, door de beheerder bevestigd in RzMon) geldt die lijst niet; de namen
+    # Agent 1.66.0: met "own" (eigen pakketnamen, door de beheerder bevestigd in RzSense) geldt die lijst niet; de namen
     # zelf moeten wel gewone pakketnamen zijn (geen opties, geen paden), en COMMANDS mag het niet blokkeren
     local id names n=() out="$pk_dir/upgrade.result" why="" mode=upgrade own=0
     id=$(sed -n 's/.*"pkg_upgrade":[[:space:]]*{[^}]*"id":[[:space:]]*"\([0-9a-f]\{8,32\}\)".*/\1/p' <<<"$1")
@@ -302,12 +302,12 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzMon>: alleen dnf/yum/apt "upgrade
     if [ -f "$pk_dir/upgrade.lock" ] && [ $(( $(date +%s) - $(stat -c %Y "$pk_dir/upgrade.lock") )) -lt 1800 ]; then return 0; fi
     : >"$pk_dir/upgrade.lock"
     # Adres en token voor de voortgang: in een bestand (alleen root), niet als argument (zichtbaar in ps)
-    # Regel 2: wie we zijn (header met het sleutelkenmerk of het token), regel 3: -k, of de vingerafdruk van RzMon
+    # Regel 2: wie we zijn (header met het sleutelkenmerk of het token), regel 3: -k, of de vingerafdruk van RzSense
     local tls_spec=0
     [ "${tls[0]-}" = -k ] && tls_spec=1
     [ "${tls[1]-}" = --pinnedpubkey ] && tls_spec=${tls[2]}
     (umask 077; printf '%s\n%s\n%s\n%s\n' "$MONITOR_URL" "${auth[1]}" "$tls_spec" "$enc_key" >"$pk_dir/upgrade.conf")
-    # Het script meldt zijn voortgang elke paar seconden zelf aan RzMon (stap, procent, pakket, laatste uitvoer);
+    # Het script meldt zijn voortgang elke paar seconden zelf aan RzSense (stap, procent, pakket, laatste uitvoer);
     # de uitkomst gaat daarnaast via upgrade.result mee met het volgende rapport (als de voortgang niet aankwam).
     # shellcheck disable=SC2016  # het script krijgt zijn waarden als argumenten mee, niet via de tekst
     local script='id=$1; mgr=${2%%:*}; mode=${2#*:}; dir=$3; shift 3
@@ -315,7 +315,7 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzMon>: alleen dnf/yum/apt "upgrade
         url=""; tok=""; ins=0; enc_key=""; last=0; stage=update; pct=2; detail=""; count=""
         if [ -r "$dir/upgrade.conf" ]; then { read -r url; read -r tok; read -r ins; read -r enc_key; } <"$dir/upgrade.conf"; rm -f "$dir/upgrade.conf"; fi
         log="$dir/upgrade.log"; : >"$log"
-        post() {   # post [extra JSON-velden]: voortgang naar RzMon (hooguit 4 seconden wachten)
+        post() {   # post [extra JSON-velden]: voortgang naar RzSense (hooguit 4 seconden wachten)
             [ -n "$url" ] || return 0
             local k=(-fsS -m 4 -o /dev/null -X POST -H "$tok" -H "Content-Type: application/json")
             [ "$ins" = 1 ] && k+=(-k)

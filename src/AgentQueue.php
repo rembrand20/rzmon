@@ -3,10 +3,10 @@ declare(strict_types=1);
 
 /**
  * Agent 1.69.0: hartslag tijdens een lange run en de wachtrij (store-and-forward).
- * - Hartslag ("beat"): duurt een run langer dan de tik, dan meldt de agent elke tik "ik ben bezig". RzMon telt dat als
+ * - Hartslag ("beat"): duurt een run langer dan de tik, dan meldt de agent elke tik "ik ben bezig". RzSense telt dat als
  *   contact (de agent is niet stil), maar laat zijn gegevens staan tot het echte rapport komt. Een run die al een kwartier
  *   bezig is, telt niet meer: dan hangt er iets en mag de melding "agent stil" gewoon komen.
- * - Wachtrij ("backlog"): metingen van rapporten die niet aankwamen (RzMon of het netwerk even weg). Die komen als
+ * - Wachtrij ("backlog"): metingen van rapporten die niet aankwamen (RzSense of het netwerk even weg). Die komen als
  *   meetpunten in de grafieken van de CPU-, RAM- en diskchecks, op hun echte tijd; de status van nu verandert er niet door.
  *   Hetzelfde meetmoment telt maar één keer (het tijdstip is het kenmerk van een meting).
  */

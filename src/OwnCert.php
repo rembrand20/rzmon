@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Het eigen (self-signed) certificaat van RzMon op poort 443 (1.70.0): het adres van de agents bij https op het IP-adres,
+ * Het eigen (self-signed) certificaat van RzSense op poort 443 (1.70.0): het adres van de agents bij https op het IP-adres,
  * en de nooddeur. Bekijken, downloaden (met je wachtwoord) en vernieuwen: een nieuwe sleutel (EC P-256), 2 jaar geldig,
  * met de hostnaam, alle IP-adressen van de server, het beheeradres en eigen namen. Vernieuwen gebeurt als root: via de
  * hulpdienst (cert.request → install.php --renew-cert --helper) of in de terminal. Agents met een vastgezet certificaat
@@ -83,7 +83,7 @@ final class OwnCert
         return base64_encode(hash('sha256', $der, true));
     }
 
-    /** Het certificaat op poort 443 van RzMon zelf (zoals de agents en de nooddeur het zien), met de PEM en de pin */
+    /** Het certificaat op poort 443 van RzSense zelf (zoals de agents en de nooddeur het zien), met de PEM en de pin */
     public static function current(): array
     {
         $c = Https::fetchCert('127.0.0.1', 443, 'localhost', true);
@@ -106,7 +106,7 @@ final class OwnCert
             $opt = ['config' => $cnf, 'digest_alg' => 'sha256'];
             // Sleutel zonder ons eigen configbestand: daarmee keurt PHP een EC-sleutel af ("at least 384 bits")
             $key = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'prime256v1']);
-            $csr = $key ? openssl_csr_new(['commonName' => $cn, 'organizationName' => 'RzMon'], $key, $opt) : false;
+            $csr = $key ? openssl_csr_new(['commonName' => $cn, 'organizationName' => 'RzSense'], $key, $opt) : false;
             $x509 = $csr ? openssl_csr_sign($csr, null, $key, $days, $opt + ['x509_extensions' => 'v3'], random_int(1, PHP_INT_MAX)) : false;
             if (!$x509 || !openssl_x509_export($x509, $crt) || !openssl_pkey_export($key, $pem)) {
                 throw new RuntimeException(t('Certificaat maken mislukt: {e}', ['e' => (string) openssl_error_string()]));
@@ -191,8 +191,8 @@ final class OwnCert
         usleep(1500000);   // de webserver even de tijd geven (herladen gaat op de achtergrond)
         save_setting('agent_pin_at', '0');   // vingerafdruk voor de agents opnieuw bepalen
         save_setting('own_pin_cache', '');
-        AgentCommands::audit($by, 'Certificaat van RzMon vernieuwd', implode(', ', $names));
-        Monitor::sysInfo('cert', null, null, '🔐 ' . t('Certificaat van RzMon vernieuwd'),
+        AgentCommands::audit($by, 'Certificaat van RzSense vernieuwd', implode(', ', $names));
+        Monitor::sysInfo('cert', null, null, '🔐 ' . t('Certificaat van RzSense vernieuwd'),
             fn() => t('Nieuw certificaat (2 jaar geldig, tot {d}) voor {names}, door {by}. Agents met een vastgezet certificaat krijgen de nieuwe vingerafdruk vanzelf.',
                 ['d' => date('d-m-Y', (int) ($info['validTo_time_t'] ?? 0)), 'names' => implode(', ', $names), 'by' => $by]));
         try {
@@ -255,9 +255,9 @@ final class OwnCert
         $n = ['pin' => self::spkiPin($crt), 'names' => $names, 'to' => (int) ($info['validTo_time_t'] ?? 0), 'at' => time(), 'by' => $by,
             'deadline' => time() + self::NEXT_DAYS * 86400];
         save_setting('own_cert_next', json_encode($n));
-        AgentCommands::audit($by, 'Nieuw certificaat van RzMon klaargezet', implode(', ', $names));
-        Monitor::sysInfo('cert', null, null, '🔐 ' . t('Nieuw certificaat van RzMon klaargezet'),
-            fn() => t('De agents krijgen eerst de nieuwe vingerafdruk. Zodra ze die allemaal hebben (uiterlijk {d}) gaat RzMon het nieuwe certificaat gebruiken. Door {by}.',
+        AgentCommands::audit($by, 'Nieuw certificaat van RzSense klaargezet', implode(', ', $names));
+        Monitor::sysInfo('cert', null, null, '🔐 ' . t('Nieuw certificaat van RzSense klaargezet'),
+            fn() => t('De agents krijgen eerst de nieuwe vingerafdruk. Zodra ze die allemaal hebben (uiterlijk {d}) gaat RzSense het nieuwe certificaat gebruiken. Door {by}.',
                 ['d' => date('d-m-Y', $n['deadline']), 'by' => $by]));
         return ['ok' => true, 'error' => null, 'prepared' => true, 'names' => $names, 'to' => $n['to'], 'pin' => $n['pin'], 'deadline' => $n['deadline']];
     }
@@ -318,7 +318,7 @@ final class OwnCert
         if (empty($n['told'])) {
             $n['told'] = time();
             save_setting('own_cert_next', json_encode($n));
-            Monitor::sysInfo('cert', null, null, '🔐 ' . t('Nieuw certificaat van RzMon kan in gebruik'),
+            Monitor::sysInfo('cert', null, null, '🔐 ' . t('Nieuw certificaat van RzSense kan in gebruik'),
                 fn() => t('Alle agents hebben de nieuwe vingerafdruk. Voer op de server uit: {cmd}', ['cmd' => self::cliCommand() . ' --activate']));
         }
         return null;

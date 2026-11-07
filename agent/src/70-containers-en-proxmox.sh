@@ -128,7 +128,7 @@ fi
 # ---------------------------------------------------------------- Proxmox VE (agent 1.61.0)
 lap proxmox
 # Alleen op een Proxmox-host, als root: guests (VM's en containers), opslag, ZFS-pools, de cluster, back-ups per guest en de
-# back-uptaken. pvesh geeft JSON; dat gaat ongewijzigd mee (RzMon leest het), dus jq is niet nodig.
+# back-uptaken. pvesh geeft JSON; dat gaat ongewijzigd mee (RzSense leest het), dus jq is niet nodig.
 # Guests en opslag elke 2 minuten, back-ups en taken elk kwartier. PVE=0 in de instellingen zet het uit.
 pve_json=""
 if [ "$HA_MODE" = 0 ] && [ "${PVE:-1}" != 0 ] && command -v pvesh >/dev/null 2>&1 && [ "$(id -u)" = 0 ]; then

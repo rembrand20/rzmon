@@ -9,7 +9,7 @@
 //         sudo php install/install.php --unblock-all   (alle blokkades opheffen, bv. als je jezelf buitensloot)
 //         sudo php install/install.php --unlock <gebruikersnaam>   (account deblokkeren na te veel mislukte logins)
 //         sudo php install/install.php --https-off   (beheer weer via http: "alleen https" en "inloggen via http weigeren" uit)
-//         sudo php install/install.php --renew-cert   (eigen certificaat van RzMon op poort 443 vernieuwen, 2 jaar geldig;
+//         sudo php install/install.php --renew-cert   (eigen certificaat van RzSense op poort 443 vernieuwen, 2 jaar geldig;
 //                                                      met vastgezette agents eerst klaarzetten, --activate wisselt, --now meteen)
 //         sudo php install/install.php --restore <zip> [--with-config] [--password=…]
 //              (database terugzetten; met --with-config, of op een nieuwe server zonder config.php,
@@ -130,7 +130,7 @@ if (!is_configured()) {
 $upgrade = in_array('--upgrade', $argv, true);
 if (($argv[1] ?? '') === '--rotate-db-password') {
     // Nieuw databasewachtwoord (als root: alle accounts + /root/rzmon-install.txt).
-    // --helper: aangeroepen door de hulpdienst na de knop in RzMon (zie install/install-helper.sh).
+    // --helper: aangeroepen door de hulpdienst na de knop in RzSense (zie install/install-helper.sh).
     $helper = in_array('--helper', $argv, true);
     $nonce = '';
     if ($helper) {
@@ -158,7 +158,7 @@ if (($argv[1] ?? '') === '--rotate-db-password') {
         exit(1);
     }
     echo "Nieuw databasewachtwoord (wordt maar één keer getoond):\n\n    {$r['password']}\n\n";
-    echo "Opgeslagen in config.php" . (is_writable('/root/rzmon-install.txt') ? ' en /root/rzmon-install.txt' : '') . ". RzMon werkt gewoon door.\n";
+    echo "Opgeslagen in config.php" . (is_writable('/root/rzmon-install.txt') ? ' en /root/rzmon-install.txt' : '') . ". RzSense werkt gewoon door.\n";
     foreach ($r['warnings'] as $w) {
         echo "Let op: $w\n";
     }
@@ -246,11 +246,11 @@ if (($argv[1] ?? '') === '--https-off') {
     save_setting('https_only', '0');
     save_setting('http_login_block', '0');
     AgentCommands::audit('terminal', 'Beheer via https', 'https_only = 0, http_login_block = 0');
-    exit("\"Beheer alleen via https\" en \"Inloggen via http weigeren\" staan uit. Open RzMon via http://<IP-adres van deze server>/.\n"
+    exit("\"Beheer alleen via https\" en \"Inloggen via http weigeren\" staan uit. Open RzSense via http://<IP-adres van deze server>/.\n"
         . "Heeft je browser HSTS onthouden voor het beheeradres? Gebruik dan het IP-adres, of wis de HSTS-gegevens van die site in je browser.\n");
 }
 if (($argv[1] ?? '') === '--renew-cert') {
-    // Eigen (self-signed) certificaat vernieuwen. --helper: aangeroepen door de hulpdienst na de knop in RzMon.
+    // Eigen (self-signed) certificaat vernieuwen. --helper: aangeroepen door de hulpdienst na de knop in RzSense.
     Installer::ensureSchema();
     I18n::set(I18n::notifyLang());
     $helper = in_array('--helper', $argv, true);
@@ -285,7 +285,7 @@ if (($argv[1] ?? '') === '--renew-cert') {
     }
     if (!empty($r['prepared'])) {
         exit('Nieuw certificaat klaargezet (geldig tot ' . date('d-m-Y', $r['to']) . ') voor: ' . implode(', ', $r['names']) . ".\n"
-            . "De agents krijgen eerst de nieuwe vingerafdruk. RzMon meldt wanneer ze die allemaal hebben (uiterlijk " . date('d-m-Y', $r['deadline']) . ");\n"
+            . "De agents krijgen eerst de nieuwe vingerafdruk. RzSense meldt wanneer ze die allemaal hebben (uiterlijk " . date('d-m-Y', $r['deadline']) . ");\n"
             . "wissel dan met: sudo php install/install.php --renew-cert --activate  (meteen wisselen: --now)\n");
     }
     exit('Nieuw certificaat, geldig tot ' . date('d-m-Y', $r['to']) . ' voor: ' . implode(', ', $r['names']) . ".\n"

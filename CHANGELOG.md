@@ -1,6 +1,6 @@
 # Changelog
 
-Alle wijzigingen aan RzMon, per versie. Nieuwste bovenaan.
+Alle wijzigingen aan RzSense (tot 1.213.1: RzMon), per versie. Nieuwste bovenaan.
 Versienummers volgen [Semantic Versioning](https://semver.org/lang/nl/):
 `MAJOR.MINOR.PATCH`. MINOR gaat omhoog bij nieuwe functies, PATCH bij reparaties,
 en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.214.0**: **Rz//Sense AI**: een nieuwe naam en een nieuw logo, een ronde rand om de inhoud, en Monitoring heet ook zo.
 - **1.213.0**: **logs vinden op de server**: de agent laat zien welke logs, containers en services er zijn, en je vinkt ze aan.
 - **1.212.0**: **vaste zoekacties op de logs**: een melding bij te veel (of geen) treffers, met een proef op de laatste 24 uur.
 - **1.211.0**: de pagina **Logs**: zoeken in de logs van al je servers, met een grafiek, filters en de regels rond elke treffer.
 - **1.210.0**: **logs verzamelen** per server: gecomprimeerd en versleuteld naar RzMon, gemaskeerd en gecomprimeerd bewaard.
-- **1.209.0**: een **bekeken storing gaat uit Nu open** naar de dag waarop hij begon, en komt terug als het erger wordt.
+
+## 1.214.0 – 2026-11-07
+### Nieuw
+- **Nieuwe naam: Rz//Sense AI** (kort RzSense), met de slogan *Watching your servers, so you don't have to.* Een nieuw logo: een donkere tegel met een schild en "Rz", en signaalbogen uit de rechterbovenhoek. De tegel is in het lichte en het donkere thema hetzelfde; de letters zijn op licht donkerder, zodat alles goed leesbaar blijft. Op de inlogpagina gaan de bogen zacht aan en uit (niet bij "minder beweging").
+- Nieuw favicon, app-icoon (beginscherm), HA-add-on-icoon en Pushover-icoon. Het lettertype van het logo (Orbitron, OFL) staat in RzSense zelf; er gaat niets naar Google.
+- Overal in de interface, de meldingen, de rapporten en de handleiding heet het nu RzSense. **De technische naam blijft `rzmon`** (map, database, service, `/etc/default/rzmon-agent`, add-on, links): je hoeft niets aan te passen. Oude back-ups blijven terug te zetten en oudere agents werken door.
+- **Een dunne, ronde rand om de hele inhoud**, naast de zijbalk; de glass-achtergrond blijft er omheen zichtbaar.
+- **Monitoring heet ook zo**: het eerste subtabblad heet nu **Monitoring** (was Checks), de kruimelbalk toont dan alleen *Monitoring*, en in het webadres staat `#monitoring` (oude links met `#dashboard` werken nog).
+- **De pagina Logs komt binnen met een animatie**, net als de andere pagina's: de kaarten, de staafjes van de tijdlijn en de eerste regels na elkaar.
+- Nieuwe agent 1.85.0 (de naam RzSense in zijn meldingen en het installatiescript).
 
 ## 1.213.1 – 2026-11-07
 ### Opgelost

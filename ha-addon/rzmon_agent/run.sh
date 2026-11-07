@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start de RzMon agent in een lus met de opties uit de add-on configuratie.
+# Start de RzSense agent in een lus met de opties uit de add-on configuratie.
 set -u
 
 OPTIONS=/data/options.json
@@ -9,10 +9,10 @@ MONITOR_URL=$(jq -r '.monitor_url // empty' "$OPTIONS")
 # Reserve-adres (agent 1.51.0+): als monitor_url niet bereikbaar is, bv. de reverse proxy ligt eruit
 MONITOR_URL_FALLBACK=$(jq -r '.monitor_url_fallback // empty' "$OPTIONS")
 TOKEN=$(jq -r '.token // empty' "$OPTIONS")
-# Koppelcode (eenmalig) en de vingerafdruk van het certificaat van RzMon (agent 1.50.0+)
+# Koppelcode (eenmalig) en de vingerafdruk van het certificaat van RzSense (agent 1.50.0+)
 PAIR_CODE=$(jq -r '.pair_code // empty' "$OPTIONS")
 PIN=$(jq -r '.pin // empty' "$OPTIONS")
-# Tik als RzMon er geen doorgeeft; normaal stel je hem in RzMon in (Agent Manager)
+# Tik als RzSense er geen doorgeeft; normaal stel je hem in RzSense in (Agent Manager)
 INTERVAL=$(jq -r '.interval // 60' "$OPTIONS")
 INSECURE=$(jq -r 'if .verify_ssl == false then 1 else 0 end' "$OPTIONS")
 # Certificaten: bestanden in /ssl en/of host:poort (ook op internet)
@@ -21,22 +21,22 @@ export MONITOR_URL MONITOR_URL_FALLBACK TOKEN INSECURE CERTS INTERVAL PAIR_CODE 
 
 if [ -z "$MONITOR_URL" ] || { [ -z "$TOKEN" ] && [ -z "$PAIR_CODE" ] && [ ! -s /data/rzmon-keys/agent.key ]; }; then
     log "FOUT: vul 'monitor_url' en 'pair_code' in op het tabblad Configuratie."
-    log "De koppelcode maak je in RzMon bij de server (type 'Remote met agent') → 'Agent Manager' → 🔗 Koppelcode."
+    log "De koppelcode maak je in RzSense bij de server (type 'Remote met agent') → 'Agent Manager' → 🔗 Koppelcode."
     exit 1
 fi
 if [ -z "${SUPERVISOR_TOKEN:-}" ]; then
     log "WAARSCHUWING: geen SUPERVISOR_TOKEN; add-on/update-status wordt niet gerapporteerd."
 fi
 
-# Adres dat RzMon heeft ingesteld (Agent Manager → 🌐 Adres) gaat voor, zolang monitor_url hetzelfde blijft
+# Adres dat RzSense heeft ingesteld (Agent Manager → 🌐 Adres) gaat voor, zolang monitor_url hetzelfde blijft
 u_set=$(sed -n 1p /data/rzmon-keys/url 2>/dev/null); u_from=$(sed -n 2p /data/rzmon-keys/url 2>/dev/null)
-[ -n "$u_set" ] && [ "$u_from" = "${MONITOR_URL%/}" ] && log "Adres ingesteld vanuit RzMon: $u_set (in de configuratie staat $MONITOR_URL)"
-log "RzMon agent gestart: rapporteert aan ${u_set:-$MONITOR_URL}${MONITOR_URL_FALLBACK:+ (reserve: $MONITOR_URL_FALLBACK)} (hoe vaak: in RzMon → Agent Manager)"
-# Elke 30 s starten; de agent rapporteert alleen als de tik uit RzMon om is (anders stopt hij meteen)
+[ -n "$u_set" ] && [ "$u_from" = "${MONITOR_URL%/}" ] && log "Adres ingesteld vanuit RzSense: $u_set (in de configuratie staat $MONITOR_URL)"
+log "RzSense agent gestart: rapporteert aan ${u_set:-$MONITOR_URL}${MONITOR_URL_FALLBACK:+ (reserve: $MONITOR_URL_FALLBACK)} (hoe vaak: in RzSense → Agent Manager)"
+# Elke 30 s starten; de agent rapporteert alleen als de tik uit RzSense om is (anders stopt hij meteen)
 BASE=30
 CACHE=/data/rzmon-cache
 SV=http://supervisor
-# Realtime (aan/uit per server in RzMon): elke 5 s kijken of er iets verandert aan de add-ons, Core of de
+# Realtime (aan/uit per server in RzSense): elke 5 s kijken of er iets verandert aan de add-ons, Core of de
 # boot-tijd van HA OS; zo ja, meteen een rapport. Zonder realtime: gewoon wachten tot de volgende keer.
 rt_on() { grep -q $'^0\trealtime\t1' "$CACHE/tests.cache" 2>/dev/null; }
 rt_digest() {
@@ -50,7 +50,7 @@ force=0
 last_ok=""
 while true; do
     started=$(date +%s)
-    # Status van realtime voor RzMon (zelfde vorm als de watcher op servers)
+    # Status van realtime voor RzSense (zelfde vorm als de watcher op servers)
     if rt_on; then rt_state=active; rt_src=supervisor; else rt_state=off; rt_src=-; fi
     export RT_HA="$rt_state $rt_since $rt_src -"
     if [ "$force" = 1 ]; then export RZ_FORCE=1; else unset RZ_FORCE; fi
@@ -58,14 +58,14 @@ while true; do
     if out=$(/usr/local/bin/rzmon-agent.sh 2>&1); then
         # Alleen loggen bij het eerste echte rapport en na herstel (niet als de tik nog niet om was)
         if [[ "$out" == *'"ok":true'* ]]; then
-            [ "$last_ok" != 1 ] && log "Verbonden met RzMon ✔ (rapport ontvangen)"
+            [ "$last_ok" != 1 ] && log "Verbonden met RzSense ✔ (rapport ontvangen)"
             last_ok=1
         fi
     else
         case "$out" in
-            *"Koppelen mislukt"*) hint=" → maak een nieuwe koppelcode in RzMon (Agent Manager → 🔗 Koppelcode) en vul hem in bij pair_code" ;;
-            *"error: 403"*) hint=" → geweigerd: kijk bij Meldingen in RzMon waarom (sleutel, token, nieuw IP-adres)" ;;
-            *"Could not resolve"*|*"Failed to connect"*|*"timed out"*) hint=" → RzMon niet bereikbaar, controleer monitor_url" ;;
+            *"Koppelen mislukt"*) hint=" → maak een nieuwe koppelcode in RzSense (Agent Manager → 🔗 Koppelcode) en vul hem in bij pair_code" ;;
+            *"error: 403"*) hint=" → geweigerd: kijk bij Meldingen in RzSense waarom (sleutel, token, nieuw IP-adres)" ;;
+            *"Could not resolve"*|*"Failed to connect"*|*"timed out"*) hint=" → RzSense niet bereikbaar, controleer monitor_url" ;;
             *"SSL"*|*"certificate"*) hint=" → certificaatprobleem; zet verify_ssl uit bij een self-signed certificaat" ;;
             *) hint="" ;;
         esac

@@ -4,8 +4,8 @@ declare(strict_types=1);
 /**
  * Kwetsbaarheden: welke software staat er op de servers en welke bekende kwetsbaarheden (CVE's) horen daarbij.
  *
- * - De agent (1.47.0+) stuurt zijn pakketlijst mee (dpkg of rpm, met de distributie); voor de RzMon-server leest RzMon hem zelf.
- * - RzMon vraagt de kwetsbaarheden op bij OSV.dev (alleen pakketnaam, versie en distributie; geen servernamen of IP's).
+ * - De agent (1.47.0+) stuurt zijn pakketlijst mee (dpkg of rpm, met de distributie); voor de RzSense-server leest RzSense hem zelf.
+ * - RzSense vraagt de kwetsbaarheden op bij OSV.dev (alleen pakketnaam, versie en distributie; geen servernamen of IP's).
  *   OSV kent de adviezen van de distributies zelf, dus ook teruggezette reparaties (backports): geen vals alarm bij "oude" versies.
  * - Aanvullend: actief misbruikt (CISA KEV), kans op misbruik (EPSS) en zo nodig de CVSS-score van NVD.
  * - Scannen: elke dag op het ingestelde tijdstip, en meteen als de pakketlijst van een server verandert (via cron).
@@ -89,7 +89,7 @@ final class Vulns
             } elseif (q('SELECT hash FROM vuln_inventory WHERE host_id = ?', [$host['id']])->fetchColumn() === $p['hash']) {
                 $out['packages_ok'] = true;
             } else {
-                $out['packages_resend'] = true;   // RzMon heeft deze stand niet (bv. net aangezet): alles opnieuw
+                $out['packages_resend'] = true;   // RzSense heeft deze stand niet (bv. net aangezet): alles opnieuw
             }
         }
         if ($u = self::pendingUpgrade((int) $host['id'])) {
@@ -135,7 +135,7 @@ final class Vulns
         ]);
     }
 
-    /** De RzMon-server zelf: pakketlijst direct uitlezen (één keer per dag, of als de pakketdatabase veranderde) */
+    /** De RzSense-server zelf: pakketlijst direct uitlezen (één keer per dag, of als de pakketdatabase veranderde) */
     private static function localInventory(): void
     {
         foreach (q("SELECT id FROM hosts WHERE mode = 'local' AND enabled = 1")->fetchAll(PDO::FETCH_COLUMN) as $hid) {
@@ -183,7 +183,7 @@ final class Vulns
 
     // ------------------------------------------------------------------ cron
 
-    /** Elke minuut (cron): softwarelijst van de RzMon-server, dagelijkse scan, gewijzigde servers scannen, aanvullen, melden */
+    /** Elke minuut (cron): softwarelijst van de RzSense-server, dagelijkse scan, gewijzigde servers scannen, aanvullen, melden */
     public static function cron(int $budget = 45): ?string
     {
         if (!self::enabled() || (int) q("SELECT GET_LOCK('rzmon_vulns', 0)")->fetchColumn() !== 1) {
@@ -223,7 +223,7 @@ final class Vulns
             try {
                 CveBuzz::cron($end);   // 1.179.0: rugbaarheid, met de tijd die over is
             } catch (Throwable $e) {
-                error_log('RzMon: rugbaarheid: ' . $e->getMessage());
+                error_log('RzSense: rugbaarheid: ' . $e->getMessage());
             }
             if ($n) {
                 save_setting('vuln_last_scan', now());
@@ -427,7 +427,7 @@ final class Vulns
             'bomFormat' => 'CycloneDX', 'specVersion' => '1.5', 'serialNumber' => 'urn:uuid:' . self::uuid(), 'version' => 1,
             'metadata' => [
                 'timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
-                'tools' => ['components' => [['type' => 'application', 'name' => 'RzMon', 'version' => RZMON_VERSION]]],
+                'tools' => ['components' => [['type' => 'application', 'name' => 'RzSense', 'version' => RZMON_VERSION]]],
                 'component' => ['type' => 'operating-system', 'bom-ref' => 'host', 'name' => (string) $h['name'], 'version' => (string) $h['os_version'],
                     'description' => (string) $h['os_name']],
                 'properties' => [['name' => 'rzmon:inventory_at', 'value' => (string) $h['updated_at']]],
@@ -468,7 +468,7 @@ final class Vulns
         }
     }
 
-    /** Alleen bewaren wat RzMon gebruikt (zonder de soms enorme lijsten met versies) */
+    /** Alleen bewaren wat RzSense gebruikt (zonder de soms enorme lijsten met versies) */
     private static function trim(array $r): array
     {
         $aff = [];
@@ -895,7 +895,7 @@ final class Vulns
 
     // ------------------------------------------------------------------ bijwerken via de agent
 
-    /** Mag RzMon deze server via de agent laten bijwerken? @return string|null de reden waarom niet */
+    /** Mag RzSense deze server via de agent laten bijwerken? @return string|null de reden waarom niet */
     public static function upgradeBlocked(array $host): ?string
     {
         return match (true) {
@@ -928,7 +928,7 @@ final class Vulns
 
     /**
      * Onderdelen installeren (1.110.0, endpoint-bewaking: auditd, inotify-tools …): zelfde weg als bijwerken, met
-     * mode = install. Alleen pakketnamen die RzMon zelf kiest (Edr::COMPONENTS); de agent (1.63.0) controleert ze ook.
+     * mode = install. Alleen pakketnamen die RzSense zelf kiest (Edr::COMPONENTS); de agent (1.63.0) controleert ze ook.
      */
     public static function requestInstall(array $host, array $pkgs, string $by, bool $own = false): true|string
     {
@@ -1004,7 +1004,7 @@ final class Vulns
         $inst = ($req['mode'] ?? '') === 'install';   // 1.110.0: onderdelen installeren
         AgentCommands::audit((string) $req['by'], $inst ? ($ok ? 'Onderdelen geïnstalleerd' : 'Onderdelen installeren mislukt') : ($ok ? 'Pakketten bijgewerkt' : 'Pakketten bijwerken mislukt'),
             "{$host['name']}: " . implode(' ', $req['pkgs']));
-        // De nieuwe softwarelijst komt met het volgende rapport; daarna scant RzMon vanzelf opnieuw (andere lijst)
+        // De nieuwe softwarelijst komt met het volgende rapport; daarna scant RzSense vanzelf opnieuw (andere lijst)
         $pkgs = implode(' ', array_slice($req['pkgs'], 0, 20)) . (count($req['pkgs']) > 20 ? ' …' : '');
         $last = trim((string) strrchr("\n" . trim($log), "\n"));
         Monitor::infoHost(['info_agent' => 1] + $host, fn() => $ok

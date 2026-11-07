@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------- Zelftest (agent 1.79.0)
-# Op verzoek van RzMon (🧪 Test in de Agent Manager: regel "0 <tab> selftest <tab> id") test de agent zichzelf, één keer
-# per vraag: planning, instellingenbestand, DNS, het adres en het reserve-adres van RzMon, de klok, vrije ruimte, de
-# wachtrij en fouten in zijn log. Alleen vaste controles die lezen; RzMon stuurt geen commando's mee.
+# Op verzoek van RzSense (🧪 Test in de Agent Manager: regel "0 <tab> selftest <tab> id") test de agent zichzelf, één keer
+# per vraag: planning, instellingenbestand, DNS, het adres en het reserve-adres van RzSense, de klok, vrije ruimte, de
+# wachtrij en fouten in zijn log. Alleen vaste controles die lezen; RzSense stuurt geen commando's mee.
 selftest_json=""
 if [ "$TEST" != 1 ] && [ -r "${t_cache-}" ]; then
     st_line=$(awk -F'\t' '$1 == "0" && $2 == "selftest" { print $3; exit }' "$t_cache")
@@ -27,7 +27,7 @@ if [ "$TEST" != 1 ] && [ -r "${t_cache-}" ]; then
             if [ "$st_perm" = 600 ]; then st_add conf ok "$conf_file (600)"
             else st_add conf warn "$conf_file heeft rechten ${st_perm:-?}: sudo chmod 600 $conf_file"; fi
         fi
-        # Naam van RzMon opzoeken en het adres (en reserve-adres) bereiken
+        # Naam van RzSense opzoeken en het adres (en reserve-adres) bereiken
         st_host=${MONITOR_URL#*://}; st_host=${st_host%%/*}; st_host=${st_host%:*}; st_host=${st_host#[}; st_host=${st_host%]}
         if [[ "$st_host" =~ ^[0-9.]+$ || "$st_host" == *:* ]]; then
             st_add dns skip "adres is een IP-adres ($st_host)"

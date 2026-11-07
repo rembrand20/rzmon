@@ -1,8 +1,8 @@
 # ---------------------------------------------------------------- Logins, sudo en su
 lap logins
-# Als RzMon erom vraagt (regel "0 <tab> auth <tab> 1"): de nieuwe regels van het auth-log sinds de vorige
+# Als RzSense erom vraagt (regel "0 <tab> auth <tab> 1"): de nieuwe regels van het auth-log sinds de vorige
 # keer (journal, anders /var/log/secure of /var/log/auth.log). Geslaagde logins (SSH, console), sudo en su
-# gaan als losse gebeurtenissen naar RzMon; mislukte pogingen worden per soort/IP/gebruiker opgeteld.
+# gaan als losse gebeurtenissen naar RzSense; mislukte pogingen worden per soort/IP/gebruiker opgeteld.
 # Wachtwoorden in sudo-commando's (bv. mysql -pGeheim, password=…) worden hier al gemaskeerd.
 auth_json=""
 if [ "$HA_MODE" = 0 ] && [ "$AUTH_EVENTS" != 0 ] && [ -r "${t_cache-}" ] && grep -q $'^0\tauth\t1' "$t_cache"; then
@@ -51,13 +51,13 @@ fi
 
 # ---------------------------------------------------------------- IDS (intrusion detection)
 lap ids
-# Als RzMon erom vraagt (regel "0 <tab> ids <tab> learn|block"): wat RzMon nodig heeft om afwijkingen te zien.
-# Vergelijken gebeurt in RzMon (daar staat de basismeting, buiten bereik van een aanvaller op deze server).
+# Als RzSense erom vraagt (regel "0 <tab> ids <tab> learn|block"): wat RzSense nodig heeft om afwijkingen te zien.
+# Vergelijken gebeurt in RzSense (daar staat de basismeting, buiten bereik van een aanvaller op deze server).
 #  - gevoelige bestanden (SHA-256), gebruikers, kernelmodules, verdachte processen, verdachte verbindingen
 #  - SUID-bestanden (elk uur) en pakketcontrole rpm -Va / debsums (dagelijks), op de achtergrond
-#  - blokkeren: bij "block" de IP's uit RzMon in een eigen nftables-tabel "inet rzmon" (los van firewalld);
+#  - blokkeren: bij "block" de IP's uit RzSense in een eigen nftables-tabel "inet rzmon" (los van firewalld);
 #    bij "learn" of IDS uit wordt die tabel weer verwijderd
-#  - bestanden bewaken: hash, grootte, rechten en eigenaar van de paden uit RzMon (alleen wat veranderd is)
+#  - bestanden bewaken: hash, grootte, rechten en eigenaar van de paden uit RzSense (alleen wat veranderd is)
 ids_json=""
 fim_commit=""
 ids_mode=""
@@ -169,7 +169,7 @@ if [ -n "$ids_mode" ]; then
             && units_part=",\"units\":[$(awk '{ printf "\"%s\",", $0 }' "$i_dir/units" | sed 's/,$//')]"
     fi
     # 6d. Proces stoppen (agent 1.56.0, alleen in de modus blokkeren): regel "0 <tab> kill <tab> pid <tab> starttijd" van
-    #     RzMon (webshell). Alleen als de starttijd klopt, dus nooit een ander proces dat dat nummer later kreeg.
+    #     RzSense (webshell). Alleen als de starttijd klopt, dus nooit een ander proces dat dat nummer later kreeg.
     killed_json=""
     # Wat de agent meteen na het vorige rapport stopte (endpoint-bewaking, agent 1.63.0)
     [ -s "$i_dir/killed.pending" ] && killed_json=$(cat "$i_dir/killed.pending") && rm -f "$i_dir/killed.pending"
@@ -179,7 +179,7 @@ if [ -n "$ids_mode" ]; then
             [ -f "$i_dir/killed.$k_pid.$k_start" ] && continue   # al gedaan; de regel kan nog even in de lijst staan
             k_res=weg
             if [ "$(awk '{ print $22 }' "/proc/$k_pid/stat" 2>/dev/null)" = "$k_start" ]; then
-                # Nooit iets van RzMon of de agent zelf (agent 1.65.0)
+                # Nooit iets van RzSense of de agent zelf (agent 1.65.0)
                 if [[ "$(cat "/proc/$k_pid/cgroup" 2>/dev/null)" =~ /rzmon-[^/]*\.service ]]; then k_res=eigen
                 elif kill -KILL "$k_pid" 2>/dev/null; then k_res=ok; else k_res=fout; fi
             fi
@@ -188,7 +188,7 @@ if [ -n "$ids_mode" ]; then
         done <"$t_cache"
         find "$i_dir" -maxdepth 1 -name 'killed.*' -mmin +1440 -delete 2>/dev/null
     fi
-    # 6e. Hardening (agent 1.57.0): elk uur de instellingen die het verschil maken; RzMon geeft er een score aan
+    # 6e. Hardening (agent 1.57.0): elk uur de instellingen die het verschil maken; RzSense geeft er een score aan
     hard_part=""
     if [ ! -f "$i_dir/hard" ] || [ $(( $(date +%s) - $(stat -c %Y "$i_dir/hard") )) -ge 3600 ]; then
         {
@@ -259,9 +259,9 @@ if [ -n "$ids_mode" ]; then
     # 8. Bestanden bewaken (regel "0 <tab> fim <tab> base64" met e <tab> epoch, p <tab> ernst <tab> pad, x <tab> uitsluiten).
     #    Elke run een snelle controle (grootte, tijd, rechten, eigenaar); alleen bij een verschil een nieuwe hash.
     #    Eén keer per dag op de achtergrond alles opnieuw hashen, voor wie de tijd van een bestand terugzet.
-    #    Alleen wijzigingen gaan mee; de nieuwe stand wordt pas bewaard als RzMon het rapport heeft aangenomen.
+    #    Alleen wijzigingen gaan mee; de nieuwe stand wordt pas bewaard als RzSense het rapport heeft aangenomen.
     fim_dir="$i_dir/fim"
-    fimc=""   # voorstellen voor "＋ Aanbevolen" in RzMon: gangbare mappen die hier bestaan en niet leeg zijn
+    fimc=""   # voorstellen voor "＋ Aanbevolen" in RzSense: gangbare mappen die hier bestaan en niet leeg zijn
     for d in /usr/local/bin /usr/local/sbin /opt /etc/nginx /etc/httpd /etc/apache2 /etc/caddy /etc/haproxy /etc/postfix /var/www /srv/www /srv/http; do
         [ -d "$d" ] && [ -n "$(ls -A "$d" 2>/dev/null | head -n 1)" ] && fimc+="\"$d\","
     done
@@ -290,7 +290,7 @@ if [ -n "$ids_mode" ]; then
                 find "$root" -maxdepth 0 -type f -printf "$fmt" 2>/dev/null
             fi
         done <<<"$fim_cfg" | awk -F'\t' 'NF == 7 && !seen[$1]++' | head -n 10000 >"$fim_dir/list"
-        # Vorige stand: niet bij de eerste keer of na een nieuwe basismeting in RzMon (andere epoch): dan alles sturen
+        # Vorige stand: niet bij de eerste keer of na een nieuwe basismeting in RzSense (andere epoch): dan alles sturen
         fim_full=1; fim_old=/dev/null; fim_oldroots=/dev/null
         if [ -f "$fim_dir/state" ] && [ "$(cat "$fim_dir/meta" 2>/dev/null)" = "$fim_epoch" ]; then
             fim_full=0; fim_old="$fim_dir/state"; fim_oldroots="$fim_dir/roots"
@@ -309,7 +309,7 @@ if [ -n "$ids_mode" ]; then
         awk -F'\t' '$6 == "?" { print $1 }' "$fim_dir/new0" | tr '\n' '\0' | nice -n 19 xargs -0 -r sha256sum -- 2>/dev/null >"$fim_dir/hashes"
         awk -F'\t' -v OFS='\t' 'FILENAME == ARGV[1] { nh[substr($0, 67)] = substr($0, 1, 64); next }
             $6 == "?" { if (!($1 in nh)) next; $6 = nh[$1] } { print }' "$fim_dir/hashes" "$fim_dir/new0" >"$fim_dir/state.new"
-        # Wat RzMon moet weten: c = nieuw/gewijzigd, b = onder een nieuw bewaakt pad (basismeting), d = weg, u = niet meer bewaakt
+        # Wat RzSense moet weten: c = nieuw/gewijzigd, b = onder een nieuw bewaakt pad (basismeting), d = weg, u = niet meer bewaakt
         fim_json=$(awk -F'\t' -v full="$fim_full" '
             function j(s) { gsub(/\\/, "&&", s); gsub(/"/, "\\\"", s); return "\"" s "\"" }
             FILENAME == ARGV[1] { if ($1 == "p") cur[$3] = 1; next }
@@ -335,13 +335,13 @@ if [ -n "$ids_mode" ]; then
     fi
 fi
 
-# Blokkeren: eigen nftables-tabel "inet rzmon" met de IP's uit RzMon (alleen in de modus blokkeren).
+# Blokkeren: eigen nftables-tabel "inet rzmon" met de IP's uit RzSense (alleen in de modus blokkeren).
 # Lokaas-poort (agent 1.54.0, regel "0 <tab> decoy <tab> poort"): niemand van jou gebruikt die poort, dus elke verbinding
 # is een scanner. Er luistert niets; een regel in dezelfde tabel zet het IP in een set (dc4/dc6, een uur), de agent
 # stuurt die IP's mee en haalt ze na een geslaagd rapport uit de set. Ook in de modus leren (dan alleen melden).
 fw_json=""; decoy_json=""; decoy_err=""; dc_sent4=""; dc_sent6=""
 decoy_port=""
-# 1.77.0: TrueNAS beheert zijn eigen netwerk; blokkeren en de honeypot-poort alleen als RzMon het voor deze server toestaat
+# 1.77.0: TrueNAS beheert zijn eigen netwerk; blokkeren en de honeypot-poort alleen als RzSense het voor deze server toestaat
 tn_block=1
 if command -v midclt >/dev/null 2>&1; then
     tn_block=0
@@ -407,12 +407,12 @@ if [ "$ids_mode" = block ]; then
     elif ! command -v nft >/dev/null 2>&1; then
         fw_json="\"fw\":{\"state\":\"error\",\"err\":\"nft (nftables) ontbreekt\"}"
     else
-        # Nooit het adres van RzMon zelf blokkeren
+        # Nooit het adres van RzSense zelf blokkeren
         rz_host=${MONITOR_URL#*://}; rz_host=${rz_host%%/*}; rz_host=${rz_host%:*}; rz_host=${rz_host#[}; rz_host=${rz_host%]}
         rz_ips=" $(getent ahosts "$rz_host" 2>/dev/null | awk '{ print $1 }' | sort -u | tr '\n' ' ') $rz_host "
         now_f=$(date +%s)
         while IFS=$'\t' read -r z t b_ip b_until; do
-            # Bekende aanvallers (RzMon 1.82.0): bereiken (CIDR of begin-eind) in een eigen set
+            # Bekende aanvallers (RzSense 1.82.0): bereiken (CIDR of begin-eind) in een eigen set
             if [ "$z" = 0 ] && [ "$t" = knet ]; then
                 if [[ "$b_ip" =~ ^[0-9./-]+$ ]]; then kn4+="$b_ip, "; elif [[ "$b_ip" =~ ^[0-9a-fA-F:./-]+$ ]]; then kn6+="$b_ip, "; fi
                 continue
@@ -437,7 +437,7 @@ elif [ -n "$decoy_port" ]; then
     [ -n "$fw_err" ] && decoy_err="$fw_err"
 elif [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && grep -q $'^0\ttick\t' "$t_cache" \
     && command -v nft >/dev/null 2>&1 && nft list table inet rzmon >/dev/null 2>&1; then
-    # Leren (zonder lokaas-poort) of IDS uit volgens een complete lijst van RzMon: niets meer blokkeren (zonder lijst: niets aanraken)
+    # Leren (zonder lokaas-poort) of IDS uit volgens een complete lijst van RzSense: niets meer blokkeren (zonder lijst: niets aanraken)
     nft delete table inet rzmon 2>/dev/null
     rm -f "${i_dir:-$t_dir/ids}/fw.sig"
 fi
@@ -449,8 +449,8 @@ fi
 
 # ---------------------------------------------------------------- Logs van webdiensten (agent 1.58.0)
 lap weblogs
-# Regels "0 <tab> weblog <tab> swag|ha|vw <tab> pad, containernaam of auto" (RzMon 1.89.0). Alleen de nieuwe regels sinds
-# de vorige keer; per IP samengevat (aantallen, een paar paden met een foutcode, scanner); RzMon past de scenario's toe.
+# Regels "0 <tab> weblog <tab> swag|ha|vw <tab> pad, containernaam of auto" (RzSense 1.89.0). Alleen de nieuwe regels sinds
+# de vorige keer; per IP samengevat (aantallen, een paar paden met een foutcode, scanner); RzSense past de scenario's toe.
 # SWAG: de access-log van nginx. Home Assistant: "invalid authentication". Vaultwarden: "Username or password is incorrect".
 weblog_json=""
 if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
@@ -504,7 +504,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
                 fi
                 if [ -n "$w_path" ] && [ -r "$w_path" ]; then
                     # nginx "combined": IP - - [tijd] "GET /pad HTTP/1.1" status bytes "referer" "user-agent"; 444 = zonder (bekende) hostnaam
-                    # Agent 1.63.0: ook de verdachte verzoeken zelf, voor de payload-inspectie in RzMon (w_req)
+                    # Agent 1.63.0: ook de verdachte verzoeken zelf, voor de payload-inspectie in RzSense (w_req)
                     w_lines=$(wl_file_new swag "$w_path")
                     w_req=$(printf '%s\n' "$w_lines" | edr_swag_req)
                     w_body=$(printf '%s\n' "$w_lines" | awk -F'"' '
@@ -561,7 +561,7 @@ fi
 
 # ---------------------------------------------------------------- Endpoint-bewaking: regels, wachtrij en stand (agent 1.63.0)
 lap edr
-# auditd-regels (sleutels rzmon_*) zetten zolang het in RzMon aan staat, en weghalen als het uit gaat. Ze staan alleen
+# auditd-regels (sleutels rzmon_*) zetten zolang het in RzSense aan staat, en weghalen als het uit gaat. Ze staan alleen
 # in de kernel (auditctl), niet in /etc/audit: na een herstart zet de eerstvolgende run ze terug. De wachtrij van de
 # watcher gaat mee met het rapport (hooguit 500 per keer; wat niet aankomt, blijft voor de volgende keer).
 edr_json=""
@@ -607,7 +607,7 @@ if [ "$edr_want" = 1 ] && [ "$TEST" != 1 ]; then
     read -r e_ws _ _ _ e_we 2>/dev/null <"$edr_dir/watch.state"
     [ "$e_ws" = active ] && [ "$e_we" != - ] && e_watch=on
     e_drop=$(cat "$edr_dir/edr.drop" 2>/dev/null); [[ "$e_drop" =~ ^[0-9]+$ ]] || e_drop=0
-    # YARA (agent 1.64.0): geïnstalleerd, en welke regels (RzMon stuurt nieuwe als de hash verschilt)
+    # YARA (agent 1.64.0): geïnstalleerd, en welke regels (RzSense stuurt nieuwe als de hash verschilt)
     e_yara=missing; command -v yara >/dev/null 2>&1 && e_yara=ok
     e_ysha=$(sha256sum "$edr_dir/rzmon.yar" 2>/dev/null | cut -c1-64)
     # Suricata (agent 1.64.0): nieuwe alerts uit eve.json (SURICATA=0 zet het uit; SURICATA_EVE voor een ander pad)
@@ -636,16 +636,16 @@ if [ "$edr_want" = 1 ] && [ "$TEST" != 1 ]; then
     fi
     edr_json="{\"ev\":[$e_ev],\"info\":{\"audit\":\"$e_audit\",\"file\":\"$e_file\",\"ctr\":\"$e_ctr\",\"fam\":\"$e_fam\",\"epel\":$e_epel,\"watch\":\"$e_watch\",\"systemd\":$e_sys,\"drop\":$e_drop,\"queue\":$(wc -l 2>/dev/null <"$e_send" || echo 0),\"yara\":\"$e_yara\",\"ysha\":\"$e_ysha\",\"sur\":\"$e_sur\"}${e_alerts:+,\"sur\":[$e_alerts]}}"
 elif [ "$edr_want" = 0 ] && [ "$(id -u)" = 0 ] && [ "$HA_MODE" = 0 ]; then
-    # Uit (in RzMon of met EDR=0): regels weg en de wachtrij leeg
+    # Uit (in RzSense of met EDR=0): regels weg en de wachtrij leeg
     edr_rules off >/dev/null 2>&1
     rm -f "$edr_spool" "$edr_dir/edr.sending" 2>/dev/null
 fi
 
 # ---------------------------------------------------------------- Isoleren en gebruiker uitzetten (agent 1.57.0)
 lap isolate
-# "0 <tab> isolate <tab> tot (epoch) <tab> toegestane netwerken": alleen nog verkeer met RzMon, je LAN en het IP van de
+# "0 <tab> isolate <tab> tot (epoch) <tab> toegestane netwerken": alleen nog verkeer met RzSense, je LAN en het IP van de
 # beheerder; al het andere (in, uit en containers) wordt tegengehouden. Eigen tabel "inet rzmon_iso". Vervalt vanzelf
-# op de tijd, ook als RzMon onbereikbaar is (zo sluit je jezelf nooit voorgoed buiten).
+# op de tijd, ook als RzSense onbereikbaar is (zo sluit je jezelf nooit voorgoed buiten).
 # "0 <tab> userlock <tab> naam <tab> lock|unlock": account vergrendelen (en de processen ervan stoppen) of weer vrijgeven.
 iso_json=""
 if [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && [ "$(id -u)" = 0 ]; then
@@ -653,7 +653,7 @@ if [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && [ "$(id -u)" = 0 ]; then
     iso_until=${iso_line%%$'\t'*}; iso_allow=${iso_line#*$'\t'}
     iso_dir="$t_dir/iso"; mkdir -p "$iso_dir" 2>/dev/null
     if [[ "$iso_until" =~ ^[0-9]+$ ]] && [ "$iso_until" -gt "$(date +%s)" ] && command -v nft >/dev/null 2>&1; then
-        # Altijd bereikbaar: RzMon (en het reserve-adres) en de DNS-servers (om RzMon te vinden)
+        # Altijd bereikbaar: RzSense (en het reserve-adres) en de DNS-servers (om RzSense te vinden)
         i_ok=""
         for u in "$MONITOR_URL" "${MONITOR_URL_FALLBACK-}"; do
             [ -n "$u" ] || continue
@@ -684,7 +684,7 @@ if [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && [ "$(id -u)" = 0 ]; then
         if nft list table inet rzmon_iso >/dev/null 2>&1; then iso_json="\"iso\":{\"state\":\"active\",\"until\":$iso_until},"
         else iso_json="\"iso\":{\"state\":\"error\",\"err\":\"$(head -c 200 "$iso_dir/err" 2>/dev/null | json_text)\"},"; fi
     elif command -v nft >/dev/null 2>&1 && nft list table inet rzmon_iso >/dev/null 2>&1; then
-        # Tijd voorbij, of RzMon heeft het opgeheven: alles weer open
+        # Tijd voorbij, of RzSense heeft het opgeheven: alles weer open
         nft delete table inet rzmon_iso 2>/dev/null; rm -f "$iso_dir/sig"
         iso_json="\"iso\":{\"state\":\"off\"},"
     elif [ -f "$iso_dir/sig" ] || [[ "$iso_until" =~ ^[0-9]+$ ]]; then

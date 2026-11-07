@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Slimme voorstellen (1.108.0). RzMon kijkt elke nacht naar de geschiedenis en stelt voor; jij past toe of negeert
+ * Slimme voorstellen (1.108.0). RzSense kijkt elke nacht naar de geschiedenis en stelt voor; jij past toe of negeert
  * (Instellingen → Monitoring → Advies). Een genegeerd voorstel komt niet terug (zelfde vingerafdruk).
  * - fails:  "melden na N mislukte checks" per check: veel storingen die binnen een paar minuten vanzelf herstellen →
  *           hoger; storingen die altijd lang duren terwijl N hoog staat → lager (sneller weten);
@@ -256,7 +256,7 @@ final class Advice
             $byName[mb_strtolower(trim((string) $h['name']))] = (int) $id;
         }
         $out = [];
-        // 1. UniFi: de switch of het access point waar de server aan hangt, is zelf een server in RzMon
+        // 1. UniFi: de switch of het access point waar de server aan hangt, is zelf een server in RzSense
         foreach ($hosts as $id => $h) {
             if ($h['parent_id'] !== null) {
                 continue;
@@ -403,7 +403,7 @@ final class Advice
                     break;
                 case 'maint':
                     self::windowSave(['scope' => $d['scope'], 'ref_id' => (int) $a['ref_id'], 'dow' => (int) $d['dow'], 'start' => $d['start'], 'minutes' => (int) $d['minutes'],
-                        'reason' => t('patroon herkend door RzMon')]);
+                        'reason' => t('patroon herkend door RzSense')]);
                     $msg = t('Vast onderhoudsvenster toegevoegd');
                     break;
                 case 'dep':

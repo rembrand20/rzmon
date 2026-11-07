@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Soort apparaat (1.75.0): wat een server is (server, router, switch, access point, NAS …), los van hoe hij bewaakt
  * wordt (agent, remote, lokaal). Zelf gekozen (hosts.kind) gaat voor herkend (hosts.kind_auto: agent of SNMP);
- * zonder beide: een agent of de RzMon-server zelf is een server, de rest "overig".
+ * zonder beide: een agent of de RzSense-server zelf is een server, de rest "overig".
  */
 final class HostKind
 {

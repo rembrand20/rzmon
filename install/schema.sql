@@ -1,4 +1,4 @@
--- RzMon database schema (MariaDB 10.3+)
+-- RzSense database schema (MariaDB 10.3+)
 SET NAMES utf8mb4;
 
 CREATE TABLE IF NOT EXISTS users (
@@ -285,11 +285,11 @@ INSERT IGNORE INTO settings (name, value) VALUES
     ('backup_keep', '7'),
     ('backup_history', '1'),
     ('agent_auto_update', '0'),
-    -- RzMon bijwerken: met de knop; automatisch uit (anders om 04:00), altijd eerst een back-up
+    -- RzSense bijwerken: met de knop; automatisch uit (anders om 04:00), altijd eerst een back-up
     ('update_auto', '0'),
     ('update_time', '04:00'),
     ('update_backup', '1'),
-    -- 1.205.0: zo lang (minuten) wachten agents tijdens een update van RzMon voordat de waakhond alsnog alarm geeft
+    -- 1.205.0: zo lang (minuten) wachten agents tijdens een update van RzSense voordat de waakhond alsnog alarm geeft
     ('update_hold_min', '5'),
     -- 1.206.0: bevestigen bij acties: beheerders met een vinkje (zolang ze hun wachtwoord de laatste 60 min invulden)
     ('confirm_skip_admin', '1'),
@@ -493,7 +493,7 @@ CREATE TABLE IF NOT EXISTS vuln_buzz (
 INSERT IGNORE INTO settings (name, value) VALUES ('cve_buzz_on', '1'), ('cve_buzz_alert', '60'), ('cve_github_token', ''), ('cve_mastodon_url', 'https://infosec.exchange'),
     ('cve_mastodon_token', ''), ('cve_exploitdb', '1'), ('cve_nuclei', '1');
 
--- Beveiliging (1.57.0): geblokkeerde IP-adressen en netwerken (heel RzMon), mislukte pogingen om te tellen,
+-- Beveiliging (1.57.0): geblokkeerde IP-adressen en netwerken (heel RzSense), mislukte pogingen om te tellen,
 -- en eenmalige nummers van versleutelde agent-berichten (tegen opnieuw afspelen)
 CREATE TABLE IF NOT EXISTS rz_blocks (
     id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -505,7 +505,7 @@ CREATE TABLE IF NOT EXISTS rz_blocks (
     last_hit   DATETIME     NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 1.83.0: whitelist (nooit blokkeren): IP-adressen/netwerken (RzMon en IDS op alle servers), accounts (nooit
+-- 1.83.0: whitelist (nooit blokkeren): IP-adressen/netwerken (RzSense en IDS op alle servers), accounts (nooit
 -- vergrendelen) en namen die geen honeypot zijn; until NULL = altijd
 CREATE TABLE IF NOT EXISTS whitelist (
     id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -518,7 +518,7 @@ CREATE TABLE IF NOT EXISTS whitelist (
     UNIQUE KEY uq_wl (kind, value)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 1.83.0: opgeheven en verlopen blokkades van RzMon zelf (IP's en accounts), voor "Eerder"; zo lang als de meldingen
+-- 1.83.0: opgeheven en verlopen blokkades van RzSense zelf (IP's en accounts), voor "Eerder"; zo lang als de meldingen
 CREATE TABLE IF NOT EXISTS block_log (
     id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     kind       VARCHAR(8)   NOT NULL,             -- rz (IP of netwerk) | user (account)
@@ -672,7 +672,7 @@ CREATE TABLE IF NOT EXISTS agent_nonces (
 INSERT IGNORE INTO settings (name, value) VALUES ('enc_mode', 'on'), ('enc_key', ''), ('enc_key_old', ''), ('enc_key_old_until', '');
 
 -- Beveiligde verbinding (1.64.0): sleutel per agent na zoveel dagen vernieuwen (0 = alleen met de hand), het certificaat
--- van RzMon vastzetten bij een eigen (self-signed) certificaat, en agents alleen vanaf hun bekende IP-adres
+-- van RzSense vastzetten bij een eigen (self-signed) certificaat, en agents alleen vanaf hun bekende IP-adres
 INSERT IGNORE INTO settings (name, value) VALUES ('agent_key_days', '30'), ('agent_pin', '1'), ('agent_pin_value', ''), ('agent_pin_at', '0'),
     ('agent_ip_lock', '1');
 
@@ -805,7 +805,7 @@ CREATE TABLE IF NOT EXISTS host_templates (
     CONSTRAINT fk_htpl_tpl FOREIGN KEY (template_id) REFERENCES check_templates(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- PHP-fouten van RzMon zelf (1.96.0), samengevat per soort; Instellingen → Systeem → Systeemcheck (7 dagen)
+-- PHP-fouten van RzSense zelf (1.96.0), samengevat per soort; Instellingen → Systeem → Systeemcheck (7 dagen)
 CREATE TABLE IF NOT EXISTS app_errors (
     hash     CHAR(40) NOT NULL PRIMARY KEY,
     level    VARCHAR(10) NOT NULL,
@@ -909,7 +909,7 @@ CREATE TABLE IF NOT EXISTS stats_daily (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('report_monthly', '0');
 
--- 1.107.0: slimme drempels: wat RzMon per check geleerd heeft (per uur van de week)
+-- 1.107.0: slimme drempels: wat RzSense per check geleerd heeft (per uur van de week)
 CREATE TABLE IF NOT EXISTS check_smart (
     check_id   INT UNSIGNED NOT NULL PRIMARY KEY,
     model      MEDIUMTEXT   NULL,

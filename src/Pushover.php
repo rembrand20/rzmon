@@ -79,7 +79,7 @@ final class Pushover
         return ($json['status'] ?? 0) === 1 ? $json : null;
     }
 
-    /** Stopt het herhalen van een Emergency-melding (na bevestigen in RzMon of herstel). */
+    /** Stopt het herhalen van een Emergency-melding (na bevestigen in RzSense of herstel). */
     public static function cancel(string $receipt): void
     {
         $ch = curl_init(self::api('/receipts/' . rawurlencode($receipt) . '/cancel.json'));

@@ -2,9 +2,9 @@
 declare(strict_types=1);
 
 /**
- * Hoe goed werkt RzMon zelf? (1.146.0)
+ * Hoe goed werkt RzSense zelf? (1.146.0)
  * - SLO's: hoe snel komt een melding na een storing (doel: binnen 5 minuten), en hoe lang waren agents stil.
- * - "Na de actie": werkt wat RzMon zelf doet ook echt? Zelf herstellen (hoe vaak lukt het), automatische blokkades
+ * - "Na de actie": werkt wat RzSense zelf doet ook echt? Zelf herstellen (hoe vaak lukt het), automatische blokkades
  *   (hoe vaak heeft iemand er een vroegtijdig opgeheven: waarschijnlijk onterecht) en slimme drempels (gaven ze daarna
  *   méér warnings dan ervoor?).
  * Uitkomsten van zelf herstellen (heal_log) en gaten in het contact met agents (agent_gaps) worden vanaf 1.146.0 bijgehouden.

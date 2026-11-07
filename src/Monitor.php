@@ -36,14 +36,14 @@ final class Monitor
         return count($rows);
     }
 
-    /** Checks die RzMon zelf uitvoert en die bij een probleem sneller mogen (slim interval) */
+    /** Checks die RzSense zelf uitvoert en die bij een probleem sneller mogen (slim interval) */
     private const FAST_TYPES = ['ping', 'tcp', 'http', 'snmp'];
     /** 1.193.0: veranderen niet zomaar heen en weer; advies: meteen geldig (bevestigen = 1) */
     public const SLOW_CONFIRM_TYPES = ['disk', 'ssl', 'domain', 'heartbeat', 'path', 'smart', 'reboot'];
 
     /**
      * Interval van een check in SQL (1.108.0, slim interval, Instellingen → Monitoring → Advies): bij een probleem
-     * (of een mislukte meting) sneller (smart_fast, standaard 20 s, alleen checks die RzMon zelf doet), na een uur stabiel OK
+     * (of een mislukte meting) sneller (smart_fast, standaard 20 s, alleen checks die RzSense zelf doet), na een uur stabiel OK
      * trager (hooguit smart_slow × het interval en nooit trager dan een uur, tenzij het interval zelf al langer is).
      */
     private static function intervalSql(): string
@@ -97,7 +97,7 @@ final class Monitor
         return $n;
     }
 
-    /** Checks die op gegevens van de agent draaien (niet ping/poort/HTTP/certificaat: die doet RzMon zelf). */
+    /** Checks die op gegevens van de agent draaien (niet ping/poort/HTTP/certificaat: die doet RzSense zelf). */
     private const AGENT_TYPES = ['disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'command', 'ha', 'pve', 'truenas', 'path'];
 
     /**
@@ -701,7 +701,7 @@ final class Monitor
     }
 
     /**
-     * Is "melden na N" bereikt? N keer achter elkaar deze status. Met slim interval (1.108.2) checkt RzMon bij een probleem
+     * Is "melden na N" bereikt? N keer achter elkaar deze status. Met slim interval (1.108.2) checkt RzSense bij een probleem
      * sneller (bv. elke 20 s); dan telt het ook in tijd: minstens zo lang als N gewone checks zouden duren
      * ((N-1) × het gewone interval, met wat speling voor de cron). Zo blijft een korte hapering stil, net als zonder slim interval.
      */
@@ -911,7 +911,7 @@ final class Monitor
         $pushover = null;
         if (Push::enabled() && $channels['pushover']) {
             $base = rtrim((string) config('base_url', ''), '/');
-            $r = Push::send($title, $body . "\n" . date('d-m-Y H:i:s'), $prio, $base !== '' ? ['url' => "$base/", 'url_title' => 'Open RzMon'] : []);
+            $r = Push::send($title, $body . "\n" . date('d-m-Y H:i:s'), $prio, $base !== '' ? ['url' => "$base/", 'url_title' => 'Open RzSense'] : []);
             $pushover = $r['ok'];
             if ($r['error']) {
                 $errors[] = $r['error'];
@@ -929,7 +929,7 @@ final class Monitor
             $base = rtrim((string) config('base_url', ''), '/');
             $r = Mailer::send($title, $body . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s')
                 . ($acks ? "\n\n" . t('Bevestigen (geen meldingen meer voor die storing):') . "\n" . implode("\n", $acks) : '')
-                . ($base !== '' ? "\n\nRzMon: $base/" : ''));
+                . ($base !== '' ? "\n\nRzSense: $base/" : ''));
             $email = $r['ok'];
             if (!$r['ok']) {
                 $errors[] = 'E-mail: ' . $r['error'];
@@ -974,7 +974,7 @@ final class Monitor
         $reason = t('Automatisch na {n} meldingen', ['n' => $sent]);
         q('UPDATE checks SET maintenance_until = ?, maintenance_reason = ?, maintenance_auto = 1 WHERE id = ?', [self::AUTO_UNTIL, $reason, $check['id']]);
         self::notify($check, $res, $status, '🔧 ' . t('ONDERHOUD') . ": $title",
-            t('Na {n} meldingen staat deze check automatisch in onderhoud: geen meldingen meer tot hij weer OK is. De andere checks van deze server melden gewoon door. Beëindigen kan in RzMon (🔧).', ['n' => $sent]),
+            t('Na {n} meldingen staat deze check automatisch in onderhoud: geen meldingen meer tot hij weer OK is. De andere checks van deze server melden gewoon door. Beëindigen kan in RzSense (🔧).', ['n' => $sent]),
             -1, 'maintenance', $status, 'maint');
     }
 
@@ -1009,7 +1009,7 @@ final class Monitor
             $base = rtrim((string) config('base_url', ''), '/');
             $body = $message . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s')
                 . ($ackUrl ? "\n\n✔ " . t('Bevestigen (geen meldingen meer voor deze storing):') . "\n$ackUrl" : '')
-                . ($base !== '' ? "\n\nRzMon: $base/" : '');
+                . ($base !== '' ? "\n\nRzSense: $base/" : '');
             $r = Mailer::send($title, $body);
             $email = $r['ok'];
             if (!$r['ok']) {
@@ -1061,7 +1061,7 @@ final class Monitor
         $email = null;
         if (setting('email_enabled', '0') === '1' && (setting('email_mode', 'always') !== 'fallback' || !$sent)) {
             $base = rtrim((string) config('base_url', ''), '/');
-            $r = Mailer::send($title, $message . "\n\nTijd: " . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzMon: $base/" : ''));
+            $r = Mailer::send($title, $message . "\n\nTijd: " . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzSense: $base/" : ''));
             $email = $r['ok'];
             if (!$r['ok']) {
                 $errors[] = 'E-mail: ' . $r['error'];
@@ -1116,10 +1116,10 @@ final class Monitor
         self::sysInfo($event, (int) $host['id'], (string) $host['name'], 'ℹ️ INFO: ' . $host['name'], $message, null, null, $pageOnly);
     }
 
-    /** Info van RzMon zelf (bijgewerkt) */
+    /** Info van RzSense zelf (bijgewerkt) */
     public static function infoSystem(callable $message, string $event = 'rzmon_update'): void
     {
-        self::sysInfo($event, null, null, 'ℹ️ INFO: RzMon', $message);
+        self::sysInfo($event, null, null, 'ℹ️ INFO: RzSense', $message);
     }
 
     /**
@@ -1169,7 +1169,7 @@ final class Monitor
             }
             if (setting('email_enabled', '0') === '1' && $channels['email'] && (setting('email_mode', 'always') !== 'fallback' || $pushover !== true)) {
                 $base = rtrim((string) config('base_url', ''), '/');
-                $r = Mailer::send($title, $message . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzMon: $base/" : ''));
+                $r = Mailer::send($title, $message . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzSense: $base/" : ''));
                 $email = $r['ok'];
                 if (!$r['ok']) {
                     $errors[] = 'E-mail: ' . $r['error'];
@@ -1287,7 +1287,7 @@ final class Monitor
         q('UPDATE checks SET acked_at = NULL, acked_by = NULL, ack_comment = NULL WHERE id = ?', [$checkId]);
     }
 
-    /** Emergency-meldingen die in de Pushover-app bevestigd zijn, ook in RzMon bevestigen. */
+    /** Emergency-meldingen die in de Pushover-app bevestigd zijn, ook in RzSense bevestigen. */
     public static function pollReceipts(): void
     {
         if (setting('pushover_enabled', '0') !== '1') {
@@ -1332,7 +1332,7 @@ final class Monitor
         q('DELETE FROM agent_log WHERE created_at < NOW() - INTERVAL 7 DAY');
         q('DELETE FROM remember_tokens WHERE last_used < NOW() - INTERVAL ? DAY', [REMEMBER_DAYS]);
         q('DELETE FROM user_sessions WHERE last_seen < NOW() - INTERVAL 2 DAY');   // allang verlopen sessies
-        // Tot 1.92.2: elke controle zonder cookies (curl, een HTTP-check op RzMon zelf) gaf een LAN-sessie die nooit terugkwam
+        // Tot 1.92.2: elke controle zonder cookies (curl, een HTTP-check op RzSense zelf) gaf een LAN-sessie die nooit terugkwam
         q("DELETE FROM user_sessions WHERE how = 'lan' AND last_seen <= created_at + INTERVAL 1 MINUTE AND created_at < NOW() - INTERVAL 10 MINUTE");
         PasswordReset::purge();
         ChangeLog::purge();   // wijzigingslogboek: bewaartermijn instelbaar (1.97.0)

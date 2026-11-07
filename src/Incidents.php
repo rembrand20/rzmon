@@ -96,7 +96,7 @@ final class Incidents
         }
         q('INSERT INTO incidents (source, ref_key, ref_id, host_id, severity, title, detail, status, opened_at, updated_at, ip, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [$src, $key, $ref, $hostId, $sev, mb_substr($title, 0, 250), mb_substr($detail, 0, 1000), 'open', $since ?: now(), now(), $ip, $kind]);
-        self::note((int) db()->lastInsertId(), 'RzMon', 'system', t('Incident geopend'));
+        self::note((int) db()->lastInsertId(), 'RzSense', 'system', t('Incident geopend'));
         return 1;
     }
 
@@ -129,7 +129,7 @@ final class Incidents
         q('INSERT IGNORE INTO incident_refs (incident_id, ref_key, ref_id, kind, severity, title, ip, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [$id, $key, (int) $x['id'], (string) $x['type'], (int) $x['severity'], mb_substr((string) $x['title'], 0, 250), $x['ip'] ?: null, $x['created_at']]);
         q('UPDATE incidents SET severity = GREATEST(severity, ?), updated_at = NOW() WHERE id = ?', [min(2, (int) $x['severity']), $id]);
-        self::note($id, 'RzMon', 'system', t('🔗 Hoort erbij: {t}', ['t' => $x['title']]) . ($x['ip'] ? " ({$x['ip']})" : ''));
+        self::note($id, 'RzSense', 'system', t('🔗 Hoort erbij: {t}', ['t' => $x['title']]) . ($x['ip'] ? " ({$x['ip']})" : ''));
         // Een aanvalsketen verbindt alles op die server: andere open IDS-incidenten van dezelfde periode gaan erin op
         if ($x['type'] === 'chain') {
             foreach (q("SELECT * FROM incidents WHERE source = 'ids' AND status <> 'resolved' AND host_id = ? AND id <> ?
@@ -164,7 +164,7 @@ final class Incidents
         }
         q('UPDATE incidents SET severity = GREATEST(severity, ?), opened_at = LEAST(opened_at, ?) WHERE id = ?', [(int) $o['severity'], $o['opened_at'], $id]);
         q('DELETE FROM incidents WHERE id = ?', [$o['id']]);
-        self::note($id, 'RzMon', 'system', t('🔗 Samengevoegd: {t}', ['t' => $o['title']]));
+        self::note($id, 'RzSense', 'system', t('🔗 Samengevoegd: {t}', ['t' => $o['title']]));
     }
 
     /** Op welke poorten luisteren deze pakketten op deze server (uit de softwarelijst van de agent) */
@@ -185,7 +185,7 @@ final class Incidents
     {
         $n = q("UPDATE incidents SET status = 'resolved', resolved_at = NOW(), updated_at = NOW() WHERE id = ? AND status <> 'resolved'", [$id])->rowCount();
         if ($n) {
-            self::note($id, 'RzMon', 'status', t('Opgelost: {why}', ['why' => $why]));
+            self::note($id, 'RzSense', 'status', t('Opgelost: {why}', ['why' => $why]));
         }
         return $n;
     }

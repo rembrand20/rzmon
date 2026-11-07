@@ -137,7 +137,7 @@ final class Mds
         try {
             return $f();
         } catch (Throwable $e) {
-            error_log('RzMon mDS: ' . $e->getMessage());
+            error_log('RzSense mDS: ' . $e->getMessage());
             return null;
         }
     }

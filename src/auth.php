@@ -98,7 +98,7 @@ function current_user(): ?array
 
     // "Inloggen" gekozen op het LAN (?login=1): dan niet automatisch binnenlaten
     // In "Ingelogde apparaten" pas vanaf het tweede verzoek met dezelfde cookie (session_alive): een browser komt meteen
-    // terug, een controle zonder cookies (curl van een agent, een HTTP-check op RzMon zelf) gaf anders elke minuut een nieuwe sessie
+    // terug, een controle zonder cookies (curl van een agent, een HTTP-check op RzSense zelf) gaf anders elke minuut een nieuwe sessie
     if (!$user && lan_login_allowed() && empty($_SESSION['no_lan_auto'])) {
         session_regenerate_id(true);
         $_SESSION['lan_auto'] = true;

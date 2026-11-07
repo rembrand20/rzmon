@@ -1,10 +1,10 @@
-# ---------------------------------------------------------------- Logs vinden (agent 1.84.0, RzMon 1.213.0)
+# ---------------------------------------------------------------- Logs vinden (agent 1.84.0, RzSense 1.213.0)
 lap log_scan
-# Welke logs zijn er op deze server, om in RzMon (Agent Manager › Logs) uit te kiezen: bestanden en mappen binnen
+# Welke logs zijn er op deze server, om in RzSense (Agent Manager › Logs) uit te kiezen: bestanden en mappen binnen
 # LOG_DIRS, containers (Docker/Podman), systemd-services die de afgelopen 24 uur iets in de journal schreven, en op
 # Home Assistant de Supervisor-logs en add-ons. Alleen namen, groottes en tijden, nooit de inhoud.
-# Eén keer per dag, of meteen als RzMon erom vraagt (regel "0 <tab> logscan <tab> teller"). Het resultaat gaat alleen mee
-# in het rapport als het net gemaakt is (anders niets: RzMon bewaart de laatste lijst).
+# Eén keer per dag, of meteen als RzSense erom vraagt (regel "0 <tab> logscan <tab> teller"). Het resultaat gaat alleen mee
+# in het rapport als het net gemaakt is (anders niets: RzSense bewaart de laatste lijst).
 # Overgeslagen: gedraaide bestanden (.1, .gz, -20250101), binaire bestanden (wtmp, btmp, lastlog) en de map journal.
 logscan_json=""
 if [ "$TEST" != 1 ] && [ "${LOG_SHIP:-1}" != 0 ]; then

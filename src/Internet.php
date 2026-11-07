@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Internet (1.157.0): bewaakt de internetlijn vanaf de server van RzMon. Eén check per meting (kolom metric):
+ * Internet (1.157.0): bewaakt de internetlijn vanaf de server van RzSense. Eén check per meting (kolom metric):
  * - ping: pingtijd, jitter en pakketverlies naar 1.1.1.1 en 8.8.8.8, en je eigen router (zo zie je of het binnen of buiten zit);
  * - resp: responstijd van een paar bekende sites (DNS, verbinden, TLS, eerste antwoord);
  * - down / up: snelheid in Mbit/s uit de laatste snelheidstest. Die draait op vaste tijden (Instellingen → Monitoring → Internet,
@@ -77,7 +77,7 @@ final class Internet
 
     // ------------------------------------------------------------------ Ping
 
-    /** Standaardgateway van de server van RzMon (uit /proc/net/route), of null */
+    /** Standaardgateway van de server van RzSense (uit /proc/net/route), of null */
     public static function gateway(): ?string
     {
         $lines = @file('/proc/net/route', FILE_IGNORE_NEW_LINES) ?: [];

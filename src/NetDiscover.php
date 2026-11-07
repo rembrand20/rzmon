@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * 1.183.0: Netwerk → Ontdekken. Houdt bij wat er op het netwerk verandert en wanneer een apparaat online is,
- * en stelt checks voor apparaten die nog niet in RzMon staan.
+ * en stelt checks voor apparaten die nog niet in RzSense staan.
  *
  * - net_events: nieuw apparaat, ander IP-adres, nieuwe of gesloten poorten, nieuwe domeinen (AdGuard), al dagen weg, weer terug;
  * - net_presence: per apparaat per dag een bitmasker van de uren waarin het gezien is (24 bits);
@@ -40,7 +40,7 @@ final class NetDiscover
     ];
     /** Soorten die je meestal wilt bewaken (telefoons en laptops niet: die gaan vaak weg) */
     private const WATCH_KINDS = ['router', 'network', 'server', 'nas', 'printer', 'camera', 'smarthome', 'iot', 'media'];
-    /** Soort in de netwerkscan → soort apparaat in RzMon */
+    /** Soort in de netwerkscan → soort apparaat in RzSense */
     private const TO_HOST = ['router' => 'router', 'network' => 'switch', 'server' => 'server', 'nas' => 'nas', 'printer' => 'printer', 'camera' => 'camera',
         'smarthome' => 'smarthome', 'iot' => 'smarthome', 'media' => 'other'];
 
@@ -204,7 +204,7 @@ final class NetDiscover
         return $out;
     }
 
-    /** Apparaten die een voorstel krijgen: niet in RzMon, niet genegeerd, van een soort die je meestal bewaakt (of met een dienst), de laatste 7 dagen gezien */
+    /** Apparaten die een voorstel krijgen: niet in RzSense, niet genegeerd, van een soort die je meestal bewaakt (of met een dienst), de laatste 7 dagen gezien */
     public static function suggestions(array $devices): array
     {
         $out = [];
@@ -227,7 +227,7 @@ final class NetDiscover
         return $out;
     }
 
-    /** Apparaat in RzMon zetten met de gekozen checks; geeft het id van de nieuwe server */
+    /** Apparaat in RzSense zetten met de gekozen checks; geeft het id van de nieuwe server */
     public static function adopt(int $deviceId, array $keys, string $name, string $by): int
     {
         $d = null;
@@ -241,7 +241,7 @@ final class NetDiscover
             throw new InvalidArgumentException(t('Apparaat niet gevonden'));
         }
         if ($d['host']) {
-            throw new InvalidArgumentException(t('Dit apparaat staat al in RzMon als {name}', ['name' => $d['host']['name']]));
+            throw new InvalidArgumentException(t('Dit apparaat staat al in RzSense als {name}', ['name' => $d['host']['name']]));
         }
         $name = mb_substr(trim(preg_replace('/[\x00-\x1f\x7f]+/u', ' ', $name) ?? ''), 0, 100) ?: (string) $d['label'];
         $ip = (string) $d['ip'];

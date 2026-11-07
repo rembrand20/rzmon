@@ -1,6 +1,6 @@
 <?php
 /**
- * RzMon REST API v1
+ * RzSense REST API v1
  *
  * Authenticatie: header "Authorization: Bearer <sleutel>" of "X-API-Key: <sleutel>"
  * (of ?key=<sleutel>, minder veilig omdat het in logs belandt).
@@ -53,7 +53,7 @@ function respond($data, int $code = 200): never
 
 I18n::init(null);
 if (!is_configured()) {
-    respond(['error' => t('RzMon is nog niet ingesteld')], 503);
+    respond(['error' => t('RzSense is nog niet ingesteld')], 503);
 }
 I18n::set(I18n::notifyLang());   // de API spreekt de taal van meldingen en checkberichten
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -78,7 +78,7 @@ if (!$apiKey) {
 }
 if ($apiKey['expires_at'] !== null && strtotime($apiKey['expires_at']) <= time()) {
     Security::unauthorized('api', t('verlopen API-sleutel'), [t('sleutel') => $apiKey['name']]);
-    respond(['error' => t('Deze API-sleutel is verlopen op {date}; verleng hem in RzMon (Instellingen → Koppelingen → API-sleutels)', ['date' => date('d-m-Y', strtotime($apiKey['expires_at']))])], 401);
+    respond(['error' => t('Deze API-sleutel is verlopen op {date}; verleng hem in RzSense (Instellingen → Koppelingen → API-sleutels)', ['date' => date('d-m-Y', strtotime($apiKey['expires_at']))])], 401);
 }
 if ((string) $apiKey['allow_from'] !== '' && !ip_in_list(client_ip(), parse_list($apiKey['allow_from']))) {
     Security::unauthorized('api', t('API-sleutel gebruikt vanaf een adres dat niet mag'), [t('sleutel') => $apiKey['name']]);
@@ -251,9 +251,9 @@ if ($method === 'POST') {
             if (@inet_pton($ip) === false) {
                 respond(['error' => t('Ongeldig IP-adres')], 422);
             }
-            // Via de API strenger dan met de hand: nooit je LAN, RzMon zelf of de lijst "Nooit blokkeren"
+            // Via de API strenger dan met de hand: nooit je LAN, RzSense zelf of de lijst "Nooit blokkeren"
             if (Ids::protectedIp($ip)) {
-                respond(['error' => t('{ip} wordt via de API niet geblokkeerd: LAN-adres, RzMon zelf of op de lijst "Nooit blokkeren"', ['ip' => $ip])], 422);
+                respond(['error' => t('{ip} wordt via de API niet geblokkeerd: LAN-adres, RzSense zelf of op de lijst "Nooit blokkeren"', ['ip' => $ip])], 422);
             }
             $hours = max(0, min(8760, (int) ($body['hours'] ?? 24)));
             $existing = q('SELECT id, until FROM ids_blocks WHERE host_id = ? AND ip = ? AND removed_at IS NULL AND (until IS NULL OR until > NOW())', [$h['id'], $ip])->fetch();

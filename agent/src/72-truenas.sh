@@ -1,6 +1,6 @@
 # ---------------------------------------------------------------- TrueNAS SCALE (agent 1.77.0)
 # Alleen op TrueNAS, als root: TrueNAS zelf uitlezen met midclt (geen API-sleutel nodig). midclt geeft JSON; dat gaat
-# ongewijzigd mee (RzMon leest het), dus jq is niet nodig. Met "select" vragen we alleen de velden die RzMon gebruikt.
+# ongewijzigd mee (RzSense leest het), dus jq is niet nodig. Met "select" vragen we alleen de velden die RzSense gebruikt.
 # Meldingen, taken en apps elke 5 minuten, schijftemperaturen elk kwartier, of er een update is elke 6 uur.
 # TRUENAS=0 in de instellingen zet het uit.
 truenas_json=""

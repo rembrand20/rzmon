@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Verbindingen en taken (1.91.0): wat er bij RzMon binnenkomt (agents, browsers, API-sleutels, heartbeats) en wat RzMon
+ * Verbindingen en taken (1.91.0): wat er bij RzSense binnenkomt (agents, browsers, API-sleutels, heartbeats) en wat RzSense
  * zelf op de achtergrond doet (updates zoeken, blocklists, GeoIP, datalekken, kwetsbaarheden, certificaat, MQTT, back-up).
  * Lukt een taak te lang niet, dan volgt een ⚠️-melding via Systeeminfo (rij "Achtergrondtaak lukt niet"), en een ✅ als
  * het weer lukt. De back-up meldt zichzelf al (Instellingen → Back-up), die telt hier alleen in het overzicht mee.
@@ -146,12 +146,12 @@ final class Tasks
             if ($o['status'] === 'bad' && $o['alert'] && empty($watch[$k]['alerted'])) {
                 $watch[$k]['alerted'] = time();
                 $why = $o['last_ok'] ? t('Laatst gelukt: {t}.', ['t' => date('d-m-Y H:i', $o['last_ok'])]) : t('Nog nooit gelukt.');
-                Monitor::sysInfo('task_fail', null, null, '⚠️ RzMon: ' . t('{task} lukt niet', ['task' => $o['label']]),
+                Monitor::sysInfo('task_fail', null, null, '⚠️ RzSense: ' . t('{task} lukt niet', ['task' => $o['label']]),
                     fn() => $why . ($o['error'] !== '' ? ' ' . t('Fout: {e}', ['e' => $o['error']]) : '') . "\n" . t('Zie Instellingen → Overzicht → Verbindingen en taken.'));
                 $said[] = "$k mislukt";
             } elseif (!$problem && isset($watch[$k])) {
                 if (!empty($watch[$k]['alerted']) && $o['status'] !== 'off') {
-                    Monitor::sysInfo('task_fail', null, null, '✅ RzMon: ' . t('{task} lukt weer', ['task' => $o['label']]), fn() => t('De taak is weer gelukt.'));
+                    Monitor::sysInfo('task_fail', null, null, '✅ RzSense: ' . t('{task} lukt weer', ['task' => $o['label']]), fn() => t('De taak is weer gelukt.'));
                     $said[] = "$k hersteld";
                 }
                 unset($watch[$k]);
@@ -163,7 +163,7 @@ final class Tasks
         return $said ? 'Taken: ' . implode(', ', $said) : null;
     }
 
-    /** Wat er bij RzMon binnenkomt */
+    /** Wat er bij RzSense binnenkomt */
     public static function inbound(): array
     {
         $agents = [];

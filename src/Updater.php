@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * RzMon bijwerken vanuit de webinterface (Instellingen → ⬆ RzMon bijwerken).
+ * RzSense bijwerken vanuit de webinterface (Instellingen → ⬆ RzSense bijwerken).
  *
  * - Eén keer per dag (of met "Nu controleren") het nieuwste versienummer en de changelog van GitHub halen.
  * - Bijwerken: de webpagina zet alleen /var/lib/rzmon/update.request neer; de hulpdienst (root) voert dan
@@ -90,17 +90,17 @@ final class Updater
         return $out;
     }
 
-    /** null = bijwerken vanuit RzMon kan; anders de reden. */
+    /** null = bijwerken vanuit RzSense kan; anders de reden. */
     public static function unavailable(): ?string
     {
         if (!is_dir(SM_ROOT . '/.git')) {
-            return t('RzMon is niet met install-rocky.sh (git) geïnstalleerd; werk handmatig bij');
+            return t('RzSense is niet met install-rocky.sh (git) geïnstalleerd; werk handmatig bij');
         }
         if (!is_file(self::DIR . '/update.installed')) {
             return t('De hulpdienst voor bijwerken is nog niet geïnstalleerd');
         }
         if (!is_writable(self::DIR)) {
-            return t('RzMon kan niet schrijven in {dir}', ['dir' => self::DIR]);
+            return t('RzSense kan niet schrijven in {dir}', ['dir' => self::DIR]);
         }
         return null;
     }
@@ -144,7 +144,7 @@ final class Updater
             if ($age > (!empty($st['hb']) ? 90 : 1200)) {
                 $st['state'] = 'error';
                 $st['stale'] = true;
-                $st['message'] = t('De update geeft al {n} minuten geen teken van leven (afgebroken?). Kijk in het logboek; RzMon zelf werkt gewoon door.', ['n' => max(1, intdiv($age, 60))]);
+                $st['message'] = t('De update geeft al {n} minuten geen teken van leven (afgebroken?). Kijk in het logboek; RzSense zelf werkt gewoon door.', ['n' => max(1, intdiv($age, 60))]);
             }
         }
         return $st;

@@ -73,13 +73,36 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 }
 .brand { font-weight: 700; font-size: 1.1rem; display: flex; align-items: center; gap: .5rem; white-space: nowrap; }
 .brand.big { font-size: 1.5rem; justify-content: center; margin-bottom: 1rem; }
-.rz-logo { display: inline-flex; align-items: center; gap: .5rem; color: var(--text); }
+/* 1.214.0: Rz//Sense AI. De tegel is in beide thema's donker; de letters volgen het thema. */
+@font-face { font-family: "Orbitron"; src: url("fonts/orbitron.woff2") format("woff2"); font-weight: 400 900; font-display: swap; }
+:root { --rz-name: #e6ecf7; --rz-acc: #f0a429; --rz-slogan: #b6c1d6; }
+:root[data-theme="light"] { --rz-name: #0b1120; --rz-acc: #b45309; --rz-slogan: #3a4760; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --rz-name: #0b1120; --rz-acc: #b45309; --rz-slogan: #3a4760; } }
+.rz-logo { display: inline-flex; align-items: center; gap: .6rem; color: var(--rz-name); min-width: 0; }
 .rz-logo svg { display: block; }
-.rz-icon rect { fill: var(--rz-tile, #151B2E); }
-.rz-icon { width: 1.75rem; height: 1.75rem; }
-.rz-word { height: 1.3rem; width: auto; aspect-ratio: 348 / 108; }
-.brand.big .rz-icon { width: 2.8rem; height: 2.8rem; }
-.brand.big .rz-word { height: 2.1rem; }
+.rz-icon { width: 2.6rem; height: 2.6rem; flex: none; }
+.rz-icon .rz-src, .rz-icon .rz-a2 { display: none; }
+.rz-icon .rz-sh, .rz-icon .rz-a1 { stroke-width: 6; }
+.rz-word { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.rz-name { font-family: "Orbitron", system-ui, sans-serif; font-weight: 700; font-size: 1.12rem; letter-spacing: .04em; line-height: 1; white-space: nowrap; color: var(--rz-name); }
+.rz-name i { color: var(--rz-acc); font-style: normal; letter-spacing: -.14em; margin-right: .1em; }
+.rz-name sup { color: var(--rz-acc); font-size: .5em; font-weight: 800; margin-left: .2em; vertical-align: .9em; line-height: 0; }
+.rz-slogan { font-weight: 500; font-size: .7rem; line-height: 1.3; color: var(--rz-slogan); white-space: nowrap; }
+.brand.big .rz-logo { flex-direction: column; gap: 14px; width: 100%; }
+.brand.big .rz-icon { width: 96px; height: 96px; }
+.brand.big .rz-icon .rz-src, .brand.big .rz-icon .rz-a2 { display: inline; }
+.brand.big .rz-icon .rz-sh, .brand.big .rz-icon .rz-a1 { stroke-width: 4.5; }
+.brand.big .rz-word { align-items: center; text-align: center; gap: 8px; }
+.brand.big .rz-name { font-size: 2.25rem; }
+.brand.big .rz-slogan { font-size: .95rem; }
+.brand.big .rz-slogan br { display: none; }
+/* de signaalbogen op de inlogpagina gaan zacht aan en uit (niet bij "minder beweging") */
+@keyframes rz-wave { 0%, 100% { opacity: .25; } 35% { opacity: 1; } }
+@keyframes rz-glow { 0%, 100% { opacity: .4; } 50% { opacity: 1; } }
+.brand.big .rz-a1 { animation: rz-wave 2.4s ease-in-out infinite; }
+.brand.big .rz-a2 { animation: rz-wave 2.4s ease-in-out .35s infinite; }
+.brand.big .rz-src { animation: rz-glow 2.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .brand.big .rz-icon * { animation: none !important; } }
 .brand .version { font-size: .7rem; font-weight: 500; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: .05rem .45rem; text-decoration: none; }
 a.version:hover { color: var(--text); }
 .schema-banner { background: color-mix(in srgb, var(--crit) 15%, transparent); border: 1px solid var(--crit); border-radius: var(--radius); padding: .7rem 1rem; margin-bottom: 1rem; }
@@ -93,6 +116,10 @@ a.version:hover { color: var(--text); }
 .top-actions { margin-left: auto; display: flex; gap: .35rem; }
 
 .container { max-width: 1400px; margin: 0 auto; padding: 1.25rem; }
+/* 1.214.0: een dunne, ronde rand om de hele inhoud (zonder eigen achtergrond: glass blijft zichtbaar) */
+main.container { width: calc(100% - 28px); margin: 14px auto; padding: 1.25rem 1.5rem; border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); }
+body.tv main.container { width: auto; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
 
 /* ---------- Buttons & forms ---------- */
 .btn {
@@ -407,6 +434,7 @@ pre.code { background: var(--bg); border: 1px solid var(--border); border-radius
   .topbar { flex-wrap: wrap; padding: .6rem 1rem; }
   .tabs { order: 3; width: 100%; margin: 0; }
   .container { padding: 1rem; }
+  main.container { width: calc(100% - 16px); margin: 8px auto; padding: 1rem .8rem; border-radius: 16px; }
   .hl-sep { display: none; }
   #last-run { width: 100%; }
   .host.tile .host-sum { padding-left: 1rem; }
@@ -656,7 +684,7 @@ body[data-role="admin"] [data-role-only="nonadmin"] { display: none; }
 .quiet-now b { color: var(--maint); }
 #quiet-mode { margin-bottom: .5rem; }
 
-/* ---------- RzMon bijwerken ---------- */
+/* ---------- RzSense bijwerken ---------- */
 .update-badge { margin-left: .4rem; font: inherit; font-size: .72rem; font-weight: 700; padding: .1rem .5rem; border-radius: 99px; cursor: pointer;
   border: 1px solid var(--ok); background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); vertical-align: middle; }
 .update-badge:hover { background: color-mix(in srgb, var(--ok) 30%, transparent); }
@@ -1779,7 +1807,7 @@ button.audit-badge { background: none; border: 0; padding: 0; font: inherit; tex
 .mt-cell.cov { border-style: dashed; opacity: .7; }
 .mt-cell:hover { border-color: var(--primary); } .mt-cell .mt-n { float: right; }
 
-/* 1.114.0: toegestaan (RzMon zelf) in Live */
+/* 1.114.0: toegestaan (RzSense zelf) in Live */
 .edr-row.own { background: color-mix(in srgb, var(--ok, #16a34a) 8%, transparent); }
 .edr-row.own .edr-k { color: var(--ok, #16a34a); font-weight: 700; }
 .own-tag { color: var(--ok, #16a34a); font-weight: 600; font-size: .8rem; margin-right: .3rem; }
@@ -4938,3 +4966,12 @@ body.no-anim .al2-badge .al2-shape { animation: none !important; }
 .lf-note { background: var(--card-2); border: 1px solid var(--border); border-radius: 10px; padding: .55rem .7rem; }
 .lf-note pre { margin: .35rem 0 0; overflow-x: auto; }
 @media (max-width: 720px) { .lf-it { grid-template-columns: 22px 20px minmax(0, 1fr); } .lf-it.lf-sub { grid-template-columns: 22px minmax(0, 1fr); padding-left: 1.6rem; } .lf-sz, .lf-tm { display: none; } }
+
+/* 1.214.0: Logs-pagina binnenkomen (zoals Containers): kaarten, de staafjes van de tijdlijn en de eerste regels na elkaar */
+@keyframes lp-grow { from { transform: scaleY(0); } }
+.lp-enter .lp-bar, .lp-enter .lp-card { animation: ct-in .5s cubic-bezier(.32, .72, 0, 1) both; }
+.lp-enter .lp-card { animation-delay: 70ms; }
+.lp-enter .lp-b { transform-origin: bottom; animation: lp-grow .55s cubic-bezier(.32, .72, 0, 1) both; animation-delay: calc(var(--b, 0) * 12ms + 120ms); }
+.lp-enter .lp-ln { animation: ct-in .45s cubic-bezier(.32, .72, 0, 1) both; animation-delay: calc(var(--i, 40) * 30ms + 160ms); }
+body.no-anim .lp-enter *, .lp-enter.no-anim * { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .lp-enter * { animation: none !important; } }

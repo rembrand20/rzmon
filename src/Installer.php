@@ -9,7 +9,7 @@ final class Installer
         'timezone' => 'Europe/Amsterdam',
         'ping_bin' => '/bin/ping',
         'base_url' => '',
-        'external_url' => '',   // 1.128.0: adres van RzMon van buiten (statuspagina)
+        'external_url' => '',   // 1.128.0: adres van RzSense van buiten (statuspagina)
         'php' => ['memory_limit' => '', 'max_execution_time' => '', 'display_errors' => '0'],
     ];
 
@@ -41,7 +41,7 @@ final class Installer
     }
 
     /**
-     * Database bijwerken als die bij een oudere RzMon-versie hoort (na git pull / update).
+     * Database bijwerken als die bij een oudere RzSense-versie hoort (na git pull / update).
      * Veilig om vaak aan te roepen: kost één query als alles al klopt.
      * @return string|null foutmelding, of null als alles in orde is
      */
@@ -64,7 +64,7 @@ final class Installer
         }
     }
 
-    /** Info-melding "RzMon bijgewerkt" (niet bij een nieuwe installatie); één keer, ook als meerdere processen tegelijk bijwerken */
+    /** Info-melding "RzSense bijgewerkt" (niet bij een nieuwe installatie); één keer, ook als meerdere processen tegelijk bijwerken */
     private static function infoUpdated(string|false $from): void
     {
         if ($from === false || $from === '' || !Installer::userCount()) {
@@ -75,7 +75,7 @@ final class Installer
             $n = q("INSERT INTO settings (name, value) VALUES ('info_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)", [RZMON_VERSION])->rowCount();
             // 1.205.0: waren de agents gewaarschuwd, dan volgt de samenvatting (met de agents) zodra ze terug zijn
             if ($n > 0 && !UpdateHold::finished((string) $from)) {
-                Monitor::infoSystem(fn() => t('RzMon bijgewerkt van {from} naar {to}', ['from' => $from, 'to' => RZMON_VERSION]));
+                Monitor::infoSystem(fn() => t('RzSense bijgewerkt van {from} naar {to}', ['from' => $from, 'to' => RZMON_VERSION]));
             }
         } catch (Throwable) {
             // een melding mag het bijwerken nooit tegenhouden
@@ -163,7 +163,7 @@ final class Installer
         ['users', 'email', 'VARCHAR(190) NULL'],         // voor "wachtwoord vergeten"
         ['users', 'pw_changed_at', 'DATETIME NULL'],     // sessies van vóór dit moment worden uitgelogd
         ['users', 'lang', 'VARCHAR(5) NULL'],            // taal van de interface (nl/en); NULL = die van de browser
-        // Agent bijwerken vanuit RzMon: gevraagd (knop), naar de agent gestuurd, uitkomst, en hoe de agent dat kan
+        // Agent bijwerken vanuit RzSense: gevraagd (knop), naar de agent gestuurd, uitkomst, en hoe de agent dat kan
         ['hosts', 'agent_update_req', 'DATETIME NULL'],
         ['hosts', 'agent_update_sent', 'DATETIME NULL'],
         ['hosts', 'agent_update_status', 'VARCHAR(255) NULL'],
@@ -212,7 +212,7 @@ final class Installer
         ['hosts', 'agent_pin_sent_at', 'DATETIME NULL'],
         // 1.71.0: voorkeuren per gebruiker (JSON): bij openen alles dicht of slim, filters per pagina, opgeslagen filters
         ['users', 'prefs', 'MEDIUMTEXT NULL'],
-        // 1.72.0: adres van RzMon zoals de agent het gebruikt (en zijn reserve-adres), een gevraagde overstap met de
+        // 1.72.0: adres van RzSense zoals de agent het gebruikt (en zijn reserve-adres), een gevraagde overstap met de
         // uitkomst, hoe hij verbond (http, https, https via de proxy), sinds wanneer via het reserve-adres, en per
         // server "alleen via https" (NULL = algemene instelling, of on / off)
         ['hosts', 'agent_url', 'VARCHAR(255) NULL'],
@@ -257,10 +257,10 @@ final class Installer
         ['checks', 'thresh_mode', "VARCHAR(8) NOT NULL DEFAULT 'manual'"],
         ['checks', 'guard_threshold', 'DOUBLE NULL'],     // vangnet: vanaf hier altijd CRITICAL
         ['checks', 'smart_sens', 'VARCHAR(6) NULL'],      // gevoeligheid; NULL = de standaard
-        ['check_smart', 'auto_at', 'DATETIME NULL'],   // 1.156.0: wanneer RzMon deze check zelf naar slim omzette (één keer)
+        ['check_smart', 'auto_at', 'DATETIME NULL'],   // 1.156.0: wanneer RzSense deze check zelf naar slim omzette (één keer)
         ['checks', 'heal', 'VARCHAR(80) NULL'],           // zelf herstellen: restart, of cmd:<naam> uit heal.d op de server
         ['checks', 'heal_state', 'VARCHAR(40) NULL'],     // herstelcommando: req:/sent:/done:<unix-tijd>
-        ['hosts', 'watchdog', 'TINYINT(1) NOT NULL DEFAULT 0'],   // 🐕 deze agent bewaakt RzMon
+        ['hosts', 'watchdog', 'TINYINT(1) NOT NULL DEFAULT 0'],   // 🐕 deze agent bewaakt RzSense
         ['hosts', 'watchdog_min', 'SMALLINT UNSIGNED NULL'],      // na hoeveel minuten melden (NULL = 5)
         // 1.108.0: slim, deel 2
         ['checks', 'escalated', 'TINYINT UNSIGNED NOT NULL DEFAULT 0'],   // escalatie: al een stap hoger gemeld voor deze storing
@@ -473,7 +473,7 @@ final class Installer
 
     public static function renderConfig(array $cfg): string
     {
-        return "<?php\n// Gegenereerd door RzMon setup op " . date('Y-m-d H:i:s') . "\nreturn " . var_export($cfg, true) . ";\n";
+        return "<?php\n// Gegenereerd door RzSense setup op " . date('Y-m-d H:i:s') . "\nreturn " . var_export($cfg, true) . ";\n";
     }
 
     /** Schrijft config.php; geeft false terug als dat niet mag (dan handmatig plaatsen). */
@@ -678,7 +678,7 @@ final class Installer
                 }
                 $admin->exec('FLUSH PRIVILEGES');
             } else {
-                // Zonder beheerrechten: alleen het account waarmee RzMon verbinding maakt
+                // Zonder beheerrechten: alleen het account waarmee RzSense verbinding maakt
                 self::connect($db)->exec('ALTER USER CURRENT_USER() IDENTIFIED BY ' . self::connect($db)->quote($pass));
             }
         };

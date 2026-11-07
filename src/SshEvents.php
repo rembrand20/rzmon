@@ -2,10 +2,10 @@
 declare(strict_types=1);
 
 /**
- * SSH-pogingen en -sessies (RzMon 1.152.0, agent 1.74.0).
+ * SSH-pogingen en -sessies (RzSense 1.152.0, agent 1.74.0).
  *
  * De agent stuurt de losse mislukte pogingen (tijd, IP, gebruiker, bronpoort) en bij een geslaagde login de bronpoort;
- * het einde van de sessie ("Disconnected from user …") koppelt RzMon aan de login met hetzelfde IP en dezelfde poort.
+ * het einde van de sessie ("Disconnected from user …") koppelt RzSense aan de login met hetzelfde IP en dezelfde poort.
  * Voor de aanvalskaart (wanneer precies), de popup (elke poging) en IDS → Toegang → SSH (alle sessies). 30 dagen bewaard.
  * Oudere agents sturen alleen de opgetelde pogingen: die staan in ids_attempts en access_log, zoals altijd.
  */

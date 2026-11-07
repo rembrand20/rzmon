@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Opschoonadvies (1.96.0), Instellingen → Monitoring → Advies: checks die al dagen onbekend zijn, ruismakers (veel
  * meldingen), flappers (wisselen steeds), drempels die rakelings goed of fout zijn, al lang in warning, en checks die al
- * lang uit staan. Per punt een voorstel; "niet meer tonen" bewaart RzMon per check en soort (cleanup_ignore).
+ * lang uit staan. Per punt een voorstel; "niet meer tonen" bewaart RzSense per check en soort (cleanup_ignore).
  */
 final class Cleanup
 {

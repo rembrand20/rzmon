@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  RzMon agent – installatiescript voor Linux-servers
+#  RzSense agent (kenmerk voor oudere agents: RzMon agent) – installatiescript voor Linux-servers
 #  (Rocky/RHEL/AlmaLinux/Fedora, Debian/Ubuntu/Raspberry Pi OS, Proxmox VE, TrueNAS SCALE)
 #
-#  Het makkelijkst: kopieer het commando uit RzMon (server → "Agent Manager"):
-#    In RzMon: server → Agent Manager → 🔗 Koppelcode geeft het volledige commando (met controle van dit script):
+#  Het makkelijkst: kopieer het commando uit RzSense (server → "Agent Manager"):
+#    In RzSense: server → Agent Manager → 🔗 Koppelcode geeft het volledige commando (met controle van dit script):
 #    curl -fsSL http://RZMON/api.php?action=agent_install -o rzmon-install.sh && sudo bash rzmon-install.sh --url http://RZMON --pair CODE
 #
 #  Wat het doet:
 #    - ontbrekende hulpprogramma's installeren (curl, ss)
-#    - de agent ophalen van je eigen RzMon-server (/usr/local/bin/rzmon-agent.sh)
+#    - de agent ophalen van je eigen RzSense-server (/usr/local/bin/rzmon-agent.sh)
 #    - instellingen in /etc/default/rzmon-agent (alleen leesbaar voor root)
 #    - elke minuut rapporteren via een systemd-timer (of cron als er geen systemd is)
-#    - een testrapport sturen en controleren of RzMon het accepteert
+#    - een testrapport sturen en controleren of RzSense het accepteert
 #
 #  TrueNAS SCALE (automatisch herkend): /usr en /etc horen bij TrueNAS zelf, dus alles komt op een pool
 #  (standaard /mnt/<eerste pool>/rzmon-agent, of --pool NAAM / --dir PAD) en de agent draait via een
@@ -27,21 +27,21 @@ BIN="/usr/local/bin/rzmon-agent.sh"
 CONF="/etc/default/rzmon-agent"
 UNIT="/etc/systemd/system/rzmon-agent.service"
 TIMER="/etc/systemd/system/rzmon-agent.timer"
-WATCH="/etc/systemd/system/rzmon-watch.service"   # realtime-watcher (alleen actief als RzMon het aanzet)
+WATCH="/etc/systemd/system/rzmon-watch.service"   # realtime-watcher (alleen actief als RzSense het aanzet)
 CRON="/etc/cron.d/rzmon-agent"
 SETUP="/usr/local/sbin/rzmon-agent-setup"   # dit script, voor later --update/--uninstall
 
 URL=""
-FALLBACK=""          # reserve-adres van RzMon (agent 1.51.0+): als URL niet bereikbaar is
+FALLBACK=""          # reserve-adres van RzSense (agent 1.51.0+): als URL niet bereikbaar is
 FALLBACK_SET=0
 TOKEN=""
 ENC_KEY=""          # sleutel voor versleutelde rapporten (Instellingen → 🔐 Versleuteling)
-PAIR=""             # koppelcode (RzMon → Agent Manager → 🔗 Koppelcode): de agent haalt zijn eigen sleutel op
-PIN=""              # vingerafdruk van het eigen (self-signed) certificaat van RzMon: alleen dat certificaat accepteren
-# Downloadsleutel: RzMon vult hem in als het dit script uitlevert (RzMon 1.86.0). Is RzMon van buiten "niet herkenbaar",
+PAIR=""             # koppelcode (RzSense → Agent Manager → 🔗 Koppelcode): de agent haalt zijn eigen sleutel op
+PIN=""              # vingerafdruk van het eigen (self-signed) certificaat van RzSense: alleen dat certificaat accepteren
+# Downloadsleutel: RzSense vult hem in als het dit script uitlevert (RzSense 1.86.0). Is RzSense van buiten "niet herkenbaar",
 # dan levert het de agent alleen met deze sleutel (of aan een bekende agent).
 DL_KEY=''
-AGENT_SHA=""        # SHA-256 van de agent zoals RzMon hem levert: de download wordt daarmee gecontroleerd
+AGENT_SHA=""        # SHA-256 van de agent zoals RzSense hem levert: de download wordt daarmee gecontroleerd
 SERVICES=""
 CERTS=""
 CERTS_SET=0           # --certs meegegeven (ook leeg = geen certificaten)
@@ -52,7 +52,7 @@ EPEL="${EPEL-}"       # 0 = nooit EPEL installeren (--no-epel of EPEL=0 in de in
 ASSUME_YES=0
 MODE="install"        # install | update | status | cleanup | test | uninstall | version
 SOURCE_FILE=""        # lokale rzmon-agent.sh i.p.v. downloaden
-RESULT_FILE=""        # bijwerken vanuit RzMon: uitkomst hierin voor de agent ("ok …" of "error …")
+RESULT_FILE=""        # bijwerken vanuit RzSense: uitkomst hierin voor de agent ("ok …" of "error …")
 TRUENAS=0             # 1 = TrueNAS SCALE (automatisch herkend, of --truenas)
 POOL=""               # TrueNAS: pool voor de agent (standaard de eerste, niet boot-pool)
 TN_DIR=""             # TrueNAS: map op de pool (standaard /mnt/<pool>/rzmon-agent)
@@ -71,42 +71,42 @@ die()  {
     [ -n "$RESULT_FILE" ] && printf 'error %s\n' "$*" >"$RESULT_FILE" 2>/dev/null
     exit 1
 }
-# Met het commando dat misging: bij bijwerken vanuit RzMon is de uitvoer niet te zien, alleen deze regel
+# Met het commando dat misging: bij bijwerken vanuit RzSense is de uitvoer niet te zien, alleen deze regel
 trap 'die "Fout op regel $LINENO ($BASH_COMMAND). Het script kan veilig opnieuw worden uitgevoerd."' ERR
 
 usage() {
     cat <<EOF
-RzMon agent installeren
+RzSense agent installeren
 
 Gebruik: sudo bash install-agent.sh --url URL --pair KOPPELCODE [opties]
 
-  --url URL            Adres van RzMon, bv. http://192.168.1.10
+  --url URL            Adres van RzSense, bv. http://192.168.1.10
   --fallback URL       Reserve-adres als --url niet bereikbaar is (bv. https via de proxy, met het LAN-adres als reserve)
-  --pair CODE          Koppelcode van deze server (RzMon → server → Agent Manager → 🔗 Koppelcode;
+  --pair CODE          Koppelcode van deze server (RzSense → server → Agent Manager → 🔗 Koppelcode;
                        eenmalig, 15 minuten geldig). De agent krijgt dan zijn eigen sleutel.
-  --pin VINGERAFDRUK   Alleen dit certificaat van RzMon accepteren (bij een eigen, self-signed certificaat)
+  --pin VINGERAFDRUK   Alleen dit certificaat van RzSense accepteren (bij een eigen, self-signed certificaat)
   --agent-sha SHA256   De gedownloade agent hiermee controleren
   --token TOKEN        (oude manier) Agent-token van deze server, in plaats van een koppelcode
-  --key SLEUTEL        Sleutel voor versleutelde rapporten (RzMon → Instellingen → 🔐 Versleuteling)
-  --services "a b c"   (verouderd) Extra systemd-services; services kies je nu in RzMon
+  --key SLEUTEL        Sleutel voor versleutelde rapporten (RzSense → Instellingen → 🔐 Versleuteling)
+  --services "a b c"   (verouderd) Extra systemd-services; services kies je nu in RzSense
   --certs "a b c"      Certificaten: bestanden (wildcards mogen) en/of host:poort, ook op
                        internet, bv. "/etc/letsencrypt/live/*/cert.pem localhost:8443 site.nl"
                        (standaard: automatisch voorstel; "" = geen)
-  --interval SEC       Tik als RzMon er geen doorgeeft (30-3600, standaard 60); normaal in RzMon instellen
-  --insecure           Self-signed HTTPS-certificaat van RzMon accepteren
+  --interval SEC       Tik als RzSense er geen doorgeeft (30-3600, standaard 60); normaal in RzSense instellen
+  --insecure           Self-signed HTTPS-certificaat van RzSense accepteren
   --cron               Cron gebruiken in plaats van een systemd-timer
   --no-epel            Rocky/Alma/RHEL: EPEL niet installeren (dan geen bestanden in realtime)
   --truenas            TrueNAS SCALE (wordt normaal vanzelf herkend)
   --pool NAAM          TrueNAS: de agent op deze pool zetten (standaard de eerste pool)
   --dir PAD            TrueNAS: precies deze map gebruiken, bv. /mnt/tank/rzmon-agent
   --file PAD           Lokale rzmon-agent.sh gebruiken i.p.v. downloaden
-  --result PAD         (intern) uitkomst van een update vanuit RzMon in dit bestand zetten
+  --result PAD         (intern) uitkomst van een update vanuit RzSense in dit bestand zetten
   -y, --yes            Niets vragen
   --test               Verbindingstest: planning, netwerk, token en een proefrapport
   --update             De agent bijwerken: eerst een reservekopie, daarna de nieuwe agent en opgeruimde
                        instellingen (wat je zelf instelde blijft; alleen wat niet meer nodig is gaat weg)
   --status             Alles over deze agent: verbinding, versleuteling, laatste contacten, wat er
-                       meegestuurd wordt en de beveiligingscontrole van RzMon
+                       meegestuurd wordt en de beveiligingscontrole van RzSense
   --cleanup            Alleen de instellingen opruimen (met een reservekopie)
   --uninstall          Agent verwijderen
   --version            Geïnstalleerde agentversie tonen
@@ -164,7 +164,7 @@ has_systemd() { [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>
 # Herkennen aan midclt (de TrueNAS-API); dan alles in één map op een pool
 command -v midclt >/dev/null 2>&1 && [ -d /mnt ] && TRUENAS=1
 if [ "$TRUENAS" = 1 ]; then
-    # Welke map: --dir, anders AGENT_DIR (bijwerken vanuit RzMon), anders de map van dit script
+    # Welke map: --dir, anders AGENT_DIR (bijwerken vanuit RzSense), anders de map van dit script
     # (als daar al een agent staat), anders --pool of de eerste pool
     [ -n "$TN_DIR" ] || TN_DIR=${AGENT_DIR-}
     if [ -z "$TN_DIR" ]; then
@@ -183,7 +183,7 @@ if [ "$TRUENAS" = 1 ]; then
     CONF="$TN_DIR/agent.conf"
     SETUP="$TN_DIR/rzmon-agent-setup"
 fi
-TN_CRON_DESC="RzMon agent"
+TN_CRON_DESC="RzSense agent"
 # Commando voor de cronjob van TrueNAS (instellingen inlezen, dan de agent)
 tn_command() { printf "bash -c 'set -a; . %s; bash %s'" "$CONF" "$BIN"; }
 # Id van onze cronjob in TrueNAS, of leeg
@@ -219,7 +219,7 @@ ask() {  # ask "vraag" "standaard" → antwoord op stdout
 
 # ----------------------------------------------------------------- verwijderen
 if [ "$MODE" = "uninstall" ]; then
-    step "RzMon agent verwijderen"
+    step "RzSense agent verwijderen"
     if [ "$TRUENAS" = 1 ]; then
         id=$(tn_cron_id)
         [ -n "$id" ] && midclt call cronjob.delete "$id" >/dev/null && ok "Cronjob \"$TN_CRON_DESC\" verwijderd"
@@ -239,7 +239,7 @@ if [ "$MODE" = "uninstall" ]; then
         fi
     fi
     [ "$TRUENAS" = 1 ] && { rm -rf "$TN_DIR/keys"; rmdir "$TN_DIR" 2>/dev/null; } || true
-    ok "Agent verwijderd. Verwijder de server eventueel ook in RzMon."
+    ok "Agent verwijderd. Verwijder de server eventueel ook in RzSense."
     exit 0
 fi
 
@@ -288,18 +288,18 @@ backup_now() {
 # Uitleg boven elke regel in het opgeruimde bestand
 conf_comment() {
     case "$1" in
-        MONITOR_URL) echo "# Adres van RzMon" ;;
-        MONITOR_URL_FALLBACK) echo "# Reserve-adres: als MONITOR_URL niet bereikbaar is (RzMon meldt dat met ⚠️)" ;;
+        MONITOR_URL) echo "# Adres van RzSense" ;;
+        MONITOR_URL_FALLBACK) echo "# Reserve-adres: als MONITOR_URL niet bereikbaar is (RzSense meldt dat met ⚠️)" ;;
         TOKEN) echo "# Token (oude manier): nodig zolang deze server nog geen eigen sleutel heeft" ;;
         PAIR_CODE) echo "# Koppelcode: hiermee haalt de agent zijn eigen sleutel op" ;;
         ENC_KEY) echo "# Algemene sleutel (oude manier): nodig zolang deze server nog geen eigen sleutel heeft" ;;
-        PIN) echo "# Vingerafdruk van het certificaat van RzMon" ;;
-        INSECURE) echo "# ⚠️ Certificaat van RzMon niet controleren (beter: een vingerafdruk via een koppelcode)" ;;
-        SERVICES) echo "# (verouderd) Services; RzMon maakt er service-checks van, daarna kan deze regel weg" ;;
+        PIN) echo "# Vingerafdruk van het certificaat van RzSense" ;;
+        INSECURE) echo "# ⚠️ Certificaat van RzSense niet controleren (beter: een vingerafdruk via een koppelcode)" ;;
+        SERVICES) echo "# (verouderd) Services; RzSense maakt er service-checks van, daarna kan deze regel weg" ;;
         CERTS) echo "# Certificaten: bestanden (wildcards mogen) en/of host:poort" ;;
         CERT_DIRS) echo "# Mappen waarin de agent naar certificaatbestanden zoekt" ;;
-        COMMANDS) echo "# Commando-checks op deze server: leeg = zoals RzMon zegt, 0 = nooit, nobody = nooit als root" ;;
-        REMOTE_UPDATE) echo "# 0 = niet bijwerken vanuit RzMon" ;;
+        COMMANDS) echo "# Commando-checks op deze server: leeg = zoals RzSense zegt, 0 = nooit, nobody = nooit als root" ;;
+        REMOTE_UPDATE) echo "# 0 = niet bijwerken vanuit RzSense" ;;
         EPEL) echo "# Rocky/Alma/RHEL: EPEL niet installeren (geen bestanden in realtime)" ;;
         AGENT_DIR|AGENT_SETUP) echo "# TrueNAS: map van de agent en het installatiescript" ;;
     esac
@@ -317,12 +317,12 @@ cleanup_conf() {
             n=${BASH_REMATCH[1]}; v=${BASH_REMATCH[2]}; v=${v#\"}; v=${v%\"}
             case "$n" in
                 TOKEN|ENC_KEY|PAIR_CODE) if [ -z "$v" ] || [ "$own" = 1 ]; then gone+=("$n"); continue; fi ;;
-                INTERVAL) gone+=("$n"); continue ;;   # de tik komt uit RzMon
+                INTERVAL) gone+=("$n"); continue ;;   # de tik komt uit RzSense
                 PIN) if [ -z "$v" ] || [ "$pinf" = 1 ]; then gone+=("$n"); continue; fi ;;
                 INSECURE) if [ "$v" != 1 ] || [[ "$cur_url" != https://* ]] || [ "$pinf" = 1 ]; then gone+=("$n"); continue; fi ;;
                 MONITOR_URL_FALLBACK) if [ -z "$v" ]; then gone+=("$n"); continue; fi ;;
                 SERVICES)
-                    # Pas weg als RzMon voor elke service een check heeft (dan staat hij in de lijst van RzMon)
+                    # Pas weg als RzSense voor elke service een check heeft (dan staat hij in de lijst van RzSense)
                     svc_ok=1
                     for s in $v; do grep -q "^[0-9]*"$'\t'"svc"$'\t'"$s\$" "$TCACHE/tests.cache" 2>/dev/null || svc_ok=0; done
                     if [ -z "$v" ] || [ "$svc_ok" = 1 ]; then gone+=("$n"); continue; fi ;;
@@ -339,8 +339,8 @@ cleanup_conf() {
     CLEAN_GONE="${gone[*]}"
     tmpc=$(mktemp "$CONF.XXXXXX")
     {
-        echo "# RzMon agent – opgeruimd door rzmon-agent-setup op $(date '+%d-%m-%Y %H:%M')${BK_CONF:+ (vorige versie: $BK_CONF)}"
-        echo "# De tik, services, sleutels en de vingerafdruk regelt RzMon zelf; die staan hier niet meer."
+        echo "# RzSense agent – opgeruimd door rzmon-agent-setup op $(date '+%d-%m-%Y %H:%M')${BK_CONF:+ (vorige versie: $BK_CONF)}"
+        echo "# De tik, services, sleutels en de vingerafdruk regelt RzSense zelf; die staan hier niet meer."
         printf '%s\n' "${keep[@]}"
     } >"$tmpc"
     chmod 600 "$tmpc"; mv -f "$tmpc" "$CONF"
@@ -365,13 +365,13 @@ fi
 # ----------------------------------------------------------------- verbindingstest
 if [ "$MODE" = "test" ]; then
     [ -f "$CONF" ] || die "Nog geen agent geïnstalleerd ($CONF ontbreekt)."
-    [ -f "$BIN" ] || die "$BIN ontbreekt. Installeer opnieuw (commando uit RzMon → Agent Manager)."
-    printf '%sRzMon agent – planning%s\n' "$C_HEAD" "$C_OFF"
+    [ -f "$BIN" ] || die "$BIN ontbreekt. Installeer opnieuw (commando uit RzSense → Agent Manager)."
+    printf '%sRzSense agent – planning%s\n' "$C_HEAD" "$C_OFF"
     if [ "$TRUENAS" = 1 ]; then
         if [ -n "$(tn_cron_id)" ]; then
             ok "TrueNAS-cronjob \"$TN_CRON_DESC\" aanwezig ($TN_DIR)"
         else
-            warn "Geen TrueNAS-cronjob \"$TN_CRON_DESC\" gevonden: installeer opnieuw (commando uit RzMon → Agent Manager → TrueNAS)"
+            warn "Geen TrueNAS-cronjob \"$TN_CRON_DESC\" gevonden: installeer opnieuw (commando uit RzSense → Agent Manager → TrueNAS)"
         fi
     elif has_systemd && [ -f "$TIMER" ]; then
         if [ "$(systemctl is-active rzmon-agent.timer 2>/dev/null)" = "active" ]; then
@@ -414,33 +414,33 @@ if [ "$MODE" = "update" ]; then
     [ -f "$CONF" ] || die "Nog geen agent geïnstalleerd ($CONF ontbreekt). Voer eerst een installatie uit."
 fi
 
-printf '%sRzMon agent – %s%s\n' "$C_HEAD" "$( [ "$TRUENAS" = 1 ] && echo "TrueNAS SCALE ($TN_DIR)" || { . /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-Linux}"; })" "$C_OFF"
+printf '%sRzSense agent – %s%s\n' "$C_HEAD" "$( [ "$TRUENAS" = 1 ] && echo "TrueNAS SCALE ($TN_DIR)" || { . /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-Linux}"; })" "$C_OFF"
 
 # ----------------------------------------------------------------- URL en token
 if [ -z "$URL" ]; then
-    interactive || die "Geef het adres van RzMon mee: --url http://…"
-    URL=$(ask "Adres van RzMon (bv. http://192.168.1.10)" "")
+    interactive || die "Geef het adres van RzSense mee: --url http://…"
+    URL=$(ask "Adres van RzSense (bv. http://192.168.1.10)" "")
 fi
 # Een token of koppelcode is alleen nodig voor een nieuwe koppeling: niet bij bijwerken, en niet als deze server al een
 # eigen sleutel heeft (1.60.0; daarvoor stopte --update bij een agent die met een koppelcode was gekoppeld)
 if [ -z "$TOKEN" ] && [ -z "$PAIR" ] && [ "$MODE" != "update" ] && [ ! -s "$KDIR/agent.key" ]; then
-    interactive || die "Geef de koppelcode mee: --pair … (RzMon → server → Agent Manager → 🔗 Koppelcode)"
-    PAIR=$(ask "Koppelcode (RzMon → server → Agent Manager → 🔗 Koppelcode)" "")
+    interactive || die "Geef de koppelcode mee: --pair … (RzSense → server → Agent Manager → 🔗 Koppelcode)"
+    PAIR=$(ask "Koppelcode (RzSense → server → Agent Manager → 🔗 Koppelcode)" "")
 fi
 URL=${URL%/}
 URL=${URL%/api.php*}
 [[ "$URL" =~ ^https?://[^[:space:]\"\'\\\$\`]+$ ]] || die "Ongeldig adres: $URL (moet met http:// of https:// beginnen)"
-[ -z "$TOKEN" ] || [[ "$TOKEN" =~ ^[A-Za-z0-9]{16,128}$ ]] || die "Ongeldig token (alleen letters en cijfers, zoals RzMon het toont)"
-[ -z "$PAIR" ] || [[ "$PAIR" =~ ^[A-Za-z0-9-]{20,40}$ ]] || die "Ongeldige koppelcode (bv. K7QF-M2XA-9RTD-HC4P-WE8N, zoals RzMon hem toont)"
-[ -z "$PIN" ] || [[ "$PIN" =~ ^[A-Za-z0-9+/]{43}=$ ]] || die "Ongeldige vingerafdruk (--pin), kopieer het commando opnieuw uit RzMon"
+[ -z "$TOKEN" ] || [[ "$TOKEN" =~ ^[A-Za-z0-9]{16,128}$ ]] || die "Ongeldig token (alleen letters en cijfers, zoals RzSense het toont)"
+[ -z "$PAIR" ] || [[ "$PAIR" =~ ^[A-Za-z0-9-]{20,40}$ ]] || die "Ongeldige koppelcode (bv. K7QF-M2XA-9RTD-HC4P-WE8N, zoals RzSense hem toont)"
+[ -z "$PIN" ] || [[ "$PIN" =~ ^[A-Za-z0-9+/]{43}=$ ]] || die "Ongeldige vingerafdruk (--pin), kopieer het commando opnieuw uit RzSense"
 [ -z "$AGENT_SHA" ] || [[ "$AGENT_SHA" =~ ^[0-9a-f]{64}$ ]] || die "Ongeldige --agent-sha"
-[ -z "$ENC_KEY" ] || [[ "$ENC_KEY" =~ ^[0-9a-f]{64}$ ]] || die "Ongeldige sleutel (64 tekens 0-9 en a-f, zoals RzMon hem toont)"
+[ -z "$ENC_KEY" ] || [[ "$ENC_KEY" =~ ^[0-9a-f]{64}$ ]] || die "Ongeldige sleutel (64 tekens 0-9 en a-f, zoals RzSense hem toont)"
 [[ "$INTERVAL" =~ ^[0-9]+$ ]] && [ "$INTERVAL" -ge 30 ] && [ "$INTERVAL" -le 3600 ] || die "--interval moet tussen 30 en 3600 liggen"
 
 CURL_OPTS=(-fsS --max-time 20)
-# Agent 1.66.1: geen --pin meegegeven? Dan de controle die de agent zelf al gebruikt (RzMon gaf die door, per adres in
+# Agent 1.66.1: geen --pin meegegeven? Dan de controle die de agent zelf al gebruikt (RzSense gaf die door, per adres in
 # url.pins, of de vingerafdruk in pin). Sinds --cleanup PIN uit de instellingen haalt, faalde --update anders met
-# "Certificaatprobleem" bij een eigen (self-signed) certificaat van RzMon.
+# "Certificaatprobleem" bij een eigen (self-signed) certificaat van RzSense.
 PIN_SPEC=""
 if [ -z "$PIN" ] && [[ "$URL" == https://* ]]; then
     PIN_SPEC=$(awk -v u="$URL" '$1 == u { print $2; exit }' "$KDIR/url.pins" 2>/dev/null)
@@ -452,7 +452,7 @@ fi
 if [ -n "$PIN" ] && [[ "$URL" == https://* ]]; then
     CURL_OPTS+=(-k --pinnedpubkey "sha256//$PIN")   # alleen het certificaat met deze vingerafdruk
 elif [ -n "$PIN_SPEC" ]; then
-    CURL_OPTS+=(-k --pinnedpubkey "$PIN_SPEC")      # het vastgezette certificaat van RzMon (van de agent)
+    CURL_OPTS+=(-k --pinnedpubkey "$PIN_SPEC")      # het vastgezette certificaat van RzSense (van de agent)
 elif [ "$INSECURE" = 1 ]; then
     CURL_OPTS+=(-k)
 fi
@@ -494,7 +494,7 @@ if [ ${#need[@]} -gt 0 ]; then
 fi
 # inotify-tools voor de realtime-watcher (bestanden). Op Rocky, Alma, RHEL en Oracle Linux staat het in EPEL:
 # dat wordt dan eerst geïnstalleerd (niet met --no-epel of EPEL=0). Mag mislukken (bv. zonder internet):
-# dan werkt realtime voor logins en services wel, bestanden alleen bij de gewone runs, en meldt RzMon het.
+# dan werkt realtime voor logins en services wel, bestanden alleen bij de gewone runs, en meldt RzSense het.
 [ -f "$CONF" ] && grep -qE '^EPEL="?0"?$' "$CONF" && EPEL=0
 # (grep zonder -q: met pipefail zou een vroeg stoppende grep de pijplijn als mislukt laten gelden)
 epel_present() { rpm -q epel-release >/dev/null 2>&1 || rpm -qa 2>/dev/null | grep '^oracle-epel-release' >/dev/null || "$pm" repolist enabled 2>/dev/null | grep -i epel >/dev/null; }
@@ -520,14 +520,14 @@ if [ "$TRUENAS" = 0 ] && has_systemd && ! command -v inotifywait >/dev/null 2>&1
                 if "$pm" -y -q install "$epel_pkg" >/dev/null 2>&1; then
                     ok "EPEL geïnstalleerd"
                 else
-                    warn "EPEL installeren mislukt (geen internet?). Later: sudo $pm install $epel_pkg && sudo $pm install inotify-tools, of ⬆ Opnieuw installeren in RzMon"
+                    warn "EPEL installeren mislukt (geen internet?). Later: sudo $pm install $epel_pkg && sudo $pm install inotify-tools, of ⬆ Opnieuw installeren in RzSense"
                 fi
             fi
             epel_present && { "$pm" -y -q install inotify-tools >/dev/null 2>&1 || true; } ;;
         *) "$pm" -y -q install inotify-tools >/dev/null 2>&1 || true ;;
     esac
     command -v inotifywait >/dev/null 2>&1 && ok "inotify-tools geïnstalleerd (bestanden in realtime)" \
-        || warn "inotify-tools niet beschikbaar: bestanden worden alleen bij de gewone runs gecontroleerd (RzMon meldt dit in de Agent Manager)"
+        || warn "inotify-tools niet beschikbaar: bestanden worden alleen bij de gewone runs gecontroleerd (RzSense meldt dit in de Agent Manager)"
 fi
 command -v curl >/dev/null 2>&1 || die "curl ontbreekt"
 ok "curl$(command -v ss >/dev/null 2>&1 && echo ', ss')$(command -v openssl >/dev/null 2>&1 && echo ', openssl') aanwezig"
@@ -536,7 +536,7 @@ command -v ss >/dev/null 2>&1 || warn "ss ontbreekt: luisterende poorten worden 
 
 # Ondertekende updates (agent 1.71.0): de publieke sleutel van de ontwikkelaar (ed25519). Bij elke nieuwe agent zet GitHub er
 # een handtekening bij (agent/*.sig, gemaakt met de geheime sleutel die alleen in GitHub staat). Een update wordt alleen
-# geïnstalleerd als die klopt: zo kan zelfs een overgenomen RzMon geen eigen code op de servers zetten.
+# geïnstalleerd als die klopt: zo kan zelfs een overgenomen RzSense geen eigen code op de servers zetten.
 AGENT_SIGN_PUB="MCowBQYDK2VwAyEAKayiZIruYIYwZQ97qndO4lmnMjp/EEnVDNBIhZ07sSM="
 sig_check() {  # sig_check <bestand> <handtekening (base64)>: 0 = klopt, 1 = klopt niet, 2 = niet te controleren (OpenSSL ouder dan 3)
     local d rc
@@ -559,20 +559,20 @@ if [ -n "$SOURCE_FILE" ]; then
 elif ! curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_script${DL_KEY:+&k=$DL_KEY}" -o "$tmp" 2>/tmp/rzmon-agent-dl.err; then
     err=$(cat /tmp/rzmon-agent-dl.err); rm -f /tmp/rzmon-agent-dl.err
     case "$err" in
-        *pinned*|*"public key"*) die "Het certificaat van $URL past niet bij de vingerafdruk die de agent kent. Is het certificaat van RzMon vernieuwd? Kopieer dan het installatiecommando opnieuw uit RzMon (met --pin)." ;;
-        *SSL*|*certificate*) die "Certificaatprobleem met $URL. Gebruikt RzMon een eigen (self-signed) certificaat? Kopieer het installatiecommando uit RzMon (met --pin), of voeg --insecure toe." ;;
-        *) die "Kan de agent niet downloaden van $URL ($err). Klopt het adres en is RzMon vanaf deze server bereikbaar?" ;;
+        *pinned*|*"public key"*) die "Het certificaat van $URL past niet bij de vingerafdruk die de agent kent. Is het certificaat van RzSense vernieuwd? Kopieer dan het installatiecommando opnieuw uit RzSense (met --pin)." ;;
+        *SSL*|*certificate*) die "Certificaatprobleem met $URL. Gebruikt RzSense een eigen (self-signed) certificaat? Kopieer het installatiecommando uit RzSense (met --pin), of voeg --insecure toe." ;;
+        *) die "Kan de agent niet downloaden van $URL ($err). Klopt het adres en is RzSense vanaf deze server bereikbaar?" ;;
     esac
 fi
 rm -f /tmp/rzmon-agent-dl.err
-head -1 "$tmp" | grep -q '^#!/usr/bin/env bash' && grep -q 'RzMon agent' "$tmp" \
-    || die "Het gedownloade bestand is geen RzMon-agent. Klopt het adres ($URL)?"
+head -1 "$tmp" | grep -q '^#!/usr/bin/env bash' && grep -qE 'RzMon agent|RzSense agent' "$tmp" \
+    || die "Het gedownloade bestand is geen RzSense-agent. Klopt het adres ($URL)?"
 if [ -n "$AGENT_SHA" ]; then
     [ "$(sha256sum "$tmp" | cut -d' ' -f1)" = "$AGENT_SHA" ] \
-        || die "Controlegetal (SHA-256) van de agent klopt niet: onderweg gewijzigd, of RzMon is intussen bijgewerkt. Kopieer het commando opnieuw uit RzMon."
+        || die "Controlegetal (SHA-256) van de agent klopt niet: onderweg gewijzigd, of RzSense is intussen bijgewerkt. Kopieer het commando opnieuw uit RzSense."
     ok "Controlegetal van de agent klopt"
 fi
-# Handtekening van de ontwikkelaar (1.71.0): klopt hij niet, dan niet installeren. Bij bijwerken vanuit RzMon (--file)
+# Handtekening van de ontwikkelaar (1.71.0): klopt hij niet, dan niet installeren. Bij bijwerken vanuit RzSense (--file)
 # heeft de agent dat al gecontroleerd.
 if [ -z "$SOURCE_FILE" ]; then
     if curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_script_sig${DL_KEY:+&k=$DL_KEY}" -o "$tmp.sig" 2>/dev/null && [ -s "$tmp.sig" ]; then
@@ -585,7 +585,7 @@ if [ -z "$SOURCE_FILE" ]; then
         esac
     else
         rm -f "$tmp.sig"
-        warn "Deze agent is (nog) niet ondertekend bij RzMon; alleen het controlegetal is gecontroleerd"
+        warn "Deze agent is (nog) niet ondertekend bij RzSense; alleen het controlegetal is gecontroleerd"
     fi
 fi
 old_version=$([ -f "$BIN" ] && bash "$BIN" --version 2>/dev/null | awk '{print $2}' || true)
@@ -593,7 +593,7 @@ new_version=$(sed -n 's/^AGENT_VERSION="\([^"]*\)".*/\1/p' "$tmp")
 # Reservekopie van wat er nu staat (bijwerken of opnieuw installeren), daarna de nieuwe agent
 if [ -f "$BIN" ] || [ -f "$CONF" ]; then backup_now; fi
 install -m 755 -o root -g root "$tmp" "$BIN"
-# rzmon-hb: scripts en cronjobs melden zich bij RzMon (heartbeat, agent 1.52.0). Op TrueNAS (alleen-lezen systeem):
+# rzmon-hb: scripts en cronjobs melden zich bij RzSense (heartbeat, agent 1.52.0). Op TrueNAS (alleen-lezen systeem):
 # "$TN_DIR/rzmon-agent.sh --hb NAAM", met de wachtrij in de map van de agent.
 if [ "$TRUENAS" != 1 ]; then
     ln -sf "$BIN" /usr/local/bin/rzmon-hb 2>/dev/null || warn "Kon /usr/local/bin/rzmon-hb niet maken; gebruik $BIN --hb"
@@ -609,14 +609,14 @@ fi
 # ----------------------------------------------------------------- 3. services
 if [ "$MODE" = "install" ]; then
     step "3/5 Wat bewaken"
-    # Services kies je in RzMon (＋ Check → Service): de agent stuurt een lijst van de services op deze
+    # Services kies je in RzSense (＋ Check → Service): de agent stuurt een lijst van de services op deze
     # server mee en bewaakt vanzelf wat je daar kiest. --services werkt nog (verouderd).
     [[ "$SERVICES" =~ ^[A-Za-z0-9@._:\ -]*$ ]] || die "Ongeldige servicenaam in: $SERVICES"
     if [ -n "$SERVICES" ]; then
         ok "Services (uit --services of de oude instellingen): $SERVICES"
-        info "Tip: services kies je voortaan in RzMon; deze lijst is niet meer nodig."
+        info "Tip: services kies je voortaan in RzSense; deze lijst is niet meer nodig."
     else
-        ok "Services kies je straks in RzMon (＋ Check → Service), uit een lijst van deze server"
+        ok "Services kies je straks in RzSense (＋ Check → Service), uit een lijst van deze server"
     fi
 
     info ""
@@ -678,29 +678,29 @@ elif [ "$MODE" = "install" ]; then
     NEW_CONF=1
     umask 077
     cat > "$CONF" <<EOF
-# RzMon agent – aangemaakt door install-agent.sh op $(date '+%Y-%m-%d %H:%M')
+# RzSense agent – aangemaakt door install-agent.sh op $(date '+%Y-%m-%d %H:%M')
 MONITOR_URL="$URL"
-# Reserve-adres: gebruikt als MONITOR_URL niet bereikbaar is (bv. de reverse proxy ligt eruit); RzMon meldt dat met ⚠️
+# Reserve-adres: gebruikt als MONITOR_URL niet bereikbaar is (bv. de reverse proxy ligt eruit); RzSense meldt dat met ⚠️
 MONITOR_URL_FALLBACK="${FALLBACK%/}"
 TOKEN="$TOKEN"
 # Koppelcode (eenmalig): daarmee haalt de agent zijn eigen sleutel op. Daarna is hij niet meer nodig.
 PAIR_CODE="$PAIR"
-# Vingerafdruk van het certificaat van RzMon (eigen certificaat); RzMon stuurt een nieuwe vanzelf mee
+# Vingerafdruk van het certificaat van RzSense (eigen certificaat); RzSense stuurt een nieuwe vanzelf mee
 PIN="$PIN"
 # (oude manier) Algemene sleutel voor versleutelde rapporten; met een koppelcode niet nodig
 ENC_KEY="$ENC_KEY"
-# Services stel je in RzMon in (＋ Check → Service). SERVICES is verouderd: wat hier staat wordt ook gemeld.
+# Services stel je in RzSense in (＋ Check → Service). SERVICES is verouderd: wat hier staat wordt ook gemeld.
 SERVICES="$SERVICES"
 # Certificaten: bestanden (wildcards mogen) en/of host:poort, ook op internet
 CERTS="$CERTS"
 INSECURE="$INSECURE"
-# Tik (seconden) als RzMon er geen doorgeeft; normaal stel je hem in RzMon in (Agent Manager)
+# Tik (seconden) als RzSense er geen doorgeeft; normaal stel je hem in RzSense in (Agent Manager)
 INTERVAL="$INTERVAL"
 EOF
     if [ "$EPEL" = 0 ]; then printf '# Rocky/Alma/RHEL: EPEL niet installeren (geen bestanden in realtime)\nEPEL=0\n' >>"$CONF"; fi
     if [ "$TRUENAS" = 1 ]; then
-        # Voor bijwerken vanuit RzMon: waar de agent en dit script staan
-        printf '# TrueNAS: map van de agent en het installatiescript (bijwerken vanuit RzMon)\nAGENT_DIR="%s"\nAGENT_SETUP="%s"\n' "$TN_DIR" "$SETUP" >>"$CONF"
+        # Voor bijwerken vanuit RzSense: waar de agent en dit script staan
+        printf '# TrueNAS: map van de agent en het installatiescript (bijwerken vanuit RzSense)\nAGENT_DIR="%s"\nAGENT_SETUP="%s"\n' "$TN_DIR" "$SETUP" >>"$CONF"
     fi
     umask 022
     chmod 600 "$CONF"
@@ -725,7 +725,7 @@ ProtectHome=no"
 fi
 
 if [ "$TRUENAS" = 1 ]; then
-    # Elke minuut starten; de agent rapporteert volgens de tik uit RzMon (minimaal elke minuut via cron)
+    # Elke minuut starten; de agent rapporteert volgens de tik uit RzSense (minimaal elke minuut via cron)
     if tn_cron_set "*"; then
         ok "TrueNAS-cronjob \"$TN_CRON_DESC\" (elke minuut, uitvoer verborgen); zie System → Advanced → Cron Jobs"
     else
@@ -736,7 +736,7 @@ if [ "$TRUENAS" = 1 ]; then
 elif [ "$use_systemd" -eq 1 ]; then
     cat > "$UNIT" <<EOF
 [Unit]
-Description=RzMon agent: rapport naar RzMon
+Description=RzSense agent: rapport naar RzSense
 Wants=network-online.target
 After=network-online.target
 
@@ -752,7 +752,7 @@ ProtectSystem=full
 EOF
     cat > "$TIMER" <<EOF
 [Unit]
-Description=RzMon agent (start elke 30 s; rapporteert volgens de tik uit RzMon)
+Description=RzSense agent (start elke 30 s; rapporteert volgens de tik uit RzSense)
 
 [Timer]
 OnBootSec=30s
@@ -763,10 +763,10 @@ Unit=rzmon-agent.service
 [Install]
 WantedBy=timers.target
 EOF
-    # Realtime-watcher: draait altijd, maar doet pas iets als realtime voor deze server in RzMon aan staat
+    # Realtime-watcher: draait altijd, maar doet pas iets als realtime voor deze server in RzSense aan staat
     cat > "$WATCH" <<EOF
 [Unit]
-Description=RzMon realtime-watcher (alleen actief als het in RzMon aan staat)
+Description=RzSense realtime-watcher (alleen actief als het in RzSense aan staat)
 Wants=network-online.target
 After=network-online.target
 
@@ -795,11 +795,11 @@ EOF
     systemctl enable rzmon-watch.service >/dev/null 2>&1 || true
     systemctl restart rzmon-watch.service >/dev/null 2>&1 || true   # nieuwe versie van de agent meteen gebruiken
     rm -f "$CRON"   # oude cron-installatie opruimen
-    ok "systemd-timer klaar (gaat aan na het testrapport; start elke 30 s; rapporteert volgens de tik in RzMon). Logboek: journalctl -u rzmon-agent"
-    ok "realtime-watcher rzmon-watch klaar (aan/uit per server in RzMon → Agent Manager)"
+    ok "systemd-timer klaar (gaat aan na het testrapport; start elke 30 s; rapporteert volgens de tik in RzSense). Logboek: journalctl -u rzmon-agent"
+    ok "realtime-watcher rzmon-watch klaar (aan/uit per server in RzSense → Agent Manager)"
 else
-    sched="* * * * *"   # elke minuut; de agent rapporteert volgens de tik uit RzMon
-    printf '# RzMon agent\n%s root set -a; . %s; %s >/dev/null 2>&1\n' "$sched" "$CONF" "$BIN" > "$CRON"
+    sched="* * * * *"   # elke minuut; de agent rapporteert volgens de tik uit RzSense
+    printf '# RzSense agent\n%s root set -a; . %s; %s >/dev/null 2>&1\n' "$sched" "$CONF" "$BIN" > "$CRON"
     chmod 644 "$CRON"
     for svc in crond cron; do
         if has_systemd && systemctl list-unit-files "$svc.service" >/dev/null 2>&1; then
@@ -810,11 +810,11 @@ else
 fi
 
 # Dit installatiescript bewaren voor later (bij "curl | bash" staat het nergens op schijf).
-# Vanuit RzMon bijgewerkt: dit script is al door de agent gecontroleerd, dus dat bewaren.
-# Vanaf een bestand gestart (het commando uit RzMon controleert dat bestand eerst): dat bewaren.
+# Vanuit RzSense bijgewerkt: dit script is al door de agent gecontroleerd, dus dat bewaren.
+# Vanaf een bestand gestart (het commando uit RzSense controleert dat bestand eerst): dat bewaren.
 if [ -f "${BASH_SOURCE[0]:-}" ] && { [ -n "$RESULT_FILE" ] || [ -n "$ARG_PAIR" ]; } && [ "$(realpath "${BASH_SOURCE[0]}")" != "$SETUP" ]; then
     install -m 755 -o root -g root "${BASH_SOURCE[0]}" "$SETUP"
-elif curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_install${DL_KEY:+&k=$DL_KEY}" -o "$tmp.setup" 2>/dev/null && grep -q 'RzMon agent' "$tmp.setup"; then
+elif curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_install${DL_KEY:+&k=$DL_KEY}" -o "$tmp.setup" 2>/dev/null && grep -qE 'RzMon agent|RzSense agent' "$tmp.setup"; then
     install -m 755 -o root -g root "$tmp.setup" "$SETUP"
 elif [ -f "${BASH_SOURCE[0]:-}" ] && [ "$(realpath "${BASH_SOURCE[0]}")" != "$SETUP" ]; then
     install -m 755 -o root -g root "${BASH_SOURCE[0]}" "$SETUP"
@@ -822,12 +822,12 @@ fi
 rm -f "$tmp.setup"
 
 # ----------------------------------------------------------------- 5. testrapport
-step "5/5 Testrapport naar RzMon"
+step "5/5 Testrapport naar RzSense"
 start_timer() { [ "${START_TIMER-}" = 1 ] && systemctl start rzmon-agent.timer >/dev/null 2>&1; return 0; }
 # shellcheck disable=SC1090
 if out=$(set -a; . "$CONF"; RZ_FORCE=1 bash "$BIN" 2>&1); then   # ook als de tik nog niet om is
-    ok "RzMon antwoordt: $out"
-    # Agent 1.68.0: nieuwe installatie: lege regels en de gebruikte koppelcode meteen weg (anders "overbodig" in RzMon)
+    ok "RzSense antwoordt: $out"
+    # Agent 1.68.0: nieuwe installatie: lege regels en de gebruikte koppelcode meteen weg (anders "overbodig" in RzSense)
     [ "${NEW_CONF-}" = 1 ] && cleanup_conf
     start_timer
 else
@@ -836,12 +836,12 @@ else
     # Meteen de volledige diagnose tonen
     # shellcheck disable=SC1090
     (set -a; . "$CONF"; bash "$BIN" --test) || true
-    start_timer   # toch aan: lost het probleem zich op (bv. RzMon even weg), dan rapporteert de agent vanzelf
-    die "De agent is geïnstalleerd, maar RzMon accepteert nog geen rapport. Los het bovenstaande op en test met: sudo rzmon-agent-setup --test"
+    start_timer   # toch aan: lost het probleem zich op (bv. RzSense even weg), dan rapporteert de agent vanzelf
+    die "De agent is geïnstalleerd, maar RzSense accepteert nog geen rapport. Los het bovenstaande op en test met: sudo rzmon-agent-setup --test"
 fi
 
 if [ -n "$RESULT_FILE" ]; then
-    # Bijgewerkt vanuit RzMon: uitkomst voor de agent (die meldt hem bij het volgende rapport) en opruimen
+    # Bijgewerkt vanuit RzSense: uitkomst voor de agent (die meldt hem bij het volgende rapport) en opruimen
     printf 'ok %s %s\n' "${old_version:-}" "${new_version:-?}" >"$RESULT_FILE"
     rm -f "$(dirname "$RESULT_FILE")/update.lock" "$SOURCE_FILE" "$(dirname "$RESULT_FILE")/setup.new"
     exit 0
@@ -852,12 +852,12 @@ if [ "$TRUENAS" = 1 ]; then
 
 ${C_OK}✔ De agent staat in $TN_DIR en rapporteert elke minuut aan ${URL}.${C_OFF}
 
-  Volgende stap in RzMon: klik bij deze server op ＋ en voeg checks toe
+  Volgende stap in RzSense: klik bij deze server op ＋ en voeg checks toe
   (CPU, RAM, Diskruimte: kies bv. /mnt/$(echo "$TN_DIR" | cut -d/ -f3), Service, Commando).
 
   Planning        : TrueNAS → System → Advanced → Cron Jobs → "$TN_CRON_DESC"
   Verbinding testen: bash $SETUP --test
-  Agent bijwerken : knop in RzMon (Agent Manager → Bijwerken), of bash $SETUP --update
+  Agent bijwerken : knop in RzSense (Agent Manager → Bijwerken), of bash $SETUP --update
   Verwijderen     : bash $SETUP --uninstall
 
 EOF
@@ -867,17 +867,17 @@ fi
 cat <<EOF
 
 ${C_OK}✔ De agent is geïnstalleerd en rapporteert aan ${URL}.${C_OFF}
-  Hoe vaak: in RzMon → Agent Manager (standaard elke 60 s).
+  Hoe vaak: in RzSense → Agent Manager (standaard elke 60 s).
 
-  Volgende stap in RzMon: klik bij deze server op ＋ en voeg checks toe:
+  Volgende stap in RzSense: klik bij deze server op ＋ en voeg checks toe:
   CPU, RAM, Diskruimte (kies een mount), Service (kies uit de lijst van deze server;
   de agent bewaakt hem dan vanzelf) en SSL-certificaat (kies uit: ${CERTS:-–}).
 
   Status bekijken : $( [ "$use_systemd" -eq 1 ] && echo "systemctl status rzmon-agent.timer; journalctl -u rzmon-agent -n 20" || echo "grep rzmon /var/log/cron* 2>/dev/null" )
-  Services         : kies je in RzMon (＋ Check → Service)
+  Services         : kies je in RzSense (＋ Check → Service)
   Certificaten     : sudo rzmon-agent-setup --certs "/pad/cert.pem site.nl:443 …"
   Verbinding testen: sudo rzmon-agent-setup --test
-  Agent bijwerken : knop in RzMon (Agent Manager → Bijwerken), of sudo rzmon-agent-setup --update
+  Agent bijwerken : knop in RzSense (Agent Manager → Bijwerken), of sudo rzmon-agent-setup --update
   Verwijderen     : sudo rzmon-agent-setup --uninstall
 
 EOF

@@ -3,12 +3,12 @@ declare(strict_types=1);
 
 /**
  * Storingen bundelen over servers heen (1.107.0). Gaan er binnen het bundelvenster meerdere servers mis, dan komt er
- * één bericht, met de waarschijnlijke gemeenschappelijke oorzaak als RzMon die vindt:
+ * één bericht, met de waarschijnlijke gemeenschappelijke oorzaak als RzSense die vindt:
  * - ze hangen (volgens Afhankelijkheden) achter dezelfde server;
  * - ze hangen (volgens UniFi) aan hetzelfde access point of dezelfde switch;
- * - alle agents zijn tegelijk stil: dan ligt het eerder aan RzMon of zijn netwerk;
+ * - alle agents zijn tegelijk stil: dan ligt het eerder aan RzSense of zijn netwerk;
  * - ze zitten in hetzelfde Proxmox-cluster.
- * De losse checks blijven gewoon zichtbaar in RzMon; Home Assistant krijgt nog steeds een bericht per check.
+ * De losse checks blijven gewoon zichtbaar in RzSense; Home Assistant krijgt nog steeds een bericht per check.
  * Aan/uit: Instellingen → Meldingen → Wanneer melden (notify_bundle_hosts).
  */
 final class Bundle
@@ -59,12 +59,12 @@ final class Bundle
             return t('ze hangen allemaal aan {d} (UniFi): ligt die eruit?', ['d' => array_key_first($uplink)]);
         }
 
-        // 3. Alle agents tegelijk stil: dan eerder RzMon of zijn netwerk
+        // 3. Alle agents tegelijk stil: dan eerder RzSense of zijn netwerk
         $stale = max(1, (int) setting('agent_stale_minutes', 5)) * 60;
         $agents = (int) q("SELECT COUNT(*) FROM hosts WHERE enabled = 1 AND mode = 'agent'")->fetchColumn();
         $silent = (int) q("SELECT COUNT(*) FROM hosts WHERE enabled = 1 AND mode = 'agent' AND (agent_seen IS NULL OR agent_seen < NOW() - INTERVAL ? SECOND)", [$stale])->fetchColumn();
         if ($agents >= 3 && $silent >= (int) ceil($agents * 0.8)) {
-            return t('alle agents zijn tegelijk stil ({s} van {a}): ligt het aan RzMon zelf of aan zijn netwerkverbinding?', ['s' => $silent, 'a' => $agents]);
+            return t('alle agents zijn tegelijk stil ({s} van {a}): ligt het aan RzSense zelf of aan zijn netwerkverbinding?', ['s' => $silent, 'a' => $agents]);
         }
 
         // 4. Hetzelfde Proxmox-cluster

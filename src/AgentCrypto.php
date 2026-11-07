@@ -2,12 +2,12 @@
 declare(strict_types=1);
 
 /**
- * Versleutelde berichten tussen agent en RzMon (agent 1.49.0+), bovenop HTTPS.
+ * Versleutelde berichten tussen agent en RzSense (agent 1.49.0+), bovenop HTTPS.
  *
  * Eén sleutel (Instellingen → 🔐 Versleuteling, 32 bytes hex). Daaruit twee afgeleide sleutels:
  * enc = HMAC-SHA256(sleutel, "enc") voor AES-256-CBC, mac = HMAC-SHA256(sleutel, "mac") voor de handtekening.
  * Bericht van de agent:  {"rzenc":1,"t":<tijd>,"n":<nonce>,"iv":<hex>,"d":<base64>,"m":<HMAC over "rzenc1|t|n|iv|d">}
- * Antwoord van RzMon:    {"rzenc":1,"t":<tijd>,"rn":<nonce van het verzoek>,"iv":…,"d":…,"m":<HMAC over "rzenc1r|t|rn|iv|d">}
+ * Antwoord van RzSense:    {"rzenc":1,"t":<tijd>,"rn":<nonce van het verzoek>,"iv":…,"d":…,"m":<HMAC over "rzenc1r|t|rn|iv|d">}
  * Eerst de handtekening controleren, pas dan uitpakken (encrypt-then-MAC). Een bericht ouder dan 5 minuten, of
  * met een nonce die al eens binnenkwam, wordt geweigerd. Na een nieuwe sleutel blijft de oude nog 24 uur geldig,
  * zodat elke agent de nieuwe (versleuteld met de oude) bij zijn volgende rapport krijgt.
@@ -58,7 +58,7 @@ final class AgentCrypto
         return array_values($keys);
     }
 
-    /** Kort kenmerk van een sleutel (geen geheim): zo weet RzMon met welke sleutel de agent werkt */
+    /** Kort kenmerk van een sleutel (geen geheim): zo weet RzSense met welke sleutel de agent werkt */
     public static function keyId(string $key): string
     {
         return substr(self::sub($key, 'id'), 0, 16);
@@ -119,7 +119,7 @@ final class AgentCrypto
         return $out;
     }
 
-    /** Kan PHP gecomprimeerde rapporten uitpakken (zlib)? Anders zegt RzMon de agents niet dat ze mogen comprimeren */
+    /** Kan PHP gecomprimeerde rapporten uitpakken (zlib)? Anders zegt RzSense de agents niet dat ze mogen comprimeren */
     public static function canUnzip(): bool
     {
         return function_exists('inflate_init');
@@ -155,7 +155,7 @@ final class AgentCrypto
             }
         }
         if ($used === null) {
-            throw new RuntimeException($keys ? t('verkeerde sleutel of ongeldige handtekening') : t('versleuteld bericht, maar RzMon heeft nog geen sleutel'));
+            throw new RuntimeException($keys ? t('verkeerde sleutel of ongeldige handtekening') : t('versleuteld bericht, maar RzSense heeft nog geen sleutel'));
         }
         if (q('INSERT IGNORE INTO agent_nonces (nonce, created_at) VALUES (?, ?)', [$e['n'], now()])->rowCount() === 0) {
             throw new RuntimeException(t('dit bericht kwam al eens binnen (opnieuw afgespeeld?)'));
@@ -285,7 +285,7 @@ final class AgentCrypto
     // ---------------------------------------------------------------- Certificaat vastzetten
 
     /**
-     * Vingerafdruk van het eigen (self-signed) certificaat van RzMon, voor curl --pinnedpubkey (sha256//base64).
+     * Vingerafdruk van het eigen (self-signed) certificaat van RzSense, voor curl --pinnedpubkey (sha256//base64).
      * '' = niet vastzetten: uitgezet, geen https, of een certificaat dat gewoon te controleren is (bv. Let's Encrypt).
      * null = onbekend (niet te bepalen): dan verandert de agent niets aan wat hij heeft.
      * $fresh: niet uit de cache (een uur), bv. als een agent een ander certificaat zag.
@@ -318,7 +318,7 @@ final class AgentCrypto
         return in_array($m, ['on', 'off'], true) ? $m === 'on' : setting('agent_pin', '1') === '1';
     }
 
-    /** Agent die zijn adres van RzMon kan wisselen en een reserve-adres kent (1.72.0) */
+    /** Agent die zijn adres van RzSense kan wisselen en een reserve-adres kent (1.72.0) */
     public const URL_MIN = '1.51.0';
 
     /** Mag deze server alleen via https verbinden? Zijn eigen keuze (hosts.agent_https), anders de algemene */
@@ -328,7 +328,7 @@ final class AgentCrypto
         return in_array($m, ['on', 'off'], true) ? $m === 'on' : setting('agent_https_only', '0') === '1';
     }
 
-    /** Geldig adres van RzMon voor een agent: http(s)://naam[:poort][/pad], zonder ? of # */
+    /** Geldig adres van RzSense voor een agent: http(s)://naam[:poort][/pad], zonder ? of # */
     public static function validUrl(string $u): bool
     {
         return (bool) preg_match('~^https?://[a-z0-9.\-\[\]:]+(/[^\s?#]*)?$~i', $u) && strlen($u) <= 255;
@@ -346,7 +346,7 @@ final class AgentCrypto
     {
         $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
         $fwd = !$https && Https::isHttps();   // via een vertrouwde reverse proxy
-        // 1.130.0: via http geopend? Dan kijken of RzMon hier ook https heeft (poort 443, eigen certificaat): agents die
+        // 1.130.0: via http geopend? Dan kijken of RzSense hier ook https heeft (poort 443, eigen certificaat): agents die
         // alleen via https mogen, krijgen dan een installatiecommando met https en deze vingerafdruk
         $local = !$https && !$fwd;
         $name = preg_replace('/:\d+$/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
@@ -385,9 +385,9 @@ final class AgentCrypto
 
     // ---------------------------------------------------------------- Vertrouwen per adres (1.78.0)
     // Een agent kan twee adressen hebben (gewoon en reserve), bv. https://192.168.1.10 (eigen certificaat, vastzetten) en
-    // https://rzmon.example.nl (Let's Encrypt via de proxy, gewone controle). RzMon kijkt per adres welk certificaat er
+    // https://rzmon.example.nl (Let's Encrypt via de proxy, gewone controle). RzSense kijkt per adres welk certificaat er
     // staat en geeft de agent (1.53.0+) per adres door hoe hij het moet controleren: "-" = gewone controle (of http),
-    // "sha256//…" = alleen het eigen certificaat van RzMon (met een klaargezet nieuw certificaat erbij: "sha256//A;sha256//B").
+    // "sha256//…" = alleen het eigen certificaat van RzSense (met een klaargezet nieuw certificaat erbij: "sha256//A;sha256//B").
 
     /** Agent die per adres een vingerafdruk kent */
     public const PINURL_MIN = '1.53.0';
@@ -407,8 +407,8 @@ final class AgentCrypto
     }
 
     /**
-     * Welk certificaat staat er op dit adres (gezien vanaf RzMon)? Een uur bewaard per adres.
-     * @return array kind: http | ca (geldig certificaat) | own (eigen certificaat van RzMon) | other (onbekend) | err; error, issuer
+     * Welk certificaat staat er op dit adres (gezien vanaf RzSense)? Een uur bewaard per adres.
+     * @return array kind: http | ca (geldig certificaat) | own (eigen certificaat van RzSense) | other (onbekend) | err; error, issuer
      */
     public static function urlTrust(string $url, bool $fresh = false, bool $probe = true): array
     {
@@ -436,7 +436,7 @@ final class AgentCrypto
         } else {
             $pin = OwnCert::spkiPin((string) ($c['pem'] ?? ''));
             $r = $pin !== null && in_array($pin, self::ownPins($fresh), true)
-                ? ['kind' => 'own'] : ['kind' => 'other', 'issuer' => (string) ($c['issuer'] ?? ''), 'error' => t('onbekend certificaat (niet van RzMon en niet vertrouwd)')];
+                ? ['kind' => 'own'] : ['kind' => 'other', 'issuer' => (string) ($c['issuer'] ?? ''), 'error' => t('onbekend certificaat (niet van RzSense en niet vertrouwd)')];
         }
         $r['at'] = time();
         $all[$url] = $r;
@@ -495,7 +495,7 @@ final class AgentCrypto
             $title = count($down) === 1 ? t('Agent via reserve-adres: {name}', ['name' => $names[0]])
                 : t('{n} agents via hun reserve-adres', ['n' => count($down)]);
             Monitor::notifySystem('⚠️ ' . $title,
-                t('Deze agents bereiken RzMon al 5 minuten niet via hun gewone adres ({urls}) en rapporteren via hun reserve-adres: {names}. Werkt dat adres nog (bv. de reverse proxy, of https op RzMon zelf)?',
+                t('Deze agents bereiken RzSense al 5 minuten niet via hun gewone adres ({urls}) en rapporteren via hun reserve-adres: {names}. Werkt dat adres nog (bv. de reverse proxy, of https op RzSense zelf)?',
                     ['urls' => implode(', ', $urls) ?: '?', 'names' => implode(', ', $names)]), STATUS_WARN, 'problem');
             q('UPDATE hosts SET agent_fb_notified = ? WHERE id IN (' . implode(',', array_map('intval', array_column($down, 'id'))) . ')', [now()]);
             $msg[] = count($down) . ' via reserve-adres';

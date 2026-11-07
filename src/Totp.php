@@ -79,7 +79,7 @@ final class Totp
     /** Link voor de QR-code die de authenticator-app scant. */
     public static function uri(string $secret, string $username): string
     {
-        $issuer = 'RzMon';
+        $issuer = 'RzSense';
         return sprintf('otpauth://totp/%s:%s?secret=%s&issuer=%s&digits=6&period=30',
             rawurlencode($issuer), rawurlencode($username), $secret, rawurlencode($issuer));
     }

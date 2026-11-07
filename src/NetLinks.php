@@ -25,7 +25,7 @@ final class NetLinks
         return setting('unifi_user', '') !== '' && setting('unifi_pass', '') !== '';
     }
 
-    /** Kan RzMon via UniFi blokkeren? (alleen met een lokaal account) */
+    /** Kan RzSense via UniFi blokkeren? (alleen met een lokaal account) */
     public static function unifiCanBlock(): bool
     {
         return setting('unifi_url', '') !== '' && self::unifiAccount();

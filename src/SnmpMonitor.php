@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * SNMP: apparaten uitlezen vanaf RzMon zelf (switches, routers, access points, NAS, UPS, printers, Proxmox…).
+ * SNMP: apparaten uitlezen vanaf RzSense zelf (switches, routers, access points, NAS, UPS, printers, Proxmox…).
  *
  * - Per server aan te zetten: hosts.snmp (JSON) met versie (2c of 3), poort, community of v3-gebruiker.
  * - Checks van type "snmp": metric = wat (zie METRICS), target = index uit de discovery (interface, schijf…)
@@ -199,7 +199,7 @@ final class SnmpMonitor
     private static function session(array $cfg, string $address): SnmpConn
     {
         if (!self::available()) {
-            throw new RuntimeException(t('De PHP-extensie snmp ontbreekt op de RzMon-server. Rocky Linux: sudo dnf install php-snmp en herstart PHP (of voer install-rocky.sh opnieuw uit)'));
+            throw new RuntimeException(t('De PHP-extensie snmp ontbreekt op de RzSense-server. Rocky Linux: sudo dnf install php-snmp en herstart PHP (of voer install-rocky.sh opnieuw uit)'));
         }
         $addr = trim($address, '[]');
         $peer = (str_contains($addr, ':') ? "udp6:[$addr]" : $addr) . ':' . (int) ($cfg['port'] ?? 161);
@@ -1273,16 +1273,16 @@ final class SnmpConn
     {
         $no = $this->s->getErrno();
         if ($no === SNMP::ERRNO_TIMEOUT) {
-            throw new SnmpDown(t('Geen antwoord via SNMP van {peer}: controleer of SNMP aan staat op het apparaat, en de versie, community of v3-gebruiker en of RzMon toegang heeft', ['peer' => $this->peer]));
+            throw new SnmpDown(t('Geen antwoord via SNMP van {peer}: controleer of SNMP aan staat op het apparaat, en de versie, community of v3-gebruiker en of RzSense toegang heeft', ['peer' => $this->peer]));
         }
         if ($no === SNMP::ERRNO_GENERIC) {
             $err = $this->s->getError();
-            // 1.105.2: "sendto (Operation not permitted)" = de firewall van de RzMon-server zelf houdt het pakket tegen
+            // 1.105.2: "sendto (Operation not permitted)" = de firewall van de RzSense-server zelf houdt het pakket tegen
             if (stripos($err, 'not permitted') !== false) {
                 $iso = q('SELECT name FROM hosts WHERE isolate_until > NOW()')->fetchAll(PDO::FETCH_COLUMN);
-                throw new SnmpDown(t('De RzMon-server zelf mag niets naar {peer} sturen: een firewallregel op deze server (nftables/firewalld) houdt het tegen, nog vóór het netwerk', ['peer' => $this->peer])
-                    . ($iso ? '. ' . t('Geïsoleerd: {list}; is dat de RzMon-server? Hef de isolatie op of zet dit netwerk bij Lokale netwerken.', ['list' => implode(', ', $iso)])
-                        : '. ' . t('Kijk op de RzMon-server met: sudo nft list ruleset'))
+                throw new SnmpDown(t('De RzSense-server zelf mag niets naar {peer} sturen: een firewallregel op deze server (nftables/firewalld) houdt het tegen, nog vóór het netwerk', ['peer' => $this->peer])
+                    . ($iso ? '. ' . t('Geïsoleerd: {list}; is dat de RzSense-server? Hef de isolatie op of zet dit netwerk bij Lokale netwerken.', ['list' => implode(', ', $iso)])
+                        : '. ' . t('Kijk op de RzSense-server met: sudo nft list ruleset'))
                     . ' (' . $err . ')');
             }
             throw new SnmpDown(t('SNMP-fout') . ': ' . $err);

@@ -2,9 +2,9 @@
 declare(strict_types=1);
 
 /**
- * 1.205.0: agents wachten rustig tot een update van RzMon klaar is.
+ * 1.205.0: agents wachten rustig tot een update van RzSense klaar is.
  *
- * - Aankondigen: bij Bijwerken zet RzMon eerst "update bezig" klaar (instelling update_hold) en geeft dat mee in elk
+ * - Aankondigen: bij Bijwerken zet RzSense eerst "update bezig" klaar (instelling update_hold) en geeft dat mee in elk
  *   versleuteld antwoord aan een agent (rz_hold: id en hoeveel seconden hij hooguit wacht). Het eigenlijke verzoek aan de
  *   hulpdienst gaat pas als alle agents die het moeten weten het gehoord hebben, of na LEAD seconden.
  * - De agent (1.82.0) zet metingen die niet aankomen in zijn wachtrij en alarmeert niet, tot de vrijgave (een antwoord
@@ -74,7 +74,7 @@ final class UpdateHold
             'req' => $req, 'need' => self::expected(), 'started' => 0, 'done' => 0];
         self::save($h);
         $label = $to ?: t('de nieuwste versie');
-        Monitor::sysInfo('rzmon_update', null, null, 'ℹ️ INFO: RzMon', fn() => t('RzMon-update gestart ({from} → {to}). Agents houden hun metingen vast tot de vrijgave (hooguit {n} min).',
+        Monitor::sysInfo('rzmon_update', null, null, 'ℹ️ INFO: RzSense', fn() => t('RzSense-update gestart ({from} → {to}). Agents houden hun metingen vast tot de vrijgave (hooguit {n} min).',
             ['from' => $from, 'to' => $label, 'n' => self::minutes()]), null, null, true);
         self::tick();
     }
@@ -121,9 +121,9 @@ final class UpdateHold
         settings();
         $GLOBALS['rz_settings']['update_hold'] = json_encode($h);
         if ($n === 1 && ($err = Updater::writeRequest((array) $h['req'])) !== true) {
-            save_setting('update_request_error', (string) json_encode(['at' => time(), 'msg' => t('RzMon-update niet gestart: {err}. Agents zijn vrijgegeven.', ['err' => $err])]));   // 1.206.1: in het venster
+            save_setting('update_request_error', (string) json_encode(['at' => time(), 'msg' => t('RzSense-update niet gestart: {err}. Agents zijn vrijgegeven.', ['err' => $err])]));   // 1.206.1: in het venster
             self::save(null);
-            Monitor::infoSystem(fn() => t('RzMon-update niet gestart: {err}. Agents zijn vrijgegeven.', ['err' => $err]));
+            Monitor::infoSystem(fn() => t('RzSense-update niet gestart: {err}. Agents zijn vrijgegeven.', ['err' => $err]));
         }
     }
 
@@ -163,7 +163,7 @@ final class UpdateHold
         return ['rz_hold' => ['id' => (string) $h['id'], 'max' => max(30, (int) $h['until'] - time()), 'to' => (string) ($h['to'] ?? '')]];
     }
 
-    /** RzMon draait de nieuwe versie (Installer): klaar; true = er was een aankondiging (de samenvatting volgt later) */
+    /** RzSense draait de nieuwe versie (Installer): klaar; true = er was een aankondiging (de samenvatting volgt later) */
     public static function finished(string $from): bool
     {
         $h = self::get();
@@ -224,7 +224,7 @@ final class UpdateHold
             if ($failed || time() > (int) $h['until'] + 600) {
                 self::clear();
                 $why = $failed ? (string) ($st['message'] ?? '') : t('de update gaf geen teken van leven');
-                Monitor::infoSystem(fn() => t('RzMon-update naar {to} mislukt: {why}. Agents zijn vrijgegeven; RzMon draait nog op {v}.',
+                Monitor::infoSystem(fn() => t('RzSense-update naar {to} mislukt: {why}. Agents zijn vrijgegeven; RzSense draait nog op {v}.',
                     ['to' => $h['to'] ?: '?', 'why' => $why, 'v' => RZMON_VERSION]));
                 return t('Update mislukt; agents vrijgegeven');
             }
@@ -247,7 +247,7 @@ final class UpdateHold
         }
         $dur = max(1, (int) $h['done'] - (int) ($h['started'] ?: $h['at']));
         $q = array_sum(array_map(fn($a) => (int) ($a['q'] ?? 0), $held));
-        $parts = [t('RzMon bijgewerkt van {from} naar {to} in {d}', ['from' => $h['from'], 'to' => $h['to'], 'd' => self::secs($dur)])];
+        $parts = [t('RzSense bijgewerkt van {from} naar {to} in {d}', ['from' => $h['from'], 'to' => $h['to'], 'd' => self::secs($dur)])];
         if ($waited) {
             $parts[] = count($waited) === 1 ? t('1 agent wist ervan') : t('{n} agents wisten ervan', ['n' => count($waited)]);
         }
@@ -261,7 +261,7 @@ final class UpdateHold
         self::clear();
         $msg = implode(' · ', $parts);
         // Alles goed: alleen op de meldingenpagina; agents die niet terugkwamen: ook via de meldkanalen
-        Monitor::sysInfo('rzmon_update', null, null, 'ℹ️ INFO: RzMon', fn() => $msg, null, null, !$missing);
+        Monitor::sysInfo('rzmon_update', null, null, 'ℹ️ INFO: RzSense', fn() => $msg, null, null, !$missing);
         return $msg;
     }
 

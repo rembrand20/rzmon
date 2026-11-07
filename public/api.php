@@ -9,7 +9,7 @@ header('Cache-Control: no-store');
 
 function out($data, int $code = 200): never
 {
-    // Agents van buiten: een fout als gewone 404 (niet herkenbaar, 1.86.0); de reden staat in RzMon (agentlog, ⚠️)
+    // Agents van buiten: een fout als gewone 404 (niet herkenbaar, 1.86.0); de reden staat in RzSense (agentlog, ⚠️)
     if ($code >= 400 && !empty($GLOBALS['agent_req'])) {
         Stealth::denyOutside();
     }
@@ -134,10 +134,10 @@ if (str_starts_with($action, 'agent_') && is_configured()) {
 }
 
 // ---------- Agent en installatiescript (openbaar: bevatten niets geheims) ----------
-// Zo kan een server de agent rechtstreeks van RzMon installeren, ook als de
+// Zo kan een server de agent rechtstreeks van RzSense installeren, ook als de
 // GitHub-repository privé is.
 if ($action === 'ping') {
-    // Voor de verbindingstest van de agent: "draait hier RzMon?". Van buiten (niet herkenbaar) alleen voor bekende agents.
+    // Voor de verbindingstest van de agent: "draait hier RzSense?". Van buiten (niet herkenbaar) alleen voor bekende agents.
     if (!Stealth::pingFull()) {
         Stealth::notFound();
     }
@@ -171,7 +171,7 @@ if ($action === 'agent_script' || $action === 'agent_install') {
 }
 
 if (!is_configured()) {
-    out(['error' => t('RzMon is nog niet ingesteld'), 'setup' => true], 503);
+    out(['error' => t('RzSense is nog niet ingesteld'), 'setup' => true], 503);
 }
 
 // ---------- Agent endpoint (token-auth, geen sessie) ----------
@@ -199,7 +199,7 @@ function agent_host(): array
         $host = $token !== '' ? q("SELECT $cols FROM hosts WHERE agent_token = ?", [$token])->fetch() : false;
         $reason = match (true) {
             $token === '' => t('geen token meegestuurd'),
-            !$host => t('onbekend token (verkeerd gekopieerd, of in RzMon vernieuwd?)'),
+            !$host => t('onbekend token (verkeerd gekopieerd, of in RzSense vernieuwd?)'),
             (int) $host['agent_key_seen'] === 1 && AgentCrypto::hostMode($host) !== 'off'
                 => t('alleen een token, maar deze server heeft een eigen sleutel: koppel de agent opnieuw met een koppelcode'),
             // 1.100.0: alleen agents met een eigen sleutel (koppelen met een koppelcode blijft altijd mogelijk)
@@ -286,7 +286,7 @@ function agent_body(array $host): bool
 
 /**
  * 1.147.0: gecomprimeerd rapport (agent 1.73.0+, gzip, herkend aan de eerste twee bytes) uitpakken. Hooguit 64 MB
- * uitgepakt (geen "zip-bom"); kapot of te groot: geweigerd. De agent comprimeert pas als RzMon "gz":1 terugstuurt.
+ * uitgepakt (geen "zip-bom"); kapot of te groot: geweigerd. De agent comprimeert pas als RzSense "gz":1 terugstuurt.
  */
 function agent_unzip(string $s, callable $refuse): string
 {
@@ -298,7 +298,7 @@ function agent_unzip(string $s, callable $refuse): string
 }
 
 /**
- * Adres van RzMon (1.72.0): wat de agent gebruikt, hoe hij verbond (http, https of https via de proxy) en of het via zijn
+ * Adres van RzSense (1.72.0): wat de agent gebruikt, hoe hij verbond (http, https of https via de proxy) en of het via zijn
  * reserve-adres ging (⚠️ bij het begin, ✅ als het weer via het gewone adres gaat). De uitkomst van een overstap
  * verwerken; staat er een overstap klaar, dan @return array{url:string,fallback:string} de opdracht (alleen versleuteld).
  */
@@ -343,7 +343,7 @@ function agent_url_report(array $host, array $in, ?string $agentVersion, bool $e
         $status = $ok ? '✔ ' . t('Overgestapt naar {url}', ['url' => $url ?? '?']) : '✘ ' . preg_replace('/^error:?\s*/', '', $result);
         $status = mb_substr($status, 0, 254 - mb_strlen($tail)) . $tail;
         q('UPDATE hosts SET agent_url_status = ?, agent_url_at = ?, agent_url_want = NULL, agent_url_want_fb = NULL WHERE id = ?', [$status, now(), $host['id']]);
-        AgentCommands::audit('agent', 'Adres van RzMon', "{$host['name']}: $status");
+        AgentCommands::audit('agent', 'Adres van RzSense', "{$host['name']}: $status");
         return null;
     }
     // Mislukte overstap, maar de agent rapporteert nu toch gewoon via dat adres (bv. met de hand ingesteld): ✘ weg
@@ -369,7 +369,7 @@ function agent_url_report(array $host, array $in, ?string $agentVersion, bool $e
 
 /**
  * Velden voor het (versleutelde) antwoord. Agent 1.50.0+: zijn eigen sleutel (de eerste keer, opnieuw als hij nog een
- * oude gebruikt, of een nieuwe als hij aan vernieuwing toe is) en de vingerafdruk van het certificaat van RzMon.
+ * oude gebruikt, of een nieuwe als hij aan vernieuwing toe is) en de vingerafdruk van het certificaat van RzSense.
  * Agent 1.49.x: de algemene sleutel. Een sleutel gaat nooit leesbaar over de lijn: zonder versleuteling niets
  * (dan koppel je de agent met een koppelcode).
  */
@@ -413,7 +413,7 @@ function agent_enc_fields(array $host, ?string $agentVersion): array
 // Extra tests (URL of poort) die bij service-checks van deze server zijn ingesteld, voor de agent.
 // Platte tekst, één test per regel: id <tab> type <tab> doel <tab> verwachte tekst.
 /**
- * Wat de agent van RzMon moet weten, één regel per item (tab-gescheiden):
+ * Wat de agent van RzSense moet weten, één regel per item (tab-gescheiden):
  * welke services hij bewaakt, logzoekopdrachten, eigen poorten van services en extra tests.
  */
 /** @param bool $secure de lijst gaat versleuteld terug (dan mogen de gegevens voor de waakhond erin) */
@@ -571,7 +571,7 @@ if ($action === 'agent_tests') {
 if ($action === 'agent_check') {
     $host = agent_host();
     if ($auth = agent_get_auth($host, 'agent_check')) {
-        $GLOBALS['agent_seal'] = $auth;   // antwoord versleuteld: zo weet de agent dat hij echt met RzMon praat
+        $GLOBALS['agent_seal'] = $auth;   // antwoord versleuteld: zo weet de agent dat hij echt met RzSense praat
     }
     out(['ok' => true, 'host' => $host['name'], 'your_ip' => client_ip(), 'own_key' => (bool) $auth]);
 }
@@ -720,7 +720,7 @@ if ($action === 'agent') {
         try {
             Truenas::fromAgent($host, $in['truenas'], $st, $now);
         } catch (Throwable $e) {
-            error_log('RzMon: TrueNAS-gegevens niet verwerkt: ' . $e->getMessage());
+            error_log('RzSense: TrueNAS-gegevens niet verwerkt: ' . $e->getMessage());
         }
     }
     // 1.177.0 (agent 1.78.0): pad-checks, doorvoer en de iperf3-ontvanger
@@ -728,26 +728,26 @@ if ($action === 'agent') {
         Paths::fromAgent($host, $in);
         Db::fromAgent($host, $in, $now);   // 1.200.0 (agent 1.81.0): databases
     } catch (Throwable $e) {
-        error_log('RzMon: pad-gegevens niet verwerkt: ' . $e->getMessage());
+        error_log('RzSense: pad-gegevens niet verwerkt: ' . $e->getMessage());
     }
     // 1.188.0 (agent 1.80.0): verkeer van de netwerkkaarten, voor Netwerk → Verkeer als UniFi deze server niet ziet
     try {
         NetTraffic::fromAgent($host, $in);
     } catch (Throwable $e) {
-        error_log('RzMon: netwerkverkeer van de agent niet verwerkt: ' . $e->getMessage());
+        error_log('RzSense: netwerkverkeer van de agent niet verwerkt: ' . $e->getMessage());
     }
     // 1.178.0 (agent 1.79.0): antwoord op 🧪 Test
     try {
         AgentTest::fromAgent($host, $in);
     } catch (Throwable $e) {
-        error_log('RzMon: zelftest niet verwerkt: ' . $e->getMessage());
+        error_log('RzSense: zelftest niet verwerkt: ' . $e->getMessage());
     }
     // Proxmox VE (agent 1.61.0): guests, opslag, ZFS, back-ups en taken
     if (isset($in['pve']) && is_array($in['pve'])) {
         try {
             Pve::fromAgent($host, $in['pve'], $st, $now);
         } catch (Throwable $e) {
-            error_log('RzMon: Proxmox-gegevens niet verwerkt: ' . $e->getMessage());
+            error_log('RzSense: Proxmox-gegevens niet verwerkt: ' . $e->getMessage());
         }
     }
     if (isset($in['podman']) && is_array($in['podman'])) {
@@ -787,7 +787,7 @@ if ($action === 'agent') {
             $st->execute([$host['id'], 'svcinfo:' . $name, json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $now]);
         }
     }
-    // Logbestanden: treffers per rapport bijhouden (24 uur), zodat RzMon over een periode kan tellen
+    // Logbestanden: treffers per rapport bijhouden (24 uur), zodat RzSense over een periode kan tellen
     if (isset($in['logs']) && is_array($in['logs'])) {
         $prevLogs = [];
         foreach (q("SELECT metric, value FROM agent_data WHERE host_id = ? AND metric LIKE 'logrun:%'", [$host['id']]) as $r) {
@@ -853,7 +853,7 @@ if ($action === 'agent') {
     Perf::part('rapport:edr');
     Chain::check($host);
     Perf::part('rapport:ketens');
-    // Commando-checks: uitvoer en exitcode (RzMon vergelijkt met het verwachte antwoord)
+    // Commando-checks: uitvoer en exitcode (RzSense vergelijkt met het verwachte antwoord)
     foreach ((array) ($in['cmd'] ?? []) as $id => $r) {
         if (ctype_digit((string) $id) && is_array($r)) {
             $st->execute([$host['id'], 'cmd:' . $id, json_encode([
@@ -981,18 +981,18 @@ if ($action === 'agent') {
     if ($encrypted && ($run = Heal::runList((int) $host['id']))) {
         $resp['heal_run'] = $run;
     }
-    // 1.110.0: processen die RzMon meteen laat stoppen (alleen versleuteld; anders via de testlijst, bij de volgende run)
+    // 1.110.0: processen die RzSense meteen laat stoppen (alleen versleuteld; anders via de testlijst, bij de volgende run)
     if ($encrypted && $edrResp) {
         $resp += $edrResp;
     }
     if ((int) ($host['watchdog'] ?? 0) === 1) {
         $resp['cron_age'] = Heal::cronAge();
     }
-    // 1.205.0: RzMon wordt zo bijgewerkt: de agent houdt zijn metingen vast tot de vrijgave (alleen versleuteld)
+    // 1.205.0: RzSense wordt zo bijgewerkt: de agent houdt zijn metingen vast tot de vrijgave (alleen versleuteld)
     try {
         $resp += UpdateHold::forAgent($host, $encrypted, $in);
     } catch (Throwable $e) {
-        error_log('RzMon: update-aankondiging: ' . $e->getMessage());
+        error_log('RzSense: update-aankondiging: ' . $e->getMessage());
     }
     $resp += agent_enc_fields($host, $agentVersion);
     if ($u = agent_url_report($host, $in, $agentVersion, $encrypted)) {
@@ -1003,7 +1003,7 @@ if ($action === 'agent') {
     try {
         $resp['sec'] = AgentAudit::fromAgent($host, $in, $st, $now, $prevSec === false ? null : (string) $prevSec);
     } catch (Throwable $e) {
-        error_log('RzMon: verbindingscontrole mislukt: ' . $e->getMessage());
+        error_log('RzSense: verbindingscontrole mislukt: ' . $e->getMessage());
     }
     // Agent 1.53.0: per adres hoe hij het moet controleren (vastzetten of gewoon); alleen versleuteld
     if ($encrypted && $agentVersion && version_compare($agentVersion, AgentCrypto::PINURL_MIN, '>=')) {
@@ -1033,7 +1033,7 @@ if ($action === 'agent') {
         Monitor::runAgentHost((int) $host['id']);
         Paths::runFresh($now);   // 1.191.1: pad-check met een nieuwe meting meteen beoordelen
     } catch (Throwable $e) {
-        error_log('RzMon: agent-checks direct beoordelen mislukt: ' . $e->getMessage());
+        error_log('RzSense: agent-checks direct beoordelen mislukt: ' . $e->getMessage());
     }
     Perf::part('rapport:checks');
     if ($u = agent_update_instruction($host['id'], $agentVersion, $in)) {
@@ -1043,7 +1043,7 @@ if ($action === 'agent') {
     try {
         $resp += Vulns::agentReport($host, $in);
     } catch (Throwable $e) {
-        error_log('RzMon: softwarelijst verwerken mislukt: ' . $e->getMessage());
+        error_log('RzSense: softwarelijst verwerken mislukt: ' . $e->getMessage());
     }
     Perf::part('rapport:software');
     out($resp);
@@ -1051,7 +1051,7 @@ if ($action === 'agent') {
 
 /**
  * Bijwerken op afstand: verwerkt wat de agent over updates meldt en bepaalt of hij nu moet bijwerken.
- * De agent haalt dan zelf de nieuwe versie bij RzMon op en controleert die met de SHA-256 hieronder.
+ * De agent haalt dan zelf de nieuwe versie bij RzSense op en controleert die met de SHA-256 hieronder.
  * @return array|null opdracht voor de agent, of null
  */
 function agent_update_instruction(int $hostId, ?string $version, array $in): ?array
@@ -1073,7 +1073,7 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
             ? '✔ ' . date('d-m H:i') . ' ' . ($m[1] !== '' && $m[1] !== $m[2] ? t('bijgewerkt van {from} naar {to}', ['from' => $m[1], 'to' => $m[2]]) : t('bijgewerkt naar {to}', ['to' => $m[2]]))
             : '✘ ' . date('d-m H:i') . ' ' . t('bijwerken mislukt') . ': ' . AgentText::tr(mb_substr(preg_replace('/^error\s*/', '', $result), 0, 200));
         if (str_starts_with($result, 'ok')) {
-            $sent = null;   // gelukt: een volgende RzMon-versie mag meteen weer automatisch (de info gaat bij de versiewissel)
+            $sent = null;   // gelukt: een volgende RzSense-versie mag meteen weer automatisch (de info gaat bij de versiewissel)
         } else {
             $why = mb_substr(preg_replace('/^error\s*/', '', $result), 0, 200);
             Monitor::infoHost($h, fn() => '✘ ' . t('Agent bijwerken mislukt') . ': ' . AgentText::tr($why), 'agent_update_fail');
@@ -1491,7 +1491,7 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
             if ($type === 'mqtt' && $target !== '' && !preg_match('/^(\[[0-9a-fA-F:]+\]|[A-Za-z0-9._-]+)(:\d{1,5})?$/', $target)) {
                 out(['error' => t('Ongeldig adres')], 422);
             }
-            // Internet (1.157.0): ping, responstijd, download of upload; altijd vanaf de server van RzMon
+            // Internet (1.157.0): ping, responstijd, download of upload; altijd vanaf de server van RzSense
             if ($type === 'internet') {
                 $metric = (string) ($in['metric'] ?? '');
                 if (!in_array($metric, Internet::METRICS, true)) {
@@ -1699,7 +1699,7 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                     'test_expect' => mb_substr(trim((string) ($in['test_expect'] ?? '')), 0, 100),
                 ] : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             }
-            // Heartbeat (1.77.0): naam voor rzmon-hb, schema, speling, maximale duur; de geheime URL maakt RzMon zelf
+            // Heartbeat (1.77.0): naam voor rzmon-hb, schema, speling, maximale duur; de geheime URL maakt RzSense zelf
             $hbNew = false;
             if ($type === 'heartbeat') {
                 if (!preg_match(Heartbeat::NAME, $target)) {
@@ -1777,7 +1777,7 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                 $per = trim(mb_substr((string) ($in['pve_per'] ?? ''), 0, 500));
                 $options = $per !== '' ? json_encode(['per' => $per]) : null;
             }
-            // Certificaat (1.98.0): vanaf RzMon of vanaf de server zelf (agent); leeg = automatisch (bestand of localhost → agent)
+            // Certificaat (1.98.0): vanaf RzSense of vanaf de server zelf (agent); leeg = automatisch (bestand of localhost → agent)
             if ($type === 'ssl') {
                 if (preg_match('/\s/', $target)) {
                     out(['error' => t('Een pad of adres zonder spaties')], 422);
@@ -1829,7 +1829,7 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
             if ($type === 'mysql') {
                 $old = (int) ($in['id'] ?? 0) ? json_decode((string) q('SELECT options FROM checks WHERE id = ?', [(int) $in['id']])->fetchColumn(), true) ?: [] : [];
                 $pass = (string) ($in['db_pass'] ?? '');
-                // 1.200.0: soort database, via RzMon of de agent, lokaal of in een container, en wanneer een query "lang" is
+                // 1.200.0: soort database, via RzSense of de agent, lokaal of in een container, en wanneer een query "lang" is
                 $via = ($in['db_via'] ?? 'rzmon') === 'agent' ? 'agent' : 'rzmon';
                 $where = ($in['db_where'] ?? 'local') === 'container' ? 'container' : 'local';
                 $ct = trim((string) ($in['db_container'] ?? ''));
@@ -2089,7 +2089,7 @@ switch ($action) {
                 $models = Ai::models($cfg);
                 out(['models' => $models, 'suggest' => Ai::suggestModel($models)]);
             }
-            $r = Ai::chat(['max_tokens' => 200, 'timeout' => min(120, $cfg['timeout'])] + $cfg, t('Antwoord in één korte zin.'), t('Zeg dat de verbinding met RzMon werkt.'));
+            $r = Ai::chat(['max_tokens' => 200, 'timeout' => min(120, $cfg['timeout'])] + $cfg, t('Antwoord in één korte zin.'), t('Zeg dat de verbinding met RzSense werkt.'));
             out(['ok' => true, 'text' => mb_substr($r['text'], 0, 300), 'ms' => $r['ms']]);
         } catch (RuntimeException $e) {
             out(['error' => $e->getMessage()], 422);
@@ -2401,7 +2401,7 @@ switch ($action) {
         AgentCommands::audit($user['username'], 'Realtime', (!empty($in['on']) ? 'aan' : 'uit') . ' voor server ' . (int) ($in['id'] ?? 0));
         out(['ok' => true]);
 
-    // 🐕 Waakhond (1.107.0): deze agent bewaakt RzMon (Pushover als RzMon onbereikbaar is of de checks stilstaan)
+    // 🐕 Waakhond (1.107.0): deze agent bewaakt RzSense (Pushover als RzSense onbereikbaar is of de checks stilstaan)
     case 'host_watchdog':
         $in = input();
         $hid = (int) ($in['id'] ?? 0);
@@ -2448,7 +2448,7 @@ switch ($action) {
             ? t('blokkeren na {n} mislukte pogingen', ['n' => (int) setting('login_lock_fails', '3')]) : t('staat uit: wachtwoorden raden wordt niet afgeremd'), 'access');
         $cache = json_decode((string) setting('update_cache', ''), true) ?: [];
         $newer = !empty($cache['latest']) && version_compare($cache['latest'], RZMON_VERSION, '>');
-        $add('update', $newer ? 'warn' : 'ok', t('RzMon-versie'), $newer
+        $add('update', $newer ? 'warn' : 'ok', t('RzSense-versie'), $newer
             ? t('{v} staat klaar (je hebt {cur})', ['v' => $cache['latest'], 'cur' => RZMON_VERSION]) : t('{cur} is de nieuwste', ['cur' => RZMON_VERSION]), 'update');
         $agents = q("SELECT name, agent_version, enc, enc_seen, agent_key_seen, agent_ip_new FROM hosts WHERE mode = 'agent' AND enabled = 1 AND agent_seen IS NOT NULL")->fetchAll();
         if ($agents) {
@@ -2458,7 +2458,7 @@ switch ($action) {
                 : t('alle {t} op {v}', ['t' => count($agents), 'v' => AGENT_LATEST]), 'agents');
             $plain = array_column(array_filter($agents, static fn($h) => (int) $h['enc_seen'] !== 1), 'name');
             // 1.149.3: zonder algemene sleutel is het alleen een probleem als er nog agents zonder eigen sleutel zijn. Na
-            // "Alle agents opruimen" wist RzMon die sleutel juist bewust (alle agents hebben dan hun eigen sleutel).
+            // "Alle agents opruimen" wist RzSense die sleutel juist bewust (alle agents hebben dan hun eigen sleutel).
             $ownAll = !array_filter($agents, static fn($h) => (int) $h['agent_key_seen'] !== 1);
             $modeOff = AgentCrypto::globalMode() === 'off';
             $off = $modeOff || (AgentCrypto::key() === '' && !$ownAll);
@@ -2482,7 +2482,7 @@ switch ($action) {
             // Alle agents al via https, maar "alleen via https" staat nog uit (1.78.0): voorstellen om het aan te zetten
             if (!$viaFb && !$viaHttp && setting('agent_https_only', '0') !== '1') {
                 $add('agent_https_only', 'warn', t('Agents alleen via https'),
-                    t('alle agents verbinden al via https; zet "alleen via https" aan, dan weigert RzMon rapporten die via http komen'), 'enc',
+                    t('alle agents verbinden al via https; zet "alleen via https" aan, dan weigert RzSense rapporten die via http komen'), 'enc',
                     ['act' => 'agent_https_only', 'label' => t('Aanzetten')]);
             }
             // Verbindingscontrole (1.100.0): overbodige instellingen, gewijzigd script, tokens; en alleen agents met eigen sleutel
@@ -2500,7 +2500,7 @@ switch ($action) {
                 $fix ? ['act' => 'agents_cleanup', 'label' => '🧹 ' . t('Alles opruimen')] : []);
             if (!$nokey && setting('agent_ownkey_only', '0') !== '1') {
                 $add('agent_ownkey_only', 'warn', t('Alleen agents met een eigen sleutel'),
-                    t('alle agents hebben een eigen sleutel; zet dit aan, dan weigert RzMon agents die zich met alleen een token melden (koppelen met een koppelcode blijft kunnen)'), 'enc',
+                    t('alle agents hebben een eigen sleutel; zet dit aan, dan weigert RzSense agents die zich met alleen een token melden (koppelen met een koppelcode blijft kunnen)'), 'enc',
                     ['act' => 'agent_ownkey_only', 'label' => t('Aanzetten')]);
             }
             $newip = array_column(array_filter($agents, static fn($h) => !empty($h['agent_ip_new'])), 'name');
@@ -2523,31 +2523,31 @@ switch ($action) {
         if ($adminUrl !== '' && isset($hs['dns'])) {
             $ips = implode(', ', (array) $hs['dns']['ips']);
             $add('dns', $hs['dns']['private'] ? 'ok' : 'warn', t('Lokale DNS-rewrite'), !$hs['dns']['ips']
-                ? t('{host} is vanaf de RzMon-server niet te vinden', ['host' => Https::adminHost()])
+                ? t('{host} is vanaf de RzSense-server niet te vinden', ['host' => Https::adminHost()])
                 : ($hs['dns']['private'] ? t('{host} wijst intern naar {ip}', ['host' => Https::adminHost(), 'ip' => $ips])
                     : t('{host} wijst naar {ip} (openbaar): zet een DNS-rewrite naar het LAN-IP van je proxy', ['host' => Https::adminHost(), 'ip' => $ips])), 'https');
         }
-        // De proxy stuurt door via http (1.78.0): het laatste stuk (proxy → RzMon) is dan onversleuteld
+        // De proxy stuurt door via http (1.78.0): het laatste stuk (proxy → RzSense) is dan onversleuteld
         $leg = json_decode((string) setting('proxy_http_leg', ''), true) ?: [];
         $legOk = (int) ((json_decode((string) setting('proxy_https_leg', ''), true) ?: [])['at'] ?? 0);
         if ((int) ($leg['at'] ?? 0) > time() - 7 * 86400 && (int) $leg['at'] > $legOk) {
-            $sip = Https::serverIp() ?: (OwnCert::serverIps()[0] ?? t('<IP-adres van RzMon>'));
-            $add('proxy_leg', 'warn', t('Proxy → RzMon via http'),
-                t('je proxy ({ip}) stuurt het verkeer via http door naar RzMon: wachtwoorden en sessies gaan het laatste stuk onversleuteld over je netwerk. Laat de proxy doorsturen naar https (voor SWAG: deze regels in rzmon.subdomain.conf)', ['ip' => $leg['ip']]),
+            $sip = Https::serverIp() ?: (OwnCert::serverIps()[0] ?? t('<IP-adres van RzSense>'));
+            $add('proxy_leg', 'warn', t('Proxy → RzSense via http'),
+                t('je proxy ({ip}) stuurt het verkeer via http door naar RzSense: wachtwoorden en sessies gaan het laatste stuk onversleuteld over je netwerk. Laat de proxy doorsturen naar https (voor SWAG: deze regels in rzmon.subdomain.conf)', ['ip' => $leg['ip']]),
                 'https', ['code' => "set \$upstream_app $sip;\nset \$upstream_port 443;\nset \$upstream_proto https;\nproxy_pass \$upstream_proto://\$upstream_app:\$upstream_port;"]);
         }
         // Inloggen via http (1.78.0): de knop zet "Inloggen via http weigeren" aan (alleen als je nu via https zit)
         if (setting('http_login_block', '0') !== '1') {
             $add('http_login', 'warn', t('Inloggen via http'),
-                t('toegestaan: wie RzMon via http opent, stuurt zijn wachtwoord leesbaar over het netwerk (ook via wifi)')
-                . (Https::isHttps() ? '' : ' · ' . t('open RzMon via https om het hier met één klik te weigeren')), 'https',
+                t('toegestaan: wie RzSense via http opent, stuurt zijn wachtwoord leesbaar over het netwerk (ook via wifi)')
+                . (Https::isHttps() ? '' : ' · ' . t('open RzSense via https om het hier met één klik te weigeren')), 'https',
                 Https::isHttps() ? ['act' => 'http_login_block', 'label' => t('Weigeren')] : []);
         }
         // Tip (1.78.0): via een IP-adres geopend terwijl er een beheeradres is: overal hetzelfde adres met een DNS-rewrite
         $vh = Https::host();
         if ($adminUrl !== '' && filter_var($vh, FILTER_VALIDATE_IP) && ip_in_list($vh, PRIVATE_NETWORKS)) {
             $add('split_dns', 'info', t('Tip: overal hetzelfde adres'),
-                t('je opent RzMon nu via {ip}. Laat je DNS (bv. AdGuard: Filters → DNS-herschrijvingen) {host} naar het LAN-IP van je proxy wijzen; dan gebruik je thuis en onderweg {url}, met een geldig certificaat en zonder waarschuwingen',
+                t('je opent RzSense nu via {ip}. Laat je DNS (bv. AdGuard: Filters → DNS-herschrijvingen) {host} naar het LAN-IP van je proxy wijzen; dan gebruik je thuis en onderweg {url}, met een geldig certificaat en zonder waarschuwingen',
                     ['ip' => $vh, 'host' => Https::adminHost(), 'url' => $adminUrl]), 'https');
         }
         $pu = json_decode((string) setting('proxy_unknown', ''), true) ?: [];
@@ -2598,7 +2598,7 @@ switch ($action) {
             $advice = $mem > 0 ? max(256, min((int) floor($mem * 0.4 / 1048576 / 128) * 128, 8192)) : 1024;   // ±40% van het geheugen, in stappen van 128 MB
             if ($pool > 0 && $dbSize > $pool * 0.8 && $pool < $advice * 1048576) {
                 $add('db_pool', 'warn', t('Geheugen van de database'),
-                    t('MariaDB gebruikt {pool} geheugen voor een database van {db}: veel query\'s lezen dan van de schijf en RzMon wordt traag. Zet in /etc/my.cnf.d/rzmon.cnf onder [mysqld]: innodb_buffer_pool_size = {adv}M en herstart MariaDB.',
+                    t('MariaDB gebruikt {pool} geheugen voor een database van {db}: veel query\'s lezen dan van de schijf en RzSense wordt traag. Zet in /etc/my.cnf.d/rzmon.cnf onder [mysqld]: innodb_buffer_pool_size = {adv}M en herstart MariaDB.',
                         ['pool' => Checks::bytes($pool), 'db' => Checks::bytes($dbSize), 'adv' => $advice]), 'db');
             } else {
                 $add('db_pool', 'ok', t('Geheugen van de database'), t('{pool} voor een database van {db}', ['pool' => Checks::bytes($pool), 'db' => Checks::bytes($dbSize)]), 'db');
@@ -2606,10 +2606,10 @@ switch ($action) {
         } catch (Throwable) {
             // geen rechten op information_schema: niets melden
         }
-        // 1.139.0: is de agent die RzMon uitlevert ondertekend door de ontwikkelaar (GitHub)?
+        // 1.139.0: is de agent die RzSense uitlevert ondertekend door de ontwikkelaar (GitHub)?
         $sg = AgentSign::status();
         $add('agent_sign', $sg['valid'] ? 'ok' : ($sg['nosodium'] ? 'warn' : ($sg['signed'] ? 'bad' : 'warn')), t('Ondertekende agent'),
-            $sg['nosodium'] ? t('RzMon kan de handtekening niet controleren: de PHP-extensie sodium ontbreekt (Rocky: sudo dnf install php-sodium, daarna sudo systemctl restart php-fpm). De agents controleren hem zelf wel.')
+            $sg['nosodium'] ? t('RzSense kan de handtekening niet controleren: de PHP-extensie sodium ontbreekt (Rocky: sudo dnf install php-sodium, daarna sudo systemctl restart php-fpm). De agents controleren hem zelf wel.')
             : ($sg['valid'] ? t('agent en installatiescript zijn ondertekend; agents controleren dat bij elke update')
                 : ($sg['signed'] ? t('handtekening klopt niet bij {f}: agents weigeren deze update', ['f' => implode(', ', array_keys(array_filter($sg['files'], static fn($x) => $x === 'bad')))])
                     : t('nog niet ondertekend: de GitHub Action "Agent ondertekenen" heeft nog niet gedraaid, of het geheim AGENT_SIGN_KEY ontbreekt; agents 1.71.0 en nieuwer werken pas bij met een handtekening'))), 'agents');
@@ -2727,7 +2727,7 @@ switch ($action) {
         $p = AgentCrypto::pairCreate($id);
         AgentCommands::audit($user['username'], 'Koppelcode gemaakt', (string) $name);
         // 1.130.0: nog geen vingerafdruk bekend (bv. alleen via http gekeken)? Dan nu bepalen: een commando met https moet
-        // het eigen certificaat van RzMon kunnen vastzetten
+        // het eigen certificaat van RzSense kunnen vastzetten
         $pin = AgentCrypto::pin(false, false, $ph) ?? '';
         if ($pin === '' && AgentCrypto::pinOn($ph)) {
             $pin = AgentCrypto::pin(true, true, $ph) ?? '';
@@ -2761,7 +2761,7 @@ switch ($action) {
         AgentCommands::audit($user['username'], 'Beveiligde verbinding per server', "{$h['name']}: vastzetten " . ($new['pin_mode'] ?? 'algemeen') . ', IP-slot ' . ($new['ip_lock'] ?? 'algemeen'));
         out(['ok' => true]);
 
-    // Adressen om uit te kiezen (1.78.0): IP-adressen van RzMon (https met het eigen certificaat, of http), de namen die
+    // Adressen om uit te kiezen (1.78.0): IP-adressen van RzSense (https met het eigen certificaat, of http), de namen die
     // daarbij horen (DNS), de hostnaam, eigen namen uit het certificaat en het beheeradres; elk met wat er op staat
     case 'agent_url_options':
         $path = rtrim((string) parse_url((string) config('base_url', ''), PHP_URL_PATH), '/');
@@ -2799,12 +2799,12 @@ switch ($action) {
         }
         out(['options' => $list, 'pinurl_min' => AgentCrypto::PINURL_MIN, 'url_min' => AgentCrypto::URL_MIN]);
 
-    // Een adres testen (vanaf RzMon): welk certificaat staat erop?
+    // Een adres testen (vanaf RzSense): welk certificaat staat erop?
     case 'agent_url_test':
         $u = rtrim(trim((string) (input()['url'] ?? '')), '/');
         out(['url' => $u] + AgentCrypto::urlTrust($u, true));
 
-    // Adres van RzMon voor een agent (of alle agents) wijzigen: de agent test het nieuwe adres eerst (1.72.0)
+    // Adres van RzSense voor een agent (of alle agents) wijzigen: de agent test het nieuwe adres eerst (1.72.0)
     case 'agent_url_set':
         $in = input();
         $url = rtrim(trim((string) ($in['url'] ?? '')), '/');
@@ -2820,7 +2820,7 @@ switch ($action) {
         foreach (array_filter([$url, $fb]) as $u) {
             $tr = AgentCrypto::urlTrust($u, true);
             if ($tr['kind'] === 'other') {
-                out(['error' => t('Op {url} staat een onbekend certificaat (niet van RzMon en niet vertrouwd); de agents zouden het weigeren', ['url' => $u])], 422);
+                out(['error' => t('Op {url} staat een onbekend certificaat (niet van RzSense en niet vertrouwd); de agents zouden het weigeren', ['url' => $u])], 422);
             }
             if ($tr['kind'] === 'own') {
                 $own[] = $u;
@@ -2845,7 +2845,7 @@ switch ($action) {
         if (!$n) {
             out(['error' => t('Agent {v} of nieuwer nodig (eerst bijwerken)', ['v' => $min])], 422);
         }
-        AgentCommands::audit($user['username'], 'Adres van RzMon voor agents', ($all ? 'alle' : $rows[0]['name']) . ": $url" . ($fb !== '' ? " (reserve $fb)" : ''));
+        AgentCommands::audit($user['username'], 'Adres van RzSense voor agents', ($all ? 'alle' : $rows[0]['name']) . ": $url" . ($fb !== '' ? " (reserve $fb)" : ''));
         out(['ok' => true, 'n' => $n, 'skipped' => $skip]);
 
     case 'agent_url_cancel':
@@ -2872,7 +2872,7 @@ switch ($action) {
         AgentCommands::audit($user['username'], 'IP-adressen van de agent vergeten', (string) $id);
         out(['ok' => true]);
 
-    // ---------- Certificaat van RzMon voor de agents (1.70.0): bekijken, downloaden, vernieuwen ----------
+    // ---------- Certificaat van RzSense voor de agents (1.70.0): bekijken, downloaden, vernieuwen ----------
     case 'agent_cert':
         $base = rtrim((string) config('base_url', ''), '/');
         $scheme = strtolower((string) parse_url($base, PHP_URL_SCHEME));
@@ -2911,9 +2911,9 @@ switch ($action) {
         $confirm('DOWNLOADEN');
         $c = OwnCert::current();
         if (empty($c['pem'])) {
-            out(['error' => t('Geen certificaat op poort 443 van RzMon')], 404);
+            out(['error' => t('Geen certificaat op poort 443 van RzSense')], 404);
         }
-        AgentCommands::audit($user['username'], 'Certificaat van RzMon gedownload', $c['fp'] ?? '');
+        AgentCommands::audit($user['username'], 'Certificaat van RzSense gedownload', $c['fp'] ?? '');
         out(['ok' => true, 'pem' => $c['pem'], 'name' => (preg_replace('/[^a-z0-9.-]/i', '_', (string) gethostname()) ?: 'rzmon') . '.crt']);
 
     // Vernieuwen (1.78.0): met vastgezette agents eerst klaarzetten (prepare), anders meteen (renew). "Nu wisselen":
@@ -2945,7 +2945,7 @@ switch ($action) {
     case 'agent_cert_cancel':
         if (OwnCert::next()) {
             save_setting('own_cert_next', '');
-            AgentCommands::audit($user['username'], 'Klaargezet certificaat van RzMon geannuleerd', '');
+            AgentCommands::audit($user['username'], 'Klaargezet certificaat van RzSense geannuleerd', '');
         }
         out(['ok' => true]);
 
@@ -3527,13 +3527,13 @@ switch ($action) {
         // Eén testmelding door alle kanalen die aan staan, met de opgeslagen instellingen
         session_write_close();
         $res = [];
-        $title = '🧪 RzMon: ' . t('test van de meldketen');
+        $title = '🧪 RzSense: ' . t('test van de meldketen');
         $body = t('Als je dit ziet, werkt dit kanaal. Verstuurd op {time}.', ['time' => date('d-m-Y H:i:s')]);
         $res['pushover'] = setting('pushover_enabled', '0') === '1' ? Pushover::send($title, $body, 0) : null;
         $res['ntfy'] = setting('ntfy_enabled', '0') === '1' ? Ntfy::send($title, $body, 0) : null;
         $res['email'] = setting('email_enabled', '0') === '1' ? Mailer::send($title, $body) : null;
         if (setting('ha_webhook_enabled', '0') === '1') {
-            $fake = ['id' => 0, 'hid' => 0, 'host_name' => 'RzMon', 'name' => t('Testmelding'), 'type' => 'ping', 'target' => ''];
+            $fake = ['id' => 0, 'hid' => 0, 'host_name' => 'RzSense', 'name' => t('Testmelding'), 'type' => 'ping', 'target' => ''];
             $res['webhook'] = Webhook::send(Monitor::webhookPayload($fake, ['value' => null], STATUS_OK, $title, $body, 'test', STATUS_OK));
         } else {
             $res['webhook'] = null;
@@ -3979,8 +3979,8 @@ switch ($action) {
         $in = input();
         $url = trim((string) ($in['ha_webhook_url'] ?? '')) ?: null;
         $verify = isset($in['ha_webhook_verify_ssl']) ? $in['ha_webhook_verify_ssl'] === '1' : null;
-        $fake = ['id' => 0, 'hid' => 0, 'host_name' => 'RzMon', 'name' => t('Testmelding'), 'type' => 'ping', 'target' => ''];
-        $res = Webhook::send(Monitor::webhookPayload($fake, ['value' => null], STATUS_OK, '🧪 RzMon test',
+        $fake = ['id' => 0, 'hid' => 0, 'host_name' => 'RzSense', 'name' => t('Testmelding'), 'type' => 'ping', 'target' => ''];
+        $res = Webhook::send(Monitor::webhookPayload($fake, ['value' => null], STATUS_OK, '🧪 RzSense test',
             t('Als je dit in Home Assistant ziet, werkt de webhook! 🎉'), 'test', STATUS_OK), $url, $verify);
         out($res, $res['ok'] ? 200 : 422);
 
@@ -3994,7 +3994,7 @@ switch ($action) {
             }
         }
         session_write_close();
-        $res = Mailer::send('🧪 RzMon test', t('Als je dit leest, werken e-mailmeldingen van RzMon! 🎉') . "\n\n" . t('Verstuurd op {time}.', ['time' => date('d-m-Y H:i:s')]), $cfg);
+        $res = Mailer::send('🧪 RzSense test', t('Als je dit leest, werken e-mailmeldingen van RzSense! 🎉') . "\n\n" . t('Verstuurd op {time}.', ['time' => date('d-m-Y H:i:s')]), $cfg);
         out($res, $res['ok'] ? 200 : 422);
 
     case 'mqtt_test':
@@ -4016,7 +4016,7 @@ switch ($action) {
         $in = input();
         $token = ($in['pushover_token'] ?? '') === '••••••••' || ($in['pushover_token'] ?? '') === ''
             ? (string) setting('pushover_token', '') : (string) $in['pushover_token'];
-        $res = Pushover::send('🧪 RzMon test', t('Als je dit leest werkt Pushover! 🎉'), 0,
+        $res = Pushover::send('🧪 RzSense test', t('Als je dit leest werkt Pushover! 🎉'), 0,
             trim((string) ($in['pushover_user'] ?? '')) ?: null, $token ?: null);
         out($res, $res['ok'] ? 200 : 422);
 
@@ -4025,7 +4025,7 @@ switch ($action) {
         $in = input();
         $tok = (string) ($in['ntfy_token'] ?? '');
         session_write_close();
-        $res = Ntfy::send('🧪 RzMon test', t('Als je dit leest werkt ntfy! 🎉'), 0, [], [
+        $res = Ntfy::send('🧪 RzSense test', t('Als je dit leest werkt ntfy! 🎉'), 0, [], [
             'server' => (string) ($in['ntfy_server'] ?? ''), 'topic' => (string) ($in['ntfy_topic'] ?? ''),
             'token' => $tok === '••••••••' ? (string) setting('ntfy_token', '') : trim($tok)]);
         out($res, $res['ok'] ? 200 : 422);
@@ -4089,7 +4089,7 @@ switch ($action) {
     // ---------- Beheer via https (1.68.0): beheeradres, alleen https, inloggen via http weigeren, 2FA van buiten ----------
     case 'https_info':
         $state = json_decode((string) setting('https_state', ''), true) ?: [];
-        // Het IP-adres van RzMon zelf (voor de nooddeur), zoals de browser of proxy het bereikte
+        // Het IP-adres van RzSense zelf (voor de nooddeur), zoals de browser of proxy het bereikte
         $sa = (string) ($_SERVER['SERVER_ADDR'] ?? '');
         if (filter_var($sa, FILTER_VALIDATE_IP) && !ip_in_list($sa, ['127.0.0.0/8', '::1/128']) && ($state['server_ip'] ?? '') !== $sa) {
             $state['server_ip'] = $sa;
@@ -4136,19 +4136,19 @@ switch ($action) {
         if ($only && (!$was['only'] || $urlChanged)) {
             // Alleen aanzetten als het nu al werkt: je zit via het beheeradres met https, en het certificaat klopt
             if (!Https::onAdminUrl($url)) {
-                out(['error' => t('Open RzMon eerst via {url} en zet het daar aan. Zo weet je zeker dat het werkt voordat http dicht gaat.', ['url' => $url])
+                out(['error' => t('Open RzSense eerst via {url} en zet het daar aan. Zo weet je zeker dat het werkt voordat http dicht gaat.', ['url' => $url])
                     . (Https::proxyNoProto() ? ' ' . t('Je proxy meldt geen https (X-Forwarded-Proto ontbreekt).') : '')
                     . (Https::unknownProxy() ? ' ' . t('Je komt via een proxy die niet bij Vertrouwde proxy\'s staat.') : '')], 422);
             }
             $s = Https::check(false, $url);
             if ($s['problem'] !== null) {
                 Https::check();
-                out(['error' => t('Niet aangezet: {p}. RzMon controleert het certificaat zelf; kan de RzMon-server {url} niet bereiken, zet de DNS-rewrite dan ook voor de RzMon-server (of een regel in /etc/hosts).', ['p' => $s['problem'], 'url' => $url])], 422);
+                out(['error' => t('Niet aangezet: {p}. RzSense controleert het certificaat zelf; kan de RzSense-server {url} niet bereiken, zet de DNS-rewrite dan ook voor de RzSense-server (of een regel in /etc/hosts).', ['p' => $s['problem'], 'url' => $url])], 422);
             }
             save_setting('https_since', now());
         }
         if ($block && !$was['block'] && !Https::isHttps()) {
-            out(['error' => t('Zet dit aan terwijl je RzMon via https open hebt; anders sluit je jezelf nu buiten')], 422);
+            out(['error' => t('Zet dit aan terwijl je RzSense via https open hebt; anders sluit je jezelf nu buiten')], 422);
         }
         if ($mfa && !$was['mfa'] && !Https::internal()
             && !q("SELECT totp_secret IS NOT NULL AND totp_secret <> '' FROM users WHERE id = ?", [$user['id']])->fetchColumn()) {
@@ -4920,7 +4920,7 @@ switch ($action) {
         $mac = (string) q('SELECT mac FROM net_devices WHERE id = ?', [(int) ($_GET['id'] ?? 0)])->fetchColumn();
         out($mac !== '' ? NetLinks::unifiDpi($mac) : ['cats' => [], 'error' => t('Geen MAC-adres bekend')]);
 
-    case 'net_adopt':   // 1.183.0: apparaat met één klik in RzMon, met de gekozen checks
+    case 'net_adopt':   // 1.183.0: apparaat met één klik in RzSense, met de gekozen checks
         $in = input();
         try {
             $hid = NetDiscover::adopt((int) ($in['id'] ?? 0), (array) ($in['checks'] ?? []), (string) ($in['name'] ?? ''), (string) $user['username']);
@@ -5371,7 +5371,7 @@ switch ($action) {
             'hosts' => $hosts,
             'incidents' => $incs = q('SELECT i.*, h.name AS host_name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id
                               WHERE i.created_at >= CURDATE() - INTERVAL ? DAY OR i.status = \'open\' ORDER BY i.created_at DESC, i.id DESC LIMIT 5000', [$days - 1])->fetchAll(),
-            'prot' => Protect::describeAll($incs),   // 1.115.0: per incident de kaart en wat RzMon deed
+            'prot' => Protect::describeAll($incs),   // 1.115.0: per incident de kaart en wat RzSense deed
             'blocks' => Ids::readable($blocks),
             'removed' => Ids::readable(q('SELECT b.*, h.name AS host_name FROM ids_blocks b JOIN hosts h ON h.id = b.host_id
                             WHERE b.removed_at IS NOT NULL OR (b.until IS NOT NULL AND b.until <= NOW()) ORDER BY COALESCE(b.removed_at, b.until) DESC LIMIT 30')->fetchAll()),
@@ -5631,10 +5631,10 @@ switch ($action) {
         if (!($ih = q("SELECT address, agent_ips FROM hosts WHERE id = ? AND mode = 'agent'", [$hid])->fetch())) {
             out(['error' => t('Kies een server met agent')], 422);
         }
-        // 1.105.2: de RzMon-server zelf isoleren legt alle checks stil (ping, SNMP, poorten naar andere netwerken)
+        // 1.105.2: de RzSense-server zelf isoleren legt alle checks stil (ping, SNMP, poorten naar andere netwerken)
         foreach (array_merge([(string) $ih['address']], parse_list((string) $ih['agent_ips'])) as $a) {
             if ($a !== '' && NetScan::isOwnIp(filter_var($a, FILTER_VALIDATE_IP) ? $a : (string) gethostbyname($a))) {
-                out(['error' => t('Dit is de RzMon-server zelf: isoleren zou al je checks stilleggen')], 422);
+                out(['error' => t('Dit is de RzSense-server zelf: isoleren zou al je checks stilleggen')], 422);
             }
         }
         $why = '';
@@ -5730,7 +5730,7 @@ switch ($action) {
         }
         out(['ok' => true]);
 
-    // ---------------------------------------------------------- RzMon bijwerken
+    // ---------------------------------------------------------- RzSense bijwerken
     case 'update_info':
         $cache = Updater::check(!empty($_GET['force']));
         out([
@@ -5784,7 +5784,7 @@ switch ($action) {
             $r = Installer::rotateDbPassword();
             out($r, $r['ok'] ? 200 : 422);
         }
-        out(['error' => t('De RzMon-map is vergrendeld en de hulpdienst is niet geïnstalleerd'), 'need_helper' => true], 409);
+        out(['error' => t('De RzSense-map is vergrendeld en de hulpdienst is niet geïnstalleerd'), 'need_helper' => true], 409);
 
     case 'db_rotate_status':
         $p = $_SESSION['db_rotate'] ?? null;

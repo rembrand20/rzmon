@@ -433,7 +433,7 @@ final class Exceptions
             if ($type === 'edr' && in_array($rule, self::NEVER_RULES, true)) {
                 continue;
             }
-            // Van RzMon of de agent zelf (van vóór 1.132.0 / agent 1.67.0; die herkennen ze nu vanzelf): geen voorstel
+            // Van RzSense of de agent zelf (van vóór 1.132.0 / agent 1.67.0; die herkennen ze nu vanzelf): geen voorstel
             $txt = $r['dkey'] . ' ' . $r['detail'];
             if (preg_match('~X-Agent-|rzmon-agent|rzmon:|/var/cache/rzmon-agent~', $txt) || str_contains($txt, SM_ROOT . '/')) {
                 continue;
@@ -533,7 +533,7 @@ final class Exceptions
         return $n;
     }
 
-    /** Exporteren (servers op naam, zodat het ook op een andere RzMon past) */
+    /** Exporteren (servers op naam, zodat het ook op een andere RzSense past) */
     public static function export(): array
     {
         return ['rzmon' => RZMON_VERSION, 'kind' => 'exceptions', 'exceptions' => array_map(static fn($r) => [

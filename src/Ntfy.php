@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * ntfy (1.140.0): pushmeldingen via ntfy.sh of een eigen ntfy-server. Naast of in plaats van Pushover; samen heten ze
- * in RzMon "Push" (zie Push). Verstuurd als JSON naar de server (dan kan er gewoon een emoji in de titel).
+ * in RzSense "Push" (zie Push). Verstuurd als JSON naar de server (dan kan er gewoon een emoji in de titel).
  * Prioriteit volgt de Pushover-schaal: -2..2 wordt 1..5 (2 = emergency = 5, "max").
  * Toegang (optioneel): een token (tk_…) of gebruiker:wachtwoord.
  */

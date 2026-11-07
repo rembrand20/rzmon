@@ -1,13 +1,13 @@
-# ---------------------------------------------------------------- Instellingen uit RzMon en de tik
-# Wat in RzMon is ingesteld: welke services bewaakt worden (service-checks), extra tests (URL/poort),
+# ---------------------------------------------------------------- Instellingen uit RzSense en de tik
+# Wat in RzSense is ingesteld: welke services bewaakt worden (service-checks), extra tests (URL/poort),
 # de eigen poorten of sockets van een service, de logzoekopdrachten, de intervallen per check en de tik.
-# De lijst wordt elke 10 minuten bij RzMon opgehaald, en meteen als RzMon meldt dat er iets veranderd is
-# (tests_rev in het antwoord). Commando's van RzMon worden alleen uitgevoerd bij commando-checks, als RzMon
+# De lijst wordt elke 10 minuten bij RzSense opgehaald, en meteen als RzSense meldt dat er iets veranderd is
+# (tests_rev in het antwoord). Commando's van RzSense worden alleen uitgevoerd bij commando-checks, als RzSense
 # ze voor deze server toestaat en COMMANDS (hierboven) dat niet blokkeert; zie "Commando-checks" verderop.
 if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ -e "$t_dir/tests.stale" ] || [ $(( $(date +%s) - $(stat -c %Y "$t_cache") )) -ge 600 ]; then
     get_auth agent_tests
     t_k=("${tls[@]}" "${ga[@]}"); t_n=$get_n
-    # Alleen een complete lijst bewaren (met de vaste regel "0 <tab> tick"). Geeft RzMon iets anders terug,
+    # Alleen een complete lijst bewaren (met de vaste regel "0 <tab> tick"). Geeft RzSense iets anders terug,
     # bijvoorbeeld tijdens een update, dan blijft de vorige lijst staan: anders zou de agent denken dat het
     # IDS uit staat en de blokkades opheffen.
     # Met een sleutel moet de lijst versleuteld terugkomen; anders is hij niet te vertrouwen
@@ -17,7 +17,7 @@ if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ -e "$t_dir/tests.stale" ] || [ $(
         (umask 077; printf '%s\n' "$t_list" >"$t_cache") 2>/dev/null && rm -f "$t_dir/tests.stale"
     fi
 fi
-# Tik: hoe vaak er een rapport uitgaat (regel "0 <tab> tick <tab> seconden", per server in RzMon in te stellen;
+# Tik: hoe vaak er een rapport uitgaat (regel "0 <tab> tick <tab> seconden", per server in RzSense in te stellen;
 # anders INTERVAL). De timer start de agent vaker (elke 30 s); is de tik nog niet om, dan meteen stoppen.
 tick=$(awk -F'\t' '$1 == "0" && $2 == "tick" { print $3; exit }' "$t_cache" 2>/dev/null)
 [[ "$tick" =~ ^[0-9]+$ ]] && [ "$tick" -ge 30 ] || tick=${INTERVAL:-60}
@@ -41,7 +41,7 @@ fi
 touch "$t_dir/last.run" 2>/dev/null
 run_t0=$(now_ms)
 # Agent 1.69.0: duurt deze run langer dan de tik (een trage check, een druk systeem), dan elke tik een kleine hartslag
-# "ik ben bezig" naar RzMon. Zo is de agent niet "stil" terwijl hij gewoon werkt; zijn gegevens blijven tot het rapport komt.
+# "ik ben bezig" naar RzSense. Zo is de agent niet "stil" terwijl hij gewoon werkt; zijn gegevens blijven tot het rapport komt.
 beat_pid=""
 if [ "$TEST" != 1 ] && [ "${RZ_NO_BEAT-}" != 1 ]; then
     (
@@ -60,7 +60,7 @@ if [ "$TEST" != 1 ] && [ "${RZ_NO_BEAT-}" != 1 ]; then
     ) 9>&- </dev/null >/dev/null 2>&1 &   # 1.73.0: zonder de run-vergrendeling (fd 9), anders houdt zijn sleep die vast
     beat_pid=$!
 fi
-# Agent 1.69.0: hoe lang elk onderdeel duurde (gaat mee naar RzMon: Agent Manager toont wat traag is)
+# Agent 1.69.0: hoe lang elk onderdeel duurde (gaat mee naar RzSense: Agent Manager toont wat traag is)
 lap_t=$run_t0; lap_name=""; laps=""
 lap() { local t; t=$(now_ms); [ -n "$lap_name" ] && laps+="\"$lap_name\":$(( t - lap_t )),"; lap_name=$1; lap_t=$t; }
 # Agent 1.67.0: PID van deze run, zodat de endpoint-bewaking wat de agent start als "van de agent" herkent (de laatste 8)
@@ -185,7 +185,7 @@ if command -v ss >/dev/null 2>&1; then
     }')
 fi
 
-# Wat in RzMon is ingesteld (zie "Instellingen uit RzMon" bovenaan): hier alleen de regels voor services.
+# Wat in RzSense is ingesteld (zie "Instellingen uit RzSense" bovenaan): hier alleen de regels voor services.
 declare -A manual_ports=()
 declare -A ival_by_id=()   # interval per check (s), voor zware onderdelen: diepere controle, extra tests, logs
 rz_services=""
@@ -204,14 +204,14 @@ done <"$t_cache"
 due_cached() {  # due_cached <bestand> <interval>: 0 = vorige uitkomst is nog vers genoeg (niet opnieuw doen)
     [ -n "$2" ] && [ -s "$1" ] && [ $(( $(date +%s) - $(stat -c %Y "$1") )) -lt $(( $2 - 5 )) ]
 }
-# Te bewaken services: die met een service-check in RzMon, plus (verouderd) SERVICES uit de instellingen
+# Te bewaken services: die met een service-check in RzSense, plus (verouderd) SERVICES uit de instellingen
 svc_all=$(printf '%s\n' $SERVICES $rz_services | awk 'NF && !seen[$0]++' | tr '\n' ' ')
 
 # ---------------------------------------------------------------- Zelf herstellen (agent 1.62.0)
 lap heal
-# Per check in RzMon aan te zetten (✎ → 🩹 Zelf herstellen). Een service of container die niet draait, herstart de
-# agent hier, vóór het rapport: lukt dat, dan blijft de check in RzMon OK en komt er een ℹ️-melding; lukt het niet, dan
-# gaat de gewone melding uit. Een eigen herstelcommando (HEAL_DIR) start de agent alleen op verzoek van RzMon, in een
+# Per check in RzSense aan te zetten (✎ → 🩹 Zelf herstellen). Een service of container die niet draait, herstart de
+# agent hier, vóór het rapport: lukt dat, dan blijft de check in RzSense OK en komt er een ℹ️-melding; lukt het niet, dan
+# gaat de gewone melding uit. Een eigen herstelcommando (HEAL_DIR) start de agent alleen op verzoek van RzSense, in een
 # versleuteld antwoord, als die check misgaat (zie "Versturen"). Hooguit één poging per 10 minuten en 3 per dag per check.
 heal_dir="$t_dir/heal"
 heal_ok() {  # heal_ok <check-id>: mag er nu een poging?
@@ -287,7 +287,7 @@ if [ "$HA_MODE" = 1 ]; then
         jq -e '.data.update_available == true' <<<"$p_info" >/dev/null 2>&1 && plugin_upd+=" Plugin-$p"
     done
 
-    # Beschikbare updates (Core, Supervisor, OS, plugins en add-ons) → WARNING in RzMon
+    # Beschikbare updates (Core, Supervisor, OS, plugins en add-ons) → WARNING in RzSense
     updates=$( {
         sv /core/info | jq -r 'select(.data.update_available) | "Core \(.data.version_latest)"'
         jq -r 'select(.data.update_available) | "Supervisor"' <<<"$sup_info"
@@ -307,7 +307,7 @@ else
     done
 fi
 
-# Overzicht van de services op deze server (aan bij het opstarten, of draaiend), om in RzMon uit te kiezen.
+# Overzicht van de services op deze server (aan bij het opstarten, of draaiend), om in RzSense uit te kiezen.
 # Formaat: [naam, status, enabled]
 svc_list=""
 if [ "$HA_MODE" = 0 ] && command -v systemctl >/dev/null 2>&1; then

@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * TrueNAS SCALE (RzMon 1.174.0, agent 1.77.0).
+ * TrueNAS SCALE (RzSense 1.174.0, agent 1.77.0).
  *
  * - Herkennen: de agent start via een cronjob van TrueNAS (cfg.sched = truenas), stuurt een truenas-blok mee,
  *   of de softwarelijst noemt TrueNAS als besturingssysteem.

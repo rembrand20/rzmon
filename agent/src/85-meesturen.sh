@@ -1,6 +1,6 @@
 # ---------------------------------------------------------------- Benodigdheden voor realtime (elk uur)
 lap rt_tools
-# Is inotify-tools er (bestanden in realtime), en op Rocky/Alma/RHEL: staat EPEL erop? RzMon toont het in de Agent Manager.
+# Is inotify-tools er (bestanden in realtime), en op Rocky/Alma/RHEL: staat EPEL erop? RzSense toont het in de Agent Manager.
 tools_json=""
 if [ "$HA_MODE" = 0 ] && [ -n "${INVOCATION_ID-}" ]; then   # alleen met systemd (realtime werkt niet via cron)
     tf="$t_dir/tools.json"
@@ -55,7 +55,7 @@ fi
 # ---------------------------------------------------------------- Zelf herstellen en waakhond: meesturen
 lap heal_report
 # Uitkomsten van herstelpogingen (weg na een geslaagd rapport), de herstelcommando's die hier staan, en een periode
-# waarin de waakhond RzMon niet bereikte
+# waarin de waakhond RzSense niet bereikte
 heal_json=""; heal_cmds=""
 if [ -s "$heal_dir/done" ]; then
     mv -f "$heal_dir/done" "$heal_dir/done.sending" 2>/dev/null

@@ -1,6 +1,6 @@
 <?php
 /**
- * RzMon setup: database, applicatie- en PHP-instellingen, eerste beheerder.
+ * RzSense setup: database, applicatie- en PHP-instellingen, eerste beheerder.
  *
  * Toegang:
  *  - Nog niet geïnstalleerd (of database onbereikbaar): alleen vanaf een privé-netwerk (LAN/localhost).
@@ -49,7 +49,7 @@ if ($installed) {
     exit;
 } elseif (!is_private_client()) {
     http_response_code(403);
-    exit(t('Setup is alleen bereikbaar vanaf het lokale netwerk zolang RzMon niet volledig is ingesteld.'));
+    exit(t('Setup is alleen bereikbaar vanaf het lokale netwerk zolang RzSense niet volledig is ingesteld.'));
 }
 
 // ---------- JSON acties ----------
@@ -116,7 +116,7 @@ $v = filemtime(__DIR__ . '/assets/setup.js') . filemtime(__DIR__ . '/assets/app.
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="<?= $e($csrf) ?>">
-  <title>RzMon Setup</title>
+  <title>RzSense Setup</title>
   <?= Brand::head() ?>
   <link rel="stylesheet" href="assets/app.css?v=<?= $v ?>">
   <script nonce="<?= csp_nonce() ?>">try{const t=localStorage.getItem('rzmon-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
@@ -128,7 +128,7 @@ $v = filemtime(__DIR__ . '/assets/setup.js') . filemtime(__DIR__ . '/assets/app.
 
   <main class="container setup">
       <div class="card intro">
-        <h2><?= th('Welkom bij RzMon 👋') ?></h2>
+        <h2><?= th('Welkom bij RzSense 👋') ?></h2>
         <p class="muted"><?= th('Loop de stappen hieronder door: database koppelen, instellingen kiezen en een beheerder aanmaken. Deze pagina is alleen bereikbaar vanaf je lokale netwerk zolang de installatie niet klaar is.') ?></p>
         <?php if (is_configured() && $dbError): ?><p class="form-error"><?= th('Database niet bereikbaar:') ?> <?= $e($dbError) ?></p><?php endif; ?>
       </div>
@@ -191,7 +191,7 @@ $v = filemtime(__DIR__ . '/assets/setup.js') . filemtime(__DIR__ . '/assets/app.
         <label>max_execution_time <span class="hint"><?= th('sec') ?></span><input name="max_execution_time" value="<?= $e($cfg['php']['max_execution_time'] ?? '') ?>" placeholder="<?= th('bv. 120') ?>"></label>
       </div>
       <label class="switch"><input type="checkbox" name="display_errors" <?= ($cfg['php']['display_errors'] ?? '0') === '1' ? 'checked' : '' ?>><span></span> <?= th('display_errors (PHP-fouten op het scherm tonen)') ?></label>
-      <p class="hint"><?= t('Deze PHP-waarden past RzMon zelf toe (via <code>ini_set</code>). Leeg = waarde uit php.ini. Zet display_errors alleen aan bij het debuggen.') ?></p>
+      <p class="hint"><?= t('Deze PHP-waarden past RzSense zelf toe (via <code>ini_set</code>). Leeg = waarde uit php.ini. Zet display_errors alleen aan bij het debuggen.') ?></p>
       <p class="form-error" hidden></p>
       <button class="btn primary"><?= th('Opslaan') ?></button>
     </form>

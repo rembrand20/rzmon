@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  RzMon – installatiescript voor Rocky Linux 10 (ook RHEL 10 / AlmaLinux 10)
+#  RzSense – installatiescript voor Rocky Linux 10 (ook RHEL 10 / AlmaLinux 10)
 #
 #  Installeert en configureert in één keer:
 #    httpd (+ mod_ssl), PHP-FPM 8.3 + extensies, MariaDB, cron, firewalld-regels,
-#    SELinux-instellingen, de RzMon-code, database + gebruiker, config.php,
+#    SELinux-instellingen, de RzSense-code, database + gebruiker, config.php,
 #    tabellen, Apache-vhost en de cronjob. Daarna maak je in de browser alleen
 #    nog de beheerder aan.
 #
@@ -54,7 +54,7 @@ trap 'die "Fout op regel $LINENO (zie $LOG_FILE). Het script kan veilig opnieuw 
 
 usage() {
     cat <<EOF
-RzMon installatiescript voor Rocky Linux 10 / RHEL 10 / AlmaLinux 10
+RzSense installatiescript voor Rocky Linux 10 / RHEL 10 / AlmaLinux 10
 
 Gebruik: sudo bash install-rocky.sh [opties]
 
@@ -195,7 +195,7 @@ fi
 
 # ----------------------------------------------------------------- bevestigen
 exec > >(tee -a "$LOG_FILE") 2>&1
-printf '%sRzMon installatie op %s%s\n' "$C_HEAD" "${PRETTY_NAME}" "$C_OFF"
+printf '%sRzSense installatie op %s%s\n' "$C_HEAD" "${PRETTY_NAME}" "$C_OFF"
 info "Logbestand: $LOG_FILE"
 cat <<EOF
 
@@ -245,7 +245,7 @@ ok "PHP $php_version met pdo_mysql, curl en mbstring"
 # ----------------------------------------------------------------- 2. PHP
 step "2/9 PHP instellen"
 cat > /etc/php.d/90-rzmon.ini <<EOF
-; RzMon – aangemaakt door install-rocky.sh
+; RzSense – aangemaakt door install-rocky.sh
 date.timezone = $TIMEZONE
 expose_php = Off
 display_errors = Off
@@ -289,7 +289,7 @@ SQL
 ok "Database '$DB_NAME' en gebruiker '$DB_USER'@'localhost' klaar $db_pass_note"
 
 # ----------------------------------------------------------------- 5. code
-step "5/9 RzMon ophalen"
+step "5/9 RzSense ophalen"
 old_version=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || true)
 if [ -d "$INSTALL_DIR/.git" ]; then
     # Na de setup kan de map (tijdelijk) van apache zijn; git als root wil een root-map
@@ -303,16 +303,16 @@ if [ -d "$INSTALL_DIR/.git" ]; then
     gitc -C "$INSTALL_DIR" pull --quiet --ff-only origin "$BRANCH"
     new_version=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "?")
     if [ -n "$old_version" ] && [ "$old_version" != "$new_version" ]; then
-        ok "RzMon bijgewerkt van $old_version naar $new_version (zie CHANGELOG.md)"
+        ok "RzSense bijgewerkt van $old_version naar $new_version (zie CHANGELOG.md)"
     else
-        ok "RzMon $new_version is de nieuwste versie"
+        ok "RzSense $new_version is de nieuwste versie"
     fi
 elif [ -e "$INSTALL_DIR" ] && [ -n "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]; then
     die "$INSTALL_DIR bestaat al en is geen git-checkout. Kies een andere map met --dir of maak hem leeg."
 else
     mkdir -p "$(dirname "$INSTALL_DIR")"
     gitc clone --quiet --branch "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
-    ok "RzMon $(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo '?') gekloond uit $REPO_URL"
+    ok "RzSense $(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo '?') gekloond uit $REPO_URL"
 fi
 
 chown -R root:"$WEB_USER" "$INSTALL_DIR"
@@ -418,7 +418,7 @@ EOF
 }
 
 {
-    echo "# RzMon – aangemaakt door install-rocky.sh"
+    echo "# RzSense – aangemaakt door install-rocky.sh"
     echo "<VirtualHost *:80>"
     echo "    ServerName $SERVER_NAME"
     [ -n "$ip_addr" ] && echo "    ServerAlias $ip_addr"
@@ -470,15 +470,15 @@ fi
 
 # ----------------------------------------------------------------- 9. cron
 step "9/9 Cron"
-printf '# RzMon – checks elke minuut\n* * * * * %s /usr/bin/php %s/cron/run.php >/dev/null 2>&1\n' "$WEB_USER" "$INSTALL_DIR" > /etc/cron.d/rzmon
+printf '# RzSense – checks elke minuut\n* * * * * %s /usr/bin/php %s/cron/run.php >/dev/null 2>&1\n' "$WEB_USER" "$INSTALL_DIR" > /etc/cron.d/rzmon
 chmod 644 /etc/cron.d/rzmon
 ok "/etc/cron.d/rzmon (als gebruiker $WEB_USER)"
 if [ "$WRITE_CONFIG" -eq 1 ]; then
     as_web php "$INSTALL_DIR/cron/run.php" >/dev/null && ok "Eerste testrun van de checks geslaagd"
 fi
-# Hulpdienst: laat "Databasewachtwoord vernieuwen" in RzMon werken terwijl de map vergrendeld is
+# Hulpdienst: laat "Databasewachtwoord vernieuwen" in RzSense werken terwijl de map vergrendeld is
 if bash "$INSTALL_DIR/install/install-helper.sh" --group "$WEB_USER" >/dev/null; then
-    ok "Hulpdienst rzmon-helper (databasewachtwoord vernieuwen vanuit RzMon)"
+    ok "Hulpdienst rzmon-helper (databasewachtwoord vernieuwen vanuit RzSense)"
 else
     warn "Hulpdienst niet geïnstalleerd; databasewachtwoord vernieuwen kan via: sudo php $INSTALL_DIR/install/install.php --rotate-db-password"
 fi
@@ -488,14 +488,14 @@ http_code=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: $SERVER_NAME" http:
 conf_code=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: $SERVER_NAME" http://127.0.0.1/config.php || true)
 [ "$conf_code" = "404" ] && ok "config.php is niet via het web bereikbaar (404)" || warn "config.php gaf HTTP $conf_code (verwacht 404)"
 case "$http_code" in
-    200|302) ok "RzMon antwoordt (HTTP $http_code)" ;;
-    *) warn "RzMon gaf HTTP $http_code; kijk in /var/log/httpd/rzmon_error.log" ;;
+    200|302) ok "RzSense antwoordt (HTTP $http_code)" ;;
+    *) warn "RzSense gaf HTTP $http_code; kijk in /var/log/httpd/rzmon_error.log" ;;
 esac
 
 # ----------------------------------------------------------------- samenvatting
 url="http://${ip_addr:-$SERVER_NAME}/"
 {
-    echo "RzMon installatie – $(date '+%Y-%m-%d %H:%M')"
+    echo "RzSense installatie – $(date '+%Y-%m-%d %H:%M')"
     echo "URL            : $url"
     [ "$WITH_HTTPS" -eq 1 ] && echo "HTTPS          : https://${ip_addr:-$SERVER_NAME}/ (self-signed)"
     echo "Installatiemap : $INSTALL_DIR"
@@ -509,7 +509,7 @@ chmod 600 "$SUMMARY_FILE"
 cat <<EOF
 
 ${C_OK}════════════════════════════════════════════════════════════════════${C_OFF}
-${C_OK}  RzMon $(cat "$INSTALL_DIR/VERSION" 2>/dev/null) is geïnstalleerd 🎉${C_OFF}
+${C_OK}  RzSense $(cat "$INSTALL_DIR/VERSION" 2>/dev/null) is geïnstalleerd 🎉${C_OFF}
 ${C_OK}════════════════════════════════════════════════════════════════════${C_OFF}
 
   1. Open vanaf een computer op je lokale netwerk:

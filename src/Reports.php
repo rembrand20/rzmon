@@ -196,7 +196,7 @@ final class Reports
         try {
             Ai::ask('week', (int) date('oW'), 'auto', false, true);
         } catch (Throwable $e) {
-            error_log('RzMon: AI-weekoverzicht: ' . $e->getMessage());
+            error_log('RzSense: AI-weekoverzicht: ' . $e->getMessage());
         }
     }
 
@@ -223,7 +223,7 @@ final class Reports
                     $secs[$p] = ['title' => self::label($p), 'text' => t('Niet beschikbaar: {e}', ['e' => $e->getMessage()]), 'html' => '', 'short' => ''];
                 }
             }
-            $subject = t('RzMon-maandoverzicht {m}', ['m' => self::month(date('Y-m', strtotime('first day of last month')))]);
+            $subject = t('RzSense-maandoverzicht {m}', ['m' => self::month(date('Y-m', strtotime('first day of last month')))]);
             $text = implode("\n\n", array_map(static fn($s) => '== ' . $s['title'] . " ==\n" . $s['text'], $secs));
             $short = implode(' · ', array_filter(array_map(static fn($s) => $s['short'], $secs)));
             $short = mb_strlen($short) > 300 ? rtrim(mb_substr($short, 0, 299)) . '…' : $short;
@@ -258,14 +258,14 @@ final class Reports
             case 'ai_week':
                 $a = q("SELECT answer, created_at FROM ai_advice WHERE kind = 'week' AND status = 'done' ORDER BY id DESC LIMIT 1")->fetch() ?: ['answer' => '', 'created_at' => ''];
                 $sum = Ai::section((string) $a['answer'], ['Samenvatting', 'Summary'], 300);
-                return ['title' => self::label($k), 'subject' => '📅 ' . t('Weekoverzicht van RzMon'), 'text' => (string) $a['answer'], 'html' => self::md((string) $a['answer']), 'short' => $sum];
+                return ['title' => self::label($k), 'subject' => '📅 ' . t('Weekoverzicht van RzSense'), 'text' => (string) $a['answer'], 'html' => self::md((string) $a['answer']), 'short' => $sum];
             case 'month':
                 $r = Analytics::report("$from..$to");
                 $k2 = $r['kpi'];
                 $av = $k2['avail'][0] ?? null;
                 $short = t('Beschikbaar {a} · {i} storingen · {n} meldingen', ['a' => $av !== null ? I18n::dec((string) round((float) $av, 2)) . '%' : '–',
                     'i' => (int) ($k2['incidents'][0] ?? 0), 'n' => (int) ($k2['alerts'][0] ?? 0)]);
-                return ['title' => self::label($k) . ' · ' . $when, 'subject' => t('RzMon-maandrapport {m}', ['m' => self::month(substr($from, 0, 7))]),
+                return ['title' => self::label($k) . ' · ' . $when, 'subject' => t('RzSense-maandrapport {m}', ['m' => self::month(substr($from, 0, 7))]),
                     'text' => Analytics::monthlyTextFor($r, substr($from, 0, 7)), 'html' => Report::html("$from..$to", true), 'short' => $short];
             case 'vulns':
                 return self::partVulns($when, $e);
@@ -486,7 +486,7 @@ final class Reports
         }
         return '<!doctype html><html lang="' . $e(I18n::lang()) . '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' . $e($title) . '</title><style>'
             . Report::css() . self::css() . '</style></head><body><main><h1>' . $e($title) . '</h1>' . $body
-            . '<footer>' . $e(t('Verstuurd door RzMon {v}', ['v' => RZMON_VERSION])) . ($base !== '' ? ' · <a href="' . $e($base) . '/">' . $e($base) . '</a>' : '') . ' · '
+            . '<footer>' . $e(t('Verstuurd door RzSense {v}', ['v' => RZMON_VERSION])) . ($base !== '' ? ' · <a href="' . $e($base) . '/">' . $e($base) . '</a>' : '') . ' · '
             . $e(t('Instellen: Instellingen → Rapporten')) . '</footer></main></body></html>';
     }
 

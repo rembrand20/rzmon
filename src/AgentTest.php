@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 /**
  * 1.178.0: 🧪 Test in de Agent Manager. Twee delen:
- * - RzMon kijkt meteen naar wat hij al weet: contact, versie, sleutel, versleuteling, https, IP-slot, geweigerde
+ * - RzSense kijkt meteen naar wat hij al weet: contact, versie, sleutel, versleuteling, https, IP-slot, geweigerde
  *   pogingen, bijwerken, de duur van een ronde, en (als SNMP aan staat) een echte SNMP-vraag aan het apparaat;
  * - de agent test zichzelf bij zijn volgende ronde (agent 1.79.0): planning, instellingen, DNS, het adres en het
- *   reserve-adres van RzMon, de klok, vrije ruimte, de wachtrij en fouten in zijn log. Alleen vaste, lezende controles.
+ *   reserve-adres van RzSense, de klok, vrije ruimte, de wachtrij en fouten in zijn log. Alleen vaste, lezende controles.
  * agent_data: selftest_req (de vraag, {id, at}) en selftest (het antwoord van de agent).
  */
 final class AgentTest
@@ -17,7 +17,7 @@ final class AgentTest
     /** Agent die zichzelf kan testen */
     public const AGENT_MIN = '1.79.0';
 
-    /** Test starten: RzMon-deel meteen, het agentdeel bij de volgende ronde */
+    /** Test starten: RzSense-deel meteen, het agentdeel bij de volgende ronde */
     public static function start(int $hostId): int
     {
         $id = (int) (microtime(true) * 1000);
@@ -36,7 +36,7 @@ final class AgentTest
         return $done && (int) ($done['id'] ?? 0) === (int) $rq['id'] ? [] : ["0\tselftest\t" . (int) $rq['id']];
     }
 
-    /** Antwoord van de agent bewaren (met het verschil tussen zijn klok en die van RzMon) */
+    /** Antwoord van de agent bewaren (met het verschil tussen zijn klok en die van RzSense) */
     public static function fromAgent(array $host, array $in): void
     {
         $st = $in['selftest'] ?? null;
@@ -55,7 +55,7 @@ final class AgentTest
         self::put((int) $host['id'], 'selftest', ['id' => (int) $st['id'], 'at' => time(), 'items' => $items, 'skew' => $skew]);
     }
 
-    /** Wat de popup toont: het RzMon-deel, en het agentdeel zodra het er is */
+    /** Wat de popup toont: het RzSense-deel, en het agentdeel zodra het er is */
     public static function result(int $hostId, int $id): ?array
     {
         $h = q('SELECT * FROM hosts WHERE id = ?', [$hostId])->fetch();
@@ -82,8 +82,8 @@ final class AgentTest
     /** Vertaalde titels bij de controles van de agent */
     private static function agentItems(array $done): array
     {
-        $titles = ['sched' => t('Planning (timer of cron)'), 'conf' => t('Instellingenbestand'), 'dns' => t('Naam van RzMon opzoeken (DNS)'),
-            'url' => t('Adres van RzMon'), 'fallback' => t('Reserve-adres'), 'clock' => t('Klok'), 'disk' => t('Vrije ruimte voor de agent'),
+        $titles = ['sched' => t('Planning (timer of cron)'), 'conf' => t('Instellingenbestand'), 'dns' => t('Naam van RzSense opzoeken (DNS)'),
+            'url' => t('Adres van RzSense'), 'fallback' => t('Reserve-adres'), 'clock' => t('Klok'), 'disk' => t('Vrije ruimte voor de agent'),
             'queue' => t('Wachtrij (niet verstuurde rapporten)'), 'log' => t('Fouten in het log (laatste uur)'), 'tools' => t('Hulpprogramma\'s')];
         $out = [];
         foreach ($done['items'] as $it) {
@@ -91,13 +91,13 @@ final class AgentTest
         }
         if ($done['skew'] !== null) {
             $s = abs((int) $done['skew']);
-            $out[] = ['k' => 'skew', 'ok' => $s > 120 ? 'bad' : ($s > 20 ? 'warn' : 'ok'), 't' => t('Klok tegenover RzMon'),
+            $out[] = ['k' => 'skew', 'ok' => $s > 120 ? 'bad' : ($s > 20 ? 'warn' : 'ok'), 't' => t('Klok tegenover RzSense'),
                 'd' => $s <= 5 ? t('gelijk') : t('{n} seconden verschil (inclusief de verzendtijd)', ['n' => $s])];
         }
         return $out;
     }
 
-    /** Wat RzMon zelf weet of meteen kan testen */
+    /** Wat RzSense zelf weet of meteen kan testen */
     private static function serverItems(array $h): array
     {
         $out = [];

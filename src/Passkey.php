@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * Passkeys (WebAuthn, 1.86.0): inloggen met Face ID, vingerafdruk of een beveiligingssleutel, in plaats van wachtwoord
- * en 2FA (die blijven de reserve). De geheime sleutel blijft op het apparaat; RzMon bewaart alleen de openbare sleutel.
+ * en 2FA (die blijven de reserve). De geheime sleutel blijft op het apparaat; RzSense bewaart alleen de openbare sleutel.
  * Een passkey werkt alleen voor het domein waarvoor hij is gemaakt, dus een nep-site kan er niets mee (phishing).
  * Werkt alleen via https met een domeinnaam (of http://localhost). Ondersteund: ES256 en RS256.
  */
@@ -14,7 +14,7 @@ final class Passkey
         return setting('passkeys_enabled', '1') === '1';
     }
 
-    /** Domein (rpId): de hostnaam waarmee RzMon nu geopend is */
+    /** Domein (rpId): de hostnaam waarmee RzSense nu geopend is */
     public static function rpId(): string
     {
         return strtolower((string) preg_replace('/:\d+$/', '', (string) ($_SERVER['HTTP_HOST'] ?? 'localhost')));
@@ -42,7 +42,7 @@ final class Passkey
             q('SELECT cred_id FROM passkeys WHERE user_id = ?', [$user['id']])->fetchAll(PDO::FETCH_COLUMN));
         return [
             'challenge' => self::b64($challenge),
-            'rp' => ['id' => self::rpId(), 'name' => 'RzMon'],
+            'rp' => ['id' => self::rpId(), 'name' => 'RzSense'],
             'user' => ['id' => self::b64('rzmon-user-' . $user['id']), 'name' => $user['username'], 'displayName' => $user['username']],
             'pubKeyCredParams' => [['type' => 'public-key', 'alg' => -7], ['type' => 'public-key', 'alg' => -257]],
             'authenticatorSelection' => ['residentKey' => 'required', 'requireResidentKey' => true, 'userVerification' => 'required'],
@@ -116,7 +116,7 @@ final class Passkey
         $k = q('SELECT p.*, u.username, u.role, u.locked_at, u.locked_until, u.local_only FROM passkeys p JOIN users u ON u.id = p.user_id WHERE p.cred_id = ?',
             [self::b64(self::unb64((string) ($in['id'] ?? '')))])->fetch();
         if (!$k) {
-            return t('Deze passkey is niet (meer) bekend bij RzMon');
+            return t('Deze passkey is niet (meer) bekend bij RzSense');
         }
         $cd = self::unb64((string) ($in['clientDataJSON'] ?? ''));
         $auth = self::unb64((string) ($in['authenticatorData'] ?? ''));

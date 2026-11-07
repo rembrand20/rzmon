@@ -2,10 +2,10 @@
 declare(strict_types=1);
 
 /**
- * Whitelist (1.83.0): wat nooit geblokkeerd wordt. Eén lijst voor heel RzMon:
- * - ip: IP-adres of netwerk; geen IP-blokkade in RzMon (inloggen) en geen IDS-blokkade op welke server dan ook
+ * Whitelist (1.83.0): wat nooit geblokkeerd wordt. Eén lijst voor heel RzSense:
+ * - ip: IP-adres of netwerk; geen IP-blokkade in RzSense (inloggen) en geen IDS-blokkade op welke server dan ook
  *   (ook niet via de lijsten met bekende aanvallers);
- * - user: account in RzMon dat nooit vergrendeld wordt (het IP van de aanvaller wordt wel geblokkeerd);
+ * - user: account in RzSense dat nooit vergrendeld wordt (het IP van de aanvaller wordt wel geblokkeerd);
  * - decoy: naam die geen honeypot-naam is (valt af van de honeypot-namen, op alle servers).
  * Een regel geldt 1, 7 of 30 dagen, of altijd (until NULL). Op de whitelist zetten heft de passende blokkades meteen op.
  */

@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Wat RzMon weet over een IP-adres (1.82.0, pagina 🛡️ IDS):
+ * Wat RzSense weet over een IP-adres (1.82.0, pagina 🛡️ IDS):
  *
  * - Bekende aanvallers: dagelijks de openbare lijsten Spamhaus DROP (IPv4 en IPv6) en FireHOL level 1. In de modus
  *   blokkeren zetten de agents ze in hun firewall; in de modus leren krijgen logins en incidenten het label

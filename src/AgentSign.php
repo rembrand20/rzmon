@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * Ondertekende agent (1.139.0): klopt de handtekening (agent/*.sig, gemaakt in GitHub) bij de agent en het
- * installatiescript die RzMon uitlevert? Met de publieke sleutel die in de agent zelf staat (AGENT_SIGN_PUB).
+ * installatiescript die RzSense uitlevert? Met de publieke sleutel die in de agent zelf staat (AGENT_SIGN_PUB).
  * Voor Status (Instellingen) en de Agent Manager; de agents controleren het zelf bij elke update.
  */
 final class AgentSign
@@ -16,7 +16,7 @@ final class AgentSign
 
     /**
      * @return array{signed: bool, valid: bool, files: array<string, string>, nosodium: bool} per bestand: ok, missing, bad
-     * of unknown (1.147.2: zonder sodium kan RzMon het niet controleren; dat gaf eerder een fatale fout op Status)
+     * of unknown (1.147.2: zonder sodium kan RzSense het niet controleren; dat gaf eerder een fatale fout op Status)
      */
     public static function status(?string $dir = null): array
     {

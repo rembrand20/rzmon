@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Heartbeat-check (1.77.0, "passive check"): een script, cronjob of apparaat meldt zich zelf (ok, start, fail), via de
  * agent (rzmon-hb, versleuteld) of een geheime URL (hb.php). Komt er binnen het schema plus de speling niets binnen,
  * dan WARNING, na twee keer de speling CRITICAL. Een "fail" is altijd CRITICAL tot de volgende "ok". Met start en ok
- * meet RzMon de duur: CRITICAL als hij na de maximale duur nog loopt (zelf ingesteld, anders 2× het gemiddelde).
+ * meet RzSense de duur: CRITICAL als hij na de maximale duur nog loopt (zelf ingesteld, anders 2× het gemiddelde).
  *
  * Opties (checks.options): sched every|daily|weekly|cron, every (min), at (HH:MM), dow (0-6, 0 = zondag), cron,
  * grace (min), max (min, leeg = vanzelf), unit (eenheid van een meegestuurde waarde), ext (URL ook van buiten).
@@ -296,7 +296,7 @@ final class Heartbeat
     }
 
     /**
-     * Komt hij ongeveer elke dag (tussen 20 en 28 uur ertussen), dan weet RzMon hoe laat meestal. Is het daar ruim voorbij
+     * Komt hij ongeveer elke dag (tussen 20 en 28 uur ertussen), dan weet RzSense hoe laat meestal. Is het daar ruim voorbij
      * (minstens 20 minuten, of 3× de normale spreiding) en is er vandaag nog niets binnen: een tekst voor de warning.
      */
     private static function lateByRhythm(array $s, int $now): ?string

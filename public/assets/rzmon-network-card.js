@@ -1,13 +1,13 @@
 /*
- * RzMon netwerkkaart voor Home Assistant (1.197.0)
+ * RzSense netwerkkaart voor Home Assistant (1.197.0)
  *
  * Een samenvatting van het netwerk zoals mDS: één oordeel, internetlijn, verbruik deze maand, apparaten,
- * netwerkpaden, IDS, de top 3 verkeer vandaag en (1.198.0, schakelaar show_servers) de servers met CPU, RAM en disk. De kaart haalt alles rechtstreeks bij RzMon op
+ * netwerkpaden, IDS, de top 3 verkeer vandaag en (1.198.0, schakelaar show_servers) de servers met CPU, RAM en disk. De kaart haalt alles rechtstreeks bij RzSense op
  * (GET /v1.php/network) met een API-sleutel met het recht "Status lezen" (en "IDS lezen" voor de IDS-tegel).
  *
  * In Home Assistant: Instellingen → Dashboards → ⋮ → Bronnen → Bron toevoegen:
  *   URL  https://<rzmon>/ha-card.php   soort  JavaScript-module
- * Daarna een kaart toevoegen: "RzMon netwerk" (of in YAML: type: custom:rzmon-network-card).
+ * Daarna een kaart toevoegen: "RzSense netwerk" (of in YAML: type: custom:rzmon-network-card).
  *
  * Licentie: GPL-3.0
  */
@@ -19,14 +19,14 @@
     'Deze maand': 'This month', 'Apparaten': 'Devices', 'online': 'online', 'nieuw': 'new', 'Netwerkpaden': 'Network paths',
     'Top verkeer vandaag': 'Top traffic today', 'geblokkeerd vandaag': 'blocked today', 'open incidenten': 'open incidents',
     'kritiek': 'critical', 'vandaag': 'today', 'Servers': 'Servers', 'agent stil {d}': 'agent silent {d}', '{n} problemen': '{n} problems', '1 probleem': '1 problem', 'onderhoud': 'maintenance', 'Disk': 'Disk', 'Max. servers': 'Max. servers', 'meer': 'more', 'van abonnement': 'of plan', 'open': 'open', 'nu actief': 'active now', 'verwacht': 'forecast', 'van': 'of', 'verlies': 'loss', 'hops': 'hops',
-    'Geen meting': 'No measurement', 'Laden…': 'Loading…', 'live': 'live', 'Vul de URL van RzMon en een API-sleutel in.': 'Fill in the RzMon URL and an API key.',
+    'Geen meting': 'No measurement', 'Laden…': 'Loading…', 'live': 'live', 'Vul de URL van RzSense en een API-sleutel in.': 'Fill in the RzSense URL and an API key.',
     'De API-sleutel is ongeldig of verlopen.': 'The API key is invalid or expired.',
     'Deze API-sleutel heeft het recht "Status lezen" niet.': 'This API key lacks the "Read status" right.',
-    'RzMon is niet bereikbaar.': 'RzMon cannot be reached.',
-    'Gebruikt Home Assistant https, dan moet RzMon ook via https bereikbaar zijn.': 'If Home Assistant uses https, RzMon must be reachable over https too.',
+    'RzSense is niet bereikbaar.': 'RzSense cannot be reached.',
+    'Gebruikt Home Assistant https, dan moet RzSense ook via https bereikbaar zijn.': 'If Home Assistant uses https, RzSense must be reachable over https too.',
     'Mag niet vanaf dit adres (zie "alleen vanaf" bij de API-sleutel).': 'Not allowed from this address (see "only from" on the API key).',
     'nog geen paden': 'no paths yet', 'Netwerkscan staat uit': 'Network scan is off',
-    'URL van RzMon': 'RzMon URL', 'API-sleutel': 'API key', 'Titel': 'Title', 'Verversen (seconden)': 'Refresh (seconds)',
+    'URL van RzSense': 'RzSense URL', 'API-sleutel': 'API key', 'Titel': 'Title', 'Verversen (seconden)': 'Refresh (seconds)',
     'Internetlijn': 'Internet line', 'IDS': 'IDS', 'Top 3 verkeer': 'Top 3 traffic', 'Redenen bij een probleem': 'Reasons when there is a problem',
   };
 
@@ -106,7 +106,7 @@
           { name: 'max_servers', selector: { number: { min: 1, max: 50, step: 1, mode: 'box' } } },
         ],
         computeLabel: (s) => {
-          const nl = { url: 'URL van RzMon', api_key: 'API-sleutel', title: 'Titel', refresh: 'Verversen (seconden)', show_internet: 'Internetlijn',
+          const nl = { url: 'URL van RzSense', api_key: 'API-sleutel', title: 'Titel', refresh: 'Verversen (seconden)', show_internet: 'Internetlijn',
             show_month: 'Deze maand', show_devices: 'Apparaten', show_ids: 'IDS', show_paths: 'Netwerkpaden', show_top: 'Top 3 verkeer',
             show_problems: 'Redenen bij een probleem', show_servers: 'Servers', max_servers: 'Max. servers' }[s.name];
           return nl ? RzMonNetworkCard._t(nl, document.documentElement.lang) : undefined;
@@ -165,7 +165,7 @@
     async _load() {
       const c = this._cfg;
       if (!c.url || !c.api_key) {
-        this._err = [this.L('Vul de URL van RzMon en een API-sleutel in.')];
+        this._err = [this.L('Vul de URL van RzSense en een API-sleutel in.')];
         return this._render();
       }
       try {
@@ -175,13 +175,13 @@
           const j = await r.json().catch(() => ({}));
           throw [/vanaf|from/i.test(j.error || '') ? this.L('Mag niet vanaf dit adres (zie "alleen vanaf" bij de API-sleutel).') : this.L('Deze API-sleutel heeft het recht "Status lezen" niet.'), j.error];
         }
-        if (!r.ok) throw [this.L('RzMon is niet bereikbaar.'), `HTTP ${r.status}`];
+        if (!r.ok) throw [this.L('RzSense is niet bereikbaar.'), `HTTP ${r.status}`];
         this._data = await r.json();
         this._err = null;
         this._at = Date.now();
       } catch (e) {
-        this._err = Array.isArray(e) ? e : [this.L('RzMon is niet bereikbaar.'),
-          location.protocol === 'https:' && c.url.startsWith('http:') ? this.L('Gebruikt Home Assistant https, dan moet RzMon ook via https bereikbaar zijn.') : String(e?.message || e)];
+        this._err = Array.isArray(e) ? e : [this.L('RzSense is niet bereikbaar.'),
+          location.protocol === 'https:' && c.url.startsWith('http:') ? this.L('Gebruikt Home Assistant https, dan moet RzSense ook via https bereikbaar zijn.') : String(e?.message || e)];
       }
       this._render();
     }
@@ -314,7 +314,7 @@
   if (!customElements.get('rzmon-network-card')) {
     customElements.define('rzmon-network-card', RzMonNetworkCard);
     window.customCards = window.customCards || [];
-    window.customCards.push({ type: 'rzmon-network-card', name: 'RzMon netwerk', description: 'Netwerk in het kort uit RzMon: oordeel, internet, verbruik, apparaten, paden en IDS.', preview: false, documentationURL: 'https://github.com/rembrand20/rzmon' });
-    console.info(`%c RzMon netwerkkaart %c ${VERSION} `, 'background:#2563eb;color:#fff;border-radius:3px 0 0 3px;padding:2px 4px', 'background:#1e293b;color:#fff;border-radius:0 3px 3px 0;padding:2px 4px');
+    window.customCards.push({ type: 'rzmon-network-card', name: 'RzSense netwerk', description: 'Netwerk in het kort uit RzSense: oordeel, internet, verbruik, apparaten, paden en IDS.', preview: false, documentationURL: 'https://github.com/rembrand20/rzmon' });
+    console.info(`%c RzSense netwerkkaart %c ${VERSION} `, 'background:#2563eb;color:#fff;border-radius:3px 0 0 3px;padding:2px 4px', 'background:#1e293b;color:#fff;border-radius:0 3px 3px 0;padding:2px 4px');
   }
 })();

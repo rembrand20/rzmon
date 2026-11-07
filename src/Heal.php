@@ -8,13 +8,13 @@ declare(strict_types=1);
  * - restart: een service of container die niet draait, herstart de agent zelf, vóór zijn rapport. Lukt dat, dan blijft
  *   de check OK en komt er een ℹ️-melding (Systeeminfo: heal); lukt het niet, dan gaat de gewone melding uit.
  * - cmd:<naam>: een eigen herstelcommando dat alleen óp de server staat (/etc/rzmon-agent/heal.d/<naam>, van root).
- *   Gaat de check mis, dan vraagt RzMon de agent (alleen in een versleuteld antwoord) om het uit te voeren, en wacht
- *   met melden tot de uitkomst er is (hooguit 5 minuten). Zo kan iemand die in RzMon binnenkomt geen willekeurige
+ *   Gaat de check mis, dan vraagt RzSense de agent (alleen in een versleuteld antwoord) om het uit te voeren, en wacht
+ *   met melden tot de uitkomst er is (hooguit 5 minuten). Zo kan iemand die in RzSense binnenkomt geen willekeurige
  *   commando's op je servers uitvoeren: hij kan alleen kiezen uit wat daar al staat.
  * De agent doet hooguit één poging per 10 minuten en 3 per dag per check.
  *
- * Waakhond (hosts.watchdog): de agent stuurt zelf een Pushover-bericht als hij RzMon een tijd niet bereikt, of als de
- * checks in RzMon stilstaan (cron). De Pushover-gegevens gaan alleen versleuteld naar de agent.
+ * Waakhond (hosts.watchdog): de agent stuurt zelf een Pushover-bericht als hij RzSense een tijd niet bereikt, of als de
+ * checks in RzSense stilstaan (cron). De Pushover-gegevens gaan alleen versleuteld naar de agent.
  */
 final class Heal
 {
@@ -116,7 +116,7 @@ final class Heal
     /** Uit het rapport van de agent: uitkomsten van herstelpogingen, de herstelcommando's op de server, en de waakhond */
     public static function fromAgent(array $host, array $in, PDOStatement $st, string $now): void
     {
-        // Welke herstelcommando's er op de server staan (om in RzMon uit te kiezen)
+        // Welke herstelcommando's er op de server staan (om in RzSense uit te kiezen)
         if (isset($in['heal_cmds']) && is_array($in['heal_cmds'])) {
             $names = array_values(array_filter(array_slice($in['heal_cmds'], 0, 100), static fn($n) => is_string($n) && preg_match(self::NAME_RE, $n)));
             $st->execute([$host['id'], 'heal_cmds', json_encode($names), $now]);
@@ -146,14 +146,14 @@ final class Heal
                 fn() => ($ok ? t('Zelf hersteld') : t('Zelf herstellen mislukt')) . ": $msg");
         }
         $st->execute([$host['id'], 'heal_seen', json_encode($seen), $now]);
-        // 🐕 De waakhond kon RzMon een tijd niet bereiken (nu weer wel)
+        // 🐕 De waakhond kon RzSense een tijd niet bereiken (nu weer wel)
         if (is_array($in['watchdog'] ?? null) && ($d = $in['watchdog']) && (int) ($d['down'] ?? 0) > 0 && (int) ($d['up'] ?? 0) >= (int) $d['down']) {
             $min = max(1, (int) ceil(((int) $d['up'] - (int) $d['down']) / 60));
             $from = date('d-m H:i', (int) $d['down']);
             Monitor::sysInfo('watchdog', (int) $host['id'], (string) $host['name'], '🐕 ' . $host['name'],
                 fn() => !empty($d['self'])
-                    ? t('{h} was zelf offline: kon RzMon en Pushover {m} min niet bereiken (vanaf {t})', ['h' => $host['name'], 'm' => $min, 't' => $from])
-                    : t('{h} kon RzMon {m} min niet bereiken (vanaf {t}){s}', ['h' => $host['name'], 'm' => $min, 't' => $from,
+                    ? t('{h} was zelf offline: kon RzSense en Pushover {m} min niet bereiken (vanaf {t})', ['h' => $host['name'], 'm' => $min, 't' => $from])
+                    : t('{h} kon RzSense {m} min niet bereiken (vanaf {t}){s}', ['h' => $host['name'], 'm' => $min, 't' => $from,
                         's' => !empty($d['sent']) ? ' · ' . t('de waakhond heeft het via Pushover gemeld') : '']));
         }
     }

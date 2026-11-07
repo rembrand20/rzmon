@@ -1,6 +1,6 @@
-# RzMon installeren op Rocky Linux 10
+# RzSense installeren op Rocky Linux 10
 
-Deze handleiding installeert RzMon op **Rocky Linux 10**. Ze werkt ook voor RHEL 10 en AlmaLinux 10. Voor alles na de installatie, zoals Pushover, checks, agents en de API, volg je daarna de gewone [HANDLEIDING.md](HANDLEIDING.md) vanaf hoofdstuk 6.
+Deze handleiding installeert RzSense op **Rocky Linux 10**. Ze werkt ook voor RHEL 10 en AlmaLinux 10. Voor alles na de installatie, zoals Pushover, checks, agents en de API, volg je daarna de gewone [HANDLEIDING.md](HANDLEIDING.md) vanaf hoofdstuk 6.
 
 > Gebruik je Debian of Ubuntu? Dan heb je deze pagina niet nodig; zie [HANDLEIDING.md](HANDLEIDING.md), hoofdstuk 5.
 
@@ -10,7 +10,7 @@ Het script [`install/install-rocky.sh`](install/install-rocky.sh) doet alle stap
 - **Software:** httpd met mod_ssl, PHP-FPM met de nodige extensies, MariaDB en cron.
 - **Beveiliging:** firewalld en SELinux.
 - **Database:** aangemaakt met een willekeurig wachtwoord.
-- **RzMon zelf:** `config.php`, de tabellen, een Apache-vhost op HTTP én HTTPS (self-signed) en de cronjob.
+- **RzSense zelf:** `config.php`, de tabellen, een Apache-vhost op HTTP én HTTPS (self-signed) en de cronjob.
 
 Daarna maak je in de browser alleen nog je beheerder aan.
 
@@ -45,7 +45,7 @@ Open aan het eind de getoonde URL, bijvoorbeeld `http://192.168.1.10/`, en maak 
 | `--server-name rzmon.lan` | Hostnaam voor Apache (standaard: de hostname van de server) |
 | `--dir /var/www/rzmon` | Installatiemap |
 | `--db-name`, `--db-user`, `--db-pass` | Databasegegevens (standaard `rzmon`/`rzmon`/willekeurig) |
-| `--timezone Europe/Amsterdam` | Tijdzone voor PHP en RzMon |
+| `--timezone Europe/Amsterdam` | Tijdzone voor PHP en RzSense |
 | `--no-https` | Geen self-signed HTTPS op poort 443 |
 | `--no-firewall` | firewalld niet aanpassen |
 | `--no-config` | Databasegegevens zelf in de browser invullen |
@@ -70,7 +70,7 @@ Liever alles zelf doen, of wil je weten wat het script precies doet? Volg dan de
 3. [Pakketten installeren](#3-pakketten-installeren)
 4. [Diensten starten en firewall openen](#4-diensten-starten-en-firewall-openen)
 5. [MariaDB instellen](#5-mariadb-instellen)
-6. [RzMon downloaden](#6-rzmon-downloaden)
+6. [RzSense downloaden](#6-rzmon-downloaden)
 7. [SELinux instellen](#7-selinux-instellen)
 8. [Apache instellen](#8-apache-instellen)
 9. [Setup-wizard doorlopen](#9-setup-wizard-doorlopen)
@@ -98,7 +98,7 @@ Liever alles zelf doen, of wil je weten wat het script precies doet? Volg dan de
 | Cron | standaard geïnstalleerd | pakket `cronie`, dienst `crond` |
 | php.ini | `/etc/php/8.x/…/php.ini` | `/etc/php.ini` + `/etc/php-fpm.d/www.conf` |
 
-**SELinux is het belangrijkste verschil.** Zet het **niet** uit. In stap 7 staan de paar instellingen die RzMon nodig heeft.
+**SELinux is het belangrijkste verschil.** Zet het **niet** uit. In stap 7 staan de paar instellingen die RzSense nodig heeft.
 
 ---
 
@@ -142,7 +142,7 @@ sudo dnf -y install \
 | `mariadb-server` | Database |
 | `iputils`, `iproute` | `ping` en `ss` |
 | `cronie` | Cron, om elke minuut de checks te draaien |
-| `git` | RzMon ophalen van GitHub |
+| `git` | RzSense ophalen van GitHub |
 | `policycoreutils-python-utils` | `semanage`, voor de SELinux-instellingen |
 
 Controleer PHP:
@@ -172,7 +172,7 @@ sudo firewall-cmd --list-services                   # bevat http (en https)
 
 ---
 
-> **Realtime-watcher en EPEL.** Voor bestanden in realtime heeft de agent `inotify-tools` nodig; op Rocky Linux staat dat in EPEL. De agent-setup installeert EPEL en `inotify-tools` zelf als de server internet heeft (niet met `--no-epel`). Lukt dat niet, dan zie je in RzMon in de *Agent Manager* een melding met de oplossing. Zie de [Handleiding, 8.2](HANDLEIDING.md#realtime-watcher-).
+> **Realtime-watcher en EPEL.** Voor bestanden in realtime heeft de agent `inotify-tools` nodig; op Rocky Linux staat dat in EPEL. De agent-setup installeert EPEL en `inotify-tools` zelf als de server internet heeft (niet met `--no-epel`). Lukt dat niet, dan zie je in RzSense in de *Agent Manager* een melding met de oplossing. Zie de [Handleiding, 8.2](HANDLEIDING.md#realtime-watcher-).
 
 > **IDS en firewalld.** Zet je het IDS op *blokkeren*, dan maakt de agent op een server een eigen nftables-tabel `inet rzmon` aan. Die werkt naast firewalld; je firewalld-instellingen blijven zoals ze zijn. Zie de [Handleiding, 8.12](HANDLEIDING.md#812-ids-inbraakdetectie-).
 
@@ -188,7 +188,7 @@ Beantwoord de vragen zo:
 - *Change the root password*: **n**.
 - Bij de rest: **Y**.
 
-Maak de database en gebruiker voor RzMon aan:
+Maak de database en gebruiker voor RzSense aan:
 ```bash
 sudo mariadb <<'SQL'
 CREATE DATABASE rzmon CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -205,9 +205,9 @@ mariadb -u rzmon -p rzmon -e 'SELECT VERSION();'
 
 ---
 
-## 6. RzMon downloaden
+## 6. RzSense downloaden
 
-Clone RzMon direct in `/var/www`. Bestanden die daar worden aangemaakt krijgen automatisch het juiste SELinux-label:
+Clone RzSense direct in `/var/www`. Bestanden die daar worden aangemaakt krijgen automatisch het juiste SELinux-label:
 
 ```bash
 sudo git clone https://github.com/rembrand20/rzmon.git /var/www/rzmon
@@ -232,7 +232,7 @@ Controleer dat SELinux aan staat:
 getenforce        # → Enforcing
 ```
 
-RzMon heeft drie dingen nodig:
+RzSense heeft drie dingen nodig:
 
 ```bash
 # 1. PHP mag verbinden met de database
@@ -242,7 +242,7 @@ sudo setsebool -P httpd_can_network_connect_db 1
 #    de poortscan en de knop "Nu checken" in de webinterface
 sudo setsebool -P httpd_can_network_connect 1
 
-# 3. Tijdelijk: de setup mag config.php in de RzMon-map schrijven
+# 3. Tijdelijk: de setup mag config.php in de RzSense-map schrijven
 sudo chcon -t httpd_sys_rw_content_t /var/www/rzmon
 ```
 
@@ -293,7 +293,7 @@ sudo apachectl configtest      # → Syntax OK
 sudo systemctl reload httpd
 ```
 
-> **Gebruik `ServerName`** met de naam waarop je RzMon opent, of laat de regel staan. Omdat dit de eerste virtuele host op poort 80 is, werkt hij ook als je de server via zijn IP-adres opent.
+> **Gebruik `ServerName`** met de naam waarop je RzSense opent, of laat de regel staan. Omdat dit de eerste virtuele host op poort 80 is, werkt hij ook als je de server via zijn IP-adres opent.
 
 ---
 
@@ -388,7 +388,7 @@ sudo systemctl disable --now httpd
 sudo dnf -y install nginx
 ```
 
-Nginx serveert de CSS- en JavaScript-bestanden zelf. Daarom moet de gebruiker `nginx` de bestanden van RzMon kunnen lezen; die zijn van groep `apache`:
+Nginx serveert de CSS- en JavaScript-bestanden zelf. Daarom moet de gebruiker `nginx` de bestanden van RzSense kunnen lezen; die zijn van groep `apache`:
 ```bash
 sudo usermod -aG apache nginx
 ```
@@ -437,7 +437,7 @@ SELinux, cron en de setup werken hetzelfde als bij Apache. De gebruiker blijft `
 
 ## 14. Agent op Rocky Linux-servers
 
-Wil je **andere** Rocky-servers bewaken met de agent (CPU, RAM, disks, services, poorten)? Kopieer in RzMon het commando bij *Agent Manager* en plak het op die server:
+Wil je **andere** Rocky-servers bewaken met de agent (CPU, RAM, disks, services, poorten)? Kopieer in RzSense het commando bij *Agent Manager* en plak het op die server:
 
 ```bash
 curl -fsSL 'http://192.168.1.10/api.php?action=agent_install' | sudo bash -s -- --url 'http://192.168.1.10' --token '<token>'
@@ -445,9 +445,9 @@ curl -fsSL 'http://192.168.1.10/api.php?action=agent_install' | sudo bash -s -- 
 
 Het script installeert zelf wat ontbreekt (`iproute`) en zet een systemd-timer aan. Zie [HANDLEIDING.md, hoofdstuk 8](HANDLEIDING.md#8-agent-op-linux-servers).
 
-- **SELinux:** geen aanpassingen nodig. De agent draait als systemd-service en maakt alleen een uitgaande verbinding naar RzMon.
-- **Firewall:** geen poort nodig op de agent-server, want de agent stuurt zelf naar RzMon.
-- **Services** kies je in RzMon (＋ Check → Service), uit een lijst van de server. Interessant op Rocky: `sshd`, `crond`, `firewalld`, `chronyd`, `httpd`, `mariadb`, `php-fpm`. Let op: op Rocky heet de SSH-dienst **`sshd`**, niet `ssh` zoals op Debian.
+- **SELinux:** geen aanpassingen nodig. De agent draait als systemd-service en maakt alleen een uitgaande verbinding naar RzSense.
+- **Firewall:** geen poort nodig op de agent-server, want de agent stuurt zelf naar RzSense.
+- **Services** kies je in RzSense (＋ Check → Service), uit een lijst van de server. Interessant op Rocky: `sshd`, `crond`, `firewalld`, `chronyd`, `httpd`, `mariadb`, `php-fpm`. Let op: op Rocky heet de SSH-dienst **`sshd`**, niet `ssh` zoals op Debian.
 
 ---
 
@@ -460,9 +460,9 @@ sudo chown -R root:apache /var/www/rzmon
 sudo restorecon -Rv /var/www/rzmon
 sudo -u apache php install/install.php --upgrade
 ```
-Vanaf 1.29.0 kun je ook bijwerken met de knop **Instellingen → ⬆ RzMon bijwerken**, of RzMon zichzelf elke nacht laten bijwerken. Daarvoor zet het installatiescript de hulpdienst `rzmon-update` klaar.
+Vanaf 1.29.0 kun je ook bijwerken met de knop **Instellingen → ⬆ RzSense bijwerken**, of RzSense zichzelf elke nacht laten bijwerken. Daarvoor zet het installatiescript de hulpdienst `rzmon-update` klaar.
 
-De laatste stap is eigenlijk niet meer nodig: sinds versie 1.6.0 werkt RzMon de database automatisch bij bij de eerste cron-run of het eerste bezoek aan het dashboard. Je kunt ook na de `git pull` op **Setup → ↻ Tabellen bijwerken** klikken. De versie staat in de topbalk, en wat er nieuw is lees je in `CHANGELOG.md`. Agents werk je bij met de knop onder *Instellingen → ⬆ Agents bijwerken* (agents van vóór 1.19.0 eenmalig met `sudo rzmon-agent-setup --update`).
+De laatste stap is eigenlijk niet meer nodig: sinds versie 1.6.0 werkt RzSense de database automatisch bij bij de eerste cron-run of het eerste bezoek aan het dashboard. Je kunt ook na de `git pull` op **Setup → ↻ Tabellen bijwerken** klikken. De versie staat in de topbalk, en wat er nieuw is lees je in `CHANGELOG.md`. Agents werk je bij met de knop onder *Instellingen → ⬆ Agents bijwerken* (agents van vóór 1.19.0 eenmalig met `sudo rzmon-agent-setup --update`).
 
 `config.php` staat niet in Git (`.gitignore`), dus `git pull` laat hem met rust.
 
@@ -503,10 +503,10 @@ Zie je regels met `denied` en `comm="php-fpm"` of `httpd`? Dan blokkeert SELinux
 | **Service-check `ssh` is CRITICAL** | Op Rocky heet de dienst `sshd` | Pas de check aan naar `sshd` |
 
 ### Ping en services ook via "Nu checken" toestaan (optioneel)
-Doe dit alleen als je die knop echt voor ping- en service-checks wilt gebruiken. RzMon werkt prima zonder.
+Doe dit alleen als je die knop echt voor ping- en service-checks wilt gebruiken. RzSense werkt prima zonder.
 
 ```bash
-# 1. Klik in RzMon een paar keer op ↻ bij een ping- en een service-check (die mislukken)
+# 1. Klik in RzSense een paar keer op ↻ bij een ping- en een service-check (die mislukken)
 # 2. Maak van de geweigerde acties een eigen beleidsmodule en laad die:
 sudo ausearch -m avc -ts recent -c php-fpm | audit2allow -M rzmon-local
 cat rzmon-local.te            # bekijk wat er wordt toegestaan

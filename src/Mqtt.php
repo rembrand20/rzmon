@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Publiceert de status van RzMon naar een MQTT-broker, met Home Assistant MQTT discovery:
+ * Publiceert de status van RzSense naar een MQTT-broker, met Home Assistant MQTT discovery:
  * elke server wordt een apparaat in HA met sensoren voor zijn checks.
  *
  * Minimale MQTT 3.1.1-client (alleen publiceren, QoS 0), zonder extra bibliotheken.
@@ -10,7 +10,7 @@ declare(strict_types=1);
  */
 final class Mqtt
 {
-    /** Sensoren worden "niet beschikbaar" in HA als RzMon zo lang niets publiceert (cron gestopt?). */
+    /** Sensoren worden "niet beschikbaar" in HA als RzSense zo lang niets publiceert (cron gestopt?). */
     private const EXPIRE_AFTER = 600;
     private const STATES = ['OK', 'WARNING', 'CRITICAL', 'UNKNOWN', 'ONDERHOUD'];
     private const ICONS = ['disk' => 'mdi:harddisk', 'cpu' => 'mdi:cpu-64-bit', 'ram' => 'mdi:memory', 'container' => 'mdi:docker'];
@@ -119,7 +119,7 @@ final class Mqtt
         }
     }
 
-    // ------------------------------------------------------------------ RzMon → Home Assistant
+    // ------------------------------------------------------------------ RzSense → Home Assistant
 
     public static function config(): array
     {
@@ -193,7 +193,7 @@ final class Mqtt
         $url = rtrim((string) config('base_url', ''), '/');
         $iso = static fn(?string $dt) => $dt ? date('c', strtotime($dt)) : null;
 
-        $hub = ['identifiers' => ["{$node}_hub"], 'name' => 'RzMon', 'manufacturer' => 'RzMon', 'model' => 'Monitoring',
+        $hub = ['identifiers' => ["{$node}_hub"], 'name' => 'RzSense', 'manufacturer' => 'RzSense', 'model' => 'Monitoring',
             'sw_version' => RZMON_VERSION] + ($url !== '' ? ['configuration_url' => $url . '/'] : []);
         $disc = [];
         $states = [];
@@ -216,7 +216,7 @@ final class Mqtt
         $total = [0, 0, 0, 0, 0];
         foreach ($hosts as $h) {
             $hid = (int) $h['id'];
-            $device = ['identifiers' => ["{$node}_host_$hid"], 'name' => $h['name'], 'manufacturer' => 'RzMon',
+            $device = ['identifiers' => ["{$node}_host_$hid"], 'name' => $h['name'], 'manufacturer' => 'RzSense',
                 'model' => t(['local' => 'Lokale server', 'agent' => 'Server met agent', 'remote' => 'Netwerkapparaat'][$h['mode']] ?? $h['mode']),
                 'via_device' => "{$node}_hub"] + ($h['agent_version'] ? ['sw_version' => 'agent ' . $h['agent_version']] : [])
                 + ($url !== '' ? ['configuration_url' => $url . '/'] : []);

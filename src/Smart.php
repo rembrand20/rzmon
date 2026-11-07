@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Slimme drempels (1.107.0): RzMon leert per check wat normaal is, per uur van de week (168 vakjes: maandag 3:00 is
+ * Slimme drempels (1.107.0): RzSense leert per check wat normaal is, per uur van de week (168 vakjes: maandag 3:00 is
  * anders dan dinsdag 14:00), en zet daar de drempels op.
  *
  * Modus per check (checks.thresh_mode):
@@ -16,7 +16,7 @@ declare(strict_types=1);
  * Leren (elke nacht, een paar checks per cronminuut): de meetwaarden van de laatste 28 dagen, robuust (mediaan,
  * percentielen, MAD); een vakje leent van het uur ervoor en erna, en bij te weinig metingen van alle dagen op dat uur.
  * Meetwaarden van een storing zonder waarde tellen niet mee. Een geleerde drempel verschuift hooguit 10% per nacht.
- * Een normaalwaarde die in twee weken flink stijgt (een sluipend lek), geeft een ℹ️-melding: anders zou RzMon het
+ * Een normaalwaarde die in twee weken flink stijgt (een sluipend lek), geeft een ℹ️-melding: anders zou RzSense het
  * gewoon gaan accepteren.
  *
  * Disks doen niet mee: een disk heeft geen "normaal per uur", en leren zou een vollopende disk volgen. Daar blijven de
@@ -243,7 +243,7 @@ final class Smart
 
     /**
      * Checks met een getal maar zonder drempels (SNMP-verkeer, clients, eigen OID, aantal processen, logregels, commando's):
-     * daar leert RzMon alleen wat normaal is, en meldt een flinke afwijking als ℹ️ (Systeeminfo → Afwijking).
+     * daar leert RzSense alleen wat normaal is, en meldt een flinke afwijking als ℹ️ (Systeeminfo → Afwijking).
      */
     public static function anomEligible(array $check): bool
     {
@@ -576,7 +576,7 @@ final class Smart
         $host = q('SELECT id, name FROM hosts WHERE id = ?', [$check['host_id']])->fetch();
         $u = self::unit($check);
         Monitor::sysInfo('smart_drift', (int) $check['host_id'], (string) ($host['name'] ?? ''), 'ℹ️ INFO: ' . ($host['name'] ?? ''),
-            fn() => t('🧠 {c}: de normaalwaarde stijgt, van {a}{u} naar {b}{u} in twee weken. Een lek of groeiende belasting? RzMon past de drempels hier niet zomaar op aan.',
+            fn() => t('🧠 {c}: de normaalwaarde stijgt, van {a}{u} naar {b}{u} in twee weken. Een lek of groeiende belasting? RzSense past de drempels hier niet zomaar op aan.',
                 ['c' => $check['name'], 'a' => self::fmt($d[0]), 'b' => self::fmt($d[1]), 'u' => $u]));
     }
 
@@ -601,7 +601,7 @@ final class Smart
             : t('🧠 Slimme drempels bijgesteld: {c} op {h}', ['c' => $check['name'], 'h' => $host])), $sum($old), $sum($new));
     }
 
-    /** Terugzetten vanuit het wijzigingslogboek: de geleerde drempels van daarvoor (RzMon leert daarna verder) */
+    /** Terugzetten vanuit het wijzigingslogboek: de geleerde drempels van daarvoor (RzSense leert daarna verder) */
     public static function restore(int $checkId, array $before): string
     {
         $m = self::storedModel($checkId);
@@ -611,7 +611,7 @@ final class Smart
         $m['w'] = $before['_model']['w'];
         $m['c'] = $before['_model']['c'];
         q('UPDATE check_smart SET model = ? WHERE check_id = ?', [json_encode($m), $checkId]);
-        return t('Vorige slimme drempels teruggezet; RzMon leert vannacht verder (zet de check op Handmatig om dat te stoppen)');
+        return t('Vorige slimme drempels teruggezet; RzSense leert vannacht verder (zet de check op Handmatig om dat te stoppen)');
     }
 
     // ------------------------------------------------------------------ voor de interface

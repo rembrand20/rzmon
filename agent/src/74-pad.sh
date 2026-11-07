@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------- Pad naar een doel (agent 1.78.0)
-# Pad-checks uit RzMon: "id <tab> path <tab> doel <tab> tussenliggende IP's (komma's, of -) <tab> interval".
+# Pad-checks uit RzSense: "id <tab> path <tab> doel <tab> tussenliggende IP's (komma's, of -) <tab> interval".
 # Per check: elke hop met verlies en vertraging (mtr, anders traceroute), een ping naar de opgegeven tussenliggende
 # apparaten (switches zijn onzichtbaar voor een traceroute), de netwerkkaart van de server (snelheid), of hij virtueel
 # draait en, met lldpd, op welke switch en poort hij zit.
@@ -23,7 +23,7 @@ if [ "$TEST" != 1 ] && [ -r "${t_cache-}" ] && grep -q $'\t\(path\|pathtp\|iperf
                   printf "{\"ip\":\"%s\",\"loss\":%s,\"avg\":%s,\"best\":%s,\"worst\":%s,\"jit\":%s}", ip, l + 0,
                       av == "" ? "null" : av, mn == "" ? "null" : mn, mx == "" ? "null" : mx, jd == "" ? "null" : jd }' <<<"$out"
     }
-    # Iperf3-ontvanger op dit apparaat (aangevraagd door RzMon voor de pad-check van een andere server)
+    # Iperf3-ontvanger op dit apparaat (aangevraagd door RzSense voor de pad-check van een andere server)
     while IFS=$'\t' read -r i_id i_type i_port i_until _; do
         [ "$i_type" = iperfs ] && [[ "$i_port" =~ ^[0-9]{2,5}$ ]] && [[ "$i_until" =~ ^[0-9]+$ ]] || continue
         [ "$i_until" -gt "$(date +%s)" ] || continue

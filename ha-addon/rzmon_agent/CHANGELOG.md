@@ -5,6 +5,11 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.85.0 – 2026-11-07
+- RzMon heet nu **RzSense**: de agent, de verbindingstest, de statusweergave en het installatiescript gebruiken de nieuwe naam. De technische naam blijft `rzmon-agent` (service, `/etc/default/rzmon-agent`, add-on): je hoeft niets aan te passen.
+- Bijwerken herkent het installatiescript en de agent met de oude én de nieuwe naam.
+- De Home Assistant-add-on heet **RzSense Agent** en heeft het nieuwe icoon.
+
 ## 1.84.0 – 2026-11-07
 - **Logs vinden** (RzMon 1.213.0): één keer per dag, of meteen als je in RzMon op *Opnieuw zoeken* klikt, kijkt de agent welke logs er op de server zijn: bestanden en mappen binnen `LOG_DIRS` (tot 3 diep, zonder gedraaide en binaire bestanden), Docker- en Podman-containers, systemd-services die de afgelopen 24 uur in de journal schreven, en in de add-on de Supervisor-logs en add-ons. Hij stuurt alleen namen, groottes en tijden mee, nooit de inhoud, en alleen als de lijst net gemaakt is. Uit met `LOG_SHIP=0`.
 

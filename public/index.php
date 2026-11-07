@@ -58,7 +58,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="csrf-token" content="<?= htmlspecialchars($csrf) ?>">
   <?php if ($resetToken): ?><meta name="referrer" content="no-referrer"><?php endif; ?>
-  <title>RzMon</title>
+  <title>Rz//Sense AI</title>
   <?= Brand::head() ?>
   <link rel="stylesheet" href="assets/app.css?v=<?= $v ?>">
   <?php if ($userTheme === null): ?><script nonce="<?= csp_nonce() ?>">try{const t=localStorage.getItem('rzmon-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script><?php endif; ?>
@@ -155,8 +155,8 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
   </main>
 <?php else: ?>
   <header class="topbar app-top">
-    <div class="brand"><?= Brand::logo() ?> <a class="version" href="https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md" target="_blank" rel="noopener" title="<?= th('RzMon-versie – bekijk wat er nieuw is') ?>">v<?= htmlspecialchars(RZMON_VERSION) ?></a>
-      <button type="button" class="update-badge need-admin" id="update-badge" hidden title="<?= th('Er is een nieuwe versie van RzMon: klik om bij te werken') ?>"></button></div>
+    <div class="brand"><?= Brand::logo() ?> <a class="version" href="https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md" target="_blank" rel="noopener" title="<?= th('RzSense-versie – bekijk wat er nieuw is') ?>">v<?= htmlspecialchars(RZMON_VERSION) ?></a>
+      <button type="button" class="update-badge need-admin" id="update-badge" hidden title="<?= th('Er is een nieuwe versie van RzSense: klik om bij te werken') ?>"></button></div>
     <nav class="tabs main-tabs" role="tablist" id="main-tabs">
       <span class="tab-ind" aria-hidden="true"></span>
       <button class="tab mobile-only" data-tab="mds" role="tab" title="<?= th('Mobile device summary') ?>"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg><span class="tab-badge" id="mds-badge" hidden></span></span><span class="tab-lbl">mDS</span></button>
@@ -177,7 +177,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <?php if ($role === 'admin' || $role === 'user'): ?><button class="tab side-only" data-tab="settings" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span><span class="tab-lbl"><?= th('Instellingen') ?></span></button><?php endif; ?>
     </nav>
     <nav class="side-admin" id="side-admin" hidden aria-label="<?= th('Beheer') ?>">
-      <button type="button" class="side-back" id="side-back">← <?= th('Terug naar RzMon') ?></button>
+      <button type="button" class="side-back" id="side-back">← <?= th('Terug naar RzSense') ?></button>
       <div class="side-admin-t" id="side-admin-t"></div>
       <div id="side-admin-body"></div>
       <div class="side-acct" id="side-acct" hidden></div>
@@ -237,7 +237,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       </div>
       <!-- 1.169.0: Checks (zoals altijd) of Beschikbaarheid per groep -->
       <div class="subtabs mon-tabs" role="tablist" aria-label="<?= th('Monitoring') ?>" id="mon-tabs">
-        <button type="button" class="seg-btn active" data-msub="checks" role="tab" aria-selected="true">📋 <?= th('Checks') ?></button>
+        <button type="button" class="seg-btn active" data-msub="checks" role="tab" aria-selected="true">📋 <?= th('Monitoring') ?></button>
         <button type="button" class="seg-btn" data-msub="cont" role="tab" aria-selected="false">📦 <?= th('Containers') ?></button>
         <button type="button" class="seg-btn" data-msub="paths" role="tab" aria-selected="false">🛣️ <?= th('Netwerkpaden') ?></button>
         <button type="button" class="seg-btn" data-msub="avail" role="tab" aria-selected="false">📶 <?= th('Beschikbaarheid') ?></button>
@@ -374,12 +374,12 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <div class="ids-pane" data-pane="live" hidden>
         <div class="dash-bar"><select id="edr-host" aria-label="<?= th('Server') ?>"><option value=""><?= th('Alle servers') ?></option></select>
           <label class="switch small"><input type="checkbox" id="edr-hits"><span></span> <?= th('Alleen treffers') ?></label>
-          <label class="switch small"><input type="checkbox" id="edr-own" checked><span></span> <?= th('Toegestaan tonen (RzMon zelf en uitzonderingen)') ?></label>
+          <label class="switch small"><input type="checkbox" id="edr-own" checked><span></span> <?= th('Toegestaan tonen (RzSense zelf en uitzonderingen)') ?></label>
           <span class="muted small" id="edr-info"></span></div>
         <div class="card" id="edr-feed"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
       <div class="ids-pane" data-pane="rules" hidden>
-        <div class="dash-bar"><div class="seg" id="rule-src"><button type="button" class="seg-btn active" data-rs=""><?= th('Alle') ?></button><button type="button" class="seg-btn" data-rs="rzmon">RzMon</button><button type="button" class="seg-btn" data-rs="sigma">Sigma</button></div>
+        <div class="dash-bar"><div class="seg" id="rule-src"><button type="button" class="seg-btn active" data-rs=""><?= th('Alle') ?></button><button type="button" class="seg-btn" data-rs="rzmon">RzSense</button><button type="button" class="seg-btn" data-rs="sigma">Sigma</button></div>
           <input id="rule-q" type="search" placeholder="<?= th('Zoeken: naam, techniek (T1059) …') ?>" autocomplete="off">
           <a class="btn small-btn need-admin" href="#settings/ids_rules" data-goto="settings/ids_rules">⚙️ <?= th('Regels en uitzonderingen beheren') ?></a></div>
         <div class="card rule-view" id="edr-rules"><p class="muted"><?= th('Laden…') ?></p></div>
@@ -429,13 +429,13 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <div class="card" id="ids-blocks"></div>
       <div class="card need-admin" id="blocks-card">
         <h2>⛔ <?= th('Blokkades') ?></h2>
-        <?= xp(t('Een IP-adres of netwerk blokkeren, voor heel RzMon.'), t('Een geblokkeerd IP-adres of netwerk krijgt nergens meer toegang tot RzMon: niet de webpagina, niet het inloggen, niet de API en geen agents. Jezelf en de RzMon-server kun je niet blokkeren. Toch buitengesloten? Op de server: <code>sudo php install/install.php --unblock-all</code>')) ?>
+        <?= xp(t('Een IP-adres of netwerk blokkeren, voor heel RzSense.'), t('Een geblokkeerd IP-adres of netwerk krijgt nergens meer toegang tot RzSense: niet de webpagina, niet het inloggen, niet de API en geen agents. Jezelf en de RzSense-server kun je niet blokkeren. Toch buitengesloten? Op de server: <code>sudo php install/install.php --unblock-all</code>')) ?>
         <div class="block-add"><input id="block-net" class="mono" placeholder="<?= th('bv. 203.0.113.7 of 203.0.113.0/24') ?>" autocomplete="off">
           <input id="block-reason" placeholder="<?= th('reden (optioneel)') ?>" autocomplete="off">
           <button type="button" class="btn danger" id="block-add">⛔ <?= th('Blokkeren') ?></button></div>
-        <?= xp(t('Alles wat nu geblokkeerd is, met deblokkeren.'), th('Hieronder alles wat nu geblokkeerd is: IP-adressen in RzMon, vergrendelde accounts en de IDS-blokkades op je servers. Deblokkeren werkt meteen; op de whitelist zetten heft de blokkade ook op en voorkomt een nieuwe.')) ?>
+        <?= xp(t('Alles wat nu geblokkeerd is, met deblokkeren.'), th('Hieronder alles wat nu geblokkeerd is: IP-adressen in RzSense, vergrendelde accounts en de IDS-blokkades op je servers. Deblokkeren werkt meteen; op de whitelist zetten heft de blokkade ook op en voorkomt een nieuwe.')) ?>
         <div class="bl-bar"><div class="seg" id="bl-tabs"><button type="button" class="seg-btn active" data-bl-tab="active"></button><button type="button" class="seg-btn" data-bl-tab="history"></button></div>
-          <select id="bl-src"><option value=""><?= th('Alles') ?></option><option value="rz"><?= th('IP in RzMon') ?></option><option value="user"><?= th('Accounts') ?></option><option value="ids"><?= th('IDS (servers)') ?></option></select>
+          <select id="bl-src"><option value=""><?= th('Alles') ?></option><option value="rz"><?= th('IP in RzSense') ?></option><option value="user"><?= th('Accounts') ?></option><option value="ids"><?= th('IDS (servers)') ?></option></select>
           <input id="bl-q" type="search" placeholder="<?= th('Zoeken: IP, naam, server, reden…') ?>" autocomplete="off"></div>
         <div id="blocks-list"></div>
         <p class="small wl-link"><span id="wl-count" class="muted"></span> <a class="btn small-btn" href="#settings/whitelist" data-goto="settings/whitelist">✅ <?= th('Whitelist beheren') ?></a></p>
@@ -624,7 +624,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <div data-sk="overview" class="card set-overview" id="set-overview"></div>
       <div data-sk="features" class="card" id="features-card" data-nodirty>
         <h2>📋 <?= th('Functies') ?></h2>
-        <?= xp(t('Alle functies van RzMon op één plek.'), t('<b>Wat je ziet:</b> elke functie met het onderdeel, de versie waarin hij kwam en de status van nu: <b>aan</b>, <b>uit</b>, <b>niet ingesteld</b> (er ontbreekt nog iets, zoals een sleutel of server) of <b>altijd</b> (geen schakelaar). Met de knop ga je naar de plek waar je hem instelt. Klik op een teller om te filteren.')) ?>
+        <?= xp(t('Alle functies van RzSense op één plek.'), t('<b>Wat je ziet:</b> elke functie met het onderdeel, de versie waarin hij kwam en de status van nu: <b>aan</b>, <b>uit</b>, <b>niet ingesteld</b> (er ontbreekt nog iets, zoals een sleutel of server) of <b>altijd</b> (geen schakelaar). Met de knop ga je naar de plek waar je hem instelt. Klik op een teller om te filteren.')) ?>
         <div id="features-box"><p class="muted small"><?= th('laden…') ?></p></div>
       </div>
       <div class="set-toolbar">
@@ -634,7 +634,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <form id="settings-form" class="settings-grid" data-pgrid="set">
         <div data-sk="pushover" class="card">
           <h2>Pushover</h2>
-          <?= xp(t('Pushmeldingen op je telefoon via de Pushover-app.'), t('<b>Wat het is:</b> Pushover is een app voor iPhone, Android en de computer die berichten van RzMon meteen op je scherm zet, met een eigen geluid per prioriteit en noodmeldingen die blijven herhalen tot je reageert. <b>Instellen:</b> maak op <a href="https://pushover.net/apps/build" target="_blank" rel="noopener">pushover.net</a> een applicatie aan; dat geeft het <i>API-token</i>. Je <i>user key</i> staat op je Pushover-dashboard. <b>Goed om te weten:</b> na een gratis proefperiode betaal je Pushover één keer per platform.')) ?>
+          <?= xp(t('Pushmeldingen op je telefoon via de Pushover-app.'), t('<b>Wat het is:</b> Pushover is een app voor iPhone, Android en de computer die berichten van RzSense meteen op je scherm zet, met een eigen geluid per prioriteit en noodmeldingen die blijven herhalen tot je reageert. <b>Instellen:</b> maak op <a href="https://pushover.net/apps/build" target="_blank" rel="noopener">pushover.net</a> een applicatie aan; dat geeft het <i>API-token</i>. Je <i>user key</i> staat op je Pushover-dashboard. <b>Goed om te weten:</b> na een gratis proefperiode betaal je Pushover één keer per platform.')) ?>
           <label class="switch"><input type="checkbox" name="pushover_enabled"><span></span> <?= th('Pushover meldingen aan') ?></label>
           <label>User key<input name="pushover_user" autocomplete="off" spellcheck="false"></label>
           <label>API token<input name="pushover_token" autocomplete="off" spellcheck="false"></label>
@@ -665,13 +665,13 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <label><?= th('Server') ?><input name="ntfy_server" placeholder="https://ntfy.sh" autocomplete="off" spellcheck="false"></label>
           <label><?= th('Onderwerp (topic)') ?><input name="ntfy_topic" placeholder="rzmon-…" autocomplete="off" spellcheck="false" pattern="[A-Za-z0-9_\-]{1,64}"></label>
           <label><?= th('Toegangstoken of gebruiker:wachtwoord') ?> <span class="muted small"><?= th('(leeg = zonder inloggen)') ?></span><input name="ntfy_token" autocomplete="off" spellcheck="false"></label>
-          <?= xp(t('De prioriteit volgt Pushover; een storing bevestig je vanuit het bericht.'), t('ntfy krijgt dezelfde prioriteit als je bij Pushover (Geavanceerd) instelt: normaal = 3, hoog = 4, noodmelding = 5. Onder een storingsbericht staat een knop <b>✔ Bevestigen</b>: daarmee bevestig je de storing zonder RzMon te openen.')) ?>
+          <?= xp(t('De prioriteit volgt Pushover; een storing bevestig je vanuit het bericht.'), t('ntfy krijgt dezelfde prioriteit als je bij Pushover (Geavanceerd) instelt: normaal = 3, hoog = 4, noodmelding = 5. Onder een storingsbericht staat een knop <b>✔ Bevestigen</b>: daarmee bevestig je de storing zonder RzSense te openen.')) ?>
           <button type="button" class="btn" id="ntfy-test"><?= th('📲 Testbericht sturen') ?></button>
         </div>
 
         <div data-sk="quiet" class="card" id="quiet-card" data-nodirty>
           <h2>🌙 <?= th('Stille uren') ?></h2>
-          <?= xp(t('Profielen met een naam, te koppelen aan groepen, servers en checks.'), t('<b>Wat het doet:</b> in de stille uren stuurt RzMon niets via Pushover, ntfy, e-mail of Home Assistant; de checks lopen door en na afloop komt één samenvatting van wat nog speelt. <b>Profielen:</b> geef een profiel een naam en vensters (dagen en tijden, ook over middernacht), of een periode (bv. een vakantie). Met <i>Critical komt wel door</i> wordt je bij een critical toch gewekt. <b>Koppelen:</b> ★ Algemeen geldt overal; een groep, server of check kan een eigen profiel of <i>nooit stil</i> krijgen. Het fijnste wint: check → server → eigen groep → soort apparaat → algemeen. <b>Nu stil</b> (🌙 bij een server of check) gaat voor alles.')) ?>
+          <?= xp(t('Profielen met een naam, te koppelen aan groepen, servers en checks.'), t('<b>Wat het doet:</b> in de stille uren stuurt RzSense niets via Pushover, ntfy, e-mail of Home Assistant; de checks lopen door en na afloop komt één samenvatting van wat nog speelt. <b>Profielen:</b> geef een profiel een naam en vensters (dagen en tijden, ook over middernacht), of een periode (bv. een vakantie). Met <i>Critical komt wel door</i> wordt je bij een critical toch gewekt. <b>Koppelen:</b> ★ Algemeen geldt overal; een groep, server of check kan een eigen profiel of <i>nooit stil</i> krijgen. Het fijnste wint: check → server → eigen groep → soort apparaat → algemeen. <b>Nu stil</b> (🌙 bij een server of check) gaat voor alles.')) ?>
           <div id="quiet-box"><p class="muted small"><?= th('laden…') ?></p></div>
         </div>
 
@@ -685,8 +685,8 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
               <input type="number" name="confirm_ok" min="1" max="100" placeholder="<?= th('meteen') ?>" style="max-width:8rem"></label>
           </div>
           <!-- 1.193.0: sneller bevestigen, per soort check, en het advies in één keer -->
-          <label class="switch conf-fast"><input type="checkbox" name="confirm_fast"><span></span> <?= t('<b>Sneller bevestigen</b>: twijfelt een ping, TCP, HTTP of SNMP nog, dan controleert RzMon hem elke 20 s opnieuw') ?></label>
-          <?= xp(t('Zo is een echte storing binnen een minuut bevestigd; een hapering van een paar seconden blijft stil.'), t('<b>Wat het doet:</b> zolang een snelle check nog bevestigt (⏳), controleert RzMon hem elke 20 seconden in plaats van na zijn gewone interval. Met 3 hier is een echte storing dan na ±40 seconden bevestigd in plaats van na 2 tot 3 minuten. <b>Goed om te weten:</b> een hapering van minder dan ±40 seconden blijft stil; korter dan dat wordt niet meer gefilterd. Andere checks (agent, disk, back-up …) volgen hun eigen interval.')) ?>
+          <label class="switch conf-fast"><input type="checkbox" name="confirm_fast"><span></span> <?= t('<b>Sneller bevestigen</b>: twijfelt een ping, TCP, HTTP of SNMP nog, dan controleert RzSense hem elke 20 s opnieuw') ?></label>
+          <?= xp(t('Zo is een echte storing binnen een minuut bevestigd; een hapering van een paar seconden blijft stil.'), t('<b>Wat het doet:</b> zolang een snelle check nog bevestigt (⏳), controleert RzSense hem elke 20 seconden in plaats van na zijn gewone interval. Met 3 hier is een echte storing dan na ±40 seconden bevestigd in plaats van na 2 tot 3 minuten. <b>Goed om te weten:</b> een hapering van minder dan ±40 seconden blijft stil; korter dan dat wordt niet meer gefilterd. Andere checks (agent, disk, back-up …) volgen hun eigen interval.')) ?>
           <h3 class="set-sub"><?= th('Per soort check') ?> <span class="muted small"><?= th('(leeg = de waarde hierboven; een check met een eigen waarde gaat voor)') ?></span></h3>
           <input type="hidden" name="confirm_types">
           <div id="conf-types" class="conf-types"></div>
@@ -711,7 +711,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
             <label><?= th('Meldingen per server bundelen binnen … seconden') ?> <span class="muted small"><?= th('(0 = niet bundelen)') ?></span><input type="number" name="notify_group_seconds" min="0" max="3600"></label>
             <label class="switch" style="align-self:end"><input type="checkbox" name="notify_recovery_acked"><span></span> <?= th('Ook herstel melden na een bevestigde storing') ?></label>
           </div>
-          <?= xp(t('Meerdere storingen op één server tegelijk? Dan krijg je één bericht.'), t('Gaan op één server binnen deze tijd meerdere checks mis (of herstellen ze), dan stuurt RzMon één bericht met alles erin, in plaats van een rij losse berichten. De eerste melding wacht daardoor hooguit zo lang. <b>Goed om te weten:</b> Home Assistant krijgt wel een bericht per check, zodat je automatiseringen blijven werken. 0 = niet bundelen.')) ?>
+          <?= xp(t('Meerdere storingen op één server tegelijk? Dan krijg je één bericht.'), t('Gaan op één server binnen deze tijd meerdere checks mis (of herstellen ze), dan stuurt RzSense één bericht met alles erin, in plaats van een rij losse berichten. De eerste melding wacht daardoor hooguit zo lang. <b>Goed om te weten:</b> Home Assistant krijgt wel een bericht per check, zodat je automatiseringen blijven werken. 0 = niet bundelen.')) ?>
           <h3 class="small" style="margin:1rem 0 .3rem">⏫ <?= th('Escaleren') ?></h3>
           <label class="switch"><input type="checkbox" name="esc_on"><span></span> <?= t('<b>Escaleren</b>: een storing die niemand bevestigt, na een tijd nog een keer melden, een stap hoger') ?></label>
           <div class="row3">
@@ -720,14 +720,14 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
             <label><?= th('Critical wordt') ?><select name="esc_crit_prio"><option value="1"><?= th('hoge prioriteit') ?></option><option value="2"><?= th('nood (herhaalt tot je bevestigt)') ?></option></select></label>
           </div>
           <label class="switch"><input type="checkbox" name="esc_quiet"><span></span> <?= th('Niet escaleren tijdens de stille uren') ?></label>
-          <?= xp(t('Een storing die niemand bevestigt, wordt na een tijd nog eens gemeld, een stap hoger.'), t('Is een storing na de ingestelde tijd nog niet bevestigd, dan meldt RzMon hem opnieuw met een hogere prioriteit: een warning gaat dan als critical (met de prioriteit van je critical-meldingen), een critical krijgt de prioriteit die je hierboven kiest. Dat gebeurt één keer per storing. <b>Bevestigen</b> stopt het escaleren.')) ?>
+          <?= xp(t('Een storing die niemand bevestigt, wordt na een tijd nog eens gemeld, een stap hoger.'), t('Is een storing na de ingestelde tijd nog niet bevestigd, dan meldt RzSense hem opnieuw met een hogere prioriteit: een warning gaat dan als critical (met de prioriteit van je critical-meldingen), een critical krijgt de prioriteit die je hierboven kiest. Dat gebeurt één keer per storing. <b>Bevestigen</b> stopt het escaleren.')) ?>
           <label class="switch"><input type="checkbox" name="notify_bundle_hosts"><span></span> <?= t('🔗 <b>Ook over servers heen bundelen</b>, met de waarschijnlijke oorzaak') ?></label>
-          <?= xp(t('Vallen meerdere servers tegelijk uit, dan krijg je één bericht met de waarschijnlijke oorzaak.'), t('Gaan er binnen het bundelvenster meerdere servers mis, dan komt er één bericht, bijvoorbeeld <i>"🔴 CRITICAL: 5 servers tegelijk · waarschijnlijk: ze hangen allemaal aan Switch-zolder (UniFi)"</i>. <b>Hoe RzMon de oorzaak zoekt:</b> via je afhankelijkheden, via UniFi (welk access point of welke switch), via agents die allemaal tegelijk stil zijn en via je Proxmox-clusters.')) ?>
+          <?= xp(t('Vallen meerdere servers tegelijk uit, dan krijg je één bericht met de waarschijnlijke oorzaak.'), t('Gaan er binnen het bundelvenster meerdere servers mis, dan komt er één bericht, bijvoorbeeld <i>"🔴 CRITICAL: 5 servers tegelijk · waarschijnlijk: ze hangen allemaal aan Switch-zolder (UniFi)"</i>. <b>Hoe RzSense de oorzaak zoekt:</b> via je afhankelijkheden, via UniFi (welk access point of welke switch), via agents die allemaal tegelijk stil zijn en via je Proxmox-clusters.')) ?>
         </div>
 
         <div data-sk="sysinfo" class="card" id="sysinfo-card">
           <h2>ℹ️ <?= th('Systeeminfo') ?></h2>
-          <?= xp(t('Meldingen over RzMon zelf (updates, certificaten, agents): per soort kies je waarheen.'), t('<b>Wat het is:</b> dit zijn meldingen die niet van een check komen, maar van RzMon zelf. Per soort kies je naar welke kanalen hij gaat. Bij Pushover kies je <i>stil</i> (zonder geluid) of <i>normaal</i>. Met 🧪 stuur je een voorbeeld naar de aangevinkte kanalen. <b>Goed om te weten:</b> tijdens de <b>stille uren</b> gaat er niets naar buiten, maar de melding staat wel op de meldingenpagina. Info-meldingen van checks stel je in bij de rij <i>Info (checks)</i>, of per check.')) ?>
+          <?= xp(t('Meldingen over RzSense zelf (updates, certificaten, agents): per soort kies je waarheen.'), t('<b>Wat het is:</b> dit zijn meldingen die niet van een check komen, maar van RzSense zelf. Per soort kies je naar welke kanalen hij gaat. Bij Pushover kies je <i>stil</i> (zonder geluid) of <i>normaal</i>. Met 🧪 stuur je een voorbeeld naar de aangevinkte kanalen. <b>Goed om te weten:</b> tijdens de <b>stille uren</b> gaat er niets naar buiten, maar de melding staat wel op de meldingenpagina. Info-meldingen van checks stel je in bij de rij <i>Info (checks)</i>, of per check.')) ?>
           <div class="table-scroll"><table class="sysinfo-table" id="sysinfo"></table></div>
           <input type="hidden" name="sysinfo">
         </div>
@@ -744,7 +744,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
         <div data-sk="webhook" class="card">
           <h2><?= th('Home Assistant-webhook') ?></h2>
-          <?= xp(t('Elke melding ook naar Home Assistant, om er een automatisering mee te starten.'), t('<b>Wat het doet:</b> RzMon stuurt elke melding als JSON naar een webhook in Home Assistant. Daarmee start je een automatisering: een lamp die rood kleurt, een gesproken melding (TTS) of een bericht via de HA-app. <b>Instellen:</b> maak in Home Assistant een automatisering met als trigger <b>Webhook</b> en plak de URL hieronder, bijvoorbeeld <code>http://homeassistant.local:8123/api/webhook/rzmon-…</code>')) ?>
+          <?= xp(t('Elke melding ook naar Home Assistant, om er een automatisering mee te starten.'), t('<b>Wat het doet:</b> RzSense stuurt elke melding als JSON naar een webhook in Home Assistant. Daarmee start je een automatisering: een lamp die rood kleurt, een gesproken melding (TTS) of een bericht via de HA-app. <b>Instellen:</b> maak in Home Assistant een automatisering met als trigger <b>Webhook</b> en plak de URL hieronder, bijvoorbeeld <code>http://homeassistant.local:8123/api/webhook/rzmon-…</code>')) ?>
           <label class="switch"><input type="checkbox" name="ha_webhook_enabled"><span></span> <?= th('Webhook aan') ?></label>
           <label><?= th('Webhook-URL') ?><input name="ha_webhook_url" type="url" spellcheck="false" placeholder="http://homeassistant.local:8123/api/webhook/rzmon-geheim-id"></label>
           <p class="muted small"><?= t('Welke meldingen naar Home Assistant gaan, stel je in bij <b>🔔 Meldingen</b> (kolom Home Assistant).') ?></p>
@@ -754,7 +754,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
         <div data-sk="email" class="card">
           <h2>E-mail</h2>
-          <?= xp(t('Meldingen per e-mail, altijd of alleen als reserve wanneer Pushover niet werkt.'), t('<b>Wat het doet:</b> RzMon stuurt meldingen ook als e-mail, via een mailserver (SMTP) die je hieronder invult. Kies <i>altijd</i> of <i>alleen als Pushover niet werkt</i>. <b>Goed om te weten:</b> bij Gmail, Outlook en iCloud heb je een <b>app-wachtwoord</b> nodig, niet je gewone wachtwoord. Met <i>Testmail sturen</i> controleer je meteen of het werkt.')) ?>
+          <?= xp(t('Meldingen per e-mail, altijd of alleen als reserve wanneer Pushover niet werkt.'), t('<b>Wat het doet:</b> RzSense stuurt meldingen ook als e-mail, via een mailserver (SMTP) die je hieronder invult. Kies <i>altijd</i> of <i>alleen als Pushover niet werkt</i>. <b>Goed om te weten:</b> bij Gmail, Outlook en iCloud heb je een <b>app-wachtwoord</b> nodig, niet je gewone wachtwoord. Met <i>Testmail sturen</i> controleer je meteen of het werkt.')) ?>
           <label class="switch"><input type="checkbox" name="email_enabled"><span></span> <?= th('E-mailmeldingen aan') ?></label>
           <label><?= th('Versturen') ?>
             <select name="email_mode">
@@ -803,7 +803,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
         <div data-sk="reports" class="card" id="reports-card" data-nodirty>
           <h2>📬 <?= th('Rapporten') ?></h2>
-          <?= xp(t('Alle overzichten die RzMon verstuurt, op één plek.'), t('<b>Wat het doet:</b> per rapport kies je of het aan staat, hoe vaak (elke week of elke maand), de dag, de tijd en de kanalen: e-mail (als HTML, met een platte versie erbij) en/of een korte push. Het <b>Maandoverzicht</b> zet de onderdelen die je aanvinkt samen in één bericht. <b>Nu versturen</b> stuurt een rapport meteen via zijn kanalen, <b>Voorbeeld</b> laat zien hoe hij eruitziet, en <b>Naar mij</b> stuurt hem naar het e-mailadres van je eigen account (Mijn account). <b>Nodig:</b> e-mail bij <i>Meldingen → Kanalen</i>; voor push Pushover of ntfy.')) ?>
+          <?= xp(t('Alle overzichten die RzSense verstuurt, op één plek.'), t('<b>Wat het doet:</b> per rapport kies je of het aan staat, hoe vaak (elke week of elke maand), de dag, de tijd en de kanalen: e-mail (als HTML, met een platte versie erbij) en/of een korte push. Het <b>Maandoverzicht</b> zet de onderdelen die je aanvinkt samen in één bericht. <b>Nu versturen</b> stuurt een rapport meteen via zijn kanalen, <b>Voorbeeld</b> laat zien hoe hij eruitziet, en <b>Naar mij</b> stuurt hem naar het e-mailadres van je eigen account (Mijn account). <b>Nodig:</b> e-mail bij <i>Meldingen → Kanalen</i>; voor push Pushover of ntfy.')) ?>
           <div id="reports-box"><p class="muted small"><?= th('laden…') ?></p></div>
         </div>
 
@@ -821,7 +821,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           </div>
           <label><?= th('of alleen een API-sleutel') ?> <span class="hint"><?= th('(Network 9 of nieuwer: alleen lezen, weren kan dan niet)') ?></span><input name="unifi_key" type="password" autocomplete="new-password" class="mono"></label>
           <label class="switch"><input type="checkbox" name="unifi_verify_ssl"><span></span> <?= th('Certificaat controleren') ?> <span class="hint"><?= th('(uit bij het eigen certificaat van UniFi)') ?></span></label>
-          <?= xp(t('Gebruik een lokaal UniFi-account; met alleen een API-sleutel kan RzMon niet weren.'), t('<b>Instellen:</b> maak in UniFi een <b>lokaal account</b> voor RzMon (<i>Admins &amp; Users → Add admin → Restrict to local access only</i>), met beheerrechten voor Network en zonder 2FA. <b>Alleen een API-sleutel</b> (<i>Settings → Control Plane → Integrations</i>) kan ook: dan kan RzMon lezen, maar geen apparaten weren.')) ?>
+          <?= xp(t('Gebruik een lokaal UniFi-account; met alleen een API-sleutel kan RzSense niet weren.'), t('<b>Instellen:</b> maak in UniFi een <b>lokaal account</b> voor RzSense (<i>Admins &amp; Users → Add admin → Restrict to local access only</i>), met beheerrechten voor Network en zonder 2FA. <b>Alleen een API-sleutel</b> (<i>Settings → Control Plane → Integrations</i>) kan ook: dan kan RzSense lezen, maar geen apparaten weren.')) ?>
           <h3 class="set-sub">AdGuard Home</h3>
           <label><?= th('Adressen') ?> <span class="hint"><?= th('(één per regel; gesynchroniseerde instanties allemaal invullen)') ?></span>
             <textarea name="adguard_urls" rows="2" class="mono" placeholder="http://192.168.2.203:3000&#10;http://192.168.2.204:3000"></textarea></label>
@@ -842,7 +842,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
         <div data-sk="mqtt" class="card">
           <h2><?= th('MQTT (Home Assistant)') ?></h2>
-          <?= xp(t('Elke server als apparaat met sensoren in Home Assistant, via MQTT.'), t('<b>Wat het doet:</b> RzMon meldt zich via <b>MQTT discovery</b> bij Home Assistant. Elke server wordt een apparaat, met sensoren voor de status en de meetwaarden van zijn checks. Zo gebruik je ze in dashboards en automatiseringen. <b>Nodig:</b> een MQTT-broker (bijvoorbeeld de add-on <i>Mosquitto broker</i>) en de MQTT-integratie in Home Assistant. Log bij Mosquitto in met een HA-gebruiker of een aparte gebruiker.')) ?>
+          <?= xp(t('Elke server als apparaat met sensoren in Home Assistant, via MQTT.'), t('<b>Wat het doet:</b> RzSense meldt zich via <b>MQTT discovery</b> bij Home Assistant. Elke server wordt een apparaat, met sensoren voor de status en de meetwaarden van zijn checks. Zo gebruik je ze in dashboards en automatiseringen. <b>Nodig:</b> een MQTT-broker (bijvoorbeeld de add-on <i>Mosquitto broker</i>) en de MQTT-integratie in Home Assistant. Log bij Mosquitto in met een HA-gebruiker of een aparte gebruiker.')) ?>
           <label class="switch"><input type="checkbox" name="mqtt_enabled"><span></span> <?= th('MQTT aan') ?></label>
           <div class="row3 smtp-row">
             <label><?= th('MQTT-server') ?><input name="mqtt_host" spellcheck="false" placeholder="homeassistant.local"></label>
@@ -870,7 +870,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
         <div data-sk="ai" class="card" id="ai-card">
           <h2>🤖 <?= th('AI-advies') ?></h2>
-          <?= xp(t('Een AI legt een storing of incident uit en stelt een oplossing voor.'), t('<b>Wat het doet:</b> bij een check, een gebundelde storing, een incident of een IDS-melding vraag je met 🤖 om advies. RzMon stuurt mee wat het weet (de check, de server, statuswissels, andere problemen, wijzigingen, herstelpogingen en eventueel een diagnose) en toont het antwoord: wat er aan de hand is, de oorzaak, de oplossing in stappen en hoe je controleert of het werkt.<br><b>Aanbieders:</b> Claude, ChatGPT, Gemini en Grok (in de cloud, met een API-sleutel) of <b>Ollama</b> (lokaal of op een eigen server, gratis, je gegevens blijven thuis).<br><b>Staat het uit,</b> dan zie je nergens iets van AI en gaat er niets de deur uit.')) ?>
+          <?= xp(t('Een AI legt een storing of incident uit en stelt een oplossing voor.'), t('<b>Wat het doet:</b> bij een check, een gebundelde storing, een incident of een IDS-melding vraag je met 🤖 om advies. RzSense stuurt mee wat het weet (de check, de server, statuswissels, andere problemen, wijzigingen, herstelpogingen en eventueel een diagnose) en toont het antwoord: wat er aan de hand is, de oorzaak, de oplossing in stappen en hoe je controleert of het werkt.<br><b>Aanbieders:</b> Claude, ChatGPT, Gemini en Grok (in de cloud, met een API-sleutel) of <b>Ollama</b> (lokaal of op een eigen server, gratis, je gegevens blijven thuis).<br><b>Staat het uit,</b> dan zie je nergens iets van AI en gaat er niets de deur uit.')) ?>
           <label class="switch"><input type="checkbox" name="ai_on"><span></span> <?= t('<b>AI-advies aan</b>') ?></label>
           <div id="ai-body">
             <label><?= th('Aanbieder') ?>
@@ -887,7 +887,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
               <label><?= th('Adres van Ollama') ?><input name="ai_ollama_url" spellcheck="false" placeholder="http://127.0.0.1:11434"></label>
               <label><?= th('Model') ?><input name="ai_ollama_model" list="ai-ml-ollama" spellcheck="false" placeholder="llama3.1:8b"><datalist id="ai-ml-ollama"></datalist></label>
             </div>
-            <p class="muted small" data-prov="ollama" hidden><?= t('Ollama op een andere machine? Laat het daar luisteren op het netwerk (<code>OLLAMA_HOST=0.0.0.0</code>) en zet de poort 11434 in de firewall alleen open voor de server van RzMon: Ollama heeft zelf geen wachtwoord.') ?></p>
+            <p class="muted small" data-prov="ollama" hidden><?= t('Ollama op een andere machine? Laat het daar luisteren op het netwerk (<code>OLLAMA_HOST=0.0.0.0</code>) en zet de poort 11434 in de firewall alleen open voor de server van RzSense: Ollama heeft zelf geen wachtwoord.') ?></p>
             <div class="row2" data-prov="claude" hidden>
               <label><?= th('API-sleutel') ?><input name="ai_claude_key" type="password" autocomplete="new-password" spellcheck="false"></label>
               <label><?= th('Model') ?><input name="ai_claude_model" list="ai-ml-claude" spellcheck="false" placeholder="claude-sonnet-5-5"><datalist id="ai-ml-claude"></datalist></label>
@@ -929,7 +929,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
             <p class="small" id="ai-usage"></p>
             <!-- 1.173.0: verbruik, tegoed en budget -->
             <h3 class="set-sub">💶 <?= th('Verbruik en tegoed') ?></h3>
-            <?= xp(t('Wat het AI-advies kost: tokens en geschatte kosten, je tegoed en een maandbudget.'), t('<b>Waarom geschat:</b> de aanbieders laten met een gewone API-sleutel niet zien hoeveel tegoed je nog hebt. RzMon telt daarom zelf: elk antwoord zegt hoeveel tokens het kostte, en met de prijs per model die jij invult rekent RzMon de kosten uit. <b>Tegoed:</b> vul in hoeveel je hebt opgewaardeerd en vanaf wanneer; RzMon trekt de kosten eraf. Bij 80% krijg je een melding. <b>Maandbudget:</b> is het op, dan stopt AI-advies via de cloud tot volgende maand (of gaat het naar Ollama, zie Extra\'s). <b>Tegoed op:</b> meldt een aanbieder dat het tegoed op is, dan zie je dat hier en krijg je een melding met een link om op te waarderen.')) ?>
+            <?= xp(t('Wat het AI-advies kost: tokens en geschatte kosten, je tegoed en een maandbudget.'), t('<b>Waarom geschat:</b> de aanbieders laten met een gewone API-sleutel niet zien hoeveel tegoed je nog hebt. RzSense telt daarom zelf: elk antwoord zegt hoeveel tokens het kostte, en met de prijs per model die jij invult rekent RzSense de kosten uit. <b>Tegoed:</b> vul in hoeveel je hebt opgewaardeerd en vanaf wanneer; RzSense trekt de kosten eraf. Bij 80% krijg je een melding. <b>Maandbudget:</b> is het op, dan stopt AI-advies via de cloud tot volgende maand (of gaat het naar Ollama, zie Extra\'s). <b>Tegoed op:</b> meldt een aanbieder dat het tegoed op is, dan zie je dat hier en krijg je een melding met een link om op te waarderen.')) ?>
             <div id="ai-credit-out"></div>
             <div id="ai-cost-kpi" class="ai-kpis"></div>
             <div id="ai-cost-chart"></div>
@@ -972,7 +972,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
             <label><?= th('Blokkeren (uren)') ?><input type="number" name="ids_block_hours" min="1" max="8760"></label>
             <label><?= th('Bij herhaling (dagen)') ?><input type="number" name="ids_repeat_days" min="1" max="365"></label>
           </div>
-          <p class="small"><b><?= th('Nooit blokkeren') ?></b>: <?= t('je LAN en RzMon zelf worden nooit automatisch geblokkeerd. Andere IP-adressen en netwerken zet je op de <a href="#settings/whitelist" data-goto="settings/whitelist">✅ whitelist</a>; die geldt voor RzMon én het IDS op al je servers.') ?></p>
+          <p class="small"><b><?= th('Nooit blokkeren') ?></b>: <?= t('je LAN en RzSense zelf worden nooit automatisch geblokkeerd. Andere IP-adressen en netwerken zet je op de <a href="#settings/whitelist" data-goto="settings/whitelist">✅ whitelist</a>; die geldt voor RzSense én het IDS op al je servers.') ?></p>
           <label class="switch"><input type="checkbox" name="ids_block_shared"><span></span> <?= th('Automatische blokkades op alle servers') ?></label>
           <?= xp(t('Wordt een aanvaller op één server geblokkeerd, dan meteen op al je servers.'), t('Een aanvaller die op één server automatisch geblokkeerd wordt (brute force, honeypot), wordt meteen ook geblokkeerd op al je andere servers met het IDS op <i>Blokkeren</i>. <b>Goed om te weten:</b> met de hand blokkeren geldt alleen voor de server die je kiest.')) ?>
           <h3 class="set-sub"><?= th('🍯 Honeypot') ?></h3>
@@ -982,7 +982,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <label><?= th('Honeypot-poort') ?> <span class="muted small"><?= th('(TCP; leeg = uit. Er luistert niets: de agent zet een regel in zijn eigen firewalltabel)') ?></span>
             <input type="number" name="ids_decoy_port" min="1" max="65535" placeholder="2323"></label>
           <h3 class="set-sub"><?= th('📁 Bestanden bewaken') ?></h3>
-          <?= xp(t('Meldt nieuwe, gewijzigde en verwijderde bestanden in deze mappen.'), t('<b>Wat het doet:</b> de agent onthoudt van elk bestand in deze paden de vingerafdruk (SHA-256), grootte, rechten en eigenaar, en meldt nieuwe, gewijzigde en verwijderde bestanden. De inhoud gaat nooit naar RzMon. <b>Paden:</b> een map wordt helemaal doorzocht; met jokertekens kies je bestanden, bijvoorbeeld <code>/var/www/**/*.php</code>. Dit geldt voor alle servers; per server voeg je paden toe via <i>✎ Bewerken</i>. <b>Grenzen:</b> hooguit 20 paden en 10.000 bestanden per server.')) ?>
+          <?= xp(t('Meldt nieuwe, gewijzigde en verwijderde bestanden in deze mappen.'), t('<b>Wat het doet:</b> de agent onthoudt van elk bestand in deze paden de vingerafdruk (SHA-256), grootte, rechten en eigenaar, en meldt nieuwe, gewijzigde en verwijderde bestanden. De inhoud gaat nooit naar RzSense. <b>Paden:</b> een map wordt helemaal doorzocht; met jokertekens kies je bestanden, bijvoorbeeld <code>/var/www/**/*.php</code>. Dit geldt voor alle servers; per server voeg je paden toe via <i>✎ Bewerken</i>. <b>Grenzen:</b> hooguit 20 paden en 10.000 bestanden per server.')) ?>
           <div id="fim-editor"></div>
           <input type="hidden" name="ids_fim">
           <label><?= th('Uitsluiten') ?> <span class="muted small"><?= t('(namen als <code>*.log</code>, mappen als <code>cache/</code>, of paden; gescheiden door spaties)') ?></span>
@@ -998,17 +998,17 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
         <div data-sk="ids_edr" class="card" id="ids-edr-card">
           <h2>🛡️ <?= th('Endpoint-bewaking') ?></h2>
-          <?= xp(t('Kijkt live mee op je servers: processen, verbindingen, bestanden en containers.'), t('<b>Wat het is:</b> endpoint-bewaking (EDR). De agent (1.63.0 of nieuwer) ziet op het moment zelf nieuwe <b>processen</b> (auditd), <b>verbindingen</b> en luisterpoorten, nieuwe <b>bestanden</b> in tijdelijke mappen en webmappen (inotify) en <b>containers</b>. <b>Wat het doet:</b> RzMon toetst alles aan zijn eigen regels en aan de open <b>Sigma</b>-regels. Een treffer wordt een incident, met het bewijs erbij. <b>Waar je het ziet:</b> op <i>🛡️ IDS → 🛰️ Live</i>. Per server zet je het aan of uit in de Agent Manager.')) ?>
+          <?= xp(t('Kijkt live mee op je servers: processen, verbindingen, bestanden en containers.'), t('<b>Wat het is:</b> endpoint-bewaking (EDR). De agent (1.63.0 of nieuwer) ziet op het moment zelf nieuwe <b>processen</b> (auditd), <b>verbindingen</b> en luisterpoorten, nieuwe <b>bestanden</b> in tijdelijke mappen en webmappen (inotify) en <b>containers</b>. <b>Wat het doet:</b> RzSense toetst alles aan zijn eigen regels en aan de open <b>Sigma</b>-regels. Een treffer wordt een incident, met het bewijs erbij. <b>Waar je het ziet:</b> op <i>🛡️ IDS → 🛰️ Live</i>. Per server zet je het aan of uit in de Agent Manager.')) ?>
           <label class="switch"><input type="checkbox" name="edr_on"><span></span> <?= t('<b>Endpoint-bewaking aan</b> (op de servers waar het in de Agent Manager aan staat)') ?></label>
-          <label class="switch"><input type="checkbox" name="edr_sigma"><span></span> <?= t('<b>Sigma-regels</b> van SigmaHQ gebruiken (naast de eigen regels van RzMon)') ?></label>
+          <label class="switch"><input type="checkbox" name="edr_sigma"><span></span> <?= t('<b>Sigma-regels</b> van SigmaHQ gebruiken (naast de eigen regels van RzSense)') ?></label>
           <label class="switch"><input type="checkbox" name="edr_web"><span></span> <?= t('<b>Payload-inspectie</b> van verdachte webverzoeken (SWAG): SQL-injectie, XSS, Log4Shell, bekende exploits met CVE …') ?></label>
           <h3 class="set-sub"><?= th('Zelf ingrijpen (alleen in de modus ⛔ Blokkeren)') ?></h3>
           <label class="switch"><input type="checkbox" name="edr_kill"><span></span> <?= t('<b>Proces stoppen</b> bij een regel die dat zegt (webshell, reverse shell, cryptominer …)') ?></label>
           <label class="switch"><input type="checkbox" name="edr_block"><span></span> <?= t('<b>IP blokkeren</b> bij een webaanval met een herkende payload') ?></label>
-          <label class="switch"><input type="checkbox" name="edr_isolate"><span></span> <?= t('<b>Server isoleren</b> (24 uur) bij een reverse shell of cryptominer: alleen RzMon en je LAN kunnen er dan nog bij') ?></label>
-          <?= xp(t('Wat RzMon bij een treffer doet, staat altijd in het incident.'), t('Wat RzMon zelf doet (bijvoorbeeld een proces stoppen of een IP blokkeren), staat altijd in het incident en gaat als critical ook naar Pushover. <b>Goed om te weten:</b> in de modus <i>🎓 Leren</i> grijpt RzMon nooit in, maar meldt het wel.')) ?>
+          <label class="switch"><input type="checkbox" name="edr_isolate"><span></span> <?= t('<b>Server isoleren</b> (24 uur) bij een reverse shell of cryptominer: alleen RzSense en je LAN kunnen er dan nog bij') ?></label>
+          <?= xp(t('Wat RzSense bij een treffer doet, staat altijd in het incident.'), t('Wat RzSense zelf doet (bijvoorbeeld een proces stoppen of een IP blokkeren), staat altijd in het incident en gaat als critical ook naar Pushover. <b>Goed om te weten:</b> in de modus <i>🎓 Leren</i> grijpt RzSense nooit in, maar meldt het wel.')) ?>
           <h3 class="set-sub"><?= th('🧬 Afwijkingen en ketens') ?></h3>
-          <label class="switch"><input type="checkbox" name="edr_anom"><span></span> <?= t('<b>Afwijkingen melden</b> (RzMon leert per server wat normaal is)') ?></label>
+          <label class="switch"><input type="checkbox" name="edr_anom"><span></span> <?= t('<b>Afwijkingen melden</b> (RzSense leert per server wat normaal is)') ?></label>
           <div class="row">
             <label><?= th('Leerperiode (dagen)') ?> <input name="edr_learn_days" type="number" min="1" max="90"></label>
             <label><?= th('Incident vanaf score') ?> <span class="muted small"><?= th('(lager: alleen op de pagina)') ?></span> <input name="edr_anom_min" type="number" min="1" max="100"></label>
@@ -1021,14 +1021,14 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
         <div data-sk="ids_ti" class="card" id="ids-ti-card">
           <h2>🌐 <?= th('Dreigingsinformatie') ?></h2>
-          <?= xp(t('Zoekt op of een IP-adres of bestand uit je incidenten al bekend is als gevaarlijk.'), t('<b>Wat het doet:</b> RzMon zoekt op wat er op internet bekend is over de IP-adressen en bestanden uit je incidenten: een bekende aanvaller, een onschuldige scanner, een Tor-uitgang, bekende malware? Dat staat dan bij het incident en bij het IP-adres, en RzMon handelt ernaar. <b>Privacy:</b> alleen het IP-adres of de vingerafdruk (hash) van een bestand gaat naar buiten, nooit namen van servers of gebruikers. <b>Goed om te weten:</b> werkt alleen als het IDS aan staat.')) ?>
+          <?= xp(t('Zoekt op of een IP-adres of bestand uit je incidenten al bekend is als gevaarlijk.'), t('<b>Wat het doet:</b> RzSense zoekt op wat er op internet bekend is over de IP-adressen en bestanden uit je incidenten: een bekende aanvaller, een onschuldige scanner, een Tor-uitgang, bekende malware? Dat staat dan bij het incident en bij het IP-adres, en RzSense handelt ernaar. <b>Privacy:</b> alleen het IP-adres of de vingerafdruk (hash) van een bestand gaat naar buiten, nooit namen van servers of gebruikers. <b>Goed om te weten:</b> werkt alleen als het IDS aan staat.')) ?>
           <label class="switch"><input type="checkbox" name="ti_on"><span></span> <?= t('<b>Dreigingsinformatie aan</b>') ?></label>
           <h3 class="set-sub">AbuseIPDB</h3>
           <label><?= th('API-sleutel') ?> <span class="hint"><?= t('(gratis: <a href="https://www.abuseipdb.com/account/api" target="_blank" rel="noopener">abuseipdb.com → Account → API</a>; 1.000 opzoekingen per dag)') ?></span>
             <input name="ti_abuseipdb_key" type="password" autocomplete="new-password" class="mono" placeholder="<?= th('plak hier je sleutel') ?>"></label>
           <p class="small"><button type="button" class="btn small-btn" data-ti-test="abuse"><?= th('Sleutel testen') ?></button> <span class="muted" data-ti-res="abuse"></span></p>
-          <label class="switch"><input type="checkbox" name="ti_report"><span></span> <?= t('<b>Melden</b> bij AbuseIPDB wie RzMon automatisch blokkeert (brute force, webaanval, honeypot; hooguit één keer per dag per IP)') ?></label>
-          <?= xp(t('Meldt aanvallers terug aan AbuseIPDB, zodat anderen ze ook kunnen weren.'), t('Het IP-adres, de soort aanval en de tekst "RzMon IDS" gaan naar AbuseIPDB, zodat anderen die aanvaller ook kunnen weren. <b>Goed om te weten:</b> adressen uit je eigen netwerk of van de whitelist worden nooit gemeld.')) ?>
+          <label class="switch"><input type="checkbox" name="ti_report"><span></span> <?= t('<b>Melden</b> bij AbuseIPDB wie RzSense automatisch blokkeert (brute force, webaanval, honeypot; hooguit één keer per dag per IP)') ?></label>
+          <?= xp(t('Meldt aanvallers terug aan AbuseIPDB, zodat anderen ze ook kunnen weren.'), t('Het IP-adres, de soort aanval en de tekst "RzSense IDS" gaan naar AbuseIPDB, zodat anderen die aanvaller ook kunnen weren. <b>Goed om te weten:</b> adressen uit je eigen netwerk of van de whitelist worden nooit gemeld.')) ?>
           <h3 class="set-sub"><?= th('Andere bronnen (gratis)') ?></h3>
           <label class="switch"><input type="checkbox" name="ti_greynoise"><span></span> <?= t('<b>GreyNoise</b> (scant dit IP het hele internet, is het een bekende dienst zoals Google of Shodan, of kwaadaardig)') ?></label>
           <label><?= th('GreyNoise-sleutel') ?> <span class="hint"><?= th('(niet nodig; zonder sleutel ongeveer 50 per dag)') ?></span><input name="ti_greynoise_key" type="password" autocomplete="new-password" class="mono"></label>
@@ -1042,7 +1042,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <label><?= th('abuse.ch Auth-Key') ?> <span class="hint"><?= t('(gratis: <a href="https://auth.abuse.ch/" target="_blank" rel="noopener">auth.abuse.ch</a>; voor MalwareBazaar en ThreatFox)') ?></span>
             <input name="ti_abusech_key" type="password" autocomplete="new-password" class="mono"></label>
           <p class="small"><button type="button" class="btn small-btn" data-ti-test="abusech"><?= th('Sleutel testen') ?></button> <span class="muted" data-ti-res="abusech"></span></p>
-          <h3 class="set-sub"><?= th('Wat RzMon ermee doet') ?></h3>
+          <h3 class="set-sub"><?= th('Wat RzSense ermee doet') ?></h3>
           <label class="switch"><input type="checkbox" name="ti_block"><span></span> <?= t('<b>Bekende aanvallers blokkeren</b> (modus ⛔ Blokkeren), vanaf deze score:') ?></label>
           <label><?= th('Score voor "bekende aanvaller" (0–100)') ?> <span class="hint"><?= th('(AbuseIPDB-percentage, of 80–90 bij GreyNoise/Shodan/abuse.ch)') ?></span><input name="ti_block_score" type="number" min="10" max="100"></label>
           <label class="switch"><input type="checkbox" name="ti_escalate"><span></span> <?= t('Een <b>login</b> vanaf een bekende aanvaller wordt critical (Pushover)') ?></label>
@@ -1053,10 +1053,10 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <p class="muted small" id="dns-status" style="margin-top:-.4rem"></p>
           <label class="switch"><input type="checkbox" name="suricata_on"><span></span> <?= t('<b>Suricata</b> (alerts van de agents gebruiken, als Suricata op een server draait; agent 1.64.0)') ?></label>
           <label class="switch"><input type="checkbox" name="suricata_block"><span></span> <?= t('<b>Blokkeren</b> bij een ernstig Suricata-alert (ernst 1, aanvaller van buiten, modus Blokkeren)') ?></label>
-          <label class="switch"><input type="checkbox" name="edr_yara"><span></span> <?= t('<b>YARA</b> (regels van RzMon naar de agents sturen: nieuwe bestanden op webshells, miners, botnets en rootkits controleren; YARA moet op de server staan)') ?></label>
+          <label class="switch"><input type="checkbox" name="edr_yara"><span></span> <?= t('<b>YARA</b> (regels van RzSense naar de agents sturen: nieuwe bestanden op webshells, miners, botnets en rootkits controleren; YARA moet op de server staan)') ?></label>
           <p class="muted small" id="ti-status"></p>
           <p class="small"><button type="button" class="btn small-btn" id="ti-lists"><?= th('Lijsten nu bijwerken') ?></button></p>
-          <?= xp(t('Welke bronnen RzMon gebruikt en hoe vaak hij opzoekt.'), t('<b>Bronnen:</b> AbuseIPDB, GreyNoise Community, Shodan InternetDB, CIRCL hashlookup, abuse.ch (Feodo Tracker, URLhaus, ThreatFox, MalwareBazaar) en het Tor Project. <b>Hoe:</b> opzoeken gebeurt op de achtergrond (cron), met een cache van een dag en een limiet per dag, zodat je binnen de gratis grenzen blijft.')) ?>
+          <?= xp(t('Welke bronnen RzSense gebruikt en hoe vaak hij opzoekt.'), t('<b>Bronnen:</b> AbuseIPDB, GreyNoise Community, Shodan InternetDB, CIRCL hashlookup, abuse.ch (Feodo Tracker, URLhaus, ThreatFox, MalwareBazaar) en het Tor Project. <b>Hoe:</b> opzoeken gebeurt op de achtergrond (cron), met een cache van een dag en een limiet per dag, zodat je binnen de gratis grenzen blijft.')) ?>
         </div>
 
         <div data-sk="ids_attack" class="card" id="ids-attack-card">
@@ -1069,7 +1069,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <label><?= th('Normale landen') ?> <span class="muted small"><?= th('(landcodes, bv. NL BE DE; een SSH-login van buiten vanuit een ander land is critical)') ?></span>
             <input name="ids_geo_allowed" class="mono" placeholder="NL"></label>
           <p class="muted small" id="ipintel-status"></p>
-          <?= xp(t('Uit welk land een IP-adres komt, opgezocht op de RzMon-server zelf.'), t('<b>Bron:</b> <a href="https://db-ip.com" target="_blank" rel="noopener">IP Geolocation by DB-IP</a> (CC BY 4.0), elke maand bijgewerkt. <b>Privacy:</b> opzoeken gebeurt op de RzMon-server zelf; er gaat per login niets naar buiten. Met <i>Nu bijwerken</i> haal je de nieuwste lijst meteen op.')) ?>
+          <?= xp(t('Uit welk land een IP-adres komt, opgezocht op de RzSense-server zelf.'), t('<b>Bron:</b> <a href="https://db-ip.com" target="_blank" rel="noopener">IP Geolocation by DB-IP</a> (CC BY 4.0), elke maand bijgewerkt. <b>Privacy:</b> opzoeken gebeurt op de RzSense-server zelf; er gaat per login niets naar buiten. Met <i>Nu bijwerken</i> haal je de nieuwste lijst meteen op.')) ?>
           <p class="small"><button type="button" class="btn small-btn" id="ipintel-update"><?= th('Nu bijwerken') ?></button></p>
           <h3 class="set-sub"><?= th('🌐 Uitgaande verbindingen') ?> <span class="muted small"><?= th('(agent 1.56.0)') ?></span></h3>
           <label class="switch"><input type="checkbox" name="ids_outbound"><span></span> <span><?= t('Melden als een server verbinding maakt met een <b>bekende aanvaller</b> (critical)') ?></span></label>
@@ -1077,7 +1077,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <label class="switch"><input type="checkbox" name="ids_outbound_block"><span></span> <span><?= t('In de modus blokkeren uitgaand verkeer naar bekende aanvallers <b>blokkeren</b> (ook vanuit containers)') ?></span></label>
           <?= xp(t('Meldt verbindingen van je servers naar ongewone landen of bekende aanvallers.'), t('<b>Waarom:</b> zo valt een server op die al besmet is, bijvoorbeeld door een cryptominer of een verbinding met de aanvaller. <b>Hoe:</b> in de eerste uren (de basismeting) leert het IDS welke landen normaal zijn. <b>Vrijgeven:</b> klik bij het incident op <b>✅ Vrijgeven</b> om het IP op de whitelist te zetten (1, 7, 30 dagen of altijd), of op <b>Dit is normaal</b> voor dat programma en land.')) ?>
           <h3 class="set-sub"><?= th('📜 Logs van webdiensten') ?> <span class="muted small"><?= th('(agent 1.58.0)') ?></span></h3>
-          <?= xp(t('Herkent aanvallen in de logs van je webdiensten, zoals SWAG en Home Assistant.'), t('<b>Wat het doet:</b> de agent leest elke minuut de nieuwe regels uit de logs en vat ze per IP samen; RzMon herkent daarin aanvallen. <b>Waar staan de logs?</b> Leeg of <code>auto</code> = zelf zoeken (de container van SWAG, gangbare mappen; in Home Assistant via de Supervisor). <b>Goed om te weten:</b> je eigen netwerk en de whitelist tellen nooit mee.')) ?>
+          <?= xp(t('Herkent aanvallen in de logs van je webdiensten, zoals SWAG en Home Assistant.'), t('<b>Wat het doet:</b> de agent leest elke minuut de nieuwe regels uit de logs en vat ze per IP samen; RzSense herkent daarin aanvallen. <b>Waar staan de logs?</b> Leeg of <code>auto</code> = zelf zoeken (de container van SWAG, gangbare mappen; in Home Assistant via de Supervisor). <b>Goed om te weten:</b> je eigen netwerk en de whitelist tellen nooit mee.')) ?>
           <div class="row3">
             <label class="switch"><input type="checkbox" name="weblog_swag"><span></span> <span><b>SWAG</b> (nginx)</span></label>
             <label class="switch"><input type="checkbox" name="weblog_ha"><span></span> <span><b>Home Assistant</b></span></label>
@@ -1117,7 +1117,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
         <div data-sk="vulns" class="card" id="vulns-card">
           <h2>🐞 <?= th('Kwetsbaarheden') ?></h2>
-          <?= xp(t('Zoekt bekende lekken (CVE\'s) in de software op je servers.'), t('<b>Wat het doet:</b> de agents (1.47.0 of nieuwer) sturen hun softwarelijst mee; voor de RzMon-server leest RzMon die zelf. RzMon zoekt daar de bekende kwetsbaarheden (CVE\'s) bij op <b>OSV.dev</b>, met de adviezen van de distributie zelf. Erbij staat of een lek <i>actief misbruikt</i> wordt (lijst van CISA) en hoe groot de kans op misbruik is (EPSS). <b>Privacy:</b> naar OSV.dev gaan alleen pakketnamen, versies en de distributie, geen servernamen of IP-adressen. <b>Ondersteund:</b> Debian, Ubuntu, Rocky Linux, AlmaLinux (en RHEL/CentOS via AlmaLinux) en Alpine.')) ?>
+          <?= xp(t('Zoekt bekende lekken (CVE\'s) in de software op je servers.'), t('<b>Wat het doet:</b> de agents (1.47.0 of nieuwer) sturen hun softwarelijst mee; voor de RzSense-server leest RzSense die zelf. RzSense zoekt daar de bekende kwetsbaarheden (CVE\'s) bij op <b>OSV.dev</b>, met de adviezen van de distributie zelf. Erbij staat of een lek <i>actief misbruikt</i> wordt (lijst van CISA) en hoe groot de kans op misbruik is (EPSS). <b>Privacy:</b> naar OSV.dev gaan alleen pakketnamen, versies en de distributie, geen servernamen of IP-adressen. <b>Ondersteund:</b> Debian, Ubuntu, Rocky Linux, AlmaLinux (en RHEL/CentOS via AlmaLinux) en Alpine.')) ?>
           <div data-nodirty><label class="switch"><input type="checkbox" id="vuln-enabled"><span></span> <?= t('<b>Kwetsbaarheden aan</b> (tabblad 🐞 Kwetsbaarheden)') ?></label></div>
           <div class="row2">
             <label><?= th('Dagelijks scannen om') ?><input type="time" name="vuln_time"></label>
@@ -1132,7 +1132,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
         <div data-sk="cvebuzz" class="card" id="cvebuzz-card">
           <h2>🔥 <?= th('Rugbaarheid en exploits') ?></h2>
-          <?= xp(t('Hoeveel aandacht krijgt een kwetsbaarheid, en wordt hij al misbruikt?'), t('<b>Wat het doet:</b> voor elke CVE op je servers telt RzMon één keer per dag (actief misbruikt of high/critical: twee keer) hoe vaak hij besproken wordt (Hacker News, Mastodon) en of er een exploit is (GitHub, Exploit-DB, een Nuclei-template, het oordeel van CISA). Dat wordt een score van 0 tot 100: de <b>rugbaarheid</b>. Passeert een CVE de grens of stijgt hij snel, dan krijg je een ℹ️-melding <i>veel aandacht</i>. <b>Naar buiten gaat alleen het CVE-nummer</b>, nooit de naam van je server of pakket. <b>Sleutels:</b> zonder GitHub-token zoekt RzMon er minder per minuut; het token heeft geen rechten nodig (een fine-grained token met alleen publieke toegang). Een Mastodon-token telt ook berichten zonder hashtag; zonder token telt RzMon de hashtag (bv. #CVE20243094).')) ?>
+          <?= xp(t('Hoeveel aandacht krijgt een kwetsbaarheid, en wordt hij al misbruikt?'), t('<b>Wat het doet:</b> voor elke CVE op je servers telt RzSense één keer per dag (actief misbruikt of high/critical: twee keer) hoe vaak hij besproken wordt (Hacker News, Mastodon) en of er een exploit is (GitHub, Exploit-DB, een Nuclei-template, het oordeel van CISA). Dat wordt een score van 0 tot 100: de <b>rugbaarheid</b>. Passeert een CVE de grens of stijgt hij snel, dan krijg je een ℹ️-melding <i>veel aandacht</i>. <b>Naar buiten gaat alleen het CVE-nummer</b>, nooit de naam van je server of pakket. <b>Sleutels:</b> zonder GitHub-token zoekt RzSense er minder per minuut; het token heeft geen rechten nodig (een fine-grained token met alleen publieke toegang). Een Mastodon-token telt ook berichten zonder hashtag; zonder token telt RzSense de hashtag (bv. #CVE20243094).')) ?>
           <label class="switch"><input type="checkbox" name="cve_buzz_on"><span></span> <?= t('<b>Rugbaarheid bijhouden</b>') ?></label>
           <div class="row2">
             <label><?= th('Melden vanaf') ?> <span class="hint"><?= th('(rugbaarheid 0–100)') ?></span><input name="cve_buzz_alert" type="number" min="20" max="95" placeholder="60"></label>
@@ -1144,12 +1144,12 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           </div>
           <label class="switch"><input type="checkbox" name="cve_exploitdb"><span></span> <?= th('Exploit-DB (lijst van openbare exploits, één keer per dag)') ?></label>
           <label class="switch"><input type="checkbox" name="cve_nuclei"><span></span> <?= th('Nuclei-templates (waar scanners naar zoeken, één keer per dag)') ?></label>
-          <?= xp(t('Welke adressen RzMon hiervoor gebruikt.'), t('<b>Nodig:</b> uitgaand HTTPS naar <code>api.github.com</code>, <code>hn.algolia.com</code>, <code>raw.githubusercontent.com</code> (CISA Vulnrichment en Nuclei), <code>gitlab.com</code> (Exploit-DB) en je Mastodon-instantie. <b>AI:</b> met AI-advies aan staat in de popup van een kwetsbaarheid de knop <i>Raakt dit jou echt?</i>: de AI kijkt naar je servers (staat het pakket open naar het netwerk, is er een oplossing) en zegt <i>eerst doen</i>, <i>kan wachten</i> of <i>niet van toepassing</i>.')) ?>
+          <?= xp(t('Welke adressen RzSense hiervoor gebruikt.'), t('<b>Nodig:</b> uitgaand HTTPS naar <code>api.github.com</code>, <code>hn.algolia.com</code>, <code>raw.githubusercontent.com</code> (CISA Vulnrichment en Nuclei), <code>gitlab.com</code> (Exploit-DB) en je Mastodon-instantie. <b>AI:</b> met AI-advies aan staat in de popup van een kwetsbaarheid de knop <i>Raakt dit jou echt?</i>: de AI kijkt naar je servers (staat het pakket open naar het netwerk, is er een oplossing) en zegt <i>eerst doen</i>, <i>kan wachten</i> of <i>niet van toepassing</i>.')) ?>
         </div>
 
         <div data-sk="netscan" class="card" id="netscan-card">
           <h2>🔎 <?= th('Netwerkscan') ?></h2>
-          <?= xp(t('Zoekt alle apparaten in je thuisnetwerk, met open poorten en fabrikant.'), t('<b>Wat het doet:</b> RzMon zoekt wat er op je <b>lokale netwerken</b> zit (<i>Inloggen → Lokale netwerken</i>): elk apparaat met IP-adres, MAC-adres, fabrikant, naam, open poorten en een gok wat voor apparaat het is. <b>Waar je het ziet:</b> op het tabblad <b>Netwerk</b>. Daar geef je een apparaat een naam, markeer je het als bekend, negeer je het of voeg je het met één klik toe aan RzMon. <b>Goed om te weten:</b> alleen privé-netwerken tot /22; nooit internet.')) ?>
+          <?= xp(t('Zoekt alle apparaten in je thuisnetwerk, met open poorten en fabrikant.'), t('<b>Wat het doet:</b> RzSense zoekt wat er op je <b>lokale netwerken</b> zit (<i>Inloggen → Lokale netwerken</i>): elk apparaat met IP-adres, MAC-adres, fabrikant, naam, open poorten en een gok wat voor apparaat het is. <b>Waar je het ziet:</b> op het tabblad <b>Netwerk</b>. Daar geef je een apparaat een naam, markeer je het als bekend, negeer je het of voeg je het met één klik toe aan RzSense. <b>Goed om te weten:</b> alleen privé-netwerken tot /22; nooit internet.')) ?>
           <label class="switch"><input type="checkbox" name="net_scan"><span></span> <?= t('<b>Netwerkscan aan</b> (tabblad Netwerk)') ?></label>
           <div class="row2">
             <label><?= th('Snelle ronde (ping en ARP) elke') ?>
@@ -1160,17 +1160,17 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <div id="netscan-nets" class="small"></div>
           <!-- 1.186.0: verkeer per apparaat -->
           <label class="switch"><input type="checkbox" name="net_traffic"><span></span> <?= t('<b>📊 Verkeer per apparaat</b> bijhouden (UniFi, SNMP of de agent; elke 5 minuten)') ?></label>
-          <?= xp(t('Hoeveel elk apparaat downloadt en uploadt, met een melding bij ongewoon veel verkeer.'), t('<b>Wat het doet:</b> RzMon leest elke 5 minuten de tellers van UniFi en houdt per apparaat bij hoeveel het downloadt en uploadt: per uur (30 dagen) en per dag (een jaar). Je ziet het op <i>Netwerk</i> (Overzicht, Apparaten en Ontdekken) en in het venster van elk apparaat. <b>Ongewoon veel:</b> na 7 dagen leren komt er in <i>Ontdekken</i> een melding als een apparaat op een dag 5× zoveel uploadt of downloadt als normaal (minstens 300 MB), of als het \'s nachts ineens verkeer heeft. <b>Bronnen:</b> het beste is UniFi met een lokaal account (<i>Koppelingen → UniFi en AdGuard Home</i>); dat ziet elk apparaat. Zonder UniFi telt RzMon via SNMP de poorten van je switches (een poort met één apparaat erop), en de netwerkkaarten van servers met agent 1.80.0 of nieuwer. Ziet UniFi een apparaat, dan gaat UniFi voor. Het verkeer tussen apparaten onderling wordt maar voor een deel gezien.')) ?>
+          <?= xp(t('Hoeveel elk apparaat downloadt en uploadt, met een melding bij ongewoon veel verkeer.'), t('<b>Wat het doet:</b> RzSense leest elke 5 minuten de tellers van UniFi en houdt per apparaat bij hoeveel het downloadt en uploadt: per uur (30 dagen) en per dag (een jaar). Je ziet het op <i>Netwerk</i> (Overzicht, Apparaten en Ontdekken) en in het venster van elk apparaat. <b>Ongewoon veel:</b> na 7 dagen leren komt er in <i>Ontdekken</i> een melding als een apparaat op een dag 5× zoveel uploadt of downloadt als normaal (minstens 300 MB), of als het \'s nachts ineens verkeer heeft. <b>Bronnen:</b> het beste is UniFi met een lokaal account (<i>Koppelingen → UniFi en AdGuard Home</i>); dat ziet elk apparaat. Zonder UniFi telt RzSense via SNMP de poorten van je switches (een poort met één apparaat erop), en de netwerkkaarten van servers met agent 1.80.0 of nieuwer. Ziet UniFi een apparaat, dan gaat UniFi voor. Het verkeer tussen apparaten onderling wordt maar voor een deel gezien.')) ?>
           <label class="switch small"><input type="checkbox" name="net_traffic_swap"><span></span> <?= th('Download en upload omdraaien (als je controller het andersom telt)') ?></label>
           <label><?= th('Datalimiet van je internetabonnement') ?> <span class="muted small"><?= th('(GB per maand, download + upload; leeg = geen limiet)') ?></span>
             <input type="number" name="net_wan_cap_gb" min="1" step="1" placeholder="<?= th('geen') ?>" style="max-width:10rem"></label>
           <div id="netscan-traffic" class="small muted"></div>
-          <?= xp(t('Een nieuw apparaat geeft een melding; extra programma\'s maken de scan sneller.'), t('<b>Meldingen:</b> een nieuw apparaat geeft een ℹ️-melding <i>Nieuw apparaat op je netwerk</i>, standaard alleen op de meldingenpagina (kanalen bij <i>Meldingen → Systeemmeldingen</i>). De eerste scan is de basismeting en geeft geen meldingen. <b>Sneller:</b> met <code>fping</code> en <code>avahi-browse</code> (pakket <code>avahi-tools</code> of <code>avahi-utils</code>) op de RzMon-server gaat het sneller en herkent RzMon meer, maar nodig zijn ze niet. <b>Fabrikant:</b> uit de lijst van Wireshark, maandelijks bijgewerkt (uitgaand HTTPS naar <code>www.wireshark.org</code>).')) ?>
+          <?= xp(t('Een nieuw apparaat geeft een melding; extra programma\'s maken de scan sneller.'), t('<b>Meldingen:</b> een nieuw apparaat geeft een ℹ️-melding <i>Nieuw apparaat op je netwerk</i>, standaard alleen op de meldingenpagina (kanalen bij <i>Meldingen → Systeemmeldingen</i>). De eerste scan is de basismeting en geeft geen meldingen. <b>Sneller:</b> met <code>fping</code> en <code>avahi-browse</code> (pakket <code>avahi-tools</code> of <code>avahi-utils</code>) op de RzSense-server gaat het sneller en herkent RzSense meer, maar nodig zijn ze niet. <b>Fabrikant:</b> uit de lijst van Wireshark, maandelijks bijgewerkt (uitgaand HTTPS naar <code>www.wireshark.org</code>).')) ?>
         </div>
 
         <div data-sk="logs" class="card" id="logs-card">
           <h2>📜 <?= th('Logs') ?></h2>
-          <?= xp(t('De agent verzamelt de logs die je per server kiest en stuurt ze gecomprimeerd en versleuteld naar RzMon.'), t('<b>Bronnen</b> kies je per server in de <b>Agent Manager</b> (kaart <i>Logs</i>): bestanden of mappen (met *), de journal, één service, een container, of de logs van Home Assistant. <b>Hoe:</b> elke run leest de agent alleen de nieuwe regels; elke paar minuten gaan ze als één pakketje (gzip, versleuteld met de sleutel van de agent) naar RzMon, los van het gewone rapport. Pas als RzMon het heeft opgeslagen, gooit de agent het pakketje weg; zonder verbinding bewaart hij ze (tot 50 MB). De logbestanden op de server zelf blijven staan. <b>Opslag:</b> per dag een tabel met gecomprimeerde blokken (ongeveer 7 à 8 keer kleiner); een dag ouder dan de bewaartermijn gaat in één keer weg, en boven het maximum de oudste dag eerst. <b>Zoeken</b> mag voor beheerders en gebruikers, niet voor alleen lezen.')) ?>
+          <?= xp(t('De agent verzamelt de logs die je per server kiest en stuurt ze gecomprimeerd en versleuteld naar RzSense.'), t('<b>Bronnen</b> kies je per server in de <b>Agent Manager</b> (kaart <i>Logs</i>): bestanden of mappen (met *), de journal, één service, een container, of de logs van Home Assistant. <b>Hoe:</b> elke run leest de agent alleen de nieuwe regels; elke paar minuten gaan ze als één pakketje (gzip, versleuteld met de sleutel van de agent) naar RzSense, los van het gewone rapport. Pas als RzSense het heeft opgeslagen, gooit de agent het pakketje weg; zonder verbinding bewaart hij ze (tot 50 MB). De logbestanden op de server zelf blijven staan. <b>Opslag:</b> per dag een tabel met gecomprimeerde blokken (ongeveer 7 à 8 keer kleiner); een dag ouder dan de bewaartermijn gaat in één keer weg, en boven het maximum de oudste dag eerst. <b>Zoeken</b> mag voor beheerders en gebruikers, niet voor alleen lezen.')) ?>
           <label class="switch"><input type="checkbox" name="logs_on"><span></span> <?= t('<b>Logs verzamelen</b> (hoofdschakelaar; de bronnen stel je per server in)') ?></label>
           <div class="row2">
             <label><?= th('Versturen elke (minuten)') ?> <span class="muted small"><?= th('(1–60; per server aan te passen)') ?></span><input type="number" name="logs_interval" min="1" max="60" step="1"></label>
@@ -1189,7 +1189,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
         <div data-sk="internet" class="card" id="internet-card">
           <h2>🌍 <?= th('Internet') ?></h2>
-          <?= xp(t('Bewaakt je internetlijn: ping, responstijd en snelheid.'), t('<b>Wat het doet:</b> RzMon bewaakt je internetlijn vanaf zijn eigen server. <b>Ping:</b> naar 1.1.1.1, 8.8.8.8 en je router, elke minuut. <b>Responstijd:</b> naar google.com en cloudflare.com, elke 5 minuten. <b>Snelheid:</b> download en upload via speed.cloudflare.com, op de tijden hieronder.')) ?>
+          <?= xp(t('Bewaakt je internetlijn: ping, responstijd en snelheid.'), t('<b>Wat het doet:</b> RzSense bewaakt je internetlijn vanaf zijn eigen server. <b>Ping:</b> naar 1.1.1.1, 8.8.8.8 en je router, elke minuut. <b>Responstijd:</b> naar google.com en cloudflare.com, elke 5 minuten. <b>Snelheid:</b> download en upload via speed.cloudflare.com, op de tijden hieronder.')) ?>
           <div id="inet-state"><p class="muted"><?= th('Laden…') ?></p></div>
           <h3 class="small" style="margin:1rem 0 .3rem"><?= th('Abonnement en drempels') ?></h3>
           <div class="row2">
@@ -1205,12 +1205,12 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
             <label><?= th('Tijden') ?> <span class="hint"><?= th("(UU:MM, gescheiden door komma's)") ?></span><input name="inet_times" placeholder="03:30,09:30,13:30,17:30"></label>
             <label><?= th('Hooguit per richting (MB)') ?><input type="number" name="inet_speed_mb" min="10" max="2000" step="10"></label>
           </div>
-          <?= xp(t('Een snelheidstest belast je lijn even; plan hem dus niet op drukke momenten.'), t('Elke test trekt je lijn een paar seconden vol; plan hem dus niet in de avond. Een test stopt na 10 seconden of na het aantal MB hierboven per richting (bij 1 Gbit/s ongeveer 2× 250 MB). <b>Goed om te weten:</b> ping en responstijd leren mee met de slimme drempels; de snelheid vergelijkt RzMon met je abonnement.')) ?>
+          <?= xp(t('Een snelheidstest belast je lijn even; plan hem dus niet op drukke momenten.'), t('Elke test trekt je lijn een paar seconden vol; plan hem dus niet in de avond. Een test stopt na 10 seconden of na het aantal MB hierboven per richting (bij 1 Gbit/s ongeveer 2× 250 MB). <b>Goed om te weten:</b> ping en responstijd leren mee met de slimme drempels; de snelheid vergelijkt RzSense met je abonnement.')) ?>
         </div>
 
         <div data-sk="smart" class="card" id="smart-card">
           <h2>🧠 <?= th('Slimme drempels') ?></h2>
-          <?= xp(t('RzMon leert wat normaal is per check en zet de drempels daar zelf op.'), t('<b>Wat het doet:</b> RzMon leert per check wat normaal is, per uur van de week (maandag 3:00 is anders dan dinsdag 14:00), en zet de drempels daarop. Dat begint na 7 dagen gegevens; daarna stelt RzMon ze elke nacht bij, hooguit 10% per nacht. <b>Terugdraaien:</b> elke aanpassing staat in het <i>Wijzigingslogboek</i>. <b>Werkt bij:</b> ping, TCP, HTTP, CPU, RAM, SNMP (CPU, geheugen, interface, load, temperatuur, UPS, UniFi), containers (CPU of RAM als losse check), DNS, NTP en MySQL. Disks houden vaste drempels, met de voorspelling wanneer ze vol raken.')) ?>
+          <?= xp(t('RzSense leert wat normaal is per check en zet de drempels daar zelf op.'), t('<b>Wat het doet:</b> RzSense leert per check wat normaal is, per uur van de week (maandag 3:00 is anders dan dinsdag 14:00), en zet de drempels daarop. Dat begint na 7 dagen gegevens; daarna stelt RzSense ze elke nacht bij, hooguit 10% per nacht. <b>Terugdraaien:</b> elke aanpassing staat in het <i>Wijzigingslogboek</i>. <b>Werkt bij:</b> ping, TCP, HTTP, CPU, RAM, SNMP (CPU, geheugen, interface, load, temperatuur, UPS, UniFi), containers (CPU of RAM als losse check), DNS, NTP en MySQL. Disks houden vaste drempels, met de voorspelling wanneer ze vol raken.')) ?>
           <div class="row2">
             <label><?= th('Nieuwe checks') ?>
               <select name="thresh_default"><option value="guard">🧠🛡️ <?= th('Slim met vangnet') ?></option><option value="smart">🧠 <?= th('Slim') ?></option><option value="manual">✋ <?= th('Handmatig') ?></option></select></label>
@@ -1221,7 +1221,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <label class="switch"><input type="checkbox" name="smart_auto"><span></span> <span><?= t('<b>Zelf omzetten</b>: een handmatige check gaat na 7 dagen leren vanzelf naar <i>slim met vangnet</i> als dat minstens 2 dagen minder warnings had gegeven') ?></span></label>
           <?= xp(t('Gebeurt één keer per check, met een melding en terug te draaien.'), t('Eén keer per check, met een ℹ️-melding (<i>Meldingen → Systeemmeldingen → Drempels zelf aangepast</i>) en een regel in het <i>Wijzigingslogboek</i>. Zet je hem daar terug, dan blijft de check handmatig.')) ?>
           <h3 class="small" style="margin:1rem 0 .3rem"><?= th('Voorstel voor bestaande checks') ?></h3>
-          <?= xp(t('Voor bestaande checks rekent RzMon uit hoeveel meldingen slim had gescheeld.'), t('Bestaande checks blijven handmatig tot je ze omzet. RzMon leert ook voor die checks en rekent na <b>op hoeveel van de afgelopen dagen er een warning was geweest</b>, met de drempels van nu en met slimme drempels. Een dag telt net als een echte melding: pas als er zoveel metingen <b>achter elkaar</b> te hoog waren als de check vraagt (<i>melden na N</i>).')) ?>
+          <?= xp(t('Voor bestaande checks rekent RzSense uit hoeveel meldingen slim had gescheeld.'), t('Bestaande checks blijven handmatig tot je ze omzet. RzSense leert ook voor die checks en rekent na <b>op hoeveel van de afgelopen dagen er een warning was geweest</b>, met de drempels van nu en met slimme drempels. Een dag telt net als een echte melding: pas als er zoveel metingen <b>achter elkaar</b> te hoog waren als de check vraagt (<i>melden na N</i>).')) ?>
           <?= xp(t('Zo lees je de voorstellen: minder dagen, grijs en grillig.'), t('<b>Minder dagen met slim</b> = minder onnodige meldingen; die checks staan al aangevinkt. <b>Grijs</b> = slim levert daar niets op; de reden staat erachter. <b>Grillig</b> = de check piekt bijna elke dag even (bijvoorbeeld de webinterface van een camera); daar helpt <i>melden na 3</i> meer dan slimme drempels.')) ?>
           <div id="smart-proposals"><p class="muted"><?= th('Laden…') ?></p></div>
         </div>
@@ -1235,7 +1235,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
             <label><?= th('Stabiel: hooguit … × het interval') ?> <span class="muted small"><?= th('(nooit trager dan een uur)') ?></span><input type="number" name="smart_slow" min="1" max="10"></label>
           </div>
           <?= xp(t('Bij een probleem vaker checken, en minder vaak als alles goed gaat.'), t('Sneller checken bij een probleem laat je eerder weten of een storing echt is, en wanneer hij voorbij is. Trager checken als alles stabiel is, ontlast je servers. <b>Goed om te weten:</b> checks van de agent volgen het rapport van de agent.')) ?>
-          <?= xp(t('Melden na N blijft hetzelfde; sneller checken geeft geen extra meldingen.'), t('<i>Melden na N</i> blijft gelijk in tijd: bij een check op <i>melden na 3</i> met een interval van 1 minuut gaat de melding pas uit als het <b>2 minuten</b> mis is, net als zonder slim interval. Een korte hapering wordt dus niet alsnog een melding; wel weet RzMon sneller dat het weer goed is.')) ?>
+          <?= xp(t('Melden na N blijft hetzelfde; sneller checken geeft geen extra meldingen.'), t('<i>Melden na N</i> blijft gelijk in tijd: bij een check op <i>melden na 3</i> met een interval van 1 minuut gaat de melding pas uit als het <b>2 minuten</b> mis is, net als zonder slim interval. Een korte hapering wordt dus niet alsnog een melding; wel weet RzSense sneller dat het weer goed is.')) ?>
           <h3 class="small" style="margin:1rem 0 .3rem">📈 <?= th('Afwijkingen en hints') ?></h3>
           <label class="switch"><input type="checkbox" name="anomaly_on"><span></span> <?= t('<b>Afwijkingen</b> bij checks zonder drempels (verkeer, clients, processen, logregels): ℹ️ als het flink anders is dan normaal op dat uur') ?></label>
           <label class="switch"><input type="checkbox" name="disk_jump_on"><span></span> <?= t('<b>Disk groeit hard</b>: ℹ️ als een disk in een uur zoveel procentpunt groeit:') ?> <input type="number" name="disk_jump_pct" min="1" max="50" style="width:4.5rem;display:inline-block"></label>
@@ -1246,7 +1246,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
         <div data-sk="confirmpw" class="card" id="confirmpw-card">
           <h2>🔐 <?= th('Bevestigen bij acties') ?></h2>
-          <?= xp(t('Per rol: bij acties een vinkje in plaats van je wachtwoord.'), t('Bij acties zoals herstellen, installeren, isoleren, blokkeren, bijwerken, terugzetten en verwijderen vraagt RzMon om je wachtwoord. Staat de schakelaar voor een rol aan, dan is een vinkje <i>Ik weet het zeker</i> genoeg, <b>zolang je je wachtwoord de laatste minuten hieronder hebt ingevuld</b> (bij het inloggen of bij een eerdere bevestiging). Daarna vraagt RzMon het één keer opnieuw. Op het lokale netwerk (automatisch ingelogd) vervangt het vinkje het woord dat je typt. <b>Altijd met je wachtwoord:</b> passkeys, sleutels, back-ups en certificaten downloaden, het databasewachtwoord en iedereen uitloggen.')) ?>
+          <?= xp(t('Per rol: bij acties een vinkje in plaats van je wachtwoord.'), t('Bij acties zoals herstellen, installeren, isoleren, blokkeren, bijwerken, terugzetten en verwijderen vraagt RzSense om je wachtwoord. Staat de schakelaar voor een rol aan, dan is een vinkje <i>Ik weet het zeker</i> genoeg, <b>zolang je je wachtwoord de laatste minuten hieronder hebt ingevuld</b> (bij het inloggen of bij een eerdere bevestiging). Daarna vraagt RzSense het één keer opnieuw. Op het lokale netwerk (automatisch ingelogd) vervangt het vinkje het woord dat je typt. <b>Altijd met je wachtwoord:</b> passkeys, sleutels, back-ups en certificaten downloaden, het databasewachtwoord en iedereen uitloggen.')) ?>
           <label class="switch"><input type="checkbox" name="confirm_skip_admin"><span></span> <?= th('🔑 Beheerder: vinkje in plaats van wachtwoord') ?></label>
           <label class="switch"><input type="checkbox" name="confirm_skip_user"><span></span> <?= th('👤 Gebruiker: vinkje in plaats van wachtwoord') ?></label>
           <label class="switch"><input type="checkbox" name="confirm_skip_readonly"><span></span> <?= th('👁 Alleen lezen: vinkje in plaats van wachtwoord') ?></label>
@@ -1255,7 +1255,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         </div>
 
         <div data-sk="update" class="card" id="update-card">
-          <h2><?= th('⬆ RzMon bijwerken') ?></h2>
+          <h2><?= th('⬆ RzSense bijwerken') ?></h2>
           <p class="small" id="update-status">…</p>
           <div id="update-notes"></div>
           <div id="update-progress" hidden></div>
@@ -1268,16 +1268,16 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <?= xp(t('Maakt eerst een back-up, voor de knop en voor automatisch bijwerken.'), t('Een back-up van de database en de instellingen, die je terugvindt in de lijst bij <i>Back-up</i>. Dit geldt voor de knop en voor automatisch bijwerken.')) ?>
           <label class="switch"><input type="checkbox" name="update_auto"><span></span> <?= th('Automatisch bijwerken') ?></label>
           <label class="update-time"><?= th('Elke dag om') ?> <input type="time" name="update_time"> <?= th('als er een nieuwe versie is') ?></label>
-          <?= xp(t('RzMon kijkt dagelijks of er een nieuwe versie is en werkt zichzelf bij.'), t('<b>Wat het doet:</b> RzMon kijkt één keer per dag op GitHub of er een nieuwe versie is. Bijwerken doet de hulpdienst op de server: eventueel eerst een back-up, dan de nieuwe versie ophalen en het installatiescript uitvoeren, net als het commando met <code>install-rocky.sh</code>. <b>Goed om te weten:</b> je instellingen en gegevens blijven staan. De agents werk je apart bij (hieronder).')) ?>
+          <?= xp(t('RzSense kijkt dagelijks of er een nieuwe versie is en werkt zichzelf bij.'), t('<b>Wat het doet:</b> RzSense kijkt één keer per dag op GitHub of er een nieuwe versie is. Bijwerken doet de hulpdienst op de server: eventueel eerst een back-up, dan de nieuwe versie ophalen en het installatiescript uitvoeren, net als het commando met <code>install-rocky.sh</code>. <b>Goed om te weten:</b> je instellingen en gegevens blijven staan. De agents werk je apart bij (hieronder).')) ?>
           <label class="update-hold"><?= th('Agents wachten tijdens een update hooguit') ?> <input type="number" name="update_hold_min" min="5" max="60" step="1" style="width:5rem"> <?= th('minuten') ?></label>
-          <?= xp(t('Tijdens een update houden de agents hun metingen vast en geven ze geen alarm, tot RzMon terug is.'), t('Bij <b>Bijwerken</b> waarschuwt RzMon eerst de agents (vanaf agent 1.82.0, versleuteld). Lukt een rapport dan niet, dan zet de agent zijn meting in de wachtrij en wacht hij op de vrijgave; daarna stuurt hij alles na. Is RzMon na deze tijd nog weg, dan geeft de waakhond alsnog alarm (<i>RzMon onbereikbaar tijdens update</i>). Na afloop staat er een samenvatting bij Meldingen (ℹ️ Systeeminfo). Standaard 5 minuten, 5–60.')) ?>
+          <?= xp(t('Tijdens een update houden de agents hun metingen vast en geven ze geen alarm, tot RzSense terug is.'), t('Bij <b>Bijwerken</b> waarschuwt RzSense eerst de agents (vanaf agent 1.82.0, versleuteld). Lukt een rapport dan niet, dan zet de agent zijn meting in de wachtrij en wacht hij op de vrijgave; daarna stuurt hij alles na. Is RzSense na deze tijd nog weg, dan geeft de waakhond alsnog alarm (<i>RzSense onbereikbaar tijdens update</i>). Na afloop staat er een samenvatting bij Meldingen (ℹ️ Systeeminfo). Standaard 5 minuten, 5–60.')) ?>
         </div>
 
         <div data-sk="agents" class="card" id="agents-card">
           <h2>🖥️ <?= th('Agents') ?></h2>
           <div data-nodirty id="enc-hosts"></div>
           <h3 class="set-sub">⬆ <?= th('Bijwerken') ?></h3>
-          <?= xp(t('Werk de agents vanaf hier bij, per server of allemaal tegelijk.'), t('Komt er een nieuwe agent, dan werk je die vanaf hier bij: per server in de <i>Agent Manager</i>, of allemaal tegelijk. De agent haalt de nieuwe versie bij RzMon op, controleert de handtekening en installeert hem zelf; zijn instellingen blijven staan. <b>Goed om te weten:</b> de eerste installatie gaat met het commando op de server.')) ?>
+          <?= xp(t('Werk de agents vanaf hier bij, per server of allemaal tegelijk.'), t('Komt er een nieuwe agent, dan werk je die vanaf hier bij: per server in de <i>Agent Manager</i>, of allemaal tegelijk. De agent haalt de nieuwe versie bij RzSense op, controleert de handtekening en installeert hem zelf; zijn instellingen blijven staan. <b>Goed om te weten:</b> de eerste installatie gaat met het commando op de server.')) ?>
           <p class="small" id="agents-status">…</p>
           <button type="button" class="btn" id="agents-update-all" hidden><?= th('⬆ Alle verouderde agents bijwerken') ?></button>
         </div>
@@ -1298,7 +1298,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <div data-sk="commands" class="card" id="commands-card">
           <h2><?= th('🖥️ Commando-checks') ?></h2>
           <div class="cmd-box" data-nodirty>
-            <?= xp(t('Laat agents een eigen commando uitvoeren en controleer de uitvoer.'), t('<b>Wat het doet:</b> met een <i>Commando</i>-check voert de agent een commando uit en vergelijkt RzMon de uitvoer met het antwoord dat je verwacht. <b>Veiligheid:</b> standaard staat dit uit. Aanzetten vraagt om je wachtwoord en komt in het logboek. Op een server zelf blokkeer je het altijd met <code>COMMANDS=0</code> (of <code>COMMANDS=nobody</code>) in de instellingen van de agent.')) ?>
+            <?= xp(t('Laat agents een eigen commando uitvoeren en controleer de uitvoer.'), t('<b>Wat het doet:</b> met een <i>Commando</i>-check voert de agent een commando uit en vergelijkt RzSense de uitvoer met het antwoord dat je verwacht. <b>Veiligheid:</b> standaard staat dit uit. Aanzetten vraagt om je wachtwoord en komt in het logboek. Op een server zelf blokkeer je het altijd met <code>COMMANDS=0</code> (of <code>COMMANDS=nobody</code>) in de instellingen van de agent.')) ?>
             <label><?= th('Commando\'s op agents') ?>
               <select id="agent-commands"><option value="off"><?= th('Uit') ?></option><option value="nobody"><?= th('Toestaan, als gebruiker nobody') ?></option><option value="root"><?= th('Toestaan, als root') ?></option></select></label>
             <p class="small" id="agent-commands-hosts"></p>
@@ -1353,14 +1353,14 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <div class="settings-grid" style="margin-top:1.25rem" data-pgrid="set">
         <div data-sk="ids_rules" class="card">
           <h2><?= th('Regels en uitzonderingen') ?></h2>
-          <?= xp(t('Regels aan of uit zetten, en vastleggen wat op je servers normaal is.'), t('<b>Regels:</b> de eigen regels van RzMon en de Linux-regels van SigmaHQ. Een regel uitzetten geldt voor alle servers. <b>Uitzonderingen:</b> wat in een bepaalde situatie normaal is (een programma, gebruiker, pad, IP-adres …), per server, groep of overal. Dat geeft geen melding, RzMon grijpt niet in en het telt niet mee voor afwijkingen; in <i>IDS → Live</i> zie je het als groene regel. <b>Goed om te weten:</b> met één knop zet je een hele set aan (bijvoorbeeld systeemonderhoud of back-up), en RzMon stelt uitzonderingen voor op basis van je eigen meldingen. Op de IDS-pagina zie je de regels en hun treffers.')) ?>
-          <div class="dash-bar"><div class="seg" id="rule-src-set"><button type="button" class="seg-btn active" data-rs=""><?= th('Alle') ?></button><button type="button" class="seg-btn" data-rs="rzmon">RzMon</button><button type="button" class="seg-btn" data-rs="sigma">Sigma</button><button type="button" class="seg-btn" data-rs="exc">🛡️ <?= th('Uitzonderingen') ?></button></div>
+          <?= xp(t('Regels aan of uit zetten, en vastleggen wat op je servers normaal is.'), t('<b>Regels:</b> de eigen regels van RzSense en de Linux-regels van SigmaHQ. Een regel uitzetten geldt voor alle servers. <b>Uitzonderingen:</b> wat in een bepaalde situatie normaal is (een programma, gebruiker, pad, IP-adres …), per server, groep of overal. Dat geeft geen melding, RzSense grijpt niet in en het telt niet mee voor afwijkingen; in <i>IDS → Live</i> zie je het als groene regel. <b>Goed om te weten:</b> met één knop zet je een hele set aan (bijvoorbeeld systeemonderhoud of back-up), en RzSense stelt uitzonderingen voor op basis van je eigen meldingen. Op de IDS-pagina zie je de regels en hun treffers.')) ?>
+          <div class="dash-bar"><div class="seg" id="rule-src-set"><button type="button" class="seg-btn active" data-rs=""><?= th('Alle') ?></button><button type="button" class="seg-btn" data-rs="rzmon">RzSense</button><button type="button" class="seg-btn" data-rs="sigma">Sigma</button><button type="button" class="seg-btn" data-rs="exc">🛡️ <?= th('Uitzonderingen') ?></button></div>
             <input id="rule-q-set" type="search" placeholder="<?= th('Zoeken: naam, techniek (T1059) …') ?>" autocomplete="off"></div>
           <div id="edr-rules-set"><p class="muted"><?= th('Laden…') ?></p></div>
         </div>
         <div data-sk="whitelist" class="card">
           <h2>✅ <?= th('Whitelist (nooit blokkeren)') ?></h2>
-          <?= xp(t('IP-adressen, netwerken en accounts die nooit geblokkeerd worden.'), t('<b>Wat het doet:</b> een IP-adres of netwerk op de whitelist wordt nergens geblokkeerd: niet in RzMon en niet door het IDS op welke server dan ook, ook niet via de lijsten met bekende aanvallers. Een account op de whitelist wordt nooit vergrendeld (het IP van de aanvaller wel). <b>Hoe lang:</b> je kiest 1, 7 of 30 dagen of altijd. <b>Goed om te weten:</b> je eigen netwerk en RzMon zelf worden al nooit automatisch geblokkeerd. Wat nu geblokkeerd is en deblokkeren staan op <i>IDS → Blokkades</i>; bij een blokkade of incident zet je een adres ook met één klik op de whitelist.')) ?>
+          <?= xp(t('IP-adressen, netwerken en accounts die nooit geblokkeerd worden.'), t('<b>Wat het doet:</b> een IP-adres of netwerk op de whitelist wordt nergens geblokkeerd: niet in RzSense en niet door het IDS op welke server dan ook, ook niet via de lijsten met bekende aanvallers. Een account op de whitelist wordt nooit vergrendeld (het IP van de aanvaller wel). <b>Hoe lang:</b> je kiest 1, 7 of 30 dagen of altijd. <b>Goed om te weten:</b> je eigen netwerk en RzSense zelf worden al nooit automatisch geblokkeerd. Wat nu geblokkeerd is en deblokkeren staan op <i>IDS → Blokkades</i>; bij een blokkade of incident zet je een adres ook met één klik op de whitelist.')) ?>
           <div class="btn-row"><button type="button" class="btn" id="wl-add">✅ <?= th('Op de whitelist zetten…') ?></button></div>
           <div id="wl-list"><p class="muted"><?= th('Laden…') ?></p></div>
         </div>
@@ -1373,13 +1373,13 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <label><?= th('Lokale netwerken') ?> <span class="hint"><?= th('(één per regel, bv. 192.168.1.0/24)') ?></span>
           <textarea name="trusted_networks" rows="5" spellcheck="false"></textarea></label>
         <details class="adv"><summary><?= th('Geavanceerd: reverse proxy') ?></summary>
-        <label><?= th('Reverse proxy IP\'s') ?> <span class="hint"><?= th('(optioneel — alleen invullen als RzMon achter Nginx Proxy Manager, Traefik, Cloudflare tunnel e.d. staat)') ?></span>
+        <label><?= th('Reverse proxy IP\'s') ?> <span class="hint"><?= th('(optioneel — alleen invullen als RzSense achter Nginx Proxy Manager, Traefik, Cloudflare tunnel e.d. staat)') ?></span>
           <textarea name="trusted_proxies" rows="2" spellcheck="false"></textarea></label>
-        <p class="callout"><?= t('⚠️ Staat RzMon achter een reverse proxy of port-forward waarbij álle bezoekers het IP van je router/proxy krijgen? Vul dat proxy-IP dan in bij <i>Reverse proxy IP\'s</i> en zet het <b>niet</b> bij lokale netwerken — anders kan iedereen van buitenaf zonder wachtwoord binnen.') ?></p>
+        <p class="callout"><?= t('⚠️ Staat RzSense achter een reverse proxy of port-forward waarbij álle bezoekers het IP van je router/proxy krijgen? Vul dat proxy-IP dan in bij <i>Reverse proxy IP\'s</i> en zet het <b>niet</b> bij lokale netwerken — anders kan iedereen van buitenaf zonder wachtwoord binnen.') ?></p>
         </details>
         <h3 class="set-sub">⏱️ <?= th('Uitloggen') ?></h3>
         <div class="lock-row"><?= th('Uitloggen na') ?> <select name="session_idle"></select> <?= th('zonder activiteit') ?></div>
-        <?= xp(t('Wanneer je automatisch wordt uitgelogd, en hoe Onthoud mij werkt.'), t('Zolang RzMon open en zichtbaar is, blijf je ingelogd. Ligt je telefoon in je zak of staat de pagina op de achtergrond, dan telt de tijd. <b>Onthoud mij op dit apparaat:</b> daarmee log je daarna vanzelf weer in (30 dagen). Van buiten je netwerk werkt dat alleen als het apparaat met 2FA is onthouden.')) ?>
+        <?= xp(t('Wanneer je automatisch wordt uitgelogd, en hoe Onthoud mij werkt.'), t('Zolang RzSense open en zichtbaar is, blijf je ingelogd. Ligt je telefoon in je zak of staat de pagina op de achtergrond, dan telt de tijd. <b>Onthoud mij op dit apparaat:</b> daarmee log je daarna vanzelf weer in (30 dagen). Van buiten je netwerk werkt dat alleen als het apparaat met 2FA is onthouden.')) ?>
         <h3 class="set-sub">🔐 <?= th('Inlogbeveiliging') ?></h3>
         <div class="lock-row"><?= th('Na') ?> <input type="number" name="login_lock_fails" min="1" max="50" class="num-in"> <?= th('mislukte pogingen binnen') ?>
           <input type="number" name="login_lock_window" min="1" max="1440" class="num-in"> <?= th('minuten:') ?></div>
@@ -1387,13 +1387,13 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <label class="switch"><input type="checkbox" name="login_lock_ip"><span></span> <span><?= t('het <b>IP-adres</b> blokkeren (niet als het uit je lokale netwerken komt)') ?></span></label>
         <div class="lock-row"><?= th('Blokkade opheffen na') ?> <input type="number" name="login_lock_minutes" min="0" max="525600" class="num-in"> <?= th('minuten') ?>
           <span class="hint"><?= th('(0 = tot een beheerder deblokkeert)') ?></span></div>
-        <?= xp(t('Blokkeert een account of IP-adres na te veel mislukte inlogpogingen.'), t('<b>Wat het doet:</b> na te veel mislukte pogingen blokkeert RzMon het account of het IP-adres. Een verkeerde 2FA-code telt ook. Pogingen tellen apart per account (vanaf welk IP dan ook) en per IP-adres. Je krijgt een ⚠️-melding via Pushover. <b>Goed om te weten:</b> een geblokkeerd account kan vanaf je <b>lokale netwerk</b> gewoon inloggen, zodat niemand van buiten je kan buitensluiten. <b>Deblokkeren:</b> bij <i>Gebruikers</i> (🔓) en bij <i>IDS → Blokkades</i>, of op de server met <code>sudo php install/install.php --unlock &lt;gebruiker&gt;</code>.')) ?>
+        <?= xp(t('Blokkeert een account of IP-adres na te veel mislukte inlogpogingen.'), t('<b>Wat het doet:</b> na te veel mislukte pogingen blokkeert RzSense het account of het IP-adres. Een verkeerde 2FA-code telt ook. Pogingen tellen apart per account (vanaf welk IP dan ook) en per IP-adres. Je krijgt een ⚠️-melding via Pushover. <b>Goed om te weten:</b> een geblokkeerd account kan vanaf je <b>lokale netwerk</b> gewoon inloggen, zodat niemand van buiten je kan buitensluiten. <b>Deblokkeren:</b> bij <i>Gebruikers</i> (🔓) en bij <i>IDS → Blokkades</i>, of op de server met <code>sudo php install/install.php --unlock &lt;gebruiker&gt;</code>.')) ?>
         <p class="form-error" hidden></p>
       </form>
 
       <div data-sk="https" class="card need-admin" id="https-card">
         <h2>🔒 <?= th('Beheer via https') ?></h2>
-        <?= xp(t('Beheer RzMon van buiten alleen via een veilige https-verbinding.'), t('<b>Waarom:</b> open je RzMon via http, dan kan iemand op het netwerk je wachtwoord, je sessie en de pagina zelf (bijvoorbeeld een installatiecommando) zien of veranderen. <b>Wat het doet:</b> met een <b>beheeradres</b> via je reverse proxy (bijvoorbeeld SWAG met Let\'s Encrypt) en <i>Beheer alleen via https</i> gaat de webinterface altijd via https. <b>Goed om te weten:</b> agents en de REST API blijven gewoon werken: hun berichten zijn al versleuteld of hebben een eigen sleutel.')) ?>
+        <?= xp(t('Beheer RzSense van buiten alleen via een veilige https-verbinding.'), t('<b>Waarom:</b> open je RzSense via http, dan kan iemand op het netwerk je wachtwoord, je sessie en de pagina zelf (bijvoorbeeld een installatiecommando) zien of veranderen. <b>Wat het doet:</b> met een <b>beheeradres</b> via je reverse proxy (bijvoorbeeld SWAG met Let\'s Encrypt) en <i>Beheer alleen via https</i> gaat de webinterface altijd via https. <b>Goed om te weten:</b> agents en de REST API blijven gewoon werken: hun berichten zijn al versleuteld of hebben een eigen sleutel.')) ?>
         <div id="https-now" class="https-now"></div>
         <label><?= th('Beheeradres') ?> <span class="hint"><?= th('(https://… via je reverse proxy, bv. https://rzmon.jouwdomein.nl)') ?></span>
           <span class="inline-row"><input id="https-url" type="url" placeholder="https://rzmon.jouwdomein.nl" spellcheck="false"><button type="button" class="btn" id="https-check">🔍 <?= th('Nu controleren') ?></button></span></label>
@@ -1407,12 +1407,12 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <details class="adv"><summary><?= th('Zo zet je het op: SWAG en een DNS-rewrite') ?></summary>
           <ol class="https-steps small">
             <li><?= t('<b>SWAG</b>: maak <code>nginx/proxy-confs/rzmon.subdomain.conf</code> (voorbeeld hieronder) en herstart SWAG. SWAG vraagt het Let\'s Encrypt-certificaat zelf aan en vernieuwt het.') ?></li>
-            <li><?= t('<b>Vertrouwde proxy</b>: zet het LAN-IP van SWAG bij Toegang → Geavanceerd → Reverse proxy IP\'s. Dan ziet RzMon het echte IP-adres van je bezoekers en dat ze via https komen.') ?></li>
-            <li><?= t('<b>DNS-rewrite</b> (AdGuard Home → Filters → DNS-herschrijvingen): <code>rzmon.jouwdomein.nl</code> → het LAN-IP van SWAG. Thuis en onderweg gebruik je dan hetzelfde adres met hetzelfde geldige certificaat. Gebruikt de RzMon-server zelf ook AdGuard als DNS, dan kan hij het certificaat controleren.') ?></li>
-            <li><?= t('Open RzMon via het beheeradres, vul het hierboven in en zet <i>Beheer alleen via https</i> aan.') ?></li>
+            <li><?= t('<b>Vertrouwde proxy</b>: zet het LAN-IP van SWAG bij Toegang → Geavanceerd → Reverse proxy IP\'s. Dan ziet RzSense het echte IP-adres van je bezoekers en dat ze via https komen.') ?></li>
+            <li><?= t('<b>DNS-rewrite</b> (AdGuard Home → Filters → DNS-herschrijvingen): <code>rzmon.jouwdomein.nl</code> → het LAN-IP van SWAG. Thuis en onderweg gebruik je dan hetzelfde adres met hetzelfde geldige certificaat. Gebruikt de RzSense-server zelf ook AdGuard als DNS, dan kan hij het certificaat controleren.') ?></li>
+            <li><?= t('Open RzSense via het beheeradres, vul het hierboven in en zet <i>Beheer alleen via https</i> aan.') ?></li>
           </ol>
           <pre class="mono small https-conf" id="https-conf"></pre>
-          <?= xp(t('Nooddeur: via het IP-adres van RzMon kom je thuis altijd binnen.'), t('<b>Nooddeur:</b> https op het IP-adres van RzMon zelf (met een eigen certificaat; kies in je browser <i>toch doorgaan</i>) blijft vanaf je interne netwerken altijd werken, ook als het certificaat van het beheeradres verlopen is. <b>Buitengesloten?</b> Op de server: <code>sudo php install/install.php --https-off</code>.')) ?>
+          <?= xp(t('Nooddeur: via het IP-adres van RzSense kom je thuis altijd binnen.'), t('<b>Nooddeur:</b> https op het IP-adres van RzSense zelf (met een eigen certificaat; kies in je browser <i>toch doorgaan</i>) blijft vanaf je interne netwerken altijd werken, ook als het certificaat van het beheeradres verlopen is. <b>Buitengesloten?</b> Op de server: <code>sudo php install/install.php --https-off</code>.')) ?>
         </details>
         <p class="form-error" hidden></p>
       </div>
@@ -1441,17 +1441,17 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
       <div data-sk="enc" class="card need-admin" id="enc-card">
         <h2>🔐 <?= th('Beveiligde verbinding met de agents') ?></h2>
-        <?= xp(t('Elke agent heeft een eigen sleutel: alles is versleuteld en ondertekend.'), t('<b>Wat het is:</b> elke agent (1.50.0 of nieuwer) heeft een <b>eigen sleutel</b>. Alles wat hij verstuurt is daarmee versleuteld en ondertekend (AES-256 met een handtekening), ook het antwoord van RzMon. Er gaat geen token meer over de lijn en een sleutel is nooit leesbaar. <b>Koppelen:</b> een nieuwe agent koppel je met een <b>koppelcode</b> (Agent Manager → 🔗 Koppelcode, eenmalig en 15 minuten geldig). Agents die nog de algemene sleutel gebruiken, krijgen hun eigen sleutel vanzelf. <b>Veiligheid:</b> een bericht met een verkeerde sleutel, een oude handtekening of van een onbekend IP-adres wordt geweigerd en geeft een ⚠️-melding.')) ?>
+        <?= xp(t('Elke agent heeft een eigen sleutel: alles is versleuteld en ondertekend.'), t('<b>Wat het is:</b> elke agent (1.50.0 of nieuwer) heeft een <b>eigen sleutel</b>. Alles wat hij verstuurt is daarmee versleuteld en ondertekend (AES-256 met een handtekening), ook het antwoord van RzSense. Er gaat geen token meer over de lijn en een sleutel is nooit leesbaar. <b>Koppelen:</b> een nieuwe agent koppel je met een <b>koppelcode</b> (Agent Manager → 🔗 Koppelcode, eenmalig en 15 minuten geldig). Agents die nog de algemene sleutel gebruiken, krijgen hun eigen sleutel vanzelf. <b>Veiligheid:</b> een bericht met een verkeerde sleutel, een oude handtekening of van een onbekend IP-adres wordt geweigerd en geeft een ⚠️-melding.')) ?>
         <div class="btn-row"><button type="button" class="btn" id="conn-cert">🔐 <?= th('Certificaat bekijken') ?></button>
           <span class="muted small"><?= th('Welk certificaat de agents zien, downloaden en vernieuwen') ?></span></div>
         <div id="conn-ipwait"></div>
         <label><?= th('Versleutelen') ?> <select id="enc-mode"></select></label>
         <label><?= th('Sleutels van de agents vernieuwen') ?>
           <select id="conn-days"><option value="7"><?= th('elke 7 dagen') ?></option><option value="30"><?= th('elke 30 dagen') ?></option><option value="90"><?= th('elke 90 dagen') ?></option><option value="0"><?= th('alleen met de hand') ?></option></select></label>
-        <label class="switch"><input type="checkbox" id="conn-pin"><span></span> <?= t('📌 <b>Certificaat van RzMon vastzetten</b> (bij een eigen, self-signed certificaat)') ?></label>
+        <label class="switch"><input type="checkbox" id="conn-pin"><span></span> <?= t('📌 <b>Certificaat van RzSense vastzetten</b> (bij een eigen, self-signed certificaat)') ?></label>
         <p class="muted small" id="conn-pin-info" style="margin-top:-.4rem"></p>
         <label class="switch"><input type="checkbox" id="conn-iplock"><span></span> <?= t('🌐 Agents alleen vanaf hun <b>bekende IP-adres</b>') ?></label>
-        <?= xp(t('Een agent mag alleen vanaf het IP-adres waarmee hij zich de eerste keer meldde.'), t('Het eerste IP-adres van een agent wordt onthouden. Komt hij van een ander adres, dan weigert RzMon hem en krijg je een melding; hierboven kun je het nieuwe adres dan <b>toestaan</b>.')) ?>
+        <?= xp(t('Een agent mag alleen vanaf het IP-adres waarmee hij zich de eerste keer meldde.'), t('Het eerste IP-adres van een agent wordt onthouden. Komt hij van een ander adres, dan weigert RzSense hem en krijg je een melding; hierboven kun je het nieuwe adres dan <b>toestaan</b>.')) ?>
         <label class="switch"><input type="checkbox" id="conn-https"><span></span> <?= t('🔒 Agents alleen via <b>https</b> (via het reserve-adres mag http, met een ⚠️)') ?></label>
         <label class="switch"><input type="checkbox" id="conn-ownkey"><span></span> <?= t('🔑 Alleen agents met een <b>eigen sleutel</b> (een agent met alleen een token wordt geweigerd; koppelen met een koppelcode blijft altijd kunnen)') ?></label>
         <div class="btn-row"><button type="button" class="btn" id="conn-cleanup">🧹 <?= th('Alle agents opruimen…') ?></button>
@@ -1471,17 +1471,17 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
       <div data-sk="outside" class="card need-admin" id="outside-card">
         <h2>🕶️ <?= th('Onzichtbaar van buiten') ?></h2>
-        <?= xp(t('Van buiten lijkt RzMon niet te bestaan: een vreemde ziet alleen een 404.'), t('<b>Wat het doet:</b> van buiten je eigen netwerk ziet een vreemde niets dat naar RzMon wijst: alleen een gewone <b>404</b>, zoals een webserver die geeft. <b>Blijft werken:</b> agents, heartbeats, de links uit je meldingen en de REST API. Thuis (je lokale netwerken bij <i>Inloggen</i>) verandert er niets.')) ?>
+        <?= xp(t('Van buiten lijkt RzSense niet te bestaan: een vreemde ziet alleen een 404.'), t('<b>Wat het doet:</b> van buiten je eigen netwerk ziet een vreemde niets dat naar RzSense wijst: alleen een gewone <b>404</b>, zoals een webserver die geeft. <b>Blijft werken:</b> agents, heartbeats, de links uit je meldingen en de REST API. Thuis (je lokale netwerken bij <i>Inloggen</i>) verandert er niets.')) ?>
         <div id="stealth-switches"></div>
         <div id="stealth-requests"></div>
         <h3 class="set-sub">📱 <?= th('Toegestane apparaten en passkeys') ?></h3>
-        <?= xp(t('Alleen apparaten op deze lijst openen RzMon van buiten; hier zie je ze allemaal.'), t('Dit geldt per gebruiker. Een apparaat zet je thuis op de lijst bij <i>Mijn account → Van buiten en passkeys</i>. Hier zie je de apparaten van iedereen, en kun je ze hernoemen en intrekken.')) ?>
+        <?= xp(t('Alleen apparaten op deze lijst openen RzSense van buiten; hier zie je ze allemaal.'), t('Dit geldt per gebruiker. Een apparaat zet je thuis op de lijst bij <i>Mijn account → Van buiten en passkeys</i>. Hier zie je de apparaten van iedereen, en kun je ze hernoemen en intrekken.')) ?>
         <div id="stealth-devices"></div>
       </div>
 
       <div data-sk="api" class="card need-admin" id="api-card">
         <h2><?= th('API-sleutels') ?></h2>
-        <?= xp(t('Sleutels waarmee andere systemen RzMon kunnen uitlezen en bedienen.'), t('<b>Wat het is:</b> met de REST API lees je statussen, meetwaarden en het IDS uit, bijvoorbeeld vanuit Home Assistant, en blokkeer je IP\'s of bevestig je storingen vanuit een ander systeem. <b>Per sleutel</b> kies je wat hij mag, eventueel vanaf welke adressen, en hoe lang hij geldig is. <b>Gebruik:</b> stuur de sleutel mee als <code>Authorization: Bearer &lt;sleutel&gt;</code>.')) ?>
+        <?= xp(t('Sleutels waarmee andere systemen RzSense kunnen uitlezen en bedienen.'), t('<b>Wat het is:</b> met de REST API lees je statussen, meetwaarden en het IDS uit, bijvoorbeeld vanuit Home Assistant, en blokkeer je IP\'s of bevestig je storingen vanuit een ander systeem. <b>Per sleutel</b> kies je wat hij mag, eventueel vanaf welke adressen, en hoe lang hij geldig is. <b>Gebruik:</b> stuur de sleutel mee als <code>Authorization: Bearer &lt;sleutel&gt;</code>.')) ?>
         <p class="small"><?= th('Basis-URL:') ?> <code id="api-base"></code></p>
         <div id="api-keys" class="key-list"></div>
         <form id="api-key-form" class="api-key-form">
@@ -1491,7 +1491,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         </form>
         <!-- 1.197.0: de netwerkkaart voor Home Assistant -->
         <h3 class="set-sub">🏠 <?= th('Home Assistant-kaart') ?></h3>
-        <?= xp(t('Een kaart voor je Home Assistant-dashboard met het netwerk in het kort, zoals mDS.'), t('<b>Wat je ziet:</b> één oordeel (met de redenen), de internetlijn, het verbruik deze maand, de apparaten, de netwerkpaden, het IDS en de top 3 verkeer vandaag. Tik op een tegel en RzMon opent op die plek. <b>Zo zet je hem erin:</b> 1. maak hierboven een sleutel met alleen <i>Status lezen</i> (en <i>IDS lezen</i> voor de IDS-tegel); 2. in Home Assistant: <i>Instellingen → Dashboards → ⋮ → Bronnen → Bron toevoegen</i>, met de URL hieronder als <i>JavaScript-module</i>; 3. ververs de pagina en voeg de kaart <i>RzMon netwerk</i> toe. <b>Let op:</b> de browser of de app haalt de gegevens zelf bij RzMon op. Gebruikt Home Assistant https, dan moet RzMon ook via https bereikbaar zijn, en zet je <i>alleen vanaf</i> bij de sleutel, dan moeten de adressen van je telefoon en computer erin staan. Iedereen die het dashboard mag bewerken ziet de sleutel; daarom alleen leesrechten.')) ?>
+        <?= xp(t('Een kaart voor je Home Assistant-dashboard met het netwerk in het kort, zoals mDS.'), t('<b>Wat je ziet:</b> één oordeel (met de redenen), de internetlijn, het verbruik deze maand, de apparaten, de netwerkpaden, het IDS en de top 3 verkeer vandaag. Tik op een tegel en RzSense opent op die plek. <b>Zo zet je hem erin:</b> 1. maak hierboven een sleutel met alleen <i>Status lezen</i> (en <i>IDS lezen</i> voor de IDS-tegel); 2. in Home Assistant: <i>Instellingen → Dashboards → ⋮ → Bronnen → Bron toevoegen</i>, met de URL hieronder als <i>JavaScript-module</i>; 3. ververs de pagina en voeg de kaart <i>RzSense netwerk</i> toe. <b>Let op:</b> de browser of de app haalt de gegevens zelf bij RzSense op. Gebruikt Home Assistant https, dan moet RzSense ook via https bereikbaar zijn, en zet je <i>alleen vanaf</i> bij de sleutel, dan moeten de adressen van je telefoon en computer erin staan. Iedereen die het dashboard mag bewerken ziet de sleutel; daarom alleen leesrechten.')) ?>
         <p class="small"><?= th('Bron (JavaScript-module):') ?> <code id="ha-card-url"></code> <button type="button" class="link-btn" id="ha-card-copy"><?= th('Kopieer') ?></button></p>
         <pre class="code" id="ha-card-yaml"></pre>
         <details class="small api-docs">
@@ -1590,7 +1590,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
       <div data-sk="advice" class="card need-admin" id="advice-card">
         <h2>💡 <?= th('Slimme voorstellen') ?> <button type="button" class="btn small-btn" id="advice-run" title="<?= th('Nu opnieuw bepalen (anders elke nacht)') ?>">🔄</button></h2>
-        <?= xp(t('Elke nacht doet RzMon voorstellen om minder en betere meldingen te krijgen.'), t('<b>Wat het doet:</b> elke nacht kijkt RzMon naar de geschiedenis en stelt voor: <i>melden na</i> meer (of minder) mislukte checks, een vast onderhoudsvenster voor iets dat steeds op hetzelfde moment gebeurt, en afhankelijkheden (volgens UniFi, of omdat servers steeds samen uitvallen). <b>Jij beslist:</b> niets verandert tot je op <i>Toepassen</i> klikt, behalve <i>melden na N</i> als de schakelaar hieronder aan staat. Een genegeerd voorstel komt niet terug, en alles staat in het wijzigingslogboek.')) ?>
+        <?= xp(t('Elke nacht doet RzSense voorstellen om minder en betere meldingen te krijgen.'), t('<b>Wat het doet:</b> elke nacht kijkt RzSense naar de geschiedenis en stelt voor: <i>melden na</i> meer (of minder) mislukte checks, een vast onderhoudsvenster voor iets dat steeds op hetzelfde moment gebeurt, en afhankelijkheden (volgens UniFi, of omdat servers steeds samen uitvallen). <b>Jij beslist:</b> niets verandert tot je op <i>Toepassen</i> klikt, behalve <i>melden na N</i> als de schakelaar hieronder aan staat. Een genegeerd voorstel komt niet terug, en alles staat in het wijzigingslogboek.')) ?>
         <label class="switch"><input type="checkbox" id="alert-auto"><span></span> <span><?= t('<b>Melden na N zelf instellen</b>: een voorstel voor <i>melden na N</i> meteen toepassen') ?></span></label>
         <?= xp(t('Wordt gemeld en is terug te draaien.'), t('Je krijgt een ℹ️-melding (<i>Systeemmeldingen → Melden na N zelf aangepast</i>) en er komt een regel in het <i>Wijzigingslogboek</i> om terug te gaan naar de vorige waarde. Een teruggezet voorstel komt niet terug.')) ?>
         <div id="advice-list"><p class="muted"><?= th('Laden…') ?></p></div>
@@ -1623,7 +1623,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
       <div data-sk="transfer" class="card need-admin" id="transfer-card">
         <h2>📦 <?= th('Exporteren en importeren') ?></h2>
-        <?= xp(t('Servers, checks en sjablonen als bestand, om over te zetten of als reserve.'), t('<b>Wat het is:</b> servers, checks en sjablonen (en eventueel instellingen) als één JSON-bestand, om naar een andere RzMon te kopiëren of als leesbare reserve naast de back-up. <b>Zonder geheimen:</b> wachtwoorden, tokens, sleutels en SNMP-community gaan niet mee; agents koppel je op de nieuwe RzMon opnieuw.')) ?>
+        <?= xp(t('Servers, checks en sjablonen als bestand, om over te zetten of als reserve.'), t('<b>Wat het is:</b> servers, checks en sjablonen (en eventueel instellingen) als één JSON-bestand, om naar een andere RzSense te kopiëren of als leesbare reserve naast de back-up. <b>Zonder geheimen:</b> wachtwoorden, tokens, sleutels en SNMP-community gaan niet mee; agents koppel je op de nieuwe RzSense opnieuw.')) ?>
         <label class="switch"><input type="checkbox" id="tr-settings"><span></span> <?= th('Ook de instellingen (zonder wachtwoorden)') ?></label>
         <div class="btn-row"><button type="button" class="btn" id="tr-export">⬇ <?= th('Exporteren') ?></button>
           <button type="button" class="btn" id="tr-import">⬆ <?= th('Importeren…') ?></button><input type="file" id="tr-file" accept=".json,application/json" hidden></div>
@@ -1632,13 +1632,13 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
       <div data-sk="conn" class="card need-admin" id="conn-card">
         <h2>📡 <?= th('Verbindingen en taken') ?> <button type="button" class="btn small-btn" id="conn-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
-        <?= xp(t('Wat er binnenkomt en wat RzMon op de achtergrond doet.'), t('Wat er bij RzMon binnenkomt (agents, heartbeats, API) en wat RzMon zelf op de achtergrond doet. Lukt een taak te lang niet, dan krijg je een ⚠️-melding (<i>Meldingen → Systeemmeldingen → Achtergrondtaak lukt niet</i>).')) ?>
+        <?= xp(t('Wat er binnenkomt en wat RzSense op de achtergrond doet.'), t('Wat er bij RzSense binnenkomt (agents, heartbeats, API) en wat RzSense zelf op de achtergrond doet. Lukt een taak te lang niet, dan krijg je een ⚠️-melding (<i>Meldingen → Systeemmeldingen → Achtergrondtaak lukt niet</i>).')) ?>
         <div id="conn-body"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
 
       <div data-sk="dbconn" class="card need-admin" id="dbconn-card">
         <h2>🔌 <?= th('Databaseverbinding') ?></h2>
-        <?= xp(t('Waar RzMon zijn gegevens bewaart; alleen wijzigen als je de database verhuist.'), t('De database (MariaDB of MySQL) waarin RzMon alles bewaart. Pas dit alleen aan als je de database verhuist. Opslaan vraagt om je wachtwoord en maakt de tabellen op de nieuwe plek aan.')) ?>
+        <?= xp(t('Waar RzSense zijn gegevens bewaart; alleen wijzigen als je de database verhuist.'), t('De database (MariaDB of MySQL) waarin RzSense alles bewaart. Pas dit alleen aan als je de database verhuist. Opslaan vraagt om je wachtwoord en maakt de tabellen op de nieuwe plek aan.')) ?>
         <div id="dbconn-body"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
 
@@ -1671,7 +1671,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
       <div data-sk="db" class="card need-admin" id="db-card">
         <h2>🔑 <?= th('Databasewachtwoord') ?></h2>
-        <?= xp(t('Maak met één klik een nieuw, sterk wachtwoord voor de database.'), t('RzMon gebruikt een eigen databasegebruiker. Met de knop maak je een nieuw, sterk wachtwoord en slaat RzMon het overal op. Alles blijft gewoon werken: dashboards, cron, API en agents.')) ?>
+        <?= xp(t('Maak met één klik een nieuw, sterk wachtwoord voor de database.'), t('RzSense gebruikt een eigen databasegebruiker. Met de knop maak je een nieuw, sterk wachtwoord en slaat RzSense het overal op. Alles blijft gewoon werken: dashboards, cron, API en agents.')) ?>
         <p class="small" id="db-status">…</p>
         <button type="button" class="btn" id="db-rotate"><?= th('🔑 Databasewachtwoord vernieuwen') ?></button>
       </div>
@@ -1700,7 +1700,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <div class="card" id="acct-logins"><h2>🕘 <?= th('Mijn laatste logins') ?></h2><div id="acct-logins-body"></div></div>
       <div class="card view-card" data-pk="view" data-ids-modern="<?= setting('ids_modern', '1') === '1' ? 'on' : 'off' ?>" data-af-motion="<?= max(0, min(2, (int) setting('af_motion', '2'))) ?>">
         <h2>🖥️ <?= th('Weergave') ?></h2>
-        <?= xp(t('Hoe RzMon eruitziet voor jou; wijzigingen zie je meteen.'), t('<b>Wat het is:</b> hoe de pagina\'s eruitzien, direct toegepast. Alles hier geldt voor <b>je account</b>, dus ook op je andere apparaten. <b>Grootte:</b> apart voor je telefoon en je computer, zodat je op een klein scherm iets anders kunt kiezen. <b>◈ CC:</b> alle pagina\'s in de stijl van het Command center, met kaarten die je kunt verslepen (✎ Indeling). <b>Goed om te weten:</b> ook je sortering en de gekozen periode op het Dashboard en bij Analyse worden voor je account onthouden.')) ?>
+        <?= xp(t('Hoe RzSense eruitziet voor jou; wijzigingen zie je meteen.'), t('<b>Wat het is:</b> hoe de pagina\'s eruitzien, direct toegepast. Alles hier geldt voor <b>je account</b>, dus ook op je andere apparaten. <b>Grootte:</b> apart voor je telefoon en je computer, zodat je op een klein scherm iets anders kunt kiezen. <b>◈ CC:</b> alle pagina\'s in de stijl van het Command center, met kaarten die je kunt verslepen (✎ Indeling). <b>Goed om te weten:</b> ook je sortering en de gekozen periode op het Dashboard en bij Analyse worden voor je account onthouden.')) ?>
         <div class="view-row">
           <span class="view-label"><?= th('Bij openen') ?> <span class="hint"><?= th('(voor je account)') ?></span></span>
           <div class="seg" role="group" aria-label="<?= th('Bij openen') ?>">
@@ -1760,7 +1760,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 <?php if ($user && !$mustChange && !$resetToken): ?>
   <div class="lg-aurora" aria-hidden="true"><i></i><i></i><i></i></div><!-- 1.201.0: licht achter het glas (alleen met Liquid Glass) -->
   <?php if (($sidePrefs['mon_loader'] ?? '') !== 'off'): ?>
-  <div class="rz-boot" id="rz-boot" aria-hidden="true"><canvas></canvas><div class="rz-boot-t"><b data-boot-head><?= th('Verbinden met RzMon') ?></b><span data-boot-sub></span></div></div>
+  <div class="rz-boot" id="rz-boot" aria-hidden="true"><canvas></canvas><div class="rz-boot-t"><b data-boot-head><?= th('Verbinden met RzSense') ?></b><span data-boot-sub></span></div></div>
   <?php endif; ?>
   <script src="assets/pulse.js?v=<?= filemtime(__DIR__ . '/assets/pulse.js') ?>"></script>
 <?php endif; ?>

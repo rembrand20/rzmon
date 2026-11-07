@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * 1.177.0 (agent 1.78.0): pad-check. De agent op de bron meet het pad naar een doel: elke hop (mtr of traceroute),
  * de opgegeven tussenliggende apparaten (een switch zie je niet in een traceroute, wel met een ping), de eigen
- * netwerkkaart en of de server virtueel draait. RzMon voegt UniFi toe (op welke switchpoort, met welke snelheid,
+ * netwerkkaart en of de server virtueel draait. RzSense voegt UniFi toe (op welke switchpoort, met welke snelheid,
  * en de uplink van die switch) en plant de doorvoertest met iperf3: de agent op het doel start kort een ontvanger
  * die na één meting stopt, daarna meet de bron 3 seconden.
  *
@@ -65,7 +65,7 @@ final class Paths
     }
 
     /**
-     * 1.189.2: na een rapport van de agent de regels opruimen die dat rapport niet ververste. Wat RzMon zelf bijhoudt
+     * 1.189.2: na een rapport van de agent de regels opruimen die dat rapport niet ververste. Wat RzSense zelf bijhoudt
      * en niet in elk rapport zit, blijft staan: de pad-metingen (de agent meet maar elke paar minuten; anders bleef de
      * pad-check op onbekend staan) en de agent-test. Die van verwijderde pad-checks gaan wel weg.
      */
@@ -163,7 +163,7 @@ final class Paths
         if (!empty($h['vuln_upgrade_req'])) {
             return false;   // er loopt al een opdracht (bijwerken of installeren): die niet overschrijven
         }
-        $r = Vulns::requestInstall($h, ['iperf3'], 'RzMon (doorvoertest)', true);
+        $r = Vulns::requestInstall($h, ['iperf3'], 'RzSense (doorvoertest)', true);
         self::put($hostId, 'iperf_inst', ['at' => time(), 'err' => $r === true ? '' : (string) $r]);
         return $r === true;
     }
@@ -496,7 +496,7 @@ final class Paths
         return $mbit >= 1000 ? I18n::dec((string) round($mbit / 1000, 1)) . ' Gbit' : (int) $mbit . ' Mbit';
     }
 
-    /** Namen bij IP-adressen: servers in RzMon en apparaten uit de netwerkscan */
+    /** Namen bij IP-adressen: servers in RzSense en apparaten uit de netwerkscan */
     private static function names(): array
     {
         static $n = null;

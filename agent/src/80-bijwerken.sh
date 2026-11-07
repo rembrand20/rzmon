@@ -5,7 +5,7 @@ lap update
 upd_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
 upd_setup="$AGENT_SETUP"
 if [ "$TEST" = 1 ]; then
-    upd_via="test"   # verbindingstest: RzMon stuurt dan geen update-opdracht
+    upd_via="test"   # verbindingstest: RzSense stuurt dan geen update-opdracht
 elif [ "$HA_MODE" = 1 ]; then
     upd_via=ha
 elif [ "$REMOTE_UPDATE" != 1 ]; then
@@ -25,7 +25,7 @@ fi
 
 # Ondertekende updates (agent 1.71.0): de publieke sleutel van de ontwikkelaar (ed25519). Bij elke nieuwe agent zet GitHub er
 # een handtekening bij (agent/*.sig, gemaakt met de geheime sleutel die alleen in GitHub staat). Een update wordt alleen
-# geïnstalleerd als die klopt: zo kan zelfs een overgenomen RzMon geen eigen code op de servers zetten.
+# geïnstalleerd als die klopt: zo kan zelfs een overgenomen RzSense geen eigen code op de servers zetten.
 AGENT_SIGN_PUB="MCowBQYDK2VwAyEAKayiZIruYIYwZQ97qndO4lmnMjp/EEnVDNBIhZ07sSM="
 sig_check() {  # sig_check <bestand> <handtekening (base64)>: 0 = klopt, 1 = klopt niet, 2 = niet te controleren (OpenSSL ouder dan 3)
     local d rc
@@ -39,7 +39,7 @@ sig_check() {  # sig_check <bestand> <handtekening (base64)>: 0 = klopt, 1 = klo
 }
 # UPDATE_UNSIGNED=1 in /etc/default/rzmon-agent: ook zonder (geldige) handtekening bijwerken (niet aangeraden)
 UPDATE_UNSIGNED="${UPDATE_UNSIGNED:-0}"
-remote_update() {  # remote_update <antwoord van RzMon>
+remote_update() {  # remote_update <antwoord van RzSense>
     local want sha_a sha_s k
     want=$(sed -n 's/.*"update":[[:space:]]*{[^}]*"version":[[:space:]]*"\([0-9.]*\)".*/\1/p' <<<"$1")
     sha_a=$(sed -n 's/.*"update":[[:space:]]*{[^}]*"agent_sha256":[[:space:]]*"\([0-9a-f]\{64\}\)".*/\1/p' <<<"$1")
@@ -59,19 +59,19 @@ remote_update() {  # remote_update <antwoord van RzMon>
     k=(-fsS -m 60 "${tls[@]}")
     if ! curl "${k[@]}" -o "$upd_dir/agent.new" "${MONITOR_URL%/}/api.php?action=agent_script" 2>/dev/null \
         || ! curl "${k[@]}" -o "$upd_dir/setup.new" "${MONITOR_URL%/}/api.php?action=agent_install" 2>/dev/null; then
-        upd_fail "downloaden van de nieuwe versie bij RzMon mislukt"
+        upd_fail "downloaden van de nieuwe versie bij RzSense mislukt"
         return 0
     fi
     if [ "$(sha256sum "$upd_dir/agent.new" | cut -d' ' -f1)" != "$sha_a" ] || [ "$(sha256sum "$upd_dir/setup.new" | cut -d' ' -f1)" != "$sha_s" ]; then
         upd_fail "controlegetal (SHA-256) klopt niet: download onvolledig of onderweg gewijzigd"
         return 0
     fi
-    # Handtekening van de ontwikkelaar (agent 1.71.0). Het installatiescript krijgt bij RzMon een downloadsleutel in de regel
+    # Handtekening van de ontwikkelaar (agent 1.71.0). Het installatiescript krijgt bij RzSense een downloadsleutel in de regel
     # DL_KEY=''; die ene regel gaat terug naar leeg voor de controle, verder moet alles precies kloppen.
     if [ "$UPDATE_UNSIGNED" != 1 ]; then
         if ! curl "${k[@]}" -o "$upd_dir/agent.sig" "${MONITOR_URL%/}/api.php?action=agent_script_sig" 2>/dev/null \
             || ! curl "${k[@]}" -o "$upd_dir/setup.sig" "${MONITOR_URL%/}/api.php?action=agent_install_sig" 2>/dev/null; then
-            upd_fail "geen handtekening bij RzMon (nog niet ondertekend?): niet bijgewerkt"
+            upd_fail "geen handtekening bij RzSense (nog niet ondertekend?): niet bijgewerkt"
             rm -f "$upd_dir/agent.sig" "$upd_dir/setup.sig"
             return 0
         fi
@@ -89,8 +89,8 @@ remote_update() {  # remote_update <antwoord van RzMon>
         echo off >"$upd_dir/update.sig"
     fi
     if ! bash -n "$upd_dir/agent.new" 2>/dev/null || ! bash -n "$upd_dir/setup.new" 2>/dev/null \
-        || ! grep -q "^AGENT_VERSION=\"$want\"" "$upd_dir/agent.new" || ! grep -q 'RzMon agent' "$upd_dir/setup.new"; then
-        upd_fail "de download is geen geldige RzMon-agent $want"
+        || ! grep -q "^AGENT_VERSION=\"$want\"" "$upd_dir/agent.new" || ! grep -qE 'RzMon agent|RzSense agent' "$upd_dir/setup.new"; then
+        upd_fail "de download is geen geldige RzSense-agent $want"
         return 0
     fi
     chmod 700 "$upd_dir/setup.new"

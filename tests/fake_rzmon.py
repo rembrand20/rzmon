@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Nep-RzMon voor de agenttest (tests/agent-json.sh): geeft de agent een minimale instellingenlijst en bewaart zijn
+"""Nep-RzSense voor de agenttest (tests/agent-json.sh): geeft de agent een minimale instellingenlijst en bewaart zijn
 rapport in <map>/payload.json. Gebruik: fake_rzmon.py <poort> <map>"""
 import gzip
 import json
@@ -31,7 +31,7 @@ class Handler(BaseHTTPRequestHandler):
             # Agent 1.83.0: een logbron (alleen warning en erger), elke run een pakketje (logship 0)
             self._send('0\ttick\t60\n1\tsvc\tcron\n0\tedr\t1\n0\tselftest\t42\n0\tlogship\t0\n7\tlogsrc\tfile\t%s/logs/*.log\t2\n' % OUT, 'text/plain')
         else:
-            self._send(json.dumps({'ok': True, 'app': 'RzMon'}))
+            self._send(json.dumps({'ok': True, 'app': 'RzSense'}))
 
     def do_POST(self):
         length = int(self.headers.get('Content-Length') or 0)

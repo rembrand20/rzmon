@@ -1,11 +1,11 @@
-# ---------------------------------------------------------------- Logs verzamelen en versturen (agent 1.83.0, RzMon 1.210.0)
-# Bronnen uit RzMon (tests.cache): id <tab> logsrc <tab> soort <tab> bron <tab> niveau (0 alles, 1 info en erger, 2 warning en
+# ---------------------------------------------------------------- Logs verzamelen en versturen (agent 1.83.0, RzSense 1.210.0)
+# Bronnen uit RzSense (tests.cache): id <tab> logsrc <tab> soort <tab> bron <tab> niveau (0 alles, 1 info en erger, 2 warning en
 # erger, 3 alleen errors). Verder: 0 <tab> logship <tab> seconden tussen pakketjes, en 0 <tab> logpause <tab> tot (epoch):
 # de daglimiet is bereikt, tot dan niets lezen (daarna verder waar we waren).
 # Elke run gaan de nieuwe regels van elke bron achteraan in een spoolbestand. Per bestand onthoudt de agent waar hij was,
 # ook na logrotatie; een nieuwe bron begint aan het einde (oude regels worden niet ingelezen). Is het tijd (of is het
-# spoolbestand groter dan 8 MB), dan wordt het één pakketje (gzip) dat versleuteld naar RzMon gaat, los van het rapport.
-# Met de tijdzone van de server erbij (voor regels zonder zone). Pas als RzMon het pakketje bevestigt, gaat het weg. Geen verbinding: de pakketjes blijven (samen hooguit 50 MB; daarboven
+# spoolbestand groter dan 8 MB), dan wordt het één pakketje (gzip) dat versleuteld naar RzSense gaat, los van het rapport.
+# Met de tijdzone van de server erbij (voor regels zonder zone). Pas als RzSense het pakketje bevestigt, gaat het weg. Geen verbinding: de pakketjes blijven (samen hooguit 50 MB; daarboven
 # gaan de oudste weg, en het volgende pakketje zegt hoeveel). Bestanden alleen binnen LOG_DIRS. Uitzetten: LOG_SHIP=0.
 ls_dir="$k_dir/logship"
 if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlogsrc\t' "$t_cache" && [ "${LOG_SHIP:-1}" != 0 ]; then
@@ -159,5 +159,5 @@ if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlogsrc\t' "$t_cache" && [ "${LOG_S
         echo "Logs: geen sleutel om te versleutelen; de pakketjes blijven liggen (koppel de agent met een koppelcode)" >&2
     fi
 elif [ -d "$ls_dir" ]; then
-    rm -rf -- "${k_dir:?}/logship"   # geen bronnen meer (of uitgezet in RzMon): de wachtrij en de standen opruimen
+    rm -rf -- "${k_dir:?}/logship"   # geen bronnen meer (of uitgezet in RzSense): de wachtrij en de standen opruimen
 fi

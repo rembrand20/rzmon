@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * PHP-sessies in de database (1.85.0) in plaats van losse bestanden. De opruimtaak van het systeem (Debian:
  * sessionclean, na session.gc_maxlifetime = 24 minuten) gooit ze dan niet meer weg; hoe lang een sessie zonder
- * activiteit blijft bestaan, bepaalt RzMon zelf (Instellingen → Toegang: "Uitloggen na … zonder activiteit").
+ * activiteit blijft bestaan, bepaalt RzSense zelf (Instellingen → Toegang: "Uitloggen na … zonder activiteit").
  * Net als bij bestanden wacht een tweede verzoek van dezelfde sessie tot het eerste klaar is (GET_LOCK).
  */
 final class SessionStore implements SessionHandlerInterface
@@ -19,7 +19,7 @@ final class SessionStore implements SessionHandlerInterface
         } catch (Throwable) {
             return;
         }
-        ini_set('session.gc_probability', '0');   // opruimen doet de cron van RzMon
+        ini_set('session.gc_probability', '0');   // opruimen doet de cron van RzSense
         session_set_save_handler(new self(), true);
     }
 

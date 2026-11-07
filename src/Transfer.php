@@ -3,8 +3,8 @@ declare(strict_types=1);
 
 /**
  * Exporteren en importeren (1.97.0): servers, checks, sjablonen en (optioneel) instellingen als één JSON-bestand,
- * om naar een andere RzMon te kopiëren of als leesbare reserve naast de back-up. Zonder geheimen: geen wachtwoorden,
- * tokens, sleutels of SNMP-community; agents moet je op de nieuwe RzMon opnieuw koppelen.
+ * om naar een andere RzSense te kopiëren of als leesbare reserve naast de back-up. Zonder geheimen: geen wachtwoorden,
+ * tokens, sleutels of SNMP-community; agents moet je op de nieuwe RzSense opnieuw koppelen.
  * Importeren voegt alleen toe: een server of sjabloon met dezelfde naam blijft zoals hij is, een check die er al is
  * (zelfde type, doel en soort) wordt overgeslagen.
  */
@@ -12,7 +12,7 @@ final class Transfer
 {
     private const HOST_COLS = ['name', 'address', 'mode', 'kind', 'enabled', 'ids_fim', 'agent_tick', 'realtime', 'info_agent'];
     private const SECRET = '/(pass|token|secret|_key$|^enc_key|community|api_key|hibp_key)/i';
-    /** Instellingen die RzMon zelf bijhoudt, of die bij deze installatie horen */
+    /** Instellingen die RzSense zelf bijhoudt, of die bij deze installatie horen */
     private const SKIP_SETTINGS = '/^(cron_|update_|.*_state$|.*_seen$|.*_at$|.*_day$|ipintel_|hibp_(wait|last|domain_error|rpm)|vuln_(daily|last|kev|cache)|selfcheck_|db_size_hist|task_watch|'
         . 'mqtt_last|mqtt_discovery|backup_last|backup_retry|backup_fail|templates_seeded|own_cert|proxy_|hsts_|cleanup_ignore|maintenance_|agent_fb|enc_|stealth_|https_|base_url|edr_self_mark|tests_rev|.*_notified$)/';
 
@@ -68,7 +68,7 @@ final class Transfer
     public static function import(array $d, bool $withSettings, bool $apply): array
     {
         if ((int) ($d['rzmon_export'] ?? 0) !== 1) {
-            throw new InvalidArgumentException(t('Dit is geen export van RzMon'));
+            throw new InvalidArgumentException(t('Dit is geen export van RzSense'));
         }
         $n = ['hosts_new' => 0, 'hosts_existing' => 0, 'templates_new' => 0, 'templates_existing' => 0, 'checks_new' => 0, 'checks_existing' => 0, 'settings' => 0];
         $hostIds = array_column(q('SELECT id, name FROM hosts')->fetchAll(), 'id', 'name');

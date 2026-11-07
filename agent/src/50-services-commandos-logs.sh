@@ -135,7 +135,7 @@ if [ "$HA_MODE" = 0 ] && [ "$SERVICE_DEEP" != 0 ] && [ -n "${svc_all// /}" ] && 
                 done
             done <<<"$listen_map"
         fi
-        # Zelf opgegeven poorten en sockets (in RzMon): altijd testen, en de dienst-test gebruikt ze
+        # Zelf opgegeven poorten en sockets (in RzSense): altijd testen, en de dienst-test gebruikt ze
         man_list=""; man_show=""; sockets=""; sfail=""
         for m in ${manual_ports[$s]-}; do
             if [[ "$m" == /* ]]; then
@@ -180,7 +180,7 @@ if [ "$HA_MODE" = 0 ] && [ "$SERVICE_DEEP" != 0 ] && [ -n "${svc_all// /}" ] && 
     done
 fi
 
-# Extra tests die in RzMon bij een service-check zijn ingesteld (URL of poort), zie hierboven.
+# Extra tests die in RzSense bij een service-check zijn ingesteld (URL of poort), zie hierboven.
 svc_tests=""
 if [ "$HA_MODE" = 0 ]; then
     x_dir="$t_dir/svctest"
@@ -228,8 +228,8 @@ cmd_state() {  # cmd_state <id> <rc> <ms> <als> <tijd>: uitvoer en exitcode als 
         "$3" "$4" "$5" >"$c_dir/$1.json"
     rm -f "$c_dir/$1.out" "$c_dir/$1.err"
 }
-# Regels "id <tab> cmd <tab> commando (base64) <tab> time-out <tab> nobody|root <tab> interval" uit RzMon.
-# Uitvoeren in een kale omgeving, met time-out, standaard als nobody; uitvoer en exitcode gaan naar RzMon,
+# Regels "id <tab> cmd <tab> commando (base64) <tab> time-out <tab> nobody|root <tab> interval" uit RzSense.
+# Uitvoeren in een kale omgeving, met time-out, standaard als nobody; uitvoer en exitcode gaan naar RzSense,
 # dat ze vergelijkt met het verwachte antwoord. Volgens het interval van de check: tussendoor het vorige
 # resultaat opnieuw meesturen. Alle commando's samen hooguit ~40 s per rapport.
 cmd_results=""
@@ -304,7 +304,7 @@ fi
 
 # ---------------------------------------------------------------- Logbestanden doorzoeken
 lap logs
-# Per zoekopdracht (ingesteld in RzMon): alleen de nieuwe regels sinds de vorige keer lezen,
+# Per zoekopdracht (ingesteld in RzSense): alleen de nieuwe regels sinds de vorige keer lezen,
 # tellen hoeveel er op het patroon passen, en de laatste 5 treffers en de IP-adressen meesturen.
 # Bron: een logbestand (binnen LOG_DIRS), "journal", "journal:<service>" of "kernel".
 log_results=""
@@ -324,7 +324,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlog\t' "$t_cache"; then
     while IFS=$'\t' read -r l_id l_type l_src l_pat; do
         [ "$l_type" = log ] && [[ "$l_id" =~ ^[0-9]+$ ]] || continue
         st_file="$l_dir/$l_id"
-        # Nog niet aan de beurt: "overgeslagen" melden (RzMon houdt de telling vast); de volgende keer
+        # Nog niet aan de beurt: "overgeslagen" melden (RzSense houdt de telling vast); de volgende keer
         # worden alle nieuwe regels sinds de vorige keer geteld, dus er gaat niets verloren
         if due_cached "$st_file" "${ival_by_id[$l_id]-}"; then
             log_results+="\"$l_id\":{\"skip\":1},"

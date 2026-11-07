@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# RzMon-hulpdienst installeren (root). Maakt ook de back-upmap /var/lib/rzmon/backups.
+# RzSense-hulpdienst installeren (root). Maakt ook de back-upmap /var/lib/rzmon/backups.
 #
-# Laat de knop "Databasewachtwoord vernieuwen" in RzMon werken terwijl de RzMon-map vergrendeld
+# Laat de knop "Databasewachtwoord vernieuwen" in RzSense werken terwijl de RzSense-map vergrendeld
 # is (de webserver mag config.php dan niet wijzigen). De webpagina zet een verzoek in
 # /var/lib/rzmon; een systemd-path-unit start dan als root:
 #     php install/install.php --rotate-db-password --helper
@@ -10,7 +10,7 @@
 # Ook de knop "Certificaat vernieuwen" (cert.request → install.php --renew-cert --helper).
 # En instellingen in config.php opslaan als de map vergrendeld is (config.request → install.php --apply-config --helper,
 # 1.168.0): alleen vaste velden (tijdzone, adressen, PHP, database), alles opnieuw gecontroleerd, met een reservekopie.
-# Op Rocky/RHEL/AlmaLinux met een git-installatie (install-rocky.sh) ook de knop "RzMon bijwerken":
+# Op Rocky/RHEL/AlmaLinux met een git-installatie (install-rocky.sh) ook de knop "RzSense bijwerken":
 # bij /var/lib/rzmon/update.request start /usr/local/sbin/rzmon-update (kopie van install/rzmon-update.sh).
 #
 #   sudo bash install/install-helper.sh              # installeren (webgroep automatisch)
@@ -95,7 +95,7 @@ fi
 
 cat >"$UNIT.path" <<EOF
 [Unit]
-Description=RzMon-hulpdienst: wacht op een verzoek uit de webinterface
+Description=RzSense-hulpdienst: wacht op een verzoek uit de webinterface
 
 [Path]
 PathExists=$HELPER_DIR/rotate.request
@@ -105,7 +105,7 @@ WantedBy=multi-user.target
 EOF
 cat >"$UNIT.service" <<EOF
 [Unit]
-Description=RzMon-hulpdienst: databasewachtwoord vernieuwen
+Description=RzSense-hulpdienst: databasewachtwoord vernieuwen
 
 [Service]
 Type=oneshot
@@ -117,10 +117,10 @@ echo "$DIR" >"$HELPER_DIR/helper.installed"
 chmod 0644 "$HELPER_DIR/helper.installed"
 ok "systemd: rzmon-helper.path (actief) + rzmon-helper.service"
 
-# Eigen certificaat van RzMon vernieuwen (knop bij Instellingen → Agents → Beveiligde verbinding → 🔐 Certificaat)
+# Eigen certificaat van RzSense vernieuwen (knop bij Instellingen → Agents → Beveiligde verbinding → 🔐 Certificaat)
 cat >"$CERT_UNIT.path" <<CERT_EOF
 [Unit]
-Description=RzMon-hulpdienst: wacht op "certificaat vernieuwen" uit de webinterface
+Description=RzSense-hulpdienst: wacht op "certificaat vernieuwen" uit de webinterface
 
 [Path]
 PathExists=$HELPER_DIR/cert.request
@@ -130,7 +130,7 @@ WantedBy=multi-user.target
 CERT_EOF
 cat >"$CERT_UNIT.service" <<CERT_EOF
 [Unit]
-Description=RzMon-hulpdienst: eigen certificaat vernieuwen
+Description=RzSense-hulpdienst: eigen certificaat vernieuwen
 
 [Service]
 Type=oneshot
@@ -145,7 +145,7 @@ ok "systemd: rzmon-cert.path (actief): knop \"Certificaat vernieuwen\""
 # 1.168.0: config.php opslaan vanuit de webinterface (tijdzone, adressen, PHP, database) terwijl de map vergrendeld is
 cat >"$CFG_UNIT.path" <<CFG_EOF
 [Unit]
-Description=RzMon-hulpdienst: wacht op "config.php opslaan" uit de webinterface
+Description=RzSense-hulpdienst: wacht op "config.php opslaan" uit de webinterface
 
 [Path]
 PathExists=$HELPER_DIR/config.request
@@ -155,7 +155,7 @@ WantedBy=multi-user.target
 CFG_EOF
 cat >"$CFG_UNIT.service" <<CFG_EOF
 [Unit]
-Description=RzMon-hulpdienst: config.php opslaan
+Description=RzSense-hulpdienst: config.php opslaan
 
 [Service]
 Type=oneshot
@@ -167,14 +167,14 @@ echo "$DIR" >"$HELPER_DIR/config.installed"
 chmod 0644 "$HELPER_DIR/config.installed"
 ok "systemd: rzmon-config.path (actief): instellingen in config.php opslaan"
 
-# RzMon bijwerken vanuit de webinterface: alleen bij een git-installatie met install-rocky.sh
+# RzSense bijwerken vanuit de webinterface: alleen bij een git-installatie met install-rocky.sh
 os_id=$(. /etc/os-release 2>/dev/null; echo "${ID:-}")
 if [ -d "$DIR/.git" ] && [ -f "$DIR/install/rzmon-update.sh" ] && [[ "$os_id" =~ ^(rocky|rhel|almalinux)$ ]]; then
-    # Een eigen kopie buiten de RzMon-map: die kan de webserver niet aanpassen
+    # Een eigen kopie buiten de RzSense-map: die kan de webserver niet aanpassen
     install -m 0755 -o root -g root "$DIR/install/rzmon-update.sh" "$UPD_BIN"
     cat >"$UPD_UNIT.path" <<UNIT_EOF
 [Unit]
-Description=RzMon-hulpdienst: wacht op "RzMon bijwerken" uit de webinterface
+Description=RzSense-hulpdienst: wacht op "RzSense bijwerken" uit de webinterface
 
 [Path]
 PathExists=$HELPER_DIR/update.request
@@ -184,7 +184,7 @@ WantedBy=multi-user.target
 UNIT_EOF
     cat >"$UPD_UNIT.service" <<UNIT_EOF
 [Unit]
-Description=RzMon bijwerken (vanuit de webinterface)
+Description=RzSense bijwerken (vanuit de webinterface)
 After=network-online.target
 
 [Service]
@@ -195,7 +195,7 @@ UNIT_EOF
     systemctl enable --now rzmon-update.path >/dev/null
     echo "$DIR" >"$HELPER_DIR/update.installed"
     chmod 0644 "$HELPER_DIR/update.installed"
-    ok "systemd: rzmon-update.path (actief): knop \"RzMon bijwerken\""
+    ok "systemd: rzmon-update.path (actief): knop \"RzSense bijwerken\""
 else
     rm -f "$HELPER_DIR/update.installed"
 fi

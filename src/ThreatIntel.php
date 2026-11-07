@@ -2,13 +2,13 @@
 declare(strict_types=1);
 
 /**
- * Dreigingsinformatie van internet (1.112.0, Instellingen → IDS → Dreigingsinformatie). RzMon vraagt na wat bekend is:
+ * Dreigingsinformatie van internet (1.112.0, Instellingen → IDS → Dreigingsinformatie). RzSense vraagt na wat bekend is:
  *
  * - per IP-adres (bij een IDS-incident of een nieuwe uitgaande verbinding):
  *   - AbuseIPDB (met je eigen API-sleutel): hoe vaak gemeld, door hoeveel mensen, soort netwerk, provider;
  *   - GreyNoise (community, gratis): scant dit IP het hele internet, is het een bekende dienst (Google, Shodan …);
  *   - Shodan InternetDB (gratis): open poorten, lekken en labels (c2, malware …) van dat IP zelf;
- *   - lijsten die RzMon dagelijks ophaalt: Tor-uitgangen, abuse.ch Feodo Tracker (botnet-C2, bij de blocklists)
+ *   - lijsten die RzSense dagelijks ophaalt: Tor-uitgangen, abuse.ch Feodo Tracker (botnet-C2, bij de blocklists)
  *     en, met een abuse.ch-sleutel, ThreatFox;
  * - per bestand (nieuw programma of script, sha256): CIRCL hashlookup (bekende goede bestanden) en, met een
  *   abuse.ch-sleutel, MalwareBazaar (bekende malware);
@@ -349,7 +349,7 @@ final class ThreatIntel
                 $inc['id'] ? (int) $inc['id'] : null, "ti|$ip", null, 60);
         } elseif ($d['verdict'] === 'benign' && $inc && $inc['status'] === 'open' && in_array($inc['type'], ['web_attack', 'web_payload'], true)
             && setting('ti_close_benign', '1') === '1') {
-            q("UPDATE ids_incidents SET status = 'done', handled_by = ?, handled_at = NOW() WHERE id = ?", ['RzMon (' . t('onschuldige scanner') . ')', $inc['id']]);
+            q("UPDATE ids_incidents SET status = 'done', handled_by = ?, handled_at = NOW() WHERE id = ?", ['RzSense (' . t('onschuldige scanner') . ')', $inc['id']]);
         }
     }
 
@@ -396,7 +396,7 @@ final class ThreatIntel
                 str_contains($r, 'poort') || str_contains($r, 'port') => 'scan',
                 default => 'other',
             };
-            $comment = ['ssh' => 'SSH brute force / login attempts', 'web' => 'Web application attack', 'scan' => 'Port scan / honeypot port', 'other' => 'Attack detected'][$cat] . ' (RzMon IDS)';
+            $comment = ['ssh' => 'SSH brute force / login attempts', 'web' => 'Web application attack', 'scan' => 'Port scan / honeypot port', 'other' => 'Attack detected'][$cat] . ' (RzSense IDS)';
             [$code, $body] = self::request('POST', self::url('abuse') . 'report', ['Key: ' . $k, 'Accept: application/json'],
                 http_build_query(['ip' => $ip, 'categories' => implode(',', self::REPORT_CAT[$cat]), 'comment' => $comment]));
             if ($code === 200 || $code === 429) {   // 429: binnen 15 minuten al gemeld (door ons): ook goed

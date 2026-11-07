@@ -46,7 +46,7 @@ final class Backup
             }
         }
         if (!is_dir($d) || !is_writable($d)) {
-            return t('De back-upmap {dir} bestaat niet of RzMon mag er niet in schrijven', ['dir' => $d]);
+            return t('De back-upmap {dir} bestaat niet of RzSense mag er niet in schrijven', ['dir' => $d]);
         }
         return null;
     }
@@ -225,7 +225,7 @@ final class Backup
             'server: ' . (gethostname() ?: '?'),
             'soort: ' . $type,
             'meethistorie: ' . ($history ? 'ja' : 'nee'),
-            'versleuteld: ' . ($encrypted ? 'ja (AES-256; open met 7-Zip of herstel via RzMon)' : 'nee'),
+            'versleuteld: ' . ($encrypted ? 'ja (AES-256; open met 7-Zip of herstel via RzSense)' : 'nee'),
             'config.php: ' . ($config ? 'ja' : 'nee'),
             '',
             'Tabellen:',
@@ -234,7 +234,7 @@ final class Backup
             $lines[] = "  $t: " . ($n === null ? 'niet meegenomen' : "$n rijen");
         }
         $lines[] = '';
-        $lines[] = 'Herstellen: Instellingen → Back-up in RzMon, of: sudo php install/install.php --restore <dit bestand>';
+        $lines[] = 'Herstellen: Instellingen → Back-up in RzSense, of: sudo php install/install.php --restore <dit bestand>';
         return implode("\n", $lines) . "\n";
     }
 
@@ -365,7 +365,7 @@ final class Backup
         }
         if (!$isBackup) {
             @unlink($part);
-            return ['ok' => false, 'error' => $ok ? t('Dit is geen RzMon-back-up (database.sql of info.txt ontbreekt)') : t('Dit is geen geldig zip-bestand'), 'file' => null];
+            return ['ok' => false, 'error' => $ok ? t('Dit is geen RzSense-back-up (database.sql of info.txt ontbreekt)') : t('Dit is geen geldig zip-bestand'), 'file' => null];
         }
         $t = time();
         do {
@@ -489,13 +489,13 @@ final class Backup
         return $ok ? ['ok' => true, 'error' => null] : ['ok' => false, 'error' => t('Uitpakken mislukt (beschadigde zip of verkeerd wachtwoord)')];
     }
 
-    /** Is dit een complete RzMon-export met alleen de statements die wij zelf schrijven? */
+    /** Is dit een complete RzSense-export met alleen de statements die wij zelf schrijven? */
     private static function validate(string $file): ?string
     {
         $fh = fopen($file, 'rb');
         if (!str_starts_with((string) fgets($fh), self::SQL_HEADER)) {
             fclose($fh);
-            return t('database.sql is geen RzMon-export');
+            return t('database.sql is geen RzSense-export');
         }
         $last = '';
         $ok = true;
@@ -642,7 +642,7 @@ final class Backup
             save_setting('backup_retry_at', '');
             if (setting('backup_fail_notified', '0') === '1') {
                 save_setting('backup_fail_notified', '0');
-                Monitor::notifySystem('✅ RzMon: ' . t('back-up weer gelukt'), t('De automatische back-up is weer gelukt ({file}).', ['file' => $r['file']]), STATUS_OK, 'recovery');
+                Monitor::notifySystem('✅ RzSense: ' . t('back-up weer gelukt'), t('De automatische back-up is weer gelukt ({file}).', ['file' => $r['file']]), STATUS_OK, 'recovery');
             }
             return "Back-up gemaakt: {$r['file']}";
         }
@@ -650,7 +650,7 @@ final class Backup
         save_setting('backup_retry_at', date('Y-m-d H:i:s', time() + 3600));
         if (setting('backup_fail_notified', '0') !== '1') {
             save_setting('backup_fail_notified', '1');
-            Monitor::notifySystem('❌ RzMon: ' . t('back-up mislukt'), t('De automatische back-up is mislukt: {error}', ['error' => $r['error']]) . "\n\n" . t('RzMon probeert het elk uur opnieuw. Zie Instellingen → Back-up.'), STATUS_CRIT, 'problem');
+            Monitor::notifySystem('❌ RzSense: ' . t('back-up mislukt'), t('De automatische back-up is mislukt: {error}', ['error' => $r['error']]) . "\n\n" . t('RzSense probeert het elk uur opnieuw. Zie Instellingen → Back-up.'), STATUS_CRIT, 'problem');
         }
         return t('Back-up mislukt') . ": {$r['error']}";
     }

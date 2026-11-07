@@ -7,7 +7,7 @@ declare(strict_types=1);
  *   adres bij Vertrouwde proxy's; proxy-kopteksten van een ander adres = bezoeker van buiten (en een ⚠️-melding);
  * - "Beheer alleen via https": de webinterface via http gaat naar het beheeradres, met HSTS (eerst 1 dag, na 7 dagen
  *   zonder problemen 1 jaar). Agents, hun downloads en de REST API blijven via http werken;
- * - de nooddeur: https op het IP-adres van RzMon zelf (self-signed), alleen vanaf je interne netwerken;
+ * - de nooddeur: https op het IP-adres van RzSense zelf (self-signed), alleen vanaf je interne netwerken;
  * - inloggen via http weigeren, en 2FA verplicht van buiten je interne netwerken;
  * - het certificaat van het beheeradres dagelijks controleren: ℹ️ 14 dagen voor het verloopt, ⚠️ als het verlopen of ongeldig is.
  * Noodcommando: php install/install.php --https-off
@@ -83,7 +83,7 @@ final class Https
         return (string) preg_replace('/:\d+$/', '', $h);
     }
 
-    /** De naam waarmee de browser RzMon opende (via een vertrouwde proxy: X-Forwarded-Host) */
+    /** De naam waarmee de browser RzSense opende (via een vertrouwde proxy: X-Forwarded-Host) */
     public static function host(): string
     {
         $h = self::viaProxy() ? self::first('HTTP_X_FORWARDED_HOST') : '';
@@ -101,7 +101,7 @@ final class Https
         return $u === '' ? '' : self::bareHost((string) parse_url($u, PHP_URL_HOST));
     }
 
-    /** Is RzMon nu via het beheeradres met https geopend? */
+    /** Is RzSense nu via het beheeradres met https geopend? */
     public static function onAdminUrl(?string $url = null): bool
     {
         $a = self::adminHost($url);
@@ -150,7 +150,7 @@ final class Https
         return $at > time() ? $at : null;
     }
 
-    /** Het IP-adres van de nooddeur (https rechtstreeks op RzMon); '' = onbekend */
+    /** Het IP-adres van de nooddeur (https rechtstreeks op RzSense); '' = onbekend */
     public static function serverIp(): string
     {
         $s = json_decode((string) setting('https_state', ''), true) ?: [];
@@ -164,7 +164,7 @@ final class Https
     /** Link van de nooddeur */
     public static function door(): string
     {
-        return 'https://' . (self::serverIp() ?: t('<IP-adres van RzMon>')) . '/';
+        return 'https://' . (self::serverIp() ?: t('<IP-adres van RzSense>')) . '/';
     }
 
     // ------------------------------------------------------------------ bij elk webverzoek
@@ -204,7 +204,7 @@ final class Https
                 return;
             }
             if (self::internal()) {
-                return;   // de nooddeur: https op het IP-adres van RzMon, alleen van binnen
+                return;   // de nooddeur: https op het IP-adres van RzSense, alleen van binnen
             }
             self::redirect();
         }
@@ -226,7 +226,7 @@ final class Https
         }
         http_response_code(403);
         header('Content-Type: application/json; charset=utf-8');
-        exit(json_encode(['error' => t('RzMon is alleen via https te beheren: open {url}', ['url' => self::adminUrl()]), 'https' => self::adminUrl()], JSON_UNESCAPED_UNICODE));
+        exit(json_encode(['error' => t('RzSense is alleen via https te beheren: open {url}', ['url' => self::adminUrl()]), 'https' => self::adminUrl()], JSON_UNESCAPED_UNICODE));
     }
 
     /**
@@ -264,7 +264,7 @@ final class Https
         }
         save_setting('proxy_unknown', json_encode(['ip' => $ip, 'at' => time()]));
         Monitor::notifySystem('⚠️ ' . t('Verkeer via een onbekende proxy: {ip}', ['ip' => $ip]),
-            t('Er komen verzoeken met proxy-kopteksten (X-Forwarded-For) binnen van {ip}, maar dat adres staat niet bij Vertrouwde proxy\'s. RzMon behandelt deze bezoekers daarom als extern (2FA verplicht, nooit inloggen zonder wachtwoord). Is dit je reverse proxy (bv. SWAG)? Zet het adres dan bij Instellingen → Toegang → Reverse proxy IP\'s.', ['ip' => $ip]),
+            t('Er komen verzoeken met proxy-kopteksten (X-Forwarded-For) binnen van {ip}, maar dat adres staat niet bij Vertrouwde proxy\'s. RzSense behandelt deze bezoekers daarom als extern (2FA verplicht, nooit inloggen zonder wachtwoord). Is dit je reverse proxy (bv. SWAG)? Zet het adres dan bij Instellingen → Toegang → Reverse proxy IP\'s.', ['ip' => $ip]),
             STATUS_WARN, 'problem');
     }
 
@@ -356,11 +356,11 @@ final class Https
         if ($notify && $a) {
             $door = self::door();
             if ($problem !== null && !$s['warned']) {
-                Monitor::notifySystem('⚠️ ' . t('Certificaat van RzMon: probleem'), ucfirst($problem) . '. '
-                    . t('Kun je RzMon niet meer openen? Gebruik vanaf je thuisnetwerk de nooddeur {door} (self-signed: kies "toch doorgaan").', ['door' => $door]), STATUS_WARN, 'problem');
+                Monitor::notifySystem('⚠️ ' . t('Certificaat van RzSense: probleem'), ucfirst($problem) . '. '
+                    . t('Kun je RzSense niet meer openen? Gebruik vanaf je thuisnetwerk de nooddeur {door} (self-signed: kies "toch doorgaan").', ['door' => $door]), STATUS_WARN, 'problem');
                 $s['warned'] = true;
             } elseif ($problem === null && $s['warned']) {
-                Monitor::notifySystem('✅ ' . t('Certificaat van RzMon weer in orde'), t('{url}: geldig tot {d} ({issuer})', ['url' => $url, 'd' => date('d-m-Y', $a['to']), 'issuer' => $a['issuer']]), STATUS_OK, 'recovery');
+                Monitor::notifySystem('✅ ' . t('Certificaat van RzSense weer in orde'), t('{url}: geldig tot {d} ({issuer})', ['url' => $url, 'd' => date('d-m-Y', $a['to']), 'issuer' => $a['issuer']]), STATUS_OK, 'recovery');
                 $s['warned'] = false;
             }
             if ($problem === null && $a['days'] <= self::WARN_DAYS && (int) $s['soon_to'] !== $a['to']) {
@@ -370,18 +370,18 @@ final class Https
                 $s['soon_to'] = $a['to'];
             }
         }
-        // Het eigen certificaat van RzMon (agents via https op het IP-adres, en de nooddeur): ℹ️ 14 dagen vooraf, ⚠️ als het verlopen is
+        // Het eigen certificaat van RzSense (agents via https op het IP-adres, en de nooddeur): ℹ️ 14 dagen vooraf, ⚠️ als het verlopen is
         $l = $s['local'];
         if ($notify && !empty($l['ok'])) {
             $how = t('Vernieuwen: Instellingen → Agents → Standaardinstellingen → 🔐 Certificaat.');
             if ($l['days'] < 0 && !$s['local_warned']) {
-                Monitor::notifySystem('⚠️ ' . t('Eigen certificaat van RzMon verlopen'), t('Het certificaat op poort 443 van RzMon is verlopen op {d}.', ['d' => date('d-m-Y', $l['to'])]) . ' ' . $how, STATUS_WARN, 'problem');
+                Monitor::notifySystem('⚠️ ' . t('Eigen certificaat van RzSense verlopen'), t('Het certificaat op poort 443 van RzSense is verlopen op {d}.', ['d' => date('d-m-Y', $l['to'])]) . ' ' . $how, STATUS_WARN, 'problem');
                 $s['local_warned'] = true;
             } elseif ($l['days'] >= 0) {
                 $s['local_warned'] = false;
                 if ($l['days'] <= self::WARN_DAYS && (int) $s['local_soon_to'] !== $l['to']) {
-                    Monitor::sysInfo('cert', null, null, '🔐 ' . t('Eigen certificaat van RzMon verloopt over {n} dagen', ['n' => $l['days']]),
-                        fn() => t('Het certificaat op poort 443 van RzMon verloopt op {d}.', ['d' => date('d-m-Y', $l['to'])]) . ' ' . $how);
+                    Monitor::sysInfo('cert', null, null, '🔐 ' . t('Eigen certificaat van RzSense verloopt over {n} dagen', ['n' => $l['days']]),
+                        fn() => t('Het certificaat op poort 443 van RzSense verloopt op {d}.', ['d' => date('d-m-Y', $l['to'])]) . ' ' . $how);
                     $s['local_soon_to'] = $l['to'];
                 }
             }
@@ -394,7 +394,7 @@ final class Https
     /** Vanuit cron: één keer per dag */
     public static function cron(): ?string
     {
-        // Dagelijks: het beheeradres (als dat er is) en het eigen certificaat van RzMon op poort 443 (agents en nooddeur)
+        // Dagelijks: het beheeradres (als dat er is) en het eigen certificaat van RzSense op poort 443 (agents en nooddeur)
         if (strtotime((string) setting('https_check_at', '')) > time() - 86400) {
             return null;
         }

@@ -70,7 +70,7 @@ final class Hibp
 
     /**
      * Hoe vaak staat dit wachtwoord in een datalek? null = HIBP niet bereikbaar (dan gaat alles gewoon door).
-     * Alleen de eerste 5 tekens van de SHA-1-hash gaan de deur uit; de rest vergelijkt RzMon zelf.
+     * Alleen de eerste 5 tekens van de SHA-1-hash gaan de deur uit; de rest vergelijkt RzSense zelf.
      */
     public static function pwnedCount(string $password): ?int
     {

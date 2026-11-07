@@ -5,7 +5,7 @@ declare(strict_types=1);
  * 1.154.0: het tweede dashboard, "Command center". Alles in één oogopslag: beveiliging (SSH-logins, mislukte pogingen,
  * blokkades, sudo/su, webaanvallen, uitgaand), de toppers (grootste SSH- en IDS-blokkade, grootste aanvaller, meest
  * aangevallen server, land), wie er inlogt, en de monitoring (hoeveel checks er liepen, welke het vaakst fout ging en
- * welke de meeste meldingen gaf). Steeds vergeleken met de periode ervoor. Alleen wat RzMon al bewaart.
+ * welke de meeste meldingen gaf). Steeds vergeleken met de periode ervoor. Alleen wat RzSense al bewaart.
  */
 final class CommandCenter
 {

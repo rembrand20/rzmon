@@ -30,10 +30,10 @@ final class Report
             . ($sub !== '' ? "<div class=\"sub\">$sub</div>" : '') . '</div>';
 
         $h = [];
-        $h[] = '<header><div><h1>' . $e(t('RzMon-rapport')) . '</h1><p>' . $e(t('{from} t/m {to}', ['from' => $date($r['from']), 'to' => $date($r['to'])]))
-            . ' · ' . $e(t('{n} dagen', ['n' => $r['days']])) . '</p></div><p class="meta">' . $e(t('Gemaakt op {t}', ['t' => date('d-m-Y H:i')])) . '<br>RzMon ' . $e(RZMON_VERSION) . '</p></header>';
+        $h[] = '<header><div><h1>' . $e(t('RzSense-rapport')) . '</h1><p>' . $e(t('{from} t/m {to}', ['from' => $date($r['from']), 'to' => $date($r['to'])]))
+            . ' · ' . $e(t('{n} dagen', ['n' => $r['days']])) . '</p></div><p class="meta">' . $e(t('Gemaakt op {t}', ['t' => date('d-m-Y H:i')])) . '<br>RzSense ' . $e(RZMON_VERSION) . '</p></header>';
         if ($r['since'] && $r['since'] > $r['from']) {
-            $h[] = '<p class="note">' . $e(t('Gegevens vanaf {d}: over de dagen ervoor weet RzMon nog niets.', ['d' => $date((string) $r['since'])])) . '</p>';
+            $h[] = '<p class="note">' . $e(t('Gegevens vanaf {d}: over de dagen ervoor weet RzSense nog niets.', ['d' => $date((string) $r['since'])])) . '</p>';
         }
         // 1.146.0: één pagina voor wie alleen de hoofdzaken wil (daarna een nieuwe pagina)
         $h[] = self::onePager($r, $inc, $e, $pct, $dur);
@@ -97,7 +97,7 @@ final class Report
         if ($bodyOnly) {
             return implode("\n", $h);
         }
-        $title = $e(t('RzMon-rapport')) . ' ' . $e($r['from']) . ' – ' . $e($r['to']);
+        $title = $e(t('RzSense-rapport')) . ' ' . $e($r['from']) . ' – ' . $e($r['to']);
         return '<!doctype html><html lang="' . $e(I18n::lang()) . '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' . $title . '</title><style>'
             . self::css() . '</style></head><body><main>' . implode("\n", $h) . '<footer>' . $e(t('Bewaren als PDF: Afdrukken (Ctrl+P) → Opslaan als PDF.')) . '</footer></main></body></html>';
     }

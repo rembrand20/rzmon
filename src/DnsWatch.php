@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * DNS-controle via AdGuard Home (1.113.0): elke minuut leest RzMon de nieuwe regels uit de query-log van je
+ * DNS-controle via AdGuard Home (1.113.0): elke minuut leest RzSense de nieuwe regels uit de query-log van je
  * AdGuard-instanties (Koppelingen → AdGuard) en kijkt per apparaat:
  * - vraagt het een domein op dat bij URLhaus of ThreatFox als malware/botnet bekend is (lijsten van de
  *   dreigingsinformatie), of dat AdGuard zelf als gevaarlijk tegenhield (Safe Browsing);
@@ -10,7 +10,7 @@ declare(strict_types=1);
  * - lijkt het op een DNS-tunnel (veel lange, unieke namen onder één domein) of op malware die domeinen verzint
  *   (veel willekeurige namen die niet bestaan).
  * Zo zie je ook apparaten zonder agent: camera's, tv's, IoT. Is het apparaat een van je servers, dan telt het ook
- * mee voor de ketens. Er gaat niets naar buiten: alles wordt vergeleken met de lijsten op de RzMon-server.
+ * mee voor de ketens. Er gaat niets naar buiten: alles wordt vergeleken met de lijsten op de RzSense-server.
  */
 final class DnsWatch
 {
@@ -201,7 +201,7 @@ final class DnsWatch
         return $cache[$ip] ??= (q("SELECT * FROM hosts WHERE address = ? OR CONCAT(' ', COALESCE(agent_ips, ''), ' ') LIKE ? LIMIT 1", [$ip, "% $ip %"])->fetch() ?: null);
     }
 
-    /** Incident (bij de server zelf, of anders bij RzMon), en een signaal als het een server is */
+    /** Incident (bij de server zelf, of anders bij RzSense), en een signaal als het een server is */
     private static function raise(string $client, string $name, string $type, string $key, int $sev, string $title, string $detail, int $score, array $techs): int
     {
         $host = self::host($client);
@@ -209,7 +209,7 @@ final class DnsWatch
         if (!$on) {
             return 0;
         }
-        if (Ids::isRzmon($client)) {   // RzMon zelf (1.114.0): toegestaan, alleen loggen
+        if (Ids::isRzmon($client)) {   // RzSense zelf (1.114.0): toegestaan, alleen loggen
             Edr::allowed($on, 'd', "dns|$key", ['title' => $title, 'detail' => $detail]);
             return 0;
         }

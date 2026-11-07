@@ -50,7 +50,7 @@ $labels = ['OK', 'WARNING', 'CRITICAL', t('ONBEKEND')];
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title><?= th('Storing bevestigen – RzMon') ?></title>
+  <title><?= th('Storing bevestigen – RzSense') ?></title>
   <?= Brand::head() ?>
   <link rel="stylesheet" href="assets/app.css">
 </head>

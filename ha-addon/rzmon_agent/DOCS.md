@@ -1,10 +1,10 @@
-# RzMon Agent
+# RzSense Agent
 
-Laat [RzMon](https://github.com/rembrand20/rzmon) je Home Assistant-systeem bewaken, met Pushover-meldingen als er iets misgaat.
+Laat [RzSense](https://github.com/rembrand20/rzmon) je Home Assistant-systeem bewaken, met Pushover-meldingen als er iets misgaat.
 
 ## Wat wordt er gerapporteerd?
 
-| In RzMon | Wat |
+| In RzSense | Wat |
 |---|---|
 | **CPU** | CPU-gebruik van de host (gemeten over 2 sec) + load average |
 | **RAM** | Geheugengebruik van de host + swap |
@@ -25,19 +25,19 @@ Laat [RzMon](https://github.com/rembrand20/rzmon) je Home Assistant-systeem bewa
 | **Containers** | Core, Supervisor, plugins en add-ons: draait hij, CPU, RAM, gecrasht of herstart door de watchdog |
 | **Logbestand** | Zoeken in de logs van HA OS (`ha:host`), Core, de Supervisor en add-ons |
 
-**⚡ Realtime** (aan/uit in RzMon, *Agent Manager*): de add-on kijkt dan elke 5 seconden of er iets verandert aan de add-ons, Core of de boot-tijd, en rapporteert meteen.
+**⚡ Realtime** (aan/uit in RzSense, *Agent Manager*): de add-on kijkt dan elke 5 seconden of er iets verandert aan de add-ons, Core of de boot-tijd, en rapporteert meteen.
 
 De add-on gebruikt de Supervisor-rol **manager** om de statistieken, logs en hardware te kunnen lezen. Hij verandert niets.
 
-Valt Home Assistant helemaal uit, dan stopt de agent ook met rapporteren. RzMon zet de checks dan na een paar minuten op **CRITICAL**: precies het moment waarop je een melding wilt die *niet* via Home Assistant zelf loopt.
+Valt Home Assistant helemaal uit, dan stopt de agent ook met rapporteren. RzSense zet de checks dan na een paar minuten op **CRITICAL**: precies het moment waarop je een melding wilt die *niet* via Home Assistant zelf loopt.
 
 ## Installatie
 
-1. **In RzMon:** voeg een server toe met type **Remote met agent** en als adres het IP van je Home Assistant (bv. `192.168.1.20`). Klik in het venster *Agent Manager* op **🏠 Home Assistant OS → 🔗 Koppelcode maken** (eenmalig, 15 minuten geldig).
-2. **In Home Assistant:** zet deze add-on in de map `/addons` (zie hieronder), ga naar *Instellingen → Add-ons → Add-on winkel*, klik rechtsboven op ⋮ → **Controleren op updates** en installeer **RzMon Agent** onder *Lokale add-ons*.
-3. Tabblad **Configuratie**: vul `monitor_url` (bv. `http://192.168.1.10`) en `pair_code` in en sla op. De add-on haalt daarmee zijn eigen sleutel op (in het logboek: *Gekoppeld met RzMon*); daarna is alles versleuteld en ondertekend.
-4. **Start** de add-on. Het logboek moet `Verbonden met RzMon ✔` tonen.
-5. **In RzMon:** klik bij de server op **＋** en voeg checks toe. Bij *Diskruimte* en *Service* kun je kiezen uit wat de agent meldt.
+1. **In RzSense:** voeg een server toe met type **Remote met agent** en als adres het IP van je Home Assistant (bv. `192.168.1.20`). Klik in het venster *Agent Manager* op **🏠 Home Assistant OS → 🔗 Koppelcode maken** (eenmalig, 15 minuten geldig).
+2. **In Home Assistant:** zet deze add-on in de map `/addons` (zie hieronder), ga naar *Instellingen → Add-ons → Add-on winkel*, klik rechtsboven op ⋮ → **Controleren op updates** en installeer **RzSense Agent** onder *Lokale add-ons*.
+3. Tabblad **Configuratie**: vul `monitor_url` (bv. `http://192.168.1.10`) en `pair_code` in en sla op. De add-on haalt daarmee zijn eigen sleutel op (in het logboek: *Gekoppeld met RzSense*); daarna is alles versleuteld en ondertekend.
+4. **Start** de add-on. Het logboek moet `Verbonden met RzSense ✔` tonen.
+5. **In RzSense:** klik bij de server op **＋** en voeg checks toe. Bij *Diskruimte* en *Service* kun je kiezen uit wat de agent meldt.
 
 ### Add-on in `/addons` zetten
 
@@ -48,18 +48,18 @@ Valt Home Assistant helemaal uit, dan stopt de agent ook met rapporteren. RzMon 
 
 | Optie | Uitleg |
 |---|---|
-| `monitor_url` | Adres van RzMon, zonder `/api.php` |
-| `monitor_url_fallback` | Reserve-adres als `monitor_url` niet bereikbaar is (agent 1.51.0), bv. `monitor_url` = `https://rzmon.example.nl` en reserve `http://192.168.1.10`. RzMon kan het adres ook zelf wijzigen (*Beveiligde verbinding → 🌐*); dat staat dan in `/data/rzmon-keys/url` |
-| `pair_code` | Koppelcode van deze server in RzMon (Agent Manager → 🔗 Koppelcode) |
-| `pin` | Alleen bij een eigen (self-signed) certificaat van RzMon: de vingerafdruk (staat bij de koppelcode) |
+| `monitor_url` | Adres van RzSense, zonder `/api.php` |
+| `monitor_url_fallback` | Reserve-adres als `monitor_url` niet bereikbaar is (agent 1.51.0), bv. `monitor_url` = `https://rzmon.example.nl` en reserve `http://192.168.1.10`. RzSense kan het adres ook zelf wijzigen (*Beveiligde verbinding → 🌐*); dat staat dan in `/data/rzmon-keys/url` |
+| `pair_code` | Koppelcode van deze server in RzSense (Agent Manager → 🔗 Koppelcode) |
+| `pin` | Alleen bij een eigen (self-signed) certificaat van RzSense: de vingerafdruk (staat bij de koppelcode) |
 | `token` | Oude manier: agent-token, alleen zonder koppelcode |
-| `interval` | Alleen voor oudere RzMon-versies. Vanaf RzMon 1.41.0 kies je in RzMon hoe vaak de add-on rapporteert (*Agent Manager → Rapporteren elke …*; standaard 60 s) |
+| `interval` | Alleen voor oudere RzSense-versies. Vanaf RzSense 1.41.0 kies je in RzSense hoe vaak de add-on rapporteert (*Agent Manager → Rapporteren elke …*; standaard 60 s) |
 | `verify_ssl` | Uitzetten bij een self-signed certificaat |
-| `certs` | Certificaten waarvan RzMon de vervaldatum bewaakt: bestanden in `/ssl` (standaard `/ssl/fullchain.pem`, van de Let's Encrypt- of DuckDNS-add-on) en/of `host:poort`, ook op internet, bv. `mijndomein.duckdns.org:443`. Kies ze in RzMon bij een check van het type *SSL-certificaat* |
+| `certs` | Certificaten waarvan RzSense de vervaldatum bewaakt: bestanden in `/ssl` (standaard `/ssl/fullchain.pem`, van de Let's Encrypt- of DuckDNS-add-on) en/of `host:poort`, ook op internet, bv. `mijndomein.duckdns.org:443`. Kies ze in RzSense bij een check van het type *SSL-certificaat* |
 
 ## Tips
 
-- Zet in RzMon ook een **ping-check** en een **TCP-check op poort 8123** op dezelfde server. Die werken onafhankelijk van de agent.
+- Zet in RzSense ook een **ping-check** en een **TCP-check op poort 8123** op dezelfde server. Die werken onafhankelijk van de agent.
 - Een add-on die je bewust uit hebt staan geeft alleen een melding als je er een check voor aanmaakt.
-- **Heartbeat-checks** (RzMon 1.77.0): in de add-on is er geen `rzmon-hb`. Laat een automatisering zich melden via de geheime URL van de check, met een `rest_command` (zie de handleiding van RzMon, §7.8).
+- **Heartbeat-checks** (RzSense 1.77.0): in de add-on is er geen `rzmon-hb`. Laat een automatisering zich melden via de geheime URL van de check, met een `rest_command` (zie de handleiding van RzSense, §7.8).
 - Rechten: de add-on gebruikt de Supervisor-rol `default` (alleen lezen) en host-netwerk (voor de poortlijst). Hij kan niets aan je installatie veranderen.

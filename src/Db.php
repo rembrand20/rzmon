@@ -8,7 +8,7 @@ declare(strict_types=1);
  * Meten kan op twee manieren (options.via):
  *  - 'agent': de agent leest de database lokaal uit (socket of in een container), zonder dat de database open op het netwerk
  *    hoeft; zonder gebruiker als root (MariaDB) of postgres (PostgreSQL), dus zonder wachtwoord;
- *  - 'rzmon': RzMon maakt zelf verbinding via het netwerk (PDO), zoals vóór 1.200.0.
+ *  - 'rzmon': RzSense maakt zelf verbinding via het netwerk (PDO), zoals vóór 1.200.0.
  * Beide leveren dezelfde ruwe sleutel/waarde-lijst; normalize() maakt daar één beeld van, check() beoordeelt het.
  * Eén verbinding = één meting (sleutel), ook als er meerdere checks op staan: een overzicht en losse waarden (metric).
  * Alles is alleen lezen: status, verbindingen, lopende query's, replicatie, grootte. Nooit data.
@@ -75,7 +75,7 @@ final class Db
             [(int) $check['host_id'], 'dbst:' . (int) $check['id'], json_encode($st, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), now()]);
     }
 
-    /** @var array<string, array<string, mixed>> metingen via RzMon in deze run (één per verbinding) */
+    /** @var array<string, array<string, mixed>> metingen via RzSense in deze run (één per verbinding) */
     private static array $cache = [];
 
     /** @return array<string, mixed> */
@@ -147,7 +147,7 @@ final class Db
         }
     }
 
-    // ------------------------------------------------------------------ meten via RzMon (PDO)
+    // ------------------------------------------------------------------ meten via RzSense (PDO)
 
     /** @return array{ok: bool, ms: int, err: string, at: int, kv: array<string, string>} */
     private static function fetchRzmon(array $check, array $host, array $o, array &$state): array
@@ -167,7 +167,7 @@ final class Db
             return self::$cache[$key];
         }
         if ($o['engine'] === 'pgsql' && !in_array('pgsql', PDO::getAvailableDrivers(), true)) {
-            return self::$cache[$key] = $fail(t('PHP op de RzMon-server mist pdo_pgsql (installeer php-pgsql), of meet via de agent'));
+            return self::$cache[$key] = $fail(t('PHP op de RzSense-server mist pdo_pgsql (installeer php-pgsql), of meet via de agent'));
         }
         $t0 = microtime(true);
         try {
@@ -310,7 +310,7 @@ final class Db
         $state = self::state($check);
         if ($o['via'] === 'agent') {
             if ($host['mode'] !== 'agent') {
-                return Checks::result(STATUS_UNKNOWN, null, t('Meten via de agent kan alleen op een server met de agent; kies "RzMon maakt verbinding"'));
+                return Checks::result(STATUS_UNKNOWN, null, t('Meten via de agent kan alleen op een server met de agent; kies "RzSense maakt verbinding"'));
             }
             if ($stale = Checks::agentStale($host)) {
                 return $stale;
@@ -330,7 +330,7 @@ final class Db
         if (empty($r['ok'])) {
             $err = (string) ($r['err'] ?? '');
             if ($o['via'] === 'agent' && $o['pass'] !== '' && empty($host['enc'])) {
-                $err .= ' · ' . t('een wachtwoord stuurt RzMon alleen naar een versleutelde agent');
+                $err .= ' · ' . t('een wachtwoord stuurt RzSense alleen naar een versleutelde agent');
             }
             // Het overzicht meldt een storing; losse waarden zijn dan onbekend (geen dubbele melding)
             return Checks::result($metric === 'overview' ? STATUS_CRIT : STATUS_UNKNOWN, null, t('{db}: geen verbinding', ['db' => $name]) . ($err !== '' ? ": $err" : ''));

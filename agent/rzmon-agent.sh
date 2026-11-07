@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # (Dit bestand wordt gebouwd uit agent/src/*.sh met tools/build-agent.sh: wijzig de modules daar, niet dit bestand.)
-# RzMon agent – rapporteert CPU, RAM, disk usage, luisterende poorten, service-status,
+# RzSense agent (kenmerk voor oudere installers: RzMon agent) – rapporteert CPU, RAM, disk usage, luisterende poorten, service-status,
 # vervaldatums van SSL-certificaten (bestanden en host:poort, ook op internet) en, als
 # podman aanwezig is, de status en het verbruik van elke container en pod aan de monitor.
 #
@@ -20,8 +20,8 @@
 #
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
-# Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzMon)
-AGENT_VERSION="1.84.0"
+# Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
+AGENT_VERSION="1.85.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -52,10 +52,10 @@ fi
 
 MONITOR_URL="${MONITOR_URL:-http://rzmon.example.lan}"
 TOKEN="${TOKEN:-VUL_HIER_HET_TOKEN_IN}"
-# Welke services bewaakt worden, stel je in RzMon in (service-check toevoegen). SERVICES is verouderd,
+# Welke services bewaakt worden, stel je in RzSense in (service-check toevoegen). SERVICES is verouderd,
 # maar werkt nog: services in deze spatie-gescheiden lijst worden óók gemeld (niet gebruikt in HA-modus).
 SERVICES="${SERVICES-}"
-# INSECURE=1 accepteert een self-signed certificaat van RzMon
+# INSECURE=1 accepteert een self-signed certificaat van RzSense
 INSECURE="${INSECURE:-0}"
 # Certificaten om te bewaken (spatie-gescheiden): bestanden (wildcards mogen) en/of host:poort,
 # lokaal of op internet, bv. "/etc/letsencrypt/live/*/cert.pem localhost:8443 example.com:443".
@@ -63,8 +63,8 @@ INSECURE="${INSECURE:-0}"
 CERTS="${CERTS-/etc/letsencrypt/live/*/cert.pem}"
 # Certificaten veranderen zelden: elk uur opnieuw uitlezen is genoeg (seconden)
 CERT_INTERVAL="${CERT_INTERVAL:-3600}"
-# Certificaten zoeken (1.59.0): in deze mappen naar .crt/.pem/.cer, één keer per dag (of meteen als RzMon erom vraagt).
-# In RzMon kies je welke bewaakt worden; extra mappen stel je daar in (Instellingen → Agents). Leeg ("") = niet zoeken.
+# Certificaten zoeken (1.59.0): in deze mappen naar .crt/.pem/.cer, één keer per dag (of meteen als RzSense erom vraagt).
+# In RzSense kies je welke bewaakt worden; extra mappen stel je daar in (Instellingen → Agents). Leeg ("") = niet zoeken.
 CERT_DIRS="${CERT_DIRS-/etc/ssl /etc/pki /etc/letsencrypt /etc/nginx /etc/apache2 /etc/httpd /etc/haproxy /etc/lighttpd /etc/caddy /etc/traefik /etc/postfix /etc/dovecot /etc/mosquitto /etc/cockpit /etc/pve /etc/ipa /opt /srv /usr/local/etc /var/lib/docker/volumes /config /ssl}"
 # Diepere controle van services: draait het proces, luistert het op zijn poorten, antwoordt het
 # (HTTP, database, SSH, mail, DNS…), herstarts en fouten in het log. SERVICE_DEEP=0 zet het uit.
@@ -72,8 +72,8 @@ SERVICE_DEEP="${SERVICE_DEEP:-1}"
 # Eigen tests: een uitvoerbaar script /etc/rzmon-agent/tests/<service> (van root, niet door anderen
 # te wijzigen). Exitcode 0 = OK, 1 = WARNING, 2 = CRITICAL; de eerste regel uitvoer is het bericht.
 SERVICE_TEST_DIR="${SERVICE_TEST_DIR:-/etc/rzmon-agent/tests}"
-# Logbestanden doorzoeken (zoekopdrachten stel je in RzMon in): alleen bestanden in deze mappen
-# mogen gelezen worden, zodat via RzMon niet zomaar elk bestand uitgelezen kan worden.
+# Logbestanden doorzoeken (zoekopdrachten stel je in RzSense in): alleen bestanden in deze mappen
+# mogen gelezen worden, zodat via RzSense niet zomaar elk bestand uitgelezen kan worden.
 LOG_DIRS="${LOG_DIRS:-/var/log}"
 # Podman: wordt alleen gemeld als podman op deze server staat. PODMAN=0 zet het uit.
 PODMAN="${PODMAN:-1}"
@@ -82,43 +82,43 @@ DOCKER="${DOCKER:-1}"
 # Gebruikers met rootless containers: "auto" = zelf zoeken (gebruikers met ~/.local/share/containers),
 # of een lijst namen; "" = alleen de containers van root
 PODMAN_USERS="${PODMAN_USERS-auto}"
-# Bijwerken vanuit RzMon (knop "Agent bijwerken" of automatisch). REMOTE_UPDATE=0: alleen met de hand
-# (sudo rzmon-agent-setup --update). De nieuwe versie komt altijd van je eigen RzMon en wordt eerst
+# Bijwerken vanuit RzSense (knop "Agent bijwerken" of automatisch). REMOTE_UPDATE=0: alleen met de hand
+# (sudo rzmon-agent-setup --update). De nieuwe versie komt altijd van je eigen RzSense en wordt eerst
 # gecontroleerd (SHA-256, geldig script, juiste versie) voordat hij geïnstalleerd wordt.
 REMOTE_UPDATE="${REMOTE_UPDATE:-1}"
-# Installatiescript voor bijwerken vanuit RzMon (op TrueNAS staat het op de pool, naast de agent)
+# Installatiescript voor bijwerken vanuit RzSense (op TrueNAS staat het op de pool, naast de agent)
 AGENT_SETUP="${AGENT_SETUP:-/usr/local/sbin/rzmon-agent-setup}"
-# Commando-checks (＋ Check → Commando in RzMon): RzMon bepaalt of ze mogen en als welke gebruiker
+# Commando-checks (＋ Check → Commando in RzSense): RzSense bepaalt of ze mogen en als welke gebruiker
 # (Instellingen → Agents). Hier op de server kun je dat inperken: COMMANDS=0 = nooit uitvoeren,
-# COMMANDS=nobody = nooit als root. Leeg = wat RzMon zegt.
+# COMMANDS=nobody = nooit als root. Leeg = wat RzSense zegt.
 COMMANDS="${COMMANDS-}"
-# Zelf herstellen (agent 1.62.0, per check in RzMon aan te zetten): een service of container die niet draait, herstart
+# Zelf herstellen (agent 1.62.0, per check in RzSense aan te zetten): een service of container die niet draait, herstart
 # de agent zelf; een eigen herstelcommando staat alleen hier, in HEAL_DIR (uitvoerbaar, van root, niet door anderen te
 # wijzigen). HEAL=0 = op deze server nooit zelf herstellen.
 HEAL="${HEAL:-1}"
 HEAL_DIR="${HEAL_DIR:-/etc/rzmon-agent/heal.d}"
-# Waakhond (agent 1.62.0, per agent in RzMon aan te zetten): Pushover als RzMon onbereikbaar is of de checks stilstaan.
+# Waakhond (agent 1.62.0, per agent in RzSense aan te zetten): Pushover als RzSense onbereikbaar is of de checks stilstaan.
 # WATCHDOG=0 = op deze server nooit.
 WATCHDOG="${WATCHDOG:-1}"
 PUSHOVER_API="${PUSHOVER_API:-https://api.pushover.net/1/messages.json}"
-# Logins (SSH en console), sudo en su melden op de pagina Meldingen, als dat in RzMon aan staat
+# Logins (SSH en console), sudo en su melden op de pagina Meldingen, als dat in RzSense aan staat
 # (Instellingen → Alarmgedrag). AUTH_EVENTS=0 zet het op deze server altijd uit.
 AUTH_EVENTS="${AUTH_EVENTS-}"
-# IDS (pagina 🛡️ IDS in RzMon): IDS_BLOCK=0 = op deze server nooit blokkeren, ook als RzMon op
+# IDS (pagina 🛡️ IDS in RzSense): IDS_BLOCK=0 = op deze server nooit blokkeren, ook als RzSense op
 # "blokkeren" staat (detecteren gaat door).
 IDS_BLOCK="${IDS_BLOCK-}"
 # Zonder journal (of met AUTH_SOURCE=file): deze logbestanden, de eerste die bestaat
 AUTH_LOGS="${AUTH_LOGS:-/var/log/secure /var/log/auth.log}"
 SUPERVISOR_URL="${SUPERVISOR_URL:-http://supervisor}"
-# Realtime-watcher (dienst rzmon-watch, aan/uit per server in RzMon): REALTIME=0 zet hem op deze server altijd uit.
+# Realtime-watcher (dienst rzmon-watch, aan/uit per server in RzSense): REALTIME=0 zet hem op deze server altijd uit.
 REALTIME="${REALTIME-}"
 
 HA_MODE=0
 [ -n "${SUPERVISOR_TOKEN:-}" ] && HA_MODE=1
 
 # ---------------------------------------------------------------- Endpoint-bewaking (agent 1.63.0)
-# Aan per server in RzMon (regel "0 <tab> edr <tab> 1"); EDR=0 zet het op deze server altijd uit. De realtime-watcher
-# start dan sensoren die elke gebeurtenis meteen in een wachtrij zetten (edr.spool) en een run starten. RzMon toetst
+# Aan per server in RzSense (regel "0 <tab> edr <tab> 1"); EDR=0 zet het op deze server altijd uit. De realtime-watcher
+# start dan sensoren die elke gebeurtenis meteen in een wachtrij zetten (edr.spool) en een run starten. RzSense toetst
 # ze aan zijn regels (eigen regels en Sigma) en kan het proces laten stoppen, het IP blokkeren of de server isoleren.
 #  - processen (auditd, execve), bewaakte paden (accounts, sudo, cron, systemd, ssh) en kernelmodules;
 #  - netwerk (ss, elke 5 s): nieuwe uitgaande verbindingen en nieuwe luisterpoorten;
@@ -155,12 +155,12 @@ edr_audit_awk() {
         close("/etc/passwd")
         cur = ""; minute = 0; sent = 0; drop = 0; reset = 0; ownn = 0
     }
-    # Van RzMon zelf (agent 1.65.0): de agent en wat hij start (systemd-groep rzmon-*.service, of als root vanuit
-    # rzmon-agent), en RzMon op zijn eigen server (PHP in de RzMon-map, als de gebruiker van RzMon of root). Kinderen
-    # erven het. RzMon logt dat als "toegestaan" en grijpt er nooit op in.
+    # Van RzSense zelf (agent 1.65.0): de agent en wat hij start (systemd-groep rzmon-*.service, of als root vanuit
+    # rzmon-agent), en RzSense op zijn eigen server (PHP in de RzSense-map, als de gebruiker van RzSense of root). Kinderen
+    # erven het. RzSense logt dat als "toegestaan" en grijpt er nooit op in.
     # Agent 1.67.0: ook een kind van een run van de agent (zijn PID staat in own.pids; de run kan al klaar zijn als de
-    # gebeurtenis binnenkomt, dan is /proc weg), het geheime kenmerk van RzMon in de opdracht (alles wat RzMon start), en de
-    # cron van RzMon (crond → sh -c php …/cron/run.php)
+    # gebeurtenis binnenkomt, dan is /proc weg), het geheime kenmerk van RzSense in de opdracht (alles wat RzSense start), en de
+    # cron van RzSense (crond → sh -c php …/cron/run.php)
     function agentpid(p,   l, hit) {
         hit = 0
         if (p == 0) return 0
@@ -287,7 +287,7 @@ edr_audit_awk() {
 }
 
 # SWAG/nginx-log (stdin) → verdachte verzoeken als JSON (zonder haakjes), hooguit 100:
-# [ip, tijd, methode, pad+query, status, bytes, user-agent, verwijzer]; RzMon beoordeelt ze precies
+# [ip, tijd, methode, pad+query, status, bytes, user-agent, verwijzer]; RzSense beoordeelt ze precies
 edr_swag_req() {
     awk -F'"' '
     function esc(s) { gsub(/\\/, "&&", s); gsub(/"/, "\\\"", s); gsub(/[\001-\037\177]/, " ", s); return s }
@@ -307,7 +307,7 @@ edr_swag_req() {
     }'
 }
 
-# Van RzMon zelf? (agent 1.65.0) edr_own <pid> <programma> <gebruiker> [<ip>]: agent, rzmon, net (verkeer met RzMon) of leeg
+# Van RzSense zelf? (agent 1.65.0) edr_own <pid> <programma> <gebruiker> [<ip>]: agent, rzmon, net (verkeer met RzSense) of leeg
 edr_own() {
     local cg=""
     [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -gt 0 ] && cg=$(cat "/proc/$1/cgroup" 2>/dev/null)
@@ -414,7 +414,7 @@ edr_file() {
     [ -n "$yr" ] || yr=$(edr_yara "$p")
     edr_emit "{\"k\":\"f\",\"t\":$(date +%s),\"path\":\"$(edr_j "$p")\",\"size\":$sz,\"elf\":$elf,\"x\":$x,\"sha\":\"$sha\"${susp:+,\"susp\":\"$(edr_j "$susp")\"}${yr:+,\"yara\":\"$(edr_j "$yr")\"}}"
 }
-# YARA (agent 1.64.0): de regels komen van RzMon (versleuteld, rzmon.yar); namen van de regels die raak zijn, met komma's
+# YARA (agent 1.64.0): de regels komen van RzSense (versleuteld, rzmon.yar); namen van de regels die raak zijn, met komma's
 edr_yara() {
     [ -s "$edr_dir/rzmon.yar" ] && command -v yara >/dev/null 2>&1 || return 0
     timeout 10 yara -w "$edr_dir/rzmon.yar" "$1" 2>/dev/null | awk '$1 ~ /^[A-Za-z0-9_]+$/ { print $1 }' | head -n 8 | tr '\n' ',' | sed 's/,$//'
@@ -479,7 +479,7 @@ edr_eve_awk() {
     }'
 }
 
-# Testen zonder RzMon (tests/agent-edr.sh): rzmon-agent.sh --edr-parse audit|swag|eve < bestand
+# Testen zonder RzSense (tests/agent-edr.sh): rzmon-agent.sh --edr-parse audit|swag|eve < bestand
 if [ "${1-}" = "--edr-parse" ]; then
     case "${2-}" in
         audit) edr_audit_awk ;;
@@ -493,10 +493,10 @@ fi
 # ---------------------------------------------------------------- Realtime-watcher (--watch)
 # Draait als aparte dienst (rzmon-watch). Doet zelf geen analyse: hij let alleen op en start bij een
 # gebeurtenis meteen een gewone agent-run, die alles verwerkt (logins, brute force, IDS, services, bestanden)
-# en die RzMon direct beoordeelt. Alleen als RzMon realtime voor deze server aanzet (regel "0 <tab> realtime <tab> 1")
+# en die RzSense direct beoordeelt. Alleen als RzSense realtime voor deze server aanzet (regel "0 <tab> realtime <tab> 1")
 # en REALTIME niet 0 is; anders wacht hij en kijkt elke minuut opnieuw.
 #  - systemlog (journalctl -f): SSH-logins en mislukte pogingen, sudo, su, console, en meldingen van systemd
-#    over de services die RzMon bewaakt (gestopt, gecrasht, herstart);
+#    over de services die RzSense bewaakt (gestopt, gecrasht, herstart);
 #  - bestanden (inotifywait, uit inotify-tools): de 🔴-paden van "Bestanden bewaken".
 # Hooguit één extra run per 10 seconden, ook als er veel gebeurt (bv. tijdens een brute-force-aanval).
 if [ "${1-}" = "--watch" ]; then
@@ -517,7 +517,7 @@ if [ "${1-}" = "--watch" ]; then
     while true; do
         rt_on=0; edr_on=0
         [ "$REALTIME" != 0 ] && grep -q $'^0\trealtime\t1' "$w_cache" 2>/dev/null && rt_on=1
-        # Endpoint-bewaking (agent 1.63.0): als RzMon het voor deze server aanzet, als root, niet op Home Assistant OS
+        # Endpoint-bewaking (agent 1.63.0): als RzSense het voor deze server aanzet, als root, niet op Home Assistant OS
         [ "$EDR" != 0 ] && [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && grep -q $'^0\tedr\t1' "$w_cache" 2>/dev/null && edr_on=1
         if [ "$rt_on" = 0 ] && [ "$edr_on" = 0 ]; then
             w_status off - -
@@ -525,10 +525,10 @@ if [ "${1-}" = "--watch" ]; then
             continue
         fi
         w_sig=$(grep -E $'^(0\t(realtime|fim|edr|edrself)|[0-9]+\tsvc)\t' "$w_cache" 2>/dev/null | cksum)
-        # Wat van RzMon zelf is (agent 1.65.0): de map en gebruiker van RzMon (alleen op zijn eigen server van belang)
-        # en de adressen van RzMon; dat wordt gelogd als "toegestaan", nooit als aanval
+        # Wat van RzSense zelf is (agent 1.65.0): de map en gebruiker van RzSense (alleen op zijn eigen server van belang)
+        # en de adressen van RzSense; dat wordt gelogd als "toegestaan", nooit als aanval
         IFS=$'\t' read -r EDR_ROOT EDR_USER EDR_MARK < <(awk -F'\t' '$1 == "0" && $2 == "edrself" { print $3 "\t" $4 "\t" $5; exit }' "$w_cache")
-        [[ "${EDR_MARK-}" =~ ^[0-9a-f]{16,64}$ ]] || EDR_MARK=""   # agent 1.67.0: geheim kenmerk in de opdrachten van RzMon
+        [[ "${EDR_MARK-}" =~ ^[0-9a-f]{16,64}$ ]] || EDR_MARK=""   # agent 1.67.0: geheim kenmerk in de opdrachten van RzSense
         [[ "${EDR_ROOT-}" == /?* ]] || EDR_ROOT=""
         EDR_RZIPS=""
         for u in "$MONITOR_URL" "${MONITOR_URL_FALLBACK-}"; do
@@ -602,7 +602,7 @@ if [ "${1-}" = "--watch" ]; then
             fi
             if [ "$now" -ge "$next_check" ]; then
                 next_check=$(( now + 60 ))
-                # Instellingen in RzMon veranderd, realtime uitgezet, of een volger gestopt: opnieuw opbouwen
+                # Instellingen in RzSense veranderd, realtime uitgezet, of een volger gestopt: opnieuw opbouwen
                 [ "$(grep -E $'^(0\t(realtime|fim|edr|edrself)|[0-9]+\tsvc)\t' "$w_cache" 2>/dev/null | cksum)" = "$w_sig" ] || break
                 w_dead=0
                 for p in "${w_pids[@]}"; do kill -0 "$p" 2>/dev/null || w_dead=1; done
@@ -624,13 +624,13 @@ json_text() {
 }
 
 # ---------------------------------------------------------------- Logins lezen (agent 1.74.0)
-# Regels "epoch <tab> programma <tab> bericht" (stdin, uit journal of auth-log) → auth_json voor RzMon:
+# Regels "epoch <tab> programma <tab> bericht" (stdin, uit journal of auth-log) → auth_json voor RzSense:
 #  - events: geslaagde logins (SSH met bronpoort, console), sudo, su, en het einde van een SSH-sessie (ssh_end)
 #  - fails:  mislukte pogingen opgeteld per soort/IP/gebruiker (zoals altijd: brute force, Toegang)
 #  - tries:  1.74.0: de losse mislukte SSH-pogingen (tijd, IP, gebruiker, bronpoort; hooguit 200 per rapport),
-#            voor de aanvalskaart en de tijdlijn in RzMon
+#            voor de aanvalskaart en de tijdlijn in RzSense
 # Wachtwoorden in sudo-commando's (bv. mysql -pGeheim, password=…) worden hier al gemaskeerd.
-# Testen zonder RzMon (tests/agent-edr.sh): rzmon-agent.sh --auth-parse < bestand
+# Testen zonder RzSense (tests/agent-edr.sh): rzmon-agent.sh --auth-parse < bestand
 mask_secrets() {
     sed -E 's/((password|passwd|pass|pwd|token|secret|apikey|api_key)[=:])[^ ]+/\1••••/Ig;
             s/(--password[= ])[^ ]+/\1••••/g; s/((mysql|mariadb|mysqldump|mysqladmin)( [^|;&]*)? -p)[^ ]+/\1••••/g'
@@ -718,7 +718,7 @@ if [ "${1-}" = "--auth-parse" ]; then
 fi
 
 # ---------------------------------------------------------------- Heartbeat (rzmon-hb, agent 1.52.0)
-# Een script of cronjob meldt zich bij RzMon: rzmon-hb NAAM [ok|start|fail] [bericht] [--value N].
+# Een script of cronjob meldt zich bij RzSense: rzmon-hb NAAM [ok|start|fail] [bericht] [--value N].
 # Er wordt alleen een regel in de wachtrij gezet (HB_DIR, iedereen mag erin schrijven maar niet lezen);
 # de agent stuurt hem versleuteld mee met het volgende rapport. Zonder verbinding blijven de regels bewaard.
 hb_dir="${HB_DIR:-${AGENT_DIR:+$AGENT_DIR/hb}}"
@@ -736,7 +736,7 @@ if [ "$(basename -- "$0")" = rzmon-hb ] || [ "${1-}" = --hb ]; then
     case $hb_kind in success|done) hb_kind=ok ;; failure|failed|error) hb_kind=fail ;; begin) hb_kind=start ;; esac
     if ! [[ "$hb_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || [[ " start ok fail " != *" $hb_kind "* ]]; then
         echo "Gebruik: rzmon-hb NAAM [ok|start|fail] [bericht] [--value GETAL]" >&2
-        echo "  NAAM = de naam van de heartbeat-check in RzMon (letters, cijfers, punt, - of _), bv. backup-db" >&2
+        echo "  NAAM = de naam van de heartbeat-check in RzSense (letters, cijfers, punt, - of _), bv. backup-db" >&2
         exit 2
     fi
     if [ -n "$hb_val" ] && ! [[ "$hb_val" =~ ^-?[0-9]+([.][0-9]+)?$ ]]; then
@@ -755,17 +755,17 @@ t_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
 mkdir -p "$t_dir" 2>/dev/null && [ -w "$t_dir" ] || t_dir="${TMPDIR:-/tmp}"
 t_cache="$t_dir/tests.cache"
 
-# ---------------------------------------------------------------- Versleuteling (RzMon 1.57.0+)
-# Met een sleutel gaan rapporten versleuteld naar RzMon (AES-256-CBC + HMAC-SHA256, met openssl) en komt het
-# antwoord versleuteld terug; zie src/AgentCrypto.php in RzMon. De sleutel: ENC_KEY in /etc/default/rzmon-agent,
-# of de sleutel die RzMon zelf meestuurt (enc.key, alleen leesbaar voor root; die gaat voor, zo werkt een nieuwe
-# sleutel vanzelf). Staat versleutelen in RzMon uit voor deze server, dan zet RzMon enc.off neer.
+# ---------------------------------------------------------------- Versleuteling (RzSense 1.57.0+)
+# Met een sleutel gaan rapporten versleuteld naar RzSense (AES-256-CBC + HMAC-SHA256, met openssl) en komt het
+# antwoord versleuteld terug; zie src/AgentCrypto.php in RzSense. De sleutel: ENC_KEY in /etc/default/rzmon-agent,
+# of de sleutel die RzSense zelf meestuurt (enc.key, alleen leesbaar voor root; die gaat voor, zo werkt een nieuwe
+# sleutel vanzelf). Staat versleutelen in RzSense uit voor deze server, dan zet RzSense enc.off neer.
 #
-# Beveiligde verbinding (agent 1.50.0+, RzMon 1.64.0+): een eigen sleutel voor deze server (agent.key). Die staat
+# Beveiligde verbinding (agent 1.50.0+, RzSense 1.64.0+): een eigen sleutel voor deze server (agent.key). Die staat
 # in een vaste map, niet in de cache: in de HA-add-on /data/rzmon-keys, op TrueNAS in de map van de agent, anders
 # /var/lib/rzmon-agent (alleen root). Met een eigen sleutel stuurt de agent geen token meer mee, alleen het kenmerk
 # van zijn sleutel, en is elk verzoek versleuteld of ondertekend. De sleutel komt bij het koppelen (koppelcode:
-# PAIR_CODE) of, als de agent al met de algemene sleutel werkte, in een versleuteld antwoord van RzMon.
+# PAIR_CODE) of, als de agent al met de algemene sleutel werkte, in een versleuteld antwoord van RzSense.
 enc_file="$t_dir/enc.key"
 if [ "$HA_MODE" = 1 ]; then k_dir=/data/rzmon-keys
 elif [ -n "${AGENT_DIR-}" ]; then k_dir="$AGENT_DIR/keys"
@@ -835,11 +835,11 @@ get_auth() {
     fi
 }
 
-# Adres van RzMon (agent 1.51.0, RzMon 1.72.0). RzMon kan de agent een ander adres geven (bv. https via de reverse
+# Adres van RzSense (agent 1.51.0, RzSense 1.72.0). RzSense kan de agent een ander adres geven (bv. https via de reverse
 # proxy); de agent test het eerst en bewaart het dan in $k_dir/url (regel 1: het adres, 2: het adres uit de instellingen
 # waar het voor in de plaats komt, 3: het reserve-adres). Pas je MONITOR_URL zelf aan, dan geldt weer dat. Het
 # reserve-adres (MONITOR_URL_FALLBACK, of uit $k_dir/url) wordt gebruikt als het gewone adres niet bereikbaar is
-# (geen verbinding, certificaat, of de proxy geeft 502-504); RzMon toont dat met een ⚠️.
+# (geen verbinding, certificaat, of de proxy geeft 502-504); RzSense toont dat met een ⚠️.
 conf_url=${MONITOR_URL%/}
 MONITOR_URL_FALLBACK="${MONITOR_URL_FALLBACK-}"
 url_file="$k_dir/url"
@@ -860,9 +860,9 @@ MONITOR_URL_FALLBACK=${MONITOR_URL_FALLBACK%/}
 [ "$MONITOR_URL_FALLBACK" = "$MONITOR_URL" ] && MONITOR_URL_FALLBACK=""
 url_result=$(head -c 500 "$k_dir/url.result" 2>/dev/null | tr -d '\n')
 
-# Controle per adres (agent 1.53.0, RzMon 1.78.0): in $k_dir/url.pins staat per adres hoe het certificaat gecontroleerd
-# wordt: "-" = gewoon (geldig certificaat, of http), "sha256//…" = alleen het eigen certificaat van RzMon (vastzetten;
-# met een klaargezet nieuw certificaat twee vingerafdrukken, "sha256//A;sha256//B"). RzMon geeft dit door in elk
+# Controle per adres (agent 1.53.0, RzSense 1.78.0): in $k_dir/url.pins staat per adres hoe het certificaat gecontroleerd
+# wordt: "-" = gewoon (geldig certificaat, of http), "sha256//…" = alleen het eigen certificaat van RzSense (vastzetten;
+# met een klaargezet nieuw certificaat twee vingerafdrukken, "sha256//A;sha256//B"). RzSense geeft dit door in elk
 # versleuteld antwoord. Geen regel voor een adres: zoals vroeger (de vingerafdruk uit $k_dir/pin, of INSECURE).
 spec_re='^(-|sha256//[A-Za-z0-9+/=]{40,64}(;sha256//[A-Za-z0-9+/=]{40,64})?)$'
 url_spec() { [ -n "$1" ] && [ -r "$k_dir/url.pins" ] && awk -v u="$1" '$1 == u { print $2; exit }' "$k_dir/url.pins"; }
@@ -889,9 +889,9 @@ spec_tls() {  # spec_tls <adres> <controle>: zet s_tls
     elif [ "$INSECURE" = 1 ]; then s_tls=(-k); fi
 }
 
-# Overstappen naar een nieuw adres (opdracht uit een versleuteld antwoord van RzMon): eerst testen met een ondertekend
+# Overstappen naar een nieuw adres (opdracht uit een versleuteld antwoord van RzSense): eerst testen met een ondertekend
 # verzoek; alleen als het antwoord met onze eigen sleutel klopt, gaat de agent dat adres gebruiken (vanaf de volgende
-# keer). De uitkomst gaat met het volgende rapport naar RzMon.
+# keer). De uitkomst gaat met het volgende rapport naar RzSense.
 url_switch() {  # url_switch <nieuw adres> <reserve-adres> [controle nieuw] [controle reserve] (agent 1.53.0)
     local new=${1%/} fb=${2%/} n_spec=${3-} f_spec=${4-} t_tls=() out code rip body why
     [ -e "$k_dir/url.result" ] && return 0   # vorige uitkomst nog niet doorgegeven
@@ -904,12 +904,12 @@ url_switch() {  # url_switch <nieuw adres> <reserve-adres> [controle nieuw] [con
         return 0
     fi
     if [[ "$new" == https://* && "$n_spec" == sha256//* && "$curl_pins" != 1 ]]; then
-        printf 'error: curl %s op deze server kan het certificaat van RzMon niet vastzetten (7.44 of nieuwer nodig)\n' "$c_ver" >"$k_dir/url.result"
+        printf 'error: curl %s op deze server kan het certificaat van RzSense niet vastzetten (7.44 of nieuwer nodig)\n' "$c_ver" >"$k_dir/url.result"
         return 0
     fi
     spec_tls "$new" "$n_spec"; t_tls=("${s_tls[@]}")
     get_auth agent_check
-    # Ook het IP waarmee curl verbond: RzMon ziet daaraan of de naam hier naar de proxy wijst of via internet gaat
+    # Ook het IP waarmee curl verbond: RzSense ziet daaraan of de naam hier naar de proxy wijst of via internet gaat
     out=$(curl -sS -m 15 "${t_tls[@]}" "${ga[@]}" -w '\n%{http_code} %{remote_ip}' "$new/api.php?action=agent_check" 2>&1)
     code=${out##*$'\n'}; out=${out%$'\n'*}
     rip=${code#* }; code=${code%% *}
@@ -918,7 +918,7 @@ url_switch() {  # url_switch <nieuw adres> <reserve-adres> [controle nieuw] [con
         if (umask 077; printf '%s\n%s\n%s\n' "$new" "$conf_url" "$fb" >"$url_file.tmp" && mv -f "$url_file.tmp" "$url_file"); then
             url_pins_put "$new" "$n_spec" "$fb" "$f_spec"
             printf 'ok %s%s\n' "$new" "${rip:+ [ip $rip]}" >"$k_dir/url.result"
-            echo "Adres van RzMon gewijzigd naar $new${fb:+ (reserve: $fb)}" >&2
+            echo "Adres van RzSense gewijzigd naar $new${fb:+ (reserve: $fb)}" >&2
         else
             printf 'error: kan %s niet schrijven\n' "$url_file" >"$k_dir/url.result"
         fi
@@ -931,16 +931,16 @@ url_switch() {  # url_switch <nieuw adres> <reserve-adres> [controle nieuw] [con
     fi
 }
 
-# Certificaat van RzMon vastzetten: bij een eigen (self-signed) certificaat accepteert de agent alleen dat ene
+# Certificaat van RzSense vastzetten: bij een eigen (self-signed) certificaat accepteert de agent alleen dat ene
 # certificaat (curl --pinnedpubkey). De vingerafdruk komt uit het installatiecommando (PIN) en daarna uit de
-# versleutelde antwoorden van RzMon ("" = niet vastzetten). Zonder vingerafdruk: INSECURE=1 als vroeger.
+# versleutelde antwoorden van RzSense ("" = niet vastzetten). Zonder vingerafdruk: INSECURE=1 als vroeger.
 curl_pins=0
 c_ver=$(curl -V 2>/dev/null | awk 'NR == 1 { print $2 }'); IFS=. read -r c_v1 c_v2 _ <<<"$c_ver"
 { [ "${c_v1:-0}" -gt 7 ] || { [ "${c_v1:-0}" = 7 ] && [ "${c_v2:-0}" -ge 44 ]; }; } 2>/dev/null && curl_pins=1   # sha256-pins: curl 7.44+
 set_tls() {
     pin=""
     u_spec=$(url_spec "$MONITOR_URL")
-    if [ -n "$u_spec" ]; then   # agent 1.53.0: RzMon gaf voor dit adres door hoe het gecontroleerd wordt
+    if [ -n "$u_spec" ]; then   # agent 1.53.0: RzSense gaf voor dit adres door hoe het gecontroleerd wordt
         spec_tls "$MONITOR_URL" "$u_spec"; tls=("${s_tls[@]}")
         [[ "$u_spec" == sha256//* ]] && pin=${u_spec#sha256//} && pin=${pin%%;*}
         return 0
@@ -952,7 +952,7 @@ set_tls() {
     elif [ "$INSECURE" = 1 ]; then tls=(-k); fi
 }
 set_tls
-store_pin() {  # store_pin <versleuteld antwoord>: vingerafdruk van RzMon bewaren, of ("") niet meer vastzetten
+store_pin() {  # store_pin <versleuteld antwoord>: vingerafdruk van RzSense bewaren, of ("") niet meer vastzetten
     [[ "$1" =~ \"pin\":\"([A-Za-z0-9+/=\\]{0,90})\" ]] || return 0
     local p=${BASH_REMATCH[1]//\\/}
     if [ -n "$p" ]; then
@@ -962,15 +962,15 @@ store_pin() {  # store_pin <versleuteld antwoord>: vingerafdruk van RzMon beware
         rm -f "$k_dir/pin"; : >"$k_dir/pin.off"
     fi
 }
-store_key() {  # store_key <versleuteld antwoord>: eigen sleutel van RzMon bewaren (eerste keer, of vernieuwd)
+store_key() {  # store_key <versleuteld antwoord>: eigen sleutel van RzSense bewaren (eerste keer, of vernieuwd)
     [[ "$1" =~ \"agent_key\":\"([0-9a-f]{64})\" ]] || return 0
     [ "${BASH_REMATCH[1]}" = "$own_key" ] && return 0
     (umask 077; printf '%s\n' "${BASH_REMATCH[1]}" >"$own_file.tmp" && mv -f "$own_file.tmp" "$own_file") || return 1
     own_key=${BASH_REMATCH[1]}
 }
 
-# Koppelen met een koppelcode (eenmalig; RzMon → Agent Manager → 🔗 Koppelcode). Het verzoek is versleuteld met een
-# sleutel uit de code; RzMon antwoordt (ook versleuteld) met de eigen sleutel van deze server. Een code die al
+# Koppelen met een koppelcode (eenmalig; RzSense → Agent Manager → 🔗 Koppelcode). Het verzoek is versleuteld met een
+# sleutel uit de code; RzSense antwoordt (ook versleuteld) met de eigen sleutel van deze server. Een code die al
 # gebruikt is (pair.used) wordt overgeslagen.
 pair_code=$(printf '%s' "${PAIR_CODE-}" | tr -dc 'A-Za-z0-9' | tr '[:lower:]' '[:upper:]')
 pair_agent() {
@@ -986,7 +986,7 @@ pair_agent() {
     code=${raw##*$'\n'}; raw=${raw%$'\n'*}
     if [ "$code" != 200 ] || ! body=$(unseal "$raw" "$seal_n"); then
         echo "Koppelen mislukt (HTTP $code): $(sed -n 's/.*"error":"\([^"]*\)".*/\1/p' <<<"$raw" | head -c 200)" >&2
-        [ "$code" = 200 ] && echo "  Het antwoord van RzMon klopt niet (handtekening); niet gekoppeld." >&2
+        [ "$code" = 200 ] && echo "  Het antwoord van RzSense klopt niet (handtekening); niet gekoppeld." >&2
         return 1
     fi
     p_key=$(sed -n 's/.*"agent_key":"\([0-9a-f]\{64\}\)".*/\1/p' <<<"$body")
@@ -995,7 +995,7 @@ pair_agent() {
     printf '%s' "$pair_code" | sha256sum | cut -c1-16 >"$k_dir/pair.used"
     rm -f "$t_dir/enc.off" "$t_dir/enc.fail"
     store_pin "$body"
-    echo "🔑 Gekoppeld met RzMon (server: $(sed -n 's/.*"host":"\([^"]*\)".*/\1/p' <<<"$body")): eigen sleutel ontvangen" >&2
+    echo "🔑 Gekoppeld met RzSense (server: $(sed -n 's/.*"host":"\([^"]*\)".*/\1/p' <<<"$body")): eigen sleutel ontvangen" >&2
 }
 pair_done() { [ "$(cat "$k_dir/pair.used" 2>/dev/null)" = "$(printf '%s' "$pair_code" | sha256sum | cut -c1-16)" ]; }
 if [ -n "$pair_code" ] && command -v openssl >/dev/null 2>&1 && ! pair_done; then
@@ -1036,12 +1036,12 @@ TEST_FAILED=0
 
 if [ "$TEST" = 1 ]; then
     base=${MONITOR_URL%/}
-    echo "RzMon agent $AGENT_VERSION – verbindingstest"
-    echo "  RzMon-adres : $base$([ "$url_set_by_rzmon" = 1 ] && echo " (ingesteld vanuit RzMon; in de instellingen staat $conf_url)")"
+    echo "RzSense agent $AGENT_VERSION – verbindingstest"
+    echo "  RzSense-adres : $base$([ "$url_set_by_rzmon" = 1 ] && echo " (ingesteld vanuit RzSense; in de instellingen staat $conf_url)")"
     [ -n "$MONITOR_URL_FALLBACK" ] && echo "  Reserve     : $MONITOR_URL_FALLBACK (als het adres hierboven niet bereikbaar is)"
     for t_u in "$base" "$MONITOR_URL_FALLBACK"; do
         case "$(url_spec "$t_u")" in
-            sha256//*) echo "  Controle    : $t_u → 📌 alleen het eigen certificaat van RzMon (vastgezet)" ;;
+            sha256//*) echo "  Controle    : $t_u → 📌 alleen het eigen certificaat van RzSense (vastgezet)" ;;
             -) [[ "$t_u" == https://* ]] && echo "  Controle    : $t_u → 🔒 geldig certificaat (gewone controle)" ;;
         esac
     done
@@ -1063,8 +1063,8 @@ if [ "$TEST" = 1 ]; then
     proto=${BASH_REMATCH[1]}; host=${BASH_REMATCH[2]}; port=${BASH_REMATCH[4]}
     [ -n "$port" ] || { [ "$proto" = https ] && port=443 || port=80; }
     case "$host" in
-        localhost|127.*|::1) note "Het adres wijst naar deze server zelf ($host): alleen goed als RzMon óp deze server draait"
-            hint "Anders: gebruik het IP-adres of de naam van de RzMon-server, bv. http://192.168.1.10" ;;
+        localhost|127.*|::1) note "Het adres wijst naar deze server zelf ($host): alleen goed als RzSense óp deze server draait"
+            hint "Anders: gebruik het IP-adres of de naam van de RzSense-server, bv. http://192.168.1.10" ;;
     esac
 
     # 3. DNS
@@ -1072,7 +1072,7 @@ if [ "$TEST" = 1 ]; then
         pass "Naam opzoeken: $host → $(getent hosts "$host" 2>/dev/null | awk '{print $1; exit}' || echo "$host")"
     else
         fail "De naam '$host' kan niet worden opgezocht (DNS)"
-        hint "Gebruik het IP-adres van RzMon, of zet de naam in /etc/hosts"
+        hint "Gebruik het IP-adres van RzSense, of zet de naam in /etc/hosts"
         stop
     fi
 
@@ -1081,38 +1081,38 @@ if [ "$TEST" = 1 ]; then
         pass "Verbinding met $host poort $port"
     else
         fail "Geen verbinding met $host poort $port"
-        hint "Draait de webserver op RzMon? (systemctl status httpd/apache2/nginx)"
-        hint "Firewall op de RzMon-server? Rocky: sudo firewall-cmd --permanent --add-service=http && sudo firewall-cmd --reload"
-        hint "Zitten deze server en RzMon in hetzelfde netwerk / mag het verkeer ertussen (VLAN, router)?"
+        hint "Draait de webserver op RzSense? (systemctl status httpd/apache2/nginx)"
+        hint "Firewall op de RzSense-server? Rocky: sudo firewall-cmd --permanent --add-service=http && sudo firewall-cmd --reload"
+        hint "Zitten deze server en RzSense in hetzelfde netwerk / mag het verkeer ertussen (VLAN, router)?"
         stop
     fi
     if [ -n "${http_proxy:-}${HTTP_PROXY:-}${https_proxy:-}${HTTPS_PROXY:-}" ]; then
-        hint "Let op: er is een proxy ingesteld (http_proxy/https_proxy). Zet RzMon zo nodig in no_proxy."
+        hint "Let op: er is een proxy ingesteld (http_proxy/https_proxy). Zet RzSense zo nodig in no_proxy."
     fi
 
     curl_t=(-sS -m 15 -o /tmp/rzmon-test.$$ -w '%{http_code} %{redirect_url}' "${tls[@]}")
 
-    # 5. Draait daar RzMon?
+    # 5. Draait daar RzSense?
     read -r code redirect < <(curl "${curl_t[@]}" "$base/api.php?action=ping" 2>/tmp/rzmon-test-err.$$ || true)
     body=$(cat /tmp/rzmon-test.$$ 2>/dev/null); err=$(cat /tmp/rzmon-test-err.$$ 2>/dev/null)
     old_rzmon=0
     if [ "$code" = 200 ] && [[ "$body" == *'"app":"RzMon"'* ]]; then
         rz_version=$(sed -n 's/.*"version":"\([^"]*\)".*/\1/p' <<<"$body")
-        # Nieuwste agent (eigen nummer sinds RzMon 1.46.0); oudere RzMon: gelijk aan de versie van RzMon
+        # Nieuwste agent (eigen nummer sinds RzSense 1.46.0); oudere RzSense: gelijk aan de versie van RzSense
         rz_agent=$(sed -n 's/.*"agent_version":"\([^"]*\)".*/\1/p' <<<"$body")
-        pass "RzMon ${rz_version:+$rz_version }gevonden op $base"
+        pass "RzSense ${rz_version:+$rz_version }gevonden op $base"
         if [ -n "${rz_agent:-$rz_version}" ] && [ "${rz_agent:-$rz_version}" != "$AGENT_VERSION" ]; then
             hint "Agent is versie $AGENT_VERSION, de nieuwste is ${rz_agent:-$rz_version}: bijwerken met  sudo rzmon-agent-setup --update"
         fi
     elif [ "$code" = 401 ] && [[ "$body" == *'"error"'* ]]; then
-        pass "RzMon gevonden op $base (oudere versie: werk RzMon bij voor een volledige test)"
+        pass "RzSense gevonden op $base (oudere versie: werk RzSense bij voor een volledige test)"
         old_rzmon=1
     elif [[ "$code" =~ ^30[1278]$ ]]; then
-        fail "RzMon stuurt door naar: $redirect"
+        fail "RzSense stuurt door naar: $redirect"
         hint "Gebruik dat adres als MONITOR_URL (bv. https:// i.p.v. http://): sudo rzmon-agent-setup --url ${redirect%/api.php*}"
     elif [ "$code" = 404 ]; then
-        fail "Er draait wel een webserver op $base, maar niet RzMon (404)"
-        hint "Klopt het pad? RzMon staat op de hoofd-URL van de vhost, bv. http://192.168.1.10/ — niet /rzmon/public/"
+        fail "Er draait wel een webserver op $base, maar niet RzSense (404)"
+        hint "Klopt het pad? RzSense staat op de hoofd-URL van de vhost, bv. http://192.168.1.10/ — niet /rzmon/public/"
     elif [[ "$err" == *SSL* || "$err" == *certificate* ]]; then
         fail "Certificaatprobleem: ${err#curl: }"
         hint "Self-signed certificaat? Zet INSECURE=\"1\" in /etc/default/rzmon-agent (of: sudo rzmon-agent-setup --insecure)"
@@ -1124,28 +1124,28 @@ if [ "$TEST" = 1 ]; then
     fi
     if [ "$TEST_FAILED" = 1 ]; then rm -f /tmp/rzmon-test.$$ /tmp/rzmon-test-err.$$; stop; fi
 
-    # 6. Token, of de eigen sleutel (dan is het antwoord versleuteld: zo weet de agent dat het echt RzMon is)
-    if [ -n "$pin" ] && [ "${#tls[@]}" -gt 1 ]; then pass "Certificaat van RzMon vastgezet (📌 sha256//${pin:0:12}…)"
-    elif [ -n "$pin" ]; then hint "Vingerafdruk van RzMon bekend, maar deze curl ($c_ver) kan geen certificaat vastzetten (7.44 of nieuwer nodig)"; fi
+    # 6. Token, of de eigen sleutel (dan is het antwoord versleuteld: zo weet de agent dat het echt RzSense is)
+    if [ -n "$pin" ] && [ "${#tls[@]}" -gt 1 ]; then pass "Certificaat van RzSense vastgezet (📌 sha256//${pin:0:12}…)"
+    elif [ -n "$pin" ]; then hint "Vingerafdruk van RzSense bekend, maar deze curl ($c_ver) kan geen certificaat vastzetten (7.44 of nieuwer nodig)"; fi
     curl_k=(-sS -m 15 "${tls[@]}")
     get_auth agent_check
     tk=$(curl "${curl_k[@]}" "${ga[@]}" -w '\n%{http_code}' "$base/api.php?action=agent_check" 2>/dev/null || true)
     tk_code=${tk##*$'\n'}; tk_body=${tk%$'\n'*}
     if [ "$tk_code" = 200 ] && [ -n "$kid" ]; then
         if tk_body=$(unseal "$tk_body" "$get_n"); then
-            pass "🔑 Eigen sleutel geldig voor server: $(sed -n 's/.*"host":"\([^"]*\)".*/\1/p' <<<"$tk_body") (RzMon ziet dit IP: $(sed -n 's/.*"your_ip":"\([^"]*\)".*/\1/p' <<<"$tk_body"))"
+            pass "🔑 Eigen sleutel geldig voor server: $(sed -n 's/.*"host":"\([^"]*\)".*/\1/p' <<<"$tk_body") (RzSense ziet dit IP: $(sed -n 's/.*"your_ip":"\([^"]*\)".*/\1/p' <<<"$tk_body"))"
         else
-            fail "Het antwoord van RzMon is niet met de sleutel van deze server ondertekend: praat de agent wel met RzMon?"
+            fail "Het antwoord van RzSense is niet met de sleutel van deze server ondertekend: praat de agent wel met RzSense?"
         fi
     elif [ "$tk_code" = 200 ]; then
-        pass "Token geldig voor server: $(sed -n 's/.*"host":"\([^"]*\)".*/\1/p' <<<"$tk_body") (RzMon ziet dit IP: $(sed -n 's/.*"your_ip":"\([^"]*\)".*/\1/p' <<<"$tk_body"))"
+        pass "Token geldig voor server: $(sed -n 's/.*"host":"\([^"]*\)".*/\1/p' <<<"$tk_body") (RzSense ziet dit IP: $(sed -n 's/.*"your_ip":"\([^"]*\)".*/\1/p' <<<"$tk_body"))"
     elif [ "$tk_code" = 403 ]; then
         fail "$([ -n "$kid" ] && echo "Sleutel" || echo "Token") geweigerd: $(sed -n 's/.*"reason":"\([^"]*\)".*/\1/p' <<<"$tk_body")"
-        hint "Maak in RzMon een koppelcode (server → Agent Manager → 🔗 Koppelcode) en voer het commando uit"
+        hint "Maak in RzSense een koppelcode (server → Agent Manager → 🔗 Koppelcode) en voer het commando uit"
         rm -f /tmp/rzmon-test.$$ /tmp/rzmon-test-err.$$
         stop
     elif [ "$old_rzmon" = 1 ]; then
-        hint "Tokencontrole overgeslagen (oudere RzMon-versie); het proefrapport hieronder test het token wel"
+        hint "Tokencontrole overgeslagen (oudere RzSense-versie); het proefrapport hieronder test het token wel"
     else
         fail "Tokencontrole gaf HTTP $tk_code: ${tk_body:0:150}"
     fi
@@ -1153,9 +1153,9 @@ if [ "$TEST" = 1 ]; then
 fi
 
 # ---------------------------------------------------------------- Status en instellingen (1.60.0)
-# Elk contact met RzMon wordt bijgehouden in $st_dir (laatste rapport, de laatste 30 contacten, fouten en de
-# beveiligingscontrole van RzMon), voor "rzmon-agent-setup --status". Daarnaast meldt de agent welke regels in
-# zijn instellingen overbodig zijn (alleen de namen, nooit de waarden), zodat RzMon kan laten opruimen.
+# Elk contact met RzSense wordt bijgehouden in $st_dir (laatste rapport, de laatste 30 contacten, fouten en de
+# beveiligingscontrole van RzSense), voor "rzmon-agent-setup --status". Daarnaast meldt de agent welke regels in
+# zijn instellingen overbodig zijn (alleen de namen, nooit de waarden), zodat RzSense kan laten opruimen.
 st_dir="$t_dir/status"
 conf_file=""
 if [ "$HA_MODE" != 1 ]; then
@@ -1174,12 +1174,12 @@ conf_obsolete() {
         conf_has "$n" || continue
         v=$(conf_val "$n"); { [ -z "$v" ] || [ -n "$own_key" ]; } && echo "$n"
     done
-    conf_has INTERVAL && echo INTERVAL   # de tik komt uit RzMon
+    conf_has INTERVAL && echo INTERVAL   # de tik komt uit RzSense
     if conf_has PIN; then v=$(conf_val PIN); { [ -z "$v" ] || [ -s "$k_dir/pin" ] || [ -s "$k_dir/url.pins" ]; } && echo PIN; fi
     if conf_has INSECURE; then
         v=$(conf_val INSECURE); { [ "$v" != 1 ] || [[ "$MONITOR_URL" != https://* ]] || [ -n "$pin" ] || [ -n "$(url_spec "$MONITOR_URL")" ]; } && echo INSECURE
     fi
-    conf_has SERVICES && echo SERVICES   # wordt een service-check in RzMon
+    conf_has SERVICES && echo SERVICES   # wordt een service-check in RzSense
     conf_has MONITOR_URL_FALLBACK && [ -z "$(conf_val MONITOR_URL_FALLBACK)" ] && echo MONITOR_URL_FALLBACK
     [ -n "$own_key" ] && [ -e "$enc_file" ] && echo enc.key   # bestand met de oude algemene sleutel
     return 0
@@ -1215,7 +1215,7 @@ if [ "${STATUS-0}" = 1 ]; then
     ago_s() { local s=$(( $(date +%s) - $1 )); if [ "$s" -lt 120 ]; then echo "$s s geleden"; elif [ "$s" -lt 7200 ]; then echo "$(( s / 60 )) min geleden"; elif [ "$s" -lt 172800 ]; then echo "$(( s / 3600 )) uur geleden"; else echo "$(( s / 86400 )) dagen geleden"; fi; }
     kb() { awk -v b="$1" 'BEGIN { if (b < 1024) printf "%d bytes", b; else printf "%.1f KB", b / 1024 }'; }
     st_get() { sed -n "s/^$1=//p" "$st_dir/last" 2>/dev/null | head -1; }
-    printf '%sRzMon agent %s%s – status van %s op %s\n' "$b1" "$AGENT_VERSION" "$b0" "$(hostname)" "$(date '+%d-%m-%Y %H:%M:%S')"
+    printf '%sRzSense agent %s%s – status van %s op %s\n' "$b1" "$AGENT_VERSION" "$b0" "$(hostname)" "$(date '+%d-%m-%Y %H:%M:%S')"
 
     hd "Agent"
     sl "Versie:" "$AGENT_VERSION"
@@ -1245,10 +1245,10 @@ if [ "${STATUS-0}" = 1 ]; then
         sl "Reservekopie:" "$(find "$bk_dir" -maxdepth 1 -name 'agent-*.sh' | wc -l) × in $bk_dir (laatste: ${bl##*/}, $(dt "$(stat -c %Y "$bl")"))"
     fi
 
-    hd "Verbinding met RzMon"
+    hd "Verbinding met RzSense"
     sl "Adres:" "$MONITOR_URL"
     [ -n "$MONITOR_URL_FALLBACK" ] && sl "Reserve-adres:" "$MONITOR_URL_FALLBACK (als het gewone adres niet bereikbaar is)"
-    if [[ "$MONITOR_URL" != https://* ]]; then sl "Certificaat:" "⚠️ via http: de inhoud is versleuteld, maar niet verborgen dat er verkeer is (zet RzMon op https)"
+    if [[ "$MONITOR_URL" != https://* ]]; then sl "Certificaat:" "⚠️ via http: de inhoud is versleuteld, maar niet verborgen dat er verkeer is (zet RzSense op https)"
     elif [ -n "$pin" ]; then sl "Certificaat:" "🔒 vastgezet (sha256//${pin:0:12}…): alleen dit certificaat wordt geaccepteerd"
     elif [ "${INSECURE-0}" = 1 ]; then sl "Certificaat:" "⚠️ niet gecontroleerd (INSECURE=1, geen vingerafdruk)"
     else sl "Certificaat:" "✔ gewone controle (vertrouwd certificaat)"; fi
@@ -1271,18 +1271,18 @@ if [ "${STATUS-0}" = 1 ]; then
             c_cn=$(openssl x509 -noout -subject -nameopt RFC2253 <<<"$crt" | grep -o 'CN=[^,]*' | head -1 | cut -c4-)
             c_na=$(date -d "$(openssl x509 -noout -enddate <<<"$crt" | cut -d= -f2)" '+%d-%m-%Y' 2>/dev/null)
             c_pin=$(openssl x509 -pubkey -noout <<<"$crt" | openssl pkey -pubin -outform der 2>/dev/null | openssl dgst -sha256 -binary | base64)
-            pm=""; [ -n "$pin" ] && { [ "$c_pin" = "$pin" ] && pm=" · vingerafdruk klopt ✔" || pm=" · ⚠️ vingerafdruk wijkt af (RzMon stuurt de nieuwe bij het volgende rapport)"; }
-            sl "Certificaat RzMon:" "${c_cn:-?}, geldig tot ${c_na:-?}$pm"
+            pm=""; [ -n "$pin" ] && { [ "$c_pin" = "$pin" ] && pm=" · vingerafdruk klopt ✔" || pm=" · ⚠️ vingerafdruk wijkt af (RzSense stuurt de nieuwe bij het volgende rapport)"; }
+            sl "Certificaat RzSense:" "${c_cn:-?}, geldig tot ${c_na:-?}$pm"
         fi
     fi
 
     hd "Versleuteling"
     if [ -n "$own_key" ]; then
         sl "Sleutel:" "🔑 eigen sleutel van deze server (kenmerk $(enc_sub "$own_key" id | cut -c1-16)), sinds $(dt "$(stat -c %Y "$own_file")")"
-        sl "" "RzMon vernieuwt hem vanzelf; er gaat geen token of sleutel over de lijn"
+        sl "" "RzSense vernieuwt hem vanzelf; er gaat geen token of sleutel over de lijn"
     elif [ -n "$enc_key" ]; then sl "Sleutel:" "⚠️ alleen de oude algemene sleutel: koppel opnieuw met een koppelcode (rzmon-agent-setup --pair …)"
     else sl "Sleutel:" "⚠️ geen sleutel: rapporten gaan onversleuteld met een token. Koppel met: rzmon-agent-setup --pair …"; fi
-    [ -n "$enc_key" ] && sl "Methode:" "AES-256-CBC + HMAC-SHA256; elk bericht uniek (nonce) en 5 minuten geldig; antwoorden van RzMon ondertekend"
+    [ -n "$enc_key" ] && sl "Methode:" "AES-256-CBC + HMAC-SHA256; elk bericht uniek (nonce) en 5 minuten geldig; antwoorden van RzSense ondertekend"
     [ -n "$own_key" ] && [ -e "$enc_file" ] && sl "Oude sleutel:" "⚠️ het bestand met de algemene sleutel staat er nog ($enc_file) → --cleanup"
 
     hd "Contact"
@@ -1296,22 +1296,22 @@ if [ "${STATUS-0}" = 1 ]; then
         sl "Verstuurd:" "$(kb "$(st_get bytes)") ($( [ "$(st_get enc)" = 1 ] && echo "🔒 versleuteld $(kb "$(st_get sent)")" || echo "⚠️ onversleuteld")), via $( [ "$(st_get via)" = fallback ] && echo "⚠️ het reserve-adres" || echo "het gewone adres")"
         rv=$(st_get received | tr -d '"' | tr ',' '\n' | awk -F: '{ n = $1; sub(/^disks$/, "disks", n); sub(/^ports$/, "poorten", n); sub(/^certs$/, "certificaten", n)
             printf "%s%s %s", (NR > 1 ? ", " : ""), $2, n }')
-        [ -n "$rv" ] && sl "RzMon ontving:" "$rv"
+        [ -n "$rv" ] && sl "RzSense ontving:" "$rv"
         pt=$(st_get parts | sed 's/ / · /g; s/=/: /g'); [ -n "$pt" ] && sl "Ook meegestuurd:" "$pt"
         ok_t=$(awk -F'\t' '$2 == 0 { t = $1 } END { print t }' "$st_dir/history" 2>/dev/null)
         [ -n "$ok_t" ] && [ "$l_rc" != 0 ] && sl "Laatst gelukt:" "$(dt "$ok_t") ($(ago_s "$ok_t"))"
     else
         sl "Laatste rapport:" "nog niet bijgehouden (komt na het volgende rapport)"
     fi
-    # Agent 1.82.0: RzMon wordt bijgewerkt (aangekondigd door RzMon zelf)
+    # Agent 1.82.0: RzSense wordt bijgewerkt (aangekondigd door RzSense zelf)
     if [ -r "$k_dir/rzhold" ] && read -r _ h_u h_s _ <"$k_dir/rzhold" 2>/dev/null && [[ "$h_u" =~ ^[0-9]+$ && "$h_s" =~ ^[0-9]+$ ]]; then
-        if [ "$h_s" -gt 0 ]; then sl "RzMon-update:" "wacht op de vrijgave sinds $(dt "$h_s"); alarm pas na $(dt "$h_u")"
-        else sl "RzMon-update:" "aangekondigd; lukt een rapport niet, dan wacht de agent tot $(dt "$h_u")"; fi
+        if [ "$h_s" -gt 0 ]; then sl "RzSense-update:" "wacht op de vrijgave sinds $(dt "$h_s"); alarm pas na $(dt "$h_u")"
+        else sl "RzSense-update:" "aangekondigd; lukt een rapport niet, dan wacht de agent tot $(dt "$h_u")"; fi
         [ -s "$k_dir/queue.jsonl" ] && sl "Wachtrij:" "$(wc -l <"$k_dir/queue.jsonl") metingen"
     fi
     tk=$(awk -F'\t' '$1 == "0" && $2 == "tick" { print $3; exit }' "$t_cache" 2>/dev/null)
     if [ -n "$tk" ]; then
-        sl "Ritme:" "elke $tk s (ingesteld in RzMon)$( [ -n "${l_t-}" ] && echo "; volgende rapport rond $(date -d "@$(( l_t + tk ))" '+%H:%M:%S' 2>/dev/null)")"
+        sl "Ritme:" "elke $tk s (ingesteld in RzSense)$( [ -n "${l_t-}" ] && echo "; volgende rapport rond $(date -d "@$(( l_t + tk ))" '+%H:%M:%S' 2>/dev/null)")"
     fi
     if [ -s "$st_dir/history" ]; then
         echo "  Laatste contacten:"
@@ -1331,7 +1331,7 @@ if [ "${STATUS-0}" = 1 ]; then
         n_log=$(grep -c $'^[0-9]*\tlog\t' "$t_cache"); n_cmd=$(grep -c $'^[0-9]*\tcmd\t' "$t_cache")
         idsm=$(awk -F'\t' '$1 == "0" && $2 == "ids" { print $3; exit }' "$t_cache")
         case "$idsm" in block) idsm="aan, met blokkeren" ;; "") idsm=uit ;; *) idsm="aan ($idsm)" ;; esac
-        sl "Bewaakt (RzMon):" "$n_svc services, $n_crt certificaten, $n_pr processen, $n_log logzoekopdrachten, $n_cmd commando's; IDS: $idsm"
+        sl "Bewaakt (RzSense):" "$n_svc services, $n_crt certificaten, $n_pr processen, $n_log logzoekopdrachten, $n_cmd commando's; IDS: $idsm"
         if command -v pvesh >/dev/null 2>&1 && [ "${PVE:-1}" != 0 ]; then
             if [ -s "$t_dir/pve/live" ]; then
                 p_vm=$(grep -o '"vmid":[0-9]*' <(sed -n 's/.*"qemu":\(\[[^]]*\]\).*/\1/p' "$t_dir/pve/live") | wc -l)
@@ -1342,12 +1342,12 @@ if [ "${STATUS-0}" = 1 ]; then
                 sl "Proxmox VE:" "nog niet uitgelezen (komt bij het volgende rapport)"
             fi
         fi
-        sl "" "instellingen van RzMon opgehaald $(ago_s "$(stat -c %Y "$t_cache")")"
+        sl "" "instellingen van RzSense opgehaald $(ago_s "$(stat -c %Y "$t_cache")")"
     fi
 
-    hd "Beveiligingscontrole door RzMon"
+    hd "Beveiligingscontrole door RzSense"
     if [ -s "$st_dir/sec" ]; then sed 's/^/  /' "$st_dir/sec"
-    else echo "  (komt mee met het volgende rapport; RzMon 1.100.0 of nieuwer)"; fi
+    else echo "  (komt mee met het volgende rapport; RzSense 1.100.0 of nieuwer)"; fi
     echo
     exit 0
 fi
@@ -1355,16 +1355,16 @@ fi
 # Supervisor API (alleen HA-modus)
 sv() { curl -fsS -m 10 -H "Authorization: Bearer $SUPERVISOR_TOKEN" "$SUPERVISOR_URL$1" 2>/dev/null; }
 
-# ---------------------------------------------------------------- Instellingen uit RzMon en de tik
-# Wat in RzMon is ingesteld: welke services bewaakt worden (service-checks), extra tests (URL/poort),
+# ---------------------------------------------------------------- Instellingen uit RzSense en de tik
+# Wat in RzSense is ingesteld: welke services bewaakt worden (service-checks), extra tests (URL/poort),
 # de eigen poorten of sockets van een service, de logzoekopdrachten, de intervallen per check en de tik.
-# De lijst wordt elke 10 minuten bij RzMon opgehaald, en meteen als RzMon meldt dat er iets veranderd is
-# (tests_rev in het antwoord). Commando's van RzMon worden alleen uitgevoerd bij commando-checks, als RzMon
+# De lijst wordt elke 10 minuten bij RzSense opgehaald, en meteen als RzSense meldt dat er iets veranderd is
+# (tests_rev in het antwoord). Commando's van RzSense worden alleen uitgevoerd bij commando-checks, als RzSense
 # ze voor deze server toestaat en COMMANDS (hierboven) dat niet blokkeert; zie "Commando-checks" verderop.
 if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ -e "$t_dir/tests.stale" ] || [ $(( $(date +%s) - $(stat -c %Y "$t_cache") )) -ge 600 ]; then
     get_auth agent_tests
     t_k=("${tls[@]}" "${ga[@]}"); t_n=$get_n
-    # Alleen een complete lijst bewaren (met de vaste regel "0 <tab> tick"). Geeft RzMon iets anders terug,
+    # Alleen een complete lijst bewaren (met de vaste regel "0 <tab> tick"). Geeft RzSense iets anders terug,
     # bijvoorbeeld tijdens een update, dan blijft de vorige lijst staan: anders zou de agent denken dat het
     # IDS uit staat en de blokkades opheffen.
     # Met een sleutel moet de lijst versleuteld terugkomen; anders is hij niet te vertrouwen
@@ -1374,7 +1374,7 @@ if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ -e "$t_dir/tests.stale" ] || [ $(
         (umask 077; printf '%s\n' "$t_list" >"$t_cache") 2>/dev/null && rm -f "$t_dir/tests.stale"
     fi
 fi
-# Tik: hoe vaak er een rapport uitgaat (regel "0 <tab> tick <tab> seconden", per server in RzMon in te stellen;
+# Tik: hoe vaak er een rapport uitgaat (regel "0 <tab> tick <tab> seconden", per server in RzSense in te stellen;
 # anders INTERVAL). De timer start de agent vaker (elke 30 s); is de tik nog niet om, dan meteen stoppen.
 tick=$(awk -F'\t' '$1 == "0" && $2 == "tick" { print $3; exit }' "$t_cache" 2>/dev/null)
 [[ "$tick" =~ ^[0-9]+$ ]] && [ "$tick" -ge 30 ] || tick=${INTERVAL:-60}
@@ -1398,7 +1398,7 @@ fi
 touch "$t_dir/last.run" 2>/dev/null
 run_t0=$(now_ms)
 # Agent 1.69.0: duurt deze run langer dan de tik (een trage check, een druk systeem), dan elke tik een kleine hartslag
-# "ik ben bezig" naar RzMon. Zo is de agent niet "stil" terwijl hij gewoon werkt; zijn gegevens blijven tot het rapport komt.
+# "ik ben bezig" naar RzSense. Zo is de agent niet "stil" terwijl hij gewoon werkt; zijn gegevens blijven tot het rapport komt.
 beat_pid=""
 if [ "$TEST" != 1 ] && [ "${RZ_NO_BEAT-}" != 1 ]; then
     (
@@ -1417,7 +1417,7 @@ if [ "$TEST" != 1 ] && [ "${RZ_NO_BEAT-}" != 1 ]; then
     ) 9>&- </dev/null >/dev/null 2>&1 &   # 1.73.0: zonder de run-vergrendeling (fd 9), anders houdt zijn sleep die vast
     beat_pid=$!
 fi
-# Agent 1.69.0: hoe lang elk onderdeel duurde (gaat mee naar RzMon: Agent Manager toont wat traag is)
+# Agent 1.69.0: hoe lang elk onderdeel duurde (gaat mee naar RzSense: Agent Manager toont wat traag is)
 lap_t=$run_t0; lap_name=""; laps=""
 lap() { local t; t=$(now_ms); [ -n "$lap_name" ] && laps+="\"$lap_name\":$(( t - lap_t )),"; lap_name=$1; lap_t=$t; }
 # Agent 1.67.0: PID van deze run, zodat de endpoint-bewaking wat de agent start als "van de agent" herkent (de laatste 8)
@@ -1542,7 +1542,7 @@ if command -v ss >/dev/null 2>&1; then
     }')
 fi
 
-# Wat in RzMon is ingesteld (zie "Instellingen uit RzMon" bovenaan): hier alleen de regels voor services.
+# Wat in RzSense is ingesteld (zie "Instellingen uit RzSense" bovenaan): hier alleen de regels voor services.
 declare -A manual_ports=()
 declare -A ival_by_id=()   # interval per check (s), voor zware onderdelen: diepere controle, extra tests, logs
 rz_services=""
@@ -1561,14 +1561,14 @@ done <"$t_cache"
 due_cached() {  # due_cached <bestand> <interval>: 0 = vorige uitkomst is nog vers genoeg (niet opnieuw doen)
     [ -n "$2" ] && [ -s "$1" ] && [ $(( $(date +%s) - $(stat -c %Y "$1") )) -lt $(( $2 - 5 )) ]
 }
-# Te bewaken services: die met een service-check in RzMon, plus (verouderd) SERVICES uit de instellingen
+# Te bewaken services: die met een service-check in RzSense, plus (verouderd) SERVICES uit de instellingen
 svc_all=$(printf '%s\n' $SERVICES $rz_services | awk 'NF && !seen[$0]++' | tr '\n' ' ')
 
 # ---------------------------------------------------------------- Zelf herstellen (agent 1.62.0)
 lap heal
-# Per check in RzMon aan te zetten (✎ → 🩹 Zelf herstellen). Een service of container die niet draait, herstart de
-# agent hier, vóór het rapport: lukt dat, dan blijft de check in RzMon OK en komt er een ℹ️-melding; lukt het niet, dan
-# gaat de gewone melding uit. Een eigen herstelcommando (HEAL_DIR) start de agent alleen op verzoek van RzMon, in een
+# Per check in RzSense aan te zetten (✎ → 🩹 Zelf herstellen). Een service of container die niet draait, herstart de
+# agent hier, vóór het rapport: lukt dat, dan blijft de check in RzSense OK en komt er een ℹ️-melding; lukt het niet, dan
+# gaat de gewone melding uit. Een eigen herstelcommando (HEAL_DIR) start de agent alleen op verzoek van RzSense, in een
 # versleuteld antwoord, als die check misgaat (zie "Versturen"). Hooguit één poging per 10 minuten en 3 per dag per check.
 heal_dir="$t_dir/heal"
 heal_ok() {  # heal_ok <check-id>: mag er nu een poging?
@@ -1644,7 +1644,7 @@ if [ "$HA_MODE" = 1 ]; then
         jq -e '.data.update_available == true' <<<"$p_info" >/dev/null 2>&1 && plugin_upd+=" Plugin-$p"
     done
 
-    # Beschikbare updates (Core, Supervisor, OS, plugins en add-ons) → WARNING in RzMon
+    # Beschikbare updates (Core, Supervisor, OS, plugins en add-ons) → WARNING in RzSense
     updates=$( {
         sv /core/info | jq -r 'select(.data.update_available) | "Core \(.data.version_latest)"'
         jq -r 'select(.data.update_available) | "Supervisor"' <<<"$sup_info"
@@ -1664,7 +1664,7 @@ else
     done
 fi
 
-# Overzicht van de services op deze server (aan bij het opstarten, of draaiend), om in RzMon uit te kiezen.
+# Overzicht van de services op deze server (aan bij het opstarten, of draaiend), om in RzSense uit te kiezen.
 # Formaat: [naam, status, enabled]
 svc_list=""
 if [ "$HA_MODE" = 0 ] && command -v systemctl >/dev/null 2>&1; then
@@ -1964,7 +1964,7 @@ if [ "$HA_MODE" = 0 ] && [ "$SERVICE_DEEP" != 0 ] && [ -n "${svc_all// /}" ] && 
                 done
             done <<<"$listen_map"
         fi
-        # Zelf opgegeven poorten en sockets (in RzMon): altijd testen, en de dienst-test gebruikt ze
+        # Zelf opgegeven poorten en sockets (in RzSense): altijd testen, en de dienst-test gebruikt ze
         man_list=""; man_show=""; sockets=""; sfail=""
         for m in ${manual_ports[$s]-}; do
             if [[ "$m" == /* ]]; then
@@ -2009,7 +2009,7 @@ if [ "$HA_MODE" = 0 ] && [ "$SERVICE_DEEP" != 0 ] && [ -n "${svc_all// /}" ] && 
     done
 fi
 
-# Extra tests die in RzMon bij een service-check zijn ingesteld (URL of poort), zie hierboven.
+# Extra tests die in RzSense bij een service-check zijn ingesteld (URL of poort), zie hierboven.
 svc_tests=""
 if [ "$HA_MODE" = 0 ]; then
     x_dir="$t_dir/svctest"
@@ -2057,8 +2057,8 @@ cmd_state() {  # cmd_state <id> <rc> <ms> <als> <tijd>: uitvoer en exitcode als 
         "$3" "$4" "$5" >"$c_dir/$1.json"
     rm -f "$c_dir/$1.out" "$c_dir/$1.err"
 }
-# Regels "id <tab> cmd <tab> commando (base64) <tab> time-out <tab> nobody|root <tab> interval" uit RzMon.
-# Uitvoeren in een kale omgeving, met time-out, standaard als nobody; uitvoer en exitcode gaan naar RzMon,
+# Regels "id <tab> cmd <tab> commando (base64) <tab> time-out <tab> nobody|root <tab> interval" uit RzSense.
+# Uitvoeren in een kale omgeving, met time-out, standaard als nobody; uitvoer en exitcode gaan naar RzSense,
 # dat ze vergelijkt met het verwachte antwoord. Volgens het interval van de check: tussendoor het vorige
 # resultaat opnieuw meesturen. Alle commando's samen hooguit ~40 s per rapport.
 cmd_results=""
@@ -2133,7 +2133,7 @@ fi
 
 # ---------------------------------------------------------------- Logbestanden doorzoeken
 lap logs
-# Per zoekopdracht (ingesteld in RzMon): alleen de nieuwe regels sinds de vorige keer lezen,
+# Per zoekopdracht (ingesteld in RzSense): alleen de nieuwe regels sinds de vorige keer lezen,
 # tellen hoeveel er op het patroon passen, en de laatste 5 treffers en de IP-adressen meesturen.
 # Bron: een logbestand (binnen LOG_DIRS), "journal", "journal:<service>" of "kernel".
 log_results=""
@@ -2153,7 +2153,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlog\t' "$t_cache"; then
     while IFS=$'\t' read -r l_id l_type l_src l_pat; do
         [ "$l_type" = log ] && [[ "$l_id" =~ ^[0-9]+$ ]] || continue
         st_file="$l_dir/$l_id"
-        # Nog niet aan de beurt: "overgeslagen" melden (RzMon houdt de telling vast); de volgende keer
+        # Nog niet aan de beurt: "overgeslagen" melden (RzSense houdt de telling vast); de volgende keer
         # worden alle nieuwe regels sinds de vorige keer geteld, dus er gaat niets verloren
         if due_cached "$st_file" "${ival_by_id[$l_id]-}"; then
             log_results+="\"$l_id\":{\"skip\":1},"
@@ -2236,9 +2236,9 @@ fi
 
 # ---------------------------------------------------------------- Logins, sudo en su
 lap logins
-# Als RzMon erom vraagt (regel "0 <tab> auth <tab> 1"): de nieuwe regels van het auth-log sinds de vorige
+# Als RzSense erom vraagt (regel "0 <tab> auth <tab> 1"): de nieuwe regels van het auth-log sinds de vorige
 # keer (journal, anders /var/log/secure of /var/log/auth.log). Geslaagde logins (SSH, console), sudo en su
-# gaan als losse gebeurtenissen naar RzMon; mislukte pogingen worden per soort/IP/gebruiker opgeteld.
+# gaan als losse gebeurtenissen naar RzSense; mislukte pogingen worden per soort/IP/gebruiker opgeteld.
 # Wachtwoorden in sudo-commando's (bv. mysql -pGeheim, password=…) worden hier al gemaskeerd.
 auth_json=""
 if [ "$HA_MODE" = 0 ] && [ "$AUTH_EVENTS" != 0 ] && [ -r "${t_cache-}" ] && grep -q $'^0\tauth\t1' "$t_cache"; then
@@ -2287,13 +2287,13 @@ fi
 
 # ---------------------------------------------------------------- IDS (intrusion detection)
 lap ids
-# Als RzMon erom vraagt (regel "0 <tab> ids <tab> learn|block"): wat RzMon nodig heeft om afwijkingen te zien.
-# Vergelijken gebeurt in RzMon (daar staat de basismeting, buiten bereik van een aanvaller op deze server).
+# Als RzSense erom vraagt (regel "0 <tab> ids <tab> learn|block"): wat RzSense nodig heeft om afwijkingen te zien.
+# Vergelijken gebeurt in RzSense (daar staat de basismeting, buiten bereik van een aanvaller op deze server).
 #  - gevoelige bestanden (SHA-256), gebruikers, kernelmodules, verdachte processen, verdachte verbindingen
 #  - SUID-bestanden (elk uur) en pakketcontrole rpm -Va / debsums (dagelijks), op de achtergrond
-#  - blokkeren: bij "block" de IP's uit RzMon in een eigen nftables-tabel "inet rzmon" (los van firewalld);
+#  - blokkeren: bij "block" de IP's uit RzSense in een eigen nftables-tabel "inet rzmon" (los van firewalld);
 #    bij "learn" of IDS uit wordt die tabel weer verwijderd
-#  - bestanden bewaken: hash, grootte, rechten en eigenaar van de paden uit RzMon (alleen wat veranderd is)
+#  - bestanden bewaken: hash, grootte, rechten en eigenaar van de paden uit RzSense (alleen wat veranderd is)
 ids_json=""
 fim_commit=""
 ids_mode=""
@@ -2405,7 +2405,7 @@ if [ -n "$ids_mode" ]; then
             && units_part=",\"units\":[$(awk '{ printf "\"%s\",", $0 }' "$i_dir/units" | sed 's/,$//')]"
     fi
     # 6d. Proces stoppen (agent 1.56.0, alleen in de modus blokkeren): regel "0 <tab> kill <tab> pid <tab> starttijd" van
-    #     RzMon (webshell). Alleen als de starttijd klopt, dus nooit een ander proces dat dat nummer later kreeg.
+    #     RzSense (webshell). Alleen als de starttijd klopt, dus nooit een ander proces dat dat nummer later kreeg.
     killed_json=""
     # Wat de agent meteen na het vorige rapport stopte (endpoint-bewaking, agent 1.63.0)
     [ -s "$i_dir/killed.pending" ] && killed_json=$(cat "$i_dir/killed.pending") && rm -f "$i_dir/killed.pending"
@@ -2415,7 +2415,7 @@ if [ -n "$ids_mode" ]; then
             [ -f "$i_dir/killed.$k_pid.$k_start" ] && continue   # al gedaan; de regel kan nog even in de lijst staan
             k_res=weg
             if [ "$(awk '{ print $22 }' "/proc/$k_pid/stat" 2>/dev/null)" = "$k_start" ]; then
-                # Nooit iets van RzMon of de agent zelf (agent 1.65.0)
+                # Nooit iets van RzSense of de agent zelf (agent 1.65.0)
                 if [[ "$(cat "/proc/$k_pid/cgroup" 2>/dev/null)" =~ /rzmon-[^/]*\.service ]]; then k_res=eigen
                 elif kill -KILL "$k_pid" 2>/dev/null; then k_res=ok; else k_res=fout; fi
             fi
@@ -2424,7 +2424,7 @@ if [ -n "$ids_mode" ]; then
         done <"$t_cache"
         find "$i_dir" -maxdepth 1 -name 'killed.*' -mmin +1440 -delete 2>/dev/null
     fi
-    # 6e. Hardening (agent 1.57.0): elk uur de instellingen die het verschil maken; RzMon geeft er een score aan
+    # 6e. Hardening (agent 1.57.0): elk uur de instellingen die het verschil maken; RzSense geeft er een score aan
     hard_part=""
     if [ ! -f "$i_dir/hard" ] || [ $(( $(date +%s) - $(stat -c %Y "$i_dir/hard") )) -ge 3600 ]; then
         {
@@ -2495,9 +2495,9 @@ if [ -n "$ids_mode" ]; then
     # 8. Bestanden bewaken (regel "0 <tab> fim <tab> base64" met e <tab> epoch, p <tab> ernst <tab> pad, x <tab> uitsluiten).
     #    Elke run een snelle controle (grootte, tijd, rechten, eigenaar); alleen bij een verschil een nieuwe hash.
     #    Eén keer per dag op de achtergrond alles opnieuw hashen, voor wie de tijd van een bestand terugzet.
-    #    Alleen wijzigingen gaan mee; de nieuwe stand wordt pas bewaard als RzMon het rapport heeft aangenomen.
+    #    Alleen wijzigingen gaan mee; de nieuwe stand wordt pas bewaard als RzSense het rapport heeft aangenomen.
     fim_dir="$i_dir/fim"
-    fimc=""   # voorstellen voor "＋ Aanbevolen" in RzMon: gangbare mappen die hier bestaan en niet leeg zijn
+    fimc=""   # voorstellen voor "＋ Aanbevolen" in RzSense: gangbare mappen die hier bestaan en niet leeg zijn
     for d in /usr/local/bin /usr/local/sbin /opt /etc/nginx /etc/httpd /etc/apache2 /etc/caddy /etc/haproxy /etc/postfix /var/www /srv/www /srv/http; do
         [ -d "$d" ] && [ -n "$(ls -A "$d" 2>/dev/null | head -n 1)" ] && fimc+="\"$d\","
     done
@@ -2526,7 +2526,7 @@ if [ -n "$ids_mode" ]; then
                 find "$root" -maxdepth 0 -type f -printf "$fmt" 2>/dev/null
             fi
         done <<<"$fim_cfg" | awk -F'\t' 'NF == 7 && !seen[$1]++' | head -n 10000 >"$fim_dir/list"
-        # Vorige stand: niet bij de eerste keer of na een nieuwe basismeting in RzMon (andere epoch): dan alles sturen
+        # Vorige stand: niet bij de eerste keer of na een nieuwe basismeting in RzSense (andere epoch): dan alles sturen
         fim_full=1; fim_old=/dev/null; fim_oldroots=/dev/null
         if [ -f "$fim_dir/state" ] && [ "$(cat "$fim_dir/meta" 2>/dev/null)" = "$fim_epoch" ]; then
             fim_full=0; fim_old="$fim_dir/state"; fim_oldroots="$fim_dir/roots"
@@ -2545,7 +2545,7 @@ if [ -n "$ids_mode" ]; then
         awk -F'\t' '$6 == "?" { print $1 }' "$fim_dir/new0" | tr '\n' '\0' | nice -n 19 xargs -0 -r sha256sum -- 2>/dev/null >"$fim_dir/hashes"
         awk -F'\t' -v OFS='\t' 'FILENAME == ARGV[1] { nh[substr($0, 67)] = substr($0, 1, 64); next }
             $6 == "?" { if (!($1 in nh)) next; $6 = nh[$1] } { print }' "$fim_dir/hashes" "$fim_dir/new0" >"$fim_dir/state.new"
-        # Wat RzMon moet weten: c = nieuw/gewijzigd, b = onder een nieuw bewaakt pad (basismeting), d = weg, u = niet meer bewaakt
+        # Wat RzSense moet weten: c = nieuw/gewijzigd, b = onder een nieuw bewaakt pad (basismeting), d = weg, u = niet meer bewaakt
         fim_json=$(awk -F'\t' -v full="$fim_full" '
             function j(s) { gsub(/\\/, "&&", s); gsub(/"/, "\\\"", s); return "\"" s "\"" }
             FILENAME == ARGV[1] { if ($1 == "p") cur[$3] = 1; next }
@@ -2571,13 +2571,13 @@ if [ -n "$ids_mode" ]; then
     fi
 fi
 
-# Blokkeren: eigen nftables-tabel "inet rzmon" met de IP's uit RzMon (alleen in de modus blokkeren).
+# Blokkeren: eigen nftables-tabel "inet rzmon" met de IP's uit RzSense (alleen in de modus blokkeren).
 # Lokaas-poort (agent 1.54.0, regel "0 <tab> decoy <tab> poort"): niemand van jou gebruikt die poort, dus elke verbinding
 # is een scanner. Er luistert niets; een regel in dezelfde tabel zet het IP in een set (dc4/dc6, een uur), de agent
 # stuurt die IP's mee en haalt ze na een geslaagd rapport uit de set. Ook in de modus leren (dan alleen melden).
 fw_json=""; decoy_json=""; decoy_err=""; dc_sent4=""; dc_sent6=""
 decoy_port=""
-# 1.77.0: TrueNAS beheert zijn eigen netwerk; blokkeren en de honeypot-poort alleen als RzMon het voor deze server toestaat
+# 1.77.0: TrueNAS beheert zijn eigen netwerk; blokkeren en de honeypot-poort alleen als RzSense het voor deze server toestaat
 tn_block=1
 if command -v midclt >/dev/null 2>&1; then
     tn_block=0
@@ -2643,12 +2643,12 @@ if [ "$ids_mode" = block ]; then
     elif ! command -v nft >/dev/null 2>&1; then
         fw_json="\"fw\":{\"state\":\"error\",\"err\":\"nft (nftables) ontbreekt\"}"
     else
-        # Nooit het adres van RzMon zelf blokkeren
+        # Nooit het adres van RzSense zelf blokkeren
         rz_host=${MONITOR_URL#*://}; rz_host=${rz_host%%/*}; rz_host=${rz_host%:*}; rz_host=${rz_host#[}; rz_host=${rz_host%]}
         rz_ips=" $(getent ahosts "$rz_host" 2>/dev/null | awk '{ print $1 }' | sort -u | tr '\n' ' ') $rz_host "
         now_f=$(date +%s)
         while IFS=$'\t' read -r z t b_ip b_until; do
-            # Bekende aanvallers (RzMon 1.82.0): bereiken (CIDR of begin-eind) in een eigen set
+            # Bekende aanvallers (RzSense 1.82.0): bereiken (CIDR of begin-eind) in een eigen set
             if [ "$z" = 0 ] && [ "$t" = knet ]; then
                 if [[ "$b_ip" =~ ^[0-9./-]+$ ]]; then kn4+="$b_ip, "; elif [[ "$b_ip" =~ ^[0-9a-fA-F:./-]+$ ]]; then kn6+="$b_ip, "; fi
                 continue
@@ -2673,7 +2673,7 @@ elif [ -n "$decoy_port" ]; then
     [ -n "$fw_err" ] && decoy_err="$fw_err"
 elif [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && grep -q $'^0\ttick\t' "$t_cache" \
     && command -v nft >/dev/null 2>&1 && nft list table inet rzmon >/dev/null 2>&1; then
-    # Leren (zonder lokaas-poort) of IDS uit volgens een complete lijst van RzMon: niets meer blokkeren (zonder lijst: niets aanraken)
+    # Leren (zonder lokaas-poort) of IDS uit volgens een complete lijst van RzSense: niets meer blokkeren (zonder lijst: niets aanraken)
     nft delete table inet rzmon 2>/dev/null
     rm -f "${i_dir:-$t_dir/ids}/fw.sig"
 fi
@@ -2685,8 +2685,8 @@ fi
 
 # ---------------------------------------------------------------- Logs van webdiensten (agent 1.58.0)
 lap weblogs
-# Regels "0 <tab> weblog <tab> swag|ha|vw <tab> pad, containernaam of auto" (RzMon 1.89.0). Alleen de nieuwe regels sinds
-# de vorige keer; per IP samengevat (aantallen, een paar paden met een foutcode, scanner); RzMon past de scenario's toe.
+# Regels "0 <tab> weblog <tab> swag|ha|vw <tab> pad, containernaam of auto" (RzSense 1.89.0). Alleen de nieuwe regels sinds
+# de vorige keer; per IP samengevat (aantallen, een paar paden met een foutcode, scanner); RzSense past de scenario's toe.
 # SWAG: de access-log van nginx. Home Assistant: "invalid authentication". Vaultwarden: "Username or password is incorrect".
 weblog_json=""
 if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
@@ -2740,7 +2740,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
                 fi
                 if [ -n "$w_path" ] && [ -r "$w_path" ]; then
                     # nginx "combined": IP - - [tijd] "GET /pad HTTP/1.1" status bytes "referer" "user-agent"; 444 = zonder (bekende) hostnaam
-                    # Agent 1.63.0: ook de verdachte verzoeken zelf, voor de payload-inspectie in RzMon (w_req)
+                    # Agent 1.63.0: ook de verdachte verzoeken zelf, voor de payload-inspectie in RzSense (w_req)
                     w_lines=$(wl_file_new swag "$w_path")
                     w_req=$(printf '%s\n' "$w_lines" | edr_swag_req)
                     w_body=$(printf '%s\n' "$w_lines" | awk -F'"' '
@@ -2797,7 +2797,7 @@ fi
 
 # ---------------------------------------------------------------- Endpoint-bewaking: regels, wachtrij en stand (agent 1.63.0)
 lap edr
-# auditd-regels (sleutels rzmon_*) zetten zolang het in RzMon aan staat, en weghalen als het uit gaat. Ze staan alleen
+# auditd-regels (sleutels rzmon_*) zetten zolang het in RzSense aan staat, en weghalen als het uit gaat. Ze staan alleen
 # in de kernel (auditctl), niet in /etc/audit: na een herstart zet de eerstvolgende run ze terug. De wachtrij van de
 # watcher gaat mee met het rapport (hooguit 500 per keer; wat niet aankomt, blijft voor de volgende keer).
 edr_json=""
@@ -2843,7 +2843,7 @@ if [ "$edr_want" = 1 ] && [ "$TEST" != 1 ]; then
     read -r e_ws _ _ _ e_we 2>/dev/null <"$edr_dir/watch.state"
     [ "$e_ws" = active ] && [ "$e_we" != - ] && e_watch=on
     e_drop=$(cat "$edr_dir/edr.drop" 2>/dev/null); [[ "$e_drop" =~ ^[0-9]+$ ]] || e_drop=0
-    # YARA (agent 1.64.0): geïnstalleerd, en welke regels (RzMon stuurt nieuwe als de hash verschilt)
+    # YARA (agent 1.64.0): geïnstalleerd, en welke regels (RzSense stuurt nieuwe als de hash verschilt)
     e_yara=missing; command -v yara >/dev/null 2>&1 && e_yara=ok
     e_ysha=$(sha256sum "$edr_dir/rzmon.yar" 2>/dev/null | cut -c1-64)
     # Suricata (agent 1.64.0): nieuwe alerts uit eve.json (SURICATA=0 zet het uit; SURICATA_EVE voor een ander pad)
@@ -2872,16 +2872,16 @@ if [ "$edr_want" = 1 ] && [ "$TEST" != 1 ]; then
     fi
     edr_json="{\"ev\":[$e_ev],\"info\":{\"audit\":\"$e_audit\",\"file\":\"$e_file\",\"ctr\":\"$e_ctr\",\"fam\":\"$e_fam\",\"epel\":$e_epel,\"watch\":\"$e_watch\",\"systemd\":$e_sys,\"drop\":$e_drop,\"queue\":$(wc -l 2>/dev/null <"$e_send" || echo 0),\"yara\":\"$e_yara\",\"ysha\":\"$e_ysha\",\"sur\":\"$e_sur\"}${e_alerts:+,\"sur\":[$e_alerts]}}"
 elif [ "$edr_want" = 0 ] && [ "$(id -u)" = 0 ] && [ "$HA_MODE" = 0 ]; then
-    # Uit (in RzMon of met EDR=0): regels weg en de wachtrij leeg
+    # Uit (in RzSense of met EDR=0): regels weg en de wachtrij leeg
     edr_rules off >/dev/null 2>&1
     rm -f "$edr_spool" "$edr_dir/edr.sending" 2>/dev/null
 fi
 
 # ---------------------------------------------------------------- Isoleren en gebruiker uitzetten (agent 1.57.0)
 lap isolate
-# "0 <tab> isolate <tab> tot (epoch) <tab> toegestane netwerken": alleen nog verkeer met RzMon, je LAN en het IP van de
+# "0 <tab> isolate <tab> tot (epoch) <tab> toegestane netwerken": alleen nog verkeer met RzSense, je LAN en het IP van de
 # beheerder; al het andere (in, uit en containers) wordt tegengehouden. Eigen tabel "inet rzmon_iso". Vervalt vanzelf
-# op de tijd, ook als RzMon onbereikbaar is (zo sluit je jezelf nooit voorgoed buiten).
+# op de tijd, ook als RzSense onbereikbaar is (zo sluit je jezelf nooit voorgoed buiten).
 # "0 <tab> userlock <tab> naam <tab> lock|unlock": account vergrendelen (en de processen ervan stoppen) of weer vrijgeven.
 iso_json=""
 if [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && [ "$(id -u)" = 0 ]; then
@@ -2889,7 +2889,7 @@ if [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && [ "$(id -u)" = 0 ]; then
     iso_until=${iso_line%%$'\t'*}; iso_allow=${iso_line#*$'\t'}
     iso_dir="$t_dir/iso"; mkdir -p "$iso_dir" 2>/dev/null
     if [[ "$iso_until" =~ ^[0-9]+$ ]] && [ "$iso_until" -gt "$(date +%s)" ] && command -v nft >/dev/null 2>&1; then
-        # Altijd bereikbaar: RzMon (en het reserve-adres) en de DNS-servers (om RzMon te vinden)
+        # Altijd bereikbaar: RzSense (en het reserve-adres) en de DNS-servers (om RzSense te vinden)
         i_ok=""
         for u in "$MONITOR_URL" "${MONITOR_URL_FALLBACK-}"; do
             [ -n "$u" ] || continue
@@ -2920,7 +2920,7 @@ if [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && [ "$(id -u)" = 0 ]; then
         if nft list table inet rzmon_iso >/dev/null 2>&1; then iso_json="\"iso\":{\"state\":\"active\",\"until\":$iso_until},"
         else iso_json="\"iso\":{\"state\":\"error\",\"err\":\"$(head -c 200 "$iso_dir/err" 2>/dev/null | json_text)\"},"; fi
     elif command -v nft >/dev/null 2>&1 && nft list table inet rzmon_iso >/dev/null 2>&1; then
-        # Tijd voorbij, of RzMon heeft het opgeheven: alles weer open
+        # Tijd voorbij, of RzSense heeft het opgeheven: alles weer open
         nft delete table inet rzmon_iso 2>/dev/null; rm -f "$iso_dir/sig"
         iso_json="\"iso\":{\"state\":\"off\"},"
     elif [ -f "$iso_dir/sig" ] || [[ "$iso_until" =~ ^[0-9]+$ ]]; then
@@ -3072,7 +3072,7 @@ fi
 # ---------------------------------------------------------------- Proxmox VE (agent 1.61.0)
 lap proxmox
 # Alleen op een Proxmox-host, als root: guests (VM's en containers), opslag, ZFS-pools, de cluster, back-ups per guest en de
-# back-uptaken. pvesh geeft JSON; dat gaat ongewijzigd mee (RzMon leest het), dus jq is niet nodig.
+# back-uptaken. pvesh geeft JSON; dat gaat ongewijzigd mee (RzSense leest het), dus jq is niet nodig.
 # Guests en opslag elke 2 minuten, back-ups en taken elk kwartier. PVE=0 in de instellingen zet het uit.
 pve_json=""
 if [ "$HA_MODE" = 0 ] && [ "${PVE:-1}" != 0 ] && command -v pvesh >/dev/null 2>&1 && [ "$(id -u)" = 0 ]; then
@@ -3139,7 +3139,7 @@ fi
 
 # ---------------------------------------------------------------- TrueNAS SCALE (agent 1.77.0)
 # Alleen op TrueNAS, als root: TrueNAS zelf uitlezen met midclt (geen API-sleutel nodig). midclt geeft JSON; dat gaat
-# ongewijzigd mee (RzMon leest het), dus jq is niet nodig. Met "select" vragen we alleen de velden die RzMon gebruikt.
+# ongewijzigd mee (RzSense leest het), dus jq is niet nodig. Met "select" vragen we alleen de velden die RzSense gebruikt.
 # Meldingen, taken en apps elke 5 minuten, schijftemperaturen elk kwartier, of er een update is elke 6 uur.
 # TRUENAS=0 in de instellingen zet het uit.
 truenas_json=""
@@ -3174,7 +3174,7 @@ if [ "$HA_MODE" = 0 ] && [ "${TRUENAS:-1}" != 0 ] && command -v midclt >/dev/nul
     truenas_json="{$(cat "$tn_dir/live" "$tn_dir/temp" "$tn_dir/upd" 2>/dev/null)\"at\":$(date +%s)}"
 fi
 # ---------------------------------------------------------------- Pad naar een doel (agent 1.78.0)
-# Pad-checks uit RzMon: "id <tab> path <tab> doel <tab> tussenliggende IP's (komma's, of -) <tab> interval".
+# Pad-checks uit RzSense: "id <tab> path <tab> doel <tab> tussenliggende IP's (komma's, of -) <tab> interval".
 # Per check: elke hop met verlies en vertraging (mtr, anders traceroute), een ping naar de opgegeven tussenliggende
 # apparaten (switches zijn onzichtbaar voor een traceroute), de netwerkkaart van de server (snelheid), of hij virtueel
 # draait en, met lldpd, op welke switch en poort hij zit.
@@ -3198,7 +3198,7 @@ if [ "$TEST" != 1 ] && [ -r "${t_cache-}" ] && grep -q $'\t\(path\|pathtp\|iperf
                   printf "{\"ip\":\"%s\",\"loss\":%s,\"avg\":%s,\"best\":%s,\"worst\":%s,\"jit\":%s}", ip, l + 0,
                       av == "" ? "null" : av, mn == "" ? "null" : mn, mx == "" ? "null" : mx, jd == "" ? "null" : jd }' <<<"$out"
     }
-    # Iperf3-ontvanger op dit apparaat (aangevraagd door RzMon voor de pad-check van een andere server)
+    # Iperf3-ontvanger op dit apparaat (aangevraagd door RzSense voor de pad-check van een andere server)
     while IFS=$'\t' read -r i_id i_type i_port i_until _; do
         [ "$i_type" = iperfs ] && [[ "$i_port" =~ ^[0-9]{2,5}$ ]] && [[ "$i_until" =~ ^[0-9]+$ ]] || continue
         [ "$i_until" -gt "$(date +%s)" ] || continue
@@ -3307,7 +3307,7 @@ fi
 # ---------------------------------------------------------------- Certificaten
 lap certs
 # Per bron: onderwerp (CN), uitgever, vervaldatum (epoch) en of het certificaat vertrouwd wordt.
-# RzMon rekent zelf het aantal dagen uit, dus een uur oude gegevens zijn geen probleem.
+# RzSense rekent zelf het aantal dagen uit, dus een uur oude gegevens zijn geen probleem.
 cert_line() {  # bron cn uitgever not_after verify fout [aantal in de keten, eerste vervaldatum in de keten, cn daarvan]
     printf '{"source":"%s","cn":"%s","issuer":"%s","not_after":%s,"verify":%s,"error":"%s","chain_n":%s,"chain_min":%s,"chain_cn":"%s"},' \
         "$(json_escape "$1")" "$(json_escape "$2")" "$(json_escape "$3")" "${4:-null}" \
@@ -3388,7 +3388,7 @@ collect_certs() {
     done
 }
 certs=""
-# Te controleren: CERTS van deze server, plus wat je in RzMon gekozen hebt (regels "0 <tab> cert <tab> bron", 1.59.0)
+# Te controleren: CERTS van deze server, plus wat je in RzSense gekozen hebt (regels "0 <tab> cert <tab> bron", 1.59.0)
 cert_list="$CERTS"
 [ -r "${t_cache-}" ] && cert_list="$cert_list $(awk -F'\t' '$1 == "0" && $2 == "cert" && $3 !~ /[[:space:]]/ { print $3 }' "$t_cache" | head -200 | tr '\n' ' ')"
 cert_list=$(tr -s ' ' <<<"$cert_list"); cert_list=${cert_list# }; cert_list=${cert_list% }
@@ -3414,8 +3414,8 @@ fi
 
 # ---------------------------------------------------------------- Certificaten zoeken (1.59.0)
 lap cert_search
-# Bestanden met een certificaat in de mappen van CERT_DIRS (plus de mappen die je in RzMon opgeeft), om in RzMon
-# uit te kiezen. Eén keer per dag, of meteen als RzMon erom vraagt (regel "0 <tab> certscan <tab> teller").
+# Bestanden met een certificaat in de mappen van CERT_DIRS (plus de mappen die je in RzSense opgeeft), om in RzSense
+# uit te kiezen. Eén keer per dag, of meteen als RzSense erom vraagt (regel "0 <tab> certscan <tab> teller").
 # Overgeslagen: de CA-lijsten van het systeem en van programmeertalen (Python, Ruby), testmappen, CA-bundels (meer dan
 # 20 certificaten) en sleutels zonder certificaat.
 cert_found=""
@@ -3453,9 +3453,9 @@ fi
 
 # ---------------------------------------------------------------- Processen (1.59.0)
 lap procs
-# Proces-checks uit RzMon: "id <tab> proc <tab> name|pattern <tab> naam of patroon (base64) <tab> gebruiker".
+# Proces-checks uit RzSense: "id <tab> proc <tab> name|pattern <tab> naam of patroon (base64) <tab> gebruiker".
 # Per check: aantal, PID's, CPU (%), geheugen (kB) en wanneer het oudste proces startte (om een herstart te zien).
-# Plus een lijst van wat er draait (zonder kernelprocessen), om in RzMon uit te kiezen.
+# Plus een lijst van wat er draait (zonder kernelprocessen), om in RzSense uit te kiezen.
 procs_json=""; proc_list=""
 if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ]; then
     # LC_ALL=C (1.59.2): punt als decimaalteken en alleen ASCII (andere tekens als ?), zodat de JSON altijd klopt
@@ -3490,9 +3490,9 @@ if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ]; then
     fi
 fi
 
-# ---------------------------------------------------------------- Software (Kwetsbaarheden in RzMon)
+# ---------------------------------------------------------------- Software (Kwetsbaarheden in RzSense)
 lap software
-# Geïnstalleerde pakketten met de distributie: RzMon zoekt er de bekende kwetsbaarheden (CVE's) bij.
+# Geïnstalleerde pakketten met de distributie: RzSense zoekt er de bekende kwetsbaarheden (CVE's) bij.
 # De hele lijst één keer per dag, of eerder als de pakketdatabase verandert; anders alleen het controlegetal.
 pkgs_json=""; pk_hash=""; pk_mgr=""
 pk_dir="$t_dir/pkgs"
@@ -3561,9 +3561,9 @@ if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ] && mkdir -p "$pk_dir" 2>/dev/null && [
     fi
     if [ -s "$pk_list" ]; then
         pk_hash=$(sha1sum "$pk_list" | cut -c1-16)
-        # Alles meesturen als RzMon deze stand nog niet heeft; anders alleen het controlegetal.
-        # Agent 1.66.1: kwam er de vorige keer geen antwoord (bv. RzMon was te traag), dan eerst alleen het controlegetal:
-        # vaak heeft RzMon de lijst toen toch opgeslagen. Anders bleef de agent elke minuut de hele lijst sturen.
+        # Alles meesturen als RzSense deze stand nog niet heeft; anders alleen het controlegetal.
+        # Agent 1.66.1: kwam er de vorige keer geen antwoord (bv. RzSense was te traag), dan eerst alleen het controlegetal:
+        # vaak heeft RzSense de lijst toen toch opgeslagen. Anders bleef de agent elke minuut de hele lijst sturen.
         if [ "$(cat "$pk_dir/sent" 2>/dev/null)" != "$pk_hash" ] && [ "$(cat "$pk_dir/tried" 2>/dev/null)" = "$pk_hash" ]; then
             pkgs_json="{\"hash\":\"$pk_hash\"}"; rm -f "$pk_dir/tried"
         elif [ "$(cat "$pk_dir/sent" 2>/dev/null)" != "$pk_hash" ]; then
@@ -3574,7 +3574,7 @@ if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ] && mkdir -p "$pk_dir" 2>/dev/null && [
         fi
     fi
 fi
-# Uitkomst van "pakketten bijwerken" (opdracht uit RzMon) terugmelden: id, ok/error en het einde van de uitvoer (base64)
+# Uitkomst van "pakketten bijwerken" (opdracht uit RzSense) terugmelden: id, ok/error en het einde van de uitvoer (base64)
 pkg_result=""
 if [ -r "$pk_dir/upgrade.result" ]; then
     IFS=$'\t' read -r pr_id pr_st pr_log <"$pk_dir/upgrade.result"
@@ -3582,9 +3582,9 @@ if [ -r "$pk_dir/upgrade.result" ]; then
         && pkg_result="{\"id\":\"$pr_id\",\"ok\":$([ "$pr_st" = ok ] && echo true || echo false),\"log_b64\":\"$pr_log\"}"
 fi
 
-pkg_upgrade() {  # pkg_upgrade <antwoord van RzMon>: alleen dnf/yum/apt "upgrade" van de meegestuurde pakketnamen, als root
+pkg_upgrade() {  # pkg_upgrade <antwoord van RzSense>: alleen dnf/yum/apt "upgrade" van de meegestuurde pakketnamen, als root
     # Agent 1.63.0: of "install" (mode), alleen voor de onderdelen van de endpoint-bewaking (vaste lijst hieronder)
-    # Agent 1.66.0: met "own" (eigen pakketnamen, door de beheerder bevestigd in RzMon) geldt die lijst niet; de namen
+    # Agent 1.66.0: met "own" (eigen pakketnamen, door de beheerder bevestigd in RzSense) geldt die lijst niet; de namen
     # zelf moeten wel gewone pakketnamen zijn (geen opties, geen paden), en COMMANDS mag het niet blokkeren
     local id names n=() out="$pk_dir/upgrade.result" why="" mode=upgrade own=0
     id=$(sed -n 's/.*"pkg_upgrade":[[:space:]]*{[^}]*"id":[[:space:]]*"\([0-9a-f]\{8,32\}\)".*/\1/p' <<<"$1")
@@ -3608,12 +3608,12 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzMon>: alleen dnf/yum/apt "upgrade
     if [ -f "$pk_dir/upgrade.lock" ] && [ $(( $(date +%s) - $(stat -c %Y "$pk_dir/upgrade.lock") )) -lt 1800 ]; then return 0; fi
     : >"$pk_dir/upgrade.lock"
     # Adres en token voor de voortgang: in een bestand (alleen root), niet als argument (zichtbaar in ps)
-    # Regel 2: wie we zijn (header met het sleutelkenmerk of het token), regel 3: -k, of de vingerafdruk van RzMon
+    # Regel 2: wie we zijn (header met het sleutelkenmerk of het token), regel 3: -k, of de vingerafdruk van RzSense
     local tls_spec=0
     [ "${tls[0]-}" = -k ] && tls_spec=1
     [ "${tls[1]-}" = --pinnedpubkey ] && tls_spec=${tls[2]}
     (umask 077; printf '%s\n%s\n%s\n%s\n' "$MONITOR_URL" "${auth[1]}" "$tls_spec" "$enc_key" >"$pk_dir/upgrade.conf")
-    # Het script meldt zijn voortgang elke paar seconden zelf aan RzMon (stap, procent, pakket, laatste uitvoer);
+    # Het script meldt zijn voortgang elke paar seconden zelf aan RzSense (stap, procent, pakket, laatste uitvoer);
     # de uitkomst gaat daarnaast via upgrade.result mee met het volgende rapport (als de voortgang niet aankwam).
     # shellcheck disable=SC2016  # het script krijgt zijn waarden als argumenten mee, niet via de tekst
     local script='id=$1; mgr=${2%%:*}; mode=${2#*:}; dir=$3; shift 3
@@ -3621,7 +3621,7 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzMon>: alleen dnf/yum/apt "upgrade
         url=""; tok=""; ins=0; enc_key=""; last=0; stage=update; pct=2; detail=""; count=""
         if [ -r "$dir/upgrade.conf" ]; then { read -r url; read -r tok; read -r ins; read -r enc_key; } <"$dir/upgrade.conf"; rm -f "$dir/upgrade.conf"; fi
         log="$dir/upgrade.log"; : >"$log"
-        post() {   # post [extra JSON-velden]: voortgang naar RzMon (hooguit 4 seconden wachten)
+        post() {   # post [extra JSON-velden]: voortgang naar RzSense (hooguit 4 seconden wachten)
             [ -n "$url" ] || return 0
             local k=(-fsS -m 4 -o /dev/null -X POST -H "$tok" -H "Content-Type: application/json")
             [ "$ins" = 1 ] && k+=(-k)
@@ -3695,12 +3695,12 @@ $script"   # versleutelen kan het script dan zelf
 }
 
 # ---------------------------------------------------------------- Databases (agent 1.81.0)
-# Databasechecks uit RzMon: "id <tab> db <tab> mysql|pgsql <tab> local|container <tab> container (of -) <tab> gebruiker (of -)
+# Databasechecks uit RzSense: "id <tab> db <tab> mysql|pgsql <tab> local|container <tab> container (of -) <tab> gebruiker (of -)
 # <tab> wachtwoord (base64, of -) <tab> database (of -) <tab> sleutel <tab> interval".
 # Per sleutel (één verbinding) één meting, hoe veel checks er ook op die verbinding staan. Alleen lezen: status, verbindingen,
 # lopende query's, replicatie en grootte; nooit data. Zonder gebruiker lokaal zonder wachtwoord: MariaDB/MySQL als root via
 # de socket, PostgreSQL als gebruiker postgres (peer). In een container: docker/podman exec met de client in die container
-# (zonder gebruiker: root met het wachtwoord uit de omgeving van de container, of postgres). Een wachtwoord stuurt RzMon
+# (zonder gebruiker: root met het wachtwoord uit de omgeving van de container, of postgres). Een wachtwoord stuurt RzSense
 # alleen over een versleutelde verbinding; het gaat via de omgeving naar de client, nooit op de opdrachtregel.
 db_json=""
 if [ "$TEST" != 1 ] && [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tdb\t' "$t_cache"; then
@@ -3819,13 +3819,13 @@ SELECT 'longq', floor(extract(epoch from now() - query_start))::bigint || '|' ||
     unset d_pw d_pass
     [ -n "$db_json" ] && db_json="{${db_json%,}}"
 fi
-# ---------------------------------------------------------------- Logs vinden (agent 1.84.0, RzMon 1.213.0)
+# ---------------------------------------------------------------- Logs vinden (agent 1.84.0, RzSense 1.213.0)
 lap log_scan
-# Welke logs zijn er op deze server, om in RzMon (Agent Manager › Logs) uit te kiezen: bestanden en mappen binnen
+# Welke logs zijn er op deze server, om in RzSense (Agent Manager › Logs) uit te kiezen: bestanden en mappen binnen
 # LOG_DIRS, containers (Docker/Podman), systemd-services die de afgelopen 24 uur iets in de journal schreven, en op
 # Home Assistant de Supervisor-logs en add-ons. Alleen namen, groottes en tijden, nooit de inhoud.
-# Eén keer per dag, of meteen als RzMon erom vraagt (regel "0 <tab> logscan <tab> teller"). Het resultaat gaat alleen mee
-# in het rapport als het net gemaakt is (anders niets: RzMon bewaart de laatste lijst).
+# Eén keer per dag, of meteen als RzSense erom vraagt (regel "0 <tab> logscan <tab> teller"). Het resultaat gaat alleen mee
+# in het rapport als het net gemaakt is (anders niets: RzSense bewaart de laatste lijst).
 # Overgeslagen: gedraaide bestanden (.1, .gz, -20250101), binaire bestanden (wtmp, btmp, lastlog) en de map journal.
 logscan_json=""
 if [ "$TEST" != 1 ] && [ "${LOG_SHIP:-1}" != 0 ]; then
@@ -3893,7 +3893,7 @@ lap update
 upd_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
 upd_setup="$AGENT_SETUP"
 if [ "$TEST" = 1 ]; then
-    upd_via="test"   # verbindingstest: RzMon stuurt dan geen update-opdracht
+    upd_via="test"   # verbindingstest: RzSense stuurt dan geen update-opdracht
 elif [ "$HA_MODE" = 1 ]; then
     upd_via=ha
 elif [ "$REMOTE_UPDATE" != 1 ]; then
@@ -3913,7 +3913,7 @@ fi
 
 # Ondertekende updates (agent 1.71.0): de publieke sleutel van de ontwikkelaar (ed25519). Bij elke nieuwe agent zet GitHub er
 # een handtekening bij (agent/*.sig, gemaakt met de geheime sleutel die alleen in GitHub staat). Een update wordt alleen
-# geïnstalleerd als die klopt: zo kan zelfs een overgenomen RzMon geen eigen code op de servers zetten.
+# geïnstalleerd als die klopt: zo kan zelfs een overgenomen RzSense geen eigen code op de servers zetten.
 AGENT_SIGN_PUB="MCowBQYDK2VwAyEAKayiZIruYIYwZQ97qndO4lmnMjp/EEnVDNBIhZ07sSM="
 sig_check() {  # sig_check <bestand> <handtekening (base64)>: 0 = klopt, 1 = klopt niet, 2 = niet te controleren (OpenSSL ouder dan 3)
     local d rc
@@ -3927,7 +3927,7 @@ sig_check() {  # sig_check <bestand> <handtekening (base64)>: 0 = klopt, 1 = klo
 }
 # UPDATE_UNSIGNED=1 in /etc/default/rzmon-agent: ook zonder (geldige) handtekening bijwerken (niet aangeraden)
 UPDATE_UNSIGNED="${UPDATE_UNSIGNED:-0}"
-remote_update() {  # remote_update <antwoord van RzMon>
+remote_update() {  # remote_update <antwoord van RzSense>
     local want sha_a sha_s k
     want=$(sed -n 's/.*"update":[[:space:]]*{[^}]*"version":[[:space:]]*"\([0-9.]*\)".*/\1/p' <<<"$1")
     sha_a=$(sed -n 's/.*"update":[[:space:]]*{[^}]*"agent_sha256":[[:space:]]*"\([0-9a-f]\{64\}\)".*/\1/p' <<<"$1")
@@ -3947,19 +3947,19 @@ remote_update() {  # remote_update <antwoord van RzMon>
     k=(-fsS -m 60 "${tls[@]}")
     if ! curl "${k[@]}" -o "$upd_dir/agent.new" "${MONITOR_URL%/}/api.php?action=agent_script" 2>/dev/null \
         || ! curl "${k[@]}" -o "$upd_dir/setup.new" "${MONITOR_URL%/}/api.php?action=agent_install" 2>/dev/null; then
-        upd_fail "downloaden van de nieuwe versie bij RzMon mislukt"
+        upd_fail "downloaden van de nieuwe versie bij RzSense mislukt"
         return 0
     fi
     if [ "$(sha256sum "$upd_dir/agent.new" | cut -d' ' -f1)" != "$sha_a" ] || [ "$(sha256sum "$upd_dir/setup.new" | cut -d' ' -f1)" != "$sha_s" ]; then
         upd_fail "controlegetal (SHA-256) klopt niet: download onvolledig of onderweg gewijzigd"
         return 0
     fi
-    # Handtekening van de ontwikkelaar (agent 1.71.0). Het installatiescript krijgt bij RzMon een downloadsleutel in de regel
+    # Handtekening van de ontwikkelaar (agent 1.71.0). Het installatiescript krijgt bij RzSense een downloadsleutel in de regel
     # DL_KEY=''; die ene regel gaat terug naar leeg voor de controle, verder moet alles precies kloppen.
     if [ "$UPDATE_UNSIGNED" != 1 ]; then
         if ! curl "${k[@]}" -o "$upd_dir/agent.sig" "${MONITOR_URL%/}/api.php?action=agent_script_sig" 2>/dev/null \
             || ! curl "${k[@]}" -o "$upd_dir/setup.sig" "${MONITOR_URL%/}/api.php?action=agent_install_sig" 2>/dev/null; then
-            upd_fail "geen handtekening bij RzMon (nog niet ondertekend?): niet bijgewerkt"
+            upd_fail "geen handtekening bij RzSense (nog niet ondertekend?): niet bijgewerkt"
             rm -f "$upd_dir/agent.sig" "$upd_dir/setup.sig"
             return 0
         fi
@@ -3977,8 +3977,8 @@ remote_update() {  # remote_update <antwoord van RzMon>
         echo off >"$upd_dir/update.sig"
     fi
     if ! bash -n "$upd_dir/agent.new" 2>/dev/null || ! bash -n "$upd_dir/setup.new" 2>/dev/null \
-        || ! grep -q "^AGENT_VERSION=\"$want\"" "$upd_dir/agent.new" || ! grep -q 'RzMon agent' "$upd_dir/setup.new"; then
-        upd_fail "de download is geen geldige RzMon-agent $want"
+        || ! grep -q "^AGENT_VERSION=\"$want\"" "$upd_dir/agent.new" || ! grep -qE 'RzMon agent|RzSense agent' "$upd_dir/setup.new"; then
+        upd_fail "de download is geen geldige RzSense-agent $want"
         return 0
     fi
     chmod 700 "$upd_dir/setup.new"
@@ -3994,7 +3994,7 @@ remote_update() {  # remote_update <antwoord van RzMon>
 
 # ---------------------------------------------------------------- Benodigdheden voor realtime (elk uur)
 lap rt_tools
-# Is inotify-tools er (bestanden in realtime), en op Rocky/Alma/RHEL: staat EPEL erop? RzMon toont het in de Agent Manager.
+# Is inotify-tools er (bestanden in realtime), en op Rocky/Alma/RHEL: staat EPEL erop? RzSense toont het in de Agent Manager.
 tools_json=""
 if [ "$HA_MODE" = 0 ] && [ -n "${INVOCATION_ID-}" ]; then   # alleen met systemd (realtime werkt niet via cron)
     tf="$t_dir/tools.json"
@@ -4049,7 +4049,7 @@ fi
 # ---------------------------------------------------------------- Zelf herstellen en waakhond: meesturen
 lap heal_report
 # Uitkomsten van herstelpogingen (weg na een geslaagd rapport), de herstelcommando's die hier staan, en een periode
-# waarin de waakhond RzMon niet bereikte
+# waarin de waakhond RzSense niet bereikte
 heal_json=""; heal_cmds=""
 if [ -s "$heal_dir/done" ]; then
     mv -f "$heal_dir/done" "$heal_dir/done.sending" 2>/dev/null
@@ -4166,11 +4166,11 @@ for nic_d in /sys/class/net/*; do
 done
 [ -n "$nic_ifs" ] && nic_json="{\"rx\":$nic_rx,\"tx\":$nic_tx,\"ifs\":[${nic_ifs%,}]}"
 # ---------------------------------------------------------------- Diagnose voor AI-advies (agent 1.76.0)
-# Op verzoek van RzMon (regel "0 <tab> diag <tab> id <tab> soort <tab> doel" in de lijst) bij een storing: een VASTE set
-# commando's die alleen lezen, zodat het AI-advies weet wat er echt aan de hand is. RzMon stuurt alleen de soort en het
+# Op verzoek van RzSense (regel "0 <tab> diag <tab> id <tab> soort <tab> doel" in de lijst) bij een storing: een VASTE set
+# commando's die alleen lezen, zodat het AI-advies weet wat er echt aan de hand is. RzSense stuurt alleen de soort en het
 # doel (een servicenaam, container, mount of poort), nooit een commando; het doel wordt hier opnieuw streng gecontroleerd.
-# In RzMon staat dit apart aan (Instellingen → AI-advies, met je wachtwoord); COMMANDS=0 hierboven blokkeert het altijd.
-# Elke aanvraag één keer. Per onderdeel hooguit 20 seconden en 6 kB uitvoer; wachtwoorden filtert RzMon er nog uit.
+# In RzSense staat dit apart aan (Instellingen → AI-advies, met je wachtwoord); COMMANDS=0 hierboven blokkeert het altijd.
+# Elke aanvraag één keer. Per onderdeel hooguit 20 seconden en 6 kB uitvoer; wachtwoorden filtert RzSense er nog uit.
 diag_json=""
 if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ] && [ "$COMMANDS" != 0 ] && [ -r "${t_cache-}" ]; then
     d_line=$(awk -F'\t' '$1 == "0" && $2 == "diag" { print; exit }' "$t_cache")
@@ -4222,9 +4222,9 @@ if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ] && [ "$COMMANDS" != 0 ] && [ -r "${t_c
     fi
 fi
 # ---------------------------------------------------------------- Zelftest (agent 1.79.0)
-# Op verzoek van RzMon (🧪 Test in de Agent Manager: regel "0 <tab> selftest <tab> id") test de agent zichzelf, één keer
-# per vraag: planning, instellingenbestand, DNS, het adres en het reserve-adres van RzMon, de klok, vrije ruimte, de
-# wachtrij en fouten in zijn log. Alleen vaste controles die lezen; RzMon stuurt geen commando's mee.
+# Op verzoek van RzSense (🧪 Test in de Agent Manager: regel "0 <tab> selftest <tab> id") test de agent zichzelf, één keer
+# per vraag: planning, instellingenbestand, DNS, het adres en het reserve-adres van RzSense, de klok, vrije ruimte, de
+# wachtrij en fouten in zijn log. Alleen vaste controles die lezen; RzSense stuurt geen commando's mee.
 selftest_json=""
 if [ "$TEST" != 1 ] && [ -r "${t_cache-}" ]; then
     st_line=$(awk -F'\t' '$1 == "0" && $2 == "selftest" { print $3; exit }' "$t_cache")
@@ -4250,7 +4250,7 @@ if [ "$TEST" != 1 ] && [ -r "${t_cache-}" ]; then
             if [ "$st_perm" = 600 ]; then st_add conf ok "$conf_file (600)"
             else st_add conf warn "$conf_file heeft rechten ${st_perm:-?}: sudo chmod 600 $conf_file"; fi
         fi
-        # Naam van RzMon opzoeken en het adres (en reserve-adres) bereiken
+        # Naam van RzSense opzoeken en het adres (en reserve-adres) bereiken
         st_host=${MONITOR_URL#*://}; st_host=${st_host%%/*}; st_host=${st_host%:*}; st_host=${st_host#[}; st_host=${st_host%]}
         if [[ "$st_host" =~ ^[0-9.]+$ || "$st_host" == *:* ]]; then
             st_add dns skip "adres is een IP-adres ($st_host)"
@@ -4304,12 +4304,12 @@ fi
 # ---------------------------------------------------------------- Versturen
 lap ""
 [ -n "$beat_pid" ] && kill "$beat_pid" 2>/dev/null   # het echte rapport gaat nu; geen hartslag meer nodig
-# Opstarttijd (epoch) voor de check Herstart in RzMon
+# Opstarttijd (epoch) voor de check Herstart in RzSense
 read -r boot_up _ < /proc/uptime 2>/dev/null || boot_up=0
 boot_ts=0; [ "${boot_up%.*}" -gt 0 ] 2>/dev/null && boot_ts=$(( $(date +%s) - ${boot_up%.*} ))
 # Wat er naast de vaste onderdelen meegaat, voor --status (1.60.0)
 parts="processen=$(grep -o '\["' <<<"$proc_list" | wc -l) certificaatbestanden=$(grep -o '"path"' <<<"$cert_found" | wc -l) softwarelijst=$( [ -n "$pkgs_json" ] && echo ja || echo ongewijzigd) heartbeats=${#hb_files[@]} ids=$( [ -n "$ids_json" ] && echo ja || echo nee)"
-# Agent 1.69.0: wat deze agent hier kan (RzMon toont het in de Agent Manager en kiest er checks bij)
+# Agent 1.69.0: wat deze agent hier kan (RzSense toont het in de Agent Manager en kiest er checks bij)
 caps=""
 for c_tool in podman docker zpool smartctl nvme auditctl nft upsc chronyc timedatectl systemctl apt-get dnf apk pveversion midclt mtr traceroute iperf3 lldpctl; do
     command -v "$c_tool" >/dev/null 2>&1 && caps+="\"$c_tool\","
@@ -4320,8 +4320,8 @@ if [ -s "$q_file" ]; then
     backlog=$(head -n 120 "$q_file" | grep '^{"t":[0-9]' | paste -sd, -)
     q_sent=$(head -n 120 "$q_file" | wc -l)
 fi
-# Agent 1.82.0: RzMon wordt bijgewerkt (dat zei hij zelf, in een versleuteld antwoord). Dan gaan metingen die niet aankomen
-# in de wachtrij zonder alarm, tot de vrijgave (een antwoord zonder "rz_hold") of tot de tijd die RzMon meegaf (hooguit een uur).
+# Agent 1.82.0: RzSense wordt bijgewerkt (dat zei hij zelf, in een versleuteld antwoord). Dan gaan metingen die niet aankomen
+# in de wachtrij zonder alarm, tot de vrijgave (een antwoord zonder "rz_hold") of tot de tijd die RzSense meegaf (hooguit een uur).
 hold_file="$k_dir/rzhold"; hold_id=""; hold_until=0; hold_since=0; hold_json=""; hold_released=0
 if [ -r "$hold_file" ]; then
     read -r hold_id hold_until hold_since _ <"$hold_file" 2>/dev/null
@@ -4337,7 +4337,7 @@ fi
 run_ms=$(( $(now_ms) - run_t0 ))
 payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json}${truenas_json:+,\"truenas\":$truenas_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],${logscan_json:+\"log_scan\":$logscan_json,}\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json}${path_json:+,\"path\":$path_json}${db_json:+,\"db\":$db_json}${iperfs_json:+,\"iperfs\":$iperfs_json}${selftest_json:+,\"selftest\":$selftest_json}${nic_json:+,\"nic\":$nic_json}${hold_json:+,\"hold\":$hold_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
 
-# Agent 1.66.1: 50 seconden wachten op RzMon (was 20): een druk bezette RzMon verwerkt een groot rapport soms trager;
+# Agent 1.66.1: 50 seconden wachten op RzSense (was 20): een druk bezette RzSense verwerkt een groot rapport soms trager;
 # na 20 seconden gaf de agent het op en kreeg hij het antwoord (opdrachten, instellingen, "softwarelijst ontvangen") nooit
 REPORT_WAIT=50
 curl_opts=(-fsS -m "$REPORT_WAIT" -X POST "${tls[@]}")
@@ -4352,9 +4352,9 @@ if command -v iconv >/dev/null 2>&1; then
     [ -s "$payload_file.u" ] && mv -f "$payload_file.u" "$payload_file"
     rm -f "$payload_file.u"
 fi
-# Agent 1.73.0: comprimeren (gzip) als RzMon dat kan (dat zei hij in zijn vorige antwoord: "gz":1, RzMon 1.147.0+) en
+# Agent 1.73.0: comprimeren (gzip) als RzSense dat kan (dat zei hij in zijn vorige antwoord: "gz":1, RzSense 1.147.0+) en
 # het rapport groter is dan 2 kB. Vóór het versleutelen: versleutelde gegevens zijn niet meer te comprimeren, en zo valt
-# de gecomprimeerde inhoud ook onder de handtekening. RzMon herkent het aan de eerste bytes. Uitzetten: COMPRESS=0;
+# de gecomprimeerde inhoud ook onder de handtekening. RzSense herkent het aan de eerste bytes. Uitzetten: COMPRESS=0;
 # de grens (bytes) is COMPRESS_MIN (de test zet hem laag, want in een kale container is een rapport klein).
 body_file=$payload_file; gz_sent=0
 if [ -e "$t_dir/gz.ok" ] && [ "${COMPRESS:-1}" != 0 ] && command -v gzip >/dev/null 2>&1 && [ "$(wc -c <"$payload_file")" -gt "${COMPRESS_MIN:-2048}" ]; then
@@ -4367,13 +4367,13 @@ if [ -n "$enc_key" ]; then
     if seal "$body_file" "$payload_file.enc"; then send_file="$payload_file.enc"
     else echo "Versleutelen mislukt (openssl); rapport gaat onversleuteld" >&2; seal_n=""; fi
 fi
-# Antwoord van RzMon: versleuteld (dan eerst controleren) of gewoon. Klopt de handtekening niet: niets mee doen.
+# Antwoord van RzSense: versleuteld (dan eerst controleren) of gewoon. Klopt de handtekening niet: niets mee doen.
 open_resp() {
     if [[ "$1" == '{"rzenc":'* ]]; then
-        unseal "$1" "$seal_n" || { echo "Antwoord van RzMon niet te vertrouwen (handtekening klopt niet); genegeerd" >&2; return 1; }
+        unseal "$1" "$seal_n" || { echo "Antwoord van RzSense niet te vertrouwen (handtekening klopt niet); genegeerd" >&2; return 1; }
     elif [ -n "$seal_n" ]; then
-        # Versleuteld verstuurd, maar onversleuteld antwoord: dat komt niet van RzMon (die antwoordt dan altijd versleuteld)
-        echo "Antwoord van RzMon niet te vertrouwen (niet versleuteld); genegeerd" >&2; return 1
+        # Versleuteld verstuurd, maar onversleuteld antwoord: dat komt niet van RzSense (die antwoordt dan altijd versleuteld)
+        echo "Antwoord van RzSense niet te vertrouwen (niet versleuteld); genegeerd" >&2; return 1
     else
         printf '%s' "$1"
     fi
@@ -4447,17 +4447,17 @@ if [ "$TEST" = 1 ]; then
     r_rc=$?
     r_code=${resp##*$'\n'}; r_body=${resp%$'\n'*}
     if [ "$r_code" = 200 ] && [[ "$r_body" == '{"rzenc":'* ]]; then
-        r_body=$(open_resp "$r_body") && pass "Versleuteld verstuurd en het antwoord van RzMon klopt (🔒)"
+        r_body=$(open_resp "$r_body") && pass "Versleuteld verstuurd en het antwoord van RzSense klopt (🔒)"
     elif [ -n "$enc_key" ]; then hint "Sleutel aanwezig, maar het antwoord kwam onversleuteld terug"
-    else hint "Niet versleuteld (geen sleutel): koppel de agent met een koppelcode (RzMon → Agent Manager → 🔗 Koppelcode)"; fi
+    else hint "Niet versleuteld (geen sleutel): koppel de agent met een koppelcode (RzSense → Agent Manager → 🔗 Koppelcode)"; fi
     if [ -n "$kid" ]; then pass "🔑 Eigen sleutel van deze server (geen token meer nodig)"
-    elif [ -n "$enc_key" ]; then hint "Nog de algemene sleutel: RzMon stuurt bij het volgende rapport een eigen sleutel mee"; fi
+    elif [ -n "$enc_key" ]; then hint "Nog de algemene sleutel: RzSense stuurt bij het volgende rapport een eigen sleutel mee"; fi
     if [ -z "$resp" ]; then
         fail "Rapport niet verstuurd: curl stopte zonder uitvoer (exitcode $r_rc, rapport $(wc -c <"$payload_file") bytes)"
     elif [ "$r_code" = 200 ] && [[ "$r_body" == *'"ok":true'* ]]; then
-        pass "Rapport ontvangen door RzMon: $r_body"
+        pass "Rapport ontvangen door RzSense: $r_body"
         echo
-        echo "  Alles werkt. Zie je in RzMon toch niets? Klap de server open → 'Agent Manager':"
+        echo "  Alles werkt. Zie je in RzSense toch niets? Klap de server open → 'Agent Manager':"
         echo "  daar staat wanneer het laatste rapport binnenkwam en vanaf welk IP."
     else
         fail "Rapport niet geaccepteerd (HTTP $r_code): ${r_body:0:200}"
@@ -4474,20 +4474,20 @@ resp=$(curl "${curl_opts[@]}" \
     "${MONITOR_URL%/}/api.php?action=agent")
 rc=$?
 h_code=${resp##*$'\n'}; resp=${resp%$'\n'*}
-# Certificaat van RzMon past niet meer bij de vingerafdruk (curl 90), bv. een nieuw certificaat: één keer opnieuw
+# Certificaat van RzSense past niet meer bij de vingerafdruk (curl 90), bv. een nieuw certificaat: één keer opnieuw
 # zonder vastzetten, maar alleen versleuteld. Het antwoord moet dan met onze sleutel ondertekend zijn (dat kan
-# alleen RzMon), en daarin staat de nieuwe vingerafdruk. Een ander certificaat met een vals antwoord: geweigerd.
+# alleen RzSense), en daarin staat de nieuwe vingerafdruk. Een ander certificaat met een vals antwoord: geweigerd.
 if [ "$rc" = 90 ] && [ -n "$seal_n" ]; then
-    echo "Certificaat van RzMon is veranderd; controleren met de sleutel" >&2
-    p_opts=(-fsS -m 20 -X POST -k -H "X-Agent-Pin-Fail: 1")   # RzMon bepaalt de vingerafdruk dan meteen opnieuw
+    echo "Certificaat van RzSense is veranderd; controleren met de sleutel" >&2
+    p_opts=(-fsS -m 20 -X POST -k -H "X-Agent-Pin-Fail: 1")   # RzSense bepaalt de vingerafdruk dan meteen opnieuw
     resp=$(curl "${p_opts[@]}" -H "Content-Type: application/json" "${auth[@]}" --data-binary "@$send_file" -w '\n%{http_code}' "${MONITOR_URL%/}/api.php?action=agent")
     rc=$?
     h_code=${resp##*$'\n'}; resp=${resp%$'\n'*}
 fi
 # Gewone adres niet bereikbaar (geen verbinding, time-out, certificaat, of de proxy geeft 502-504)? Dan via het
-# reserve-adres (agent 1.51.0), opnieuw versleuteld met een nieuwe nonce. RzMon ziet dat (X-Agent-Fallback) en meldt ⚠️.
+# reserve-adres (agent 1.51.0), opnieuw versleuteld met een nieuwe nonce. RzSense ziet dat (X-Agent-Fallback) en meldt ⚠️.
 if [ -n "$MONITOR_URL_FALLBACK" ] && { [[ " 6 7 28 35 52 56 60 " == *" $rc "* ]] || { [ "$rc" = 22 ] && [[ " 502 503 504 " == *" $h_code "* ]]; }; }; then
-    echo "RzMon niet bereikbaar via $MONITOR_URL (curl $rc${h_code:+, HTTP $h_code}); via het reserve-adres $MONITOR_URL_FALLBACK" >&2
+    echo "RzSense niet bereikbaar via $MONITOR_URL (curl $rc${h_code:+, HTTP $h_code}); via het reserve-adres $MONITOR_URL_FALLBACK" >&2
     if [ -n "$seal_n" ]; then seal "$body_file" "$payload_file.enc" || seal_n=""; fi
     spec_tls "$MONITOR_URL_FALLBACK" "$(url_spec "$MONITOR_URL_FALLBACK")"
     fb_opts=(-fsS -m 20 -X POST "${s_tls[@]}"); fb_used=1
@@ -4496,37 +4496,37 @@ if [ -n "$MONITOR_URL_FALLBACK" ] && { [[ " 6 7 28 35 52 56 60 " == *" $rc "* ]]
     rc=$?
     h_code=${resp##*$'\n'}; resp=${resp%$'\n'*}
 fi
-# Geweigerd met de algemene sleutel van RzMon (bv. ouder dan de wisseltijd)? Na 3 keer die sleutel weggooien:
+# Geweigerd met de algemene sleutel van RzSense (bv. ouder dan de wisseltijd)? Na 3 keer die sleutel weggooien:
 # dan gaat het volgende rapport onversleuteld (of met ENC_KEY). De eigen sleutel gooit de agent nooit weg; staat
-# versleutelen uit (enc.off) en weigert RzMon het token, dan staat het weer aan: de volgende keer met de sleutel.
+# versleutelen uit (enc.off) en weigert RzSense het token, dan staat het weer aan: de volgende keer met de sleutel.
 if [ "$rc" = 22 ] && [ -n "$seal_n" ] && [ -z "$kid" ] && [ -r "$enc_file" ]; then
     n_fail=$(( $(cat "$t_dir/enc.fail" 2>/dev/null || echo 0) + 1 ))
     if [ "$n_fail" -ge 3 ]; then rm -f "$enc_file" "$t_dir/enc.fail"; else echo "$n_fail" >"$t_dir/enc.fail"; fi
 elif [ "$rc" = 22 ] && [ -z "$kid" ] && [ -n "$own_key" ] && [ -e "$t_dir/enc.off" ]; then
     rm -f "$t_dir/enc.off"
 elif [ "$rc" = 22 ] && [ -n "$kid" ]; then
-    echo "RzMon weigert dit rapport. De reden staat in RzMon bij Meldingen (bv. nieuw IP-adres, of de sleutel is vernieuwd: maak dan een koppelcode in de Agent Manager)." >&2
+    echo "RzSense weigert dit rapport. De reden staat in RzSense bij Meldingen (bv. nieuw IP-adres, of de sleutel is vernieuwd: maak dan een koppelcode in de Agent Manager)." >&2
 elif [ "$rc" = 0 ]; then
     rm -f "$t_dir/enc.fail"
 fi
 if [ "$rc" = 0 ]; then resp=$(open_resp "$resp") || rc=1; fi
-# Kan RzMon gecomprimeerde rapporten lezen? Dan zegt hij "gz":1. Geweigerd terwijl het gecomprimeerd ging: de volgende
-# keer weer gewoon, tot RzMon het opnieuw zegt. Zo werkt een oudere RzMon altijd.
+# Kan RzSense gecomprimeerde rapporten lezen? Dan zegt hij "gz":1. Geweigerd terwijl het gecomprimeerd ging: de volgende
+# keer weer gewoon, tot RzSense het opnieuw zegt. Zo werkt een oudere RzSense altijd.
 if [ "$rc" = 0 ] && [[ "$resp" =~ \"gz\":[[:space:]]*1 ]]; then
     touch "$t_dir/gz.ok" 2>/dev/null
 elif [ "$rc" = 0 ] || { [ "$gz_sent" = 1 ] && [ "$rc" = 22 ]; }; then
     rm -f "$t_dir/gz.ok" 2>/dev/null
 fi
-# Dit contact bijhouden voor --status (1.60.0): laatste rapport, de laatste 30 contacten, fouten, controle van RzMon
+# Dit contact bijhouden voor --status (1.60.0): laatste rapport, de laatste 30 contacten, fouten, controle van RzSense
 if mkdir -p "$st_dir" 2>/dev/null && [ -w "$st_dir" ]; then
     st_now=$(date +%s); st_ms=$(( $(now_ms) - run_t0 )); st_sms=$(( $(now_ms) - s_t0 ))
     st_err=""
     if [ "$rc" != 0 ]; then
         case "$rc" in
-            22) st_err="RzMon weigerde het rapport (HTTP ${h_code:-?}); de reden staat in RzMon (Agent Manager)" ;;
-            6) st_err="naam van RzMon niet gevonden (DNS)" ;; 7) st_err="geen verbinding (poort dicht of RzMon uit)" ;;
-            28) st_err="geen antwoord binnen $REPORT_WAIT seconden (RzMon is te traag; zie RzMon → Instellingen → Overzicht → Gezondheid)" ;; 35|60) st_err="TLS/certificaat klopt niet" ;; 90) st_err="certificaat past niet bij de vingerafdruk" ;;
-            1) st_err="antwoord van RzMon niet te vertrouwen (handtekening)" ;; *) st_err="curl $rc${h_code:+, HTTP $h_code}" ;;
+            22) st_err="RzSense weigerde het rapport (HTTP ${h_code:-?}); de reden staat in RzSense (Agent Manager)" ;;
+            6) st_err="naam van RzSense niet gevonden (DNS)" ;; 7) st_err="geen verbinding (poort dicht of RzSense uit)" ;;
+            28) st_err="geen antwoord binnen $REPORT_WAIT seconden (RzSense is te traag; zie RzSense → Instellingen → Overzicht → Gezondheid)" ;; 35|60) st_err="TLS/certificaat klopt niet" ;; 90) st_err="certificaat past niet bij de vingerafdruk" ;;
+            1) st_err="antwoord van RzSense niet te vertrouwen (handtekening)" ;; *) st_err="curl $rc${h_code:+, HTTP $h_code}" ;;
         esac
     fi
     st_rcv=$(sed -n 's/.*"received":{\([^}]*\)}.*/\1/p' <<<"$resp" | head -c 300)
@@ -4540,13 +4540,13 @@ if mkdir -p "$st_dir" 2>/dev/null && [ -w "$st_dir" ]; then
         printf '%s\t%s\n' "$st_now" "$st_err" >>"$st_dir/errors" 2>/dev/null
         [ "$(wc -l 2>/dev/null <"$st_dir/errors")" -gt 20 ] && { tail -n 20 "$st_dir/errors" >"$st_dir/errors.tmp" && mv -f "$st_dir/errors.tmp" "$st_dir/errors"; }
     fi
-    # De beveiligingscontrole van RzMon (regels tekst, RzMon 1.100.0+)
+    # De beveiligingscontrole van RzSense (regels tekst, RzSense 1.100.0+)
     if [ "$rc" = 0 ] && [[ "$resp" =~ \"sec\":\[([^]]*)\] ]]; then
         grep -o '"[^"]*"' <<<"${BASH_REMATCH[1]}" | sed 's/^"//; s/"$//; s#\\/#/#g' >"$st_dir/sec" 2>/dev/null
     fi
 fi
 # Agent 1.69.0: wachtrij bijwerken. Gelukt: wat meeging eraf. Mislukt: de metingen van nu erbij (CPU, RAM, disks), zodat
-# de grafieken in RzMon later toch compleet zijn. Hooguit 2880 regels (een dag bij een tik van 30 s), de oudste gaan eruit.
+# de grafieken in RzSense later toch compleet zijn. Hooguit 2880 regels (een dag bij een tik van 30 s), de oudste gaan eruit.
 if [ "$rc" = 0 ] && [ "$q_sent" -gt 0 ]; then
     tail -n +"$(( q_sent + 1 ))" "$q_file" >"$q_file.tmp" 2>/dev/null && mv -f "$q_file.tmp" "$q_file"
     [ -s "$q_file" ] || rm -f "$q_file"
@@ -4554,7 +4554,7 @@ elif [ "$rc" != 0 ] && [ -d "$k_dir" ]; then
     (umask 077; printf '{"t":%s,"cpu":%s,"mem":%s,"disks":[%s]}\n' "$(date +%s)" "$cpu_pct" "$mem" "${disks%,}" >>"$q_file") 2>/dev/null
     [ "$(wc -l 2>/dev/null <"$q_file" || echo 0)" -gt 2880 ] && { tail -n 2880 "$q_file" >"$q_file.tmp" && mv -f "$q_file.tmp" "$q_file"; }
 fi
-# Agent 1.82.0: update van RzMon. Alleen uit een versleuteld antwoord (een foutpagina of proxy kan het niet nadoen)
+# Agent 1.82.0: update van RzSense. Alleen uit een versleuteld antwoord (een foutpagina of proxy kan het niet nadoen)
 hold_now=$(date +%s)
 if [ "$rc" = 0 ]; then
     if [ -n "$seal_n" ] && [[ "$resp" =~ \"rz_hold\":\{\"id\":\"([0-9a-f]{8,32})\",\"max\":([0-9]{1,6}) ]]; then
@@ -4565,24 +4565,24 @@ if [ "$rc" = 0 ]; then
     elif [ -n "$hold_id" ]; then
         if [ "$hold_since" -gt 0 ]; then
             hold_released=1
-            echo "RzMon is bijgewerkt en weer bereikbaar na $(( hold_now - hold_since )) s; de wachtrij gaat mee" >&2
+            echo "RzSense is bijgewerkt en weer bereikbaar na $(( hold_now - hold_since )) s; de wachtrij gaat mee" >&2
         fi
         rm -f "$hold_file"; hold_id=""; hold_until=0
     fi
 elif [ -n "$hold_id" ] && [ "$hold_now" -lt "$hold_until" ]; then
     [ "$hold_since" -gt 0 ] || hold_since=$hold_now
     (umask 077; printf '%s %s %s\n' "$hold_id" "$hold_until" "$hold_since" >"$hold_file") 2>/dev/null
-    echo "RzMon wordt bijgewerkt: meting in de wachtrij, wacht op de vrijgave (hooguit tot $(date -d "@$hold_until" +%H:%M 2>/dev/null || echo "$hold_until"))" >&2
+    echo "RzSense wordt bijgewerkt: meting in de wachtrij, wacht op de vrijgave (hooguit tot $(date -d "@$hold_until" +%H:%M 2>/dev/null || echo "$hold_until"))" >&2
 fi
 # Uitvoer (komt in het logboek): zonder sleutels
 sed -E 's/"(agent_key|enc_key)":"[0-9a-f]{64}"/"\1":"…"/g' <<<"$resp"
 if [ "$rc" -eq 0 ]; then
-    # Versleuteling: eigen sleutel en vingerafdruk van RzMon bewaren (alleen uit een versleuteld antwoord), de
+    # Versleuteling: eigen sleutel en vingerafdruk van RzSense bewaren (alleen uit een versleuteld antwoord), de
     # algemene sleutel (agent 1.49), of stoppen als het voor deze server uit staat
     if [ -n "$seal_n" ]; then
         store_key "$resp" && rm -f "$t_dir/enc.off"
         store_pin "$resp"
-        # Per adres hoe het gecontroleerd wordt (RzMon 1.78.0): alleen voor het gewone en het reserve-adres
+        # Per adres hoe het gecontroleerd wordt (RzSense 1.78.0): alleen voor het gewone en het reserve-adres
         if [[ "$resp" =~ \"url_pins\":\{([^}]*)\} ]]; then
             p_rest=${BASH_REMATCH[1]}; p_args=()
             while [[ "$p_rest" =~ \"([^\"]+)\":\"([^\"]*)\" ]]; do
@@ -4602,36 +4602,36 @@ if [ "$rc" -eq 0 ]; then
     # Lokaas-poort: de gemelde IP's zijn binnen, uit de set halen (een nieuwe verbinding zet ze er weer in)
     [ -n "$dc_sent4" ] && nft delete element inet rzmon dc4 "{ $dc_sent4 }" 2>/dev/null
     [ -n "$dc_sent6" ] && nft delete element inet rzmon dc6 "{ $dc_sent6 }" 2>/dev/null
-    # Heartbeats zijn binnen; namen zonder check in RzMon in het logboek zetten
+    # Heartbeats zijn binnen; namen zonder check in RzSense in het logboek zetten
     [ ${#hb_files[@]} -gt 0 ] && rm -f "${hb_files[@]}"
     if [[ "$resp" =~ \"hb_unknown\":\[([^]]*)\] ]]; then
-        echo "rzmon-hb: RzMon heeft geen heartbeat-check met de naam ${BASH_REMATCH[1]//\"/} op deze server (＋ Check → Heartbeat)" >&2
+        echo "rzmon-hb: RzSense heeft geen heartbeat-check met de naam ${BASH_REMATCH[1]//\"/} op deze server (＋ Check → Heartbeat)" >&2
     fi
-    # Uitkomst van een overstap is doorgegeven; vraagt RzMon om naar een ander adres over te stappen (alleen versleuteld)?
+    # Uitkomst van een overstap is doorgegeven; vraagt RzSense om naar een ander adres over te stappen (alleen versleuteld)?
     [ -n "$url_result" ] && rm -f "$k_dir/url.result"
     if [ -n "$seal_n" ] && [[ "$resp" =~ \"url_set\":\{\"url\":\"([^\"]+)\",\"fallback\":\"([^\"]*)\"(,\"pin\":\"([^\"]*)\",\"fb_pin\":\"([^\"]*)\")?\} ]]; then
         url_switch "$(sed 's#\\/#/#g' <<<"${BASH_REMATCH[1]}")" "$(sed 's#\\/#/#g' <<<"${BASH_REMATCH[2]}")" "${BASH_REMATCH[4]//\\/}" "${BASH_REMATCH[5]//\\/}"
     fi
-    # Uitkomst is doorgegeven; vraagt RzMon om bij te werken?
+    # Uitkomst is doorgegeven; vraagt RzSense om bij te werken?
     [ -n "$upd_result" ] && rm -f "$upd_dir/update.result"
-    # IDS, bestanden bewaken: RzMon heeft de wijzigingen; dit is nu de stand om mee te vergelijken
+    # IDS, bestanden bewaken: RzSense heeft de wijzigingen; dit is nu de stand om mee te vergelijken
     if [ -n "$fim_commit" ]; then
         mv -f "$fim_dir/state.new" "$fim_dir/state" && mv -f "$fim_dir/meta.new" "$fim_dir/meta" && mv -f "$fim_dir/roots.new" "$fim_dir/roots"
         [ "$fim_rh" != /dev/null ] && touch "$i_dir/rehash.used"
     fi
-    # Instellingen in RzMon gewijzigd (bv. een service-check toegevoegd)? Lijst bij de volgende run opnieuw ophalen.
+    # Instellingen in RzSense gewijzigd (bv. een service-check toegevoegd)? Lijst bij de volgende run opnieuw ophalen.
     rev=$(sed -n 's/.*"tests_rev":[[:space:]]*"\([0-9a-f]\{8,64\}\)".*/\1/p' <<<"$resp")
     if [ -n "$rev" ] && [ -n "${t_cache-}" ] && [ -r "$t_cache" ] && [ "$(sha1sum "$t_cache" | cut -c1-12)" != "$rev" ]; then
         : >"$t_dir/tests.stale" 2>/dev/null || rm -f "$t_cache"   # volgende run opnieuw ophalen; de oude lijst blijft tot dan
     fi
-    [[ "$resp" =~ \"update\":[[:space:]]*\{ ]] && [ -z "$hold_id" ] && remote_update "$resp"   # 1.82.0: niet tijdens een update van RzMon
-    # Softwarelijst: RzMon heeft deze stand nu (of vraagt om alles opnieuw); uitkomst van het bijwerken is doorgegeven
+    [[ "$resp" =~ \"update\":[[:space:]]*\{ ]] && [ -z "$hold_id" ] && remote_update "$resp"   # 1.82.0: niet tijdens een update van RzSense
+    # Softwarelijst: RzSense heeft deze stand nu (of vraagt om alles opnieuw); uitkomst van het bijwerken is doorgegeven
     if [ -n "$pk_hash" ]; then
         if [[ "$resp" =~ \"packages_resend\":[[:space:]]*true ]]; then : >"$pk_dir/resend"; rm -f "$pk_dir/sent"
         elif [[ "$resp" =~ \"packages_ok\":[[:space:]]*true ]]; then printf '%s' "$pk_hash" >"$pk_dir/sent"; rm -f "$pk_dir/tried"; fi
     fi
     [ -n "$pkg_result" ] && rm -f "$pk_dir/upgrade.result"
-    # Endpoint-bewaking: de meegestuurde gebeurtenissen zijn binnen; vraagt RzMon om processen meteen te stoppen?
+    # Endpoint-bewaking: de meegestuurde gebeurtenissen zijn binnen; vraagt RzSense om processen meteen te stoppen?
     # (alleen versleuteld, en alleen als de starttijd klopt: nooit een ander proces dat dat nummer later kreeg)
     if [ -n "$edr_json" ] && [ -s "$edr_dir/edr.sending" ]; then
         tail -n +501 "$edr_dir/edr.sending" >"$edr_dir/edr.rest" 2>/dev/null && mv -f "$edr_dir/edr.rest" "$edr_dir/edr.sending"
@@ -4640,7 +4640,7 @@ if [ "$rc" -eq 0 ]; then
     fi
     # Suricata: de positie pas bewaren als het rapport is aangekomen
     [ -n "$edr_json" ] && [ -f "$edr_dir/eve.pos.new" ] && mv -f "$edr_dir/eve.pos.new" "$edr_dir/eve.pos"
-    # YARA-regels van RzMon (alleen versleuteld): eerst controleren of yara ze kan lezen, dan pas vervangen
+    # YARA-regels van RzSense (alleen versleuteld): eerst controleren of yara ze kan lezen, dan pas vervangen
     if [ -n "$seal_n" ] && [ -n "$edr_json" ] && [[ "$resp" =~ \"edr_yara\":\"([A-Za-z0-9+/=]{20,})\" ]]; then
         printf '%s' "${BASH_REMATCH[1]}" | base64 -d >"$edr_dir/rzmon.yar.new" 2>/dev/null
         if command -v yara >/dev/null 2>&1 && timeout 20 yara -w "$edr_dir/rzmon.yar.new" /dev/null >/dev/null 2>&1; then
@@ -4656,7 +4656,7 @@ if [ "$rc" -eq 0 ]; then
             [ -f "$t_dir/ids/killed.$k_pid.$k_start" ] && continue
             k_res=weg
             if [ "$(awk '{ print $22 }' "/proc/$k_pid/stat" 2>/dev/null)" = "$k_start" ]; then
-                # Nooit iets van RzMon of de agent zelf (agent 1.65.0)
+                # Nooit iets van RzSense of de agent zelf (agent 1.65.0)
                 if [[ "$(cat "/proc/$k_pid/cgroup" 2>/dev/null)" =~ /rzmon-[^/]*\.service ]]; then k_res=eigen
                 elif kill -KILL "$k_pid" 2>/dev/null; then k_res=ok; else k_res=fout; fi
             fi
@@ -4665,7 +4665,7 @@ if [ "$rc" -eq 0 ]; then
         done < <(grep -o '\[[0-9]*,[0-9]*\]' <<<"${BASH_REMATCH[0]#*:}" | tr -d '[]')
     fi
     [[ "$resp" =~ \"pkg_upgrade\":[[:space:]]*\{ ]] && [ -n "$pk_mgr" ] && pkg_upgrade "$resp"
-    # Zelf herstellen: de uitkomsten zijn binnen; vraagt RzMon om een herstelcommando (alleen versleuteld)?
+    # Zelf herstellen: de uitkomsten zijn binnen; vraagt RzSense om een herstelcommando (alleen versleuteld)?
     rm -f "$heal_dir/done.sending" "$t_dir/watchdog.gap"
     if [ -n "$seal_n" ] && [ "$HEAL" != 0 ] && [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [[ "$resp" =~ \"heal_run\":\[(\[[0-9]+,\"[A-Za-z0-9._-]+\"\],?)+\] ]]; then
         while IFS=, read -r hr_id hr_name; do
@@ -4688,14 +4688,14 @@ elif [ -s "$heal_dir/done.sending" ]; then
     cat "$heal_dir/done.sending" >>"$heal_dir/done" 2>/dev/null && rm -f "$heal_dir/done.sending"   # volgende keer opnieuw
 fi
 
-# ---------------------------------------------------------------- Logs verzamelen en versturen (agent 1.83.0, RzMon 1.210.0)
-# Bronnen uit RzMon (tests.cache): id <tab> logsrc <tab> soort <tab> bron <tab> niveau (0 alles, 1 info en erger, 2 warning en
+# ---------------------------------------------------------------- Logs verzamelen en versturen (agent 1.83.0, RzSense 1.210.0)
+# Bronnen uit RzSense (tests.cache): id <tab> logsrc <tab> soort <tab> bron <tab> niveau (0 alles, 1 info en erger, 2 warning en
 # erger, 3 alleen errors). Verder: 0 <tab> logship <tab> seconden tussen pakketjes, en 0 <tab> logpause <tab> tot (epoch):
 # de daglimiet is bereikt, tot dan niets lezen (daarna verder waar we waren).
 # Elke run gaan de nieuwe regels van elke bron achteraan in een spoolbestand. Per bestand onthoudt de agent waar hij was,
 # ook na logrotatie; een nieuwe bron begint aan het einde (oude regels worden niet ingelezen). Is het tijd (of is het
-# spoolbestand groter dan 8 MB), dan wordt het één pakketje (gzip) dat versleuteld naar RzMon gaat, los van het rapport.
-# Met de tijdzone van de server erbij (voor regels zonder zone). Pas als RzMon het pakketje bevestigt, gaat het weg. Geen verbinding: de pakketjes blijven (samen hooguit 50 MB; daarboven
+# spoolbestand groter dan 8 MB), dan wordt het één pakketje (gzip) dat versleuteld naar RzSense gaat, los van het rapport.
+# Met de tijdzone van de server erbij (voor regels zonder zone). Pas als RzSense het pakketje bevestigt, gaat het weg. Geen verbinding: de pakketjes blijven (samen hooguit 50 MB; daarboven
 # gaan de oudste weg, en het volgende pakketje zegt hoeveel). Bestanden alleen binnen LOG_DIRS. Uitzetten: LOG_SHIP=0.
 ls_dir="$k_dir/logship"
 if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlogsrc\t' "$t_cache" && [ "${LOG_SHIP:-1}" != 0 ]; then
@@ -4849,13 +4849,13 @@ if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlogsrc\t' "$t_cache" && [ "${LOG_S
         echo "Logs: geen sleutel om te versleutelen; de pakketjes blijven liggen (koppel de agent met een koppelcode)" >&2
     fi
 elif [ -d "$ls_dir" ]; then
-    rm -rf -- "${k_dir:?}/logship"   # geen bronnen meer (of uitgezet in RzMon): de wachtrij en de standen opruimen
+    rm -rf -- "${k_dir:?}/logship"   # geen bronnen meer (of uitgezet in RzSense): de wachtrij en de standen opruimen
 fi
 # ---------------------------------------------------------------- 🐕 Waakhond (agent 1.62.0)
-# In RzMon per agent aan te zetten (Agent Manager). Lukt het rapport een tijd niet (standaard 5 minuten), dan stuurt de
-# agent zelf een pushbericht (Pushover en/of ntfy), en een herstelbericht als RzMon terug is. Bereikt de agent ook Pushover niet, dan ligt
-# het aan zijn eigen netwerk: dan geen bericht, wel een notitie voor RzMon. Draait RzMon wel, maar staan de checks stil
-# (cron), dan meldt hij dat ook. De Pushover-gegevens komen versleuteld van RzMon (cache, alleen voor root).
+# In RzSense per agent aan te zetten (Agent Manager). Lukt het rapport een tijd niet (standaard 5 minuten), dan stuurt de
+# agent zelf een pushbericht (Pushover en/of ntfy), en een herstelbericht als RzSense terug is. Bereikt de agent ook Pushover niet, dan ligt
+# het aan zijn eigen netwerk: dan geen bericht, wel een notitie voor RzSense. Draait RzSense wel, maar staan de checks stil
+# (cron), dan meldt hij dat ook. De Pushover-gegevens komen versleuteld van RzSense (cache, alleen voor root).
 wd_line=$(awk -F'\t' '$1 == "0" && $2 == "watchdog" { print; exit }' "${t_cache:-/dev/null}" 2>/dev/null)
 if [ -n "$wd_line" ] && [ "$WATCHDOG" != 0 ] && [ "$TEST" != 1 ]; then
     IFS=$'\t' read -r _ _ wd_min wd_user wd_token wd_prio wd_nsrv wd_ntop wd_ntok _ <<<"$wd_line"
@@ -4889,12 +4889,12 @@ if [ -n "$wd_line" ] && [ "$WATCHDOG" != 0 ] && [ "$TEST" != 1 ]; then
     wd_now=$(date +%s)
     if [ "$rc" != 0 ]; then
         [ "$wd_down" -gt 0 ] || wd_down=$wd_now
-        # Agent 1.82.0: tijdens een aangekondigde update van RzMon niet alarmeren, tot de tijd die RzMon meegaf voorbij is
-        wd_title="⚠️ RzMon onbereikbaar"
-        wd_msg="RzMon is vanaf $hostname niet bereikbaar sinds $(date -d "@$wd_down" +%H:%M 2>/dev/null || date +%H:%M)${st_err:+ ($st_err)}. Gemeld door de waakhond op $hostname."
+        # Agent 1.82.0: tijdens een aangekondigde update van RzSense niet alarmeren, tot de tijd die RzSense meegaf voorbij is
+        wd_title="⚠️ RzSense onbereikbaar"
+        wd_msg="RzSense is vanaf $hostname niet bereikbaar sinds $(date -d "@$wd_down" +%H:%M 2>/dev/null || date +%H:%M)${st_err:+ ($st_err)}. Gemeld door de waakhond op $hostname."
         if [ -n "${hold_id-}" ]; then
-            wd_title="⚠️ RzMon onbereikbaar tijdens update"
-            wd_msg="De update van RzMon begon om $(date -d "@${hold_since:-$wd_down}" +%H:%M 2>/dev/null || echo ?) en RzMon is nog niet terug$( [ -s "${q_file-}" ] && echo "; $(wc -l <"$q_file") metingen in de wachtrij"). Gemeld door de waakhond op $hostname."
+            wd_title="⚠️ RzSense onbereikbaar tijdens update"
+            wd_msg="De update van RzSense begon om $(date -d "@${hold_since:-$wd_down}" +%H:%M 2>/dev/null || echo ?) en RzSense is nog niet terug$( [ -s "${q_file-}" ] && echo "; $(wc -l <"$q_file") metingen in de wachtrij"). Gemeld door de waakhond op $hostname."
         fi
         if [ "$wd_sent" = 0 ] && [ $(( wd_now - wd_down )) -ge $(( wd_min * 60 )) ] && { [ -z "${hold_id-}" ] || [ "$wd_now" -ge "${hold_until:-0}" ]; }; then
             if wd_push "$wd_title" "$wd_msg" "$wd_prio"; then
@@ -4905,18 +4905,18 @@ if [ -n "$wd_line" ] && [ "$WATCHDOG" != 0 ] && [ "$TEST" != 1 ]; then
         fi
     else
         if [ "$wd_down" -gt 0 ]; then
-            [ "$wd_sent" = 1 ] && wd_push "✅ RzMon weer bereikbaar" "RzMon is vanaf $hostname weer bereikbaar ($(( (wd_now - wd_down + 59) / 60 )) min weg)." -1
-            # Voor RzMon (ℹ️ in het volgende rapport): alleen als het langer duurde dan de ingestelde tijd
+            [ "$wd_sent" = 1 ] && wd_push "✅ RzSense weer bereikbaar" "RzSense is vanaf $hostname weer bereikbaar ($(( (wd_now - wd_down + 59) / 60 )) min weg)." -1
+            # Voor RzSense (ℹ️ in het volgende rapport): alleen als het langer duurde dan de ingestelde tijd
             [ $(( wd_now - wd_down )) -ge $(( wd_min * 60 )) ] && [ "${hold_released:-0}" = 0 ] && printf '{"down":%s,"up":%s,"sent":%s,"self":%s}\n' "$wd_down" "$wd_now" "$wd_sent" "$wd_self" >"$wd_file.gap"
             wd_down=0; wd_sent=0; wd_self=0
         fi
-        # RzMon antwoordt, maar staan de checks stil (cron)?
+        # RzSense antwoordt, maar staan de checks stil (cron)?
         wd_age=$(sed -n 's/.*"cron_age":[[:space:]]*\([0-9]\{1,9\}\).*/\1/p' <<<"$resp" | head -n 1)
         if [[ "$wd_age" =~ ^[0-9]+$ ]]; then
             if [ "$wd_age" -ge $(( wd_min * 60 )) ] && [ "$wd_cron" = 0 ]; then
-                wd_push "⚠️ RzMon: checks staan stil" "RzMon antwoordt, maar de checks hebben al $(( wd_age / 60 )) min niet gedraaid (cron). Gemeld door de waakhond op $hostname." "$wd_prio" && wd_cron=1
+                wd_push "⚠️ RzSense: checks staan stil" "RzSense antwoordt, maar de checks hebben al $(( wd_age / 60 )) min niet gedraaid (cron). Gemeld door de waakhond op $hostname." "$wd_prio" && wd_cron=1
             elif [ "$wd_age" -lt 300 ] && [ "$wd_cron" = 1 ]; then
-                wd_push "✅ RzMon: checks draaien weer" "De checks in RzMon draaien weer (gezien vanaf $hostname)." -1
+                wd_push "✅ RzSense: checks draaien weer" "De checks in RzSense draaien weer (gezien vanaf $hostname)." -1
                 wd_cron=0
             fi
         fi

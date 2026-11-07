@@ -1,6 +1,6 @@
 # ---------------------------------------------------------------- Endpoint-bewaking (agent 1.63.0)
-# Aan per server in RzMon (regel "0 <tab> edr <tab> 1"); EDR=0 zet het op deze server altijd uit. De realtime-watcher
-# start dan sensoren die elke gebeurtenis meteen in een wachtrij zetten (edr.spool) en een run starten. RzMon toetst
+# Aan per server in RzSense (regel "0 <tab> edr <tab> 1"); EDR=0 zet het op deze server altijd uit. De realtime-watcher
+# start dan sensoren die elke gebeurtenis meteen in een wachtrij zetten (edr.spool) en een run starten. RzSense toetst
 # ze aan zijn regels (eigen regels en Sigma) en kan het proces laten stoppen, het IP blokkeren of de server isoleren.
 #  - processen (auditd, execve), bewaakte paden (accounts, sudo, cron, systemd, ssh) en kernelmodules;
 #  - netwerk (ss, elke 5 s): nieuwe uitgaande verbindingen en nieuwe luisterpoorten;
@@ -37,12 +37,12 @@ edr_audit_awk() {
         close("/etc/passwd")
         cur = ""; minute = 0; sent = 0; drop = 0; reset = 0; ownn = 0
     }
-    # Van RzMon zelf (agent 1.65.0): de agent en wat hij start (systemd-groep rzmon-*.service, of als root vanuit
-    # rzmon-agent), en RzMon op zijn eigen server (PHP in de RzMon-map, als de gebruiker van RzMon of root). Kinderen
-    # erven het. RzMon logt dat als "toegestaan" en grijpt er nooit op in.
+    # Van RzSense zelf (agent 1.65.0): de agent en wat hij start (systemd-groep rzmon-*.service, of als root vanuit
+    # rzmon-agent), en RzSense op zijn eigen server (PHP in de RzSense-map, als de gebruiker van RzSense of root). Kinderen
+    # erven het. RzSense logt dat als "toegestaan" en grijpt er nooit op in.
     # Agent 1.67.0: ook een kind van een run van de agent (zijn PID staat in own.pids; de run kan al klaar zijn als de
-    # gebeurtenis binnenkomt, dan is /proc weg), het geheime kenmerk van RzMon in de opdracht (alles wat RzMon start), en de
-    # cron van RzMon (crond → sh -c php …/cron/run.php)
+    # gebeurtenis binnenkomt, dan is /proc weg), het geheime kenmerk van RzSense in de opdracht (alles wat RzSense start), en de
+    # cron van RzSense (crond → sh -c php …/cron/run.php)
     function agentpid(p,   l, hit) {
         hit = 0
         if (p == 0) return 0
@@ -169,7 +169,7 @@ edr_audit_awk() {
 }
 
 # SWAG/nginx-log (stdin) → verdachte verzoeken als JSON (zonder haakjes), hooguit 100:
-# [ip, tijd, methode, pad+query, status, bytes, user-agent, verwijzer]; RzMon beoordeelt ze precies
+# [ip, tijd, methode, pad+query, status, bytes, user-agent, verwijzer]; RzSense beoordeelt ze precies
 edr_swag_req() {
     awk -F'"' '
     function esc(s) { gsub(/\\/, "&&", s); gsub(/"/, "\\\"", s); gsub(/[\001-\037\177]/, " ", s); return s }
@@ -189,7 +189,7 @@ edr_swag_req() {
     }'
 }
 
-# Van RzMon zelf? (agent 1.65.0) edr_own <pid> <programma> <gebruiker> [<ip>]: agent, rzmon, net (verkeer met RzMon) of leeg
+# Van RzSense zelf? (agent 1.65.0) edr_own <pid> <programma> <gebruiker> [<ip>]: agent, rzmon, net (verkeer met RzSense) of leeg
 edr_own() {
     local cg=""
     [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -gt 0 ] && cg=$(cat "/proc/$1/cgroup" 2>/dev/null)
@@ -296,7 +296,7 @@ edr_file() {
     [ -n "$yr" ] || yr=$(edr_yara "$p")
     edr_emit "{\"k\":\"f\",\"t\":$(date +%s),\"path\":\"$(edr_j "$p")\",\"size\":$sz,\"elf\":$elf,\"x\":$x,\"sha\":\"$sha\"${susp:+,\"susp\":\"$(edr_j "$susp")\"}${yr:+,\"yara\":\"$(edr_j "$yr")\"}}"
 }
-# YARA (agent 1.64.0): de regels komen van RzMon (versleuteld, rzmon.yar); namen van de regels die raak zijn, met komma's
+# YARA (agent 1.64.0): de regels komen van RzSense (versleuteld, rzmon.yar); namen van de regels die raak zijn, met komma's
 edr_yara() {
     [ -s "$edr_dir/rzmon.yar" ] && command -v yara >/dev/null 2>&1 || return 0
     timeout 10 yara -w "$edr_dir/rzmon.yar" "$1" 2>/dev/null | awk '$1 ~ /^[A-Za-z0-9_]+$/ { print $1 }' | head -n 8 | tr '\n' ',' | sed 's/,$//'
@@ -361,7 +361,7 @@ edr_eve_awk() {
     }'
 }
 
-# Testen zonder RzMon (tests/agent-edr.sh): rzmon-agent.sh --edr-parse audit|swag|eve < bestand
+# Testen zonder RzSense (tests/agent-edr.sh): rzmon-agent.sh --edr-parse audit|swag|eve < bestand
 if [ "${1-}" = "--edr-parse" ]; then
     case "${2-}" in
         audit) edr_audit_awk ;;

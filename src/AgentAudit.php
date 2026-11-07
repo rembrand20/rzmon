@@ -2,12 +2,12 @@
 declare(strict_types=1);
 
 /**
- * Verbindingscontrole per agent (1.100.0): is de verbinding met RzMon zo veilig als hij kan zijn, en staat er niets
+ * Verbindingscontrole per agent (1.100.0): is de verbinding met RzSense zo veilig als hij kan zijn, en staat er niets
  * overbodigs meer in de instellingen op de server? Te zien in de agenttabel, de Agent Manager, "Hoe staat het
  * ervoor?" en op de server zelf (rzmon-agent-setup --status, want de uitkomst gaat met elk antwoord mee).
  * - De agent (1.60.0+) meldt welke regels in zijn instellingen overbodig zijn (alleen de namen) en de SHA-256 van
- *   zijn script; RzMon vergelijkt die met zijn eigen agent (is het script op de server ongewijzigd?).
- * - Services uit de verouderde regel SERVICES worden service-checks in RzMon; daarna kan de regel weg.
+ *   zijn script; RzSense vergelijkt die met zijn eigen agent (is het script op de server ongewijzigd?).
+ * - Services uit de verouderde regel SERVICES worden service-checks in RzSense; daarna kan de regel weg.
  * - Wordt een agent onveilig (geen eigen sleutel, onversleuteld, script gewijzigd, certificaat niet gecontroleerd),
  *   dan een ⚠️-melding via de kanalen van Systeeminfo (agent_sec), en ✅ als het weer goed is.
  * - Opruimen: tokens van agents met een eigen sleutel wissen, de algemene sleutel als niemand hem meer nodig heeft,
@@ -20,7 +20,7 @@ final class AgentAudit
     /** Punten waarvoor een ⚠️-melding gaat */
     private const CRITICAL = ['ownkey', 'enc', 'integrity', 'tls'];
 
-    /** SHA-256 van de agent zoals RzMon hem levert */
+    /** SHA-256 van de agent zoals RzSense hem levert */
     public static function agentSha(): string
     {
         static $sha = null;
@@ -55,11 +55,11 @@ final class AgentAudit
             $conn === '' => t('nog niet bekend'),
             $fb => t('via het reserve-adres (werkt het gewone adres nog?)'),
             $conn === 'proxy' => t('via de reverse proxy'),
-            $conn === 'https' => AgentCrypto::pinOn($h) ? t('rechtstreeks, met het certificaat van RzMon vastgezet') : t('rechtstreeks'),
+            $conn === 'https' => AgentCrypto::pinOn($h) ? t('rechtstreeks, met het certificaat van RzSense vastgezet') : t('rechtstreeks'),
             default => t('via http: de inhoud is versleuteld, maar zet de agent over op https (🌐 Adres)'),
         });
         if ($cfg !== null && (int) ($cfg['insecure'] ?? 0) === 1) {
-            $add('tls', false, t('Certificaat van RzMon'), t('wordt niet gecontroleerd (INSECURE=1 zonder vingerafdruk): koppel opnieuw met een koppelcode'));
+            $add('tls', false, t('Certificaat van RzSense'), t('wordt niet gecontroleerd (INSECURE=1 zonder vingerafdruk): koppel opnieuw met een koppelcode'));
         }
         $lock = AgentCrypto::ipLockOn($h);
         $add('iplock', $lock, t('IP-slot'), $lock ? t('alleen vanaf {ip}', ['ip' => trim((string) ($h['agent_ips'] ?? '')) ?: '?']) : t('staat uit voor deze server'));
@@ -72,7 +72,7 @@ final class AgentAudit
             $add('keyage', $days === 0 ? null : ($age === null ? null : $age <= $days + 3), t('Sleutel vernieuwd'),
                 $days === 0 ? t('vernieuwen staat uit') : ($age === null ? t('onbekend') : t('{n} dagen oud (wordt elke {d} dagen vernieuwd)', ['n' => $age, 'd' => $days])));
             $tok = !empty($h['agent_token']);
-            $add('token', !$tok, t('Geen token meer'), $tok ? t('RzMon bewaart nog een token voor deze server: 🧹 Opruimen wist het') : t('alleen de eigen sleutel geldt'));
+            $add('token', !$tok, t('Geen token meer'), $tok ? t('RzSense bewaart nog een token voor deze server: 🧹 Opruimen wist het') : t('alleen de eigen sleutel geldt'));
         }
         if ($cfg === null) {
             $add('config', null, t('Instellingen op de server'), t('agent {v} of nieuwer nodig', ['v' => self::CFG_MIN]));
@@ -89,8 +89,8 @@ final class AgentAudit
             $add('integrity', $sha === '' || !$same ? null : hash_equals(self::agentSha(), $sha), t('Agent ongewijzigd'), match (true) {
                 $sha === '' => t('onbekend'),
                 !$same => t('vergelijken kan bij de nieuwste versie ({v})', ['v' => AGENT_LATEST]),
-                hash_equals(self::agentSha(), $sha) => t('gelijk aan agent {v} van RzMon (SHA-256 {s}…)', ['v' => AGENT_LATEST, 's' => substr($sha, 0, 12)]),
-                default => t('het script op de server wijkt af van agent {v} van RzMon: met de hand aangepast? ⬆ Opnieuw installeren zet het goed', ['v' => AGENT_LATEST]),
+                hash_equals(self::agentSha(), $sha) => t('gelijk aan agent {v} van RzSense (SHA-256 {s}…)', ['v' => AGENT_LATEST, 's' => substr($sha, 0, 12)]),
+                default => t('het script op de server wijkt af van agent {v} van RzSense: met de hand aangepast? ⬆ Opnieuw installeren zet het goed', ['v' => AGENT_LATEST]),
             });
             $bk = (int) ($cfg['backups'] ?? 0);
             $add('backup', $bk > 0 ? true : null, t('Reservekopie'), $bk > 0 ? t('{n} op de server, laatste: {f}', ['n' => $bk, 'f' => $cfg['backup_last'] ?? '?']) : t('komt bij de volgende update'));
@@ -158,7 +158,7 @@ final class AgentAudit
     }
 
     /**
-     * Services uit de verouderde regel SERVICES: een service-check in RzMon als die er nog niet is.
+     * Services uit de verouderde regel SERVICES: een service-check in RzSense als die er nog niet is.
      * Alleen services die nu draaien (1.101.1): oude installaties hebben vaak namen die op die server niet
      * bestaan (ssh/cron op Rocky heten sshd/crond) of niet als vaste service draaien (podman).
      */

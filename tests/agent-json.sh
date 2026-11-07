@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Agenttest (GitHub Actions, per Linux-versie): draait de agent één keer tegen een nep-RzMon en controleert of het
+# Agenttest (GitHub Actions, per Linux-versie): draait de agent één keer tegen een nep-RzSense en controleert of het
 # rapport geldige JSON is, ook met lastige tekens (backslash, aanhalingsteken) in de opdrachtregel van een proces.
 # De awk van de distributie telt mee (mawk op Debian, gawk op Rocky, busybox op Alpine): daar zat de fout van 1.61.1.
 # Gebruik (als root): bash tests/agent-json.sh
@@ -40,7 +40,7 @@ if 'audit' not in info or not isinstance(d['edr'].get('ev'), list):
     print('✘ endpoint-bewaking ontbreekt in het rapport (edr.info/ev):', d.get('edr')); sys.exit(1)
 st = d.get('selftest') or {}
 if st.get('id') != 42 or not any(i.get('k') == 'url' and i.get('ok') == 'ok' for i in st.get('items', [])):
-    print('✘ zelftest ontbreekt of het adres van RzMon was niet bereikbaar (selftest):', st); sys.exit(1)
+    print('✘ zelftest ontbreekt of het adres van RzSense was niet bereikbaar (selftest):', st); sys.exit(1)
 print('✔ zelftest: ' + ', '.join('%s=%s' % (i['k'], i['ok']) for i in st['items']))
 nic = d.get('nic')   # agent 1.80.0: netwerkkaarten (in een container zonder echte netwerkkaart mag het ontbreken)
 if nic is not None and not (isinstance(nic.get('rx'), int) and isinstance(nic.get('tx'), int) and nic.get('ifs')):
@@ -54,7 +54,7 @@ if not odd:
 PY
 rc=$?
 [ "$rc" = 0 ] || exit "$rc"
-# Agent 1.73.0: tweede rapport, nu RzMon "gz":1 zei, moet gecomprimeerd komen (en uitgepakt weer geldige JSON zijn)
+# Agent 1.73.0: tweede rapport, nu RzSense "gz":1 zei, moet gecomprimeerd komen (en uitgepakt weer geldige JSON zijn)
 if command -v gzip >/dev/null 2>&1; then
     rm -f "$work/payload.json" "$work/gz.size"
     MONITOR_URL="http://127.0.0.1:$port" TOKEN=ci-test RZ_FORCE=1 CACHE_DIRECTORY="$work/cache" AGENT_DIR="$work/agent" \
@@ -67,7 +67,7 @@ if command -v gzip >/dev/null 2>&1; then
 else
     echo "· gzip ontbreekt: compressie niet getest"
 fi
-# Agent 1.82.0: tijdens een (aangekondigde) update van RzMon gaat de meting in de wachtrij en wacht de agent op de vrijgave;
+# Agent 1.82.0: tijdens een (aangekondigde) update van RzSense gaat de meting in de wachtrij en wacht de agent op de vrijgave;
 # daarna gaan de wachttijd en de wachtrij mee en is de aankondiging weg. (De aankondiging zelf komt alleen versleuteld;
 # hier zetten we hem klaar zoals de agent hem na zo'n antwoord bewaart.)
 hold_f="$work/agent/keys/rzhold"
@@ -77,15 +77,15 @@ MONITOR_URL="http://127.0.0.1:1" TOKEN=ci-test RZ_FORCE=1 CACHE_DIRECTORY="$work
     HEAL_DIR="$work/heal.d" IDS_BLOCK=0 PODMAN=0 timeout 300 bash agent/rzmon-agent.sh >"$work/out" 2>&1
 read -r _ _ h_since _ <"$hold_f" 2>/dev/null
 if [ "${h_since:-0}" -le 0 ] || ! grep -q 'wacht op de vrijgave' "$work/out"; then
-    echo "✘ update van RzMon: de agent wachtte niet op de vrijgave"; tail -n 20 "$work/out"; exit 1
+    echo "✘ update van RzSense: de agent wachtte niet op de vrijgave"; tail -n 20 "$work/out"; exit 1
 fi
 rm -f "$work/payload.json"
 MONITOR_URL="http://127.0.0.1:$port" TOKEN=ci-test RZ_FORCE=1 CACHE_DIRECTORY="$work/cache" AGENT_DIR="$work/agent" \
     HEAL_DIR="$work/heal.d" IDS_BLOCK=0 PODMAN=0 HOLD_JITTER=0 timeout 300 bash agent/rzmon-agent.sh >"$work/out" 2>&1
 if ! python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); h=d["hold"]; assert h["id"]=="abcdef012345" and h["since"]>0 and h["q"]>=1 and d.get("backlog")' "$work/payload.json" 2>/dev/null || [ -e "$hold_f" ]; then
-    echo "✘ update van RzMon: na de vrijgave geen wachttijd/wachtrij meegestuurd, of de aankondiging bleef staan"; tail -n 20 "$work/out"; exit 1
+    echo "✘ update van RzSense: na de vrijgave geen wachttijd/wachtrij meegestuurd, of de aankondiging bleef staan"; tail -n 20 "$work/out"; exit 1
 fi
-echo "✔ update van RzMon: meting in de wachtrij, na de vrijgave nagestuurd met de wachttijd"
+echo "✔ update van RzSense: meting in de wachtrij, na de vrijgave nagestuurd met de wachttijd"
 # Agent 1.83.0: logs verzamelen. Eerste run met de map toegestaan: bij het einde beginnen. Daarna alleen de nieuwe regels van
 # niveau 2 (warning en erger); een halve laatste regel wacht. Het pakketje (gzip) ligt klaar; zonder sleutel gaat het niet weg.
 mkdir -p "$work/logs"; : >"$work/logs/app.log"

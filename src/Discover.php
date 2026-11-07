@@ -126,7 +126,7 @@ final class Discover
                 $add("service:$name", 'service', (string) $name, t('Service'), ['type' => 'service', 'target' => $name, 'name' => (string) $name, 'deep' => true]);
             }
         }
-        // Poorten die van buiten bereikbaar zijn (niet alleen op 127.0.0.1); RzMon kijkt of ze open staan
+        // Poorten die van buiten bereikbaar zijn (niet alleen op 127.0.0.1); RzSense kijkt of ze open staan
         $seen = $tls = [];
         foreach ((array) json_decode((string) ($data['ports'] ?? '[]'), true) as $p) {
             $port = (int) ($p['port'] ?? 0);

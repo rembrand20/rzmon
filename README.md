@@ -1,13 +1,13 @@
 <h1>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="brand/rzmon-logo-dark.svg">
-    <img src="brand/rzmon-logo.svg" alt="RzMon" height="64">
+    <img src="brand/rzmon-logo.svg" alt="RzSense" height="64">
   </picture>
 </h1>
 
 Lichtgewicht server-monitoring in PHP 8 + MariaDB met een moderne HTML5-interface, meldingen via Pushover, e-mail en Home Assistant, en MQTT discovery voor Home Assistant.
 
-✨ **Alle features van RzMon en de agent op een rij: [FEATURES.md](FEATURES.md)**
+✨ **Alle features van RzSense en de agent op een rij: [FEATURES.md](FEATURES.md)**
 📖 **Uitgebreide installatiehandleiding en uitleg van alle features: [HANDLEIDING.md](HANDLEIDING.md)**
 🐧 **Rocky Linux 10 / RHEL 10 / AlmaLinux 10 (met SELinux en firewalld): [INSTALL-ROCKY-LINUX-10.md](INSTALL-ROCKY-LINUX-10.md)**, of in één keer met het installatiescript:
 ```bash
@@ -31,16 +31,16 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 | RAM | Geheugengebruik (MemAvailable) + swap | % gebruikt |
 | Podman (algemeen) | Via de agent: gestopte, ongezonde of gepauzeerde containers, pods | probleem = WARNING |
 | Logbestand (zoeken) | Via de agent: treffers in een logbestand, het systemlog of kernelmeldingen, met voorinstellingen voor mislukte logins, disk- en hardwarefouten | aantal treffers in 15 min |
-| SNMP | RzMon leest switches, access points, NAS, UPS, printers en Proxmox zelf uit (v2c/v3): uptime, CPU, geheugen, interfaces, opslag, UPS, Synology, toner, UniFi (clients per band en SSID, kanaalbezetting, isolated, firmware), of een eigen OID | per meting (%, °C, min…) |
+| SNMP | RzSense leest switches, access points, NAS, UPS, printers en Proxmox zelf uit (v2c/v3): uptime, CPU, geheugen, interfaces, opslag, UPS, Synology, toner, UniFi (clients per band en SSID, kanaalbezetting, isolated, firmware), of een eigen OID | per meting (%, °C, min…) |
 | Heartbeat | Een script, back-up of cronjob meldt zich zelf: `rzmon-hb NAAM ok` (via de agent) of een geheime URL; schema (elke X, dagelijks, wekelijks, cron) met speling, start/ok/fail, duur en een waarde | te laat = WARNING, 2× speling = CRITICAL, fail = CRITICAL |
 | Container (Podman) | Via de agent, één check per container: status (healthcheck, herstarts) plus naar keuze CPU, RAM en disk | %, MB (eigen drempels per meting) |
 
 **Host-types**
 - **Lokaal** – de monitor-server zelf: disk en services worden direct uitgelezen.
-- **Agent** – remote Linux-server met `agent/rzmon-agent.sh`, geïnstalleerd met één commando (`agent/install-agent.sh`, wordt door RzMon zelf aangeboden), (bash + curl) die elke minuut disk & services pusht, of **Home Assistant OS** met de add-on in `ha-addon/`. Stopt de agent met rapporteren → CRITICAL.
+- **Agent** – remote Linux-server met `agent/rzmon-agent.sh`, geïnstalleerd met één commando (`agent/install-agent.sh`, wordt door RzSense zelf aangeboden), (bash + curl) die elke minuut disk & services pusht, of **Home Assistant OS** met de add-on in `ha-addon/`. Stopt de agent met rapporteren → CRITICAL.
 - **Remote** – alleen netwerkchecks (ping/poort/http), bv. routers, NAS, externe sites.
 
-**Poortscan**: scan vanuit RzMon welke TCP-poorten op een server open staan (bekende poorten, 1-1024 of een eigen lijst/range) en voeg ze met één klik toe als check. Bij agent-servers zie je ook welke poorten er lokaal luisteren, inclusief procesnaam.
+**Poortscan**: scan vanuit RzSense welke TCP-poorten op een server open staan (bekende poorten, 1-1024 of een eigen lijst/range) en voeg ze met één klik toe als check. Bij agent-servers zie je ook welke poorten er lokaal luisteren, inclusief procesnaam.
 
 **Onderhoud & afhankelijkheden**: 🔧 meldingen pauzeren voor alles, een server of een check (bv. tijdens updates). 🔗 Servers achter een router/switch/VPN geven geen eigen melding als die onbereikbaar is: één melding in plaats van tientallen.
 
@@ -50,7 +50,7 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 
 **🖥️ Commando-checks**: laat de agent een commando uitvoeren (bv. `zpool status -x`) en vergelijk de uitvoer met het verwachte antwoord. Standaard uit; aanzetten per agent als `nobody` of root, met wachtwoord en logboek.
 
-**📥 Heartbeat-checks**: back-ups en cronjobs melden zich zelf bij RzMon, met `rzmon-hb backup-db ok` op een server met de agent of met `curl` naar een geheime URL (Synology, Home Assistant, apparaten zonder agent). Blijft de melding uit, mislukt het of duurt het te lang, dan krijg je bericht. Zie [HANDLEIDING §7.8](HANDLEIDING.md#78-heartbeat-scripts-back-ups-en-cronjobs-) voor kant-en-klare voorbeelden.
+**📥 Heartbeat-checks**: back-ups en cronjobs melden zich zelf bij RzSense, met `rzmon-hb backup-db ok` op een server met de agent of met `curl` naar een geheime URL (Synology, Home Assistant, apparaten zonder agent). Blijft de melding uit, mislukt het of duurt het te lang, dan krijg je bericht. Zie [HANDLEIDING §7.8](HANDLEIDING.md#78-heartbeat-scripts-back-ups-en-cronjobs-) voor kant-en-klare voorbeelden.
 
 **🔎 Popup per check**: klik op een check voor de laatste 5 statuswijzigingen, het bericht dat ze veroorzaakte en of er gemeld is. Op de pagina Meldingen sorteer je op elke kolom.
 
@@ -58,9 +58,9 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 
 **🔑 Logins en sudo**: de agent meldt SSH- en console-logins, `sudo` en `su` (ook mislukte pogingen) op de pagina *IDS → Toegang*: wie, wat, op welke server. Met filters, sorteren, negeren en IP blokkeren.
 
-**🛡️ IDS**: inbraakdetectie via de agents, op een eigen pagina. Gewijzigde gevoelige bestanden, nieuwe gebruikers en poorten, verdachte processen, reverse shells, brute force, inlog na brute force en SSH-logins van buiten (logins van binnen als ℹ️ systeeminfo). Met 🍯 honeypot (gebruikersnamen en een poort die alleen aanvallers gebruiken), blokkades die voor al je servers gelden, groepswijzigingen en een wekelijks overzicht per e-mail. Ook de logs van SWAG, Home Assistant en Vaultwarden: aanvalspaden, scanners en wachtwoorden raden worden herkend en desgewenst op al je servers geblokkeerd. Per server een hardening-score met advies, isoleren met één klik, een gebruiker vergrendelen en een tijdlijn per IP-adres. Een webserver die een shell start (webshell), nieuwe automatisch startende diensten en verbindingen naar bekende aanvallers of vreemde landen worden gemeld (en desgewenst gestopt of geblokkeerd). Bekende aanvallers (Spamhaus, FireHOL) worden vooraf geblokkeerd, bij elk IP staat het land, en een SSH-login uit een ander land is critical. Eerst *leren* (alleen melden), daarna eventueel *blokkeren*: aanvallers komen in een eigen firewalltabel op de server, met een knop om te deblokkeren. Onder *Instellingen → Blokkades en whitelist* staat alles wat geblokkeerd is (RzMon, accounts en het IDS) in één lijst, met een ✅ whitelist voor IP's, accounts en namen die nooit geblokkeerd mogen worden. Ook je eigen paden bewaken (hash, rechten, eigenaar), bv. `/usr/local/bin` of `/var/www/**/*.php`. Critical ook via Pushover. Standaard uit.
+**🛡️ IDS**: inbraakdetectie via de agents, op een eigen pagina. Gewijzigde gevoelige bestanden, nieuwe gebruikers en poorten, verdachte processen, reverse shells, brute force, inlog na brute force en SSH-logins van buiten (logins van binnen als ℹ️ systeeminfo). Met 🍯 honeypot (gebruikersnamen en een poort die alleen aanvallers gebruiken), blokkades die voor al je servers gelden, groepswijzigingen en een wekelijks overzicht per e-mail. Ook de logs van SWAG, Home Assistant en Vaultwarden: aanvalspaden, scanners en wachtwoorden raden worden herkend en desgewenst op al je servers geblokkeerd. Per server een hardening-score met advies, isoleren met één klik, een gebruiker vergrendelen en een tijdlijn per IP-adres. Een webserver die een shell start (webshell), nieuwe automatisch startende diensten en verbindingen naar bekende aanvallers of vreemde landen worden gemeld (en desgewenst gestopt of geblokkeerd). Bekende aanvallers (Spamhaus, FireHOL) worden vooraf geblokkeerd, bij elk IP staat het land, en een SSH-login uit een ander land is critical. Eerst *leren* (alleen melden), daarna eventueel *blokkeren*: aanvallers komen in een eigen firewalltabel op de server, met een knop om te deblokkeren. Onder *Instellingen → Blokkades en whitelist* staat alles wat geblokkeerd is (RzSense, accounts en het IDS) in één lijst, met een ✅ whitelist voor IP's, accounts en namen die nooit geblokkeerd mogen worden. Ook je eigen paden bewaken (hash, rechten, eigenaar), bv. `/usr/local/bin` of `/var/www/**/*.php`. Critical ook via Pushover. Standaard uit.
 
-**🔐 Beveiliging van RzMon zelf**: elke agent (1.50.0+) heeft een **eigen sleutel** en versturt alles **versleuteld en ondertekend** (geen token meer over de lijn, per agent aan of uit te zetten); nieuwe agents koppel je met een eenmalige **koppelcode**, sleutels worden vanzelf vernieuwd, het **certificaat van RzMon** wordt vastgezet bij een eigen certificaat, en een agent van een **onbekend IP-adres** wordt geweigerd tot je hem toestaat; een **blokkadelijst** op IP-adres of netwerk voor heel RzMon, ⚠️ + Pushover bij een niet-geautoriseerde verbinding (fout token, verkeerde sleutel of API-sleutel, 3 mislukte logins), en ℹ️ bij elke login en als een agent verbindt.
+**🔐 Beveiliging van RzSense zelf**: elke agent (1.50.0+) heeft een **eigen sleutel** en versturt alles **versleuteld en ondertekend** (geen token meer over de lijn, per agent aan of uit te zetten); nieuwe agents koppel je met een eenmalige **koppelcode**, sleutels worden vanzelf vernieuwd, het **certificaat van RzSense** wordt vastgezet bij een eigen certificaat, en een agent van een **onbekend IP-adres** wordt geweigerd tot je hem toestaat; een **blokkadelijst** op IP-adres of netwerk voor heel RzSense, ⚠️ + Pushover bij een niet-geautoriseerde verbinding (fout token, verkeerde sleutel of API-sleutel, 3 mislukte logins), en ℹ️ bij elke login en als een agent verbindt.
 
 **🐞 Kwetsbaarheden**: welke software er op je servers staat en welke bekende kwetsbaarheden (CVE's) daarbij horen, via OSV.dev met de adviezen van de distributie zelf. Per server: wat bereikbaar is via het netwerk, wat actief misbruikt wordt, in welke versie het is opgelost en het commando om bij te werken, of bijwerken met één knop via de agent. Standaard uit.
 
@@ -76,7 +76,7 @@ curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/insta
 
 **Back-up en herstel**: automatisch elke dag, week of maand (tijd en aantal instelbaar), als zip met database en `config.php`, versleuteld met AES-256. Downloaden, uploaden en terugzetten in de webinterface, met een veiligheidsback-up vooraf (zie HANDLEIDING.md §13).
 
-**Alarmering**: per status (warning, critical, onbekend, hersteld) instellen: nooit, direct of pas na *X* minuten, herhalen elke *Y* minuten, en welke kanalen (Pushover, e-mail, Home Assistant). Per check te overschrijven. Meldingen per server gebundeld in één bericht (standaard binnen 120 seconden). Anti-flapping: een check die steeds wisselt, geeft per status hooguit één melding tot hij stabiel is. ℹ️ Info-meldingen voor een herstart, een vernieuwd certificaat en bijgewerkte agents of RzMon (standaard uit). Bij escalatie (WARN → CRIT) direct opnieuw.
+**Alarmering**: per status (warning, critical, onbekend, hersteld) instellen: nooit, direct of pas na *X* minuten, herhalen elke *Y* minuten, en welke kanalen (Pushover, e-mail, Home Assistant). Per check te overschrijven. Meldingen per server gebundeld in één bericht (standaard binnen 120 seconden). Anti-flapping: een check die steeds wisselt, geeft per status hooguit één melding tot hij stabiel is. ℹ️ Info-meldingen voor een herstart, een vernieuwd certificaat en bijgewerkte agents of RzSense (standaard uit). Bij escalatie (WARN → CRIT) direct opnieuw.
 
 ---
 
@@ -99,7 +99,7 @@ sudo mysql -e "CREATE DATABASE rzmon CHARACTER SET utf8mb4;
 Stel de webserver in (hieronder) en open **`http://<server>/`** vanaf je lokale netwerk. Je komt automatisch op de **setup-pagina**:
 
 1. **Systeemcheck** – PHP-versie, extensies, ping, systemctl, schrijfrechten, database, cron.
-2. **Database** – host/poort/naam/gebruiker/wachtwoord, *Verbinding testen*, *Opslaan & tabellen installeren*. Optioneel maakt RzMon de database en gebruiker zelf aan met een MariaDB-beheerdersaccount (werkt niet met `unix_socket`-root; gebruik dan het commando hierboven).
+2. **Database** – host/poort/naam/gebruiker/wachtwoord, *Verbinding testen*, *Opslaan & tabellen installeren*. Optioneel maakt RzSense de database en gebruiker zelf aan met een MariaDB-beheerdersaccount (werkt niet met `unix_socket`-root; gebruik dan het commando hierboven).
 3. **Applicatie & PHP** – tijdzone, basis-URL, pad naar ping, `memory_limit`, `max_execution_time`, `display_errors`.
 4. **Beheerder** – eerste gebruikersnaam en wachtwoord.
 5. **Cron** – kant-en-klare regel om te kopiëren.
@@ -157,7 +157,7 @@ server {
 *Instellingen → E-mail*: SMTP-server, poort, beveiliging (STARTTLS / SSL/TLS / geen), login, afzender en ontvangers. Kies **altijd** of **alleen als Pushover faalt**. Gmail/Outlook/iCloud: gebruik een app-wachtwoord.
 
 ### MQTT (Home Assistant)
-*Instellingen → MQTT*: server, poort, TLS, gebruikersnaam en wachtwoord van je broker (bv. de Mosquitto-add-on). Elke server verschijnt in Home Assistant als apparaat met sensoren voor status en meetwaarden; RzMon publiceert elke minuut.
+*Instellingen → MQTT*: server, poort, TLS, gebruikersnaam en wachtwoord van je broker (bv. de Mosquitto-add-on). Elke server verschijnt in Home Assistant als apparaat met sensoren voor status en meetwaarden; RzSense publiceert elke minuut.
 
 ### Gebruikers, rollen en tweestapsverificatie
 *Instellingen → Gebruikers*: rollen **Beheerder** (alles), **Gebruiker** (storingen afhandelen) en **Alleen lezen** (kijken). Op het lokale netwerk kom je zonder wachtwoord binnen als alleen lezen, tenzij een beheerder onder *Toegang* "als beheerder inloggen" aanzet. Met *Onthoud mij op dit apparaat* blijf je 30 dagen ingelogd. **📱 Ingelogde apparaten**: elke sessie is zichtbaar (je eigen bij *Mijn account*, alle sessies voor beheerders bij *Gebruikers*) en meteen uit te loggen, ook *Iedereen uitloggen behalve mij*. Accounts aanmaken met of zonder 2FA (TOTP, QR-code voor elke authenticator-app), 2FA resetten, wachtwoord instellen, verwijderen. **Wachtwoord vergeten?** op het loginscherm stuurt een herstellink naar het e-mailadres van het account (30 minuten geldig; met 2FA is ook de code nodig). Telefoon kwijt: `sudo -u www-data php install/install.php --reset-2fa <naam>`; wachtwoord kwijt zonder mail: `--reset-password <naam>`.
@@ -172,11 +172,11 @@ server {
 - **🖥️ Servers en 🌐 netwerk apart**: elk apparaat heeft een soort (server, router, switch, access point, NAS, UPS, camera …), vanzelf herkend via agent of SNMP; het dashboard toont een blok per groep en kan op één groep filteren, met de tellers erbij.
 - **⚲ Filters op elke pagina**: per onderdeel (server, status, soort, periode, IP …) meerdere waarden, bewaard per gebruiker, opgeslagen filters met een naam, en te delen via het adres. **Bij openen alles dicht** (of *slim openen*, *Mijn account → Weergave*).
 - **🌍 Agents via https** (agent 1.51.0): zet alle agents met één knop over naar bv. `https://rzmon.example.nl` via je reverse proxy (elke agent test het eerst), met het LAN-adres als **reserve-adres**, en zet daarna **Agents alleen via https** aan (*Instellingen → Agents → Beveiligde verbinding*).
-- **🔒 Lokaal via https zonder proxy** (agent 1.53.0): agents in je netwerk praten rechtstreeks met `https://<IP van RzMon>` en zetten het eigen certificaat vast; je proxy-adres blijft het reserve-adres. Vernieuwen gaat in twee stappen, zonder dat een agent het certificaat weigert.
+- **🔒 Lokaal via https zonder proxy** (agent 1.53.0): agents in je netwerk praten rechtstreeks met `https://<IP van RzSense>` en zetten het eigen certificaat vast; je proxy-adres blijft het reserve-adres. Vernieuwen gaat in twee stappen, zonder dat een agent het certificaat weigert.
 - **🔐 Certificaat voor de agents** (*Instellingen → Agents → Beveiligde verbinding → 🔐 Certificaat bekijken*): bekijken, downloaden en met één klik vernieuwen (2 jaar); agents met een vastgezet certificaat gaan vanzelf mee. Terminal: `sudo php install/install.php --renew-cert`.
-- **🔓 Datalekken** (*Instellingen → Beveiliging → Datalekken*, standaard uit): wachtwoorden van RzMon-accounts tegen Have I Been Pwned (gratis; het wachtwoord gaat nooit de deur uit), met verplicht een nieuw kiezen na inloggen met een gelekt wachtwoord; e-mailadressen en je domein dagelijks met een API-sleutel; tabblad *Datalekken* bij Kwetsbaarheden. Per account aan/uit, en per account **🏠 alleen lokaal** (noodaccount).
-- **🕶️ Onzichtbaar van buiten** (*Instellingen → Beveiliging*): van buiten niet herkenbaar als RzMon (een gewone 404), en optioneel de webinterface alleen op toegestane apparaten per gebruiker, met passkeys (Face ID, vingerafdruk) en een noodlink.
-- **🔒 Beheer via https** (*Instellingen → Beveiliging*): beheeradres via je proxy, *Beheer alleen via https* (met HSTS), certificaatkaart met dagelijkse controle (ℹ️ 14 dagen voor het verloopt, ⚠️ als het ongeldig is), *Inloggen via http weigeren* en *2FA verplicht van buiten*. De nooddeur `https://<IP van RzMon>/` werkt altijd vanaf je LAN; buitengesloten: `php install/install.php --https-off`.
+- **🔓 Datalekken** (*Instellingen → Beveiliging → Datalekken*, standaard uit): wachtwoorden van RzSense-accounts tegen Have I Been Pwned (gratis; het wachtwoord gaat nooit de deur uit), met verplicht een nieuw kiezen na inloggen met een gelekt wachtwoord; e-mailadressen en je domein dagelijks met een API-sleutel; tabblad *Datalekken* bij Kwetsbaarheden. Per account aan/uit, en per account **🏠 alleen lokaal** (noodaccount).
+- **🕶️ Onzichtbaar van buiten** (*Instellingen → Beveiliging*): van buiten niet herkenbaar als RzSense (een gewone 404), en optioneel de webinterface alleen op toegestane apparaten per gebruiker, met passkeys (Face ID, vingerafdruk) en een noodlink.
+- **🔒 Beheer via https** (*Instellingen → Beveiliging*): beheeradres via je proxy, *Beheer alleen via https* (met HSTS), certificaatkaart met dagelijkse controle (ℹ️ 14 dagen voor het verloopt, ⚠️ als het ongeldig is), *Inloggen via http weigeren* en *2FA verplicht van buiten*. De nooddeur `https://<IP van RzSense>/` werkt altijd vanaf je LAN; buitengesloten: `php install/install.php --https-off`.
 - De REST API vraagt altijd om een API-sleutel, ook op het LAN.
 
 ### Poortscan
@@ -186,7 +186,7 @@ Bij agent-servers zie je ook de **luisterende poorten volgens de agent** (via `s
 > Scan alleen je eigen servers. Op sommige netwerken (hosting, bedrijfsnetwerk) kan een poortscan als aanval worden gezien.
 
 ### Agent op remote servers
-Voeg in de webinterface een server toe met type **Remote met agent** en klik *Agent Manager* — met **🔗 Koppelcode maken** krijg je het kant-en-klare commando (met een eenmalige koppelcode en controle van het script). Welke services bewaakt worden, kies je daarna in RzMon (＋ Check → Service, uit een lijst van de server). Kort gezegd:
+Voeg in de webinterface een server toe met type **Remote met agent** en klik *Agent Manager* — met **🔗 Koppelcode maken** krijg je het kant-en-klare commando (met een eenmalige koppelcode en controle van het script). Welke services bewaakt worden, kies je daarna in RzSense (＋ Check → Service, uit een lijst van de server). Kort gezegd:
 
 ```bash
 sudo install -m 755 rzmon-agent.sh /usr/local/bin/rzmon-agent.sh
@@ -201,7 +201,7 @@ Daarna, op de server:
 
 | Commando | Wat het doet |
 |---|---|
-| `sudo rzmon-agent-setup --status` | Alles over de verbinding: adres, TLS, versleuteling, laatste contacten, fouten, wat er verstuurd wordt en de beveiligingscontrole van RzMon |
+| `sudo rzmon-agent-setup --status` | Alles over de verbinding: adres, TLS, versleuteling, laatste contacten, fouten, wat er verstuurd wordt en de beveiligingscontrole van RzSense |
 | `sudo rzmon-agent-setup --pair 'CODE'` | Een nieuwe koppelcode invullen |
 | `sudo rzmon-agent-setup --update` | Bijwerken: eerst een reservekopie, dan de nieuwe agent met opgeruimde instellingen |
 | `sudo rzmon-agent-setup --cleanup` | Alleen de instellingen opruimen (met een reservekopie) |
@@ -210,7 +210,7 @@ Daarna, op de server:
 ### Home Assistant OS / Supervised (add-on)
 Op Home Assistant OS kun je geen cron-scripts op de host zetten. Daarom zit de agent er ook bij als **add-on**: `ha-addon/rzmon_agent`.
 
-| Check in RzMon | Wat |
+| Check in RzSense | Wat |
 |---|---|
 | CPU / RAM | Van de HA-host |
 | Diskruimte `/data` | De data-partitie (config, database, back-ups, media) |
@@ -221,10 +221,10 @@ Op Home Assistant OS kun je geen cron-scripts op de host zetten. Daarom zit de a
 | Poortscan | Luisterende poorten van de host |
 
 Installeren:
-1. Voeg in RzMon een server toe met type **Remote met agent** (adres = IP van Home Assistant) en maak in de Agent Manager een koppelcode (🏠 Home Assistant OS → 🔗 Koppelcode maken).
+1. Voeg in RzSense een server toe met type **Remote met agent** (adres = IP van Home Assistant) en maak in de Agent Manager een koppelcode (🏠 Home Assistant OS → 🔗 Koppelcode maken).
 2. Kopieer de map `ha-addon/rzmon_agent` naar de share **`addons`** (met de Samba share-add-on) of naar `/addons/` (met de SSH-add-on).
-3. *Instellingen → Add-ons → Add-on winkel* → ⋮ → **Controleren op updates** → **RzMon Agent** (onder *Lokale add-ons*) → Installeren.
-4. Op het tabblad Configuratie vul je `monitor_url` en `pair_code` in → Starten. Het logboek toont `Gekoppeld met RzMon` en `Verbonden met RzMon ✔`.
+3. *Instellingen → Add-ons → Add-on winkel* → ⋮ → **Controleren op updates** → **RzSense Agent** (onder *Lokale add-ons*) → Installeren.
+4. Op het tabblad Configuratie vul je `monitor_url` en `pair_code` in → Starten. Het logboek toont `Gekoppeld met RzSense` en `Verbonden met RzSense ✔`.
 
 **Makkelijker:** voeg deze GitHub-repository toe als add-on-repository: *Add-on winkel* → ⋮ → *Repositories* → `https://github.com/rembrand20/rzmon`. De repository moet daarvoor openbaar zijn. Updates van de agent komen dan via de add-on winkel binnen.
 De add-on heeft alleen leesrechten: Supervisor-rol `default`, plus host-netwerk voor de poortlijst. Meer uitleg staat in `ha-addon/rzmon_agent/DOCS.md`; die zie je in HA ook op het tabblad *Documentatie*.
@@ -232,10 +232,10 @@ De add-on heeft alleen leesrechten: Supervisor-rol `default`, plus host-netwerk 
 > `ha-addon/rzmon_agent/rzmon-agent.sh` is een kopie van `agent/rzmon-agent.sh`. Een add-on moet al zijn bestanden in de eigen map hebben. Pas je de agent aan? Kopieer hem dan opnieuw en verhoog `version` in `config.yaml`, zodat HA de update ziet.
 
 ## Versie en upgraden
-De huidige versie staat in [`VERSION`](VERSION) en in de topbalk van RzMon. Wat er per versie veranderd is, lees je in [`CHANGELOG.md`](CHANGELOG.md).
-De agent (en de Home Assistant-add-on) heeft een eigen versienummer in [`agent/VERSION`](agent/VERSION), met een eigen [changelog](agent/CHANGELOG.md). Een update van RzMon verandert niets aan `config.php` of aan je instellingen, en een agent-update niets aan `/etc/default/rzmon-agent`.
+De huidige versie staat in [`VERSION`](VERSION) en in de topbalk van RzSense. Wat er per versie veranderd is, lees je in [`CHANGELOG.md`](CHANGELOG.md).
+De agent (en de Home Assistant-add-on) heeft een eigen versienummer in [`agent/VERSION`](agent/VERSION), met een eigen [changelog](agent/CHANGELOG.md). Een update van RzSense verandert niets aan `config.php` of aan je instellingen, en een agent-update niets aan `/etc/default/rzmon-agent`.
 
-**Vanaf 1.29.0 kan het met één knop:** *Instellingen → ⬆ RzMon bijwerken* (of automatisch op een vast tijdstip), met eerst een back-up. Dat werkt bij installaties met `install-rocky.sh`; voer daarvoor na de update naar 1.29.0 het installatiecommando één keer uit. Zie HANDLEIDING.md §12.
+**Vanaf 1.29.0 kan het met één knop:** *Instellingen → ⬆ RzSense bijwerken* (of automatisch op een vast tijdstip), met eerst een back-up. Dat werkt bij installaties met `install-rocky.sh`; voer daarvoor na de update naar 1.29.0 het installatiecommando één keer uit. Zie HANDLEIDING.md §12.
 
 Handmatig upgraden gaat zo:
 1. Zet de nieuwe bestanden eroverheen (`git pull`, of opnieuw `install-rocky.sh`), behalve `config.php`.
@@ -293,13 +293,13 @@ rest:
       Authorization: !secret rzmon_auth
     scan_interval: 60
     sensor:
-      - name: "RzMon status"
+      - name: "RzSense status"
         value_template: "{{ value_json.status_text }}"
         json_attributes: [counts, problems]
-      - name: "RzMon problemen"
+      - name: "RzSense problemen"
         value_template: "{{ value_json.counts.warning + value_json.counts.critical }}"
     binary_sensor:
-      - name: "RzMon alles OK"
+      - name: "RzSense alles OK"
         value_template: "{{ value_json.status == 0 }}"
 
   # Losse meetwaarde, bv. CPU van check 3 (id staat in de URL van /checks)

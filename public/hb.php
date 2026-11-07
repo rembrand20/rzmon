@@ -27,7 +27,7 @@ function hb_out(string $text, int $code = 200): never
 }
 
 if (!is_configured()) {
-    hb_out('RzMon is not configured', 503);
+    hb_out('RzSense is not configured', 503);
 }
 I18n::set(I18n::notifyLang());
 $parts = explode('/', trim((string) ($_SERVER['PATH_INFO'] ?? ''), '/'));

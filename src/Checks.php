@@ -14,7 +14,7 @@ final class Checks
             return self::result(STATUS_UNKNOWN, null, t('Disk/service/CPU/RAM checks vereisen host-type lokaal of agent'));
         }
         if ($host['mode'] === 'remote' && $check['type'] === 'process') {
-            return self::result(STATUS_UNKNOWN, null, t('Een proces bewaken kan alleen op de RzMon-server zelf of op een server met de agent'));
+            return self::result(STATUS_UNKNOWN, null, t('Een proces bewaken kan alleen op de RzSense-server zelf of op een server met de agent'));
         }
         if ($host['mode'] !== 'agent' && in_array($check['type'], ['podman', 'container', 'log', 'command'], true)) {
             return self::result(STATUS_UNKNOWN, null, t('Deze check werkt via de agent: zet de server op type "Remote met agent" en installeer de agent'));
@@ -43,7 +43,7 @@ final class Checks
                 'heartbeat' => Heartbeat::check($check),
                 'process' => self::process($check, $host),
                 'dns', 'ntp', 'smart', 'ups', 'mysql' => ExtraChecks::run($check, $host),   // 1.138.0
-                'internet' => Internet::run($check),   // 1.157.0: vanaf de server van RzMon
+                'internet' => Internet::run($check),   // 1.157.0: vanaf de server van RzSense
                 'domain', 'mqtt', 'vpn' => NetChecks::run($check, $host),   // 1.170.0
                 'traffic' => NetTraffic::check($check, $host),   // 1.187.0
                 default => self::result(STATUS_UNKNOWN, null, t('Onbekend checktype')),
@@ -248,10 +248,10 @@ final class Checks
      * SSL/TLS-certificaat: hoeveel dagen is het nog geldig? Drempels zijn hier "minder dan":
      * warning onder X dagen, critical onder Y dagen. Werkt op elke TLS-poort (443, 8443, 993, 8883…).
      * Op een agent-server komen certificaten die de agent meldt (bestanden, of host:poort gezien
-     * vanaf die server) van de agent; al het andere meet RzMon zelf via het netwerk.
+     * vanaf die server) van de agent; al het andere meet RzSense zelf via het netwerk.
      */
     /**
-     * Wat de agent voor deze SSL-check uitleest (1.98.0), of null als RzMon het zelf via het netwerk doet:
+     * Wat de agent voor deze SSL-check uitleest (1.98.0), of null als RzSense het zelf via het netwerk doet:
      * een bestand altijd; host:poort als "controleren vanaf" op de agent staat, of automatisch bij localhost/127.x.
      */
     public static function agentCertSource(array $check): ?string
@@ -275,7 +275,7 @@ final class Checks
     private static function ssl(array $check, array $host): array
     {
         $target = trim($check['target']) ?: $host['address'];
-        // Op de RzMon-server zelf: een certificaatbestand rechtstreeks lezen
+        // Op de RzSense-server zelf: een certificaatbestand rechtstreeks lezen
         if ($host['mode'] === 'local' && $target[0] === '/') {
             $pem = @file_get_contents($target);
             $info = $pem !== false ? @openssl_x509_parse($pem) : false;
@@ -285,7 +285,7 @@ final class Checks
             $issuer = $info['issuer']['O'] ?? ($info['issuer']['CN'] ?? '?');
             return self::certResult($check, (int) $info['validTo_time_t'], (string) ($info['subject']['CN'] ?? '?'), is_array($issuer) ? implode(', ', $issuer) : (string) $issuer, null);
         }
-        // Agent-server: bestanden, en host:poort gezien vanaf de server zelf (1.98.0: de agent krijgt ze van RzMon)
+        // Agent-server: bestanden, en host:poort gezien vanaf de server zelf (1.98.0: de agent krijgt ze van RzSense)
         if ($host['mode'] === 'agent' && $host['id'] && ($src = self::agentCertSource($check)) !== null) {
             if (($raw = self::agentMetric($host, "cert:$src")) !== null) {
                 return self::agentSsl($check, $host, json_decode($raw, true) ?: []);
@@ -432,7 +432,7 @@ final class Checks
         return $res;
     }
 
-    /** Processen op de server van RzMon zelf, voor de keuzelijst: [naam, aantal, gebruiker, voorbeeld-commandoregel] */
+    /** Processen op de server van RzSense zelf, voor de keuzelijst: [naam, aantal, gebruiker, voorbeeld-commandoregel] */
     public static function localProcList(): array
     {
         $by = [];
@@ -448,7 +448,7 @@ final class Checks
         return array_slice(array_values($by), 0, 200);
     }
 
-    /** Proces op de RzMon-server zelf (ps), zelfde uitkomst als de agent */
+    /** Proces op de RzSense-server zelf (ps), zelfde uitkomst als de agent */
     private static function localProcess(string $name, array $o): array
     {
         $out = (string) @shell_exec(rz_sh('ps -eo pid=,ppid=,user:32=,etimes=,pcpu=,rss=,comm=,args= 2>/dev/null'));
@@ -826,7 +826,7 @@ final class Checks
         $raw = self::agentMetric($host, 'ha:' . (in_array($m, ['reboot', 'disklife', 'osupdate'], true) ? 'os' : $m));
         if ($raw === null) {
             return self::result(STATUS_UNKNOWN, null, in_array($m, ['reboot', 'disklife', 'osupdate'], true)
-                ? t('De add-on meldt dit nog niet: werk de RzMon-add-on bij naar 1.42.0 of nieuwer (add-on winkel)')
+                ? t('De add-on meldt dit nog niet: werk de RzSense-add-on bij naar 1.42.0 of nieuwer (add-on winkel)')
                 : t('De agent meldt dit niet. Is het de Home Assistant-add-on, versie 1.24.0 of nieuwer? (bijwerken via de add-on winkel)'));
         }
         $d = json_decode($raw, true) ?: [];
@@ -1052,7 +1052,7 @@ final class Checks
             return self::result(STATUS_UNKNOWN, null, t('Agent heeft nog nooit gerapporteerd'));
         }
         if (strtotime($host['agent_seen']) < time() - agent_stale_seconds(isset($host['agent_tick']) ? (int) $host['agent_tick'] : null)
-            && !UpdateHold::covers((string) $host['agent_seen'])) {   // 1.205.0: tijdens een update van RzMon is stil normaal
+            && !UpdateHold::covers((string) $host['agent_seen'])) {   // 1.205.0: tijdens een update van RzSense is stil normaal
             return self::result(STATUS_CRIT, null, t('Agent stil sinds {t}', ['t' => date('d-m-Y H:i:s', strtotime((string) $host['agent_seen']))]));
         }
         return null;
@@ -1148,7 +1148,7 @@ final class Checks
         if (($opt['ports'] ?? '') !== '' && empty($d['manual']) && empty($d['sockets'])) {
             $info[] = t('zelf opgegeven poorten: nog niet opgepikt (de agent haalt wijzigingen binnen 10 minuten op; agent bijgewerkt?)');
         }
-        // Extra test die bij deze check in RzMon is ingesteld (URL of poort, uitgevoerd door de agent)
+        // Extra test die bij deze check in RzSense is ingesteld (URL of poort, uitgevoerd door de agent)
         if (in_array($opt['test_type'] ?? '', ['url', 'port'], true)) {
             $t = json_decode((string) self::agentMetric($host, 'svctest:' . $check['id']), true);
             if (!$t) {

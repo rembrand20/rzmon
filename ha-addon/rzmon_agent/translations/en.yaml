@@ -1,25 +1,25 @@
 configuration:
   monitor_url:
-    name: RzMon URL
-    description: Address of your RzMon server, e.g. http://192.168.1.10 or https://rzmon.example.com
+    name: RzSense URL
+    description: Address of your RzSense server, e.g. http://192.168.1.10 or https://rzmon.example.com
   monitor_url_fallback:
     name: Fallback address (optional)
-    description: Used when the RzMon address cannot be reached, e.g. https via your reverse proxy with http://<LAN-IP> as fallback. RzMon reports this with a ⚠️. You can also change the address in RzMon (Agent Manager → 🌐 RzMon address).
+    description: Used when the RzSense address cannot be reached, e.g. https via your reverse proxy with http://<LAN-IP> as fallback. RzSense reports this with a ⚠️. You can also change the address in RzSense (Agent Manager → 🌐 RzSense address).
   pair_code:
     name: Pairing code
-    description: Pairing code of this host in RzMon (Agent Manager → 🔗 Pairing code, valid for 15 minutes). The add-on uses it to fetch its own key; afterwards you can leave the field or clear it.
+    description: Pairing code of this host in RzSense (Agent Manager → 🔗 Pairing code, valid for 15 minutes). The add-on uses it to fetch its own key; afterwards you can leave the field or clear it.
   pin:
     name: Certificate fingerprint
-    description: Only for an own (self-signed) certificate of RzMon; shown with the pairing code. The add-on then only accepts that certificate.
+    description: Only for an own (self-signed) certificate of RzSense; shown with the pairing code. The add-on then only accepts that certificate.
   token:
     name: Agent token (old way)
-    description: Only needed without a pairing code (agent older than 1.50.0 or RzMon older than 1.64.0).
+    description: Only needed without a pairing code (agent older than 1.50.0 or RzSense older than 1.64.0).
   interval:
     name: Interval (seconds)
-    description: Only for older RzMon versions. From RzMon 1.41.0 you set the interval in RzMon (Agent Manager → Report every …).
+    description: Only for older RzSense versions. From RzSense 1.41.0 you set the interval in RzSense (Agent Manager → Report every …).
   verify_ssl:
     name: Verify SSL certificate
-    description: Disable when RzMon uses a self-signed certificate.
+    description: Disable when RzSense uses a self-signed certificate.
   certs:
     name: Certificates
-    description: Certificates whose expiry date RzMon monitors. Files in /ssl (e.g. /ssl/fullchain.pem) and/or host:port, also on the internet (e.g. homeassistant.local:8123 or mydomain.duckdns.org:443).
+    description: Certificates whose expiry date RzSense monitors. Files in /ssl (e.g. /ssl/fullchain.pem) and/or host:port, also on the internet (e.g. homeassistant.local:8123 or mydomain.duckdns.org:443).

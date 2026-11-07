@@ -1,7 +1,7 @@
 /*
- * RzMon 1.201.0: laadanimaties ("de pols van je netwerk").
+ * RzSense 1.201.0: laadanimaties ("de pols van je netwerk").
  *
- * - Bij het openen: RzMon in het midden, de servers eromheen. Een radar veegt rond; zodra de status binnen is lichten je
+ * - Bij het openen: RzSense in het midden, de servers eromheen. Een radar veegt rond; zodra de status binnen is lichten je
  *   eigen servers een voor een op in hun statuskleur en sturen ze een pakketje naar het midden. Daarna verdwijnt het scherm.
  * - Overal waar "Laden…" staat: een korte hartslag ervoor. Bij "Bezig…": een kleine radarboog.
  * Eén animatielus voor alles; stopt als er niets te tekenen is, pauzeert als het tabblad niet zichtbaar is.
@@ -134,7 +134,7 @@
     // tekst
     if (bootHead && bootSub) {
       if (!readyAt) {
-        bootHead.textContent = t < 1.2 ? label('Verbinden met RzMon') : label('Servers antwoorden');
+        bootHead.textContent = t < 1.2 ? label('Verbinden met RzSense') : label('Servers antwoorden');
         bootSub.textContent = t > 8 ? label('Dit duurt langer dan normaal…') : '';
       } else {
         bootHead.textContent = lit >= nodes.length ? label('✓ Alles binnen') : label('Servers antwoorden');

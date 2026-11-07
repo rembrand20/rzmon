@@ -5,9 +5,9 @@ declare(strict_types=1);
 /**
  * 1.212.0: vaste zoekacties op de logs die een melding geven.
  *
- * - "Te veel treffers": bij binnenkomst van een logpakket telt RzMon de nieuwe regels die op een zoekactie passen
+ * - "Te veel treffers": bij binnenkomst van een logpakket telt RzSense de nieuwe regels die op een zoekactie passen
  *   (per minuut, in log_watch_counts) en meldt als er in het venster minstens de drempel is.
- * - "Geen treffers": elke minuut (cron) kijkt RzMon of er in het venster nog een treffer was.
+ * - "Geen treffers": elke minuut (cron) kijkt RzSense of er in het venster nog een treffer was.
  * - Per server apart (host_id) of alle servers samen (host_id 0); de stand per zoekactie in log_watch_state.
  * - Herstel: een melding gaat dicht als een heel venster lang de drempel niet gehaald werd (of er weer een treffer is).
  * - Rustperiode: tussen twee meldingen van dezelfde zoekactie (en server) minstens zoveel minuten.
@@ -476,7 +476,7 @@ final class LogWatch
             }
             if (setting('email_enabled', '0') === '1' && (setting('email_mode', 'always') !== 'fallback' || !$pushover)) {
                 $base = rtrim((string) config('base_url', ''), '/');
-                $r = Mailer::send($title, $message . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzMon: $base/#logs" : ''));
+                $r = Mailer::send($title, $message . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzSense: $base/#logs" : ''));
                 $email = $r['ok'];
                 if (!$r['ok']) {
                     $errors[] = 'E-mail: ' . $r['error'];

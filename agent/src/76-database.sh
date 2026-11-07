@@ -1,10 +1,10 @@
 # ---------------------------------------------------------------- Databases (agent 1.81.0)
-# Databasechecks uit RzMon: "id <tab> db <tab> mysql|pgsql <tab> local|container <tab> container (of -) <tab> gebruiker (of -)
+# Databasechecks uit RzSense: "id <tab> db <tab> mysql|pgsql <tab> local|container <tab> container (of -) <tab> gebruiker (of -)
 # <tab> wachtwoord (base64, of -) <tab> database (of -) <tab> sleutel <tab> interval".
 # Per sleutel (één verbinding) één meting, hoe veel checks er ook op die verbinding staan. Alleen lezen: status, verbindingen,
 # lopende query's, replicatie en grootte; nooit data. Zonder gebruiker lokaal zonder wachtwoord: MariaDB/MySQL als root via
 # de socket, PostgreSQL als gebruiker postgres (peer). In een container: docker/podman exec met de client in die container
-# (zonder gebruiker: root met het wachtwoord uit de omgeving van de container, of postgres). Een wachtwoord stuurt RzMon
+# (zonder gebruiker: root met het wachtwoord uit de omgeving van de container, of postgres). Een wachtwoord stuurt RzSense
 # alleen over een versleutelde verbinding; het gaat via de omgeving naar de client, nooit op de opdrachtregel.
 db_json=""
 if [ "$TEST" != 1 ] && [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tdb\t' "$t_cache"; then

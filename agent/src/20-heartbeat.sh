@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------- Heartbeat (rzmon-hb, agent 1.52.0)
-# Een script of cronjob meldt zich bij RzMon: rzmon-hb NAAM [ok|start|fail] [bericht] [--value N].
+# Een script of cronjob meldt zich bij RzSense: rzmon-hb NAAM [ok|start|fail] [bericht] [--value N].
 # Er wordt alleen een regel in de wachtrij gezet (HB_DIR, iedereen mag erin schrijven maar niet lezen);
 # de agent stuurt hem versleuteld mee met het volgende rapport. Zonder verbinding blijven de regels bewaard.
 hb_dir="${HB_DIR:-${AGENT_DIR:+$AGENT_DIR/hb}}"
@@ -17,7 +17,7 @@ if [ "$(basename -- "$0")" = rzmon-hb ] || [ "${1-}" = --hb ]; then
     case $hb_kind in success|done) hb_kind=ok ;; failure|failed|error) hb_kind=fail ;; begin) hb_kind=start ;; esac
     if ! [[ "$hb_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || [[ " start ok fail " != *" $hb_kind "* ]]; then
         echo "Gebruik: rzmon-hb NAAM [ok|start|fail] [bericht] [--value GETAL]" >&2
-        echo "  NAAM = de naam van de heartbeat-check in RzMon (letters, cijfers, punt, - of _), bv. backup-db" >&2
+        echo "  NAAM = de naam van de heartbeat-check in RzSense (letters, cijfers, punt, - of _), bv. backup-db" >&2
         exit 2
     fi
     if [ -n "$hb_val" ] && ! [[ "$hb_val" =~ ^-?[0-9]+([.][0-9]+)?$ ]]; then

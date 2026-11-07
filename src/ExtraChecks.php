@@ -25,7 +25,7 @@ final class ExtraChecks
             'ntp' => self::ntp($check, $host),
             'smart' => self::smart($check, $host),
             'ups' => self::ups($check, $host),
-            'mysql' => Db::check($check, $host),   // 1.200.0: MariaDB/MySQL en PostgreSQL, via RzMon of de agent
+            'mysql' => Db::check($check, $host),   // 1.200.0: MariaDB/MySQL en PostgreSQL, via RzSense of de agent
             default => Checks::result(STATUS_UNKNOWN, null, t('Onbekend checktype')),
         };
     }
@@ -47,7 +47,7 @@ final class ExtraChecks
             }
             $dig = trim((string) shell_exec(rz_sh('command -v dig 2>/dev/null')));
             if ($dig === '') {
-                return Checks::result(STATUS_UNKNOWN, null, t('Voor een eigen DNS-server is "dig" nodig op de server van RzMon (bind-utils / dnsutils)'));
+                return Checks::result(STATUS_UNKNOWN, null, t('Voor een eigen DNS-server is "dig" nodig op de server van RzSense (bind-utils / dnsutils)'));
             }
             exec(rz_sh(sprintf('%s +time=3 +tries=1 +short %s %s %s 2>&1', escapeshellcmd($dig), escapeshellarg('@' . $server), escapeshellarg($name), escapeshellarg($type))), $out, $rc);
             $answers = $rc === 0 ? array_values(array_filter(array_map('trim', $out), static fn($l) => $l !== '' && !str_starts_with($l, ';'))) : [];
@@ -100,7 +100,7 @@ final class ExtraChecks
         if (is_string($off)) {
             return Checks::result(STATUS_CRIT, null, t('NTP-server {s}: {e}', ['s' => $server, 'e' => $off]));
         }
-        return Checks::result(Checks::threshold(abs($off), $check), round(abs($off), 2), t('NTP-server {s} wijkt {ms} ms af van RzMon', ['s' => $server, 'ms' => I18n::dec((string) round($off, 1))]));
+        return Checks::result(Checks::threshold(abs($off), $check), round(abs($off), 2), t('NTP-server {s} wijkt {ms} ms af van RzSense', ['s' => $server, 'ms' => I18n::dec((string) round($off, 1))]));
     }
 
     /** SNTP (RFC 4330): afwijking van de NTP-server ten opzichte van deze klok in ms, of een foutmelding */
@@ -261,7 +261,7 @@ final class ExtraChecks
     // ------------------------------------------------------------------ HTTP: veilig adres, methode, body, verwachte inhoud
 
     /**
-     * Mag RzMon dit adres opvragen? Niet: link-local (169.254.x.x, waaronder metadata-diensten van clouds), fe80::,
+     * Mag RzSense dit adres opvragen? Niet: link-local (169.254.x.x, waaronder metadata-diensten van clouds), fe80::,
      * 0.0.0.0, multicast. Wel: je eigen LAN en internet (daar zijn checks voor). Null = in orde, anders de reden.
      */
     public static function urlBlocked(string $url): ?string

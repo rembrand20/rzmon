@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Suricata (1.113.0, agent 1.64.0): draait Suricata op een server (bv. op een router of naast de firewall), dan stuurt
  * de agent de nieuwe alerts uit eve.json mee. Elk alert wordt een IDS-incident (per regel en bron), met de stap van
  * een aanval (MITRE) erbij voor de ketens. Ernst 1 van Suricata is critical, 2 warning; ernst 3 (en lager) alleen als
- * signaal op de pagina's Afwijkingen en MITRE. In de modus Blokkeren blokkeert RzMon een aanvaller van buiten bij
+ * signaal op de pagina's Afwijkingen en MITRE. In de modus Blokkeren blokkeert RzSense een aanvaller van buiten bij
  * ernst 1 (suricata_block).
  */
 final class Suricata
@@ -54,7 +54,7 @@ final class Suricata
             }
             $seen[$key] = true;
             if (Ids::isRzmon($src) || Ids::isRzmon($dst)) {
-                // Verkeer van of naar RzMon zelf (checks, netwerkscan, rapporten van de agent): toegestaan, alleen loggen
+                // Verkeer van of naar RzSense zelf (checks, netwerkscan, rapporten van de agent): toegestaan, alleen loggen
                 Edr::allowed($host, 's', "sur|$key", ['sig' => $sig, 'cat' => $cat, 'src' => $src, 'dst' => $dst, 'dport' => (int) $dport, 'sev' => $sev]);
                 continue;
             }

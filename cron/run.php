@@ -9,7 +9,7 @@ if (PHP_SAPI !== 'cli') {
 require __DIR__ . '/../src/bootstrap.php';
 
 if (!is_configured()) {
-    exit("RzMon is nog niet ingesteld (open setup.php in je browser)\n");
+    exit("RzSense is nog niet ingesteld (open setup.php in je browser)\n");
 }
 
 // Voorkom overlappende runs. Lockbestand per gebruiker: een handmatige run als root
@@ -101,7 +101,7 @@ try {
     fwrite(STDERR, 'Snelheidstest: ' . $e->getMessage() . "\n");
 }
 Perf::lap('internet');
-// Dagelijks kijken of er een nieuwe versie is; eventueel automatisch bijwerken (Instellingen → RzMon bijwerken)
+// Dagelijks kijken of er een nieuwe versie is; eventueel automatisch bijwerken (Instellingen → RzSense bijwerken)
 if ($msg = Updater::cron()) {
     echo date('c') . " $msg\n";
 }
@@ -234,7 +234,7 @@ try {
     fwrite(STDERR, 'Taken: ' . $e->getMessage() . "\n");
 }
 Perf::lap('taken');
-// Gezondheid van RzMon zelf (1.96.0): dagelijks de grootte van de database, en hoe lang deze ronde duurde
+// Gezondheid van RzSense zelf (1.96.0): dagelijks de grootte van de database, en hoe lang deze ronde duurde
 try {
     SelfCheck::daily();
     SelfCheck::cronDone(microtime(true) - $cronStart);

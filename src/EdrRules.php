@@ -2,9 +2,9 @@
 declare(strict_types=1);
 
 /**
- * Eigen regels van RzMon voor de endpoint-sensoren (1.110.0), in dezelfde vorm als Sigma (zie Sigma.php), met:
+ * Eigen regels van RzSense voor de endpoint-sensoren (1.110.0), in dezelfde vorm als Sigma (zie Sigma.php), met:
  * - sev: 1 = warning (op de pagina), 2 = critical (ook Pushover);
- * - act: wat RzMon in de modus Blokkeren zelf doet: kill (proces stoppen), block (IP blokkeren), isolate (server isoleren);
+ * - act: wat RzSense in de modus Blokkeren zelf doet: kill (proces stoppen), block (IP blokkeren), isolate (server isoleren);
  * - what: uitleg in gewone woorden; tags: MITRE ATT&CK-technieken.
  * Gebeurtenissoorten (kinds): exec (nieuw proces), net (verbinding of luisterpoort), file (nieuw bestand),
  * audit (bewaakt pad of kernelmodule), ctr (container).
@@ -147,7 +147,7 @@ final class EdrRules
             [
                 'id' => 'rz-yara', 'kinds' => ['file'], 'sev' => 2, 'act' => [], 'tags' => ['T1105', 'T1505.003'],
                 'title' => 'YARA: bekende malware of webshell',
-                'what' => 'Een nieuw bestand lijkt volgens de YARA-regels van RzMon op malware: een webshell, cryptominer, reverse shell, IoT-botnet, Kinsing of een rootkit. De naam van de regel staat bij het bewijs.',
+                'what' => 'Een nieuw bestand lijkt volgens de YARA-regels van RzSense op malware: een webshell, cryptominer, reverse shell, IoT-botnet, Kinsing of een rootkit. De naam van de regel staat bij het bewijs.',
                 'sel' => ['s' => [[self::c('yara', 're', ['(^|,)(?!rz_info_)[A-Za-z0-9_]+'])]]],
                 'cond' => ['ref' => 's'],
             ],

@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Logs van servers (1.210.0, agent 1.83.0): de agent leest de nieuwe regels van de bronnen die je per server kiest,
  * pakt ze elke paar minuten gecomprimeerd en versleuteld in en stuurt ze los van het rapport (actie agent_logs).
- * RzMon maskeert geheimen, herkent het niveau en de tijd, en zet de regels in een tabel per dag (logd_JJJJMMDD), als
+ * RzSense maskeert geheimen, herkent het niveau en de tijd, en zet de regels in een tabel per dag (logd_JJJJMMDD), als
  * gecomprimeerde blokken: per bron hooguit 5000 regels per blok, met gzip (gemeten: 8× kleiner dan de ruwe logs; een rij
  * per regel met een zoekindex werd juist groter dan de logs zelf). Per blok staan de tijden en het aantal warnings en
  * errors erbij, zodat zoeken alleen de blokken uitpakt die ertoe doen. Een oude dag gaat in één keer weg.
@@ -223,7 +223,7 @@ final class LogStore
         try {
             LogWatch::onIngest($host, $byDay);
         } catch (Throwable $e) {
-            error_log('RzMon LogWatch: ' . $e->getMessage());
+            error_log('RzSense LogWatch: ' . $e->getMessage());
         }
         $dropped = array_sum(array_column($per, 2));
         if (!$wasOver && $dropped > 0) {

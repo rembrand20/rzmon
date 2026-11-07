@@ -13,7 +13,7 @@ final class PasswordReset
     private const MAX_PER_IP = 10;       // aanvragen per IP-adres per uur
     private const MAX_TRIES = 5;         // foute 2FA-codes per link
 
-    /** Kan RzMon herstelmails sturen? null = ja, anders de reden. */
+    /** Kan RzSense herstelmails sturen? null = ja, anders de reden. */
     public static function unavailable(): ?string
     {
         if (trim((string) setting('smtp_host', '')) === '') {
@@ -68,9 +68,9 @@ final class PasswordReset
         self::log((int) $u['id'], $ident, 'link verstuurd');
         $link = rtrim((string) config('base_url'), '/') . '/?reset=' . $token;
         // In de taal van het account, niet die van de browser waarmee de aanvraag gedaan is
-        [$subject, $body] = I18n::forUser((int) $u['id'], fn() => ['RzMon: ' . t('wachtwoord opnieuw instellen'),
+        [$subject, $body] = I18n::forUser((int) $u['id'], fn() => ['RzSense: ' . t('wachtwoord opnieuw instellen'),
             t('Hallo {user},', ['user' => $u['username']]) . "\n\n"
-            . t('Iemand (hopelijk jij) heeft gevraagd om het wachtwoord van je RzMon-account opnieuw in te stellen.') . "\n\n"
+            . t('Iemand (hopelijk jij) heeft gevraagd om het wachtwoord van je RzSense-account opnieuw in te stellen.') . "\n\n"
             . t('Kies een nieuw wachtwoord via deze link ({min} minuten geldig, één keer te gebruiken):', ['min' => self::VALID_MINUTES]) . "\n$link\n\n"
             . t('Heb je dit niet gevraagd? Dan hoef je niets te doen: je wachtwoord blijft hetzelfde.') . "\n\n"
             . t('Aangevraagd vanaf IP-adres {ip} op {time}.', ['ip' => $ip, 'time' => date('d-m-Y H:i')])]);
@@ -138,9 +138,9 @@ final class PasswordReset
         q('DELETE FROM remember_tokens WHERE user_id = ?', [$uid]);                        // onthouden apparaten vergeten
         self::log($uid, $r['username'], 'wachtwoord hersteld');
         if (filter_var((string) $r['email'], FILTER_VALIDATE_EMAIL)) {
-            [$subject, $body] = I18n::forUser($uid, fn() => ['RzMon: ' . t('je wachtwoord is gewijzigd'),
+            [$subject, $body] = I18n::forUser($uid, fn() => ['RzSense: ' . t('je wachtwoord is gewijzigd'),
                 t('Hallo {user},', ['user' => $r['username']]) . "\n\n"
-                . t('Het wachtwoord van je RzMon-account is zojuist gewijzigd via "Wachtwoord vergeten" (IP-adres {ip}, {time}).', ['ip' => client_ip(), 'time' => date('d-m-Y H:i')])
+                . t('Het wachtwoord van je RzSense-account is zojuist gewijzigd via "Wachtwoord vergeten" (IP-adres {ip}, {time}).', ['ip' => client_ip(), 'time' => date('d-m-Y H:i')])
                 . "\n" . t('Apparaten waarop je ingelogd bleef, zijn uitgelogd.') . "\n\n"
                 . t('Was jij dit niet? Neem dan direct contact op met je beheerder.')]);
             Mailer::send($subject, $body, null, (string) $r['email']);

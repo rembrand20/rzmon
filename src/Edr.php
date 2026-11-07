@@ -9,22 +9,22 @@ declare(strict_types=1);
  * - f: nieuwe uitvoerbare bestanden en scripts in tijdelijke mappen en webmappen (inotify);
  * - c: containers (exec, start met volledige rechten).
  * Hier wordt elke gebeurtenis bewaard (Live, 3 dagen), geleerd wat een server normaal doet (Anomaly, 1.111.0) en getoetst aan de eigen regels (EdrRules) en de Sigma-regels (Sigma). Een treffer wordt
- * een IDS-incident met het bewijs erbij; in de modus Blokkeren stopt RzMon het proces, blokkeert het IP of isoleert de
- * server (per soort aan/uit, Instellingen → IDS). Alles wat RzMon zelf doet, wordt ook gemeld.
+ * een IDS-incident met het bewijs erbij; in de modus Blokkeren stopt RzSense het proces, blokkeert het IP of isoleert de
+ * server (per soort aan/uit, Instellingen → IDS). Alles wat RzSense zelf doet, wordt ook gemeld.
  * Aan/uit: algemeen (edr_on) en per server (hosts.edr_on); het IDS moet aan staan.
  */
 final class Edr
 {
     public const KINDS = ['x' => 'exec', 'a' => 'audit', 'n' => 'net', 'f' => 'file', 'c' => 'ctr'];
-    /** In Live ook: samenvatting van wat RzMon zelf deed (o) en toegestaan verkeer van RzMon (s = Suricata, d = DNS, w = web) */
+    /** In Live ook: samenvatting van wat RzSense zelf deed (o) en toegestaan verkeer van RzSense (s = Suricata, d = DNS, w = web) */
     private const FEED_KINDS = self::KINDS + ['o' => 'own', 's' => 'sur', 'd' => 'dns', 'w' => 'web', 'i' => 'ids'];   // i: IDS-uitzondering (1.132.0)
-    /** Van RzMon zelf (agent 1.65.0): agent = de agent en wat hij start, rzmon = RzMon op zijn eigen server, net = verkeer met RzMon */
+    /** Van RzSense zelf (agent 1.65.0): agent = de agent en wat hij start, rzmon = RzSense op zijn eigen server, net = verkeer met RzSense */
     public const OWN = ['agent', 'rzmon', 'net'];
-    /** Per rapport: wat RzMon zelf deed, opgeteld [soort => [aantallen, voorbeelden]] */
+    /** Per rapport: wat RzSense zelf deed, opgeteld [soort => [aantallen, voorbeelden]] */
     private static array $ownAgg = [];
     private const MAX_EVENTS = 500;
     private static ?array $rules = null;
-    /** Processen die RzMon in dit rapport meteen laat stoppen (gaan mee in het antwoord aan de agent) */
+    /** Processen die RzSense in dit rapport meteen laat stoppen (gaan mee in het antwoord aan de agent) */
     private static array $kills = [];
 
     public static function onFor(array $host): bool
@@ -38,12 +38,12 @@ final class Edr
         if (!self::onFor($host)) {
             return [];
         }
-        // 1.114.0: zo herkent de agent RzMon zelf op zijn eigen server (de map, en de gebruiker van de webserver)
+        // 1.114.0: zo herkent de agent RzSense zelf op zijn eigen server (de map, en de gebruiker van de webserver)
         $user = function_exists('posix_geteuid') ? (string) (posix_getpwuid(posix_geteuid())['name'] ?? '') : get_current_user();
         return [implode("\t", [0, 'edr', 1]), implode("\t", [0, 'edrself', SM_ROOT, preg_replace('/[^A-Za-z0-9._-]/', '', $user), self::selfMark()])];
     }
 
-    /** Geheim kenmerk in de opdrachten van RzMon (1.132.0, zie rz_sh); eenmalig gemaakt, nooit geëxporteerd */
+    /** Geheim kenmerk in de opdrachten van RzSense (1.132.0, zie rz_sh); eenmalig gemaakt, nooit geëxporteerd */
     public static function selfMark(): string
     {
         static $m = null;
@@ -61,7 +61,7 @@ final class Edr
         return $m;
     }
 
-    /** Opdracht van RzMon zelf: met het kenmerk, of de cron van deze RzMon (crond → sh -c php …/cron/run.php) */
+    /** Opdracht van RzSense zelf: met het kenmerk, of de cron van deze RzSense (crond → sh -c php …/cron/run.php) */
     public static function isSelfCmd(string $cmd): bool
     {
         $m = self::selfMark();
@@ -133,7 +133,7 @@ final class Edr
                 $sig = self::sig($kind, $ev);
                 $at = self::when($ev);
                 if (in_array($ev['own'] ?? '', self::OWN, true)) {
-                    self::own($host, (string) $ev['own'], $kind, $ev, $f, $sig, $at);   // RzMon zelf: loggen, nooit ingrijpen
+                    self::own($host, (string) $ev['own'], $kind, $ev, $f, $sig, $at);   // RzSense zelf: loggen, nooit ingrijpen
                     continue;
                 }
                 $match = null;
@@ -183,9 +183,9 @@ final class Edr
     }
 
     /**
-     * Iets van RzMon zelf (agent 1.65.0): nooit een incident, nooit ingrijpen, niet meetellen voor afwijkingen, ketens of
+     * Iets van RzSense zelf (agent 1.65.0): nooit een incident, nooit ingrijpen, niet meetellen voor afwijkingen, ketens of
      * dreigingsinformatie. Wel loggen als "toegestaan": opgeteld per rapport, en apart als een regel raak zou zijn
-     * geweest, of bij iets bijzonders (pakketten installeren, zelf herstellen, commando's van RzMon).
+     * geweest, of bij iets bijzonders (pakketten installeren, zelf herstellen, commando's van RzSense).
      */
     private static function own(array $host, string $own, string $kind, array $ev, array $f, string $sig, string $at): void
     {
@@ -220,7 +220,7 @@ final class Edr
         unset($a);
     }
 
-    /** Eén groene regel per soort (agent, RzMon, netwerk) voor dit rapport */
+    /** Eén groene regel per soort (agent, RzSense, netwerk) voor dit rapport */
     private static function ownFlush(array $host): void
     {
         foreach (self::$ownAgg[(int) $host['id']] ?? [] as $own => $a) {
@@ -230,7 +230,7 @@ final class Edr
         unset(self::$ownAgg[(int) $host['id']]);
     }
 
-    /** Toegestaan verkeer van RzMon dat anders gemeld zou zijn (Suricata, DNS, web): een groene regel, hooguit eens per uur */
+    /** Toegestaan verkeer van RzSense dat anders gemeld zou zijn (Suricata, DNS, web): een groene regel, hooguit eens per uur */
     public static function allowed(array $host, string $kind, string $sig, array $data): void
     {
         $sig = mb_substr($sig, 0, 255);
@@ -361,11 +361,11 @@ final class Edr
             }
             if (in_array('isolate', $acts, true) && setting('edr_isolate', '1') === '1'
                 && !q('SELECT 1 FROM hosts WHERE id = ? AND isolate_until > NOW()', [$host['id']])->fetchColumn()) {
-                Ids::isolate((int) $host['id'], 24, 'RzMon (' . t('automatisch') . ')', '', $title);
+                Ids::isolate((int) $host['id'], 24, 'RzSense (' . t('automatisch') . ')', '', $title);
                 $done[] = t('server geïsoleerd (24 uur)');
             }
         } elseif ($acts) {
-            $done[] = t('modus Leren: RzMon greep niet in');
+            $done[] = t('modus Leren: RzSense greep niet in');
         }
         $detail = implode(' · ', array_filter([$facts, $sigma ? t('Sigma-regel van {a} (SigmaHQ, DRL 1.1)', ['a' => $r['author'] ?: '?']) : t($r['what']),
             $done ? '⛔ ' . implode(', ', $done) : '']));
@@ -551,7 +551,7 @@ final class Edr
         return Vulns::requestInstall($host, $pkgs, $by);
     }
 
-    /** De YARA-regels van RzMon (rules/yara/rzmon.yar) */
+    /** De YARA-regels van RzSense (rules/yara/rzmon.yar) */
     public static function yaraRules(): string
     {
         static $r = null;

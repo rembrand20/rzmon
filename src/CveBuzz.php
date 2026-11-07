@@ -9,7 +9,7 @@ declare(strict_types=1);
  *   een exploit op Exploit-DB, een Nuclei-template (scanners zoeken er al naar) en openbare PoC's op GitHub;
  * - praat (tot 40): Hacker News (laatste 7 dagen en totaal) en Mastodon (de hashtag, per dag, op een instantie naar keuze).
  * Daarbovenop tot 10 punten voor de kans op misbruik (EPSS). Bronnen zonder sleutel werken altijd; met een GitHub-token
- * (Instellingen → Kwetsbaarheden) mag RzMon vaker zoeken, met een Mastodon-token telt hij ook berichten zonder hashtag.
+ * (Instellingen → Kwetsbaarheden) mag RzSense vaker zoeken, met een Mastodon-token telt hij ook berichten zonder hashtag.
  * Per CVE één keer per dag (actief misbruikt of high/critical: twee keer); Exploit-DB en Nuclei één keer per dag als lijst.
  * Melding (ℹ️ "veel aandacht") als een CVE de grens passeert of snel stijgt, per server, hooguit eens per 14 dagen.
  */

@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Signalen en ketens (1.111.0). Alles wat op een aanval kan wijzen, wordt een signaal (ids_signals) met de MITRE-
  * tactieken en -technieken erbij: treffers van de endpoint-regels, afwijkingen (Anomaly) en de IDS-incidenten van
- * vóór de endpoint-bewaking (logins, brute force, webaanvallen, nieuwe gebruikers …). Na elk rapport kijkt RzMon of
+ * vóór de endpoint-bewaking (logins, brute force, webaanvallen, nieuwe gebruikers …). Na elk rapport kijkt RzSense of
  * de signalen van die server samen een keten vormen (binnen edr_chain_min minuten, standaard 60):
  * - web:     een webaanval, daarna code op de webserver (webshell, shell van de webserver, nieuw bestand in de webmap);
  * - login:   inloggen (verdacht: nieuw IP, na brute force, ongewoon tijdstip) en daarna rechten of een achterdeur;
@@ -13,7 +13,7 @@ declare(strict_types=1);
  * - anoms:   veel afwijkingen tegelijk;
  * - lateral: een login vanaf een andere eigen server waar net een aanval was.
  * Een keten wordt een IDS-incident (type chain) met alle stappen als bewijs; in de modus Blokkeren (en met
- * edr_chain_act aan) blokkeert RzMon de aanvaller en isoleert hij de server bij web en dropper.
+ * edr_chain_act aan) blokkeert RzSense de aanvaller en isoleert hij de server bij web en dropper.
  */
 final class Chain
 {
@@ -199,11 +199,11 @@ final class Chain
                     }
                 }
                 if ($c['isolate'] && setting('edr_isolate', '1') === '1' && !q('SELECT 1 FROM hosts WHERE id = ? AND isolate_until > NOW()', [$hid])->fetchColumn()) {
-                    Ids::isolate($hid, 24, 'RzMon (' . t('automatisch') . ')', '', t('Aanvalsketen: {what}', ['what' => t($sc['title'])]));
+                    Ids::isolate($hid, 24, 'RzSense (' . t('automatisch') . ')', '', t('Aanvalsketen: {what}', ['what' => t($sc['title'])]));
                     $done[] = t('server geïsoleerd (24 uur)');
                 }
             } else {
-                $done[] = t('modus Leren: RzMon greep niet in');
+                $done[] = t('modus Leren: RzSense greep niet in');
             }
         }
         $line = implode(' → ', array_map(static fn($s) => t(Mitre::TACTIC_NL[$s['tactics'][0] ?? ''] ?? 'Signaal') . ': ' . mb_substr($s['label'], 0, 60),

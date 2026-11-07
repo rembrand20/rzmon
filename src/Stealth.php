@@ -3,9 +3,9 @@ declare(strict_types=1);
 
 /**
  * Onzichtbaar van buiten (1.86.0). Twee schakelaars bij Instellingen → Toegang en inlogbeveiliging:
- * - stealth_hide (standaard aan): RzMon is van buiten niet als RzMon te herkennen. Geen naam of versie bij ping, het
+ * - stealth_hide (standaard aan): RzSense is van buiten niet als RzSense te herkennen. Geen naam of versie bij ping, het
  *   agent-script alleen voor bekende agents of met de downloadsleutel, en geweigerd of onbekend krijgt een gewone 404
- *   (zoals nginx die geeft). De reden staat dan wel in RzMon (Meldingen, agentlog).
+ *   (zoals nginx die geeft). De reden staat dan wel in RzSense (Meldingen, agentlog).
  * - stealth_ui (standaard uit): de webinterface en het inloggen werken van buiten alleen op een toegestaan apparaat
  *   (apparaatsleutel als cookie, per gebruiker), eventueel alleen vanuit je normale landen. Anders: dezelfde 404.
  *   Agents, heartbeats, ack-links en de REST API werken gewoon. Sleutel kwijt: een noodlink (stealth_door).
@@ -18,7 +18,7 @@ final class Stealth
     public const COOKIE = 'rzmon_device';
     private const DOOR_MINUTES = 15;
     private const DOOR_PER_HOUR = 3;
-    /** Wachtende sleutel van een geweigerd apparaat: een neutrale naam, die niet verraadt dat hier RzMon draait */
+    /** Wachtende sleutel van een geweigerd apparaat: een neutrale naam, die niet verraadt dat hier RzSense draait */
     public const PENDING_COOKIE = 'sid';
     private const REQ_PER_HOUR = 3;      // nieuwe wachtende apparaten per IP per uur
     private const REQ_MAX = 100;         // hooguit zoveel wachtende tegelijk
@@ -50,7 +50,7 @@ final class Stealth
         return PHP_SAPI !== 'cli' && !Https::internal();
     }
 
-    /** Een gewone 404, zoals nginx die geeft: niets dat naar RzMon wijst */
+    /** Een gewone 404, zoals nginx die geeft: niets dat naar RzSense wijst */
     public static function notFound(): never
     {
         http_response_code(404);
@@ -86,7 +86,7 @@ final class Stealth
         return $k;
     }
 
-    /** Het installatiescript zoals RzMon het uitlevert: met de downloadsleutel erin (zo haalt het daarna de agent op) */
+    /** Het installatiescript zoals RzSense het uitlevert: met de downloadsleutel erin (zo haalt het daarna de agent op) */
     public static function installScript(): string
     {
         $s = (string) file_get_contents(SM_ROOT . '/agent/install-agent.sh');
@@ -118,7 +118,7 @@ final class Stealth
         return false;
     }
 
-    /** Mag ping zeggen dat dit RzMon is (naam, versie)? Intern, of een bekende agent */
+    /** Mag ping zeggen dat dit RzSense is (naam, versie)? Intern, of een bekende agent */
     public static function pingFull(): bool
     {
         return !self::hide() || !self::outside() || self::scriptAllowed();
@@ -239,7 +239,7 @@ final class Stealth
         self::cookie($key);
         AgentCommands::audit($user['username'], 'Apparaat toegestaan van buiten', $name);
         Monitor::sysInfo('device_trust', null, null, '📱 ' . t('Apparaat toegestaan van buiten: {name}', ['name' => $name]),
-            fn() => t('{user} heeft {name} toegestaan om van buiten je netwerk RzMon te openen', ['user' => $user['username'], 'name' => $name]) . " · IP $ip", $ip);
+            fn() => t('{user} heeft {name} toegestaan om van buiten je netwerk RzSense te openen', ['user' => $user['username'], 'name' => $name]) . " · IP $ip", $ip);
         return $id;
     }
 
@@ -248,7 +248,7 @@ final class Stealth
         self::setCookie(self::COOKIE, $key);
     }
 
-    /** Cookie van een jaar (of weghalen met null), alleen voor RzMon en niet leesbaar voor JavaScript */
+    /** Cookie van een jaar (of weghalen met null), alleen voor RzSense en niet leesbaar voor JavaScript */
     private static function setCookie(string $name, ?string $key): void
     {
         $path = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/') . '/';
@@ -268,7 +268,7 @@ final class Stealth
         q('DELETE FROM trusted_devices WHERE id = ?', [$id]);
         AgentCommands::audit($by, 'Apparaat ingetrokken', "{$d['username']}: {$d['name']}");
         Monitor::sysInfo('device_trust', null, null, '📵 ' . t('Apparaat ingetrokken: {name}', ['name' => $d['name']]),
-            fn() => t('{name} van {user} kan RzMon niet meer van buiten openen (door {by})', ['name' => $d['name'], 'user' => $d['username'], 'by' => $by]));
+            fn() => t('{name} van {user} kan RzSense niet meer van buiten openen (door {by})', ['name' => $d['name'], 'user' => $d['username'], 'by' => $by]));
         return true;
     }
 
@@ -336,10 +336,10 @@ final class Stealth
                 [hash('sha256', $key), mb_substr($name, 0, 100), $ua, now(), mb_substr($ip, 0, 45), now(), mb_substr($ip, 0, 45), $cc]);
             self::$pendingKey = $key;
             Monitor::sysInfo('device_request', null, null, '📱 ' . t('Geweigerd apparaat van buiten: {name}', ['name' => $name]),
-                fn() => t('{name} probeerde RzMon te openen vanaf {ip} en kreeg een 404. Toestaan kan bij Instellingen → Van buiten → Wachtende apparaten.',
+                fn() => t('{name} probeerde RzSense te openen vanaf {ip} en kreeg een 404. Toestaan kan bij Instellingen → Van buiten → Wachtende apparaten.',
                     ['name' => $name, 'ip' => $ip . ($cc ? " ($cc)" : '')]), $ip);
         } catch (Throwable $e) {
-            error_log('RzMon: wachtend apparaat vastleggen mislukt: ' . $e->getMessage());
+            error_log('RzSense: wachtend apparaat vastleggen mislukt: ' . $e->getMessage());
         }
     }
 
@@ -407,10 +407,10 @@ final class Stealth
             . t('Eén keer te gebruiken, {n} minuten geldig. Aangevraagd vanaf {ip}.', ['n' => self::DOOR_MINUTES, 'ip' => $ip . ($cc ? " ($cc)" : '')]) . ' '
             . t('Was jij dit niet? Dan kun je dit negeren: zonder de link komt niemand binnen.'));
         $sent = [];
-        if ((string) $u['email'] !== '' && setting('email_enabled', '0') === '1' && Mailer::send(I18n::forNotify(fn() => t('RzMon noodlink')), $msg, null, (string) $u['email'])['ok']) {
+        if ((string) $u['email'] !== '' && setting('email_enabled', '0') === '1' && Mailer::send(I18n::forNotify(fn() => t('RzSense noodlink')), $msg, null, (string) $u['email'])['ok']) {
             $sent[] = t('e-mail');
         }
-        if ($u['role'] === 'admin' && Push::enabled() && Push::send(I18n::forNotify(fn() => t('RzMon noodlink')), $msg, 0)['ok']) {
+        if ($u['role'] === 'admin' && Push::enabled() && Push::send(I18n::forNotify(fn() => t('RzSense noodlink')), $msg, 0)['ok']) {
             $sent[] = 'push';
         }
         Monitor::sysInfo('stealth_door', null, null, '🚪 ' . t('Noodlink aangevraagd: {user}', ['user' => $u['username']]),

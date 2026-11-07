@@ -1,14 +1,14 @@
-# ---------------------------------------------------------------- Versleuteling (RzMon 1.57.0+)
-# Met een sleutel gaan rapporten versleuteld naar RzMon (AES-256-CBC + HMAC-SHA256, met openssl) en komt het
-# antwoord versleuteld terug; zie src/AgentCrypto.php in RzMon. De sleutel: ENC_KEY in /etc/default/rzmon-agent,
-# of de sleutel die RzMon zelf meestuurt (enc.key, alleen leesbaar voor root; die gaat voor, zo werkt een nieuwe
-# sleutel vanzelf). Staat versleutelen in RzMon uit voor deze server, dan zet RzMon enc.off neer.
+# ---------------------------------------------------------------- Versleuteling (RzSense 1.57.0+)
+# Met een sleutel gaan rapporten versleuteld naar RzSense (AES-256-CBC + HMAC-SHA256, met openssl) en komt het
+# antwoord versleuteld terug; zie src/AgentCrypto.php in RzSense. De sleutel: ENC_KEY in /etc/default/rzmon-agent,
+# of de sleutel die RzSense zelf meestuurt (enc.key, alleen leesbaar voor root; die gaat voor, zo werkt een nieuwe
+# sleutel vanzelf). Staat versleutelen in RzSense uit voor deze server, dan zet RzSense enc.off neer.
 #
-# Beveiligde verbinding (agent 1.50.0+, RzMon 1.64.0+): een eigen sleutel voor deze server (agent.key). Die staat
+# Beveiligde verbinding (agent 1.50.0+, RzSense 1.64.0+): een eigen sleutel voor deze server (agent.key). Die staat
 # in een vaste map, niet in de cache: in de HA-add-on /data/rzmon-keys, op TrueNAS in de map van de agent, anders
 # /var/lib/rzmon-agent (alleen root). Met een eigen sleutel stuurt de agent geen token meer mee, alleen het kenmerk
 # van zijn sleutel, en is elk verzoek versleuteld of ondertekend. De sleutel komt bij het koppelen (koppelcode:
-# PAIR_CODE) of, als de agent al met de algemene sleutel werkte, in een versleuteld antwoord van RzMon.
+# PAIR_CODE) of, als de agent al met de algemene sleutel werkte, in een versleuteld antwoord van RzSense.
 enc_file="$t_dir/enc.key"
 if [ "$HA_MODE" = 1 ]; then k_dir=/data/rzmon-keys
 elif [ -n "${AGENT_DIR-}" ]; then k_dir="$AGENT_DIR/keys"
@@ -78,11 +78,11 @@ get_auth() {
     fi
 }
 
-# Adres van RzMon (agent 1.51.0, RzMon 1.72.0). RzMon kan de agent een ander adres geven (bv. https via de reverse
+# Adres van RzSense (agent 1.51.0, RzSense 1.72.0). RzSense kan de agent een ander adres geven (bv. https via de reverse
 # proxy); de agent test het eerst en bewaart het dan in $k_dir/url (regel 1: het adres, 2: het adres uit de instellingen
 # waar het voor in de plaats komt, 3: het reserve-adres). Pas je MONITOR_URL zelf aan, dan geldt weer dat. Het
 # reserve-adres (MONITOR_URL_FALLBACK, of uit $k_dir/url) wordt gebruikt als het gewone adres niet bereikbaar is
-# (geen verbinding, certificaat, of de proxy geeft 502-504); RzMon toont dat met een ⚠️.
+# (geen verbinding, certificaat, of de proxy geeft 502-504); RzSense toont dat met een ⚠️.
 conf_url=${MONITOR_URL%/}
 MONITOR_URL_FALLBACK="${MONITOR_URL_FALLBACK-}"
 url_file="$k_dir/url"
@@ -103,9 +103,9 @@ MONITOR_URL_FALLBACK=${MONITOR_URL_FALLBACK%/}
 [ "$MONITOR_URL_FALLBACK" = "$MONITOR_URL" ] && MONITOR_URL_FALLBACK=""
 url_result=$(head -c 500 "$k_dir/url.result" 2>/dev/null | tr -d '\n')
 
-# Controle per adres (agent 1.53.0, RzMon 1.78.0): in $k_dir/url.pins staat per adres hoe het certificaat gecontroleerd
-# wordt: "-" = gewoon (geldig certificaat, of http), "sha256//…" = alleen het eigen certificaat van RzMon (vastzetten;
-# met een klaargezet nieuw certificaat twee vingerafdrukken, "sha256//A;sha256//B"). RzMon geeft dit door in elk
+# Controle per adres (agent 1.53.0, RzSense 1.78.0): in $k_dir/url.pins staat per adres hoe het certificaat gecontroleerd
+# wordt: "-" = gewoon (geldig certificaat, of http), "sha256//…" = alleen het eigen certificaat van RzSense (vastzetten;
+# met een klaargezet nieuw certificaat twee vingerafdrukken, "sha256//A;sha256//B"). RzSense geeft dit door in elk
 # versleuteld antwoord. Geen regel voor een adres: zoals vroeger (de vingerafdruk uit $k_dir/pin, of INSECURE).
 spec_re='^(-|sha256//[A-Za-z0-9+/=]{40,64}(;sha256//[A-Za-z0-9+/=]{40,64})?)$'
 url_spec() { [ -n "$1" ] && [ -r "$k_dir/url.pins" ] && awk -v u="$1" '$1 == u { print $2; exit }' "$k_dir/url.pins"; }
@@ -132,9 +132,9 @@ spec_tls() {  # spec_tls <adres> <controle>: zet s_tls
     elif [ "$INSECURE" = 1 ]; then s_tls=(-k); fi
 }
 
-# Overstappen naar een nieuw adres (opdracht uit een versleuteld antwoord van RzMon): eerst testen met een ondertekend
+# Overstappen naar een nieuw adres (opdracht uit een versleuteld antwoord van RzSense): eerst testen met een ondertekend
 # verzoek; alleen als het antwoord met onze eigen sleutel klopt, gaat de agent dat adres gebruiken (vanaf de volgende
-# keer). De uitkomst gaat met het volgende rapport naar RzMon.
+# keer). De uitkomst gaat met het volgende rapport naar RzSense.
 url_switch() {  # url_switch <nieuw adres> <reserve-adres> [controle nieuw] [controle reserve] (agent 1.53.0)
     local new=${1%/} fb=${2%/} n_spec=${3-} f_spec=${4-} t_tls=() out code rip body why
     [ -e "$k_dir/url.result" ] && return 0   # vorige uitkomst nog niet doorgegeven
@@ -147,12 +147,12 @@ url_switch() {  # url_switch <nieuw adres> <reserve-adres> [controle nieuw] [con
         return 0
     fi
     if [[ "$new" == https://* && "$n_spec" == sha256//* && "$curl_pins" != 1 ]]; then
-        printf 'error: curl %s op deze server kan het certificaat van RzMon niet vastzetten (7.44 of nieuwer nodig)\n' "$c_ver" >"$k_dir/url.result"
+        printf 'error: curl %s op deze server kan het certificaat van RzSense niet vastzetten (7.44 of nieuwer nodig)\n' "$c_ver" >"$k_dir/url.result"
         return 0
     fi
     spec_tls "$new" "$n_spec"; t_tls=("${s_tls[@]}")
     get_auth agent_check
-    # Ook het IP waarmee curl verbond: RzMon ziet daaraan of de naam hier naar de proxy wijst of via internet gaat
+    # Ook het IP waarmee curl verbond: RzSense ziet daaraan of de naam hier naar de proxy wijst of via internet gaat
     out=$(curl -sS -m 15 "${t_tls[@]}" "${ga[@]}" -w '\n%{http_code} %{remote_ip}' "$new/api.php?action=agent_check" 2>&1)
     code=${out##*$'\n'}; out=${out%$'\n'*}
     rip=${code#* }; code=${code%% *}
@@ -161,7 +161,7 @@ url_switch() {  # url_switch <nieuw adres> <reserve-adres> [controle nieuw] [con
         if (umask 077; printf '%s\n%s\n%s\n' "$new" "$conf_url" "$fb" >"$url_file.tmp" && mv -f "$url_file.tmp" "$url_file"); then
             url_pins_put "$new" "$n_spec" "$fb" "$f_spec"
             printf 'ok %s%s\n' "$new" "${rip:+ [ip $rip]}" >"$k_dir/url.result"
-            echo "Adres van RzMon gewijzigd naar $new${fb:+ (reserve: $fb)}" >&2
+            echo "Adres van RzSense gewijzigd naar $new${fb:+ (reserve: $fb)}" >&2
         else
             printf 'error: kan %s niet schrijven\n' "$url_file" >"$k_dir/url.result"
         fi
@@ -174,16 +174,16 @@ url_switch() {  # url_switch <nieuw adres> <reserve-adres> [controle nieuw] [con
     fi
 }
 
-# Certificaat van RzMon vastzetten: bij een eigen (self-signed) certificaat accepteert de agent alleen dat ene
+# Certificaat van RzSense vastzetten: bij een eigen (self-signed) certificaat accepteert de agent alleen dat ene
 # certificaat (curl --pinnedpubkey). De vingerafdruk komt uit het installatiecommando (PIN) en daarna uit de
-# versleutelde antwoorden van RzMon ("" = niet vastzetten). Zonder vingerafdruk: INSECURE=1 als vroeger.
+# versleutelde antwoorden van RzSense ("" = niet vastzetten). Zonder vingerafdruk: INSECURE=1 als vroeger.
 curl_pins=0
 c_ver=$(curl -V 2>/dev/null | awk 'NR == 1 { print $2 }'); IFS=. read -r c_v1 c_v2 _ <<<"$c_ver"
 { [ "${c_v1:-0}" -gt 7 ] || { [ "${c_v1:-0}" = 7 ] && [ "${c_v2:-0}" -ge 44 ]; }; } 2>/dev/null && curl_pins=1   # sha256-pins: curl 7.44+
 set_tls() {
     pin=""
     u_spec=$(url_spec "$MONITOR_URL")
-    if [ -n "$u_spec" ]; then   # agent 1.53.0: RzMon gaf voor dit adres door hoe het gecontroleerd wordt
+    if [ -n "$u_spec" ]; then   # agent 1.53.0: RzSense gaf voor dit adres door hoe het gecontroleerd wordt
         spec_tls "$MONITOR_URL" "$u_spec"; tls=("${s_tls[@]}")
         [[ "$u_spec" == sha256//* ]] && pin=${u_spec#sha256//} && pin=${pin%%;*}
         return 0
@@ -195,7 +195,7 @@ set_tls() {
     elif [ "$INSECURE" = 1 ]; then tls=(-k); fi
 }
 set_tls
-store_pin() {  # store_pin <versleuteld antwoord>: vingerafdruk van RzMon bewaren, of ("") niet meer vastzetten
+store_pin() {  # store_pin <versleuteld antwoord>: vingerafdruk van RzSense bewaren, of ("") niet meer vastzetten
     [[ "$1" =~ \"pin\":\"([A-Za-z0-9+/=\\]{0,90})\" ]] || return 0
     local p=${BASH_REMATCH[1]//\\/}
     if [ -n "$p" ]; then
@@ -205,15 +205,15 @@ store_pin() {  # store_pin <versleuteld antwoord>: vingerafdruk van RzMon beware
         rm -f "$k_dir/pin"; : >"$k_dir/pin.off"
     fi
 }
-store_key() {  # store_key <versleuteld antwoord>: eigen sleutel van RzMon bewaren (eerste keer, of vernieuwd)
+store_key() {  # store_key <versleuteld antwoord>: eigen sleutel van RzSense bewaren (eerste keer, of vernieuwd)
     [[ "$1" =~ \"agent_key\":\"([0-9a-f]{64})\" ]] || return 0
     [ "${BASH_REMATCH[1]}" = "$own_key" ] && return 0
     (umask 077; printf '%s\n' "${BASH_REMATCH[1]}" >"$own_file.tmp" && mv -f "$own_file.tmp" "$own_file") || return 1
     own_key=${BASH_REMATCH[1]}
 }
 
-# Koppelen met een koppelcode (eenmalig; RzMon → Agent Manager → 🔗 Koppelcode). Het verzoek is versleuteld met een
-# sleutel uit de code; RzMon antwoordt (ook versleuteld) met de eigen sleutel van deze server. Een code die al
+# Koppelen met een koppelcode (eenmalig; RzSense → Agent Manager → 🔗 Koppelcode). Het verzoek is versleuteld met een
+# sleutel uit de code; RzSense antwoordt (ook versleuteld) met de eigen sleutel van deze server. Een code die al
 # gebruikt is (pair.used) wordt overgeslagen.
 pair_code=$(printf '%s' "${PAIR_CODE-}" | tr -dc 'A-Za-z0-9' | tr '[:lower:]' '[:upper:]')
 pair_agent() {
@@ -229,7 +229,7 @@ pair_agent() {
     code=${raw##*$'\n'}; raw=${raw%$'\n'*}
     if [ "$code" != 200 ] || ! body=$(unseal "$raw" "$seal_n"); then
         echo "Koppelen mislukt (HTTP $code): $(sed -n 's/.*"error":"\([^"]*\)".*/\1/p' <<<"$raw" | head -c 200)" >&2
-        [ "$code" = 200 ] && echo "  Het antwoord van RzMon klopt niet (handtekening); niet gekoppeld." >&2
+        [ "$code" = 200 ] && echo "  Het antwoord van RzSense klopt niet (handtekening); niet gekoppeld." >&2
         return 1
     fi
     p_key=$(sed -n 's/.*"agent_key":"\([0-9a-f]\{64\}\)".*/\1/p' <<<"$body")
@@ -238,7 +238,7 @@ pair_agent() {
     printf '%s' "$pair_code" | sha256sum | cut -c1-16 >"$k_dir/pair.used"
     rm -f "$t_dir/enc.off" "$t_dir/enc.fail"
     store_pin "$body"
-    echo "🔑 Gekoppeld met RzMon (server: $(sed -n 's/.*"host":"\([^"]*\)".*/\1/p' <<<"$body")): eigen sleutel ontvangen" >&2
+    echo "🔑 Gekoppeld met RzSense (server: $(sed -n 's/.*"host":"\([^"]*\)".*/\1/p' <<<"$body")): eigen sleutel ontvangen" >&2
 }
 pair_done() { [ "$(cat "$k_dir/pair.used" 2>/dev/null)" = "$(printf '%s' "$pair_code" | sha256sum | cut -c1-16)" ]; }
 if [ -n "$pair_code" ] && command -v openssl >/dev/null 2>&1 && ! pair_done; then

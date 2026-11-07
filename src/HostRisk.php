@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * Risico per server (1.144.0): één score 0–100, overal dezelfde (dashboard, serverkaart, REST API, MQTT).
- * Opgebouwd uit wat RzMon al weet, elk onderdeel met een plafond, zodat één ding niet alles bepaalt:
+ * Opgebouwd uit wat RzSense al weet, elk onderdeel met een plafond, zodat één ding niet alles bepaalt:
  *   open incidenten              tot 35   (15 per critical, 5 per warning)
  *   kwetsbaarheden               tot 30   (de hoogste risicoscore van een CVE × 0,3 als het pakket op het netwerk luistert, anders × 0,15)
  *   hardening                    tot 15   ((100 − hardening-score) × 0,15)
@@ -100,7 +100,7 @@ final class HostRisk
      * Aanvalspad en impact van één server (1.144.0-risico, uitgewerkt in 1.146.0): op welke poorten hij luistert (niet alleen
      * op localhost), welk programma/pakket daar zit en de ergste kwetsbaarheid daarin, wat er open staat aan incidenten,
      * en welke servers ervan afhangen (blast radius: valt hij om of wordt hij overgenomen, dan raakt dat ook die servers).
-     * Een schatting: RzMon kent je firewall niet; een poort op 0.0.0.0 kan van buiten dicht zijn.
+     * Een schatting: RzSense kent je firewall niet; een poort op 0.0.0.0 kan van buiten dicht zijn.
      */
     public static function exposure(int $hostId): ?array
     {

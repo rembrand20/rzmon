@@ -1,11 +1,11 @@
 # ---------------------------------------------------------------- Logins lezen (agent 1.74.0)
-# Regels "epoch <tab> programma <tab> bericht" (stdin, uit journal of auth-log) → auth_json voor RzMon:
+# Regels "epoch <tab> programma <tab> bericht" (stdin, uit journal of auth-log) → auth_json voor RzSense:
 #  - events: geslaagde logins (SSH met bronpoort, console), sudo, su, en het einde van een SSH-sessie (ssh_end)
 #  - fails:  mislukte pogingen opgeteld per soort/IP/gebruiker (zoals altijd: brute force, Toegang)
 #  - tries:  1.74.0: de losse mislukte SSH-pogingen (tijd, IP, gebruiker, bronpoort; hooguit 200 per rapport),
-#            voor de aanvalskaart en de tijdlijn in RzMon
+#            voor de aanvalskaart en de tijdlijn in RzSense
 # Wachtwoorden in sudo-commando's (bv. mysql -pGeheim, password=…) worden hier al gemaskeerd.
-# Testen zonder RzMon (tests/agent-edr.sh): rzmon-agent.sh --auth-parse < bestand
+# Testen zonder RzSense (tests/agent-edr.sh): rzmon-agent.sh --auth-parse < bestand
 mask_secrets() {
     sed -E 's/((password|passwd|pass|pwd|token|secret|apikey|api_key)[=:])[^ ]+/\1••••/Ig;
             s/(--password[= ])[^ ]+/\1••••/g; s/((mysql|mariadb|mysqldump|mysqladmin)( [^|;&]*)? -p)[^ ]+/\1••••/g'

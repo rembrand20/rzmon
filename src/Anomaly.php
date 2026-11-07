@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Afwijkingen (1.111.0): RzMon leert per server wat normaal is (standaard 14 dagen, Instellingen → IDS → Afwijkingen
+ * Afwijkingen (1.111.0): RzSense leert per server wat normaal is (standaard 14 dagen, Instellingen → IDS → Afwijkingen
  * en ketens) en meldt daarna wat die server nog nooit deed: een nieuw programma, een webserver of database die iets
  * nieuws start, een nieuwe gebruiker, een programma dat ineens luistert of naar buiten belt, een nieuw land, een
  * nieuw container-image, ongewoon veel nieuwe processen, of iemand die actief is op een ongewoon tijdstip.

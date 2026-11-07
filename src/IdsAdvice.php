@@ -53,7 +53,7 @@ final class IdsAdvice
         $a = ['what' => '', 'risk' => '', 'steps' => [], 'cmds' => [], 'prevent' => '', 'ask' => true];
         // Noodstappen als het níet van jou was: bij een login (account overgenomen) of bij kwaadaardige software
         $loginEmergency = static fn(?string $u) => [
-            t('Isoleer de server (knop hieronder): alleen RzMon, je eigen netwerk en jouw IP kunnen er dan nog bij.'),
+            t('Isoleer de server (knop hieronder): alleen RzSense, je eigen netwerk en jouw IP kunnen er dan nog bij.'),
             $u ? t('Vergrendel het account {user} (knop hieronder) en kies een nieuw wachtwoord.', ['user' => $u]) : t('Vergrendel het overgenomen account en kies een nieuw wachtwoord.'),
             t('Blokkeer het IP-adres, en kijk in de tijdlijn of het ook op andere servers kwam.'),
             t('Controleer de SSH-sleutels (authorized_keys), nieuwe gebruikers, cronjobs en diensten: daar zet een aanvaller zijn achterdeur.'),
@@ -357,7 +357,7 @@ final class IdsAdvice
                 $a['cmds'] = [[t('Wie is er ingelogd, en sinds wanneer'), 'w; last -n 20 | head -25'],
                     [t('Processen als boom, met hun verbindingen'), 'ps -ef --forest | head -120; sudo ss -tupn | grep -v 127.0.0.1'],
                     [t('Wat er net gebeurde (auditd)'), 'sudo ausearch -k rzmon_exec -ts recent -i 2>/dev/null | tail -60']];
-                $a['prevent'] = t('Gebruik SSH-sleutels in plaats van wachtwoorden, houd alles bijgewerkt en laat RzMon in de modus Blokkeren staan.');
+                $a['prevent'] = t('Gebruik SSH-sleutels in plaats van wachtwoorden, houd alles bijgewerkt en laat RzSense in de modus Blokkeren staan.');
                 break;
 
             case 'harden':
@@ -377,7 +377,7 @@ final class IdsAdvice
 
     // ------------------------------------------------------------------ IP-adres
 
-    /** Alles wat RzMon zelf weet, plus (gecachet) DNS en RDAP. @param bool $fresh opnieuw opzoeken */
+    /** Alles wat RzSense zelf weet, plus (gecachet) DNS en RDAP. @param bool $fresh opnieuw opzoeken */
     public static function ipInfo(string $ip, bool $fresh = false): array
     {
         $local = Ids::timeline($ip);

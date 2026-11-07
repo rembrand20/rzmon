@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * 1.182.0: overzicht van alle functies van RzMon, voor Instellingen → Overzicht → Functies
+ * 1.182.0: overzicht van alle functies van RzSense, voor Instellingen → Overzicht → Functies
  * en de tabel bovenaan FEATURES.md (tools/features-table.php).
  *
  * Elke rij: [groep, naam (nl, en), wat het doet (nl, en), sinds, status, onderdeel in de beheerportal]
@@ -38,14 +38,14 @@ final class Features
         ['checks', ['SSL-certificaat', 'SSL certificate'], ['Dagen tot het verloopt, ook bestanden op de server via de agent.', 'Days until it expires, also files on the server through the agent.'], '1.7.0', '', '#dashboard'],
         ['checks', ['Containers (Podman en Docker)', 'Containers (Podman and Docker)'], ['Status, healthcheck, herstarts, CPU, RAM en disk per container.', 'Status, health check, restarts, CPU, RAM and disk per container.'], '1.9.0', '', '#dashboard:cont'],
         ['checks', ['Logbestand doorzoeken', 'Search log files'], ['Telt nieuwe regels met een tekst of patroon.', 'Counts new lines with a text or pattern.'], '1.16.0', '', '#dashboard'],
-        ['checks', ['Commando-checks', 'Command checks'], ['De agent voert een commando uit; RzMon beoordeelt de uitkomst.', 'The agent runs a command; RzMon judges the result.'], '1.31.0', 'agent_commands', 'commands'],
+        ['checks', ['Commando-checks', 'Command checks'], ['De agent voert een commando uit; RzSense beoordeelt de uitkomst.', 'The agent runs a command; RzSense judges the result.'], '1.31.0', 'agent_commands', 'commands'],
         ['checks', ['SNMP', 'SNMP'], ['Switches, routers, access points en NAS via SNMP v2c of v3, met een algemene instelling.', 'Switches, routers, access points and NAS through SNMP v2c or v3, with a global setting.'], '1.47.0', '', 'snmp'],
         ['checks', ['Heartbeat (passief)', 'Heartbeat (passive)'], ['Een script of cronjob meldt zich zelf; blijft het stil, dan volgt een melding.', 'A script or cron job checks in; if it goes quiet, you get notified.'], '1.77.0', '', '#dashboard'],
         ['checks', ['DNS, NTP, SMART, HTTP+JSON, MariaDB en UPS', 'DNS, NTP, SMART, HTTP+JSON, MariaDB and UPS'], ['Extra checktypes voor diensten en hardware.', 'Extra check types for services and hardware.'], '1.138.0', '', '#dashboard'],
         ['checks', ['Internet', 'Internet'], ['Ping, responstijd en snelheidstest van je internetverbinding.', 'Ping, response time and speed test of your internet connection.'], '1.157.0', '', 'internet'],
         ['checks', ['Domein, MQTT en VPN', 'Domain, MQTT and VPN'], ['Verloopdatum van je domein (RDAP), een MQTT-rondgang en Gluetun/WireGuard.', 'Domain expiry (RDAP), an MQTT round trip and Gluetun/WireGuard.'], '1.170.0', '', '#dashboard'],
         ['checks', ['Pad-check (traceroute)', 'Path check (traceroute)'], ['Per hop vertraging en verlies, switches, linksnelheid en doorvoer met iperf3.', 'Delay and loss per hop, switches, link speed and throughput with iperf3.'], '1.177.0', '', '#dashboard:paths'],
-        ['checks', ['Slimme drempels', 'Smart thresholds'], ['RzMon leert per check wat normaal is, per uur van de week.', 'RzMon learns what is normal per check, per hour of the week.'], '1.107.0', 'smart_auto', 'advice'],
+        ['checks', ['Slimme drempels', 'Smart thresholds'], ['RzSense leert per check wat normaal is, per uur van de week.', 'RzSense learns what is normal per check, per hour of the week.'], '1.107.0', 'smart_auto', 'advice'],
         ['checks', ['Sjablonen', 'Templates'], ['Een set checks in één keer op een server zetten.', 'Add a set of checks to a server in one go.'], '1.94.0', '', 'templates'],
         ['checks', ['Databases van binnen', 'Databases from the inside'], ['MariaDB/MySQL en PostgreSQL: verbindingen, query\'s, cache, replicatie, grootte en wraparound, via de agent zonder wachtwoord of via het netwerk.', 'MariaDB/MySQL and PostgreSQL: connections, queries, cache, replication, size and wraparound, through the agent without a password or over the network.'], '1.200.0', '', ''],
         ['checks', ['Nog niet bewaakt', 'Not monitored yet'], ['Wat de agent ziet maar nog geen check heeft, met één klik toevoegen.', 'What the agent sees but has no check yet, added with one click.'], '1.95.0', '', '#dashboard'],
@@ -57,8 +57,8 @@ final class Features
         // Servers en agents
         ['servers', ['Linux-agent', 'Linux agent'], ['Eén installatiecommando; rapporteert elke 30 s tot 5 min.', 'One install command; reports every 30 s to 5 min.'], '1.4.0', '', 'agents'],
         ['servers', ['Agent Manager', 'Agent Manager'], ['Per server alles van de agent op één pagina, met schakelaars.', 'Everything about the agent per server on one page, with switches.'], '1.121.0', '', 'agents'],
-        ['servers', ['Agent zelftest', 'Agent self-test'], ['Een echte test vanuit RzMon en op de server, in een eigen popup.', 'A real test from RzMon and on the server, in its own popup.'], '1.178.0', '', 'agents'],
-        ['servers', ['Agents bijwerken vanuit RzMon', 'Update agents from RzMon'], ['Met ondertekende updates en een reservekopie.', 'With signed updates and a backup.'], '1.19.0', '', 'agents'],
+        ['servers', ['Agent zelftest', 'Agent self-test'], ['Een echte test vanuit RzSense en op de server, in een eigen popup.', 'A real test from RzSense and on the server, in its own popup.'], '1.178.0', '', 'agents'],
+        ['servers', ['Agents bijwerken vanuit RzSense', 'Update agents from RzSense'], ['Met ondertekende updates en een reservekopie.', 'With signed updates and a backup.'], '1.19.0', '', 'agents'],
         ['servers', ['Versleutelde agents', 'Encrypted agents'], ['Rapporten versleuteld, met een eigen sleutel per agent.', 'Reports encrypted, with a key per agent.'], '1.57.0', '', 'agents'],
         ['servers', ['Agents via https', 'Agents over https'], ['Ook lokaal zonder proxy, met een vastgezet certificaat en een reserve-adres.', 'Also locally without a proxy, with a pinned certificate and a fallback address.'], '1.72.0', '', 'agents'],
         ['servers', ['Standaardinstellingen voor agents', 'Agent defaults'], ['Tik, onderdelen en meldingen voor nieuwe agents.', 'Tick, components and notifications for new agents.'], '1.92.0', '', 'agentdef'],
@@ -67,19 +67,19 @@ final class Features
         ['servers', ['Proxmox VE', 'Proxmox VE'], ['VM\'s, containers en opslag van een Proxmox-host.', 'VMs, containers and storage of a Proxmox host.'], '1.105.0', '', '#dashboard'],
         ['servers', ['TrueNAS SCALE', 'TrueNAS SCALE'], ['Meldingen, taken, apps, updates en temperaturen via midclt.', 'Alerts, jobs, apps, updates and temperatures through midclt.'], '1.174.0', '', '#dashboard'],
         ['servers', ['Home Assistant-add-on', 'Home Assistant add-on'], ['De agent als add-on: HA Core, Supervisor, add-ons en HA OS.', 'The agent as an add-on: HA Core, Supervisor, add-ons and HA OS.'], '1.24.0', '', 'agents'],
-        ['servers', ['Logs verzamelen', 'Log collection'], ['Logs per server gecomprimeerd en versleuteld naar RzMon, gemaskeerd en gecomprimeerd bewaard, met daglimiet en bewaartermijn.', 'Logs per server sent compressed and encrypted to RzMon, masked and stored compressed, with a daily limit and retention.'], '1.210.0', 'logs_on', 'logs'],
+        ['servers', ['Logs verzamelen', 'Log collection'], ['Logs per server gecomprimeerd en versleuteld naar RzSense, gemaskeerd en gecomprimeerd bewaard, met daglimiet en bewaartermijn.', 'Logs per server sent compressed and encrypted to RzSense, masked and stored compressed, with a daily limit and retention.'], '1.210.0', 'logs_on', 'logs'],
         ['servers', ['Logs vinden op de server', 'Find logs on the server'], ['De agent zoekt welke logs er zijn (mappen in LOG_DIRS, containers, services, Home Assistant); je vinkt ze aan in de Agent Manager.', 'The agent finds which logs there are (folders in LOG_DIRS, containers, services, Home Assistant); you tick them in the Agent Manager.'], '1.213.0', '', ''],
         ['servers', ['Vaste zoekacties op de logs', 'Saved log searches'], ['Een zoekopdracht als melding: te veel treffers (≥ N in X minuten) of geen treffers, per server of samen, met rustperiode, herstel en een proef op de laatste 24 uur.', 'A search as an alert: too many hits (≥ N in X minutes) or no hits, per server or together, with a rest period, recovery and a trial on the last 24 hours.'], '1.212.0', '', '#logs'],
         ['servers', ['Logs zoeken', 'Log search'], ['Zoeken in de logs van al je servers: woorden, zinnen, uitsluiten, server, bron, niveau en regex, met een grafiek, de regels eromheen en CSV.', 'Search the logs of all your servers: words, phrases, exclusions, server, source, level and regex, with a chart, the lines around a hit and CSV.'], '1.211.0', '', '#logs'],
-        ['servers', ['Store-and-forward', 'Store-and-forward'], ['De agent bewaart rapporten als RzMon even weg is.', 'The agent keeps reports while RzMon is away.'], '1.137.0', '', 'agents'],
-        ['servers', ['Waakhond', 'Watchdog'], ['De agent meldt via Pushover als RzMon of cron stilstaat.', 'The agent notifies through Pushover when RzMon or cron stops.'], '1.107.0', '', 'agents'],
+        ['servers', ['Store-and-forward', 'Store-and-forward'], ['De agent bewaart rapporten als RzSense even weg is.', 'The agent keeps reports while RzSense is away.'], '1.137.0', '', 'agents'],
+        ['servers', ['Waakhond', 'Watchdog'], ['De agent meldt via Pushover als RzSense of cron stilstaat.', 'The agent notifies through Pushover when RzSense or cron stops.'], '1.107.0', '', 'agents'],
 
         // Dashboard en weergave
         ['dash', ['Dashboard: zo staat het ervoor', 'Dashboard: how things are'], ['Totaalscore, Nu doen, servers die aandacht vragen en grafieken.', 'Overall score, To do now, servers that need attention and charts.'], '1.134.0', '', '#home'],
         ['dash', ['Command center', 'Command center'], ['Een tweede dashboard met indeling naar keuze en TV-modus.', 'A second dashboard with your own layout and TV mode.'], '1.154.0', '', '#home'],
         ['dash', ['Lay-outs Blox, L1nes, Compact en CC', 'Layouts Blox, L1nes, Compact and CC'], ['Per account te kiezen.', 'Chosen per account.'], '1.158.0', '', '#account'],
         ['sec', ['Bevestigen bij acties', 'Confirming actions'], ['Per rol een vinkje in plaats van je wachtwoord, binnen een zelf ingesteld aantal minuten na het inloggen.', 'Per role a tick instead of your password, within a number of minutes you choose after logging in.'], '1.206.0', 'confirm_skip_admin', '#settings/users'],
-        ['servers', ['Agents wachten tijdens een update', 'Agents wait during an update'], ['Tijdens een update van RzMon houden agents hun metingen vast en geven ze geen alarm, tot de vrijgave.', 'During a RzMon update agents hold their measurements and raise no alarm until release.'], '1.205.0', '', '#settings/update'],
+        ['servers', ['Agents wachten tijdens een update', 'Agents wait during an update'], ['Tijdens een update van RzSense houden agents hun metingen vast en geven ze geen alarm, tot de vrijgave.', 'During a RzSense update agents hold their measurements and raise no alarm until release.'], '1.205.0', '', '#settings/update'],
         ['dash', ['Nieuw update-venster', 'New update window'], ['Bijwerken met wat er nieuw is als kaartjes, een voortgangsring, tijdlijn per stap en duidelijke fouten.', 'Updating with what\'s new as cards, a progress ring, timeline per step and clear errors.'], '1.204.0', '', '#settings/update'],
         ['dash', ['Zijbalk vanzelf inklappen', 'Sidebar collapses by itself'], ['Smaller slepen of een smal venster = alleen icoontjes; je eigen keuze blijft.', 'Drag it narrower or use a narrow window = icons only; your own choice stays.'], '1.203.0', '', ''],
         ['dash', ['Laadteller per pagina', 'Loading counter per page'], ['Duurt een pagina lang, dan een teller, de pols-animatie per onderdeel en na 8 s Opnieuw.', 'If a page takes long: a counter, the pulse animation per part and after 8 s Retry.'], '1.202.0', '', ''],
@@ -95,6 +95,7 @@ final class Features
         ['dash', ['Nederlands en Engels', 'Dutch and English'], ['De hele interface en de meldingen.', 'The whole interface and the notifications.'], '1.50.0', '', '#account'],
         ['dash', ['Statuspagina', 'Status page'], ['Een openbare pagina met een geheime link.', 'A public page with a secret link.'], '1.107.0', 'status_link', 'statuspage'],
         ['dash', ['mDS (Mobile device summary)', 'mDS (Mobile device summary)'], ['Op een telefoon de startpagina: één oordeel, wat nu aandacht vraagt (met bevestigen, onderhoud, stil en nu checken), beveiliging, netwerk en de servers.', 'The start page on a phone: one verdict, what needs attention (with acknowledge, maintenance, quiet and check now), security, network and the servers.'], '1.194.0', '', ''],
+        ['dash', ['Rz//Sense AI: nieuwe naam en logo', 'Rz//Sense AI: new name and logo'], ['Schild met signaalbogen, één tegel voor licht en donker, een ronde rand om de inhoud en #monitoring in het adres.', 'Shield with signal arcs, one tile for light and dark, a rounded frame around the content and #monitoring in the address.'], '1.214.0', '', ''],
 
         // Meldingen
         ['notify', ['Pushover', 'Pushover'], ['Met prioriteit per status en bevestigen vanuit de app.', 'With priority per status and acknowledge from the app.'], '1.0.0', 'pushover_enabled|pushover_token,pushover_user', 'channels'],
@@ -152,7 +153,7 @@ final class Features
         ['sec', ['Ingelogde apparaten', 'Signed-in devices'], ['Elke sessie met apparaat en IP, op afstand uitloggen.', 'Every session with device and IP, log out remotely.'], '1.79.0', '', '#account'],
         ['sec', ['Uitloggen zonder activiteit', 'Log out when idle'], ['Na een ingestelde tijd.', 'After a set time.'], '1.85.0', 'session_idle_minutes', 'access'],
         ['sec', ['Beheer via https', 'Management over https'], ['Https verplichten, HSTS, eigen certificaat en controle.', 'Require https, HSTS, own certificate and checks.'], '1.68.0', 'https_only', 'outside'],
-        ['sec', ['Onzichtbaar van buiten', 'Invisible from outside'], ['Alleen toegestane apparaten en landen zien RzMon.', 'Only allowed devices and countries see RzMon.'], '1.86.0', 'stealth_ui', 'outside'],
+        ['sec', ['Onzichtbaar van buiten', 'Invisible from outside'], ['Alleen toegestane apparaten en landen zien RzSense.', 'Only allowed devices and countries see RzSense.'], '1.86.0', 'stealth_ui', 'outside'],
         ['sec', ['Blokkades en whitelist', 'Blocks and whitelist'], ['Eén overzicht van alle blokkades, met uitzonderingen.', 'One overview of all blocks, with exceptions.'], '1.83.0', '', '#ids/blk'],
         ['sec', ['Beveiligingsheaders', 'Security headers'], ['Content-Security-Policy en meer op elke pagina.', 'Content Security Policy and more on every page.'], '1.143.0', '', ''],
         ['sec', ['Inloggen op het lokale netwerk', 'Local network login'], ['Zonder wachtwoord binnen als alleen lezen.', 'Enter without a password as read-only.'], '1.14.0', 'lan_no_login', 'access'],
@@ -197,13 +198,13 @@ final class Features
         ['links', ['Home Assistant-netwerkkaart', 'Home Assistant network card'], ['Een kaart voor je HA-dashboard met het netwerk in het kort, zoals mDS: oordeel, internet, verbruik, apparaten, paden, IDS en de servers.', 'A card for your HA dashboard with the network at a glance, like mDS: verdict, internet, usage, devices, paths, IDS and the servers.'], '1.197.0', '', 'api'],
 
         // Beheer
-        ['admin', ['RzMon bijwerken', 'Update RzMon'], ['Vanuit de webinterface, ook automatisch en naar een gekozen versie.', 'From the web interface, also automatically and to a chosen version.'], '1.29.0', 'update_auto', 'update'],
+        ['admin', ['RzSense bijwerken', 'Update RzSense'], ['Vanuit de webinterface, ook automatisch en naar een gekozen versie.', 'From the web interface, also automatically and to a chosen version.'], '1.29.0', 'update_auto', 'update'],
         ['admin', ['Back-up en herstel', 'Backup and restore'], ['Automatisch of met de hand, met terugzetten.', 'Automatic or manual, with restore.'], '1.18.0', 'backup_freq', 'backup'],
         ['admin', ['Wijzigingslogboek', 'Change log'], ['Wie veranderde wat en wanneer, met terugdraaien.', 'Who changed what and when, with undo.'], '1.97.0', '', 'changelog'],
-        ['admin', ['Exporteren en importeren', 'Export and import'], ['Checks en instellingen naar een andere RzMon.', 'Checks and settings to another RzMon.'], '1.97.0', '', 'transfer'],
+        ['admin', ['Exporteren en importeren', 'Export and import'], ['Checks en instellingen naar een andere RzSense.', 'Checks and settings to another RzSense.'], '1.97.0', '', 'transfer'],
         ['admin', ['Database en server', 'Database and server'], ['Systeemcheck, grootte, groei en bewaartermijnen.', 'System check, size, growth and retention.'], '1.92.0', '', 'db'],
         ['admin', ['Prestaties en fouten', 'Performance and errors'], ['Snelheid, cron-rondes, traagste checks en PHP-fouten.', 'Speed, cron runs, slowest checks and PHP errors.'], '1.151.0', 'perf_on', 'perf'],
-        ['admin', ['Status van RzMon', 'RzMon status'], ['Wat er nog aandacht nodig heeft, met een knop om het te regelen.', 'What still needs attention, with a button to fix it.'], '1.62.0', '', 'overview'],
+        ['admin', ['Status van RzSense', 'RzSense status'], ['Wat er nog aandacht nodig heeft, met een knop om het te regelen.', 'What still needs attention, with a button to fix it.'], '1.62.0', '', 'overview'],
         ['admin', ['Functies', 'Features'], ['Dit overzicht: alle functies met hun status.', 'This overview: all features with their status.'], '1.182.0', '', 'features'],
     ];
 

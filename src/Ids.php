@@ -11,7 +11,7 @@ declare(strict_types=1);
  * - Incidenten: warning (1) of critical (2). Critical gaat ook naar Pushover, ook tijdens stille uren.
  *   Dezelfde gebeurtenis binnen 24 uur wordt opgeteld bij het bestaande incident.
  * - Blokkeren: per server, eerst ids_block_hours, bij herhaling ids_repeat_days. Nooit automatisch: privé-
- *   adressen (LAN), RzMon zelf en de whitelist (1.83.0, IDS → Blokkades). Met de hand kan ook een LAN-adres (behalve het eigen IP).
+ *   adressen (LAN), RzSense zelf en de whitelist (1.83.0, IDS → Blokkades). Met de hand kan ook een LAN-adres (behalve het eigen IP).
  * - Bestanden bewaken (FIM): paden uit ids_fim (algemeen) en hosts.ids_fim (per server). De agent stuurt alleen
  *   wat veranderd is; hier wordt altijd vergeleken met de eigen basismeting (kind 'fim': hash|grootte|rechten|eigenaar),
  *   dus een rapport dat twee keer binnenkomt geeft geen dubbele incidenten.
@@ -106,7 +106,7 @@ final class Ids
         return $out;
     }
 
-    /** Server isoleren: $hours 1–72; het IP van de beheerder mag erbij (en je LAN, en RzMon zelf) */
+    /** Server isoleren: $hours 1–72; het IP van de beheerder mag erbij (en je LAN, en RzSense zelf) */
     public static function isolate(int $hostId, int $hours, string $by, string $byIp, string $reason = ''): void
     {
         $until = date('Y-m-d H:i:s', time() + max(1, min(72, $hours)) * 3600);
@@ -115,7 +115,7 @@ final class Ids
         $name = (string) q('SELECT name FROM hosts WHERE id = ?', [$hostId])->fetchColumn();
         AgentCommands::audit($by, 'Server geïsoleerd', "$name tot $until");
         Monitor::sysInfo('isolate', $hostId, $name, '🧱 ' . t('Server geïsoleerd: {name}', ['name' => $name]),
-            fn() => t('{name} is geïsoleerd door {by}: alleen RzMon, je LAN en {ip} kunnen er nog bij, tot {t}', ['name' => $name, 'by' => $by, 'ip' => $byIp, 't' => date('d-m H:i', strtotime($until))]));
+            fn() => t('{name} is geïsoleerd door {by}: alleen RzSense, je LAN en {ip} kunnen er nog bij, tot {t}', ['name' => $name, 'by' => $by, 'ip' => $byIp, 't' => date('d-m H:i', strtotime($until))]));
     }
 
     public static function unisolate(int $hostId, string $by): void
@@ -172,7 +172,7 @@ final class Ids
 
     // ------------------------------------------------------------------ tijdlijn per IP (1.88.0)
 
-    /** Alles wat RzMon van één IP-adres weet, over al je servers, nieuwste eerst */
+    /** Alles wat RzSense van één IP-adres weet, over al je servers, nieuwste eerst */
     public static function timeline(string $ip): array
     {
         $ev = [];
@@ -193,17 +193,17 @@ final class Ids
             $add($r['created_at'], $r['kind'] === 'authfail' ? 'fail' : 'login', $r['title'], $r['name']);
         }
         foreach (q('SELECT created_at, status, title FROM alerts WHERE ip = ? ORDER BY id DESC LIMIT 200', [$ip])->fetchAll() as $r) {
-            $add($r['created_at'], 'alert', $r['title'], 'RzMon');
+            $add($r['created_at'], 'alert', $r['title'], 'RzSense');
         }
         foreach (q('SELECT l.created_at, l.ok, l.how, u.username FROM login_log l JOIN users u ON u.id = l.user_id WHERE l.ip = ? ORDER BY l.id DESC LIMIT 100', [$ip])->fetchAll() as $r) {
-            $add($r['created_at'], (int) $r['ok'] ? 'login' : 'fail', ((int) $r['ok'] ? t('Ingelogd in RzMon') : t('Mislukte login in RzMon')) . ": {$r['username']} (" . t((string) $r['how']) . ')', 'RzMon');
+            $add($r['created_at'], (int) $r['ok'] ? 'login' : 'fail', ((int) $r['ok'] ? t('Ingelogd in RzSense') : t('Mislukte login in RzSense')) . ": {$r['username']} (" . t((string) $r['how']) . ')', 'RzSense');
         }
         foreach (q('SELECT created_at, until, reason FROM rz_blocks WHERE net = ?', [$ip])->fetchAll() as $r) {
-            $add($r['created_at'], 'block', t('Geblokkeerd in RzMon') . ': ' . self::reasonText((string) $r['reason']), 'RzMon');
+            $add($r['created_at'], 'block', t('Geblokkeerd in RzSense') . ': ' . self::reasonText((string) $r['reason']), 'RzSense');
         }
         foreach (q("SELECT created_at, removed_at, removed_by, reason FROM block_log WHERE kind = 'rz' AND value = ?", [$ip])->fetchAll() as $r) {
-            $add($r['created_at'], 'block', t('Geblokkeerd in RzMon') . ': ' . self::reasonText((string) $r['reason']), 'RzMon');
-            $add($r['removed_at'], 'unblock', t('Gedeblokkeerd in RzMon'), 'RzMon');
+            $add($r['created_at'], 'block', t('Geblokkeerd in RzSense') . ': ' . self::reasonText((string) $r['reason']), 'RzSense');
+            $add($r['removed_at'], 'unblock', t('Gedeblokkeerd in RzSense'), 'RzSense');
         }
         usort($ev, static fn($a, $b) => strcmp($b['at'], $a['at']));
         $wl = Whitelist::ruleFor($ip);
@@ -341,7 +341,7 @@ final class Ids
                     t('Poorten als {ports} worden vaak door malware gebruikt.', ['ports' => implode(', ', self::BAD_PORTS)]), $ip);
             }
         }
-        // Agent 1.56.0 (RzMon 1.87.0): webshell, automatisch startende diensten, uitgaande verbindingen, gestopte processen
+        // Agent 1.56.0 (RzSense 1.87.0): webshell, automatisch startende diensten, uitgaande verbindingen, gestopte processen
         if (setting('ids_webshell', '1') === '1') {
             self::webshells($ctx, (array) ($ids['web'] ?? []));
         }
@@ -678,7 +678,7 @@ final class Ids
         foreach (array_slice($ips, 0, 50) as $ip) {
             $ip = (string) $ip;
             if (@inet_pton($ip) === false || ip_in_list($ip, ['127.0.0.0/8', '::1/128']) || in_array($ip, $own, true)) {
-                continue;   // RzMon zelf (bv. een poortscan) telt niet
+                continue;   // RzSense zelf (bv. een poortscan) telt niet
             }
             if (self::internalIp($ip)) {
                 self::incident($ctx, 2, 'decoy_port', $ip, t('Honeypot-poort {port} benaderd vanaf {ip} (je eigen netwerk)', ['port' => $port, 'ip' => $ip]),
@@ -804,7 +804,7 @@ final class Ids
             // Handtekening: webserver, programma en de eerste twee woorden van de opdracht (zonder getallen)
             $words = array_slice(preg_split('/\s+/', trim((string) preg_replace('/\d+/', '#', $cmd))) ?: [], 0, 2);
             $key = "$web|$tool|" . implode(' ', $words);
-            if (Edr::isSelfCmd($cmd) || self::ignored($hid, 'webshell', $key)) {   // 1.132.0: RzMon zelf (kenmerk of eigen cron)
+            if (Edr::isSelfCmd($cmd) || self::ignored($hid, 'webshell', $key)) {   // 1.132.0: RzSense zelf (kenmerk of eigen cron)
                 continue;
             }
             $kill = self::blocking() && setting('ids_webshell_kill', '0') === '1' && (int) ($w['pid'] ?? 0) > 1;
@@ -828,7 +828,7 @@ final class Ids
             if (!$row) {
                 continue;
             }
-            $label = ['ok' => t('gestopt'), 'weg' => t('was al gestopt'), 'fout' => t('stoppen mislukt'), 'eigen' => t('niet gestopt: hoort bij RzMon')][$res] ?? $res;
+            $label = ['ok' => t('gestopt'), 'weg' => t('was al gestopt'), 'fout' => t('stoppen mislukt'), 'eigen' => t('niet gestopt: hoort bij RzSense')][$res] ?? $res;
             q('UPDATE ids_kills SET done_at = ?, result = ? WHERE id = ?', [now(), mb_substr($label, 0, 100), $row['id']]);
             q("UPDATE ids_incidents SET detail = LEFT(CONCAT(REPLACE(detail, ?, ''), ?), 1000) WHERE host_id = ? AND type = 'webshell' AND dkey = ? AND created_at >= NOW() - INTERVAL 1 DAY",
                 [' · ⛔ ' . t('proces wordt gestopt'), " · ⛔ pid $pid $label", $hid, $row['dkey']]);
@@ -1231,7 +1231,7 @@ final class Ids
             $rest = array_slice($src, $top);
         }
         $ips = array_column($shown, 'ip');
-        // Geblokkeerd (IDS op een server, of in RzMon zelf) en reputatie (alleen uit de cache)
+        // Geblokkeerd (IDS op een server, of in RzSense zelf) en reputatie (alleen uit de cache)
         $blocked = [];
         $rep = [];
         if ($ips) {
@@ -1354,7 +1354,7 @@ final class Ids
 
     // ------------------------------------------------------------------ blokkeren
 
-    /** IP's die nooit automatisch geblokkeerd worden: LAN, RzMon zelf en de eigen lijst. */
+    /** IP's die nooit automatisch geblokkeerd worden: LAN, RzSense zelf en de eigen lijst. */
     public static function protectedIp(string $ip): bool
     {
         if (ip_in_list($ip, PRIVATE_NETWORKS) || Whitelist::ip($ip)) {
@@ -1369,8 +1369,8 @@ final class Ids
     }
 
     /**
-     * De adressen van RzMon zelf (1.114.0): het adres uit base_url, de naam van deze server en het adres waarop de
-     * webserver bereikt wordt (onthouden, zodat de cron ze ook kent). Verkeer van of naar RzMon is toegestaan.
+     * De adressen van RzSense zelf (1.114.0): het adres uit base_url, de naam van deze server en het adres waarop de
+     * webserver bereikt wordt (onthouden, zodat de cron ze ook kent). Verkeer van of naar RzSense is toegestaan.
      */
     public static function rzmonIps(): array
     {
@@ -1443,7 +1443,7 @@ final class Ids
             return t('Ongeldig IP-adres');
         }
         if ($ip === $byIp) {
-            return t('Dit is het IP-adres waarmee je nu in RzMon zit; dat blokkeren we niet');
+            return t('Dit is het IP-adres waarmee je nu in RzSense zit; dat blokkeren we niet');
         }
         if (in_array($ip, ['127.0.0.1', '::1'], true)) {
             return t('Localhost blokkeren kan niet');
@@ -1552,7 +1552,7 @@ final class Ids
         $base = rtrim((string) config('base_url', ''), '/');
         if ($base !== '') {
             $lines[] = '';
-            $lines[] = "RzMon: $base/#ids";
+            $lines[] = "RzSense: $base/#ids";
         }
         $short = t('{b} geblokkeerd · {f} mislukte logins · {d}× honeypot · {o} open', ['b' => array_sum($blocks), 'f' => $fails, 'd' => $decoy, 'o' => $nOpen]);
         return ['🛡️ ' . t('IDS-weekoverzicht'), implode("\n", $lines), $short];

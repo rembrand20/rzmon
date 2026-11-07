@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RzMon bijwerken vanuit de webinterface (Instellingen → ⬆ RzMon bijwerken).
+# RzSense bijwerken vanuit de webinterface (Instellingen → ⬆ RzSense bijwerken).
 #
 # Gestart door de hulpdienst (systemd: rzmon-update.path → rzmon-update.service) als de webpagina
 # /var/lib/rzmon/update.request neerzet. install-helper.sh zet een kopie van dit script in
@@ -48,7 +48,7 @@ status() {   # status <state> <stap> <tekst> [procent] [onderdeel, bv. "3/9 Dien
 }
 fail() { status error "${step:-}" "$1"; finished=1; exit 1; }
 
-# Teken van leven: elke 10 seconden het statusbestand aanraken, zodat RzMon ziet dat de update nog loopt.
+# Teken van leven: elke 10 seconden het statusbestand aanraken, zodat RzSense ziet dat de update nog loopt.
 # Stopt het script onverwacht (zonder ok of fout), dan zegt het dat zelf.
 ( while sleep 10; do touch -c "$STATUS" 2>/dev/null; done ) &
 hb_pid=$!
@@ -113,14 +113,14 @@ bash "$DIR/install/install-rocky.sh" --yes --dir "$DIR" 2>&1 | while IFS= read -
     fi
 done
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-    fail "Installatiescript gaf een fout (zie het logboek). De nieuwe code staat er, maar controleer RzMon; de back-up staat klaar"
+    fail "Installatiescript gaf een fout (zie het logboek). De nieuwe code staat er, maar controleer RzSense; de back-up staat klaar"
 fi
 
 step=klaar
 if [ -n "$want" ] && [ "$(printf '%s\n%s\n' "$to" "$from" | sort -V | head -n 1)" = "$to" ] && [ "$to" != "$from" ]; then
-    status ok klaar "RzMon teruggezet van $from naar $to" 100
+    status ok klaar "RzSense teruggezet van $from naar $to" 100
 else
-    status ok klaar "RzMon bijgewerkt van $from naar $to" 100
+    status ok klaar "RzSense bijgewerkt van $from naar $to" 100
 fi
 finished=1
 exit 0

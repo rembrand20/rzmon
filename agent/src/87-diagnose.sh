@@ -1,9 +1,9 @@
 # ---------------------------------------------------------------- Diagnose voor AI-advies (agent 1.76.0)
-# Op verzoek van RzMon (regel "0 <tab> diag <tab> id <tab> soort <tab> doel" in de lijst) bij een storing: een VASTE set
-# commando's die alleen lezen, zodat het AI-advies weet wat er echt aan de hand is. RzMon stuurt alleen de soort en het
+# Op verzoek van RzSense (regel "0 <tab> diag <tab> id <tab> soort <tab> doel" in de lijst) bij een storing: een VASTE set
+# commando's die alleen lezen, zodat het AI-advies weet wat er echt aan de hand is. RzSense stuurt alleen de soort en het
 # doel (een servicenaam, container, mount of poort), nooit een commando; het doel wordt hier opnieuw streng gecontroleerd.
-# In RzMon staat dit apart aan (Instellingen → AI-advies, met je wachtwoord); COMMANDS=0 hierboven blokkeert het altijd.
-# Elke aanvraag één keer. Per onderdeel hooguit 20 seconden en 6 kB uitvoer; wachtwoorden filtert RzMon er nog uit.
+# In RzSense staat dit apart aan (Instellingen → AI-advies, met je wachtwoord); COMMANDS=0 hierboven blokkeert het altijd.
+# Elke aanvraag één keer. Per onderdeel hooguit 20 seconden en 6 kB uitvoer; wachtwoorden filtert RzSense er nog uit.
 diag_json=""
 if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ] && [ "$COMMANDS" != 0 ] && [ -r "${t_cache-}" ]; then
     d_line=$(awk -F'\t' '$1 == "0" && $2 == "diag" { print; exit }' "$t_cache")

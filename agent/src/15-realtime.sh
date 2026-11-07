@@ -1,10 +1,10 @@
 # ---------------------------------------------------------------- Realtime-watcher (--watch)
 # Draait als aparte dienst (rzmon-watch). Doet zelf geen analyse: hij let alleen op en start bij een
 # gebeurtenis meteen een gewone agent-run, die alles verwerkt (logins, brute force, IDS, services, bestanden)
-# en die RzMon direct beoordeelt. Alleen als RzMon realtime voor deze server aanzet (regel "0 <tab> realtime <tab> 1")
+# en die RzSense direct beoordeelt. Alleen als RzSense realtime voor deze server aanzet (regel "0 <tab> realtime <tab> 1")
 # en REALTIME niet 0 is; anders wacht hij en kijkt elke minuut opnieuw.
 #  - systemlog (journalctl -f): SSH-logins en mislukte pogingen, sudo, su, console, en meldingen van systemd
-#    over de services die RzMon bewaakt (gestopt, gecrasht, herstart);
+#    over de services die RzSense bewaakt (gestopt, gecrasht, herstart);
 #  - bestanden (inotifywait, uit inotify-tools): de 🔴-paden van "Bestanden bewaken".
 # Hooguit één extra run per 10 seconden, ook als er veel gebeurt (bv. tijdens een brute-force-aanval).
 if [ "${1-}" = "--watch" ]; then
@@ -25,7 +25,7 @@ if [ "${1-}" = "--watch" ]; then
     while true; do
         rt_on=0; edr_on=0
         [ "$REALTIME" != 0 ] && grep -q $'^0\trealtime\t1' "$w_cache" 2>/dev/null && rt_on=1
-        # Endpoint-bewaking (agent 1.63.0): als RzMon het voor deze server aanzet, als root, niet op Home Assistant OS
+        # Endpoint-bewaking (agent 1.63.0): als RzSense het voor deze server aanzet, als root, niet op Home Assistant OS
         [ "$EDR" != 0 ] && [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && grep -q $'^0\tedr\t1' "$w_cache" 2>/dev/null && edr_on=1
         if [ "$rt_on" = 0 ] && [ "$edr_on" = 0 ]; then
             w_status off - -
@@ -33,10 +33,10 @@ if [ "${1-}" = "--watch" ]; then
             continue
         fi
         w_sig=$(grep -E $'^(0\t(realtime|fim|edr|edrself)|[0-9]+\tsvc)\t' "$w_cache" 2>/dev/null | cksum)
-        # Wat van RzMon zelf is (agent 1.65.0): de map en gebruiker van RzMon (alleen op zijn eigen server van belang)
-        # en de adressen van RzMon; dat wordt gelogd als "toegestaan", nooit als aanval
+        # Wat van RzSense zelf is (agent 1.65.0): de map en gebruiker van RzSense (alleen op zijn eigen server van belang)
+        # en de adressen van RzSense; dat wordt gelogd als "toegestaan", nooit als aanval
         IFS=$'\t' read -r EDR_ROOT EDR_USER EDR_MARK < <(awk -F'\t' '$1 == "0" && $2 == "edrself" { print $3 "\t" $4 "\t" $5; exit }' "$w_cache")
-        [[ "${EDR_MARK-}" =~ ^[0-9a-f]{16,64}$ ]] || EDR_MARK=""   # agent 1.67.0: geheim kenmerk in de opdrachten van RzMon
+        [[ "${EDR_MARK-}" =~ ^[0-9a-f]{16,64}$ ]] || EDR_MARK=""   # agent 1.67.0: geheim kenmerk in de opdrachten van RzSense
         [[ "${EDR_ROOT-}" == /?* ]] || EDR_ROOT=""
         EDR_RZIPS=""
         for u in "$MONITOR_URL" "${MONITOR_URL_FALLBACK-}"; do
@@ -110,7 +110,7 @@ if [ "${1-}" = "--watch" ]; then
             fi
             if [ "$now" -ge "$next_check" ]; then
                 next_check=$(( now + 60 ))
-                # Instellingen in RzMon veranderd, realtime uitgezet, of een volger gestopt: opnieuw opbouwen
+                # Instellingen in RzSense veranderd, realtime uitgezet, of een volger gestopt: opnieuw opbouwen
                 [ "$(grep -E $'^(0\t(realtime|fim|edr|edrself)|[0-9]+\tsvc)\t' "$w_cache" 2>/dev/null | cksum)" = "$w_sig" ] || break
                 w_dead=0
                 for p in "${w_pids[@]}"; do kill -0 "$p" 2>/dev/null || w_dead=1; done

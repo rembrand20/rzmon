@@ -2,9 +2,9 @@
 declare(strict_types=1);
 
 /**
- * 1.170.0: drie checks voor het netwerk, vanaf de server van RzMon (WireGuard via de agent):
+ * 1.170.0: drie checks voor het netwerk, vanaf de server van RzSense (WireGuard via de agent):
  * - domain: wanneer verloopt een domein? Via RDAP (de opvolger van WHOIS), met de lijst van IANA welke server bij welke
- *   extensie hoort. Sommige registries (zoals .nl) publiceren geen verloopdatum: dan controleert RzMon of het domein nog
+ *   extensie hoort. Sommige registries (zoals .nl) publiceren geen verloopdatum: dan controleert RzSense of het domein nog
  *   geregistreerd en actief is. Hooguit eens per 12 uur opgevraagd.
  * - mqtt: werkt de broker echt? Inloggen, een bericht sturen en het zelf weer ontvangen (de rondgang in ms), en eventueel
  *   een topic bekijken (bv. zigbee2mqtt/bridge/state moet "online" bevatten). MQTT 3.1.1, eventueel via TLS.
@@ -91,7 +91,7 @@ final class NetChecks
             $crit = $check['crit_threshold'] !== null ? (float) $check['crit_threshold'] : 14.0;
             $st = $days <= $crit ? STATUS_CRIT : ($days <= $warn ? STATUS_WARN : STATUS_OK);
         } else {
-            $parts[] = t('de registry publiceert geen verloopdatum; RzMon let op de status');
+            $parts[] = t('de registry publiceert geen verloopdatum; RzSense let op de status');
         }
         if ($bad) {
             $st = STATUS_CRIT;
@@ -411,7 +411,7 @@ final class NetChecks
         return Checks::result(STATUS_OK, null, $msg);
     }
 
-    /** Het publieke IP van de internetlijn van RzMon zelf (Cloudflare), 15 minuten bewaard; null = onbekend */
+    /** Het publieke IP van de internetlijn van RzSense zelf (Cloudflare), 15 minuten bewaard; null = onbekend */
     private static function ownPublicIp(): ?string
     {
         $c = json_decode((string) setting('own_public_ip', ''), true);

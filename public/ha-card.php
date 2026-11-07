@@ -1,10 +1,10 @@
 <?php
 /**
- * 1.197.0 (servers erbij in 1.198.0): de RzMon netwerkkaart voor Home Assistant (assets/rzmon-network-card.js).
+ * 1.197.0 (servers erbij in 1.198.0): de RzSense netwerkkaart voor Home Assistant (assets/rzmon-network-card.js).
  *
  * Home Assistant laadt een kaart als JavaScript-module. Komt die van een ander adres dan Home Assistant zelf,
  * dan wil de browser een CORS-kop zien; een gewoon bestand in assets/ krijgt die van de webserver meestal niet.
- * Daarom geeft dit script hetzelfde bestand met die kop. Er staat geen geheim in: de URL van RzMon en de
+ * Daarom geeft dit script hetzelfde bestand met die kop. Er staat geen geheim in: de URL van RzSense en de
  * API-sleutel zet je in de kaart zelf.
  *
  * In Home Assistant: Instellingen → Dashboards → ⋮ → Bronnen → Bron toevoegen, URL https://<rzmon>/ha-card.php, JavaScript-module.

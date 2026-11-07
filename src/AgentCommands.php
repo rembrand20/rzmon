@@ -6,8 +6,8 @@ declare(strict_types=1);
  *
  * Veiligheid: standaard staat het uit. Aanzetten kan algemeen (Instellingen → Agents) of per server,
  * als "nobody" (standaard) of als root; aanzetten vraagt om je wachtwoord en komt in het logboek.
- * Op de server zelf blokkeert COMMANDS=0 in de instellingen van de agent alles, wat RzMon ook zegt.
- * RzMon vergelijkt het antwoord; de agent voert alleen uit en stuurt uitvoer en exitcode terug.
+ * Op de server zelf blokkeert COMMANDS=0 in de instellingen van de agent alles, wat RzSense ook zegt.
+ * RzSense vergelijkt het antwoord; de agent voert alleen uit en stuurt uitvoer en exitcode terug.
  */
 final class AgentCommands
 {

@@ -1,25 +1,25 @@
 configuration:
   monitor_url:
-    name: RzMon URL
-    description: Adres van je RzMon-server, bv. http://192.168.1.10 of https://rzmon.mijndomein.nl
+    name: RzSense URL
+    description: Adres van je RzSense-server, bv. http://192.168.1.10 of https://rzmon.mijndomein.nl
   monitor_url_fallback:
     name: Reserve-adres (optioneel)
-    description: Gebruikt als het RzMon-adres niet bereikbaar is, bv. https via je reverse proxy met http://<LAN-IP> als reserve. RzMon meldt dat met een ⚠️. Het adres kun je ook in RzMon wijzigen (Agent Manager → 🌐 Adres van RzMon).
+    description: Gebruikt als het RzSense-adres niet bereikbaar is, bv. https via je reverse proxy met http://<LAN-IP> als reserve. RzSense meldt dat met een ⚠️. Het adres kun je ook in RzSense wijzigen (Agent Manager → 🌐 Adres van RzSense).
   pair_code:
     name: Koppelcode
-    description: Koppelcode van deze server in RzMon (Agent Manager → 🔗 Koppelcode, 15 minuten geldig). De add-on haalt daarmee zijn eigen sleutel op; daarna mag het veld blijven staan of leeg.
+    description: Koppelcode van deze server in RzSense (Agent Manager → 🔗 Koppelcode, 15 minuten geldig). De add-on haalt daarmee zijn eigen sleutel op; daarna mag het veld blijven staan of leeg.
   pin:
     name: Vingerafdruk certificaat
-    description: Alleen bij een eigen (self-signed) certificaat van RzMon; staat bij de koppelcode. Dan accepteert de add-on alleen dat certificaat.
+    description: Alleen bij een eigen (self-signed) certificaat van RzSense; staat bij de koppelcode. Dan accepteert de add-on alleen dat certificaat.
   token:
     name: Agent token (oude manier)
-    description: Alleen nodig zonder koppelcode (agent ouder dan 1.50.0 of RzMon ouder dan 1.64.0).
+    description: Alleen nodig zonder koppelcode (agent ouder dan 1.50.0 of RzSense ouder dan 1.64.0).
   interval:
     name: Interval (seconden)
-    description: Alleen voor oudere RzMon-versies. Vanaf RzMon 1.41.0 stel je de tik in RzMon in (Agent Manager → Rapporteren elke …).
+    description: Alleen voor oudere RzSense-versies. Vanaf RzSense 1.41.0 stel je de tik in RzSense in (Agent Manager → Rapporteren elke …).
   verify_ssl:
     name: SSL-certificaat controleren
-    description: Uitzetten als RzMon een self-signed certificaat gebruikt.
+    description: Uitzetten als RzSense een self-signed certificaat gebruikt.
   certs:
     name: Certificaten
-    description: Certificaten waarvan RzMon de vervaldatum bewaakt. Bestanden in /ssl (bv. /ssl/fullchain.pem) en/of host:poort, ook op internet (bv. homeassistant.local:8123 of mijndomein.duckdns.org:443).
+    description: Certificaten waarvan RzSense de vervaldatum bewaakt. Bestanden in /ssl (bv. /ssl/fullchain.pem) en/of host:poort, ook op internet (bv. homeassistant.local:8123 of mijndomein.duckdns.org:443).

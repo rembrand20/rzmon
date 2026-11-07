@@ -14,7 +14,7 @@ return [
     'ping_bin' => '/bin/ping',
     // Basis-URL waarop de app bereikbaar is (gebruikt in agent-installatie-instructies)
     'base_url' => 'http://rzmon.example.lan',
-    // PHP-instellingen die RzMon zelf toepast (leeg = php.ini-waarde)
+    // PHP-instellingen die RzSense zelf toepast (leeg = php.ini-waarde)
     'php' => [
         'memory_limit' => '',
         'max_execution_time' => '',

