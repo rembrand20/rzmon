@@ -15,8 +15,8 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.204.0**: een **nieuw update-venster** met voortgangsring, tijdlijn per stap en duidelijke foutmeldingen.
 
 ## 1.208.1 – 2026-11-07
-### Nieuw
-- 
+### Opgelost
+- **Zijpaneel van een melding was doorschijnend** in het glasthema: op een telefoon liepen de teksten van het paneel en de lijst erachter door elkaar. Het paneel is nu dicht (in het glasthema met een heel klein beetje glas), en houdt rekening met de inkeping en de balk onderaan een iPhone.
 
 ## 1.208.0 – 2026-11-07
 ### Nieuw
