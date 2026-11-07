@@ -15,8 +15,8 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.213.0**: **logs vinden op de server**: de agent laat zien welke logs, containers en services er zijn, en je vinkt ze aan.
 
 ## 1.217.1 – 2026-11-07
-### Nieuw
-- 
+### Opgelost
+- **Meldingspaneel**: op een computer altijd van glas (ook zonder Liquid Glass); op een telefoon of tablet helemaal dicht en over de volle breedte, zodat niets van de pagina erachter doorschijnt.
 
 ## 1.217.0 – 2026-11-07
 ### Nieuw
