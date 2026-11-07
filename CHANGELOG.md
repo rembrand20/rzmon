@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.205.0**: **agents wachten tijdens een update** van RzMon (wachtrij, vrijgave, samenvatting) en geven pas na 5 minuten alarm.
 - **1.204.0**: een **nieuw update-venster** met voortgangsring, tijdlijn per stap en duidelijke foutmeldingen.
 
+## 1.208.1 – 2026-11-07
+### Nieuw
+- 
+
 ## 1.208.0 – 2026-11-07
 ### Nieuw
 - **Meldingen: de golf stopt als iemand kijkt.** Klik je op een open storing, dan stopt de golf voor iedereen; de kleur en *nog open* blijven, met een 👁 (wie en wanneer staat erbij, ook in het zijpaneel). Wordt de storing erger (warning → critical), dan golft hij weer. Gebruikers met de rol *alleen lezen* stoppen de golf alleen voor zichzelf.

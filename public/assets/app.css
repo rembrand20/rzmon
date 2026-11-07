@@ -4684,6 +4684,13 @@ body.no-loader .rz-wait-cv { display: none; }
 .al2-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 100%); background: var(--card); border-left: 1px solid var(--border); box-shadow: -12px 0 40px rgba(0, 0, 0, .35);
   transform: translateX(105%); transition: transform .28s cubic-bezier(.3, .8, .3, 1); z-index: 901; display: flex; flex-direction: column; overflow: hidden; }
 .al2-drawer.on { transform: none; }
+/* 1.208.1: het paneel is altijd dicht (ook in het glasthema, waar kaarten doorschijnend zijn), met ruimte voor de inkeping en de balk van de telefoon */
+.al2-drawer { background: var(--bg-2, var(--card)); }
+body.lg .al2-drawer { background: color-mix(in srgb, var(--bg-2) 96%, transparent); -webkit-backdrop-filter: blur(30px) saturate(160%); backdrop-filter: blur(30px) saturate(160%); }
+body.lg .al2-msg { background: color-mix(in srgb, var(--text) 5%, var(--bg-2)); }
+.al2-dh { padding-top: max(1.1rem, env(safe-area-inset-top, 0px)); }
+.al2-x { top: max(.7rem, env(safe-area-inset-top, 0px)); }
+.al2-da { padding-bottom: max(1.1rem, env(safe-area-inset-bottom, 0px)); }
 .al2-dh { padding: 1.1rem 1.1rem .9rem; border-bottom: 1px solid var(--border); position: relative; isolation: isolate; }
 .al2-dh::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, color-mix(in srgb, var(--c) 26%, transparent), transparent 80%); box-shadow: inset 4px 0 0 var(--c); }
 .al2-x { position: absolute; top: .7rem; right: .7rem; }
