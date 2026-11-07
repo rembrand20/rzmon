@@ -8598,4 +8598,5 @@ return [
     'Stil tot over een uur' => 'Silenced for an hour',
     'storing' => 'outage',
     'langste {t}' => 'longest {t}',
+    'gezien door {u} om {t}' => 'seen by {u} at {t}',
 ];

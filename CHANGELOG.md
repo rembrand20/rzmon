@@ -8,11 +8,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.208.0**: de **golf bij een open storing stopt** zodra iemand hem bekijkt, en komt terug als het erger wordt.
 - **1.207.0**: **meldingen per storing** op één regel met de duur, *Nu open* bovenaan, kleur en golf zoals op Monitoring, en een zijpaneel met details.
 - **1.206.0**: **bevestigen met een vinkje** in plaats van je wachtwoord, per rol in te stellen, met een vangnet van 60 minuten.
 - **1.205.0**: **agents wachten tijdens een update** van RzMon (wachtrij, vrijgave, samenvatting) en geven pas na 5 minuten alarm.
 - **1.204.0**: een **nieuw update-venster** met voortgangsring, tijdlijn per stap en duidelijke foutmeldingen.
-- **1.203.0**: de **zijbalk klapt vanzelf in** tot icoontjes als je hem smaller sleept of het venster smal is.
+
+## 1.208.0 – 2026-11-07
+### Nieuw
+- **Meldingen: de golf stopt als iemand kijkt.** Klik je op een open storing, dan stopt de golf voor iedereen; de kleur en *nog open* blijven, met een 👁 (wie en wanneer staat erbij, ook in het zijpaneel). Wordt de storing erger (warning → critical), dan golft hij weer. Gebruikers met de rol *alleen lezen* stoppen de golf alleen voor zichzelf.
 
 ## 1.207.0 – 2026-11-07
 ### Nieuw

@@ -1227,7 +1227,7 @@ $need = match ($action) {
     'home', 'mds', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi', 'quiet_now' => 'user',
+    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'alert_seen', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi', 'quiet_now' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -3142,6 +3142,15 @@ switch ($action) {
     case 'unack':
         Monitor::unacknowledge((int) (input()['id'] ?? 0));
         out(['ok' => true]);
+
+    // 1.208.0: een open storing is bekeken op de meldingenpagina; de golf stopt voor iedereen (en komt terug als het erger wordt)
+    case 'alert_seen':
+        $ids = array_slice(array_values(array_unique(array_filter(array_map('intval', (array) (input()['ids'] ?? []))))), 0, 200);
+        if ($ids) {
+            q('UPDATE alerts SET seen_at = NOW(), seen_by = ? WHERE seen_at IS NULL AND id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')',
+                array_merge([(string) $user['username']], $ids));
+        }
+        out(['ok' => true, 'by' => (string) $user['username'], 'at' => date('Y-m-d H:i:s')]);
 
     case 'maintenance_set':
         // scope: all | host | check ; minutes = 0 beëindigt het onderhoud

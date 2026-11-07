@@ -4648,6 +4648,8 @@ body.no-loader .rz-wait-cv { display: none; }
 .al2-badge .al2-shape { color: var(--c); }
 .al2-wave.k-crit .al2-badge .al2-shape { animation: al2-blink 1.4s ease-in-out infinite; }
 @keyframes al2-blink { 50% { opacity: .3; } }
+/* 1.208.0: bekeken: kleur blijft, de beweging stopt */
+.al2-seen-ic { font-size: .8rem; opacity: .7; cursor: help; }
 .al2-src { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .al2-sep { color: var(--muted); font-weight: 400; margin: 0 .25rem; }
 .al2-chk { font-weight: 500; }

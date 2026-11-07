@@ -11537,19 +11537,47 @@ function al2Life(it) {
       <span class="al2-bar" style="--w:${Math.min(100, Math.max(6, ms / 144000))}%"><i></i></span><span class="muted">${esc(al2Dur(ms))}</span></span>`;
   }
   if (it.open) {
-    const ms = Date.now() - t0;
-    return `<span class="al2-life"><span class="al2-bar" style="--w:${Math.min(100, Math.max(6, ms / 144000))}%"><i></i></span><span class="al2-open">${esc(L('nog open · {t}', { t: al2Dur(ms) }))}</span></span>`;
+    const ms = Date.now() - t0, seen = al2Seen(it);
+    return `<span class="al2-life"><span class="al2-bar" style="--w:${Math.min(100, Math.max(6, ms / 144000))}%"><i></i></span><span class="al2-open">${esc(L('nog open · {t}', { t: al2Dur(ms) }))}</span>${seen ? `<span class="al2-seen-ic" title="${esc(al2SeenText(seen))}" aria-label="${esc(al2SeenText(seen))}">👁</span>` : ''}</span>`;
   }
   return `<span class="al2-life"><b class="al2-okt">✓ ${esc(L('nu OK'))}</b></span>`;
 }
 const AL2_ITEMS = new Map();   // id van de eerste melding → regel (voor het zijpaneel)
+/**
+ * 1.208.0: bekeken? Een open storing waarop iemand klikte, golft niet meer (voor iedereen). Komt er daarna een
+ * ergere melding bij (warning → critical) die nog niemand zag, dan golft hij weer.
+ */
+function al2Seen(it) {
+  const prob = it.alerts.filter((a) => a !== it.rec);
+  const seen = prob.filter((a) => a.seen_at);
+  if (!seen.length) return null;
+  const max = Math.max(...seen.map((a) => al2Rank(alertKind2(a))));
+  if (prob.some((a) => !a.seen_at && al2Rank(alertKind2(a)) > max)) return null;
+  return seen.reduce((p, a) => (a.seen_at > p.seen_at ? a : p));   // de laatste keer bekeken: door wie en wanneer
+}
+/** Klik op een open storing: als bekeken markeren (beheerder en gebruiker; alleen-lezen alleen in deze pagina) */
+function al2MarkSeen(it) {
+  if (!it.open || al2Seen(it)) return;
+  const todo = it.alerts.filter((a) => a !== it.rec && !a.seen_at);
+  const now = new Date(), pad = (x) => String(x).padStart(2, '0');
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  todo.forEach((a) => { a.seen_at = stamp; a.seen_by = a.seen_by || ''; });
+  $$(`#alerts .al2-row[data-aid="${it.first.id}"]`).forEach((r) => { r.classList.remove('al2-wave'); r.classList.add('al2-seen'); });
+  if (!(isAdmin() || isUser())) return;
+  api('alert_seen', { ids: todo.map((a) => a.id) }).then((r) => {
+    todo.forEach((a) => { a.seen_by = r.by; a.seen_at = r.at; });
+    if (al2Sel === String(it.first.id)) { const s = $('#al2-seenby'); if (s) s.textContent = al2SeenText(al2Seen(it)); }
+  }).catch(() => { /* lukt het niet, dan golft hij bij de volgende keer weer: niet erg */ });
+}
+const al2SeenText = (a) => (a ? (a.seen_by ? L('gezien door {u} om {t}', { u: a.seen_by, t: a.seen_at.slice(11, 16) }) : L('gezien')) : '');
 function al2Row(it, today, sub = false) {
   const a = it.first, k = it.k, last = it.ep ? it.alerts.filter((x) => x !== it.rec).pop() : a;
   AL2_ITEMS.set(String(a.id), it);
   const { host, check } = alertCols(a);
   const { head, chips } = al2Parts(splitSent(last.message)[0]);
   const quiet = k === 'isys' || k === 'oth' || (k === 'ok' && !it.ep);
-  const cls = ['al2-row', 'al2-tint', 'k-' + k, it.open && (k === 'crit' || k === 'warn') ? 'al2-wave' : '', quiet ? 'al2-quiet' : '', it.ep && !it.open ? 'al2-done' : '', sub ? 'al2-subrow' : ''].filter(Boolean).join(' ');
+  const seen = it.open && al2Seen(it);
+  const cls = ['al2-row', 'al2-tint', 'k-' + k, it.open && (k === 'crit' || k === 'warn') ? (seen ? 'al2-seen' : 'al2-wave') : '', quiet ? 'al2-quiet' : '', it.ep && !it.open ? 'al2-done' : '', sub ? 'al2-subrow' : ''].filter(Boolean).join(' ');
   return `<div class="${cls}" role="row" tabindex="0" data-aid="${a.id}">
     <span class="al2-when" title="${esc(fmtDateTime(a.created_at))}">${al2When(a.created_at, today)}</span>
     <span><span class="al2-badge"><span class="al2-shape" aria-hidden="true">${AL2_SHAPE[k]}</span>${esc(al2Label(k, a))}</span></span>
@@ -11621,6 +11649,7 @@ async function al2Open(aid) {
   $$('#alerts .al2-row.al2-sel').forEach((r) => r.classList.remove('al2-sel'));
   const row = $(`#alerts .al2-row[data-aid="${aid}"]`);
   if (row) row.classList.add('al2-sel');
+  al2MarkSeen(it);
   const d = al2Drawer(), a = it.first, k = it.k;
   const { host, check } = alertCols(a);
   const t0 = a.created_at, t1 = it.rec ? it.rec.created_at : null;
@@ -11633,7 +11662,8 @@ async function al2Open(aid) {
   d.setAttribute('aria-label', L('Details van de melding'));
   d.innerHTML = `<div class="al2-dh"><span class="al2-badge"><span class="al2-shape" aria-hidden="true">${AL2_SHAPE[k]}</span>${esc(al2Label(k, a))}</span>
       <button type="button" class="al2-x icon-btn" data-al2-close aria-label="${esc(L('Sluiten'))}">✕</button>
-      <h3>${esc(host)}${check && check !== '–' ? ' › ' + esc(check) : ''}</h3><div class="muted small">${esc(sub)}</div></div>
+      <h3>${esc(host)}${check && check !== '–' ? ' › ' + esc(check) : ''}</h3><div class="muted small">${esc(sub)}</div>
+      ${it.open ? `<div class="muted small">👁 <span id="al2-seenby">${esc(al2SeenText(al2Seen(it)))}</span></div>` : ''}</div>
     <div class="al2-db">
       <div class="al2-ds"><h4>${L('Bericht')}</h4>${it.alerts.map((x) => `<div class="al2-msg">${it.alerts.length > 1 ? `<div class="muted small">${esc(fmtDateTime(x.created_at))} · ${esc(al2Label(alertKind2(x), x))}</div>` : ''}${esc(splitSent(x.message)[0])}</div>`).join('')}</div>
       ${a.check_id ? `<div class="al2-ds"><h4>${L('Het uur eromheen')}</h4><div id="al2-chart" class="al2-chart"><p class="muted small">${L('Laden…')}</p></div></div>` : ''}

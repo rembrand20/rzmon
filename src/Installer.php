@@ -297,6 +297,8 @@ final class Installer
         ['hosts', 'truenas_fw', 'TINYINT(1) NOT NULL DEFAULT 0'],   // 1.174.0: IDS mag op deze TrueNAS blokkeren (standaard uit)
         ['checks', 'cstate', 'VARCHAR(10) NULL'],
         ['checks', 'path_sum', 'VARCHAR(255) NULL'],   // 1.177.0: pad-check in het kort (bolletjes per hop, ms, Mbit/s) voor de tegels
+        ['alerts', 'seen_at', 'DATETIME NULL'],         // 1.208.0: open storing bekeken (de golf op de meldingenpagina stopt voor iedereen)
+        ['alerts', 'seen_by', 'VARCHAR(100) NULL'],
         ['hosts', 'iperf_ok', 'TINYINT(1) NOT NULL DEFAULT 1'],   // 1.177.0: mag doorvoertest (iperf3) ontvangen   // 1.176.0: containerstatus running/failed/stopped/paused (voor het label)
     ];
 
