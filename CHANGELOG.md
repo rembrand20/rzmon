@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.207.0**: **meldingen per storing** op één regel met de duur, *Nu open* bovenaan, kleur en golf zoals op Monitoring, en een zijpaneel met details.
 - **1.206.0**: **bevestigen met een vinkje** in plaats van je wachtwoord, per rol in te stellen, met een vangnet van 60 minuten.
 
+## 1.210.1 – 2026-11-07
+### Opgelost
+- Een overbodige controle in het ontvangen van logs weggehaald (de codecontrole PHPStan keurde hem af); de werking is hetzelfde.
+
 ## 1.210.0 – 2026-11-07
 ### Nieuw
 - **📜 Logs verzamelen** (agent 1.83.0 nodig): kies per server in de **Agent Manager** (kaart *Logs*) welke logs hij stuurt: bestanden of mappen (met `*`), de journal of één service, een Docker/Podman-container, of de logs van Home Assistant. Met een niveau (alles, info, warning of alleen errors) en voorstellen voor nginx, apache2, syslog, auth.log, fail2ban, TrueNAS en Home Assistant. Per bron zie je hoeveel er vandaag binnenkwam, de status en de laatste regels.

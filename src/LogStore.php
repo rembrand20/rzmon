@@ -115,7 +115,7 @@ final class LogStore
         $hostId = (int) $host['id'];
         $rows = explode("\n", $raw);
         $head = explode("\t", rtrim((string) array_shift($rows), "\r"));
-        if (($head[0] ?? '') !== 'rzlogs1' || !preg_match('/^[A-Za-z0-9._-]{4,40}$/', (string) ($head[1] ?? ''))) {
+        if ($head[0] !== 'rzlogs1' || !preg_match('/^[A-Za-z0-9._-]{4,40}$/', (string) ($head[1] ?? ''))) {
             return ['ok' => false, 'error' => t('geen geldig logpakket')];
         }
         $batch = (string) $head[1];
