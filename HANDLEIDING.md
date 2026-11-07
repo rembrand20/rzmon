@@ -2421,6 +2421,39 @@ Isoleren werkte al op TrueNAS.
 **Agents-overzicht:** TrueNAS-servers staan in een eigen groep **🗄️ TrueNAS**, onder de andere agents.
 - **TrueNAS CORE** (FreeBSD) kan de agent niet draaien. Voeg hem toe als **Remote** met ping, poorten (445 SMB, 2049 NFS, 22 SSH) en HTTP(S) op de webinterface.
 
+### 8.8b Logs verzamelen 📜 (vanaf 1.210.0, agent 1.83.0)
+De agent verzamelt de logs die je per server kiest en stuurt ze naar RzMon, waar ze gecomprimeerd bewaard worden. Zoeken en meldingen bij een zoekactie komen in een volgende versie; deze versie verzamelt en bewaart.
+
+**Bronnen kiezen:** open de **Agent Manager** van de server, kaart **📜 Logs**, en voeg een bron toe (of kies een voorstel: nginx, apache2, syslog, auth.log, fail2ban, de journal, TrueNAS middleware, Home Assistant Core).
+- **Bestand of map**: een volledig pad, met `*` voor meerdere bestanden, bv. `/var/log/nginx/*.log` (hooguit 20 bestanden per bron; `.gz` en andere ingepakte bestanden worden overgeslagen).
+- **Journal (alles)** of **Journal van één service** (bv. `mariadb.service`).
+- **Container**: de naam van een Docker- of Podman-container (ook de apps op TrueNAS SCALE).
+- **Home Assistant**: `host`, `core`, `supervisor` of `addon:<slug>` (alleen in de add-on).
+- **Niveau**: alles, info en erger, warning en erger, of alleen errors. De agent filtert dat al op de server, zodat er minder verstuurd wordt.
+- Per bron zie je hoeveel regels er vandaag binnenkwamen, de status (✓, of de fout: bv. *valt buiten de toegestane mappen*) en met **≡** de laatste regels.
+
+**Veiligheid:**
+- De agent leest alleen bestanden **binnen de mappen die je op de server zelf toestaat**: `LOG_DIRS="/var/log"` in `/etc/default/rzmon-agent` (meerdere mappen met een spatie). Zo kan niemand via RzMon andere bestanden van de server opvragen.
+- De logs gaan **altijd versleuteld** naar RzMon (met de sleutel van de agent; onversleuteld wordt geweigerd), en **gecomprimeerd** (gzip).
+- **Maskeren** (standaard aan): wachtwoorden, tokens, API-sleutels en e-mailadressen worden vóór het opslaan `••••`. Eigen patronen voeg je toe in de instellingen.
+- Zoeken mag voor beheerders en gebruikers, niet voor *alleen lezen*.
+
+**Hoe het werkt:**
+- Elke run leest de agent alleen de **nieuwe regels**. Per bestand onthoudt hij waar hij was, ook na logrotatie. Een **nieuwe bron begint aan het einde**: oude regels worden niet ingelezen.
+- Een halve laatste regel (nog niet helemaal geschreven) komt de volgende keer.
+- Elke **5 minuten** (instelbaar, ook per server) gaan de nieuwe regels als één pakketje naar RzMon, los van het gewone rapport.
+- Pas als RzMon het pakketje heeft opgeslagen, gooit de agent het weg. Is RzMon niet bereikbaar, dan bewaart de agent de pakketjes (samen tot 50 MB) en stuurt hij ze later.
+- **De logbestanden op de server zelf blijven staan**; die ruimt logrotate op.
+- RzMon herkent het **niveau** (debug, info, warning, error, critical) en de **tijd** uit de regel (ISO, syslog, nginx/apache; met de tijdzone van de server). Zonder herkenbare tijd geldt de tijd van lezen.
+
+**Instellingen** (*Instellingen → Monitoring → Logs*):
+- **Logs verzamelen** (hoofdschakelaar), **versturen elke** 5 minuten (1–60), **bewaren** 14 dagen, **maximaal in totaal** 5 GB, **maximaal per server per dag** 200 MB.
+- **Daglimiet**: haalt een server die, dan worden zijn logs tot middernacht niet meer opgeslagen, krijg je een systeemmelding (*📜 Logs: daglimiet bereikt*, met de bron die het meeste stuurde), en pauzeert de agent. Om middernacht gaat hij verder waar hij was.
+- **Maximum**: komt het totaal erboven, dan gaat de oudste dag weg (met een systeemmelding).
+- Onderaan zie je de **opslag** (gebruikt, ongecomprimeerd, hoeveel kleiner, hoe lang de ruimte nog genoeg is) en per server **wat er vandaag binnenkwam**. Klik op een server voor zijn bronnen.
+
+**Opslag:** per dag een tabel (`logd_JJJJMMDD`) met blokken van hooguit 5000 regels per bron, elk met gzip gecomprimeerd: ongeveer 7 à 8 keer kleiner dan de logs zelf. Een dag ouder dan de bewaartermijn gaat in één keer weg. Uitzetten op een server: `LOG_SHIP=0` in `/etc/default/rzmon-agent`.
+
 ### 8.9a Proxmox VE 🖥️ (vanaf 1.105.0, agent 1.61.0)
 Proxmox VE is Debian: de gewone agent draait er gewoon, als **root** op de host (niet in een VM of container). Een update van Proxmox laat de agent staan. Vanaf agent 1.61.0 leest de agent ook **Proxmox zelf** uit met `pvesh`, zonder API-token: alles gaat over de bestaande versleutelde verbinding.
 

@@ -1968,5 +1968,40 @@ save_setting('confirm_grace_min', '60');
 ok(!$cfNoPw && $cfOk && !$cfOld && $cfLonger && $cfLan && $cfSt['skip'] === true && in_array('UITLOGGEN', $cfSt['always'], true),
     'vinkje: beheerder ja (gebruiker uit), niet bij account-zaken, alleen binnen de ingestelde minuten na het wachtwoord, op het lokale netwerk altijd');
 
+section('Logs verzamelen (1.210.0)');
+$lsA = LogStore::save($ha, ['kind' => 'file', 'spec' => '/var/log/nginx/*.log', 'name' => 'nginx', 'level' => 2]);
+$lsJ = LogStore::save($ha, ['kind' => 'journal', 'spec' => '']);
+ok(is_int($lsA) && is_int($lsJ) && is_string(LogStore::save($ha, ['kind' => 'file', 'spec' => '/var/log/../etc/shadow']))
+    && is_string(LogStore::save($ha, ['kind' => 'docker', 'spec' => 'x;rm']))
+    && is_string(LogStore::save($ha, ['kind' => 'ha', 'spec' => 'addon:../x'])), 'bronnen: geldige paden en namen, geen .. of vreemde tekens');
+$lsLines = LogStore::agentLines($ha);
+ok(in_array("$lsA\tlogsrc\tfile\t/var/log/nginx/*.log\t2", $lsLines, true) && in_array("0\tlogship\t300", $lsLines, true), 'de agent krijgt de bronnen en elke 5 minuten');
+$lsNow = time();
+$lsRaw = "rzlogs1\tci-batch-1\t$lsNow\t0\t+0000\n"
+    . "L\t$lsA\t$lsNow\t" . gmdate('Y-m-d H:i:s', $lsNow - 60) . " ERROR login mislukt voor jan@example.com password=hunter2 token=abcdef123456\n"
+    . "L\t$lsJ\t$lsNow\t" . date('M j H:i:s', $lsNow) . " web sshd[1]: Accepted publickey for root\n"
+    . "S\t$lsA\terr\t0\tbuiten LOG_DIRS\n";
+$lsR1 = LogStore::ingest(['id' => $ha, 'name' => 'ci-a'], $lsRaw);
+$lsR2 = LogStore::ingest(['id' => $ha, 'name' => 'ci-a'], $lsRaw);
+$lsLast = LogStore::lastLines($lsA, 1)[0] ?? [];
+ok($lsR1['stored'] === 2 && !empty($lsR2['dup']) && ($lsLast['level'] ?? 0) === 3 && str_contains($lsLast['msg'] ?? '', '••••@••••')
+    && !str_contains($lsLast['msg'] ?? '', 'hunter2') && !str_contains($lsLast['msg'] ?? '', 'abcdef123456'),
+    'pakketje: opgeslagen, dubbel niet nog eens, niveau herkend, wachtwoord, token en e-mail gemaskeerd');
+ok(abs(strtotime($lsLast['ts'] ?? '') - ($lsNow - 60)) < 2 && (array_column(LogStore::sources($ha), 'status', 'name')['nginx'] ?? '') === 'err', 'tijd uit de regel (met de tijdzone van de server), status van de bron');
+ok(LogStore::stamp('[07/Nov/2026:11:02:14 +0100] GET /', strtotime('2026-11-07 10:05:00 UTC')) === strtotime('2026-11-07 10:02:14 UTC')
+    && LogStore::stamp('zomaar tekst', 123456789) === 123456789 && LogStore::level('WARNING: bijna vol') === 2 && LogStore::level('debug: x') === 0,
+    'tijd en niveau: nginx-formaat, zonder tijd de tijd van lezen, warning en debug');
+save_setting('logs_day_mb', '1');
+$lsBig = "rzlogs1\tci-batch-2\t$lsNow\t0\t+0000\n" . str_repeat("L\t$lsA\t$lsNow\t" . str_repeat('x', 1000) . "\n", 1200);
+$lsR3 = LogStore::ingest(['id' => $ha, 'name' => 'ci-a'], $lsBig);
+ok($lsR3['dropped'] > 0 && $lsR3['stored'] < 1200 && in_array("0\tlogpause\t" . strtotime('tomorrow'), LogStore::agentLines($ha), true), 'daglimiet: de rest weggegooid en de agent pauzeert tot middernacht');
+save_setting('logs_day_mb', '200');
+$lsOld = LogStore::table(date('Y-m-d', strtotime('-30 days')));
+LogStore::purge();
+ok(!in_array($lsOld, array_column(LogStore::dayTables(), 'name'), true) && in_array(LogStore::table(date('Y-m-d')), array_column(LogStore::dayTables(), 'name'), true),
+    'opruimen: een dag ouder dan de bewaartermijn gaat weg, vandaag blijft');
+$lsOv = LogStore::overview();
+ok($lsOv['raw'] > 0 && $lsOv['used'] > 0 && $lsOv['rows'] >= 2, 'overzicht: opslag en aantallen');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.83.0 – 2026-11-07
+- **Logs verzamelen** (RzMon 1.210.0): de agent leest de nieuwe regels van de bronnen die je in RzMon per server kiest (bestanden of mappen met `*` binnen `LOG_DIRS`, de journal of één service, een Docker/Podman-container, of in de add-on de logs van Home Assistant), filtert op het gekozen niveau, en stuurt ze elke paar minuten als één pakketje: gecomprimeerd (gzip) en versleuteld, los van het rapport. Per bestand onthoudt hij waar hij was, ook na logrotatie; een nieuwe bron begint aan het einde, een halve laatste regel komt de volgende keer. Pas als RzMon het pakketje bevestigt, gaat het weg; zonder verbinding blijven ze bewaard (samen hooguit 50 MB, daarboven de oudste eruit). Zonder sleutel wordt niets verstuurd. Bereikt een server de daglimiet in RzMon, dan pauzeert de agent tot middernacht. Uitzetten: `LOG_SHIP=0`. De logbestanden zelf blijven staan.
+
 ## 1.82.0 – 2026-11-06
 - **Wachten tijdens een update van RzMon** (RzMon 1.205.0): zegt RzMon in een versleuteld antwoord dat hij zo wordt bijgewerkt, dan zet de agent metingen die niet aankomen in de wachtrij en geeft de waakhond geen alarm, tot RzMon weer antwoordt (de vrijgave) of de tijd die RzMon meegaf voorbij is (standaard 5 minuten, hooguit een uur). Na de vrijgave wacht hij 0–24 s en stuurt hij de wachtrij na, met hoe lang hij wachtte. Duurt het te lang: *⚠️ RzMon onbereikbaar tijdens update*. Tijdens het wachten werkt de agent zichzelf niet bij. `rzmon-agent --status` toont het. Alleen uit een versleuteld antwoord: een foutpagina of proxy kan de waakhond niet stilzetten.
 

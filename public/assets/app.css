@@ -4738,3 +4738,43 @@ body.no-anim .al2-badge .al2-shape { animation: none !important; }
   body.lg .topbar.app-top::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
     -webkit-backdrop-filter: blur(20px) saturate(165%); backdrop-filter: blur(20px) saturate(165%); }
 }
+
+/* ---------------------------------------------------------------- 1.210.0: logs verzamelen (Agent Manager › Logs, Instellingen › Logs) */
+.lg-pill { display: inline-flex; align-items: center; gap: .25rem; padding: .05rem .5rem; border-radius: 999px; font-size: .74rem; font-weight: 700; white-space: nowrap;
+  --c: var(--muted); color: var(--c); background: color-mix(in srgb, var(--c) 13%, transparent); border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); }
+.lg-pill.ok { --c: var(--ok); } .lg-pill.bad { --c: var(--crit); } .lg-pill.warn { --c: var(--warn); } .lg-pill.mut { --c: var(--muted); }
+.lg-src { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
+.lg-src .mono { overflow-wrap: anywhere; }
+.lg-table td { vertical-align: middle; }
+.lg-table td.num, .lg-table th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lg-table .nowrap { white-space: nowrap; }
+.lg-table .btn.danger { color: #fff; background: var(--crit); border-color: var(--crit); }
+.lg-lines pre { margin: 0; max-height: 16rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.lg-lv { font-weight: 700; font-size: .72rem; text-transform: uppercase; }
+.lg-lv.lv0 { color: var(--muted); } .lg-lv.lv1 { color: var(--muted); } .lg-lv.lv2 { color: var(--warn); } .lg-lv.lv3, .lg-lv.lv4 { color: var(--crit); }
+.lg-note { margin: .4rem 0 .6rem; }
+.lg-bar { display: inline-block; width: 90px; height: 7px; border-radius: 4px; background: var(--card-2); border: 1px solid var(--border); position: relative; overflow: hidden; vertical-align: middle; }
+.lg-bar i { position: absolute; inset: 0 auto 0 0; background: var(--primary); }
+.lg-bar.full i { background: var(--crit); }
+.lg-form { margin-top: .8rem; border: 1px dashed color-mix(in srgb, var(--primary) 45%, var(--border)); border-radius: 12px; padding: .8rem .9rem; display: grid; gap: .7rem;
+  background: color-mix(in srgb, var(--primary) 3%, transparent); }
+.lg-form-h { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: center; }
+.lg-presets { display: flex; flex-wrap: wrap; gap: .3rem; }
+.lg-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .5rem .8rem; }
+.lg-fields label { display: flex; flex-direction: column; gap: .2rem; font-size: .82rem; font-weight: 600; min-width: 0; }
+.lg-fields .lg-spec { grid-column: span 2; }
+.lg-fields small { font-weight: 400; }
+@media (max-width: 640px) { .lg-fields .lg-spec { grid-column: auto; } }
+.lg-form-b { display: flex; flex-wrap: wrap; gap: .5rem .8rem; align-items: center; }
+.lg-ov { display: grid; gap: 1rem; }
+.lg-store { border: 1px solid var(--border); border-radius: 12px; padding: .8rem .9rem; display: grid; gap: .5rem; max-width: 620px; }
+.lg-big b { font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.lg-meter { height: 10px; border-radius: 6px; background: var(--card-2); border: 1px solid var(--border); overflow: hidden; display: flex; }
+.lg-meter i { display: block; height: 100%; }
+.lg-legend { display: flex; flex-wrap: wrap; gap: .2rem .9rem; }
+.lg-legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 3px; background: var(--c); margin-right: .35rem; vertical-align: -1px; }
+.lg-kv { display: grid; grid-template-columns: auto 1fr; gap: .2rem .8rem; margin: 0; }
+.lg-kv dt { color: var(--muted); } .lg-kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+.lg-in { min-width: 0; }
+.lg-in h3 { margin: 0 0 .4rem; }
+.am-grid > [data-pk="logs"] { grid-column: 1 / -1; }   /* 1.210.0: de tabel met bronnen over de hele breedte */

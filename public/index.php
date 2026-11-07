@@ -1163,6 +1163,25 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <?= xp(t('Een nieuw apparaat geeft een melding; extra programma\'s maken de scan sneller.'), t('<b>Meldingen:</b> een nieuw apparaat geeft een ℹ️-melding <i>Nieuw apparaat op je netwerk</i>, standaard alleen op de meldingenpagina (kanalen bij <i>Meldingen → Systeemmeldingen</i>). De eerste scan is de basismeting en geeft geen meldingen. <b>Sneller:</b> met <code>fping</code> en <code>avahi-browse</code> (pakket <code>avahi-tools</code> of <code>avahi-utils</code>) op de RzMon-server gaat het sneller en herkent RzMon meer, maar nodig zijn ze niet. <b>Fabrikant:</b> uit de lijst van Wireshark, maandelijks bijgewerkt (uitgaand HTTPS naar <code>www.wireshark.org</code>).')) ?>
         </div>
 
+        <div data-sk="logs" class="card" id="logs-card">
+          <h2>📜 <?= th('Logs') ?></h2>
+          <?= xp(t('De agent verzamelt de logs die je per server kiest en stuurt ze gecomprimeerd en versleuteld naar RzMon.'), t('<b>Bronnen</b> kies je per server in de <b>Agent Manager</b> (kaart <i>Logs</i>): bestanden of mappen (met *), de journal, één service, een container, of de logs van Home Assistant. <b>Hoe:</b> elke run leest de agent alleen de nieuwe regels; elke paar minuten gaan ze als één pakketje (gzip, versleuteld met de sleutel van de agent) naar RzMon, los van het gewone rapport. Pas als RzMon het heeft opgeslagen, gooit de agent het pakketje weg; zonder verbinding bewaart hij ze (tot 50 MB). De logbestanden op de server zelf blijven staan. <b>Opslag:</b> per dag een tabel met gecomprimeerde blokken (ongeveer 7 à 8 keer kleiner); een dag ouder dan de bewaartermijn gaat in één keer weg, en boven het maximum de oudste dag eerst. <b>Zoeken</b> mag voor beheerders en gebruikers, niet voor alleen lezen.')) ?>
+          <label class="switch"><input type="checkbox" name="logs_on"><span></span> <?= t('<b>Logs verzamelen</b> (hoofdschakelaar; de bronnen stel je per server in)') ?></label>
+          <div class="row2">
+            <label><?= th('Versturen elke (minuten)') ?> <span class="muted small"><?= th('(1–60; per server aan te passen)') ?></span><input type="number" name="logs_interval" min="1" max="60" step="1"></label>
+            <label><?= th('Bewaren (dagen)') ?><input type="number" name="logs_days" min="1" max="365" step="1"></label>
+          </div>
+          <div class="row2">
+            <label><?= th('Maximaal in totaal (GB)') ?> <span class="muted small"><?= th('(daarboven gaat de oudste dag weg)') ?></span><input type="number" name="logs_max_gb" min="0.1" max="10000" step="0.1"></label>
+            <label><?= th('Maximaal per server per dag (MB)') ?> <span class="muted small"><?= th('(ongecomprimeerd; daarna tot middernacht niets meer)') ?></span><input type="number" name="logs_day_mb" min="1" max="100000" step="1"></label>
+          </div>
+          <label class="switch"><input type="checkbox" name="logs_mask"><span></span> <?= t('<b>Gevoelige gegevens maskeren</b> vóór het opslaan: wachtwoorden, tokens, API-sleutels en e-mailadressen worden ••••') ?></label>
+          <label><?= th('Eigen patronen om te maskeren') ?> <span class="muted small"><?= th('(één reguliere expressie per regel, bv. klantnummer=\d+)') ?></span>
+            <textarea name="logs_mask_extra" rows="3" spellcheck="false" style="font-family:ui-monospace,monospace"></textarea></label>
+          <h3 class="small" style="margin:1rem 0 .3rem"><?= th('Opslag en binnenkomst') ?></h3>
+          <div id="logs-ov"><p class="muted"><?= th('Laden…') ?></p></div>
+        </div>
+
         <div data-sk="internet" class="card" id="internet-card">
           <h2>🌍 <?= th('Internet') ?></h2>
           <?= xp(t('Bewaakt je internetlijn: ping, responstijd en snelheid.'), t('<b>Wat het doet:</b> RzMon bewaakt je internetlijn vanaf zijn eigen server. <b>Ping:</b> naar 1.1.1.1, 8.8.8.8 en je router, elke minuut. <b>Responstijd:</b> naar google.com en cloudflare.com, elke 5 minuten. <b>Snelheid:</b> download en upload via speed.cloudflare.com, op de tijden hieronder.')) ?>

@@ -20,7 +20,7 @@ final class Https
     public const WARN_DAYS = 14;            // ℹ️ zoveel dagen voor het certificaat verloopt
     private const PROXY_HEADERS = ['HTTP_X_FORWARDED_FOR', 'HTTP_X_FORWARDED_PROTO', 'HTTP_X_FORWARDED_HOST', 'HTTP_X_REAL_IP', 'HTTP_FORWARDED'];
     /** Verzoeken van agents (en de downloads voor het installeren): nooit doorsturen, ook niet bij "alleen https" */
-    private const AGENT_ACTIONS = ['ping', 'agent', 'agent_tests', 'agent_check', 'agent_pair', 'agent_pkg_progress', 'agent_script', 'agent_install'];
+    private const AGENT_ACTIONS = ['ping', 'agent', 'agent_tests', 'agent_check', 'agent_pair', 'agent_pkg_progress', 'agent_logs', 'agent_script', 'agent_install'];
 
     // ------------------------------------------------------------------ het verzoek
 

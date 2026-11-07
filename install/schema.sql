@@ -1386,3 +1386,43 @@ CREATE TABLE IF NOT EXISTS quiet_groups (
 INSERT IGNORE INTO settings (name, value) VALUES ('quiet_global', '');
 -- 1.193.0: status bevestigen per soort check, en sneller bevestigen (twijfelende snelle checks elke 20 s)
 INSERT IGNORE INTO settings (name, value) VALUES ('confirm_types', ''), ('confirm_fast', '1');
+
+-- 1.210.0: logs van servers verzamelen (agent 1.83.0). De bronnen per server, het gebruik per dag (voor de daglimiet en
+-- het overzicht) en de pakketjes die al binnen zijn (een pakketje dat twee keer komt, wordt één keer opgeslagen).
+-- De regels zelf staan in een tabel per dag (logd_JJJJMMDD), gecomprimeerd; die maakt LogStore::table() zelf aan,
+-- zodat een oude dag in één keer weg kan en een database zonder compressie toch werkt.
+CREATE TABLE IF NOT EXISTS log_sources (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id    INT UNSIGNED NOT NULL,
+    name       VARCHAR(100) NOT NULL,
+    kind       VARCHAR(10)  NOT NULL,
+    spec       VARCHAR(300) NOT NULL,
+    level      TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    enabled    TINYINT(1)   NOT NULL DEFAULT 1,
+    status     VARCHAR(8)   NULL,
+    status_msg VARCHAR(300) NULL,
+    files      SMALLINT UNSIGNED NULL,
+    last_at    DATETIME     NULL,
+    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_ls_host (host_id),
+    CONSTRAINT fk_ls_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS log_daily (
+    host_id   INT UNSIGNED NOT NULL,
+    source_id INT UNSIGNED NOT NULL,
+    day       DATE NOT NULL,
+    `lines`   INT UNSIGNED NOT NULL DEFAULT 0,
+    bytes     BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    dropped   INT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY (host_id, source_id, day),
+    INDEX idx_ld_day (day)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS log_batches (
+    host_id INT UNSIGNED NOT NULL,
+    batch   VARCHAR(40)  NOT NULL,
+    at      DATETIME     NOT NULL,
+    PRIMARY KEY (host_id, batch),
+    INDEX idx_lb_at (at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('logs_on', '1'), ('logs_interval', '5'), ('logs_days', '14'), ('logs_max_gb', '5'),
+    ('logs_day_mb', '200'), ('logs_mask', '1'), ('logs_mask_extra', '');

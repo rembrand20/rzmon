@@ -55,6 +55,7 @@ Dezelfde tabel staat in RzMon bij *Instellingen → Overzicht → Functies*, met
 | 🖥️ Servers en agents | **Proxmox VE** | VM's, containers en opslag van een Proxmox-host. | 1.105.0 |
 | 🖥️ Servers en agents | **TrueNAS SCALE** | Meldingen, taken, apps, updates en temperaturen via midclt. | 1.174.0 |
 | 🖥️ Servers en agents | **Home Assistant-add-on** | De agent als add-on: HA Core, Supervisor, add-ons en HA OS. | 1.24.0 |
+| 🖥️ Servers en agents | **Logs verzamelen** | Logs per server gecomprimeerd en versleuteld naar RzMon, gemaskeerd en gecomprimeerd bewaard, met daglimiet en bewaartermijn. | 1.210.0 |
 | 🖥️ Servers en agents | **Store-and-forward** | De agent bewaart rapporten als RzMon even weg is. | 1.137.0 |
 | 🖥️ Servers en agents | **Waakhond** | De agent meldt via Pushover als RzMon of cron stilstaat. | 1.107.0 |
 | 🧭 Dashboard en weergave | **Dashboard: zo staat het ervoor** | Totaalscore, Nu doen, servers die aandacht vragen en grafieken. | 1.134.0 |

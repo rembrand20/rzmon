@@ -1324,6 +1324,11 @@ final class Monitor
         q('DELETE FROM status_changes WHERE created_at < NOW() - INTERVAL ? DAY', [self::alertDays()]);
         q('DELETE FROM access_log WHERE created_at < NOW() - INTERVAL ? DAY', [self::alertDays()]);
         SshEvents::purge();   // 1.152.0: 30 dagen
+        try {
+            LogStore::purge();   // 1.210.0: logs: bewaartermijn en maximum
+        } catch (Throwable) {
+            // opruimen mag de rest nooit tegenhouden
+        }
         q('DELETE FROM agent_log WHERE created_at < NOW() - INTERVAL 7 DAY');
         q('DELETE FROM remember_tokens WHERE last_used < NOW() - INTERVAL ? DAY', [REMEMBER_DAYS]);
         q('DELETE FROM user_sessions WHERE last_seen < NOW() - INTERVAL 2 DAY');   // allang verlopen sessies

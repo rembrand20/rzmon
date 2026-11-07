@@ -86,3 +86,27 @@ if ! python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); h=d["hold"]; a
     echo "✘ update van RzMon: na de vrijgave geen wachttijd/wachtrij meegestuurd, of de aankondiging bleef staan"; tail -n 20 "$work/out"; exit 1
 fi
 echo "✔ update van RzMon: meting in de wachtrij, na de vrijgave nagestuurd met de wachttijd"
+# Agent 1.83.0: logs verzamelen. Eerste run met de map toegestaan: bij het einde beginnen. Daarna alleen de nieuwe regels van
+# niveau 2 (warning en erger); een halve laatste regel wacht. Het pakketje (gzip) ligt klaar; zonder sleutel gaat het niet weg.
+mkdir -p "$work/logs"; : >"$work/logs/app.log"
+for n in 1 2; do
+    [ "$n" = 2 ] && printf 'INFO gewoon\nERROR kapot 1\nWARNING bijna vol\nhalf' >>"$work/logs/app.log"
+    MONITOR_URL="http://127.0.0.1:$port" TOKEN=ci-test RZ_FORCE=1 CACHE_DIRECTORY="$work/cache" AGENT_DIR="$work/agent" \
+        HEAL_DIR="$work/heal.d" IDS_BLOCK=0 PODMAN=0 LOG_DIRS="$work/logs" timeout 300 bash agent/rzmon-agent.sh >"$work/out" 2>&1
+done
+ls_d="$work/agent/keys/logship"; [ -d "$ls_d" ] || ls_d="$work/cache/logship"
+python3 - "$ls_d" <<'PY'
+import glob, gzip, sys
+lines, status = [], []
+for b in sorted(glob.glob(sys.argv[1] + '/b*.gz')):
+    rows = gzip.decompress(open(b, 'rb').read()).decode().split('\n')
+    if not rows[0].startswith('rzlogs1\t'):
+        print('✘ logpakketje zonder kop:', rows[0]); sys.exit(1)
+    lines += [r.split('\t', 3)[3] for r in rows if r.startswith('L\t7\t')]
+    status += [r for r in rows if r.startswith('S\t7\t')]
+if lines != ['ERROR kapot 1', 'WARNING bijna vol']:
+    print('✘ logregels kloppen niet (verwacht ERROR en WARNING, zonder INFO en de halve regel):', lines); sys.exit(1)
+if not status or '\tok\t1\t' not in status[-1] + '\t':
+    print('✘ status van de logbron klopt niet:', status); sys.exit(1)
+print('✔ logs: alleen nieuwe regels van het gekozen niveau, halve regel wacht, pakketje klaar (gzip)')
+PY

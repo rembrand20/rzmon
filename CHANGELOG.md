@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.210.0**: **logs verzamelen** per server: gecomprimeerd en versleuteld naar RzMon, gemaskeerd en gecomprimeerd bewaard.
 - **1.209.0**: een **bekeken storing gaat uit Nu open** naar de dag waarop hij begon, en komt terug als het erger wordt.
 - **1.208.0**: de **golf bij een open storing stopt** zodra iemand hem bekijkt, en komt terug als het erger wordt.
 - **1.207.0**: **meldingen per storing** op één regel met de duur, *Nu open* bovenaan, kleur en golf zoals op Monitoring, en een zijpaneel met details.
 - **1.206.0**: **bevestigen met een vinkje** in plaats van je wachtwoord, per rol in te stellen, met een vangnet van 60 minuten.
-- **1.205.0**: **agents wachten tijdens een update** van RzMon (wachtrij, vrijgave, samenvatting) en geven pas na 5 minuten alarm.
+
+## 1.210.0 – 2026-11-07
+### Nieuw
+- **📜 Logs verzamelen** (agent 1.83.0 nodig): kies per server in de **Agent Manager** (kaart *Logs*) welke logs hij stuurt: bestanden of mappen (met `*`), de journal of één service, een Docker/Podman-container, of de logs van Home Assistant. Met een niveau (alles, info, warning of alleen errors) en voorstellen voor nginx, apache2, syslog, auth.log, fail2ban, TrueNAS en Home Assistant. Per bron zie je hoeveel er vandaag binnenkwam, de status en de laatste regels.
+- De agent leest alleen de **nieuwe regels** (ook na logrotatie; een nieuwe bron begint aan het einde) en stuurt ze elke **5 minuten** als één pakketje, **gecomprimeerd en versleuteld**, los van het gewone rapport. Pas als RzMon het heeft opgeslagen, gaat het pakketje weg; zonder verbinding bewaart de agent ze (tot 50 MB). De logbestanden op de server blijven staan.
+- Alleen bestanden binnen `LOG_DIRS` op de server zelf; onversleuteld wordt geweigerd.
+- RzMon **maskeert** wachtwoorden, tokens, API-sleutels en e-mailadressen (en eigen patronen), herkent het niveau en de tijd, en bewaart de regels **gecomprimeerd** in een tabel per dag (ongeveer 7 à 8 keer kleiner dan de logs zelf).
+- **Instellingen → Monitoring → Logs**: aan/uit, elke hoeveel minuten (ook per server), bewaren (14 dagen), maximaal in totaal (5 GB) en per server per dag (200 MB), maskeren, en het overzicht van opslag en binnenkomst. Bij de daglimiet of het maximum een systeemmelding.
+- Zoeken in de logs en meldingen bij een vaste zoekactie volgen in een volgende versie.
+- Nieuwe agent 1.83.0.
 
 ## 1.209.1 – 2026-11-07
 ### Opgelost

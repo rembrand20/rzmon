@@ -499,6 +499,7 @@ function agent_tests_text(int $hostId, bool $secure = false): string
     array_push($out, ...Paths::agentLines($hostId));   // 1.177.0: pad-checks en doorvoertests (agent 1.78.0)
     array_push($out, ...Db::agentLines($hostId, $secure));   // 1.200.0: databasechecks (agent 1.81.0); wachtwoord alleen versleuteld
     array_push($out, ...AgentTest::agentLines($hostId));   // 1.178.0: 🧪 Test uit de Agent Manager (agent 1.79.0)
+    array_push($out, ...LogStore::agentLines($hostId));   // 1.210.0: logs verzamelen (agent 1.83.0)
     return $out ? implode("\n", $out) . "\n" : '';
 }
 
@@ -581,6 +582,18 @@ if ($action === 'agent_pkg_progress') {
     agent_body($host);
     Vulns::upgradeProgress($host, input());
     out(['ok' => true]);
+}
+
+// 1.210.0: logs van de agent (agent 1.83.0), los van het rapport: gecomprimeerd en altijd versleuteld (onversleuteld: geweigerd)
+if ($action === 'agent_logs') {
+    $host = agent_host();
+    if (!agent_body($host)) {
+        out(['error' => t('Logs worden alleen versleuteld aangenomen')], 403);
+    }
+    if (!LogStore::enabled()) {
+        out(['ok' => false, 'off' => true]);
+    }
+    out(LogStore::ingest($host, raw_input()));
 }
 
 if ($action === 'agent') {
@@ -1227,7 +1240,7 @@ $need = match ($action) {
     'home', 'mds', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'alert_seen', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi', 'quiet_now' => 'user',
+    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'alert_seen', 'log_sources', 'log_source_lines', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi', 'quiet_now' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -3143,6 +3156,46 @@ switch ($action) {
         Monitor::unacknowledge((int) (input()['id'] ?? 0));
         out(['ok' => true]);
 
+    // 1.210.0: logbronnen per server (Agent Manager) en het overzicht (beheerportal)
+    case 'log_sources':
+        $hid = (int) ($_GET['host_id'] ?? 0);
+        out(['sources' => LogStore::sources($hid), 'interval' => q('SELECT logs_interval FROM hosts WHERE id = ?', [$hid])->fetchColumn() ?: null,
+            'default_interval' => (int) setting('logs_interval', '5'), 'on' => LogStore::enabled(), 'day_limit' => LogStore::dayLimit(), 'used_today' => LogStore::usedToday($hid)]);
+
+    case 'log_source_lines':
+        out(['lines' => LogStore::lastLines((int) ($_GET['id'] ?? 0))]);
+
+    case 'log_source_save':
+        $in = input();
+        $hid = (int) ($in['host_id'] ?? 0);
+        if (!q("SELECT 1 FROM hosts WHERE id = ? AND mode = 'agent'", [$hid])->fetchColumn()) {
+            out(['error' => t('Logs verzamelen kan alleen op een server met de agent')], 422);
+        }
+        $r = LogStore::save($hid, $in);
+        if (is_string($r)) {
+            out(['error' => $r], 422);
+        }
+        AgentCommands::audit((string) $user['username'], 'Logbron opgeslagen', q('SELECT name FROM hosts WHERE id = ?', [$hid])->fetchColumn() . ': ' . ($in['kind'] ?? '') . ' ' . ($in['spec'] ?? ''));
+        out(['ok' => true, 'id' => $r]);
+
+    case 'log_source_toggle':
+        $in = input();
+        LogStore::setEnabled((int) ($in['id'] ?? 0), !empty($in['on']));
+        out(['ok' => true]);
+
+    case 'log_source_delete':
+        LogStore::delete((int) (input()['id'] ?? 0));
+        out(['ok' => true]);
+
+    case 'host_logs_interval':
+        $in = input();
+        $m = $in['minutes'] ?? null;
+        q('UPDATE hosts SET logs_interval = ? WHERE id = ?', [$m === null || $m === '' ? null : max(1, min(60, (int) $m)), (int) ($in['id'] ?? 0)]);
+        out(['ok' => true]);
+
+    case 'log_overview':
+        out(LogStore::overview());
+
     // 1.208.0: een open storing is bekeken op de meldingenpagina; de golf stopt voor iedereen (en komt terug als het erger wordt)
     case 'alert_seen':
         $ids = array_slice(array_values(array_unique(array_filter(array_map('intval', (array) (input()['ids'] ?? []))))), 0, 200);
@@ -3559,7 +3612,8 @@ switch ($action) {
             'ai_claude_key', 'ai_claude_model', 'ai_openai_key', 'ai_openai_model', 'ai_gemini_key', 'ai_gemini_model', 'ai_grok_key', 'ai_grok_model', 'ai_ollama_model',   // 1.171.0
             'ai_budget_month', 'ai_memory', 'ai_cache', 'ai_cache_hours', 'ai_fallback', 'ai_notify', 'ai_weekly', 'ai_weekly_day', 'ai_triage', 'ai_report',   // 1.173.0
             'confirm_fails', 'confirm_ok', 'confirm_types', 'confirm_fast',   // 1.185.0, 1.193.0
-            'net_traffic', 'net_traffic_swap', 'net_wan_cap_gb'];   // 1.186.0, 1.187.0
+            'net_traffic', 'net_traffic_swap', 'net_wan_cap_gb',   // 1.186.0, 1.187.0
+            'logs_on', 'logs_interval', 'logs_days', 'logs_max_gb', 'logs_day_mb', 'logs_mask', 'logs_mask_extra'];   // 1.210.0
         // 1.179.0: Mastodon alleen via https naar een gewone hostnaam
         if (isset($in['cve_mastodon_url']) && trim((string) $in['cve_mastodon_url']) !== '' && !CveBuzz::safeUrl(rtrim(trim((string) $in['cve_mastodon_url']), '/'))) {
             out(['error' => t('Mastodon: vul een https-adres in, bv. https://infosec.exchange')], 422);
@@ -3582,6 +3636,22 @@ switch ($action) {
         foreach (['claude', 'openai', 'gemini', 'grok', 'ollama'] as $p) {
             if (isset($in["ai_{$p}_model"]) && !preg_match('/^[A-Za-z0-9._:\/-]{0,80}$/', trim((string) $in["ai_{$p}_model"]))) {
                 out(['error' => t('Ongeldige modelnaam')], 422);
+            }
+        }
+        // 1.210.0: logs: getallen binnen de grenzen, eigen maskeerpatronen moeten geldige reguliere expressies zijn
+        foreach (['logs_interval' => [1, 60], 'logs_days' => [1, 365], 'logs_day_mb' => [1, 100000]] as $k => [$lo, $hi]) {
+            if (isset($in[$k])) {
+                $in[$k] = (string) max($lo, min($hi, (int) $in[$k]));
+            }
+        }
+        if (isset($in['logs_max_gb'])) {
+            $in['logs_max_gb'] = (string) round(max(0.1, min(10000, (float) str_replace(',', '.', (string) $in['logs_max_gb']))), 1);
+        }
+        if (isset($in['logs_mask_extra'])) {
+            foreach (preg_split('/\R/', (string) $in['logs_mask_extra']) ?: [] as $p) {
+                if (trim($p) !== '' && @preg_match('~' . str_replace('~', '\~', trim($p)) . '~iu', '') === false) {
+                    out(['error' => t('Ongeldig patroon om te maskeren: {p}', ['p' => mb_substr(trim($p), 0, 80)])], 422);
+                }
             }
         }
         if (isset($in['confirm_grace_min'])) {

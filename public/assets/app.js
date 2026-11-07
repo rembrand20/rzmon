@@ -7923,6 +7923,195 @@ async function saveHostConn(sel, done) {
   }
 }
 
+// ---------------------------------------------------------------- 1.210.0: logs verzamelen (Agent Manager › Logs)
+const LS_KINDS = () => ({
+  file: [L('Bestand of map'), '/var/log/nginx/*.log', L('Volledig pad, met * voor meerdere bestanden. Alleen binnen LOG_DIRS van de server.')],
+  journal: [L('Journal (alles)'), '', L('Het hele systeemlog van systemd.')],
+  unit: [L('Journal van één service'), 'mariadb.service', L('De naam van de service, zoals bij systemctl.')],
+  docker: [L('Container (Docker/Podman)'), 'vaultwarden', L('De naam van de container.')],
+  ha: ['Home Assistant', 'core', L('host, core, supervisor of addon:<slug> (alleen in de add-on).')],
+});
+const LS_LEVELS = () => [[0, L('Alles')], [1, L('Info en erger')], [2, L('Warning en erger')], [3, L('Alleen errors')]];
+const LS_PRESETS = () => [
+  ['nginx', 'file', '/var/log/nginx/*.log'], ['apache2', 'file', '/var/log/apache2/*.log'], ['syslog', 'file', '/var/log/syslog'],
+  ['auth.log', 'file', '/var/log/auth.log'], ['fail2ban', 'file', '/var/log/fail2ban.log'], [L('Systeem (journal)'), 'journal', ''],
+  ['TrueNAS middleware', 'file', '/var/log/middlewared.log'], ['Home Assistant Core', 'ha', 'core'],
+];
+const lsLvlText = (n) => (LS_LEVELS().find(([k]) => k === +n) || [0, '?'])[1];
+const LS_LVL_PILL = ['debug', 'info', 'warning', 'error', 'critical'];
+
+async function amLogs(h) {
+  const box = $('#am-logs');
+  if (!box) return;
+  let d;
+  try { d = await api('log_sources', null, { host_id: h.id }); } catch (ex) { box.innerHTML = `<p class="bad small">${esc(ex.message)}</p>`; return; }
+  const kinds = LS_KINDS();
+  const iv = d.interval ? +d.interval : 0;
+  const rows = d.sources.map((s) => {
+    const st = !s.enabled ? `<span class="lg-pill mut">${L('uit')}</span>`
+      : s.status === 'err' ? `<span class="lg-pill bad">✕ ${L('fout')}</span>`
+      : s.status === 'ok' ? `<span class="lg-pill ok">✓${s.kind === 'file' && s.files !== null ? ' ' + (s.files === 1 ? L('1 bestand') : L('{n} bestanden', { n: s.files })) : ''}</span>`
+      : `<span class="lg-pill mut">${L('wacht op de agent')}</span>`;
+    return `<tr data-ls="${s.id}">
+      <td>${amSw('ls-on-' + s.id, s.enabled, `data-ls-on="${s.id}"`)}</td>
+      <td><div class="lg-src"><b>${esc(s.name)}</b>${s.spec ? `<span class="mono muted small">${esc(s.kind === 'ha' ? 'ha:' + s.spec : s.kind === 'docker' ? 'docker:' + s.spec : s.kind === 'unit' ? 'journal:' + s.spec : s.spec)}</span>` : ''}
+        ${s.enabled && s.status === 'err' && s.status_msg ? `<span class="danger-txt small">${esc(s.status_msg)}</span>` : ''}
+        ${s.dropped_today ? `<span class="warn-txt small">${L('{n} regels niet opgeslagen (daglimiet)', { n: dec(s.dropped_today) })}</span>` : ''}</div></td>
+      <td class="nowrap">${esc(kinds[s.kind] ? kinds[s.kind][0] : s.kind)}</td>
+      <td class="nowrap">${esc(lsLvlText(s.level))}</td>
+      <td class="num">${s.lines_today ? dec(s.lines_today) : '–'}</td>
+      <td class="num">${s.bytes_today ? fmtBytes(s.bytes_today) : '–'}</td>
+      <td>${st}${s.last_at ? `<div class="muted small">${esc(ago(s.last_at))}</div>` : ''}</td>
+      <td class="nowrap"><button type="button" class="btn small-btn" data-ls-lines="${s.id}" title="${esc(L('Laatste regels'))}">≡</button>
+        <button type="button" class="btn small-btn" data-ls-edit="${s.id}" title="${esc(L('Bewerken'))}">✎</button>
+        <button type="button" class="btn small-btn" data-ls-del="${s.id}" title="${esc(L('Verwijderen'))}">🗑</button></td></tr>
+      <tr class="lg-lines" data-ls-lines-for="${s.id}" hidden><td colspan="8"><pre class="code small">${L('Laden…')}</pre></td></tr>`;
+  }).join('');
+  const limitPct = d.day_limit ? Math.min(100, Math.round(d.used_today / d.day_limit * 100)) : 0;
+  box.innerHTML = `${d.on ? '' : `<div class="callout">⏸ ${L('Logs verzamelen staat uit voor alle servers: Instellingen → Monitoring → Logs.')}</div>`}
+    ${amRow(L('Versturen elke'), L('pakketje met de nieuwe regels, gecomprimeerd en versleuteld · algemeen: {n} min', { n: d.default_interval }),
+      `<select id="ls-iv">${[[0, L('algemeen')], [1, '1 min'], [2, '2 min'], [5, '5 min'], [10, '10 min'], [15, '15 min'], [30, '30 min'], [60, '60 min']]
+        .map(([k, t]) => `<option value="${k}" ${k === iv ? 'selected' : ''}>${t}</option>`).join('')}</select>`)}
+    ${amRow(L('Vandaag'), L('{used} van de daglimiet van {lim} (ongecomprimeerd)', { used: fmtBytes(d.used_today), lim: fmtBytes(d.day_limit) }),
+      `<span class="lg-bar${limitPct >= 100 ? ' full' : ''}"><i style="width:${limitPct}%"></i></span>`)}
+    <p class="small muted lg-note">🔒 ${L('De agent leest alleen bestanden binnen de mappen die je óp de server toestaat: <code>LOG_DIRS="/var/log"</code> in <code>/etc/default/rzmon-agent</code> (meerdere mappen met een spatie). Een nieuwe bron begint bij het einde: oude regels worden niet ingelezen.')}</p>
+    ${d.sources.length ? `<div class="table-scroll"><table class="vuln-table lg-table"><thead><tr><th>${L('Aan')}</th><th>${L('Bron')}</th><th>${L('Soort')}</th><th>${L('Niveau')}</th>
+      <th class="num">${L('Regels vandaag')}</th><th class="num">${L('Vandaag')}</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+      : `<p class="muted">${L('Nog geen bronnen. Voeg er hieronder een toe, of kies een voorstel.')}</p>`}
+    <div class="lg-form" id="ls-form">
+      <div class="lg-form-h"><b id="ls-form-t">＋ ${L('Bron toevoegen')}</b><span class="lg-presets">${LS_PRESETS().map(([n, k, sp], i) => `<button type="button" class="dchip" data-ls-preset="${i}">${esc(n)}</button>`).join('')}</span></div>
+      <input type="hidden" name="id" value="">
+      <div class="lg-fields">
+        <label>${L('Soort')}<select name="kind">${Object.entries(kinds).map(([k, [t]]) => `<option value="${k}">${esc(t)}</option>`).join('')}</select></label>
+        <label class="lg-spec">${L('Bron')}<input name="spec" placeholder="${esc(kinds.file[1])}"><small class="muted" id="ls-spec-hint">${esc(kinds.file[2])}</small></label>
+        <label>${L('Naam')}<input name="name" maxlength="100" placeholder="${esc(L('bv. nginx'))}"></label>
+        <label>${L('Niveau')}<select name="level">${LS_LEVELS().map(([k, t]) => `<option value="${k}">${esc(t)}</option>`).join('')}</select></label>
+      </div>
+      <div class="lg-form-b"><button type="button" class="btn primary" id="ls-save">${L('Bron opslaan')}</button><button type="button" class="btn" id="ls-cancel" hidden>${L('Annuleren')}</button>
+        <span class="muted small">${L('Niveau herkent de agent aan de tekst (error, warning, …); bij de journal aan de prioriteit.')}</span></div>
+    </div>`;
+  // Geen <form>: de Agent Manager is zelf al een formulier (een formulier daarin laat de browser weg)
+  const f = $('#ls-form', box);
+  const F = (n) => f.querySelector(`[name="${n}"]`);
+  const kindHint = () => {
+    const k = kinds[F('kind').value] || kinds.file;
+    F('spec').placeholder = k[1]; $('#ls-spec-hint', box).textContent = k[2];
+    F('spec').disabled = F('kind').value === 'journal';
+  };
+  const resetForm = () => { F('kind').value = 'file'; F('spec').value = ''; F('name').value = ''; F('level').value = '0'; F('id').value = ''; $('#ls-form-t', box).textContent = '＋ ' + L('Bron toevoegen'); $('#ls-cancel', box).hidden = true; kindHint(); };
+  F('kind').onchange = kindHint;
+  kindHint();
+  $('#ls-cancel', box).onclick = resetForm;
+  const save = async () => {
+    try {
+      await api('log_source_save', { host_id: h.id, id: +F('id').value || 0, kind: F('kind').value, spec: F('spec').value, name: F('name').value, level: +F('level').value, enabled: 1 });
+      toast(L('Opgeslagen; de agent pakt het binnen een minuut op'));
+      amLogs(h);
+    } catch (ex) { toast(ex.message, 'err'); }
+  };
+  $('#ls-save', box).onclick = save;
+  f.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('input')) { e.preventDefault(); save(); } });
+  $('#ls-iv', box).onchange = async (e) => {
+    try { await api('host_logs_interval', { id: h.id, minutes: +e.target.value || null }); toast(L('Opgeslagen')); } catch (ex) { toast(ex.message, 'err'); }
+  };
+  box.onclick = async (e) => {
+    const pre = e.target.closest('[data-ls-preset]');
+    if (pre) {
+      const [n, k, sp] = LS_PRESETS()[+pre.dataset.lsPreset];
+      F('kind').value = k; kindHint(); F('spec').value = sp; F('name').value = n; F('spec').focus();
+      return;
+    }
+    const ed = e.target.closest('[data-ls-edit]');
+    if (ed) {
+      const s = d.sources.find((x) => x.id === +ed.dataset.lsEdit);
+      F('id').value = s.id; F('kind').value = s.kind; kindHint(); F('spec').value = s.spec; F('name').value = s.name; F('level').value = s.level;
+      $('#ls-form-t', box).textContent = '✎ ' + L('Bron wijzigen'); $('#ls-cancel', box).hidden = false;
+      f.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      return;
+    }
+    const del = e.target.closest('[data-ls-del]');
+    if (del) {
+      if (!del.classList.contains('danger')) {   // eerst vragen, in de knop zelf (de Agent Manager is al een venster)
+        del.classList.add('danger'); del.textContent = L('Zeker?');
+        setTimeout(() => { if (del.isConnected) { del.classList.remove('danger'); del.textContent = '🗑'; } }, 4000);
+        return;
+      }
+      try { await api('log_source_delete', { id: +del.dataset.lsDel }); toast(L('Verwijderd')); amLogs(h); } catch (ex) { toast(ex.message, 'err'); }
+      return;
+    }
+    const ln = e.target.closest('[data-ls-lines]');
+    if (ln) {
+      const tr = $(`[data-ls-lines-for="${ln.dataset.lsLines}"]`, box);
+      tr.hidden = !tr.hidden;
+      if (!tr.hidden) {
+        try {
+          const r = await api('log_source_lines', null, { id: ln.dataset.lsLines });
+          $('pre', tr).innerHTML = r.lines.length
+            ? r.lines.map((x) => `<span class="muted">${esc(x.ts.slice(11))}</span> <span class="lg-lv lv${x.level}">${LS_LVL_PILL[x.level] || ''}</span> ${esc(x.msg)}`).join('\n')
+            : esc(L('Nog geen regels binnen (de agent stuurt elke paar minuten een pakketje).'));
+        } catch (ex) { $('pre', tr).textContent = ex.message; }
+      }
+    }
+  };
+  box.onchange = async (e) => {
+    const sw = e.target.closest('[data-ls-on]');
+    if (!sw) return;
+    try { await api('log_source_toggle', { id: +sw.dataset.lsOn, on: sw.checked }); toast(L('Opgeslagen')); } catch (ex) { toast(ex.message, 'err'); sw.checked = !sw.checked; }
+  };
+}
+
+// ---------------------------------------------------------------- 1.210.0: Instellingen › Monitoring › Logs (opslag en binnenkomst)
+async function loadLogsOverview() {
+  const box = $('#logs-ov');
+  if (!box) return;
+  let o;
+  try { o = await api('log_overview'); } catch (ex) { box.innerHTML = `<p class="bad small">${esc(ex.message)}</p>`; return; }
+  const pct = (x) => (o.max ? Math.max(x ? 1 : 0, Math.min(100, x / o.max * 100)) : 0);
+  const daysLeft = o.days_left === null ? '' : o.days_left >= o.days
+    ? L('vol over {n} dagen bij dit tempo; past ruim in {d} dagen bewaren', { n: dec(o.days_left), d: o.days })
+    : L('vol over {n} dagen bij dit tempo: eerder dan {d} dagen bewaren, dan gaat de oudste dag eerder weg', { n: dec(o.days_left), d: o.days });
+  const problems = o.hosts.filter((h) => h.paused || h.errors);
+  box.innerHTML = `<div class="lg-ov">
+    <div class="lg-store">
+      <div class="lg-big"><b>${fmtBytes(o.used)}</b> <span class="muted">${L('van {max}', { max: fmtBytes(o.max) })}</span></div>
+      <div class="lg-meter" role="img" aria-label="${esc(L('{a} van {b} gebruikt', { a: fmtBytes(o.used), b: fmtBytes(o.max) }))}">
+        <i style="width:${pct(o.used - o.today)}%;background:var(--primary)"></i><i style="width:${pct(o.today)}%;background:var(--warn)"></i></div>
+      <div class="lg-legend small muted"><span style="--c:var(--primary)">${L('eerdere dagen')}</span><span style="--c:var(--warn)">${L('vandaag {b}', { b: fmtBytes(o.today) })}</span></div>
+      <dl class="lg-kv small">
+        <dt>${L('Regels')}</dt><dd>${dec(o.rows)} · ${o.tables === 1 ? L('1 dag') : L('{n} dagen', { n: o.tables })}</dd>
+        <dt>${L('Ongecomprimeerd')}</dt><dd>${fmtBytes(o.raw)}</dd>
+        <dt>${L('Compressie')}</dt><dd>${o.ratio ? L('{x}× kleiner', { x: dec(o.ratio) }) : '–'}</dd>
+        <dt>${L('Per dag')}</dt><dd>${o.avg_stored ? L('gem. {b} opgeslagen', { b: fmtBytes(o.avg_stored) }) : '–'}</dd>
+        ${daysLeft ? `<dt>${L('Ruimte')}</dt><dd>${esc(daysLeft)}</dd>` : ''}
+      </dl>
+    </div>
+    <div class="lg-in">
+      <h3 class="small">${L('Binnenkomst vandaag')}</h3>
+      ${o.hosts.length ? `<div class="table-scroll"><table class="vuln-table lg-table"><thead><tr><th>Server</th><th>${L('Bronnen')}</th><th class="num">${L('Regels vandaag')}</th>
+        <th>${L('Van de daglimiet')}</th><th>${L('Elke')}</th><th>${L('Laatste regels')}</th><th>Status</th></tr></thead><tbody>
+        ${o.hosts.map((h) => {
+          const p = h.limit ? Math.min(100, Math.round(h.bytes_today / h.limit * 100)) : 0;
+          const st = !h.sources ? `<span class="lg-pill mut">${L('geen bronnen')}</span>`
+            : h.paused ? `<span class="lg-pill bad">${L('daglimiet bereikt')}</span>`
+            : h.errors ? `<span class="lg-pill warn">${h.errors === 1 ? L('1 bron met een fout') : L('{n} bronnen met een fout', { n: h.errors })}</span>`
+            : `<span class="lg-pill ok">✓</span>`;
+          return `<tr><td><button type="button" class="linkbtn" data-ls-host="${h.id}"><b>${esc(h.name)}</b></button></td>
+            <td>${h.sources ? (h.sources_on === h.sources ? h.sources : L('{a} van {b}', { a: h.sources_on, b: h.sources })) : '–'}</td>
+            <td class="num">${h.lines_today ? dec(h.lines_today) : '–'}${h.dropped_today ? `<div class="warn-txt small">${L('{n} niet opgeslagen', { n: dec(h.dropped_today) })}</div>` : ''}</td>
+            <td>${h.sources ? `<span class="lg-bar${p >= 100 || h.paused ? ' full' : ''}"><i style="width:${h.paused ? 100 : p}%"></i></span> <span class="muted small">${fmtBytes(h.bytes_today)}</span>` : '–'}</td>
+            <td class="nowrap">${h.sources ? `${h.interval} min${h.own_interval ? ' <span class="muted small">(' + L('eigen') + ')</span>' : ''}` : '–'}</td>
+            <td class="nowrap">${h.last_at ? esc(ago(h.last_at)) : '–'}</td><td>${st}</td></tr>`;
+        }).join('')}</tbody></table></div>` : `<p class="muted">${L('Nog geen servers met de agent.')}</p>`}
+      ${problems.length ? `<p class="small muted">${L('Klik op een server voor de bronnen (Agent Manager › Logs). Een daglimiet gaat om middernacht vanzelf weer open; daarna gaat de agent verder waar hij was.')}</p>` : ''}
+    </div></div>`;
+  box.onclick = (e) => {
+    const b = e.target.closest('[data-ls-host]');
+    if (!b) return;
+    const h = findHost(+b.dataset.lsHost);
+    if (h) agentInstructions(h);
+  };
+}
+
 // ---------------------------------------------------------------- 1.178.0: Agent Manager (kaarten met schakelaars)
 /** Schakelaar (aan/uit) */
 const amSw = (id, on, attrs = '') => `<label class="am-sw"><input type="checkbox" id="${id}" ${on ? 'checked' : ''} ${attrs}><span aria-hidden="true"></span></label>`;
@@ -8209,6 +8398,10 @@ function agentInstructions(h, pairNow = false) {
         <p class="am-lead">${L('RzMon leest het apparaat zelf uit (zonder agent)')}</p>
         <div id="am-snmp">${amSnmp(h)}</div>
       </section>
+      ${h.mode === 'agent' ? `<section class="am-sec am-card need-admin" data-pk="logs" data-pw="12" style="--c: var(--info, #2563eb)"><h3 class="am-h"><i aria-hidden="true">📜</i>${L('Logs')}</h3>
+        <p class="am-lead">${L('Welke logs deze server naar RzMon stuurt: gecomprimeerd en versleuteld, elke paar minuten')}</p>
+        <div id="am-logs"><p class="muted">${L('Laden…')}</p></div>
+      </section>` : ''}
       <section class="am-sec am-card need-admin" data-pk="maint" data-pw="4" style="--c: var(--muted)"><h3 class="am-h"><i aria-hidden="true">🧰</i>${L('Onderhoud')}</h3>
         <p class="am-lead">${L('Sleutels en tokens')}</p>
         ${amRow('🔗 ' + L('Opnieuw koppelen'), L('nieuwe koppelcode; de agent haalt er een nieuwe eigen sleutel mee op'), `<button type="button" class="btn small-btn" data-am-pair>${L('Koppelcode')}</button>`)}
@@ -8301,6 +8494,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   const unhide = $('#host-edr-unhide');
   if (unhide) unhide.onclick = async () => { try { await edrHideSave(h.id, []); unhide.closest('.am-row').remove(); toast(L('Wordt weer getoond')); } catch (ex) { toast(ex.message, 'err'); } };
   if (isAdmin()) amInit(h, body);
+  if (isAdmin() && h.mode === 'agent') amLogs(h);   // 1.210.0
   // Koppelcode: één code voor alle drie de manieren; daarna wachten tot de agent gekoppeld is
   const makePair = async () => {
     let r;
@@ -12584,6 +12778,7 @@ const SET_NAV = [
     ['allchecks', L('Alle checks'), ['allchecks'], L('Alle checks van alle servers in één lijst, ook samen bewerken.')],
     ['templates', L('Sjablonen'), ['templates'], L('Vaste sets checks voor een nieuwe server.')],
     ['internet', L('Internet'), ['internet'], L('Snelheid, ping en responstijd van je internetlijn.')],
+    ['logs', L('Logs'), ['logs'], L('Logs van je servers verzamelen: hoe vaak, hoe lang bewaren, hoeveel, maskeren en wat er binnenkomt.')],
     ['advice', L('Advies'), ['smart', 'advice', 'smartmore', 'cleanup'], L('Slimme drempels, voorstellen en checks om op te schonen.'),
       [['drempels', L('Slimme drempels'), ['smart']], ['voorstellen', L('Voorstellen'), ['advice', 'smartmore']], ['opschonen', L('Opschonen'), ['cleanup']]]]]],
   ['meldingen', SET_IC('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'), L('Meldingen'), [
@@ -12706,6 +12901,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'allchecks') loadAllChecks();
   if (setSection === 'statuspage') loadStatusPage();
   if (setSection === 'internet') loadInet();
+  if (setSection === 'logs') loadLogsOverview();   // 1.210.0
   if (setSection === 'ai') loadAiSettings();   // 1.171.0
   if (setSection === 'snmp') loadSnmpGlobal();   // 1.178.0
   if (setSection === 'reports') loadReports();   // 1.180.0
@@ -13754,6 +13950,7 @@ const SYSINFO_ROWS = [
   [L('Checks'), [['smart_drift', '🧠 ' + L('Normaalwaarde stijgt sluipend (slimme drempels)')], ['smart_auto', '🧠 ' + L('Drempels zelf aangepast (naar slim)')], ['alert_auto', '🔔 ' + L('Melden na N zelf aangepast')], ['heal', '🩹 ' + L('Zelf hersteld (of herstel mislukt)')],
     ['watchdog', '🐕 ' + L('Waakhond: RzMon was onbereikbaar of de checks stonden stil')]]],
   ['RzMon', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],
+  [L('Logs'), [['logs_limit', '📜 ' + L('Daglimiet van een server bereikt')], ['logs_full', '📜 ' + L('Maximum bereikt: oudste dag weggegooid')]]],   // 1.210.0
   [L('AI-advies'), [['ai_advice', '🤖 ' + L('Samenvatting van een automatisch advies')], ['ai_week', '📅 ' + L('Weekoverzicht')], ['ai_credit', '💳 ' + L('Tegoed of budget bijna op of op')]]],   // 1.173.0
 ];
 const SYSINFO_CH = [['pushover', '📲 Push', 'push'], ['email', '📧 ' + L('E-mail'), 'email_enabled'], ['webhook', '🏠 Home Assistant', 'ha_webhook_enabled'], ['page', '📄 ' + L('Meldingenpagina'), null]];
