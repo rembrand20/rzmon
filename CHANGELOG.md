@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.215.0**: een **bewegende HUD-achtergrond op de inlogpagina**, ook mooi op een telefoon.
 - **1.214.0**: **Rz//Sense AI**: een nieuwe naam en een nieuw logo, een ronde rand om de inhoud, en Monitoring heet ook zo.
 
+## 1.218.1 – 2026-11-07
+### Opgelost
+- **De tellerbalk bovenaan** (Monitoring, Meldingen, IDS, Kwetsbaarheden) viel deels achter de achtergrond: hij stak buiten de ronde rand uit, de eerste teller was links afgesneden en bij scrollen schenen de kaarten erdoorheen. Nu staat hij binnen het kader met eigen ronde hoeken, en wordt hij bijna dicht met een schaduw zodra hij bovenaan blijft hangen.
+- **Op een telefoon** is het één regel die je opzij schuift (met een vervaging rechts als er meer is), en zijn tellers op 0 alleen een klein grijs icoon.
+
 ## 1.218.0 – 2026-11-07
 ### Nieuw
 - **Meldingskaart vernieuwd** (het paneel dat opent als je op een melding klikt):

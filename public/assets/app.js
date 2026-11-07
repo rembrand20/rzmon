@@ -3544,6 +3544,17 @@ function initAiSettings() {
 }
 
 function render() { withMorph(renderNow); crumbs(); sbStatus(); }
+/** 1.218.1: de tellerbalk wordt dicht (met schaduw) zodra hij onder de kop blijft hangen */
+let dcRaf = 0;
+function dcStuck() {
+  dcRaf = 0;
+  $$('main.container .dash-counters').forEach((el) => {
+    if (!el.offsetParent) return;
+    const top = parseFloat(getComputedStyle(el).top) || 0;
+    el.classList.toggle('stuck', el.getBoundingClientRect().top <= top + 1 && window.scrollY > 0);
+  });
+}
+window.addEventListener('scroll', () => { if (!dcRaf) dcRaf = requestAnimationFrame(dcStuck); }, { passive: true });
 /** 1.216.0: open problemen (warning/critical, niet bevestigd, niet in onderhoud), voor het statuslampje en de paginakop */
 function openCounts() {
   const n = { crit: 0, warn: 0, checks: 0, hosts: 0 };

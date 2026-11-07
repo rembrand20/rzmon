@@ -5165,3 +5165,26 @@ body.lg:not(.lg-vivid) :is(.card, .pcard, .main-tabs, .hc, .mres, .seg, .subtabs
   .al2-x { top: .7rem; }
   .al2-da .btn { flex: 1 1 auto; justify-content: center; }
 }
+
+/* ---------------------------------------------------------------- 1.218.1: de tellerbalk binnen het kader (sinds de ronde rand en de paginakop)
+   Geen uitstekende marges meer; licht glas bovenaan, bijna dicht met schaduw zodra hij onder de kop blijft hangen (.stuck);
+   op een telefoon één regel die je opzij schuift, met tellers op 0 als klein icoon. */
+main.container .dash-counters, .side-mini main.container .dash-counters { margin: 0 0 1rem; border: 1px solid var(--border); border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-2, var(--bg)) 55%, transparent); -webkit-backdrop-filter: blur(14px) saturate(110%); backdrop-filter: blur(14px) saturate(110%);
+  transition: background .2s, box-shadow .2s; }
+main.container .dash-counters .dash-in { max-width: none; padding: .5rem .6rem; }
+main.container .dash-counters.stuck { background: color-mix(in srgb, var(--bg-2, var(--bg)) 97%, transparent); -webkit-backdrop-filter: blur(22px) saturate(110%); backdrop-filter: blur(22px) saturate(110%);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .28); }
+main.container .dash-counters .dash-in { flex-wrap: wrap; }
+main.container .dash-counters .health-counts::-webkit-scrollbar { display: none; }
+@media (max-width: 720px) {
+  main.container .dash-counters { margin: 0 0 .8rem; border-radius: 12px; }
+  main.container .dash-counters .dash-in { padding: .4rem .45rem; flex-wrap: nowrap; }
+  main.container .dash-counters .dash-lbl { display: none; }
+  main.container .dash-counters .health-counts { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; flex: 1 1 auto; min-width: 0; gap: .35rem; padding-right: 1.2rem;
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 1.4rem), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 1.4rem), transparent); }
+  /* tellers op 0: alleen het icoon, klein en grijs */
+  main.container .dash-counters .hc.zero { padding: .3rem .45rem; opacity: .55; }
+  main.container .dash-counters .hc.zero b, main.container .dash-counters .hc.zero .hc-w, main.container .dash-counters .hc.zero > span:not(.hc-dot):not(.al2-shape) { display: none; }
+}
+body.tv main.container .dash-counters { border: 0; border-radius: 0; }
