@@ -68,7 +68,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '', ($sidePrefs['mon_glass'] ?? '') === 'on' ? 'lg' : '', ($sidePrefs['mon_loader'] ?? '') === 'off' ? 'no-loader' : '']); ?>
 <body<?= $bodyCls ? ' class="' . implode(' ', $bodyCls) . '"' : '' ?><?= $sideW >= 180 && $sideW <= 380 ? ' style="--side-w:' . $sideW . 'px"' : '' ?> data-role="<?= htmlspecialchars($role) ?>"<?php if ($user && !$mustChange && !$resetToken): ?> data-prefs="<?= htmlspecialchars($prefsJson ?? 'local') ?>"<?php endif; ?>>
 <?php if ($resetToken): ?>
-  <main class="login-wrap">
+  <main class="login-wrap"><?= Brand::hudBg() ?>
     <form id="reset-form" class="card login-card" data-token="<?= htmlspecialchars($resetToken) ?>">
       <div class="brand big"><?= Brand::logo() ?></div>
       <?php if (!Https::isHttps()): ?><div class="http-bar<?= Https::loginBlocked() ? ' blocked' : '' ?>">🔓 <?= th('Deze verbinding is niet beveiligd: je wachtwoord en sessie zijn leesbaar op het netwerk.') ?></div><?php endif; ?>
@@ -87,7 +87,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
     </form>
   </main>
 <?php elseif ($mustChange): ?>
-  <main class="login-wrap">
+  <main class="login-wrap"><?= Brand::hudBg() ?>
     <form id="pwforce-form" class="card login-card">
       <div class="brand big"><?= Brand::logo() ?></div>
       <h2 style="margin:0 0 .6rem">🔓 <?= th('Je wachtwoord staat in een datalek') ?></h2>
@@ -102,7 +102,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
     </form>
   </main>
 <?php elseif (!$user): ?>
-  <main class="login-wrap">
+  <main class="login-wrap"><?= Brand::hudBg() ?>
     <form id="login-form" class="card login-card">
       <div class="brand big"><?= Brand::logo() ?></div>
       <?php if (!Https::isHttps()): $toHttps = Https::adminUrl(); ?>

@@ -176,6 +176,64 @@ input:focus, select:focus { outline: 2px solid color-mix(in srgb, var(--primary)
 .login-wrap { min-height: 100vh; display: grid; place-items: center; padding: 1rem;
   background: radial-gradient(ellipse at top, color-mix(in srgb, var(--primary) 18%, transparent), transparent 60%); }
 .login-card { width: min(380px, 100%); }
+/* 1.215.0: bewegende HUD-achtergrond (raster met horizon) over de hele inlogpagina */
+.login-wrap { position: relative; isolation: isolate; overflow: hidden; --hud: #22e3ff; --hud-t: #7fe9ff; --hud-bg: radial-gradient(1200px 700px at 50% 40%, #10214a 0%, #0a1430 45%, #050a18 100%); }
+:root[data-theme="light"] .login-wrap { --hud: #2f6bff; --hud-t: #1f56d8; --hud-bg: radial-gradient(1200px 700px at 50% 40%, #ffffff 0%, #eaf1fd 50%, #d9e5f8 100%); }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .login-wrap { --hud: #2f6bff; --hud-t: #1f56d8; --hud-bg: radial-gradient(1200px 700px at 50% 40%, #ffffff 0%, #eaf1fd 50%, #d9e5f8 100%); } }
+.login-wrap > :not(.rz-hud) { position: relative; z-index: 1; }
+.rz-hud { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; background: var(--hud-bg); }
+.rz-hud-floor { position: absolute; left: -40%; right: -40%; bottom: -10px; height: 52vh; transform: perspective(380px) rotateX(58deg); transform-origin: 50% 100%;
+  background-image: linear-gradient(color-mix(in srgb, var(--hud) 70%, transparent) 1.5px, transparent 1.5px), linear-gradient(90deg, color-mix(in srgb, var(--hud) 70%, transparent) 1.5px, transparent 1.5px);
+  background-size: 60px 60px; animation: rz-hud-floor 2.2s linear infinite;
+  -webkit-mask: linear-gradient(to top, #000 30%, transparent 100%); mask: linear-gradient(to top, #000 30%, transparent 100%); }
+@keyframes rz-hud-floor { to { background-position: 0 60px; } }
+.rz-hud-hor { position: absolute; left: 0; right: 0; bottom: 38vh; height: 2px; background: linear-gradient(90deg, transparent, var(--hud), transparent);
+  box-shadow: 0 0 30px 8px color-mix(in srgb, var(--hud) 35%, transparent); animation: rz-hud-glow 4s ease-in-out infinite; }
+@keyframes rz-hud-glow { 0%, 100% { opacity: .45; } 50% { opacity: .9; } }
+.rz-hud-scan { position: absolute; top: 0; bottom: 0; left: 0; width: 180px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--hud) 10%, transparent), transparent);
+  animation: rz-hud-scan 7s ease-in-out infinite; }
+@keyframes rz-hud-scan { from { transform: translateX(-200px); } to { transform: translateX(calc(100vw + 20px)); } }
+.rz-hud-parts i { position: absolute; bottom: -10px; width: 2px; height: 2px; border-radius: 50%; background: var(--hud-t); box-shadow: 0 0 6px var(--hud); animation: rz-hud-rise linear infinite; }
+@keyframes rz-hud-rise { to { transform: translateY(-105vh); } }
+.rz-hud-c { position: absolute; width: 50px; height: 50px; border: 2px solid var(--hud); opacity: .7; }
+.rz-hud-c.tl { top: 40px; left: 40px; border-right: 0; border-bottom: 0; } .rz-hud-c.tr { top: 40px; right: 40px; border-left: 0; border-bottom: 0; }
+.rz-hud-c.bl { bottom: 40px; left: 40px; border-right: 0; border-top: 0; } .rz-hud-c.br { bottom: 40px; right: 40px; border-left: 0; border-top: 0; }
+.rz-hud-t { position: absolute; font: 11px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .2em; color: var(--hud-t); animation: rz-hud-blink 3.2s ease-in-out infinite; }
+.rz-hud-t.tl { top: 62px; left: 58px; } .rz-hud-t.tr { top: 62px; right: 58px; animation-delay: .8s; }
+.rz-hud-t.bl { bottom: 62px; left: 58px; animation-delay: 1.6s; } .rz-hud-t.br { bottom: 62px; right: 58px; animation-delay: 2.4s; }
+.rz-hud-t.warn { color: #f0a429; }
+:root[data-theme="light"] .rz-hud-t.warn { color: #b45309; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .rz-hud-t.warn { color: #b45309; } }
+@keyframes rz-hud-blink { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+.rz-hud-eq { position: absolute; top: 118px; left: 17%; width: 200px; height: 48px; }
+.rz-hud-eq rect { fill: var(--hud); opacity: .55; transform-box: fill-box; transform-origin: bottom; animation: rz-hud-eq 1.2s ease-in-out infinite alternate; }
+.rz-hud-eq path { stroke: var(--hud); stroke-width: 1; opacity: .5; }
+@keyframes rz-hud-eq { from { transform: scaleY(.15); } to { transform: scaleY(1); } }
+.rz-hud-dial { position: absolute; top: 90px; right: 13%; width: 120px; height: 120px; fill: none; }
+.rz-hud-dial circle { stroke: var(--hud); stroke-width: 1; opacity: .5; }
+.rz-hud-dial .d1 { stroke-dasharray: 3 6; animation: rz-hud-spin 6s linear infinite; }
+.rz-hud-dial .d2 { stroke: #f0a429; stroke-width: 3; animation: rz-hud-spin 3s linear infinite; }
+@keyframes rz-hud-spin { to { transform: rotate(360deg); } }
+/* telefoon en smal: kleiner raster, horizon lager, alleen de hoeken met korte tekst; meter en equalizer weg */
+@media (max-width: 720px) {
+  .rz-hud-floor { height: 40vh; background-size: 40px 40px; animation-name: rz-hud-floor-s; }
+  .rz-hud-hor { bottom: 30vh; }
+  .rz-hud-scan { width: 120px; }
+  .rz-hud-eq, .rz-hud-dial, .rz-hud-t.bl, .rz-hud-t.br { display: none; }
+  .rz-hud-c { width: 26px; height: 26px; }
+  .rz-hud-c.tl, .rz-hud-c.tr { top: 12px; } .rz-hud-c.bl, .rz-hud-c.br { bottom: 12px; }
+  .rz-hud-c.tl, .rz-hud-c.bl { left: 12px; } .rz-hud-c.tr, .rz-hud-c.br { right: 12px; }
+  .rz-hud-t { font-size: 9px; letter-spacing: .14em; } .rz-hud-t.tl { top: 22px; left: 24px; } .rz-hud-t.tr { top: 22px; right: 24px; }
+  .login-wrap { padding: 2.6rem .9rem 1.2rem; }
+  /* het inlogvak vult hier bijna het scherm: als glas, zodat de achtergrond zichtbaar blijft */
+  .login-wrap > .login-card { background: color-mix(in srgb, var(--card) 72%, transparent); -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%); }
+  .login-wrap .brand.big .rz-icon { width: 72px; height: 72px; }
+  .login-wrap .brand.big .rz-name { font-size: 1.85rem; }
+  .login-wrap .brand.big .rz-logo { gap: 10px; }
+}
+@media (max-width: 400px) { .rz-hud-t.tl { display: none; } }
+@keyframes rz-hud-floor-s { to { background-position: 0 40px; } }
+@media (prefers-reduced-motion: reduce) { .rz-hud * { animation: none !important; } }
 
 /* ---------- Summary ---------- */
 .summary { margin-bottom: 1rem; }

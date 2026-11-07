@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.215.0**: een **bewegende HUD-achtergrond op de inlogpagina**, ook mooi op een telefoon.
 - **1.214.0**: **Rz//Sense AI**: een nieuwe naam en een nieuw logo, een ronde rand om de inhoud, en Monitoring heet ook zo.
 - **1.213.0**: **logs vinden op de server**: de agent laat zien welke logs, containers en services er zijn, en je vinkt ze aan.
 - **1.212.0**: **vaste zoekacties op de logs**: een melding bij te veel (of geen) treffers, met een proef op de laatste 24 uur.
 - **1.211.0**: de pagina **Logs**: zoeken in de logs van al je servers, met een grafiek, filters en de regels rond elke treffer.
-- **1.210.0**: **logs verzamelen** per server: gecomprimeerd en versleuteld naar RzMon, gemaskeerd en gecomprimeerd bewaard.
+
+## 1.215.0 – 2026-11-07
+### Nieuw
+- **Bewegende achtergrond op de inlogpagina** (HUD-raster): een lichtgevend raster schuift onder een gloeiende horizon naar je toe, een scanbalk zwaait over het scherm, stofdeeltjes stijgen op, en in de hoeken staan HUD-hoeken met een draaiende meter en een equalizer. Ook op *Wachtwoord vergeten*, *Nieuw wachtwoord* en de pagina om een storing te bevestigen.
+- Rechtsboven staat of de verbinding versleuteld is (**HTTPS · ENCRYPTED**, of in oranje **HTTP · NOT ENCRYPTED**); verder toont de achtergrond niets over je servers.
+- **Op een telefoon**: een kleiner raster, de horizon lager, alleen de hoeken met korte tekst, en het inlogvak als glas, zodat de beweging zichtbaar blijft. Op licht is alles blauw op een lichte achtergrond.
+- Alleen CSS, geen script of plaatjes. Wie *minder beweging* heeft aangezet, krijgt een stilstaande achtergrond.
 
 ## 1.214.0 – 2026-11-07
 ### Nieuw

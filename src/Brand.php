@@ -40,6 +40,35 @@ final class Brand
             . '<span class="rz-slogan">Watching your servers, <br>so you don\'t have to.</span></span></span>';
     }
 
+    /**
+     * 1.215.0: bewegende HUD-achtergrond van de inlogpagina's (raster met horizon, scanbalk, stofdeeltjes,
+     * HUD-hoeken). Alleen CSS-animatie, geen script; zonder beweging (prefers-reduced-motion) staat hij stil.
+     * De teksten verraden niets: alleen of de verbinding versleuteld is.
+     */
+    public static function hudBg(): string
+    {
+        $parts = '';
+        $x = 7;
+        for ($i = 0; $i < 40; $i++) {   // vaste "willekeurige" plekken, elke keer gelijk
+            $x = ($x * 73 + 41) % 997;
+            $parts .= '<i style="left:' . round($x / 9.97, 1) . '%;animation-delay:-' . (($x * 7) % 140) / 10 . 's;animation-duration:'
+                . (9 + ($x % 70) / 10) . 's;opacity:' . (0.3 + ($x % 60) / 100) . '"></i>';
+        }
+        $bars = '';
+        for ($i = 0; $i < 14; $i++) {
+            $bars .= '<rect x="' . ($i * 14) . '" y="-40" width="8" height="40" style="animation-delay:-' . (($i * 37) % 120) / 100 . 's"/>';
+        }
+        $secure = Https::isHttps();
+        return '<div class="rz-hud" aria-hidden="true"><div class="rz-hud-floor"></div><div class="rz-hud-hor"></div><div class="rz-hud-scan"></div>'
+            . '<div class="rz-hud-parts">' . $parts . '</div>'
+            . '<i class="rz-hud-c tl"></i><i class="rz-hud-c tr"></i><i class="rz-hud-c bl"></i><i class="rz-hud-c br"></i>'
+            . '<span class="rz-hud-t tl">RZSENSE // SECURE LINK</span>'
+            . '<span class="rz-hud-t tr' . ($secure ? '' : ' warn') . '">' . ($secure ? 'HTTPS · ENCRYPTED' : 'HTTP · NOT ENCRYPTED') . '</span>'
+            . '<span class="rz-hud-t bl">SYSTEM ONLINE</span><span class="rz-hud-t br">SCAN ACTIVE</span>'
+            . '<svg class="rz-hud-eq" viewBox="0 -44 200 48">' . $bars . '<path d="M0 0H196"/></svg>'
+            . '<svg class="rz-hud-dial" viewBox="-60 -60 120 120"><circle r="54"/><circle class="d1" r="36"/><path class="d2" d="M0 -54A54 54 0 0 1 54 0"/></svg></div>';
+    }
+
     /** Favicon, icoon voor het beginscherm en het manifest (in <head>) */
     public static function head(): string
     {

@@ -55,7 +55,7 @@ $labels = ['OK', 'WARNING', 'CRITICAL', t('ONBEKEND')];
   <link rel="stylesheet" href="assets/app.css">
 </head>
 <body>
-  <main class="login-wrap">
+  <main class="login-wrap"><?= Brand::hudBg() ?>
     <div class="card login-card ack-card">
       <div class="brand big"><?= Brand::logo() ?></div>
       <?php if ($check && $state !== 'invalid'): ?>

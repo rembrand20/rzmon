@@ -82,6 +82,7 @@ Dezelfde tabel staat in RzSense bij *Instellingen → Overzicht → Functies*, m
 | 🧭 Dashboard en weergave | **Statuspagina** | Een openbare pagina met een geheime link. | 1.107.0 |
 | 🧭 Dashboard en weergave | **mDS (Mobile device summary)** | Op een telefoon de startpagina: één oordeel, wat nu aandacht vraagt (met bevestigen, onderhoud, stil en nu checken), beveiliging, netwerk en de servers. | 1.194.0 |
 | 🧭 Dashboard en weergave | **Rz//Sense AI: nieuwe naam en logo** | Schild met signaalbogen, één tegel voor licht en donker, een ronde rand om de inhoud en #monitoring in het adres. | 1.214.0 |
+| 🧭 Dashboard en weergave | **Bewegende inlogpagina** | Een HUD-raster met horizon en scanbalk, ook op een telefoon; toont of de verbinding versleuteld is. | 1.215.0 |
 | 🔔 Meldingen | **Pushover** | Met prioriteit per status en bevestigen vanuit de app. | 1.0.0 |
 | 🔔 Meldingen | **E-mail** | SMTP met STARTTLS of SSL/TLS. | 1.7.0 |
 | 🔔 Meldingen | **ntfy** | Gratis pushmeldingen via ntfy.sh of je eigen server. | 1.140.0 |
