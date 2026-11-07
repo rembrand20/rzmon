@@ -4775,9 +4775,14 @@ body.no-loader .rz-wait-cv { display: none; }
 .al2-drawer { background: var(--bg-2, var(--card)); }
 body.lg .al2-drawer { background: color-mix(in srgb, var(--bg-2) 72%, transparent); -webkit-backdrop-filter: blur(26px) saturate(170%); backdrop-filter: blur(26px) saturate(170%);
   box-shadow: inset 1px 0 0 var(--lg-rim), -20px 0 60px rgba(0, 0, 0, .35); }
+/* 1.217.1: op een computer altijd glas (ook zonder Liquid Glass), op een telefoon of tablet helemaal dicht en over de volle breedte */
+@media (min-width: 761px) and (pointer: fine) {
+  .al2-drawer { background: color-mix(in srgb, var(--bg-2) 70%, transparent); -webkit-backdrop-filter: blur(26px) saturate(120%); backdrop-filter: blur(26px) saturate(120%);
+    box-shadow: inset 1px 0 0 rgba(255, 255, 255, .08), -20px 0 60px rgba(0, 0, 0, .35); }
+}
 @media (max-width: 760px), (pointer: coarse) {
-  body.lg .al2-drawer { background: color-mix(in srgb, var(--bg-2) 96%, transparent); -webkit-backdrop-filter: blur(30px) saturate(160%); backdrop-filter: blur(30px) saturate(160%); }
-  body.lg .al2-msg { background: color-mix(in srgb, var(--text) 5%, var(--bg-2)); }
+  .al2-drawer, body.lg .al2-drawer { left: 0; width: 100%; border-left: 0; background: var(--bg-2, var(--card)); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+  .al2-msg, body.lg .al2-msg { background: color-mix(in srgb, var(--text) 5%, var(--bg-2)); }
 }
 .al2-dh { padding-top: max(1.1rem, env(safe-area-inset-top, 0px)); }
 .al2-x { top: max(.7rem, env(safe-area-inset-top, 0px)); }

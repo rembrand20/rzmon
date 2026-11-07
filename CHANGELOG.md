@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.214.0**: **Rz//Sense AI**: een nieuwe naam en een nieuw logo, een ronde rand om de inhoud, en Monitoring heet ook zo.
 - **1.213.0**: **logs vinden op de server**: de agent laat zien welke logs, containers en services er zijn, en je vinkt ze aan.
 
+## 1.217.1 – 2026-11-07
+### Nieuw
+- 
+
 ## 1.217.0 – 2026-11-07
 ### Nieuw
 - **IDS-incidenten veel sneller**:
