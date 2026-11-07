@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.212.0**: **vaste zoekacties op de logs**: een melding bij te veel (of geen) treffers, met een proef op de laatste 24 uur.
 - **1.211.0**: de pagina **Logs**: zoeken in de logs van al je servers, met een grafiek, filters en de regels rond elke treffer.
 - **1.210.0**: **logs verzamelen** per server: gecomprimeerd en versleuteld naar RzMon, gemaskeerd en gecomprimeerd bewaard.
 - **1.209.0**: een **bekeken storing gaat uit Nu open** naar de dag waarop hij begon, en komt terug als het erger wordt.
 - **1.208.0**: de **golf bij een open storing stopt** zodra iemand hem bekijkt, en komt terug als het erger wordt.
-- **1.207.0**: **meldingen per storing** op één regel met de duur, *Nu open* bovenaan, kleur en golf zoals op Monitoring, en een zijpaneel met details.
+
+## 1.212.0 – 2026-11-07
+### Nieuw
+- **🔔 Vaste zoekacties op de logs**: bewaar een zoekopdracht als melding met **🔔 Bewaren als melding** op de pagina Logs. Melden bij **te veel treffers** (minstens N in 1 minuut tot 24 uur) of bij **geen treffers** (bijvoorbeeld een back-up die niet gelukt is), per server apart of alle servers samen, als info, warning of critical.
+- **Rustperiode** tussen twee meldingen, en **herstel**: de melding gaat vanzelf dicht (met een herstelmelding) zodra het een heel venster rustig is, of zodra er weer een treffer is.
+- Een **proef op de laatste 24 uur** in het venster: hoe vaak deze zoekactie gemeld had, met een grafiek, de drempel en de tijden, zodat je de drempel goed kiest.
+- Tabblad **Vaste zoekacties** op de pagina Logs: aan/uit, de voorwaarde, een grafiekje van 24 uur, de status per server, laatst gemeld, en 🔎 Zoeken, ✎ en 🗑.
+- De melding is een **storing op de pagina Meldingen**, net als bij een check (Nu open, duur, gezien, hersteld), via Pushover, e-mail en Home Assistant. Stille uren gelden ook. In het zijpaneel staan de laatste regels en **📜 In Logs bekijken**.
+- RzMon telt bij binnenkomst alleen de nieuwe regels, en alleen voor de zoekacties bij die server en bron. Een zoekactie die te traag is (een zware regex) gaat uit, met een melding.
 
 ## 1.211.1 – 2026-11-07
 ### Opgelost

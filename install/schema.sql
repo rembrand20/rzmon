@@ -1424,5 +1424,43 @@ CREATE TABLE IF NOT EXISTS log_batches (
     PRIMARY KEY (host_id, batch),
     INDEX idx_lb_at (at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- 1.212.0: vaste zoekacties op de logs die een melding geven (pagina Logs › Vaste zoekacties)
+CREATE TABLE IF NOT EXISTS log_watches (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name       VARCHAR(100) NOT NULL,
+    q          VARCHAR(500) NOT NULL,
+    mode       VARCHAR(8)   NOT NULL DEFAULT 'many',   -- many: te veel treffers, none: geen treffers
+    threshold  INT UNSIGNED NOT NULL DEFAULT 10,
+    win        INT UNSIGNED NOT NULL DEFAULT 5,        -- venster in minuten
+    per_host   TINYINT(1)   NOT NULL DEFAULT 1,        -- per server apart, of alle servers samen
+    severity   TINYINT UNSIGNED NOT NULL DEFAULT 1,    -- 0 info, 1 warning, 2 critical
+    rest       INT UNSIGNED NOT NULL DEFAULT 30,       -- rustperiode in minuten
+    recover    TINYINT(1)   NOT NULL DEFAULT 1,        -- melding vanzelf sluiten (met een herstelmelding)
+    enabled    TINYINT(1)   NOT NULL DEFAULT 1,
+    slow       TINYINT UNSIGNED NOT NULL DEFAULT 0,    -- zoveel pakketjes achter elkaar te traag
+    off_reason VARCHAR(20)  NULL,
+    created_by VARCHAR(100) NULL,
+    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS log_watch_counts (
+    watch_id INT UNSIGNED NOT NULL,
+    host_id  INT UNSIGNED NOT NULL,
+    minute   INT UNSIGNED NOT NULL,   -- unixtijd / 60
+    n        INT UNSIGNED NOT NULL,
+    PRIMARY KEY (watch_id, host_id, minute),
+    INDEX idx_lwc_minute (minute)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS log_watch_state (
+    watch_id  INT UNSIGNED NOT NULL,
+    host_id   INT UNSIGNED NOT NULL,   -- 0 = alle servers samen
+    open      TINYINT(1)   NOT NULL DEFAULT 0,
+    opened_at DATETIME     NULL,
+    last_sent DATETIME     NULL,
+    last_hit  DATETIME     NULL,
+    since     DATETIME     NULL,       -- sinds wanneer we kijken (voor geen treffers)
+    peak      INT UNSIGNED NOT NULL DEFAULT 0,
+    alert_id  BIGINT UNSIGNED NULL,
+    PRIMARY KEY (watch_id, host_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('logs_on', '1'), ('logs_interval', '5'), ('logs_days', '14'), ('logs_max_gb', '5'),
     ('logs_day_mb', '200'), ('logs_mask', '1'), ('logs_mask_extra', '');

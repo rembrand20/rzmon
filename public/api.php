@@ -1240,7 +1240,7 @@ $need = match ($action) {
     'home', 'mds', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'alert_seen', 'log_sources', 'log_source_lines', 'log_search', 'log_context', 'log_export', 'log_facets', 'log_overview', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi', 'quiet_now' => 'user',
+    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'alert_seen', 'log_sources', 'log_source_lines', 'log_search', 'log_context', 'log_export', 'log_facets', 'log_overview', 'log_watches', 'log_watch_save', 'log_watch_toggle', 'log_watch_delete', 'log_watch_test', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi', 'quiet_now' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -1976,8 +1976,13 @@ switch ($action) {
                    ORDER BY a.created_at DESC, a.id DESC LIMIT 10000', [$days - 1])->fetchAll();
         // Meldingen met een IP (geweigerde verbinding, login): staat dat IP al op de blokkadelijst?
         $nets = array_column(q('SELECT net FROM rz_blocks WHERE until IS NULL OR until > NOW()')->fetchAll(), 'net');
+        // 1.212.0: melding van een vaste zoekactie: is die storing nog open?
+        $lwOpen = array_flip(array_map('intval', array_column(q('SELECT alert_id FROM log_watch_state WHERE open = 1 AND alert_id IS NOT NULL')->fetchAll(), 'alert_id')));
         foreach ($rows as &$a) {
             $a['blocked'] = $a['ip'] !== null && $a['ip'] !== '' && $nets && ip_in_list((string) $a['ip'], $nets);
+            if (!empty($a['log_watch'])) {
+                $a['lw_open'] = isset($lwOpen[(int) $a['id']]);
+            }
         }
         unset($a);
         out(['days' => $days, 'max_days' => $maxDays, 'alerts' => $rows, 'today' => date('Y-m-d'), 'truncated' => count($rows) >= 10000]);
@@ -3195,6 +3200,35 @@ switch ($action) {
 
     case 'log_overview':
         out(LogStore::overview());
+
+    // 1.212.0: vaste zoekacties die een melding geven (beheerder en gebruiker)
+    case 'log_watches':
+        out(['watches' => LogWatch::all(), 'max' => LogWatch::MAX, 'windows' => LogWatch::WINDOWS, 'windows_none' => LogWatch::WINDOWS_NONE, 'rests' => LogWatch::RESTS]);
+
+    case 'log_watch_save':
+        $in = input();
+        $r = LogWatch::save(!empty($in['id']) ? (int) $in['id'] : null, $in, (string) $user['username']);
+        if (is_string($r)) {
+            out(['error' => $r], 422);
+        }
+        AgentCommands::audit((string) $user['username'], empty($in['id']) ? 'Vaste zoekactie gemaakt' : 'Vaste zoekactie gewijzigd', mb_substr((string) ($in['name'] ?? ''), 0, 100) . ': ' . mb_substr((string) ($in['q'] ?? ''), 0, 200));
+        out(['ok' => true, 'id' => $r]);
+
+    case 'log_watch_toggle':
+        $in = input();
+        LogWatch::setEnabled((int) ($in['id'] ?? 0), !empty($in['on']));
+        out(['ok' => true]);
+
+    case 'log_watch_delete':
+        $in = input();
+        $name = q('SELECT name FROM log_watches WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetchColumn();
+        LogWatch::delete((int) ($in['id'] ?? 0));
+        AgentCommands::audit((string) $user['username'], 'Vaste zoekactie verwijderd', (string) $name);
+        out(['ok' => true]);
+
+    case 'log_watch_test':
+        $r = LogWatch::simulate(input());
+        out($r, isset($r['error']) ? 422 : 200);
 
     // 1.211.0: zoeken in de logs (beheerder en gebruiker)
     case 'log_search':

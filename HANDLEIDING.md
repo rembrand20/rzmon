@@ -2422,7 +2422,7 @@ Isoleren werkte al op TrueNAS.
 - **TrueNAS CORE** (FreeBSD) kan de agent niet draaien. Voeg hem toe als **Remote** met ping, poorten (445 SMB, 2049 NFS, 22 SSH) en HTTP(S) op de webinterface.
 
 ### 8.8b Logs verzamelen 📜 (vanaf 1.210.0, agent 1.83.0)
-De agent verzamelt de logs die je per server kiest en stuurt ze naar RzMon, waar ze gecomprimeerd bewaard worden. Zoeken doe je op de pagina **Logs** (vanaf 1.211.0, zie hieronder); meldingen bij een vaste zoekactie komen in een volgende versie.
+De agent verzamelt de logs die je per server kiest en stuurt ze naar RzMon, waar ze gecomprimeerd bewaard worden. Zoeken doe je op de pagina **Logs** (vanaf 1.211.0, zie hieronder); een zoekopdracht bewaren als melding kan vanaf 1.212.0 (*Vaste zoekacties*, hieronder).
 
 **Bronnen kiezen:** open de **Agent Manager** van de server, kaart **📜 Logs**, en voeg een bron toe (of kies een voorstel: nginx, apache2, syslog, auth.log, fail2ban, de journal, TrueNAS middleware, Home Assistant Core).
 - **Bestand of map**: een volledig pad, met `*` voor meerdere bestanden, bv. `/var/log/nginx/*.log` (hooguit 20 bestanden per bron; `.gz` en andere ingepakte bestanden worden overgeslagen).
@@ -2462,6 +2462,20 @@ De agent verzamelt de logs die je per server kiest en stuurt ze naar RzMon, waar
 - Snel: RzMon pakt alleen de blokken uit die in de periode en bij de server en bron vallen (met *Error en erger* alleen blokken met errors). Duurt het tellen langer dan 8 seconden, dan zegt de pagina dat de telling onvolledig is; de nieuwste treffers kloppen dan wel.
 - Gemaskeerde delen (`••••`) blijven gemaskeerd: het origineel wordt nergens bewaard.
 - Het tabblad **Binnenkomst** toont hetzelfde overzicht als de beheerportal: opslag en per server wat er vandaag binnenkwam.
+
+**Vaste zoekacties** (vanaf 1.212.0): een zoekopdracht die een melding geeft. Op het tabblad **Zoeken** klik je op **🔔 Bewaren als melding** (de zoekopdracht, de gekozen servers, bronnen en het niveau gaan mee), of op het tabblad **🔔 Vaste zoekacties** op **＋ Nieuwe zoekactie**. Beheerders en gebruikers kunnen ze maken.
+- **Melden als**:
+  - *Te veel treffers*: minstens N treffers in 1, 5 of 15 minuten, 1 uur of 24 uur (bijvoorbeeld `"failed password"` ≥ 10 in 5 minuten);
+  - *Geen treffers*: geen enkele treffer in 1, 6 of 26 uur, of 7 dagen. Handig voor iets dat juist wél moet gebeuren, zoals `"backup completed"`.
+- **Servers**: per server apart (één melding per server, standaard) of alle servers samen.
+- **Ernst**: info, warning of critical.
+- **Rustperiode** (15 minuten tot 24 uur): de minimale tijd tussen twee meldingen van dezelfde zoekactie en server.
+- **Herstel** (standaard aan): de melding gaat vanzelf dicht met een herstelmelding zodra een heel venster lang de drempel niet meer gehaald wordt. Bij *Geen treffers* gebeurt dat zodra er weer een treffer is. Staat Herstel uit, dan gaat hij na de rustperiode stil dicht.
+- **Proef**: in het venster zie je meteen hoe vaak de zoekactie de afgelopen 24 uur een melding had gegeven, met een grafiek per 5 minuten, de drempel als stippellijn en de tijden. Zo zie je vóór het bewaren of de drempel te gevoelig is.
+- **Wanneer**: RzMon telt bij elk binnenkomend logpakket alleen de nieuwe regels, en alleen voor de zoekacties die bij die server en bron passen. *Geen treffers* en het herstel controleert RzMon elke minuut. Het telt de tijd van de logregel zelf. Regels die meer dan 1 uur te laat binnenkomen (de agent was offline) tellen niet voor een melding.
+- **De melding**: staat op de pagina **Meldingen** als storing, met *Nu open*, de duur, gezien en hersteld, net als bij een check. Hij gaat via Pushover, e-mail en Home Assistant (critical met hoge prioriteit, warning normaal, info stil). Stille uren gelden ook: die van de server, of de algemene bij *alle servers samen*. In het zijpaneel staan de laatste 3 regels, de zoekopdracht en de knoppen **📜 In Logs bekijken** (de zoekopdracht rond dat moment) en **Zoekactie aanpassen**.
+- **Lijst**: per zoekactie een schakelaar aan/uit, de voorwaarde, een grafiekje van de laatste 24 uur (rood = een uur boven de drempel), de status (*OK* of *Melding open* per server), wanneer hij laatst meldde, en de knoppen 🔎 Zoeken, ✎ en 🗑 (tweemaal klikken).
+- **Grenzen**: hooguit 50 vaste zoekacties. Kost een zoekactie 3 pakketjes achter elkaar meer dan 50 ms (een zware regex), dan zet RzMon hem uit en meldt dat (Instellingen › Meldingen › Systeeminfo › Logs).
 
 **Opslag:** per dag een tabel (`logd_JJJJMMDD`) met blokken van hooguit 5000 regels per bron, elk met gzip gecomprimeerd: ongeveer 7 à 8 keer kleiner dan de logs zelf. Een dag ouder dan de bewaartermijn gaat in één keer weg. Uitzetten op een server: `LOG_SHIP=0` in `/etc/default/rzmon-agent`.
 

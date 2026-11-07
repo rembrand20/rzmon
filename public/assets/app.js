@@ -8066,6 +8066,192 @@ async function amLogs(h) {
   };
 }
 
+// ---------------------------------------------------------------- 1.212.0: vaste zoekacties die een melding geven
+const LW = { list: null, max: 50, testBusy: 0, testTimer: 0 };
+const LW_WIN = () => [[1, L('1 minuut')], [5, L('5 minuten')], [15, L('15 minuten')], [60, L('1 uur')], [1440, L('24 uur')]];
+const LW_WIN_NONE = () => [[60, L('1 uur')], [360, L('6 uur')], [1560, L('26 uur')], [10080, L('7 dagen')]];
+const LW_REST = () => [[15, L('15 minuten')], [30, L('30 minuten')], [60, L('1 uur')], [240, L('4 uur')], [1440, L('24 uur')]];
+const LW_SEV = () => [[0, 'Info'], [1, 'Warning'], [2, 'Critical']];
+const lwWinText = (m) => (m % 1440 === 0 ? L('{n} dag(en)', { n: m / 1440 }) : m % 60 === 0 ? L('{n} uur', { n: m / 60 }) : L('{n} min', { n: m }));
+
+/** De zoekopdracht van de zoekpagina, met de gekozen servers, bronnen en het niveau erin */
+function lwQueryFromSearch() {
+  const fs = (LP.facets && LP.facets.sources) || [];
+  const word = (n) => String(n || '').split(/\s+/)[0];
+  const parts = [($('#lp-q') ? $('#lp-q').value : LP.q).trim()];
+  LP.hosts.forEach((id) => { const s = fs.find((x) => x.host_id === id); if (s) parts.push('server:' + word(s.host)); });
+  LP.sources.forEach((id) => { const s = fs.find((x) => x.id === id); if (s) parts.push('server:' + word(s.host), 'bron:' + word(s.name)); });
+  if (LP.level !== '' && LP.level !== null && LP.level !== undefined) parts.push('niveau:' + LP_LV[+LP.level]);
+  return [...new Set(parts.filter(Boolean))].join(' ');
+}
+
+async function lwLoad() {
+  const box = $('#lp-watch-box');
+  if (!box) return;
+  try {
+    const r = await api('log_watches');
+    LW.list = r.watches; LW.max = r.max;
+  } catch (ex) { box.innerHTML = `<p class="danger-txt">${esc(ex.message)}</p>`; return; }
+  lwCount();
+  const can = isAdmin() || isUser();
+  const cond = (w) => (w.mode === 'none' ? L('geen treffer in {w}', { w: lwWinText(w.win) }) : L('≥ {n} in {w}', { n: dec(w.threshold), w: lwWinText(w.win) }))
+    + ' · ' + (w.per_host ? L('per server') : L('samen'));
+  const sevTxt = (s) => `<span class="lw-sev lw-sev${s}">${['info', 'warning', 'critical'][s]}</span>`;
+  const status = (w) => {
+    if (!w.enabled) return `<span class="lw-pill off">${w.off_reason === 'slow' ? L('Uit: te traag') : L('Uit')}</span>`;
+    const open = w.state.filter((s) => s.open);
+    if (open.length) return open.map((s) => `<span class="lw-pill bad k${w.severity}">${esc(L('Melding open'))}${s.host ? ' · ' + esc(s.host) : ''}</span>`).join(' ');
+    if (w.mode === 'none') {
+      const last = w.state.map((s) => s.last_hit).filter(Boolean).sort().pop();
+      return `<span class="lw-pill ok">OK${last ? ' · ' + esc(L('laatst {t}', { t: fmtDateTime(last) })) : ''}</span>`;
+    }
+    return '<span class="lw-pill ok">OK</span>';
+  };
+  const spark = (w) => {
+    const m = Math.max(1, ...w.hours);
+    const hot = w.mode === 'many' ? w.threshold : Infinity;
+    return `<span class="lw-spark" role="img" aria-label="${esc(L('Treffers per uur, laatste 24 uur: {n} in totaal', { n: dec(w.hours.reduce((a, b) => a + b, 0)) }))}">${w.hours.map((v) => `<i class="${v >= hot ? 'h' : ''}" style="height:${Math.max(8, v / m * 100)}%"></i>`).join('')}</span>`;
+  };
+  box.innerHTML = `<div class="lp-row"><p class="muted small lw-intro">${L('Een vaste zoekactie geeft een melding als er te veel (of geen) regels binnenkomen die erop passen. Maak er een met 🔔 Bewaren als melding op het tabblad Zoeken.')}</p><span class="lp-sp"></span>
+      ${can ? `<button type="button" class="btn" id="lw-new">＋ ${L('Nieuwe zoekactie')}</button>` : ''}</div>
+    ${LW.list.length ? `<div class="lw-tw"><table class="lw-table"><thead><tr><th>${L('Aan')}</th><th>${L('Naam en zoekopdracht')}</th><th>${L('Melden als')}</th><th>${L('Laatste 24 uur')}</th><th>${L('Status')}</th><th>${L('Laatst gemeld')}</th><th></th></tr></thead><tbody>
+      ${LW.list.map((w) => `<tr data-lw="${w.id}">
+        <td>${can ? amSw('lw-on-' + w.id, w.enabled, `data-lw-on="${w.id}"`) : (w.enabled ? '✓' : '—')}</td>
+        <td><b>${esc(w.name)}</b><code class="lw-q" title="${esc(w.q)}">${esc(w.q)}</code></td>
+        <td class="small">${esc(cond(w))} · ${sevTxt(w.severity)}</td>
+        <td>${spark(w)}</td>
+        <td>${status(w)}</td>
+        <td class="mono small">${w.last_alert ? esc(new Date(w.last_alert.replace(' ', 'T')).toLocaleString(LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) : '—'}</td>
+        <td><div class="lw-acts"><button type="button" class="btn small-btn" data-lw-find="${w.id}">🔎 ${L('Zoeken')}</button>
+          ${can ? `<button type="button" class="btn small-btn" data-lw-edit="${w.id}" aria-label="${esc(L('Bewerken'))}">✎</button><button type="button" class="btn small-btn" data-lw-del="${w.id}" aria-label="${esc(L('Verwijderen'))}">🗑</button>` : ''}</div></td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="muted small">${L('Rode streepjes: een uur waarin de drempel gehaald werd. Meldingen gaan via je gewone kanalen en staan op de pagina Meldingen.')}</p>`
+    : `<p class="muted lp-empty">${L('Nog geen vaste zoekacties. Zoek op het tabblad Zoeken naar iets dat je wilt bewaken, bijvoorbeeld "failed password", en klik op 🔔 Bewaren als melding.')}</p>`}`;
+  box.onclick = async (e) => {
+    if (e.target.closest('#lw-new')) return lwEdit({ q: '' });
+    const f = e.target.closest('[data-lw-find]');
+    if (f) { const w = LW.list.find((x) => x.id === +f.dataset.lwFind); LP.q = w.q; LP.hosts = []; LP.sources = []; LP.level = ''; LP.hour = null; LP.limit = 100; LP.allLv = null; LP.sub = 'search'; return loadLogsPage(); }
+    const ed = e.target.closest('[data-lw-edit]');
+    if (ed) return lwEdit(LW.list.find((x) => x.id === +ed.dataset.lwEdit));
+    const del = e.target.closest('[data-lw-del]');
+    if (del) {
+      if (!del.classList.contains('confirm')) { del.classList.add('confirm'); del.textContent = L('Zeker?'); setTimeout(() => { del.classList.remove('confirm'); del.textContent = '🗑'; }, 4000); return; }
+      try { await api('log_watch_delete', { id: +del.dataset.lwDel }); toast(L('Verwijderd')); lwLoad(); } catch (ex) { toast(ex.message, 'err'); }
+    }
+  };
+  box.onchange = async (e) => {
+    const sw = e.target.closest('[data-lw-on]');
+    if (!sw) return;
+    try { await api('log_watch_toggle', { id: +sw.dataset.lwOn, on: sw.checked }); toast(L('Opgeslagen')); lwLoad(); } catch (ex) { toast(ex.message, 'err'); sw.checked = !sw.checked; }
+  };
+}
+
+function lwCount() {
+  const n = $('#lp-w-n');
+  if (!n || !LW.list) return;
+  const open = LW.list.filter((w) => w.enabled && w.state.some((s) => s.open)).length;
+  n.textContent = LW.list.length ? String(LW.list.length) : '';
+  n.classList.toggle('bad', open > 0);
+  n.title = open ? L('{n} met een open melding', { n: open }) : '';
+}
+
+/** Venster Bewaren als melding (nieuw, of ✎ bij een bestaande), met de proef op de afgelopen 24 uur */
+function lwEdit(w) {
+  const v = Object.assign({ id: 0, name: '', q: '', mode: 'many', threshold: 10, win: 5, per_host: true, severity: 1, rest: 30, recover: true }, w || {});
+  const seg = (name, opts, cur) => `<div class="seg lw-seg" data-lw-seg="${name}">${opts.map(([k, t]) => `<button type="button" class="seg-btn${String(k) === String(cur) ? ' active' : ''}" data-v="${k}">${esc(t)}</button>`).join('')}</div><input type="hidden" name="${name}" value="${esc(String(cur))}">`;
+  const opts = (list, cur) => list.map(([k, t]) => `<option value="${k}"${+k === +cur ? ' selected' : ''}>${esc(t)}</option>`).join('');
+  const { form } = modal({
+    title: v.id ? L('Vaste zoekactie bewerken') : '🔔 ' + L('Bewaren als melding'), wide: true,
+    body: `<div class="lw-split"><div class="lw-form">
+        <input type="hidden" name="id" value="${v.id || ''}">
+        <div class="lw-f"><label for="lw-name">${L('Naam')}</label><input id="lw-name" name="name" maxlength="100" required value="${esc(v.name)}" placeholder="${esc(L('bv. SSH-aanvallen'))}">
+          <label for="lw-q">${L('Zoekopdracht')}</label><input id="lw-q" name="q" class="mono" maxlength="500" required value="${esc(v.q)}" spellcheck="false">
+          <span class="lw-sub">${L('Dezelfde regels als bij zoeken: woorden, "exacte zin", -uitsluiten, server:, bron:, niveau: en /regex/.')}</span>
+          <span class="lw-lbl">${L('Melden als')}</span><div>${seg('mode', [['many', L('Te veel treffers')], ['none', L('Geen treffers')]], v.mode)}</div>
+          <span class="lw-lbl">${L('Drempel')}</span>
+          <div class="lw-inl" id="lw-many" ${v.mode === 'none' ? 'hidden' : ''}><span>${L('minstens')}</span><input type="number" name="threshold" min="1" max="100000" value="${v.threshold}" class="lw-n" aria-label="${esc(L('Aantal treffers'))}"><span>${L('treffers in')}</span>
+            <select name="win_many" aria-label="${esc(L('Venster'))}">${opts(LW_WIN(), v.mode === 'many' ? v.win : 5)}</select></div>
+          <div class="lw-inl" id="lw-none" ${v.mode === 'none' ? '' : 'hidden'}><span>${L('geen enkele treffer in')}</span><select name="win_none" aria-label="${esc(L('Venster'))}">${opts(LW_WIN_NONE(), v.mode === 'none' ? v.win : 1560)}</select></div>
+          <span class="lw-lbl">${L('Servers')}</span><div>${seg('per_host', [[1, L('Per server apart')], [0, L('Alle servers samen')]], v.per_host ? 1 : 0)}</div>
+          <span class="lw-lbl">${L('Ernst')}</span><div>${seg('severity', LW_SEV(), v.severity)}</div>
+          <label for="lw-rest">${L('Rustperiode')}</label><div class="lw-inl"><select id="lw-rest" name="rest">${opts(LW_REST(), v.rest)}</select><span class="muted small">${L('tussen twee meldingen van deze zoekactie')}</span></div>
+          <span class="lw-lbl">${L('Herstel')}</span><label class="lw-check"><input type="checkbox" name="recover" ${v.recover ? 'checked' : ''}> ${L('Melding vanzelf sluiten als het een heel venster rustig is (of er weer een treffer is), met een herstelmelding')}</label>
+        </div>
+        <div class="lw-sentence" id="lw-sent" aria-live="polite"></div>
+        <p class="muted small">${L('Stille uren gelden ook hiervoor (die van de server, of de algemene).')}</p>
+      </div>
+      <div class="lw-proef"><div class="lp-row"><b>${L('Proef: de afgelopen 24 uur')}</b><span class="lp-sp"></span><span class="muted small" id="lw-ms"></span></div>
+        <div class="lw-big-row"><span class="lw-big" id="lw-pn">…</span><span id="lw-pt" class="small"></span></div>
+        <div class="lw-hist" id="lw-ph" role="img" aria-label="${esc(L('Treffers per 5 minuten, met de drempel'))}"></div>
+        <div class="lp-ax" id="lw-pax"></div>
+        <div class="lw-times" id="lw-times"></div>
+        <p class="muted small">${L('Zo zie je vóór het bewaren of de drempel te gevoelig is. Oranje: een tijdvak waarin de drempel gehaald werd; door de rustperiode worden vensters dicht bij elkaar één melding.')}</p></div></div>`,
+    buttons: [{ label: L('Annuleren'), cls: '', onClick: () => $('#modal').close() }, { label: v.id ? L('Opslaan') : L('Bewaren'), cls: 'primary', submit: true }],
+    onSubmit: async (d) => {
+      const r = await api('log_watch_save', lwVals(d));
+      toast(v.id ? L('Opgeslagen') : L('Bewaard: je krijgt een melding als het zover is'));
+      LP.sub = 'watch';
+      setTimeout(() => { if ($('#tab-logs') && !$('#tab-logs').hidden) loadLogsPage(); }, 50);
+      return r;
+    },
+  });
+  form.onclick = (e) => {
+    const b = e.target.closest('[data-lw-seg] [data-v]');
+    if (!b) return;
+    const g = b.closest('[data-lw-seg]');
+    $$('[data-v]', g).forEach((x) => x.classList.toggle('active', x === b));
+    $(`input[name="${g.dataset.lwSeg}"]`, form).value = b.dataset.v;
+    if (g.dataset.lwSeg === 'mode') { $('#lw-many').hidden = b.dataset.v === 'none'; $('#lw-none').hidden = b.dataset.v !== 'none'; }
+    lwChanged(form);
+  };
+  form.oninput = () => lwChanged(form);
+  form.onchange = () => lwChanged(form);
+  lwChanged(form, 0);
+  setTimeout(() => { const n = $('#lw-name'); if (n && !n.value) n.focus(); }, 30);
+}
+
+function lwVals(d) {
+  return { id: d.id ? +d.id : 0, name: d.name, q: d.q, mode: d.mode, threshold: +d.threshold || 1, win: +(d.mode === 'none' ? d.win_none : d.win_many),
+    per_host: d.per_host === '1', severity: +d.severity, rest: +d.rest, recover: !!d.recover };
+}
+
+function lwChanged(form, delay = 450) {
+  const v = lwVals(Object.fromEntries(new FormData(form)));
+  const sev = ['info', 'warning', 'critical'][v.severity];
+  const per = v.per_host ? L('per server') : L('voor alle servers samen');
+  const q = `<code>${esc(v.q || '…')}</code>`;
+  $('#lw-sent').innerHTML = v.mode === 'none'
+    ? L('Een {sev}-melding als {q} {w} lang niet voorkomt, {per}.', { sev: `<b>${sev}</b>`, q, w: `<b>${esc(lwWinText(v.win))}</b>`, per })
+    : L('Een {sev}-melding als {q} minstens {n}× voorkomt in {w}, {per}; daarna minstens {r} rust.', { sev: `<b>${sev}</b>`, q, n: `<b>${dec(v.threshold)}</b>`, w: `<b>${esc(lwWinText(v.win))}</b>`, per, r: esc(lwWinText(v.rest)) });
+  clearTimeout(LW.testTimer);
+  LW.testTimer = setTimeout(() => lwTest(v), delay);
+}
+
+async function lwTest(v) {
+  const busy = ++LW.testBusy;
+  if (!v.q.trim()) { $('#lw-pn').textContent = '–'; $('#lw-pt').textContent = L('Vul een zoekopdracht in'); $('#lw-ph').innerHTML = ''; $('#lw-times').innerHTML = ''; return; }
+  let r;
+  try { r = await api('log_watch_test', Object.assign({}, v, { name: v.name || 'proef' })); } catch (ex) {
+    if (busy !== LW.testBusy || !$('#lw-pn')) return;
+    $('#lw-pn').textContent = '–'; $('#lw-pt').innerHTML = `<span class="danger-txt">${esc(ex.message)}</span>`; $('#lw-ph').innerHTML = ''; $('#lw-times').innerHTML = '';
+    return;
+  }
+  if (busy !== LW.testBusy || !$('#lw-pn')) return;
+  const byHost = Object.entries(r.by_host).map(([h, n]) => `${h || L('alle servers')} ${n}×`).join(', ');
+  $('#lw-pn').textContent = dec(r.count);
+  $('#lw-pt').textContent = (r.mode === 'none'
+    ? (r.count ? L('keer een melding nu (geen treffer in het venster)') : L('keer: er is een treffer binnen het venster')) + (r.last ? ' · ' + L('laatste treffer {t}', { t: new Date(r.last * 1000).toLocaleString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }) : ' · ' + L('nog geen treffer gezien'))
+    : L('keer een melding')) + (byHost && r.mode !== 'none' ? ` (${byHost})` : '') + (r.partial ? ' · ' + L('onvolledig: te veel logs') : '');
+  $('#lw-ms').textContent = L('{ms} ms', { ms: dec(r.ms) });
+  const m = Math.max(1, ...r.hist, r.mode === 'many' ? r.threshold : 0);
+  const thr = r.mode === 'many' ? r.threshold : null;
+  $('#lw-ph').innerHTML = r.hist.map((n, i) => `<i class="${thr !== null && r.max_win[i] >= thr ? 'hit' : ''}" style="height:${Math.max(2, n / m * 100)}%" title="${esc(new Date((r.start + i * r.bucket) * 1000).toTimeString().slice(0, 5) + ': ' + n)}"></i>`).join('')
+    + (thr !== null ? `<span class="lw-thr" style="bottom:${Math.min(100, thr / m * 100)}%"><span>${dec(thr)}</span></span>` : '');
+  const t = (s) => new Date(s * 1000).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
+  $('#lw-pax').innerHTML = [0, 0.25, 0.5, 0.75, 1].map((f) => `<span>${esc(t(r.start + f * (r.hist.length * r.bucket)))}</span>`).join('');
+  $('#lw-times').innerHTML = r.fires.slice(-24).map((f) => `<span class="lw-tm">${esc(t(f.ts))}${f.host ? ' · ' + esc(f.host) : ''}${f.n ? ' · ' + dec(f.n) : ''}</span>`).join('');
+}
+
 // ---------------------------------------------------------------- 1.211.0: pagina Logs (zoeken en binnenkomst)
 const LP = { q: '', range: '24h', from: 0, to: 0, level: '', hosts: [], sources: [], limit: 100, hour: null, sub: 'search', facets: null, last: null, busy: 0 };
 const LP_RANGES = () => [['15m', L('Laatste 15 minuten'), 900], ['1h', L('Laatste uur'), 3600], ['24h', L('Laatste 24 uur'), 86400], ['today', L('Vandaag'), 0],
@@ -8096,7 +8282,11 @@ async function loadLogsPage() {
   $$('#logs-sub [data-lp-sub]').forEach((b) => b.classList.toggle('active', b.dataset.lpSub === LP.sub));
   $('#lp-search').hidden = LP.sub !== 'search';
   $('#lp-in').hidden = LP.sub !== 'in';
+  $('#lp-watch').hidden = LP.sub !== 'watch';
   if (LP.sub === 'in') { loadLogsOverview('#lp-in-box'); return; }
+  if (LP.sub === 'watch') { lwLoad(); return; }   // 1.212.0
+  if (!LW.list) api('log_watches').then((r) => { LW.list = r.watches; lwCount(); }).catch(() => {});
+  $('#lp-custom').hidden = LP.range !== 'custom';
   if (!LP.facets) { try { LP.facets = await api('log_facets'); } catch (ex) { LP.facets = { sources: [], days: 14 }; } }
   $('#lp-q').value = LP.q;
   $('#lp-range').value = LP.range;
@@ -8109,6 +8299,7 @@ function lpBuild(el) {
   el.innerHTML = `
     <div class="lp-bar"><div class="seg" id="logs-sub" role="tablist">
       <button type="button" class="seg-btn active" data-lp-sub="search" role="tab">🔎 ${L('Zoeken')}</button>
+      <button type="button" class="seg-btn" data-lp-sub="watch" role="tab">🔔 ${L('Vaste zoekacties')} <b class="lp-w-n" id="lp-w-n"></b></button>
       <button type="button" class="seg-btn" data-lp-sub="in" role="tab">📥 ${L('Binnenkomst')}</button></div></div>
     <section id="lp-search" class="card lp-card">
       <div class="lp-q">
@@ -8116,6 +8307,7 @@ function lpBuild(el) {
           <input id="lp-q" type="search" autocomplete="off" spellcheck="false" placeholder="${esc(L('Zoek in de logs, bv. "failed password" server:web01 -192.168.1.'))}" aria-label="${esc(L('Zoeken in logs'))}"></label>
         <select id="lp-range" aria-label="${esc(L('Periode'))}">${LP_RANGES().map(([k, t]) => `<option value="${k}">${esc(t)}</option>`).join('')}</select>
         <button type="button" class="btn primary" id="lp-go">${L('Zoeken')}</button>
+        ${isAdmin() || isUser() ? `<button type="button" class="btn lp-save-w" id="lp-save-w" title="${esc(L('Een melding als deze zoekopdracht te vaak (of nooit) voorkomt'))}">🔔 ${L('Bewaren als melding')}</button>` : ''}
       </div>
       <div class="lp-custom" id="lp-custom" hidden><label>${L('Van')} <input type="datetime-local" id="lp-from"></label><label>${L('Tot')} <input type="datetime-local" id="lp-to"></label></div>
       <div class="lp-help small muted"><span>${L('Zo zoek je:')}</span>${['woord', '"exacte zin"', '-uitsluiten', 'server:', 'bron:', 'niveau:error', '/regex/'].map((t) => `<button type="button" class="lp-tok" data-lp-tok="${esc(t)}">${esc(t)}</button>`).join('')}
@@ -8129,6 +8321,7 @@ function lpBuild(el) {
       <div id="lp-res" class="lp-lines"></div>
       <div class="lp-more" id="lp-more"></div>
     </section>
+    <section id="lp-watch" class="card lp-card" hidden><div id="lp-watch-box"><p class="muted">${L('Laden…')}</p></div></section>
     <section id="lp-in" class="card lp-card" hidden><div id="lp-in-box"><p class="muted">${L('Laden…')}</p></div></section>`;
   const go = () => { LP.q = $('#lp-q').value.trim(); LP.limit = 100; LP.hour = null; LP.allLv = null; lpSearch(); };
   $('#lp-go').onclick = go;
@@ -8161,6 +8354,7 @@ function lpBuild(el) {
     }
     if (e.target.closest('#lp-more-btn')) { LP.limit = Math.min(1000, LP.limit + 100); lpSearch(); return; }
     if (e.target.closest('#lp-csv')) { lpCsv(); return; }
+    if (e.target.closest('#lp-save-w')) { lwEdit({ q: lwQueryFromSearch() }); return; }   // 1.212.0
     const ln = e.target.closest('.lp-ln[data-ref]');
     if (ln && !e.target.closest('a, button')) lpContext(ln);
   });
@@ -11854,14 +12048,14 @@ const AL2_SHAPE = { crit: '⬣', warn: '▲', unk: '?', ok: '✓', ichk: 'ⓘ', 
 const AL2_PROBLEM = ['crit', 'warn', 'unk'];
 const al2Rank = (k) => ({ crit: 3, warn: 2, unk: 1 }[k] || 0);
 /** Systeeminfo: info zonder check (RzMon bijgewerkt, agent bijgewerkt …) en ingelogd */
-const alertIsSys = (a) => (a.kind === 'info' && !a.check_id) || a.kind === 'auth';
+const alertIsSys = (a) => (a.kind === 'info' && !a.check_id && !a.log_watch) || a.kind === 'auth';
 /** Soort voor de kleur: crit, warn, unk, ok, ichk (info van een check), isys (systeeminfo), sec (beveiliging), oth (bevestigd, onderhoud, flapt) */
 function alertKind2(a) {
   if (a.kind === 'auth') return 'isys';
   if (a.kind === 'authfail') return 'sec';
   if (/^\S+ (STABIEL|FLAPPEND|STABLE|FLAPPING)/.test(a.title || '')) return 'oth';
   const c = alertCat(a);
-  if (c === 'info') return a.check_id ? 'ichk' : 'isys';
+  if (c === 'info') return a.check_id || a.log_watch ? 'ichk' : 'isys';
   return c === 'other' ? 'oth' : c;
 }
 function al2Label(k, a) {
@@ -11897,16 +12091,18 @@ function al2Parts(msg) {
 function alertEpisodes(all) {
   const asc = [...all].sort((x, y) => (x.created_at < y.created_at ? -1 : x.created_at > y.created_at ? 1 : x.id - y.id));
   const open = new Map(), items = [];
+  // Storing: van een check, of (1.212.0) van een vaste zoekactie op de logs per server
+  const epKey = (a) => (a.check_id ? 'c' + a.check_id : a.log_watch ? 'l' + a.log_watch : null);
   for (const a of asc) {
-    const k = alertKind2(a);
-    if (a.check_id && al2Plain(a) && AL2_PROBLEM.includes(k)) {
-      let ep = open.get(+a.check_id);
-      if (!ep) { ep = { ep: true, k, first: a, last: a, alerts: [a], rec: null }; open.set(+a.check_id, ep); items.push(ep); }
+    const k = alertKind2(a), key = epKey(a);
+    if (key && al2Plain(a) && AL2_PROBLEM.includes(k)) {
+      let ep = open.get(key);
+      if (!ep) { ep = { ep: true, k, first: a, last: a, alerts: [a], rec: null }; open.set(key, ep); items.push(ep); }
       else { ep.alerts.push(a); ep.last = a; if (al2Rank(k) > al2Rank(ep.k)) ep.k = k; }
-    } else if (a.check_id && al2Plain(a) && k === 'ok' && open.has(+a.check_id)) {
-      const ep = open.get(+a.check_id);
+    } else if (key && al2Plain(a) && k === 'ok' && open.has(key)) {
+      const ep = open.get(key);
       ep.rec = a; ep.alerts.push(a);
-      open.delete(+a.check_id);
+      open.delete(key);
     } else items.push({ ep: false, k, first: a, last: a, alerts: [a], rec: null });
   }
   // Nog open? Dat zegt de check zelf (een herstel kan buiten de geladen dagen vallen, of niet gemeld zijn)
@@ -11914,6 +12110,7 @@ function alertEpisodes(all) {
   ((state && state.hosts) || []).forEach((h) => h.checks.forEach((c) => checks.set(+c.id, c)));
   items.forEach((it) => {
     if (!it.ep || it.rec) return;
+    if (it.first.log_watch) { it.open = it.alerts.some((x) => x.lw_open); it.nowOk = !it.open; return; }   // 1.212.0: dat weet RzMon
     const c = checks.get(+it.first.check_id);
     it.open = !!c && +c.status !== 0;
     it.nowOk = !c || +c.status === 0;
@@ -12062,6 +12259,7 @@ async function al2Open(aid) {
   // Eerdere keren: andere storingen van dezelfde check in de geladen dagen
   const prev = a.check_id ? (alertEpisodesCache || []).filter((x) => x.ep && x !== it && +x.first.check_id === +a.check_id && x.first.created_at < a.created_at).slice(0, 6) : [];
   const canAct = (isAdmin() || isUser()) && a.check_id;
+  const lwd = a.log_watch ? al2LogDetail(a) : null;   // 1.212.0: melding van een vaste zoekactie
   d.className = 'al2-drawer k-' + k;
   d.setAttribute('aria-label', L('Details van de melding'));
   d.innerHTML = `<div class="al2-dh"><span class="al2-badge"><span class="al2-shape" aria-hidden="true">${AL2_SHAPE[k]}</span>${esc(al2Label(k, a))}</span>
@@ -12070,16 +12268,36 @@ async function al2Open(aid) {
       ${it.open ? `<div class="muted small">👁 <span id="al2-seenby">${esc(al2SeenText(al2Seen(it)))}</span></div>` : ''}</div>
     <div class="al2-db">
       <div class="al2-ds"><h4>${L('Bericht')}</h4>${it.alerts.map((x) => `<div class="al2-msg">${it.alerts.length > 1 ? `<div class="muted small">${esc(fmtDateTime(x.created_at))} · ${esc(al2Label(alertKind2(x), x))}</div>` : ''}${esc(splitSent(x.message)[0])}</div>`).join('')}</div>
+      ${lwd && lwd.lines && lwd.lines.length ? `<div class="al2-ds"><h4>${L('Laatste regels')}</h4><div class="lp-lines al2-lw">${lwd.lines.map(([ts, h, s, m]) => `<div class="al2-lwl"><span class="lp-t">${esc(new Date(ts * 1000).toLocaleTimeString(LOCALE))}</span><span class="small muted">${esc(h)} › ${esc(s)}</span><span class="lp-m">${esc(m).replace(/••••/g, '<span class="lp-mask">••••</span>')}</span></div>`).join('')}</div></div>` : ''}
+      ${lwd ? `<div class="al2-ds"><h4>${L('Zoekactie')}</h4><div class="small"><b>${esc(lwd.name || '')}</b> · <code>${esc(lwd.q || '')}</code>${lwd.mode === 'none' ? '' : ` · ${esc(L('drempel {n} in {w}', { n: dec(lwd.thr || 0), w: lwWinText(lwd.win || 5) }))}`}</div></div>` : ''}
       ${a.check_id ? `<div class="al2-ds"><h4>${L('Het uur eromheen')}</h4><div id="al2-chart" class="al2-chart"><p class="muted small">${L('Laden…')}</p></div></div>` : ''}
       ${a.check_id ? `<div class="al2-ds"><h4>${L('Eerdere keren')}</h4><div class="al2-hist">${prev.length ? prev.map((x) => `<div><span class="mono">${esc(fmtDateTime(x.first.created_at))}</span><span class="muted">${x.rec ? esc(L('hersteld na {d}', { d: al2Dur(al2Ts(x.rec.created_at) - al2Ts(x.first.created_at)) })) : esc(al2Label(x.k, x.first))}</span></div>`).join('') : `<span class="muted">${L('Niet eerder in deze periode.')}</span>`}</div></div>` : ''}
       <div class="al2-ds"><h4>${L('Bezorging')}</h4><div class="al2-deliv">${it.alerts.map((x) => `<div><span class="mono muted">${esc(x.created_at.slice(11, 16))}</span> ${channelIcons(x)}${splitSent(x.message)[1] ? ` <span class="bad small">${esc(splitSent(x.message)[1])}</span>` : ''}</div>`).join('')}</div></div>
     </div>
     <div class="al2-da">${canAct && it.open ? `<button type="button" class="btn primary" data-al2-act="ack">✔ ${L('Bevestigen')}</button><button type="button" class="btn" data-al2-act="maint">🔕 ${L('Stil 1 uur')}</button>` : ''}
-      ${a.check_id ? `<button type="button" class="btn" data-al2-act="check">${L('Naar de check')} →</button>` : ''}</div>`;
+      ${a.check_id ? `<button type="button" class="btn" data-al2-act="check">${L('Naar de check')} →</button>` : ''}
+      ${lwd ? `<button type="button" class="btn primary" data-al2-act="logs">📜 ${L('In Logs bekijken')}</button>${isAdmin() || isUser() ? `<button type="button" class="btn" data-al2-act="lwedit">${L('Zoekactie aanpassen')}</button>` : ''}` : ''}</div>`;
   d.hidden = false;
   $('#al2-scrim').hidden = false;
   requestAnimationFrame(() => { d.classList.add('on'); $('#al2-scrim').classList.add('on'); });
   if (a.check_id) al2Chart(it);
+}
+/** 1.212.0: gegevens van een melding van een vaste zoekactie */
+function al2LogDetail(a) {
+  try { return JSON.parse(a.detail || '{}') || {}; } catch (e) { return {}; }
+}
+/** In Logs bekijken: de zoekopdracht rond het moment van de melding; of de zoekactie aanpassen */
+async function al2LogAct(it, act) {
+  const d = al2LogDetail(it.first);
+  al2Close();
+  if (act === 'lwedit') {
+    try { const r = await api('log_watches'); const w = r.watches.find((x) => x.id === +d.watch); if (w) return lwEdit(w); toast(L('Deze zoekactie bestaat niet meer'), 'err'); } catch (ex) { toast(ex.message, 'err'); }
+    return;
+  }
+  const t = Math.floor(al2Ts(it.first.created_at) / 1000), end = it.rec ? Math.floor(al2Ts(it.rec.created_at) / 1000) : Math.floor(Date.now() / 1000);
+  LP.q = d.q || ''; LP.hosts = d.host_id ? [+d.host_id] : []; LP.sources = []; LP.level = ''; LP.limit = 100; LP.allLv = null; LP.sub = 'search';
+  LP.range = 'custom'; LP.from = t - Math.max(15, +d.win || 5) * 60 - 300; LP.to = Math.min(end + 300, Math.floor(Date.now() / 1000)); LP.hour = null;
+  showTab('logs');
 }
 async function al2Chart(it) {
   const a = it.first, t0 = al2Ts(a.created_at), t1 = it.rec ? al2Ts(it.rec.created_at) : (it.open ? Date.now() : t0);
@@ -12107,6 +12325,7 @@ async function al2DrawerClick(e) {
   const b = e.target.closest('[data-al2-act]');
   if (!b || !al2Sel) return;
   const it = AL2_ITEMS.get(al2Sel);
+  if (it && it.first.log_watch && ['logs', 'lwedit'].includes(b.dataset.al2Act)) return al2LogAct(it, b.dataset.al2Act);   // 1.212.0
   const cid = it && it.first.check_id;
   if (!cid) return;
   try {
@@ -14159,7 +14378,7 @@ const SYSINFO_ROWS = [
   [L('Checks'), [['smart_drift', '🧠 ' + L('Normaalwaarde stijgt sluipend (slimme drempels)')], ['smart_auto', '🧠 ' + L('Drempels zelf aangepast (naar slim)')], ['alert_auto', '🔔 ' + L('Melden na N zelf aangepast')], ['heal', '🩹 ' + L('Zelf hersteld (of herstel mislukt)')],
     ['watchdog', '🐕 ' + L('Waakhond: RzMon was onbereikbaar of de checks stonden stil')]]],
   ['RzMon', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],
-  [L('Logs'), [['logs_limit', '📜 ' + L('Daglimiet van een server bereikt')], ['logs_full', '📜 ' + L('Maximum bereikt: oudste dag weggegooid')]]],   // 1.210.0
+  [L('Logs'), [['logs_limit', '📜 ' + L('Daglimiet van een server bereikt')], ['logs_full', '📜 ' + L('Maximum bereikt: oudste dag weggegooid')], ['logs_watch_off', '📜 ' + L('Vaste zoekactie te traag, uitgezet')]]],   // 1.210.0
   [L('AI-advies'), [['ai_advice', '🤖 ' + L('Samenvatting van een automatisch advies')], ['ai_week', '📅 ' + L('Weekoverzicht')], ['ai_credit', '💳 ' + L('Tegoed of budget bijna op of op')]]],   // 1.173.0
 ];
 const SYSINFO_CH = [['pushover', '📲 Push', 'push'], ['email', '📧 ' + L('E-mail'), 'email_enabled'], ['webhook', '🏠 Home Assistant', 'ha_webhook_enabled'], ['page', '📄 ' + L('Meldingenpagina'), null]];

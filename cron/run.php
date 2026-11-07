@@ -56,6 +56,12 @@ if (setting('mqtt_enabled', '0') === '1') {
     }
     Perf::lap('mqtt');
 }
+// 1.212.0: vaste zoekacties op de logs: herstel en "geen treffers"
+try {
+    LogWatch::cron();
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Logs (vaste zoekacties): ' . $e->getMessage() . "\n");
+}
 // Verlopen blokkades (inlogbeveiliging) opheffen, met een ℹ️-melding
 try {
     Security::expire();

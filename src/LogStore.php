@@ -214,6 +214,12 @@ final class LogStore
             }
             throw $e;
         }
+        // 1.212.0: vaste zoekacties: de nieuwe regels tellen (een fout daarin mag het opslaan nooit laten mislukken)
+        try {
+            LogWatch::onIngest($host, $byDay);
+        } catch (Throwable $e) {
+            error_log('RzMon LogWatch: ' . $e->getMessage());
+        }
         $dropped = array_sum(array_column($per, 2));
         if (!$wasOver && $dropped > 0) {
             // Daglimiet net bereikt: één melding, met de bron die het meeste stuurde
@@ -403,6 +409,7 @@ final class LogStore
                 'gb' => setting('logs_max_gb', '5'), 'days' => implode(', ', $dropped)]));
         }
         q('DELETE FROM log_batches WHERE at < NOW() - INTERVAL 3 DAY');
+        LogWatch::purge();   // 1.212.0
         q('DELETE FROM log_daily WHERE day < CURDATE() - INTERVAL ? DAY', [self::days() + 1]);
     }
 
@@ -581,7 +588,7 @@ final class LogStore
     }
 
     /** Past een regel op de zoekopdracht? */
-    private static function lineMatch(string $msg, array $p): bool
+    public static function lineMatch(string $msg, array $p): bool
     {
         $low = mb_strtolower($msg);
         foreach ($p['words'] as $w) {
@@ -598,7 +605,7 @@ final class LogStore
     }
 
     /** Servers en bronnen die bij server:/bron: horen (deel van de naam, hoofdletters maken niet uit) */
-    private static function scope(array $p, array $hostIds, array $sourceIds): array
+    public static function scope(array $p, array $hostIds, array $sourceIds): array
     {
         $src = [];
         foreach (q('SELECT s.id, s.name, s.host_id, h.name AS host FROM log_sources s JOIN hosts h ON h.id = s.host_id')->fetchAll() as $s) {
@@ -627,6 +634,59 @@ final class LogStore
             }
         }
         return [array_values(array_unique($hosts)), array_values(array_unique($sources)), $src];
+    }
+
+    /** Past het niveau van een regel bij niveau: (error = error en erger, warning = alleen warning, info = info en lager)? */
+    public static function levelOk(?int $level, int $lvl): bool
+    {
+        return $level === null || ($level >= 3 ? $lvl >= 3 : ($level === 2 ? $lvl === 2 : $lvl <= 1));
+    }
+
+    /**
+     * 1.212.0: alle regels in een periode die op de zoekopdracht passen, aan $fn(tijd, server, bron, niveau, tekst).
+     * Voor de proef van een vaste zoekactie. Stopt na $maxSec seconden (dan partial).
+     * @return array{partial: bool, ms: int}
+     */
+    public static function scan(array $p, int $from, int $to, array $hosts, array $sources, float $maxSec, callable $fn): array
+    {
+        $t0 = microtime(true);
+        $partial = false;
+        $have = array_column(self::dayTables(), 'name');
+        $where = ['ts_to >= ?', 'ts_from <= ?'];
+        $args = [date('Y-m-d H:i:s', $from), date('Y-m-d H:i:s', $to)];
+        if ($hosts) {
+            $where[] = 'host_id IN (' . implode(',', array_fill(0, count($hosts), '?')) . ')';
+            array_push($args, ...$hosts);
+        }
+        if ($sources) {
+            $where[] = 'source_id IN (' . implode(',', array_fill(0, count($sources), '?')) . ')';
+            array_push($args, ...$sources);
+        }
+        $level = $p['level'];
+        if ($level !== null && $level >= 3) {
+            $where[] = 'n_err > 0';
+        } elseif ($level === 2) {
+            $where[] = 'n_warn > 0';
+        }
+        for ($d = strtotime(date('Y-m-d', $from)); $d <= strtotime(date('Y-m-d', $to)); $d = strtotime('+1 day', $d)) {
+            $t = 'logd_' . date('Ymd', $d);
+            if (!in_array($t, $have, true)) {
+                continue;
+            }
+            $st = q("SELECT host_id, source_id, data FROM `$t` WHERE " . implode(' AND ', $where), $args);
+            while ($b = $st->fetch()) {
+                if (microtime(true) - $t0 > $maxSec) {
+                    $partial = true;
+                    break 2;
+                }
+                foreach (self::unpack((string) $b['data']) as [$ts, $lvl, $msg]) {
+                    if ($ts >= $from && $ts <= $to && self::levelOk($level, $lvl) && self::lineMatch($msg, $p)) {
+                        $fn($ts, (int) $b['host_id'], (int) $b['source_id'], $lvl, $msg);
+                    }
+                }
+            }
+        }
+        return ['partial' => $partial, 'ms' => (int) round((microtime(true) - $t0) * 1000)];
     }
 
     /**

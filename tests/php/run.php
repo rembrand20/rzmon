@@ -2023,5 +2023,62 @@ $lsC = LogStore::context($lsS['hits'][1]['ref']);
 ok($lsC !== null && count($lsC['before']) === 3 && count($lsC['after']) === 3 && str_contains($lsC['after'][0]['msg'], 'regel 28'), 'regels eromheen: 3 ervoor en de regels erna');
 ok(LogStore::search(['q' => 'regel server:bestaatniet', 'from' => $lsNow2 - 3600])['total'] === 0, 'server: die niet bestaat geeft niets');
 
+section('Vaste zoekacties op de logs (1.212.0)');
+ok(is_string(LogWatch::clean(['name' => 'x', 'q' => 'server:ci-a'])) && is_string(LogWatch::clean(['name' => '', 'q' => 'fout'])) && is_string(LogWatch::clean(['name' => 'x', 'q' => '/[kapot/'])),
+    'zoekactie zonder iets om op te zoeken, zonder naam of met een kapotte regex wordt geweigerd');
+$lwIn = ['name' => 'ci-ssh', 'q' => '"failed password" server:ci-a', 'mode' => 'many', 'threshold' => 5, 'win' => 5, 'per_host' => 1, 'severity' => STATUS_CRIT, 'rest' => 30, 'recover' => 1];
+$lwSim = LogWatch::simulate($lwIn);
+ok(!isset($lwSim['error']) && $lwSim['count'] >= 1 && count($lwSim['hist']) > 200, 'proef op 24 uur: de 10 mislukte logins van zojuist hadden een melding gegeven');
+$lwId = LogWatch::save(null, $lwIn, 'ci');
+$lwNone = LogWatch::save(null, ['name' => 'ci-backup', 'q' => '"backup completed" server:ci-a', 'mode' => 'none', 'win' => 60, 'severity' => STATUS_WARN], 'ci');
+ok(is_int($lwId) && is_int($lwNone), 'zoekacties bewaard');
+$lwFeed = function (int $n, string $batch, string $text = 'ERROR Failed password for root from 203.0.113.9') use ($ha, $lsA) {
+    $t = time();
+    $raw = "rzlogs1\t$batch\t$t\t0\t+0000\n";
+    for ($i = 0; $i < $n; $i++) {
+        $raw .= "L\t$lsA\t$t\t" . gmdate('Y-m-d H:i:s', $t - $i) . " $text port $i\n";
+    }
+    LogStore::ingest(['id' => $ha, 'name' => 'ci-a'], $raw);
+};
+$lwAlerts = fn() => q('SELECT * FROM alerts WHERE log_watch LIKE ? ORDER BY id', [$lwId . ':%'])->fetchAll();
+$lwFeed(3, 'ci-lw1');
+ok(count($lwAlerts()) === 0, 'onder de drempel (3 van 5): geen melding');
+$lwFeed(4, 'ci-lw2');
+$lwA = $lwAlerts();
+ok(count($lwA) === 1 && (int) $lwA[0]['status'] === STATUS_CRIT && $lwA[0]['kind'] === 'logs' && $lwA[0]['log_watch'] === "$lwId:$ha"
+    && str_contains($lwA[0]['title'], 'ci-a') && str_contains($lwA[0]['message'], '7') && $lwA[0]['ip'] === '203.0.113.9',
+    'drempel gehaald over twee pakketjes heen: één critical-melding met het aantal en het IP dat het meest voorkomt');
+$lwFeed(10, 'ci-lw3');
+ok(count($lwAlerts()) === 1 && (int) q('SELECT peak FROM log_watch_state WHERE watch_id = ?', [$lwId])->fetchColumn() === 17, 'melding al open: geen nieuwe, wel het hoogste aantal bijgewerkt');
+LogWatch::reset();
+LogWatch::cron();
+ok(count($lwAlerts()) === 1, 'nog binnen het venster: blijft open');
+q('UPDATE log_watch_counts SET minute = minute - 10 WHERE watch_id = ?', [$lwId]);
+q('UPDATE log_watch_state SET opened_at = opened_at - INTERVAL 10 MINUTE WHERE watch_id = ?', [$lwId]);
+LogWatch::cron();
+$lwA = $lwAlerts();
+ok(count($lwA) === 2 && (int) $lwA[1]['status'] === STATUS_OK && str_contains($lwA[1]['title'], t('HERSTELD')) && !(int) q('SELECT open FROM log_watch_state WHERE watch_id = ?', [$lwId])->fetchColumn(),
+    'een heel venster rustig: herstelmelding en dicht');
+$lwFeed(8, 'ci-lw4');
+ok(count($lwAlerts()) === 2, 'binnen de rustperiode: geen nieuwe melding');
+// geen treffers: na het venster (zonder ooit een treffer) een warning; een treffer sluit hem
+q('UPDATE log_watches SET created_at = NOW() - INTERVAL 2 HOUR WHERE id = ?', [$lwNone]);
+q('UPDATE log_watch_state SET since = NOW() - INTERVAL 2 HOUR WHERE watch_id = ?', [$lwNone]);
+LogWatch::reset();
+LogWatch::cron();
+$lwN = q('SELECT * FROM alerts WHERE log_watch LIKE ? ORDER BY id', [$lwNone . ':%'])->fetchAll();
+ok(count($lwN) === 1 && (int) $lwN[0]['status'] === STATUS_WARN, 'geen treffers in het venster: een warning');
+$lwFeed(1, 'ci-lw5', 'INFO backup completed ok');
+$lwN = q('SELECT * FROM alerts WHERE log_watch LIKE ? ORDER BY id', [$lwNone . ':%'])->fetchAll();
+ok(count($lwN) === 2 && (int) $lwN[1]['status'] === STATUS_OK, 'er is weer een treffer: hersteld');
+$lwAll = LogWatch::all();
+ok(count($lwAll) === 2 && array_sum(array_column($lwAll, 'hours')[array_search('ci-ssh', array_column($lwAll, 'name'), true)]) >= 17, 'overzicht: treffers per uur voor het grafiekje');
+LogWatch::setEnabled($lwId, false);
+$lwFeed(20, 'ci-lw6');
+ok(count($lwAlerts()) === 2, 'uitgezet: telt niet meer en meldt niets');
+LogWatch::delete($lwId);
+LogWatch::delete($lwNone);
+ok(!q('SELECT 1 FROM log_watch_state WHERE watch_id IN (?, ?)', [$lwId, $lwNone])->fetchColumn() && !q('SELECT 1 FROM log_watches')->fetchColumn(), 'verwijderd, met de stand en de tellingen');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

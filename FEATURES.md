@@ -56,6 +56,7 @@ Dezelfde tabel staat in RzMon bij *Instellingen → Overzicht → Functies*, met
 | 🖥️ Servers en agents | **TrueNAS SCALE** | Meldingen, taken, apps, updates en temperaturen via midclt. | 1.174.0 |
 | 🖥️ Servers en agents | **Home Assistant-add-on** | De agent als add-on: HA Core, Supervisor, add-ons en HA OS. | 1.24.0 |
 | 🖥️ Servers en agents | **Logs verzamelen** | Logs per server gecomprimeerd en versleuteld naar RzMon, gemaskeerd en gecomprimeerd bewaard, met daglimiet en bewaartermijn. | 1.210.0 |
+| 🖥️ Servers en agents | **Vaste zoekacties op de logs** | Een zoekopdracht als melding: te veel treffers (≥ N in X minuten) of geen treffers, per server of samen, met rustperiode, herstel en een proef op de laatste 24 uur. | 1.212.0 |
 | 🖥️ Servers en agents | **Logs zoeken** | Zoeken in de logs van al je servers: woorden, zinnen, uitsluiten, server, bron, niveau en regex, met een grafiek, de regels eromheen en CSV. | 1.211.0 |
 | 🖥️ Servers en agents | **Store-and-forward** | De agent bewaart rapporten als RzMon even weg is. | 1.137.0 |
 | 🖥️ Servers en agents | **Waakhond** | De agent meldt via Pushover als RzMon of cron stilstaat. | 1.107.0 |
