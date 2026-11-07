@@ -300,7 +300,8 @@ final class Installer
         ['hosts', 'logs_interval', 'SMALLINT UNSIGNED NULL'],   // 1.210.0: logs versturen elke … minuten (leeg = de algemene instelling)
         ['alerts', 'seen_at', 'DATETIME NULL'],         // 1.208.0: open storing bekeken (de golf op de meldingenpagina stopt voor iedereen)
         ['alerts', 'seen_by', 'VARCHAR(100) NULL'],
-        ['alerts', 'log_watch', 'VARCHAR(24) NULL'],    // 1.212.0: melding van een vaste zoekactie op de logs ("zoekactie:server")
+        ['alerts', 'log_watch', 'VARCHAR(24) NULL'],
+        ['hosts', 'logscan_req', 'INT UNSIGNED NOT NULL DEFAULT 0'],   // 1.213.0: "🔄 Opnieuw zoeken" naar logs op de server    // 1.212.0: melding van een vaste zoekactie op de logs ("zoekactie:server")
         ['hosts', 'iperf_ok', 'TINYINT(1) NOT NULL DEFAULT 1'],   // 1.177.0: mag doorvoertest (iperf3) ontvangen   // 1.176.0: containerstatus running/failed/stopped/paused (voor het label)
     ];
 

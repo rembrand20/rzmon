@@ -2080,5 +2080,35 @@ LogWatch::delete($lwId);
 LogWatch::delete($lwNone);
 ok(!q('SELECT 1 FROM log_watch_state WHERE watch_id IN (?, ?)', [$lwId, $lwNone])->fetchColumn() && !q('SELECT 1 FROM log_watches')->fetchColumn(), 'verwijderd, met de stand en de tellingen');
 
+section('Logs vinden op de server (1.213.0)');
+q('UPDATE hosts SET logscan_req = 0 WHERE id = ?', [$ha]);
+ok(!in_array("0\tlogscan\t0", LogStore::agentLines($ha), true), 'zonder verzoek geen regel logscan naar de agent');
+q('UPDATE hosts SET logscan_req = 2 WHERE id = ?', [$ha]);
+ok(in_array("0\tlogscan\t2", LogStore::agentLines($ha), true), 'Opnieuw zoeken: de agent krijgt de regel logscan met de teller');
+$lfT = time();
+$lfScan = ['at' => $lfT, 'req' => 1, 'dirs' => '/var/log', 'files' => [['/var/log/auth.log', 100, $lfT], ['/var/log/nginx/access.log', 200, $lfT], ['/var/log/nginx/error.log', 50, $lfT],
+    ['/var/log/apt/history.log', 10, $lfT], ['/var/log/old.log', 5, $lfT - 90 * 86400], ['/var/log/../etc/shadow', 1, $lfT]],
+    'docker' => [['vaultwarden', 'vaultwarden/server', 'running', 'docker'], ['bad name!', 'x', 'running', 'docker']], 'units' => [['ssh.service', 40], ['cron.service', 900]], 'ha' => [], 'noread' => ['/var/log/private']];
+LogStore::storeScan($ha, $lfScan);
+$lf = LogStore::found($ha);
+$lfNames = array_column($lf['groups']['dirs'], 'name');
+$lfNginx = $lf['groups']['dirs'][array_search('nginx', $lfNames, true)] ?? null;
+ok($lfNginx && $lfNginx['folder'] && $lfNginx['spec'] === '/var/log/nginx/*.log' && count($lfNginx['files']) === 2 && $lfNginx['rec'], 'een map met meer bestanden wordt één bron (map/*.log), aanbevolen');
+ok(in_array('history.log', $lfNames, true) && !in_array('shadow', $lfNames, true) && end($lf['groups']['dirs'])['name'] === 'old.log' && end($lf['groups']['dirs'])['quiet'],
+    'één bestand in een submap los; paden met .. weggelaten; stil (90 dagen) onderaan');
+ok(count($lf['groups']['docker']) === 1 && $lf['groups']['docker'][0]['rec'] && $lf['groups']['units'][0]['name'] === 'ssh.service' && end($lf['groups']['units'])['kind'] === 'journal',
+    'containers (ongeldige naam weg), services met de aanbevolen bovenaan en de hele journal onderaan');
+ok($lf['pending'] && $lf['new'] === 0 && $lf['noread'] === ['/var/log/private'], 'nog een verzoek open (teller 2, lijst van verzoek 1); de eerste keer niets "nieuw"; geen leesrechten genoemd');
+LogStore::save($ha, ['kind' => 'file', 'spec' => '/var/log/nginx/*', 'name' => 'nginx']);
+$lfScan['files'][] = ['/var/log/fail2ban.log', 9, $lfT];
+$lfScan['req'] = 2;
+LogStore::storeScan($ha, $lfScan);
+q("UPDATE agent_data SET updated_at = NOW() - INTERVAL 1 MINUTE WHERE host_id = ? AND metric = 'logscan'", [$ha]);
+Paths::cleanAgentData($ha, now());
+$lf = LogStore::found($ha);
+$lfBy = array_column($lf['groups']['dirs'], null, 'name');
+ok(!$lf['pending'] && $lf['new'] === 1 && $lfBy['fail2ban.log']['new'] && $lfBy['nginx']['have'] && !$lfBy['auth.log']['have'],
+    'opnieuw gezocht: fail2ban.log is nieuw, nginx is al verzameld (met een eigen patroon), en de lijst blijft na het opruimen van een rapport');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

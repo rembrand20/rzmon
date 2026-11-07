@@ -680,6 +680,10 @@ if ($action === 'agent') {
             'chain_cn' => mb_substr((string) ($c['chain_cn'] ?? ''), 0, 200),
         ], JSON_UNESCAPED_UNICODE), $now]);
     }
+    // 1.213.0 (agent 1.84.0): welke logs er op de server zijn, om in de Agent Manager uit te kiezen
+    if (isset($in['log_scan']) && is_array($in['log_scan'])) {
+        LogStore::storeScan((int) $host['id'], $in['log_scan']);
+    }
     // Gevonden certificaatbestanden (agent 1.59.0), om bij een SSL-check uit te kiezen
     if (isset($in['cert_found']) && is_array($in['cert_found'])) {
         $found = [];
@@ -3169,6 +3173,43 @@ switch ($action) {
 
     case 'log_source_lines':
         out(['lines' => LogStore::lastLines((int) ($_GET['id'] ?? 0))]);
+
+    // 1.213.0: logs die de agent op de server vond, om uit te kiezen; opnieuw zoeken; meerdere tegelijk toevoegen
+    case 'log_found':
+        out(LogStore::found((int) ($_GET['host_id'] ?? 0)));
+
+    case 'log_scan':
+        q("UPDATE hosts SET logscan_req = logscan_req + 1 WHERE id = ? AND mode = 'agent'", [(int) (input()['host_id'] ?? 0)]);
+        out(['ok' => true]);
+
+    case 'log_found_add':
+        $in = input();
+        $hid = (int) ($in['host_id'] ?? 0);
+        if (!q("SELECT 1 FROM hosts WHERE id = ? AND mode = 'agent'", [$hid])->fetchColumn()) {
+            out(['error' => t('Logs verzamelen kan alleen op een server met de agent')], 422);
+        }
+        $added = 0;
+        $errors = [];
+        foreach (array_slice((array) ($in['items'] ?? []), 0, 50) as $it) {
+            if (!is_array($it)) {
+                continue;
+            }
+            $kind = (string) ($it['kind'] ?? '');
+            $spec = (string) ($it['spec'] ?? '');
+            if (q('SELECT 1 FROM log_sources WHERE host_id = ? AND kind = ? AND spec = ?', [$hid, $kind, $kind === 'journal' ? '' : $spec])->fetchColumn()) {
+                continue;   // al verzameld
+            }
+            $r = LogStore::save($hid, ['kind' => $kind, 'spec' => $spec, 'name' => mb_substr((string) ($it['name'] ?? ''), 0, 100)]);
+            if (is_string($r)) {
+                $errors[] = $spec . ': ' . $r;
+            } else {
+                $added++;
+            }
+        }
+        if ($added) {
+            AgentCommands::audit((string) $user['username'], 'Logbronnen toegevoegd (gevonden)', q('SELECT name FROM hosts WHERE id = ?', [$hid])->fetchColumn() . ': ' . $added);
+        }
+        out(['ok' => true, 'added' => $added, 'errors' => $errors]);
 
     case 'log_source_save':
         $in = input();

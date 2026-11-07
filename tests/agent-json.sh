@@ -110,3 +110,25 @@ if not status or '\tok\t1\t' not in status[-1] + '\t':
     print('✘ status van de logbron klopt niet:', status); sys.exit(1)
 print('✔ logs: alleen nieuwe regels van het gekozen niveau, halve regel wacht, pakketje klaar (gzip)')
 PY
+# Agent 1.84.0: logs vinden. Zonder lijst van vandaag zoekt de agent in LOG_DIRS en stuurt namen, groottes en tijden mee;
+# gedraaide (.1, .gz) en binaire bestanden niet. De run daarna (zelfde dag, geen verzoek) stuurt de lijst niet opnieuw.
+mkdir -p "$work/logs/nginx"; echo x >"$work/logs/nginx/access.log"; echo y >"$work/logs/app.log.1"; printf 'a\0\0b' >"$work/logs/wtmp"
+rm -f "$work/cache/logscan.cache" "$work/payload.json"
+for n in 1 2; do
+    MONITOR_URL="http://127.0.0.1:$port" TOKEN=ci-test RZ_FORCE=1 CACHE_DIRECTORY="$work/cache" AGENT_DIR="$work/agent" \
+        HEAL_DIR="$work/heal.d" IDS_BLOCK=0 PODMAN=0 LOG_DIRS="$work/logs" timeout 300 bash agent/rzmon-agent.sh >"$work/out" 2>&1
+    cp -f "$work/payload.json" "$work/payload.$n.json" 2>/dev/null
+done
+python3 - "$work/payload.1.json" "$work/payload.2.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+ls = d.get('log_scan')
+if not ls:
+    print('✘ logs vinden: geen log_scan in het rapport'); sys.exit(1)
+names = sorted(f[0].rsplit('/', 1)[-1] for f in ls['files'])
+if 'access.log' not in names or 'app.log' not in names or 'app.log.1' in names or 'wtmp' in names:
+    print('✘ logs vinden: verkeerde bestanden:', names); sys.exit(1)
+if 'log_scan' in json.load(open(sys.argv[2])):
+    print('✘ logs vinden: de lijst ging de volgende run opnieuw mee'); sys.exit(1)
+print('✔ logs vinden: bestanden in LOG_DIRS (zonder gedraaide en binaire), één keer meegestuurd')
+PY

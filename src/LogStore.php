@@ -85,8 +85,13 @@ final class LogStore
                 $out[] = implode("\t", [$s['id'], 'logsrc', $s['kind'], $s['spec'] === '' ? '-' : $s['spec'], (int) $s['level']]);
             }
         }
+        // 1.213.0: "🔄 Opnieuw zoeken" naar logs op de server (de agent zoekt ook vanzelf één keer per dag)
+        $scan = (int) (q('SELECT logscan_req FROM hosts WHERE id = ?', [$hostId])->fetchColumn() ?: 0);
         if (!$out) {
-            return [];
+            return $scan ? [implode("\t", [0, 'logscan', $scan])] : [];
+        }
+        if ($scan) {
+            $out[] = implode("\t", [0, 'logscan', $scan]);
         }
         array_unshift($out, implode("\t", [0, 'logship', self::intervalFor($host)]));
         if (self::limitReached($hostId)) {
@@ -542,6 +547,198 @@ final class LogStore
             'days_left' => $avgStored ? (int) floor(max(0, self::maxBytes() - $used) / $avgStored) : null,
             'hosts' => $hosts,
         ];
+    }
+
+    // ------------------------------------------------------------------ logs vinden op de server (1.213.0)
+
+    /** Aanbevolen: wat je op bijna elke server wilt (inloggen, systeem, fail2ban, webservers, wachtwoordkluis, sshd) */
+    private const REC_FILE = '~/(auth\\.log|secure|syslog|messages|fail2ban\\.log)$|/(nginx|apache2|httpd|swag|caddy|traefik)(/|$)~';
+    private const REC_DOCKER = '~vaultwarden|bitwarden|swag|nginx|traefik|caddy|crowdsec|authelia|adguard|pihole~i';
+    private const REC_UNIT = '~^(ssh|sshd|fail2ban)\\.service$~';
+
+    /** Lijst van de agent bewaren (alleen namen, groottes en tijden), met wat er sinds de vorige keer nieuw is */
+    public static function storeScan(int $hostId, array $in): void
+    {
+        $clean = static fn($s, int $n) => mb_substr((string) $s, 0, $n);
+        $files = [];
+        foreach (array_slice((array) ($in['files'] ?? []), 0, 500) as $f) {
+            if (is_array($f) && isset($f[0]) && self::cleanSpec('file', (string) $f[0]) !== null) {
+                $files[] = [(string) $f[0], (int) ($f[1] ?? 0), (int) ($f[2] ?? 0)];
+            }
+        }
+        $docker = [];
+        foreach (array_slice((array) ($in['docker'] ?? []), 0, 150) as $c) {
+            if (is_array($c) && self::cleanSpec('docker', (string) ($c[0] ?? '')) !== null) {
+                $docker[] = [(string) $c[0], $clean($c[1] ?? '', 120), $clean($c[2] ?? '', 40), ($c[3] ?? '') === 'podman' ? 'podman' : 'docker'];
+            }
+        }
+        $units = [];
+        foreach (array_slice((array) ($in['units'] ?? []), 0, 150) as $u) {
+            if (is_array($u) && self::cleanSpec('unit', (string) ($u[0] ?? '')) !== null) {
+                $units[] = [(string) $u[0], (int) ($u[1] ?? 0)];
+            }
+        }
+        $ha = [];
+        foreach (array_slice((array) ($in['ha'] ?? []), 0, 100) as $a) {
+            if (is_array($a) && self::cleanSpec('ha', (string) ($a[0] ?? '')) !== null) {
+                $ha[] = [(string) $a[0], $clean($a[1] ?? '', 100), $clean($a[2] ?? '', 30)];
+            }
+        }
+        $noread = [];
+        foreach (array_slice((array) ($in['noread'] ?? []), 0, 50) as $p) {
+            if (self::cleanSpec('file', (string) $p) !== null) {
+                $noread[] = (string) $p;
+            }
+        }
+        $scan = ['at' => (int) ($in['at'] ?? 0) ?: time(), 'req' => (int) ($in['req'] ?? 0), 'dirs' => $clean($in['dirs'] ?? '', 500),
+            'files' => $files, 'docker' => $docker, 'units' => $units, 'ha' => $ha, 'noread' => $noread];
+        // Nieuw: niet in de vorige lijst. Was die minder dan 20 uur oud (opnieuw zoeken), dan blijft "nieuw" van toen staan.
+        $old = self::scanRead($hostId);
+        $keys = self::scanKeys($scan);
+        if (is_array($old)) {
+            $oldKeys = self::scanKeys($old);
+            $new = array_values(array_diff($keys, $oldKeys));
+            if ((int) ($old['at'] ?? 0) > time() - 72000) {
+                $new = array_values(array_unique(array_merge($new, array_intersect((array) ($old['new'] ?? []), $keys))));
+            }
+        } else {
+            $new = [];   // de eerste keer is alles nieuw: dan zegt "nieuw" niets
+        }
+        $scan['new'] = array_slice($new, 0, 300);
+        q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'logscan', ?, NOW()) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)",
+            [$hostId, 'gz:' . base64_encode((string) gzcompress((string) json_encode($scan, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), 6))]);
+    }
+
+    /** De bewaarde lijst (gecomprimeerd: agent_data.value is TEXT, 64 kB) */
+    private static function scanRead(int $hostId): ?array
+    {
+        $row = q("SELECT value, updated_at FROM agent_data WHERE host_id = ? AND metric = 'logscan'", [$hostId])->fetch();
+        if (!$row) {
+            return null;
+        }
+        $v = (string) $row['value'];
+        if (str_starts_with($v, 'gz:')) {
+            $v = (string) @gzuncompress((string) base64_decode(substr($v, 3)));
+        }
+        $scan = json_decode($v, true);
+        return is_array($scan) ? $scan + ['updated_at' => $row['updated_at']] : null;
+    }
+
+    /** @return list<string> sleutels (soort:bron) van een lijst; bestanden per map */
+    private static function scanKeys(array $scan): array
+    {
+        $k = [];
+        foreach ((array) ($scan['files'] ?? []) as $f) {
+            $k[] = 'file:' . $f[0];
+        }
+        foreach ((array) ($scan['docker'] ?? []) as $c) {
+            $k[] = 'docker:' . $c[0];
+        }
+        foreach ((array) ($scan['units'] ?? []) as $u) {
+            $k[] = 'unit:' . $u[0];
+        }
+        foreach ((array) ($scan['ha'] ?? []) as $a) {
+            $k[] = 'ha:' . $a[0];
+        }
+        return $k;
+    }
+
+    /**
+     * Gevonden logs om uit te kiezen, per groep (dirs, docker, units, ha). Een map met meer bestanden wordt één bron
+     * (map/*.log of map/*), met de losse bestanden erbij. Met aanbevolen, al verzameld, nieuw en stil (30 dagen niets).
+     */
+    public static function found(int $hostId): array
+    {
+        $req = (int) q('SELECT logscan_req FROM hosts WHERE id = ?', [$hostId])->fetchColumn();
+        $scan = self::scanRead($hostId);
+        if ($scan === null) {
+            return ['at' => null, 'pending' => $req > 0, 'groups' => ['dirs' => [], 'docker' => [], 'units' => [], 'ha' => []], 'noread' => [], 'dirs' => '', 'new' => 0];
+        }
+        $have = [];
+        foreach (q('SELECT kind, spec FROM log_sources WHERE host_id = ?', [$hostId]) as $s) {
+            $have[] = [(string) $s['kind'], (string) $s['spec']];
+        }
+        $isHave = static function (string $kind, string $spec, array $paths = []) use ($have): bool {
+            foreach ($have as [$k, $sp]) {
+                if ($k === $kind && $sp === $spec) {
+                    return true;
+                }
+                if ($kind === 'file' && $k === 'file' && $paths) {
+                    $all = true;
+                    foreach ($paths as $p) {
+                        $all = $all && fnmatch($sp, $p, FNM_PATHNAME);
+                    }
+                    if ($all) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+        $new = array_flip((array) ($scan['new'] ?? []));
+        $roots = array_values(array_filter(array_map(static fn($d) => rtrim($d, '/'), preg_split('/\s+/', (string) ($scan['dirs'] ?? '')) ?: [])));
+        $quiet = time() - 30 * 86400;
+        // Bestanden per map
+        $byDir = [];
+        foreach ((array) $scan['files'] as [$p, $sz, $mt]) {
+            $byDir[dirname((string) $p)][] = ['path' => (string) $p, 'size' => (int) $sz, 'mtime' => (int) $mt];
+        }
+        $dirs = [];
+        foreach ($byDir as $dir => $files) {
+            usort($files, static fn($a, $b) => strcmp($a['path'], $b['path']));
+            $isRoot = in_array($dir, $roots, true);
+            if ($isRoot || count($files) === 1) {
+                foreach ($files as $f) {
+                    $dirs[] = ['kind' => 'file', 'spec' => $f['path'], 'name' => basename($f['path']), 'size' => $f['size'], 'mtime' => $f['mtime'], 'folder' => false,
+                        'rec' => (bool) preg_match(self::REC_FILE, $f['path']), 'have' => $isHave('file', $f['path'], [$f['path']]), 'new' => isset($new['file:' . $f['path']]),
+                        'quiet' => $f['mtime'] < $quiet];
+                }
+                continue;
+            }
+            $allLog = !array_filter($files, static fn($f) => !str_ends_with($f['path'], '.log'));
+            $spec = $dir . ($allLog ? '/*.log' : '/*');
+            $mt = max(array_column($files, 'mtime'));
+            $dirs[] = ['kind' => 'file', 'spec' => $spec, 'name' => basename($dir), 'size' => array_sum(array_column($files, 'size')), 'mtime' => $mt, 'folder' => true,
+                'files' => $files, 'rec' => (bool) preg_match(self::REC_FILE, $dir . '/'), 'have' => $isHave('file', $spec, array_column($files, 'path')),
+                'new' => (bool) array_filter($files, static fn($f) => isset($new['file:' . $f['path']])), 'quiet' => $mt < $quiet];
+        }
+        // Aanbevolen bovenaan, stil onderaan, verder op naam
+        $sort = static function (array &$list): void {
+            usort($list, static fn($a, $b) => [$a['quiet'], !$a['rec'], mb_strtolower($a['name'])] <=> [$b['quiet'], !$b['rec'], mb_strtolower($b['name'])]);
+        };
+        $sort($dirs);
+        $docker = [];
+        foreach ((array) $scan['docker'] as [$n, $img, $st, $eng]) {
+            $docker[] = ['kind' => 'docker', 'spec' => $n, 'name' => $n, 'image' => $img, 'state' => $st, 'engine' => $eng, 'rec' => (bool) preg_match(self::REC_DOCKER, $n . ' ' . $img),
+                'have' => $isHave('docker', $n), 'new' => isset($new['docker:' . $n]), 'quiet' => !in_array(strtolower($st), ['running', 'up', ''], true) && !str_starts_with(strtolower($st), 'up')];
+        }
+        $sort($docker);
+        $units = [['kind' => 'journal', 'spec' => '', 'name' => t('Hele journal'), 'lines' => array_sum(array_column((array) $scan['units'], 1)), 'rec' => false,
+            'have' => $isHave('journal', ''), 'new' => false, 'quiet' => false]];
+        foreach ((array) $scan['units'] as [$u, $n]) {
+            $units[] = ['kind' => 'unit', 'spec' => $u, 'name' => $u, 'lines' => (int) $n, 'rec' => (bool) preg_match(self::REC_UNIT, $u), 'have' => $isHave('unit', $u),
+                'new' => isset($new['unit:' . $u]), 'quiet' => false];
+        }
+        if (count($units) === 1 && !$scan['units']) {
+            $units = [];
+        }
+        $journal = $units ? array_shift($units) : null;
+        usort($units, static fn($a, $b) => [!$a['rec'], -$a['lines']] <=> [!$b['rec'], -$b['lines']]);
+        if ($journal) {
+            $units[] = $journal;
+        }
+        $ha = [];
+        foreach ((array) $scan['ha'] as [$s, $n, $st]) {
+            $ha[] = ['kind' => 'ha', 'spec' => $s, 'name' => $n, 'state' => $st, 'rec' => in_array($s, ['core', 'supervisor'], true), 'have' => $isHave('ha', $s),
+                'new' => isset($new['ha:' . $s]), 'quiet' => $st !== 'started'];
+        }
+        $groups = ['dirs' => $dirs, 'docker' => $docker, 'units' => $units, 'ha' => $ha];
+        $nNew = 0;
+        foreach ($groups as $g) {
+            $nNew += count(array_filter($g, static fn($i) => $i['new'] && !$i['have']));
+        }
+        return ['at' => $scan['updated_at'], 'pending' => $req > (int) ($scan['req'] ?? 0), 'groups' => $groups, 'noread' => (array) ($scan['noread'] ?? []),
+            'dirs' => (string) ($scan['dirs'] ?? ''), 'new' => $nNew];
     }
 
     // ------------------------------------------------------------------ zoeken (1.211.0)

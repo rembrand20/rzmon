@@ -2432,6 +2432,18 @@ De agent verzamelt de logs die je per server kiest en stuurt ze naar RzMon, waar
 - **Niveau**: alles, info en erger, warning en erger, of alleen errors. De agent filtert dat al op de server, zodat er minder verstuurd wordt.
 - Per bron zie je hoeveel regels er vandaag binnenkwamen, de status (✓, of de fout: bv. *valt buiten de toegestane mappen*) en met **≡** de laatste regels.
 
+**Gevonden op deze server** (vanaf 1.213.0, agent 1.84.0): in dezelfde kaart staat wat de agent op de server vond, zodat je geen paden hoeft te typen.
+- Vier tabbladen:
+  - **📁 Logmappen**: de bestanden en mappen in `LOG_DIRS` (tot 3 mappen diep), met grootte en laatste wijziging. Een map met meer bestanden wordt één bron (`map/*.log`, of `map/*` als er ook andere bestanden in staan). Met ▸ klap je hem open om losse bestanden te kiezen.
+  - **🐳 Containers**: Docker en Podman, ook gestopte.
+  - **⚙️ Services**: systemd-services die de afgelopen 24 uur iets in de journal schreven (met het aantal regels), en de hele journal.
+  - **🏠 Home Assistant**: in de add-on de host, Core, Supervisor en de add-ons.
+- **Aanbevolen** (auth.log, secure, syslog, messages, fail2ban, webservers als nginx, Apache, SWAG, Caddy en Traefik, Vaultwarden en sshd) staat bovenaan en is al aangevinkt. Er gaat niets vanzelf aan: jij klikt op **＋ N toevoegen**.
+- Labels: **✓ verzameld** (staat al bij de bronnen, ook als je een eigen patroon gebruikt), **nieuw** (sinds de vorige keer gevonden) en grijs voor stil (30 dagen niets) of gestopt, onderaan.
+- Overgeslagen: gedraaide bestanden (`.1`, `.gz`, `-20250101`), binaire bestanden (`wtmp`, `btmp`, `lastlog`) en de map `journal` (die staat bij Services). Mappen zonder leesrechten worden genoemd.
+- **Wanneer**: de agent zoekt één keer per dag vanzelf, en meteen met **🔄 Opnieuw zoeken**. De lijst komt dan bij het volgende of het rapport daarna binnen, meestal binnen een of twee minuten. De pagina wacht er zelf op.
+- De agent stuurt alleen namen, groottes en tijden, nooit wat er in de logs staat. Een log in een andere map: zet die op de server in `LOG_DIRS` (`/etc/default/rzmon-agent`) en klik op Opnieuw zoeken. RzMon kan zelf geen mappen openzetten.
+
 **Veiligheid:**
 - De agent leest alleen bestanden **binnen de mappen die je op de server zelf toestaat**: `LOG_DIRS="/var/log"` in `/etc/default/rzmon-agent` (meerdere mappen met een spatie). Zo kan niemand via RzMon andere bestanden van de server opvragen.
 - De logs gaan **altijd versleuteld** naar RzMon (met de sleutel van de agent; onversleuteld wordt geweigerd), en **gecomprimeerd** (gzip).

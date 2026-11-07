@@ -7944,6 +7944,105 @@ const LS_PRESETS = () => [
 const lsLvlText = (n) => (LS_LEVELS().find(([k]) => k === +n) || [0, '?'])[1];
 const LS_LVL_PILL = ['debug', 'info', 'warning', 'error', 'critical'];
 
+// ---------------------------------------------------------------- 1.213.0: logs die de agent op de server vond, om uit te kiezen
+const LF = { tab: 'dirs', timer: 0, waitUntil: 0, sel: new Set(), host: 0 };
+const LF_TABS = () => [['dirs', '📁', L('Logmappen')], ['docker', '🐳', L('Containers')], ['units', '⚙️', L('Services')], ['ha', '🏠', 'Home Assistant']];
+const lfAgo = (ts) => { const s = Math.max(0, Date.now() / 1000 - ts); return s < 90 ? L('nu') : s < 3600 ? L('{n} min', { n: Math.round(s / 60) }) : s < 86400 ? L('{n} uur', { n: Math.round(s / 3600) }) : s < 60 * 86400 ? L('{n} dagen', { n: Math.round(s / 86400) }) : L('{n} mnd', { n: Math.round(s / (30 * 86400)) }); };
+
+async function lfLoad(h, keepChecks = false) {
+  const box = $('#ls-found');
+  if (!box) return;
+  clearTimeout(LF.timer);
+  let d;
+  try { d = await api('log_found', null, { host_id: h.id }); } catch (ex) { box.innerHTML = `<p class="bad small">${esc(ex.message)}</p>`; return; }
+  if (!box.isConnected) return;
+  const g = d.groups;
+  // Wat aangevinkt is, over alle tabbladen heen; de eerste keer de aanbevolen logs die nog niet verzameld worden
+  if (!keepChecks || LF.host !== h.id) {
+    LF.host = h.id;
+    LF.sel = new Set(Object.values(g).flat().filter((i) => i.rec && !i.have).map((i) => i.kind + ':' + i.spec));
+  }
+  const names = new Map();
+  Object.values(g).flat().forEach((i) => { names.set(i.kind + ':' + i.spec, i); (i.files || []).forEach((f) => names.set('file:' + f.path, { name: f.path.split('/').pop() })); });
+  if (!g[LF.tab] || (!g[LF.tab].length && g.dirs.length)) LF.tab = 'dirs';
+  const key = (it) => it.kind + ':' + it.spec;
+  const tag = (it) => [it.have ? `<span class="lf-tag have">✓ ${L('verzameld')}</span>` : '', it.rec && !it.have ? `<span class="lf-tag rec">${L('aanbevolen')}</span>` : '',
+    it.new && !it.have ? `<span class="lf-tag new">${L('nieuw')}</span>` : '', it.quiet ? `<span class="lf-tag">${it.kind === 'docker' || it.kind === 'ha' ? esc(it.state || L('gestopt')) : L('stil sinds {t}', { t: lfAgo(it.mtime) })}</span>` : ''].join(' ');
+  const cb = (it, sub = '') => (it.have ? '<span></span>' : `<input type="checkbox" data-lf="${esc(sub || key(it))}" ${LF.sel.has(sub || key(it)) ? 'checked' : ''} aria-label="${esc(L('{n} toevoegen', { n: it.name }))}">`);
+  const row = (it) => {
+    let sub = '', info = '';
+    if (it.kind === 'file') info = it.folder ? `${esc(it.spec)} · ${it.files.length === 1 ? L('1 bestand') : L('{n} bestanden', { n: it.files.length })}` : esc(it.spec);
+    else if (it.kind === 'docker') info = `${esc(it.engine)} · ${esc(it.image)} · ${esc(it.state)}`;
+    else if (it.kind === 'unit' || it.kind === 'journal') info = `journal · ${L('{n} regels in 24 uur', { n: dec(it.lines) })}`;
+    else info = `ha:${esc(it.spec)} · ${esc(it.state)}`;
+    if (it.folder) {
+      sub = it.files.map((f) => `<div class="lf-it lf-sub" data-lf-of="${esc(it.spec)}" hidden>${it.have ? '<span></span>' : `<input type="checkbox" data-lf="file:${esc(f.path)}" ${LF.sel.has('file:' + f.path) ? 'checked' : ''} aria-label="${esc(f.path)}">`}
+        <span class="lf-nm"><span class="lf-p">${esc(f.path.split('/').pop())}</span></span><span class="lf-sz">${fmtBytes(f.size)}</span><span class="lf-tm">${esc(lfAgo(f.mtime))}</span></div>`).join('');
+    }
+    return `<div class="lf-it${it.quiet ? ' dim' : ''}">${cb(it)}
+      ${it.folder ? `<button type="button" class="lf-tw" data-lf-x="${esc(it.spec)}" aria-expanded="false" aria-label="${esc(L('Bestanden tonen'))}">▸</button>` : '<span></span>'}
+      <span class="lf-nm"><b>${it.folder ? '📁 ' : ''}${esc(it.name)}</b> ${tag(it)}<span class="lf-p">${info}</span></span>
+      <span class="lf-sz">${it.size !== undefined ? fmtBytes(it.size) : ''}</span><span class="lf-tm">${it.mtime ? esc(lfAgo(it.mtime)) : ''}</span></div>${sub}`;
+  };
+  const items = g[LF.tab] || [];
+  const waiting = d.pending && Date.now() < LF.waitUntil + 1000;
+  box.innerHTML = `<div class="lf-head"><b>🔍 ${L('Gevonden op deze server')}</b>
+      <span class="muted small">${d.at ? L('gezocht {t}', { t: ago(d.at) }) : L('nog niet gezocht')}${d.new ? ' · ' + L('{n} nieuw', { n: d.new }) : ''}</span><span class="lp-sp"></span>
+      <button type="button" class="btn small-btn" id="lf-scan" ${waiting ? 'disabled' : ''}>${waiting ? '⏳ ' + L('Wacht op de agent…') : '🔄 ' + L('Opnieuw zoeken')}</button></div>
+    ${d.at ? `<div class="seg lf-tabs" role="tablist">${LF_TABS().map(([k, ic, t]) => `<button type="button" class="seg-btn${k === LF.tab ? ' active' : ''}" data-lf-tab="${k}" role="tab" ${g[k].length ? '' : 'disabled'}>${ic} ${esc(t)} <b>${g[k].length}</b></button>`).join('')}</div>
+      <div class="lf-list">${items.length ? items.map(row).join('') : `<p class="muted small lf-empty">${L('Niets gevonden.')}</p>`}</div>
+      <div class="lf-foot"><button type="button" class="btn primary small-btn" id="lf-add" disabled>＋ ${L('Toevoegen')}</button><span class="muted small" id="lf-sel"></span></div>
+      ${LF.tab === 'dirs' ? `<p class="muted small">${L('Overgeslagen: gedraaide bestanden (.1, .gz), binaire bestanden (wtmp, btmp, lastlog) en de map journal (die staat bij Services).')}</p>` : ''}
+      ${LF.tab === 'dirs' && d.noread.length ? `<p class="warn-txt small">${L('Geen leesrechten: {d}', { d: d.noread.map(esc).join(', ') })}</p>` : ''}
+      ${LF.tab === 'dirs' ? `<div class="lf-note small"><b>${L('Een log in een andere map?')}</b> ${L('De agent kijkt alleen in de toegestane mappen (LOG_DIRS, nu {d}). Zet een andere map op de server erbij in /etc/default/rzmon-agent en klik daarna op Opnieuw zoeken:', { d: `<code>${esc(d.dirs || '/var/log')}</code>` })}<pre class="code">LOG_DIRS="${esc(d.dirs || '/var/log')} /opt/myapp/logs"</pre></div>` : ''}`
+    : `<p class="muted small">${d.pending ? L('De agent zoekt bij zijn volgende rapport (meestal binnen een minuut). Werkt het niet, dan is de agent misschien te oud: bijwerken kan bij Versie hierboven.') : L('De agent heeft nog niet gezocht. Klik op Opnieuw zoeken, of wacht tot hij het vanzelf doet (één keer per dag).')}</p>`}`;
+  const sel = () => {
+    const n = LF.sel.size;
+    const btn = $('#lf-add', box);
+    if (!btn) return;
+    btn.disabled = !n;
+    btn.textContent = '＋ ' + (n ? L('{n} toevoegen', { n }) : L('Toevoegen'));
+    $('#lf-sel', box).textContent = n ? [...LF.sel].map((k) => (names.get(k) || {}).name || k.split('/').pop()).slice(0, 8).join(', ') + (n > 8 ? ' …' : '') + ' · ' + L('Ze gaan mee bij het volgende rapport van de agent.') : '';
+  };
+  sel();
+  box.onchange = (e) => {
+    const c = e.target.closest('[data-lf]');
+    if (!c) return;
+    if (c.checked) LF.sel.add(c.dataset.lf); else LF.sel.delete(c.dataset.lf);
+    sel();
+  };
+  box.onclick = async (e) => {
+    const t = e.target.closest('[data-lf-tab]');
+    if (t) { LF.tab = t.dataset.lfTab; return lfLoad(h, true); }
+    const x = e.target.closest('[data-lf-x]');
+    if (x) {
+      const open = x.getAttribute('aria-expanded') !== 'true';
+      x.setAttribute('aria-expanded', String(open)); x.textContent = open ? '▾' : '▸';
+      $$('[data-lf-of]', box).filter((r) => r.dataset.lfOf === x.dataset.lfX).forEach((r) => { r.hidden = !open; });
+      return;
+    }
+    if (e.target.closest('#lf-scan')) {
+      try { await api('log_scan', { host_id: h.id }); LF.waitUntil = Date.now() + 180000; lfLoad(h, true); } catch (ex) { toast(ex.message, 'err'); }
+      return;
+    }
+    if (e.target.closest('#lf-add')) {
+      const pick = [...LF.sel].map((k) => {
+        const [kind, ...rest] = k.split(':'), spec = rest.join(':');
+        const it = names.get(k);
+        return { kind, spec, name: it ? (kind === 'unit' ? it.name.replace(/\.service$/, '') : it.name) : spec.split('/').pop() };
+      });
+      try {
+        const r = await api('log_found_add', { host_id: h.id, items: pick });
+        toast(r.errors.length ? r.errors.join('; ') : L('{n} toegevoegd; de agent pakt het binnen een minuut op', { n: r.added }), r.errors.length ? 'err' : '');
+        LF.host = 0;
+        amLogs(h);
+      } catch (ex) { toast(ex.message, 'err'); }
+    }
+  };
+  // Wachten op de agent: elke 8 seconden kijken, hooguit 3 minuten
+  if (waiting) LF.timer = setTimeout(() => { if (box.isConnected) lfLoad(h, true); }, 8000);
+}
+
 async function amLogs(h) {
   const box = $('#am-logs');
   if (!box) return;
@@ -7982,9 +8081,10 @@ async function amLogs(h) {
     <p class="small muted lg-note">🔒 ${L('De agent leest alleen bestanden binnen de mappen die je óp de server toestaat: <code>LOG_DIRS="/var/log"</code> in <code>/etc/default/rzmon-agent</code> (meerdere mappen met een spatie). Een nieuwe bron begint bij het einde: oude regels worden niet ingelezen.')}</p>
     ${d.sources.length ? `<div class="table-scroll"><table class="vuln-table lg-table"><thead><tr><th>${L('Aan')}</th><th>${L('Bron')}</th><th>${L('Soort')}</th><th>${L('Niveau')}</th>
       <th class="num">${L('Regels vandaag')}</th><th class="num">${L('Vandaag')}</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
-      : `<p class="muted">${L('Nog geen bronnen. Voeg er hieronder een toe, of kies een voorstel.')}</p>`}
+      : `<p class="muted">${L('Nog geen bronnen. Kies hieronder wat de agent op de server vond, of voeg er zelf een toe.')}</p>`}
+    <div class="lf-box" id="ls-found"><p class="muted small">${L('Laden…')}</p></div>
     <div class="lg-form" id="ls-form">
-      <div class="lg-form-h"><b id="ls-form-t">＋ ${L('Bron toevoegen')}</b><span class="lg-presets">${LS_PRESETS().map(([n, k, sp], i) => `<button type="button" class="dchip" data-ls-preset="${i}">${esc(n)}</button>`).join('')}</span></div>
+      <div class="lg-form-h"><b id="ls-form-t">＋ ${L('Zelf een bron toevoegen')}</b><span class="lg-presets">${LS_PRESETS().map(([n, k, sp], i) => `<button type="button" class="dchip" data-ls-preset="${i}">${esc(n)}</button>`).join('')}</span></div>
       <input type="hidden" name="id" value="">
       <div class="lg-fields">
         <label>${L('Soort')}<select name="kind">${Object.entries(kinds).map(([k, [t]]) => `<option value="${k}">${esc(t)}</option>`).join('')}</select></label>
@@ -8008,6 +8108,7 @@ async function amLogs(h) {
   kindHint();
   $('#ls-cancel', box).onclick = resetForm;
   if ($('#ls-find', box)) $('#ls-find', box).onclick = () => openLogsFor(h);
+  lfLoad(h);   // 1.213.0: gevonden op de server
   const save = async () => {
     try {
       await api('log_source_save', { host_id: h.id, id: +F('id').value || 0, kind: F('kind').value, spec: F('spec').value, name: F('name').value, level: +F('level').value, enabled: 1 });

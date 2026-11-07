@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.213.0**: **logs vinden op de server**: de agent laat zien welke logs, containers en services er zijn, en je vinkt ze aan.
 - **1.212.0**: **vaste zoekacties op de logs**: een melding bij te veel (of geen) treffers, met een proef op de laatste 24 uur.
 - **1.211.0**: de pagina **Logs**: zoeken in de logs van al je servers, met een grafiek, filters en de regels rond elke treffer.
 - **1.210.0**: **logs verzamelen** per server: gecomprimeerd en versleuteld naar RzMon, gemaskeerd en gecomprimeerd bewaard.
 - **1.209.0**: een **bekeken storing gaat uit Nu open** naar de dag waarop hij begon, en komt terug als het erger wordt.
-- **1.208.0**: de **golf bij een open storing stopt** zodra iemand hem bekijkt, en komt terug als het erger wordt.
+
+## 1.213.0 – 2026-11-07
+### Nieuw
+- **🔍 Logs vinden op de server** (agent 1.84.0 nodig): in de Agent Manager, kaart **Logs**, staat wat de agent op de server vond. Vier tabbladen: **logmappen** (bestanden en mappen in `LOG_DIRS`, met grootte en laatste wijziging), **containers** (Docker en Podman), **services** (wat de afgelopen 24 uur in de journal schreef) en **Home Assistant** (Core, Supervisor, add-ons). Vink aan wat je wilt en klik op **＋ toevoegen**; je hoeft geen paden meer te typen.
+- Een map met meer bestanden wordt één bron (`map/*.log`); openklappen om losse bestanden te kiezen. Gedraaide en binaire bestanden worden overgeslagen.
+- **Aanbevolen** logs (auth.log, syslog, fail2ban, webservers, Vaultwarden, sshd) staan bovenaan en zijn al aangevinkt; er gaat niets vanzelf aan. Labels **✓ verzameld** en **nieuw**, en stille of gestopte logs grijs onderaan.
+- De agent zoekt één keer per dag vanzelf, en meteen met **🔄 Opnieuw zoeken**. Hij stuurt alleen namen, groottes en tijden, nooit de inhoud, en kijkt alleen binnen `LOG_DIRS`.
+- Nieuwe agent 1.84.0.
 
 ## 1.212.1 – 2026-11-07
 ### Opgelost
