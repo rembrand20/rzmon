@@ -65,7 +65,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
 </head>
 <?php $sidePrefs = json_decode((string) ($prefsJson ?? ''), true) ?: []; $sideW = (int) ($sidePrefs['side_w'] ?? 0);
 // 1.201.0: Liquid Glass en de laadanimatie, per account (meteen goed bij het laden, zonder flits)
-$bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '', ($sidePrefs['mon_glass'] ?? '') === 'on' ? 'lg' : '', ($sidePrefs['mon_loader'] ?? '') === 'off' ? 'no-loader' : '']); ?>
+$bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '', ($sidePrefs['mon_glass'] ?? '') === 'on' ? 'lg' : '', ($sidePrefs['mon_loader'] ?? '') === 'off' ? 'no-loader' : '', ($sidePrefs['mon_vivid'] ?? '') === 'on' ? 'lg-vivid' : '']); ?>
 <body<?= $bodyCls ? ' class="' . implode(' ', $bodyCls) . '"' : '' ?><?= $sideW >= 180 && $sideW <= 380 ? ' style="--side-w:' . $sideW . 'px"' : '' ?> data-role="<?= htmlspecialchars($role) ?>"<?php if ($user && !$mustChange && !$resetToken): ?> data-prefs="<?= htmlspecialchars($prefsJson ?? 'local') ?>"<?php endif; ?>>
 <?php if ($resetToken): ?>
   <main class="login-wrap"><?= Brand::hudBg() ?>
@@ -156,13 +156,15 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 <?php else: ?>
   <header class="topbar app-top">
     <div class="brand"><?= Brand::logo() ?> <a class="version" href="https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md" target="_blank" rel="noopener" title="<?= th('RzSense-versie – bekijk wat er nieuw is') ?>">v<?= htmlspecialchars(RZMON_VERSION) ?></a>
-      <button type="button" class="update-badge need-admin" id="update-badge" hidden title="<?= th('Er is een nieuwe versie van RzSense: klik om bij te werken') ?>"></button></div>
+      <button type="button" class="update-badge need-admin" id="update-badge" hidden title="<?= th('Er is een nieuwe versie van RzSense: klik om bij te werken') ?>"></button>
+      <!-- 1.216.0: levend statuslampje (wat er nu speelt), klik = Monitoring -->
+      <button type="button" class="sb-status" id="sb-status" hidden><i aria-hidden="true"></i><span class="sb-t"></span><small><?= th('live') ?></small></button></div>
     <nav class="tabs main-tabs" role="tablist" id="main-tabs">
       <span class="tab-ind" aria-hidden="true"></span>
       <button class="tab mobile-only" data-tab="mds" role="tab" title="<?= th('Mobile device summary') ?>"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg><span class="tab-badge" id="mds-badge" hidden></span></span><span class="tab-lbl">mDS</span></button>
       <span class="tab-group side-only" role="presentation"><?= th('Overzicht') ?></span>
       <button class="tab active" data-tab="home" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14l4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0"/><circle cx="12" cy="14" r="1.6"/></svg></span><span class="tab-lbl has-s"><?= th('Dashboard') ?></span><span class="tab-lbl-s"><?= th('Start') ?></span></button>
-      <button class="tab" data-tab="dashboard" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span class="tab-badge" id="dash-badge" hidden></span></span><span class="tab-lbl has-s"><?= th('Monitoring') ?></span><span class="tab-lbl-s"><?= th('Checks') ?></span></button>
+      <button class="tab" data-tab="dashboard" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span class="tab-badge" id="dash-badge" hidden></span></span><span class="tab-lbl has-s"><?= th('Monitoring') ?></span><span class="tab-lbl-s"><?= th('Monitor') ?></span></button>
       <button class="tab" data-tab="alerts" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="tab-badge" id="alerts-badge" hidden></span></span><span class="tab-lbl"><?= th('Meldingen') ?></span></button>
       <span class="tab-group side-only" role="presentation"><?= th('Beveiliging') ?></span>
       <button class="tab" data-tab="ids" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><span class="tab-badge" id="ids-badge" hidden></span></span><span class="tab-lbl">IDS</span></button>
@@ -193,6 +195,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <span class="acct-name"><?= $hasAccount ? htmlspecialchars($uname) : th('Lokaal netwerk') ?></span> <span class="acct-caret">▾</span></button>
         <div class="acct-menu" id="acct-menu" role="menu" hidden>
           <div class="acct-who"><b><?= $hasAccount ? htmlspecialchars($uname) : '🏠 ' . th('Lokaal netwerk') ?></b>
+            <a class="acct-ver muted small" href="https://github.com/rembrand20/rzmon/blob/main/CHANGELOG.md" target="_blank" rel="noopener">RzSense v<?= htmlspecialchars(RZMON_VERSION) ?> · <?= th('wat is er nieuw?') ?></a>
             <span class="role-tag r-<?= htmlspecialchars($role) ?>"><?= th(ROLE_LABELS[$role] ?? $role) ?></span>
             <div class="muted small"><?= $hasAccount ? th('Ingelogd vanaf {ip}', ['ip' => client_ip()]) : th('Ingelogd zonder wachtwoord omdat je op het lokale netwerk zit') ?></div></div>
           <?php if ($hasAccount): ?><button type="button" role="menuitem" data-acct="account">👤 <?= th('Mijn account') ?></button><?php endif; ?>
@@ -211,7 +214,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
   <button type="button" class="cc-tvexit" id="cc-tvexit" hidden><?= th('✕ TV-modus uit') ?></button>
   <main class="container">
     <div class="iso-banner" id="iso-banner" role="alert" hidden></div><!-- 1.172.0: server in isolatie -->
-    <nav class="crumbs" id="crumbs" aria-label="<?= th('Kruimelpad') ?>" hidden></nav><!-- 1.199.0: waar ben je, met elk stuk klikbaar -->
+    <header class="crumbs ph" id="crumbs" hidden></header><!-- 1.199.0 kruimelpad; 1.216.0: paginakop met titel, samenvatting en een altijd klikbaar pad -->
     <!-- 1.194.0: mDS, alleen op een telefoon -->
     <section id="tab-mds" class="tab-panel" aria-label="<?= th('Mobile device summary') ?>" hidden><div id="mds" class="mds"></div></section>
     <section id="tab-home" class="tab-panel" aria-label="<?= th('Dashboard') ?>">
@@ -237,10 +240,10 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       </div>
       <!-- 1.169.0: Checks (zoals altijd) of Beschikbaarheid per groep -->
       <div class="subtabs mon-tabs" role="tablist" aria-label="<?= th('Monitoring') ?>" id="mon-tabs">
-        <button type="button" class="seg-btn active" data-msub="checks" role="tab" aria-selected="true">📋 <?= th('Monitoring') ?></button>
-        <button type="button" class="seg-btn" data-msub="cont" role="tab" aria-selected="false">📦 <?= th('Containers') ?></button>
-        <button type="button" class="seg-btn" data-msub="paths" role="tab" aria-selected="false">🛣️ <?= th('Netwerkpaden') ?></button>
-        <button type="button" class="seg-btn" data-msub="avail" role="tab" aria-selected="false">📶 <?= th('Beschikbaarheid') ?></button>
+        <button type="button" class="seg-btn active" data-msub="checks" role="tab" aria-selected="true"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><?= th('Monitoring') ?></button>
+        <button type="button" class="seg-btn" data-msub="cont" role="tab" aria-selected="false"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg><?= th('Containers') ?></button>
+        <button type="button" class="seg-btn" data-msub="paths" role="tab" aria-selected="false"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 6h7a4 4 0 0 1 0 8h-4a4 4 0 0 0 0 8h7"/></svg><?= th('Netwerkpaden') ?></button>
+        <button type="button" class="seg-btn" data-msub="avail" role="tab" aria-selected="false"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V14M10 20V9M16 20V12M22 20V5"/></svg><?= th('Beschikbaarheid') ?></button>
       </div>
       <div class="pg-tools" data-pgtools="mon"></div>
       <div class="pgrid" data-pgrid="mon">
@@ -1726,6 +1729,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         </div>
         <label class="switch"><input type="checkbox" data-mon-pref="glow"><span></span> <span><?= t('<b>Rode gloed bij critical</b>: een server met een critical check pulseert zacht') ?> <span class="hint"><?= th('(voor je account)') ?></span></span></label>
         <label class="switch"><input type="checkbox" data-mon-pref="glass"><span></span> <span><?= t('<b>Liquid Glass</b>: kaarten, menu\'s en vensters als glas, met licht dat er zacht achter beweegt') ?> <span class="hint"><?= th('(voor je account; licht en donker blijven werken)') ?></span></span></label>
+        <label class="switch"><input type="checkbox" data-mon-pref="vivid"><span></span> <span><?= t('<b>Levendige kleuren</b> bij Liquid Glass: blauw, turquoise en paars licht en sterkere glans (uit = rustig, alleen blauw)') ?> <span class="hint"><?= th('(voor je account)') ?></span></span></label>
         <label class="switch"><input type="checkbox" data-mon-pref="loader"><span></span> <span><?= t('<b>Laadanimatie</b>: bij het openen lichten je servers een voor een op, en overal waar je moet wachten loopt een hartslag') ?> <span class="hint"><?= th('(voor je account; met "minder beweging" stilstaand)') ?></span></span></label>
         <label class="switch"><input type="checkbox" data-mon-pref="anim"><span></span> <span><?= t('<b>Live animaties</b>: getallen lopen naar de nieuwe waarde en een statuswissel licht even op') ?> <span class="hint"><?= th('(voor je account; staat je systeem op "minder beweging", dan altijd uit)') ?></span></span></label>
         <h3 class="set-sub">🛡️ <?= th('IDS') ?></h3>

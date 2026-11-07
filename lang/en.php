@@ -8816,4 +8816,9 @@ return [
     'Nog geen bronnen. Kies hieronder wat de agent op de server vond, of voeg er zelf een toe.' => 'No sources yet. Choose below from what the agent found on the server, or add one yourself.',
     'Zelf een bron toevoegen' => 'Add a source yourself',
     'geen lijst' => 'no list',
+    'Monitor' => 'Monitor',
+    'wat is er nieuw?' => 'what\'s new?',
+    '<b>Levendige kleuren</b> bij Liquid Glass: blauw, turquoise en paars licht en sterkere glans (uit = rustig, alleen blauw)' => '<b>Vivid colours</b> with Liquid Glass: blue, teal and purple light and a stronger shine (off = calm, blue only)',
+    '{c} critical, {w} warning, nog niet bevestigd: klik voor Monitoring' => '{c} critical, {w} warning, not yet acknowledged: click for Monitoring',
+    'Alle checks zijn in orde' => 'All checks are fine',
 ];

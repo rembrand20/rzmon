@@ -8,11 +8,24 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.216.0**: een **vernieuwde zijbalk** met statuslampje, een **paginakop met klikbaar pad** en **rustiger Liquid Glass**.
 - **1.215.0**: een **bewegende HUD-achtergrond op de inlogpagina**, ook mooi op een telefoon.
 - **1.214.0**: **Rz//Sense AI**: een nieuwe naam en een nieuw logo, een ronde rand om de inhoud, en Monitoring heet ook zo.
 - **1.213.0**: **logs vinden op de server**: de agent laat zien welke logs, containers en services er zijn, en je vinkt ze aan.
 - **1.212.0**: **vaste zoekacties op de logs**: een melding bij te veel (of geen) treffers, met een proef op de laatste 24 uur.
-- **1.211.0**: de pagina **Logs**: zoeken in de logs van al je servers, met een grafiek, filters en de regels rond elke treffer.
+
+## 1.216.0 – 2026-11-07
+### Nieuw
+- **Zijbalk vernieuwd**:
+  - onder het logo een **levend statuslampje**: rood met het aantal open problemen bij critical, oranje bij alleen warnings, groen met *Alles in orde*; klik erop voor Monitoring;
+  - de slogan staat alleen nog op de inlogpagina, het versienummer in het accountmenu (met *wat is er nieuw?*);
+  - de actieve knop heeft een dun cyaan streepje en een lichte achtergrond; de tellers staan rechts in de rij;
+  - account, zoeken en inklappen staan onderaan op één rij;
+  - ingeklapt: de tellers blijven op de iconen en een tooltip toont de naam en het aantal;
+  - op een telefoon een opgeruimde kop (lampje met aantal) en *Monitor* in de onderbalk.
+- **Paginakop**: bovenaan elke pagina een altijd klikbaar pad (bv. *Start › Monitoring › Containers* of *Start › Instellingen › Meldingen › Kanalen*), een grote titel en op Monitoring een korte samenvatting (*26 checks · 8 servers · 18 open*) met rechts het live-lampje. Filters die aan staan, staan er als wegklikbare labels naast. Ook op een telefoon.
+- **Liquid Glass is rustiger**: de achtergrond in één kleurfamilie (blauw) en zachter, het glas versterkt de kleuren niet meer, de zijbalk is neutraal rookglas en de glans is matter. Wil je het oude, kleurrijke glas terug, zet dan bij je account *Levendige kleuren* aan.
+- Kaarten met een probleem hebben een dun lijntje bovenaan in plaats van een volle rode rand; de subtabbladen van Monitoring hebben lijn-iconen in plaats van emoji.
 
 ## 1.215.0 – 2026-11-07
 ### Nieuw

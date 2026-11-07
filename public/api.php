@@ -4403,7 +4403,7 @@ switch ($action) {
         }
         $in = input();
         $key = (string) ($in['key'] ?? '');
-        if (!in_array($key, ['open_mode', 'fx', 'fxviews', 'dash_filter', 'alert_filter', 'vuln_open', 'theme', 'side', 'dash', 'dash_layout', 'dash_seen', 'mon_glow', 'mon_anim', 'mon_glass', 'mon_loader', 'layout', 'pages', 'ids_modern', 'af_motion', 'ui', 'side_w'], true)) {
+        if (!in_array($key, ['open_mode', 'fx', 'fxviews', 'dash_filter', 'alert_filter', 'vuln_open', 'theme', 'side', 'dash', 'dash_layout', 'dash_seen', 'mon_glow', 'mon_anim', 'mon_glass', 'mon_loader', 'mon_vivid', 'layout', 'pages', 'ids_modern', 'af_motion', 'ui', 'side_w'], true)) {
             out(['error' => t('Onbekende voorkeur')], 422);
         }
         $prefs = json_decode((string) q('SELECT prefs FROM users WHERE id = ?', [$user['id']])->fetchColumn(), true) ?: [];
@@ -4412,7 +4412,7 @@ switch ($action) {
             'theme' => in_array($in['value'] ?? '', ['light', 'dark'], true) ? $in['value'] : 'auto',   // 1.135.0: thema per gebruiker
             'side' => ($in['value'] ?? '') === 'mini' ? 'mini' : 'full',   // 1.150.0: zijbalk ingeklapt (alleen iconen)
             'dash' => ($in['value'] ?? '') === 'cc' ? 'cc' : 'classic',
-            'mon_glow', 'mon_anim', 'mon_glass', 'mon_loader', 'ids_modern' => ($in['value'] ?? '') === 'off' ? 'off' : 'on',
+            'mon_glow', 'mon_anim', 'mon_glass', 'mon_loader', 'mon_vivid', 'ids_modern' => ($in['value'] ?? '') === 'off' ? 'off' : 'on',
             'af_motion' => (string) max(0, min(2, (int) ($in['value'] ?? 2))),
             'side_w' => ($w = (int) ($in['value'] ?? 0)) >= 180 && $w <= 380 ? $w : 0,   // 1.167.0: breedte van de zijbalk (0 = standaard)   // 1.162.0: beweging van de Attack Flow, per account
             'ui' => clean_ui_prefs((array) ($in['value'] ?? [])),   // 1.162.0: weergave-keuzes die eerst per apparaat waren

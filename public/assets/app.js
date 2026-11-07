@@ -1836,7 +1836,7 @@ function crumbs() {
   document.body.classList.toggle('crumbs-on', !!tab && tab !== 'mds');
   if (!tab || tab === 'mds') { el.hidden = true; return; }
   const tabName = (t) => (t === 'settings' ? L('Instellingen') : t === 'account' ? L('Mijn account') : crumbText($(`#main-tabs .tab[data-tab="${t}"] .tab-lbl`) || $(`#main-tabs .tab[data-tab="${t}"]`)) || t);
-  const parts = [{ l: '🏠', t: L('Start'), go: 'home' }];
+  const parts = [{ l: L('Start'), go: 'home' }];
   if (tab !== 'home') parts.push({ l: tabName(tab), go: CRUMB_DEF[tab] || tab });
   if (tab === 'dashboard' && monSub !== 'checks') parts.push({ l: crumbText($(`#mon-tabs [data-msub="${monSub}"]`)), go: 'dashboard/' + monSub });   // 1.214.0: eerste subtabblad heet zelf Monitoring
   if (tab === 'net') parts.push({ l: crumbText($(`#net-tabs [data-nsub="${netSub}"]`)), go: 'net/' + netSub });
@@ -1861,14 +1861,26 @@ function crumbs() {
   }
   const page = fxCurrent();
   if (page && fxActive(page)) chips.push({ l: L('{n} filters', { n: fxCount(page) }), k: 'fx:' + page });
-  const n = parts.length;
-  el.innerHTML = parts.map((p, i) => {
-    const last = i === n - 1;
-    const inner = esc(p.l || '…');
+  // 1.216.0: paginakop: een altijd klikbaar pad, de titel en een korte samenvatting; rechts de filters en het live-lampje
+  parts.forEach((p, i) => { if (!p.go) p.go = (parts.slice(i + 1).find((x) => x.go) || parts[i - 1] || {}).go || tab; });
+  const title = tab === 'home' ? tabName('home') : parts[parts.length - 1].l;
+  let sub = '';
+  if (tab === 'dashboard' && state.hosts) {
+    const c = openCounts(), open = c.crit + c.warn;
+    sub = [L('{n} checks', { n: c.checks }), L('{n} servers', { n: c.hosts })].map(esc).join(' · ')
+      + ' · ' + (open ? `<b class="${c.crit ? 'crit-txt' : 'warn-txt'}">${esc(L('{n} open', { n: open }))}</b>` : esc(L('alles in orde')));
+  }
+  const live = tab === 'dashboard' && $('#last-run') ? `<span class="ph-live${$('#live-dot.off') ? ' off' : ''}"><i aria-hidden="true"></i><span>${$('#last-run').innerHTML}</span></span>` : '';
+  const wait = $('.crumb-wait', el);
+  el.innerHTML = `<div class="ph-main"><nav class="ph-path" aria-label="${esc(L('Kruimelpad'))}">` + parts.map((p, i) => {
+    const last = i === parts.length - 1;
     return (i ? '<span class="crumb-sep" aria-hidden="true">›</span>' : '')
-      + (last || !p.go ? `<span class="crumb${last ? ' cur' : ''}"${last ? ' aria-current="page"' : ''}>${inner}</span>`
-        : `<button type="button" class="crumb" data-crumb="${esc(p.go)}"${p.t ? ` title="${esc(p.t)}"` : ''}>${inner}</button>`);
-  }).join('') + chips.map((c) => `<button type="button" class="crumb-chip" data-crumb-clear="${esc(c.k)}" title="${esc(L('Filter weghalen'))}">${esc(c.l)} ✕</button>`).join('');
+      + `<button type="button" class="crumb${last ? ' cur' : ''}" data-crumb="${esc(p.go)}"${last ? ' aria-current="page"' : ''}>${esc(p.l || '…')}</button>`;
+  }).join('') + `</nav><h1 class="ph-title">${esc(title || '')}</h1>${sub ? `<div class="ph-sub">${sub}</div>` : ''}</div>`
+    + `<div class="ph-right">${chips.map((c) => `<button type="button" class="crumb-chip" data-crumb-clear="${esc(c.k)}" title="${esc(L('Filter weghalen'))}">${esc(c.l)} ✕</button>`).join('')}${live}</div>`;
+  if (wait) el.appendChild(wait);
+  document.body.classList.toggle('ph-live-dash', !!live);
+  el.dataset.tab = tab;
   el.hidden = false;
 }
 document.addEventListener('click', (e) => {
@@ -3529,7 +3541,49 @@ function initAiSettings() {
   guard('#ai-exec', 'exec', L('Uitvoeren vanuit een advies'));
 }
 
-function render() { withMorph(renderNow); crumbs(); }
+function render() { withMorph(renderNow); crumbs(); sbStatus(); }
+/** 1.216.0: open problemen (warning/critical, niet bevestigd, niet in onderhoud), voor het statuslampje en de paginakop */
+function openCounts() {
+  const n = { crit: 0, warn: 0, checks: 0, hosts: 0 };
+  (state.hosts || []).forEach((h) => {
+    if (!+h.enabled) return;
+    n.hosts++;
+    h.checks.forEach((c) => {
+      if (!+c.enabled) return;
+      n.checks++;
+      if (c.maintenance || c.acked_at) return;
+      if (+c.status === 2) n.crit++; else if (+c.status === 1) n.warn++;
+    });
+  });
+  return n;
+}
+/** 1.216.0: het levende statuslampje onder het logo: rood bij critical, oranje bij alleen warnings, groen als alles in orde is */
+function sbStatus() {
+  const el = $('#sb-status');
+  if (!el || !state.hosts) return;
+  const n = openCounts(), tot = n.crit + n.warn;
+  el.hidden = false;
+  el.className = 'sb-status ' + (n.crit ? 's2' : n.warn ? 's1' : 's0');
+  $('.sb-t', el).textContent = tot ? L('{n} problemen', { n: tot }) : L('Alles in orde');
+  el.dataset.n = tot || '';
+  $('.sb-t', el).dataset.n = tot || '';
+  el.title = tot ? L('{c} critical, {w} warning, nog niet bevestigd: klik voor Monitoring', { c: n.crit, w: n.warn }) : L('Alle checks zijn in orde');
+}
+document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('#sb-status')) showTab('dashboard'); });
+/** 1.216.0: tooltip bij de ingeklapte zijbalk (naam en teller van het menu-item) */
+document.addEventListener('mouseover', (e) => {
+  const t = e.target.closest && e.target.closest('.app-top .main-tabs .tab');
+  let tip = $('#side-tip');
+  if (!t || !document.body.classList.contains('side-mini')) { if (tip) tip.hidden = true; return; }
+  if (!tip) { tip = document.createElement('div'); tip.id = 'side-tip'; tip.className = 'side-tip'; tip.setAttribute('role', 'tooltip'); document.body.appendChild(tip); }
+  const lbl = crumbText($('.tab-lbl', t) || t), b = $('.tab-badge:not([hidden])', t);
+  tip.textContent = lbl + (b && b.textContent ? ' · ' + b.textContent : '');
+  const r = t.getBoundingClientRect(), side = $('.app-top').getBoundingClientRect();
+  tip.style.left = Math.round(side.right + 10) + 'px';
+  tip.style.top = Math.round(r.top + r.height / 2) + 'px';
+  tip.hidden = false;
+});
+document.addEventListener('mouseout', (e) => { if (e.target.closest && e.target.closest('.app-top .main-tabs .tab') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.app-top .main-tabs .tab'))) { const tip = $('#side-tip'); if (tip) tip.hidden = true; } });
 function renderNow() {
   renderHealth();
   renderIsoBanner();
@@ -3880,7 +3934,8 @@ const monGlow = () => PREFS.mon_glow !== 'off';
 // 1.201.0: Liquid Glass (standaard uit) en de laadanimatie (standaard aan), per account
 const monGlass = () => PREFS.mon_glass === 'on';
 const monLoader = () => PREFS.mon_loader !== 'off';
-const MON_PREF_KEY = { glow: 'mon_glow', anim: 'mon_anim', glass: 'mon_glass', loader: 'mon_loader' };
+const monVivid = () => PREFS.mon_vivid === 'on';   // 1.216.0: Liquid Glass levendig (anders rustig)
+const MON_PREF_KEY = { glow: 'mon_glow', anim: 'mon_anim', glass: 'mon_glass', loader: 'mon_loader', vivid: 'mon_vivid' };
 const monAnim = () => PREFS.mon_anim !== 'off';
 document.addEventListener('pointermove', (e) => {
   if (!document.body.classList.contains('lg') || e.pointerType === 'touch') return;
@@ -3895,8 +3950,9 @@ function applyMonPrefs() {
   document.body.classList.toggle('no-anim', !monAnim());
   document.body.classList.toggle('lg', monGlass());
   document.body.classList.toggle('no-loader', !monLoader());
+  document.body.classList.toggle('lg-vivid', monVivid());
   if (window.RzPulse) RzPulse.refreshColors();
-  $$('[data-mon-pref]').forEach((c) => { c.checked = { glow: monGlow, anim: monAnim, glass: monGlass, loader: monLoader }[c.dataset.monPref](); });
+  $$('[data-mon-pref]').forEach((c) => { c.checked = { glow: monGlow, anim: monAnim, glass: monGlass, loader: monLoader, vivid: monVivid }[c.dataset.monPref](); });
   // 1.162.0: IDS-weergave en beweging, per account (standaard: wat de beheerder instelde)
   const vc = $('.view-card');
   if (vc) {

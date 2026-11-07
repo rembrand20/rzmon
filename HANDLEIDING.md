@@ -7,6 +7,8 @@ Je kunt hem draaien op elke Linux-machine met PHP 8 en MariaDB: een VM, een Rasp
 > **Nieuwe naam (1.214.0):** RzMon heet nu **Rz//Sense AI** (kort: RzSense), met de slogan *Watching your servers, so you don't have to.* Alleen de naam, het logo en de iconen zijn veranderd. De technische naam blijft `rzmon`: de map, de database, de service `rzmon-agent`, `/etc/default/rzmon-agent`, de add-on en de links werken gewoon door. Je hoeft niets aan te passen. Monitoring heet in het webadres nu `#monitoring`; oude links met `#dashboard` werken nog.
 >
 > **Inlogpagina (1.215.0):** de achtergrond beweegt (een raster met horizon, scanbalk en HUD-hoeken). Rechtsboven zie je meteen of de verbinding versleuteld is. Heb je op je apparaat *minder beweging* aangezet, dan staat de achtergrond stil.
+>
+> **Zijbalk en paginakop (1.216.0):** onder het logo zie je met één lampje hoe het ervoor staat (klik erop voor Monitoring). Bovenaan elke pagina staat waar je bent, en elk stuk van dat pad is klikbaar. Liquid Glass is standaard rustig; bij *Mijn account* zet je *Levendige kleuren* aan voor het kleurrijke glas.
 
 ---
 

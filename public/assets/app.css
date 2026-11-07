@@ -4398,10 +4398,10 @@ body.mds-on { overscroll-behavior-y: contain; }
 .mds-more-n.s1 { background: var(--warn); }
 
 /* 1.199.0: kruimelpad boven elke pagina */
-.crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: .15rem .35rem; max-width: 1400px; margin: .55rem auto 0; padding: 0 1.25rem; font-size: .82rem; color: var(--muted); }
+.crumbs { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; margin: 0 0 14px; font-size: .82rem; color: var(--muted); }
 .crumbs .crumb { border: 0; background: none; padding: .15rem .3rem; border-radius: 6px; color: var(--muted); font: inherit; cursor: pointer; }
 .crumbs button.crumb:hover { color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, transparent); }
-.crumbs .crumb.cur { color: var(--text); font-weight: 650; cursor: default; }
+.crumbs .crumb.cur { color: var(--text); font-weight: 650; }
 .crumbs span.crumb:not(.cur) { cursor: default; }
 .crumbs .crumb-sep { opacity: .55; }
 .crumbs .crumb-chip { margin-left: .4rem; border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border)); background: color-mix(in srgb, var(--primary) 8%, var(--card));
@@ -4409,7 +4409,7 @@ body.mds-on { overscroll-behavior-y: contain; }
 .crumbs .crumb-chip:hover { border-color: var(--primary); }
 .crumbs-on #set-crumb { display: none; }
 body.tv .crumbs { display: none; }
-@media (max-width: 720px) { .crumbs { display: none; } }
+
 
 /* 1.199.0: mini-overzicht CPU, RAM en disk in de tellerbalk van Monitoring */
 .mres-row { display: flex; gap: .5rem; margin-left: auto; flex: none; }
@@ -5033,3 +5033,80 @@ body.no-anim .al2-badge .al2-shape { animation: none !important; }
 .lp-enter .lp-ln { animation: ct-in .45s cubic-bezier(.32, .72, 0, 1) both; animation-delay: calc(var(--i, 40) * 30ms + 160ms); }
 body.no-anim .lp-enter *, .lp-enter.no-anim * { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { .lp-enter * { animation: none !important; } }
+
+/* ---------------------------------------------------------------- 1.216.0: paginakop (pad, titel, samenvatting) */
+.ph-main { min-width: 0; }
+.ph-path { display: flex; align-items: center; flex-wrap: wrap; gap: 1px 2px; margin: 0 0 2px -6px; }
+.ph-path .crumb { padding: 2px 6px; }
+.ph-title { margin: 0; font-size: 1.75rem; font-weight: 700; letter-spacing: -.01em; line-height: 1.15; color: var(--text); }
+.ph-sub { margin-top: 4px; font-size: .88rem; color: var(--muted); }
+.ph-sub .crit-txt { color: var(--crit); font-weight: 600; } .ph-sub .warn-txt { color: var(--warn); font-weight: 600; }
+.ph-right { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.ph-right .crumb-chip { margin-left: 0; }
+.ph-live { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 99px; font-size: .78rem; color: var(--text); border: 1px solid var(--border); background: color-mix(in srgb, var(--bg-2) 40%, transparent); }
+.ph-live > i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+.ph-live.off > i { background: var(--unknown); box-shadow: none; }
+body.ph-live-dash .dash-last { display: none; }
+/* pagina's met een eigen kop (Dashboard, Instellingen, Mijn account): alleen het pad, geen dubbele titel */
+.crumbs[data-tab="home"] .ph-title, .crumbs[data-tab="settings"] .ph-title, .crumbs[data-tab="account"] .ph-title { display: none; }
+.mon-tabs .st-ic { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vertical-align: -3px; margin-right: 6px; }
+@media (max-width: 720px) { .ph-title { font-size: 1.35rem; } .ph-sub { font-size: .8rem; } .ph-live > span { display: none; } .crumbs { align-items: flex-start; flex-wrap: nowrap; } }
+
+/* ---------------------------------------------------------------- 1.216.0: zijbalk */
+.app-top .brand .rz-slogan { display: none; }
+.app-top .brand .version { display: none; }
+.acct-ver { display: block; margin-top: .2rem; color: var(--muted); text-decoration: none; } .acct-ver:hover { color: var(--primary); }
+.sb-status { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 10px; --c: var(--ok);
+  font-size: .8rem; font-weight: 600; color: var(--text); background: color-mix(in srgb, var(--c) 12%, transparent); border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); }
+.sb-status.s1 { --c: var(--warn); } .sb-status.s2 { --c: var(--crit); }
+.sb-status:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.sb-status > i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); animation: sb-pulse 2s ease-out infinite; }
+.sb-status.s0 > i { animation: none; }
+.sb-status small { margin-left: auto; color: var(--muted); font-weight: 500; }
+@keyframes sb-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 60%, transparent); } 100% { box-shadow: 0 0 0 8px transparent; } }
+@media (prefers-reduced-motion: reduce) { .sb-status > i { animation: none; } }
+body.no-anim .sb-status > i { animation: none; }
+.side-tip { position: fixed; z-index: 200; transform: translateY(-50%); white-space: nowrap; padding: 6px 10px; border-radius: 8px; font-size: .8rem; font-weight: 600; pointer-events: none;
+  background: #0e1838; color: #e6ecf7; border: 1px solid rgba(34, 227, 255, .35); box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
+@media (min-width: 1101px) {
+  .app-top .brand { flex-direction: column; align-items: stretch; gap: 10px; }
+  .app-top .brand .rz-logo { align-self: flex-start; }
+  .app-top .tab-ind { display: none !important; }
+  .app-top .main-tabs .tab.active { background: color-mix(in srgb, #22e3ff 10%, transparent); box-shadow: inset 3px 0 0 #22e3ff; color: var(--text); border-radius: 10px; }
+  .app-top .main-tabs .tab.active .tab-ic { color: #22e3ff; }
+  :root[data-theme="light"] .app-top .main-tabs .tab.active { background: color-mix(in srgb, #2f6bff 9%, transparent); box-shadow: inset 3px 0 0 #2f6bff; }
+  :root[data-theme="light"] .app-top .main-tabs .tab.active .tab-ic { color: #2f6bff; }
+  /* tellers rechts in de rij */
+  body:not(.side-mini) .app-top .main-tabs .tab-icw { position: static; margin-right: 0 !important; }
+  body:not(.side-mini) .app-top .main-tabs .tab-badge { top: 50%; right: 10px; transform: translateY(-50%); box-shadow: none; }
+  /* onderkant op één rij: account, zoeken, inklappen */
+  body:not(.side-mini) .app-top .top-actions { flex-direction: row; align-items: center; gap: 6px; }
+  body:not(.side-mini) .app-top .top-actions .acct { flex: 1; min-width: 0; order: 1; }
+  body:not(.side-mini) .app-top .top-actions .cmdk-btn { order: 2; width: 40px; height: 40px; padding: 0; justify-content: center; flex: none; }
+  body:not(.side-mini) .app-top .top-actions .cmdk-btn > :not(svg) { display: none; }
+  body:not(.side-mini) .app-top .top-actions .side-toggle { order: 3; width: 40px; height: 40px; padding: 0; justify-content: center; flex: none; }
+  body:not(.side-mini) .app-top .top-actions .side-toggle-lbl { display: none; }
+  .side-mini .app-top .sb-status { width: 40px; height: 26px; padding: 0; justify-content: center; align-self: center; }
+  .side-mini .app-top .sb-status .sb-t, .side-mini .app-top .sb-status small { display: none; }
+}
+@media (max-width: 1100px) {
+  .app-top .brand { flex-direction: row; align-items: center; }
+  .sb-status { padding: 4px 8px; font-size: .74rem; }
+  .sb-status small { display: none; }
+  .sb-status .sb-t { font-size: 0; } .sb-status .sb-t::after { content: attr(data-n); font-size: .78rem; }
+  .sb-status.s0 .sb-t::after { content: '✓'; }
+}
+
+/* ---------------------------------------------------------------- 1.216.0: Liquid Glass rustig (standaard); body.lg-vivid = levendig zoals voorheen */
+body.lg:not(.lg-vivid) { --lg-a1: rgba(47, 107, 255, .16); --lg-a2: rgba(34, 227, 255, .06); --lg-a3: rgba(30, 60, 140, .14); --lg-glare: rgba(255, 255, 255, .035); --lg-rim: rgba(255, 255, 255, .09); --lg-teal: #22e3ff; }
+:root[data-theme="light"] body.lg:not(.lg-vivid) { --lg-a1: rgba(47, 107, 255, .10); --lg-a2: rgba(34, 227, 255, .05); --lg-a3: rgba(120, 150, 220, .10); --lg-glare: rgba(255, 255, 255, .3); --lg-rim: rgba(255, 255, 255, .7); --lg-teal: #2f6bff; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) body.lg:not(.lg-vivid) { --lg-a1: rgba(47, 107, 255, .10); --lg-a2: rgba(34, 227, 255, .05); --lg-a3: rgba(120, 150, 220, .10); --lg-glare: rgba(255, 255, 255, .3); --lg-rim: rgba(255, 255, 255, .7); --lg-teal: #2f6bff; } }
+body.lg:not(.lg-vivid) .lg-aurora i:nth-child(1) { opacity: .55; }
+body.lg:not(.lg-vivid) :is(.card, .pcard, .ccx, .hcard) { box-shadow: inset 0 1px 0 var(--lg-rim), 0 8px 22px rgba(0, 0, 0, .14); }
+body.lg:not(.lg-vivid) :is(.card, .pcard, .main-tabs, .hc, .mres, .seg, .subtabs, .dchip, .toast, .cmdk-box, .mds-sec, .dash-menu, .acct-menu, .ccx, .hcard) { -webkit-backdrop-filter: blur(20px) saturate(105%); backdrop-filter: blur(20px) saturate(105%); }
+@media (min-width: 1101px) {
+  body.lg:not(.lg-vivid) .topbar.app-top { background: color-mix(in srgb, var(--bg-2) 80%, transparent); }
+  body.lg:not(.lg-vivid) .topbar.app-top::before { -webkit-backdrop-filter: blur(20px) saturate(105%); backdrop-filter: blur(20px) saturate(105%); }
+}
+/* kaarten met een probleem: een dun lijntje bovenaan in plaats van een volle rode rand (het getal blijft rood) */
+.kpi.bad { border-color: var(--border); box-shadow: inset 0 2px 0 var(--crit); }
