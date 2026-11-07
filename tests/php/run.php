@@ -428,6 +428,20 @@ ok((int) q("SELECT COUNT(*) FROM ids_blocks WHERE host_id = ? AND ip = '203.0.11
 ok(q('SELECT status FROM ids_incidents WHERE id = ?', [$wp])->fetchColumn() === 'done', 'webaanval van een onschuldige scanner vanzelf afgehandeld');
 ok(ThreatIntel::listed('i', '198.51.100.200')['src'] === 'tor' && (ThreatIntel::domain('x.malware.evil.example')['src'] ?? '') === 'urlhaus'
     && (ThreatIntel::domain('c2.badguys.example')['info'] ?? '') === 'AsyncRAT botnet_cc', 'lijsten opgehaald: Tor, URLhaus en ThreatFox');
+// 1.213.1: check.torproject.org weigert (of geeft een foutpagina): dan de reservebron (FireHOL tor_exits)
+ok(IpIntel::torIps("<!DOCTYPE html><html>403</html>") === [] && IpIntel::torIps("# tor_exits\n# comment\n198.51.100.210\n198.51.100.211\n") === ['198.51.100.210', '198.51.100.211'],
+    'Tor-lijst: foutpagina geweigerd, ipset van FireHOL (met commentaar) gelezen');
+$tiOld = ThreatIntel::$http;
+ThreatIntel::$http = static function (string $m, string $url, array $h, ?string $body) use ($tiOld) {
+    return match (true) {
+        str_contains($url, 'torbulkexitlist') => [403, '<html>Forbidden</html>'],
+        str_contains($url, 'tor_exits.ipset') => [200, "# FireHOL tor_exits\n198.51.100.220\n"],
+        default => $tiOld($m, $url, $h, $body),
+    };
+};
+ThreatIntel::updateLists();
+ok(ThreatIntel::listed('i', '198.51.100.220')['src'] === 'tor', 'Tor-lijst niet op te halen bij torproject.org: van de reservebron');
+ThreatIntel::$http = $tiOld;
 ok(ThreatIntel::domain('example') === null && ThreatIntel::domain('evil.example') === null, 'alleen het domein zelf of een subdomein telt');
 // Verbinding met een adres van ThreatFox: meteen critical en proces stoppen
 $r = Edr::process($hc, ['ev' => [['k' => 'n', 't' => time(), 'dir' => 'out', 'pid' => 777, 'st' => 70, 'comm' => 'updater', 'exe' => '/opt/x/updater', 'u' => 'root', 'rip' => '198.51.100.66', 'rp' => 443, 'lp' => 50000]]]);

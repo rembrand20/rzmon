@@ -8815,4 +8815,5 @@ return [
     '{n} toegevoegd; de agent pakt het binnen een minuut op' => '{n} added; the agent picks it up within a minute',
     'Nog geen bronnen. Kies hieronder wat de agent op de server vond, of voeg er zelf een toe.' => 'No sources yet. Choose below from what the agent found on the server, or add one yourself.',
     'Zelf een bron toevoegen' => 'Add a source yourself',
+    'geen lijst' => 'no list',
 ];

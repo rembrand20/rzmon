@@ -28,6 +28,14 @@ final class IpIntel
         '192.0.2.0/24', '192.168.0.0/16', '198.18.0.0/15', '198.51.100.0/24', '203.0.113.0/24', '224.0.0.0/3',
         '::/8', 'fc00::/7', 'fe80::/10', 'ff00::/8', '2001:db8::/32'];
     private const GEO_URL = 'https://download.db-ip.com/free/dbip-country-lite-%s.csv.gz';
+    /**
+     * 1.213.1: Tor-uitgangen uit meer bronnen. check.torproject.org is vaak traag of weigert sommige netwerken; dan de
+     * FireHOL-lijst tor_exits (zelfde host als FireHOL level 1, elk uur bijgewerkt) of dan.me.uk.
+     */
+    public const TOR_URLS = ['https://check.torproject.org/torbulkexitlist', 'https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/tor_exits.ipset',
+        'https://www.dan.me.uk/torlist/?exit'];
+    /** Waarom het laatste ophalen mislukte (HTTP-code of de fout van curl) */
+    private static string $lastErr = '';
     /** Hooguit zoveel bereiken naar de agents (de lijsten zijn samen zo'n 6.000) */
     public const MAX_AGENT = 20000;
 
@@ -162,9 +170,9 @@ final class IpIntel
             if (isset($s['setting']) && setting($s['setting'], $s['default'] ?? '1') !== '1') {
                 continue;
             }
-            $raw = self::get(self::url($src, $s['url']));
+            $raw = $src === 'tor' ? self::torList() : self::get(self::url($src, $s['url']));
             if ($raw === null) {
-                $errors[] = $s['label'];
+                $errors[] = $s['label'] . (self::$lastErr !== '' ? ' (' . self::$lastErr . ')' : '');
                 continue;
             }
             $n = 0;
@@ -275,6 +283,39 @@ final class IpIntel
         return (string) ($o[$key] ?? $default);
     }
 
+    /** Een echte lijst met adressen (geen foutpagina in HTML)? @return list<string> de adressen */
+    public static function torIps(string $raw): array
+    {
+        if (stripos($raw, '<html') !== false || stripos($raw, '<!doctype') !== false) {
+            return [];
+        }
+        return array_values(array_filter(array_map(static fn($c) => explode('/', $c)[0], self::parseList('tor', $raw)), static fn($ip) => @inet_pton($ip) !== false));
+    }
+
+    /**
+     * Tor-uitgangen: de eerste bron die een echte lijst geeft (geldige adressen; een foutpagina telt niet).
+     * Een eigen adres in config.php (ipintel_urls › tor) gaat voor. @return string|null één adres per regel
+     */
+    public static function torList(): ?string
+    {
+        $urls = array_values(array_unique(array_merge([self::url('tor', self::TOR_URLS[0])], self::TOR_URLS)));
+        $why = [];
+        foreach ($urls as $u) {
+            $raw = self::get($u);
+            if ($raw !== null) {
+                $ips = self::torIps($raw);
+                if ($ips) {
+                    self::$lastErr = '';
+                    return implode("\n", $ips) . "\n";
+                }
+                self::$lastErr = t('geen lijst');
+            }
+            $why[] = (string) parse_url($u, PHP_URL_HOST) . ': ' . self::$lastErr;
+        }
+        self::$lastErr = implode(', ', $why);
+        return null;
+    }
+
     /** Ophalen (tekst, of naar een bestand). @return string|null */
     private static function get(string $url, ?string $file = null): ?string
     {
@@ -284,6 +325,7 @@ final class IpIntel
             CURLOPT_USERAGENT => 'RzMon/' . RZMON_VERSION] + ($fh ? [CURLOPT_FILE => $fh] : [CURLOPT_RETURNTRANSFER => true]));
         $raw = curl_exec($ch);
         $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        self::$lastErr = $raw === false ? ($code >= 400 ? 'HTTP ' . $code : mb_substr(curl_error($ch), 0, 80)) : ($code >= 400 ? 'HTTP ' . $code : '');
         curl_close($ch);
         if ($fh) {
             fclose($fh);
@@ -295,7 +337,7 @@ final class IpIntel
     }
 
     /** CIDR's uit een lijst: Spamhaus (JSON per regel, "cidr") of FireHOL (één per regel, # = commentaar) */
-    private static function parseList(string $src, string $raw): array
+    public static function parseList(string $src, string $raw): array
     {
         $out = [];
         foreach (preg_split('/\R/', $raw) as $line) {

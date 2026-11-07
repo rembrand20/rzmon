@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.210.0**: **logs verzamelen** per server: gecomprimeerd en versleuteld naar RzMon, gemaskeerd en gecomprimeerd bewaard.
 - **1.209.0**: een **bekeken storing gaat uit Nu open** naar de dag waarop hij begon, en komt terug als het erger wordt.
 
+## 1.213.1 – 2026-11-07
+### Opgelost
+- **Blocklists: "niet op te halen: Tor"**: check.torproject.org weigert sommige netwerken of is traag, en dan mislukte de Tor-lijst elke dag. Nu probeert RzMon daarna de FireHOL-lijst `tor_exits` (elk uur bijgewerkt, op dezelfde plek als FireHOL level 1) en dan.me.uk. Een foutpagina telt niet meer als lijst. Lukt het bij geen enkele bron, dan staat de reden erbij (bv. `HTTP 403` of een time-out). Ook voor de Tor-lijst van de dreigingsinformatie.
+
 ## 1.213.0 – 2026-11-07
 ### Nieuw
 - **🔍 Logs vinden op de server** (agent 1.84.0 nodig): in de Agent Manager, kaart **Logs**, staat wat de agent op de server vond. Vier tabbladen: **logmappen** (bestanden en mappen in `LOG_DIRS`, met grootte en laatste wijziging), **containers** (Docker en Podman), **services** (wat de afgelopen 24 uur in de journal schreef) en **Home Assistant** (Core, Supervisor, add-ons). Vink aan wat je wilt en klik op **＋ toevoegen**; je hoeft geen paden meer te typen.

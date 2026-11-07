@@ -422,9 +422,16 @@ final class ThreatIntel
         $errors = [];
         $lists = [];
         if (setting('ti_tor', '1') === '1') {
-            [$code, $body] = self::request('GET', self::url('tor'), []);
-            if ($code === 200) {
-                $lists['tor'] = ['i', array_map(static fn($ip) => [$ip, ''], array_filter(array_map('trim', preg_split('/\R/', $body)), static fn($l) => @inet_pton($l) !== false))];
+            // 1.213.1: met reservebronnen (check.torproject.org weigert of is traag op sommige netwerken)
+            $ips = [];
+            foreach (array_values(array_unique(array_merge([self::url('tor')], IpIntel::TOR_URLS))) as $u) {
+                [$code, $body] = self::request('GET', $u, []);
+                if ($code === 200 && ($ips = IpIntel::torIps((string) $body))) {
+                    break;
+                }
+            }
+            if ($ips) {
+                $lists['tor'] = ['i', array_map(static fn($ip) => [$ip, ''], $ips)];
             } else {
                 $errors[] = 'Tor';
             }
