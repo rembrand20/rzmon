@@ -11,6 +11,8 @@ Je kunt hem draaien op elke Linux-machine met PHP 8 en MariaDB: een VM, een Rasp
 > **Zijbalk en paginakop (1.216.0):** onder het logo zie je met één lampje hoe het ervoor staat (klik erop voor Monitoring). Bovenaan elke pagina staat waar je bent, en elk stuk van dat pad is klikbaar. Liquid Glass is standaard rustig; bij *Mijn account* zet je *Levendige kleuren* aan voor het kleurrijke glas.
 >
 > **IDS-incidenten (1.217.0):** afhandelen gaat meteen. Vink meerdere incidenten aan om ze in één keer af te handelen, of gebruik *Alles van deze server afhandelen* op de serverkaart. Wat vaak terugkomt staat bovenaan met *Dit is normaal*. De pagina toont de open incidenten en de laatste 2 dagen; ouder haal je op met *Ouder laden*.
+>
+> **Meldingskaart (1.218.0):** klik op een melding voor het paneel met de waarde, de drempels, de grafiek en eerdere keren. Slaat een check vaak kort aan, dan stelt de kaart voor om pas na meer metingen te melden of een slimme drempel te gebruiken (één klik). Op een telefoon sluit je het blad door het omlaag te vegen.
 
 ---
 

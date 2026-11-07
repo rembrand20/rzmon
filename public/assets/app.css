@@ -5136,3 +5136,32 @@ body.lg:not(.lg-vivid) :is(.card, .pcard, .main-tabs, .hc, .mres, .seg, .subtabs
 .ids-noisy-i { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 6px 0; border-top: 1px solid var(--border); }
 .ids-noisy-i .ids-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .ids-card .ic-acts { margin-top: 10px; display: flex; justify-content: flex-end; }
+
+/* ---------------------------------------------------------------- 1.218.0: meldingskaart */
+.al2-was { display: inline-block; margin-left: .3rem; font-size: .76rem; color: var(--muted); }
+.al2-was::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: .3rem; background: var(--c2, var(--muted)); vertical-align: 1px; }
+.al2-was.k-crit { --c2: var(--crit); } .al2-was.k-warn { --c2: var(--warn); } .al2-was.k-unk { --c2: var(--unknown); }
+.al2-sum { font-size: .92rem; line-height: 1.4; color: var(--text); display: grid; gap: .15rem; }
+.al2-sum .al2-big { font-size: 1.5rem; font-weight: 750; letter-spacing: -.01em; margin: 0 .15rem; }
+.al2-flap { padding: .7rem .8rem; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border)); background: color-mix(in srgb, var(--warn) 9%, transparent); display: grid; gap: .35rem; }
+.al2-flap-a { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .2rem; }
+.al2-raw { margin-top: .35rem; } .al2-raw .mono { white-space: pre-line; overflow-wrap: anywhere; color: var(--muted); margin-top: .25rem; }
+.al2-stats { display: flex; gap: .9rem; color: var(--muted); margin-top: .25rem; } .al2-stats b { color: var(--text); }
+.al2-strip { position: relative; height: 22px; margin: 0 0 .45rem; border-bottom: 1px solid var(--border); }
+.al2-strip i { position: absolute; bottom: 0; width: 3px; height: 14px; margin-left: -1.5px; border-radius: 2px; background: color-mix(in srgb, var(--crit) 70%, transparent); }
+.al2-strip i.cur { background: var(--crit); height: 20px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--crit) 25%, transparent); }
+.al2-strip span { position: absolute; bottom: -16px; font-size: .66rem; color: var(--muted); } .al2-strip span:last-child { right: 0; }
+.al2-hist { margin-top: .9rem; }
+.al2-prev { cursor: pointer; border-radius: 6px; padding: .1rem .3rem; margin: 0 -.3rem; } .al2-prev:hover, .al2-prev:focus-visible { background: color-mix(in srgb, var(--text) 6%, transparent); outline: none; }
+.al2-ch { display: inline-flex; align-items: center; gap: .2rem; padding: .05rem .45rem; border-radius: 99px; font-size: .76rem; border: 1px solid var(--border); }
+.al2-ch.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--border)); } .al2-ch.bad { color: var(--crit); border-color: color-mix(in srgb, var(--crit) 40%, var(--border)); }
+.al2-grip { display: none; }
+@media (max-width: 760px), (pointer: coarse) {
+  /* blad van onderaf, met een greepje; de knoppen blijven onderaan binnen bereik */
+  .al2-drawer, body.lg .al2-drawer { top: auto; height: min(92vh, 100%); max-height: 92dvh; border-radius: 18px 18px 0 0; transform: translateY(105%); border-top: 1px solid var(--border); }
+  .al2-drawer.on, body.lg .al2-drawer.on { transform: none; }
+  .al2-grip { display: block; width: 42px; height: 5px; border-radius: 99px; background: color-mix(in srgb, var(--text) 25%, transparent); margin: -.3rem auto .55rem; }
+  .al2-dh { padding-top: .9rem; touch-action: none; }
+  .al2-x { top: .7rem; }
+  .al2-da .btn { flex: 1 1 auto; justify-content: center; }
+}

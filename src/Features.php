@@ -99,6 +99,7 @@ final class Features
         ['dash', ['Bewegende inlogpagina', 'Animated login page'], ['Een HUD-raster met horizon en scanbalk, ook op een telefoon; toont of de verbinding versleuteld is.', 'A HUD grid with horizon and scan bar, also on a phone; shows whether the connection is encrypted.'], '1.215.0', '', ''],
         ['dash', ['Statuslampje en paginakop', 'Status light and page header'], ['Een levend lampje in de zijbalk en bovenaan elke pagina een klikbaar pad met titel.', 'A live light in the sidebar and a clickable path with title on top of every page.'], '1.216.0', '', ''],
         ['ids', ['Incidenten snel afhandelen', 'Handle incidents quickly'], ['Meteen, in bundels of een keuze, per server, en voorstellen voor wat vaak terugkomt.', 'Instantly, in bundles or a selection, per server, with suggestions for what keeps coming back.'], '1.217.0', '', '#ids/inc'],
+        ['notify', ['Meldingskaart met advies', 'Alert card with advice'], ['Leesbare samenvatting, drempels in de grafiek en een voorstel als een check flapt.', 'Readable summary, thresholds in the chart and a suggestion when a check flaps.'], '1.218.0', '', '#alerts'],
 
         // Meldingen
         ['notify', ['Pushover', 'Pushover'], ['Met prioriteit per status en bevestigen vanuit de app.', 'With priority per status and acknowledge from the app.'], '1.0.0', 'pushover_enabled|pushover_token,pushover_user', 'channels'],

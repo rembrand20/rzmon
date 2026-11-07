@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.218.0**: een **vernieuwde meldingskaart**: leesbaar, met advies als een check flapt, en op de telefoon een blad van onderaf.
 - **1.217.0**: **IDS-incidenten veel sneller**: afhandelen reageert meteen, bundels en een keuze in één keer, en voorstellen voor wat vaak terugkomt.
 - **1.216.0**: een **vernieuwde zijbalk** met statuslampje, een **paginakop met klikbaar pad** en **rustiger Liquid Glass**.
 - **1.215.0**: een **bewegende HUD-achtergrond op de inlogpagina**, ook mooi op een telefoon.
 - **1.214.0**: **Rz//Sense AI**: een nieuwe naam en een nieuw logo, een ronde rand om de inhoud, en Monitoring heet ook zo.
-- **1.213.0**: **logs vinden op de server**: de agent laat zien welke logs, containers en services er zijn, en je vinkt ze aan.
+
+## 1.218.0 – 2026-11-07
+### Nieuw
+- **Meldingskaart vernieuwd** (het paneel dat opent als je op een melding klikt):
+  - **De kop klopt met wat er gebeurde**: vanzelf hersteld = groen *Hersteld na 1 min* met daarnaast *was Critical*.
+  - **Eén leesbare regel bovenaan**: de waarde groot (bv. **CPU 79,6%**), de drempels en bij load hoeveel dat is van de cores (*load 6,72 op 4 cores (168%)*). Het bericht zonder technische voorvoegsels en zonder dubbele *(flapt: …)*; het volledige bericht staat inklapbaar eronder.
+  - **Advies als een check flapt**: 3 of meer korte storingen (hooguit 10 min) → *Deze check slaat vaak kort aan*, met één knop voor *Pas melden na 3 metingen* of een *Slimme drempel*.
+  - **De grafiek** toont de drempels als lijnen, de storing als gekleurd vlak, en *gemiddeld · hoogste · nu*.
+  - **Eerdere keren**: een strookje met elke storing van de laatste 7 dagen, korte datums (*vandaag 14:53*) en elke regel klikbaar.
+  - **Bezorging in woorden**: *Push ✓ · Home Assistant ✓*, of *stille uren: niet verstuurd*.
+  - **Meer acties**: ook *Stil 1 uur* na herstel, *Melden na…* en 🤖 AI-advies (als dat aan staat).
+  - **Op een telefoon een blad van onderaf** met een greepje: omlaag vegen sluit het; de knoppen staan onderaan binnen bereik.
 
 ## 1.217.1 – 2026-11-07
 ### Opgelost
