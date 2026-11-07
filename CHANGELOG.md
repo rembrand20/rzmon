@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.205.0**: **agents wachten tijdens een update** van RzMon (wachtrij, vrijgave, samenvatting) en geven pas na 5 minuten alarm.
 - **1.204.0**: een **nieuw update-venster** met voortgangsring, tijdlijn per stap en duidelijke foutmeldingen.
 
+## 1.208.2 – 2026-11-07
+### Opgelost
+- **Zijpaneel van een melding in het glasthema**: op een computer weer van glas (doorschijnend met vervaging, zoals de vensters); alleen op een telefoon of tablet (touchscreen of smal scherm) is het dicht, zodat de teksten niet door elkaar lopen.
+
 ## 1.208.1 – 2026-11-07
 ### Opgelost
 - **Zijpaneel van een melding was doorschijnend** in het glasthema: op een telefoon liepen de teksten van het paneel en de lijst erachter door elkaar. Het paneel is nu dicht (in het glasthema met een heel klein beetje glas), en houdt rekening met de inkeping en de balk onderaan een iPhone.
