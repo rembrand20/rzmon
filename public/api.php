@@ -1240,7 +1240,7 @@ $need = match ($action) {
     'home', 'mds', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'alert_seen', 'log_sources', 'log_source_lines', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi', 'quiet_now' => 'user',
+    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'alert_seen', 'log_sources', 'log_source_lines', 'log_search', 'log_context', 'log_export', 'log_facets', 'log_overview', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi', 'quiet_now' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -3195,6 +3195,41 @@ switch ($action) {
 
     case 'log_overview':
         out(LogStore::overview());
+
+    // 1.211.0: zoeken in de logs (beheerder en gebruiker)
+    case 'log_search':
+    case 'log_export':
+        $in = $_GET;
+        $r = LogStore::search(['q' => (string) ($in['q'] ?? ''), 'from' => (int) ($in['from'] ?? 0), 'to' => (int) ($in['to'] ?? 0),
+            'hosts' => array_filter(array_map('intval', explode(',', (string) ($in['hosts'] ?? '')))),
+            'sources' => array_filter(array_map('intval', explode(',', (string) ($in['sources'] ?? '')))),
+            'level' => ($in['level'] ?? '') === '' ? null : (int) $in['level'], 'limit' => $action === 'log_export' ? 5000 : (int) ($in['limit'] ?? 100)]);
+        if (isset($r['error'])) {
+            out($r, 422);
+        }
+        if ($action === 'log_search') {
+            out($r);
+        }
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="rzmon-logs-' . date('Y-m-d-His') . '.csv"');
+        $fh = fopen('php://output', 'w');
+        fwrite($fh, "\xEF\xBB\xBF");   // BOM: Excel leest het dan als UTF-8
+        fputcsv($fh, [t('Tijd'), 'Server', t('Bron'), t('Niveau'), t('Regel')], ';', '"', '\\');
+        foreach ($r['hits'] as $h) {
+            fputcsv($fh, [$h['time'], $h['host'], $h['source'], ['debug', 'info', 'warning', 'error', 'critical'][$h['level']] ?? '', $h['msg']], ';', '"', '\\');
+        }
+        fclose($fh);
+        exit;
+
+    case 'log_context':
+        $c = LogStore::context((string) ($_GET['ref'] ?? ''));
+        if ($c === null) {
+            out(['error' => t('Deze regel bestaat niet meer (verlopen?)')], 404);
+        }
+        out($c);
+
+    case 'log_facets':
+        out(['sources' => LogStore::facets(), 'days' => LogStore::days()]);
 
     // 1.208.0: een open storing is bekeken op de meldingenpagina; de golf stopt voor iedereen (en komt terug als het erger wordt)
     case 'alert_seen':

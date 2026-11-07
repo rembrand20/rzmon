@@ -2422,7 +2422,7 @@ Isoleren werkte al op TrueNAS.
 - **TrueNAS CORE** (FreeBSD) kan de agent niet draaien. Voeg hem toe als **Remote** met ping, poorten (445 SMB, 2049 NFS, 22 SSH) en HTTP(S) op de webinterface.
 
 ### 8.8b Logs verzamelen 📜 (vanaf 1.210.0, agent 1.83.0)
-De agent verzamelt de logs die je per server kiest en stuurt ze naar RzMon, waar ze gecomprimeerd bewaard worden. Zoeken en meldingen bij een zoekactie komen in een volgende versie; deze versie verzamelt en bewaart.
+De agent verzamelt de logs die je per server kiest en stuurt ze naar RzMon, waar ze gecomprimeerd bewaard worden. Zoeken doe je op de pagina **Logs** (vanaf 1.211.0, zie hieronder); meldingen bij een vaste zoekactie komen in een volgende versie.
 
 **Bronnen kiezen:** open de **Agent Manager** van de server, kaart **📜 Logs**, en voeg een bron toe (of kies een voorstel: nginx, apache2, syslog, auth.log, fail2ban, de journal, TrueNAS middleware, Home Assistant Core).
 - **Bestand of map**: een volledig pad, met `*` voor meerdere bestanden, bv. `/var/log/nginx/*.log` (hooguit 20 bestanden per bron; `.gz` en andere ingepakte bestanden worden overgeslagen).
@@ -2451,6 +2451,17 @@ De agent verzamelt de logs die je per server kiest en stuurt ze naar RzMon, waar
 - **Daglimiet**: haalt een server die, dan worden zijn logs tot middernacht niet meer opgeslagen, krijg je een systeemmelding (*📜 Logs: daglimiet bereikt*, met de bron die het meeste stuurde), en pauzeert de agent. Om middernacht gaat hij verder waar hij was.
 - **Maximum**: komt het totaal erboven, dan gaat de oudste dag weg (met een systeemmelding).
 - Onderaan zie je de **opslag** (gebruikt, ongecomprimeerd, hoeveel kleiner, hoe lang de ruimte nog genoeg is) en per server **wat er vandaag binnenkwam**. Klik op een server voor zijn bronnen.
+
+**Zoeken** (vanaf 1.211.0): de pagina **📜 Logs** in de zijbalk (onder *Analyse en netwerk*), voor beheerders en gebruikers. Ook via de knop **📜 Logs** bij een server (Monitoring, Agent Manager › Logs, of Ctrl+K): dan staat die server al in de zoekbalk.
+- **Zoekbalk**: losse woorden (alle moeten erin staan), `"exacte zin"`, `-uitsluiten`, `server:naam`, `bron:naam` (een deel van de naam is genoeg), `niveau:error` (of `warning`, `info`, `critical`) en `/regex/`. Hoofdletters maken niet uit. Klik op een voorbeeld onder de balk om het erbij te zetten.
+- **Periode**: laatste 15 minuten, uur, 24 uur, vandaag, 7 dagen, alles, of zelf kiezen.
+- **Filters**: per niveau (met aantallen) en met **＋ Server** of **＋ Bron**.
+- **Grafiek**: treffers per minuut (tot 3 uur), per uur (tot 3 dagen) of per 6 uur, opgedeeld in error, warning en info. Klik op een balk voor alleen dat tijdvak.
+- **Treffers**: nieuwste eerst, het gezochte woord gemarkeerd. Klik op een regel voor **3 regels ervoor en erna** uit dezelfde bron, en de regels van **andere bronnen van die server in dezelfde minuut** (bv. fail2ban naast auth.log).
+- **Meer laden** per 100 (tot 1000), en **⤓ CSV** met tot 5000 treffers (puntkomma, opent in Excel).
+- Snel: RzMon pakt alleen de blokken uit die in de periode en bij de server en bron vallen (met *Error en erger* alleen blokken met errors). Duurt het tellen langer dan 8 seconden, dan zegt de pagina dat de telling onvolledig is; de nieuwste treffers kloppen dan wel.
+- Gemaskeerde delen (`••••`) blijven gemaskeerd: het origineel wordt nergens bewaard.
+- Het tabblad **Binnenkomst** toont hetzelfde overzicht als de beheerportal: opslag en per server wat er vandaag binnenkwam.
 
 **Opslag:** per dag een tabel (`logd_JJJJMMDD`) met blokken van hooguit 5000 regels per bron, elk met gzip gecomprimeerd: ongeveer 7 à 8 keer kleiner dan de logs zelf. Een dag ouder dan de bewaartermijn gaat in één keer weg. Uitzetten op een server: `LOG_SHIP=0` in `/etc/default/rzmon-agent`.
 

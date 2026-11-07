@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.211.0**: de pagina **Logs**: zoeken in de logs van al je servers, met een grafiek, filters en de regels rond elke treffer.
 - **1.210.0**: **logs verzamelen** per server: gecomprimeerd en versleuteld naar RzMon, gemaskeerd en gecomprimeerd bewaard.
 - **1.209.0**: een **bekeken storing gaat uit Nu open** naar de dag waarop hij begon, en komt terug als het erger wordt.
 - **1.208.0**: de **golf bij een open storing stopt** zodra iemand hem bekijkt, en komt terug als het erger wordt.
 - **1.207.0**: **meldingen per storing** op één regel met de duur, *Nu open* bovenaan, kleur en golf zoals op Monitoring, en een zijpaneel met details.
-- **1.206.0**: **bevestigen met een vinkje** in plaats van je wachtwoord, per rol in te stellen, met een vangnet van 60 minuten.
+
+## 1.211.0 – 2026-11-07
+### Nieuw
+- **📜 Pagina Logs**: zoeken in de logs van al je servers (in de zijbalk onder *Analyse en netwerk*, voor beheerders en gebruikers). Zoeken op woorden, `"exacte zin"`, `-uitsluiten`, `server:`, `bron:`, `niveau:` en `/regex/`, over een periode van 15 minuten tot alles, met filters per niveau, server en bron.
+- Een **grafiek** van de treffers per minuut, uur of 6 uur (error, warning, info); klik op een balk voor alleen dat tijdvak.
+- **Treffers** nieuwste eerst met het woord gemarkeerd; klik op een regel voor de 3 regels ervoor en erna, en wat andere bronnen van die server in dezelfde minuut logden. Meer laden, en **CSV** (tot 5000 regels).
+- Een knop **📜 Logs** bij elke server met de agent (Monitoring, Agent Manager, Ctrl+K) opent de zoekpagina met die server al ingevuld.
+- Tabblad **Binnenkomst** op de pagina Logs: de opslag en per server wat er vandaag binnenkwam (ook voor gebruikers).
+- Snel, ook met veel logs: alleen de gecomprimeerde blokken in de periode en bij de server en bron worden uitgepakt (in de test 12.000 regels in 0,01 s).
 
 ## 1.210.1 – 2026-11-07
 ### Opgelost

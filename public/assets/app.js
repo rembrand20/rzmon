@@ -261,7 +261,7 @@ const STATUS_WORD = ['OK', 'WARNING', 'CRITICAL', L('onbekend')];
 const MDS_MQ = window.matchMedia ? window.matchMedia('(max-width: 720px)') : { matches: false, addEventListener() {} };
 let mdsData = null, mdsAt = 0, mdsAll = false;
 // 1.196.0: op een telefoon staan deze pagina's onder "Meer" (de tabbalk houdt mDS, Checks, Meldingen, IDS en Meer)
-const MORE_TABS = ['home', 'incidents', 'vulns', 'analytics', 'net', 'settings'];
+const MORE_TABS = ['home', 'incidents', 'vulns', 'analytics', 'logs', 'net', 'settings'];
 
 let stats = { uptime: {}, sparks: {} };
 // Sorteren op de pagina Meldingen (per apparaat onthouden): { key: 'time'|'status'|'server'|'check'|'message'|'channels', dir: 1|-1 }
@@ -1810,6 +1810,7 @@ function showTab(name) {
   if (name === 'mds') loadMds();   // 1.194.0
   document.body.classList.toggle('mds-on', name === 'mds');   // 1.195.0: geen trekken-om-te-herladen van de browser zelf
   if (name === 'analytics') loadAnalytics();
+  if (name === 'logs') loadLogsPage();   // 1.211.0
   if (name === 'incidents') loadIncidents();
   if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); }
   pageWaitClose();
@@ -4354,7 +4355,8 @@ function groupHead(h, k, title, list, tag) {
 function detailBar(h) {
   const agentInfo = h.mode === 'agent'
     ? `<span class="muted small">${contactHtml(h, 'short')}</span>
-       <button class="btn need-admin" data-act="agent" data-id="${h.id}">Agent Manager</button>` : '';
+       <button class="btn need-admin" data-act="agent" data-id="${h.id}">Agent Manager</button>
+       <button class="btn need-user" data-act="logs" data-id="${h.id}" title="${esc(L('Zoeken in de logs van deze server'))}">📜 ${L('Logs')}</button>` : '';
   return `<div class="detail-bar">
         ${h.checks.some((c) => +c.enabled && +c.status !== 0 && !c.acked_at) ? `<button class="btn ack-btn need-user" data-act="ack-host" data-id="${h.id}">✔ ${L('Alles bevestigen')}</button>` : ''}
         <button class="btn need-user" data-act="maint-host" data-id="${h.id}">🔧 ${L('Onderhoud')}</button>
@@ -4879,6 +4881,7 @@ async function onHostsClick(e) {
     case 'edit-check': { const [c, h] = findCheck(id); return checkForm(c, h); }
     case 'history': { const [c, h] = findCheck(id); return showHistory(c, h); }
     case 'agent': return agentInstructions(findHost(id));
+    case 'logs': return openLogsFor(findHost(id));   // 1.211.0
     case 'discover': return discoverDialog(findHost(id));
     case 'scan': return portScan(findHost(id));
     case 'snmp': return snmpChecks(findHost(id));
@@ -5426,6 +5429,7 @@ function cmdkBuild(q) {
     if (!verb('run') && !verb('maint') && !verb('agent') && !verb('edit')) add(60, '🖥️', h.name, h.address || '', () => { showTab('dashboard'); jumpToHost(h.id); }, hHay);
     if (user && verb('maint')) add(70, '🔧', L('Onderhoud: {n}', { n: h.name }), L('hele server'), () => maintenanceDialog('host', h.id, h.name, null), hHay);
     if (admin && verb('agent') && h.mode === 'agent') add(70, '🛰️', L('Agent Manager: {n}', { n: h.name }), h.address || '', () => agentInstructions(h), hHay);
+    if ((isAdmin() || isUser()) && h.mode === 'agent') add(60, '📜', L('Logs: {n}', { n: h.name }), L('zoeken in de logs van deze server'), () => openLogsFor(h), hHay);   // 1.211.0
     if (admin && verb('edit')) add(65, '✎', L('Server bewerken: {n}', { n: h.name }), h.address || '', () => hostForm(h), hHay);
     for (const c of h.checks || []) {
       const hay = `${c.name} ${h.name} ${c.target || ''} ${(TYPES[c.type] || {}).label || c.type}`;
@@ -7969,6 +7973,7 @@ async function amLogs(h) {
   }).join('');
   const limitPct = d.day_limit ? Math.min(100, Math.round(d.used_today / d.day_limit * 100)) : 0;
   box.innerHTML = `${d.on ? '' : `<div class="callout">⏸ ${L('Logs verzamelen staat uit voor alle servers: Instellingen → Monitoring → Logs.')}</div>`}
+    ${d.sources.length ? amRow('🔎 ' + L('Zoeken in deze logs'), L('de pagina Logs, met deze server al gekozen'), `<button type="button" class="btn small-btn" id="ls-find">${L('Logs')} →</button>`) : ''}
     ${amRow(L('Versturen elke'), L('pakketje met de nieuwe regels, gecomprimeerd en versleuteld · algemeen: {n} min', { n: d.default_interval }),
       `<select id="ls-iv">${[[0, L('algemeen')], [1, '1 min'], [2, '2 min'], [5, '5 min'], [10, '10 min'], [15, '15 min'], [30, '30 min'], [60, '60 min']]
         .map(([k, t]) => `<option value="${k}" ${k === iv ? 'selected' : ''}>${t}</option>`).join('')}</select>`)}
@@ -8002,6 +8007,7 @@ async function amLogs(h) {
   F('kind').onchange = kindHint;
   kindHint();
   $('#ls-cancel', box).onclick = resetForm;
+  if ($('#ls-find', box)) $('#ls-find', box).onclick = () => openLogsFor(h);
   const save = async () => {
     try {
       await api('log_source_save', { host_id: h.id, id: +F('id').value || 0, kind: F('kind').value, spec: F('spec').value, name: F('name').value, level: +F('level').value, enabled: 1 });
@@ -8060,9 +8066,212 @@ async function amLogs(h) {
   };
 }
 
+// ---------------------------------------------------------------- 1.211.0: pagina Logs (zoeken en binnenkomst)
+const LP = { q: '', range: '24h', from: 0, to: 0, level: '', hosts: [], sources: [], limit: 100, hour: null, sub: 'search', facets: null, last: null, busy: 0 };
+const LP_RANGES = () => [['15m', L('Laatste 15 minuten'), 900], ['1h', L('Laatste uur'), 3600], ['24h', L('Laatste 24 uur'), 86400], ['today', L('Vandaag'), 0],
+  ['7d', L('Laatste 7 dagen'), 7 * 86400], ['all', L('Alles'), 365 * 86400], ['custom', L('Zelf kiezen…'), 0]];
+const LP_LV = ['debug', 'info', 'warning', 'error', 'critical'];
+
+/** Vanaf een server: de zoekpagina met server: ingevuld */
+function openLogsFor(h) {
+  LP.q = h ? `server:${/\s/.test(h.name) ? h.name.split(/\s/)[0] : h.name}` : '';
+  LP.hosts = []; LP.sources = []; LP.hour = null; LP.sub = 'search';
+  if ($('#modal') && $('#modal').open) $('#modal').close();
+  showTab('logs');
+}
+
+function lpPeriod() {
+  if (LP.hour) return [LP.hour[0], LP.hour[1]];
+  const now = Math.floor(Date.now() / 1000);
+  if (LP.range === 'today') { const d = new Date(); d.setHours(0, 0, 0, 0); return [Math.floor(d / 1000), now]; }
+  if (LP.range === 'custom' && LP.from) return [LP.from, LP.to || now];
+  const r = LP_RANGES().find(([k]) => k === LP.range) || LP_RANGES()[2];
+  return [now - r[2], now];
+}
+
+async function loadLogsPage() {
+  const el = $('#logs-page');
+  if (!el) return;
+  if (!el.dataset.built) lpBuild(el);
+  $$('#logs-sub [data-lp-sub]').forEach((b) => b.classList.toggle('active', b.dataset.lpSub === LP.sub));
+  $('#lp-search').hidden = LP.sub !== 'search';
+  $('#lp-in').hidden = LP.sub !== 'in';
+  if (LP.sub === 'in') { loadLogsOverview('#lp-in-box'); return; }
+  if (!LP.facets) { try { LP.facets = await api('log_facets'); } catch (ex) { LP.facets = { sources: [], days: 14 }; } }
+  $('#lp-q').value = LP.q;
+  $('#lp-range').value = LP.range;
+  lpChips();
+  lpSearch();
+}
+
+function lpBuild(el) {
+  el.dataset.built = '1';
+  el.innerHTML = `
+    <div class="lp-bar"><div class="seg" id="logs-sub" role="tablist">
+      <button type="button" class="seg-btn active" data-lp-sub="search" role="tab">🔎 ${L('Zoeken')}</button>
+      <button type="button" class="seg-btn" data-lp-sub="in" role="tab">📥 ${L('Binnenkomst')}</button></div></div>
+    <section id="lp-search" class="card lp-card">
+      <div class="lp-q">
+        <label class="lp-in"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+          <input id="lp-q" type="search" autocomplete="off" spellcheck="false" placeholder="${esc(L('Zoek in de logs, bv. "failed password" server:web01 -192.168.1.'))}" aria-label="${esc(L('Zoeken in logs'))}"></label>
+        <select id="lp-range" aria-label="${esc(L('Periode'))}">${LP_RANGES().map(([k, t]) => `<option value="${k}">${esc(t)}</option>`).join('')}</select>
+        <button type="button" class="btn primary" id="lp-go">${L('Zoeken')}</button>
+      </div>
+      <div class="lp-custom" id="lp-custom" hidden><label>${L('Van')} <input type="datetime-local" id="lp-from"></label><label>${L('Tot')} <input type="datetime-local" id="lp-to"></label></div>
+      <div class="lp-help small muted"><span>${L('Zo zoek je:')}</span>${['woord', '"exacte zin"', '-uitsluiten', 'server:', 'bron:', 'niveau:error', '/regex/'].map((t) => `<button type="button" class="lp-tok" data-lp-tok="${esc(t)}">${esc(t)}</button>`).join('')}
+        <span>· ${L('hoofdletters maken niet uit · alle woorden moeten erin staan')}</span></div>
+      <div class="lp-row"><div class="lp-chips" id="lp-levels" role="group" aria-label="${esc(L('Niveau'))}"></div><span class="lp-sp"></span>
+        <div class="lp-chips" id="lp-scope"></div></div>
+      <div class="lp-hist-box"><div class="lp-row"><b class="small" id="lp-total"></b><span class="muted small" id="lp-stat"></span><span class="lp-sp"></span>
+        <span class="lp-legend small muted"><span style="--c:var(--crit)">error</span><span style="--c:var(--warn)">warning</span><span style="--c:var(--primary)">info</span></span></div>
+        <div class="lp-hist" id="lp-hist" role="img"></div><div class="lp-ax" id="lp-ax"></div>
+        <p class="muted small lp-hint" id="lp-hint">${L('Klik op een balk om alleen dat tijdvak te zien; nog eens klikken heft het op.')}</p></div>
+      <div id="lp-res" class="lp-lines"></div>
+      <div class="lp-more" id="lp-more"></div>
+    </section>
+    <section id="lp-in" class="card lp-card" hidden><div id="lp-in-box"><p class="muted">${L('Laden…')}</p></div></section>`;
+  const go = () => { LP.q = $('#lp-q').value.trim(); LP.limit = 100; LP.hour = null; LP.allLv = null; lpSearch(); };
+  $('#lp-go').onclick = go;
+  $('#lp-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+  $('#lp-range').onchange = (e) => {
+    LP.range = e.target.value; LP.hour = null;
+    $('#lp-custom').hidden = LP.range !== 'custom';
+    if (LP.range !== 'custom') { LP.limit = 100; lpSearch(); }
+  };
+  const cust = () => {
+    const f = $('#lp-from').value, t = $('#lp-to').value;
+    if (!f) return;
+    LP.from = Math.floor(new Date(f) / 1000); LP.to = t ? Math.floor(new Date(t) / 1000) : 0; LP.limit = 100; lpSearch();
+  };
+  $('#lp-from').onchange = cust; $('#lp-to').onchange = cust;
+  el.addEventListener('click', async (e) => {
+    const sub = e.target.closest('[data-lp-sub]');
+    if (sub) { LP.sub = sub.dataset.lpSub; loadLogsPage(); return; }
+    const tok = e.target.closest('[data-lp-tok]');
+    if (tok) { const q = $('#lp-q'); q.value = (q.value + ' ' + tok.dataset.lpTok).trim(); q.focus(); return; }
+    const lv = e.target.closest('[data-lp-lv]');
+    if (lv) { LP.level = lv.dataset.lpLv; LP.limit = 100; lpSearch(); return; }
+    const rm = e.target.closest('[data-lp-rm]');
+    if (rm) { const [k, id] = rm.dataset.lpRm.split(':'); LP[k] = LP[k].filter((x) => x !== +id); LP.limit = 100; lpChips(); lpSearch(); return; }
+    const bar = e.target.closest('[data-lp-b]');
+    if (bar && LP.last) {
+      const i = +bar.dataset.lpB, s = LP.last.start + i * LP.last.bucket;
+      LP.hour = LP.hour && LP.hour[0] === s ? null : [s, s + LP.last.bucket - 1];
+      LP.limit = 100; lpSearch(); return;
+    }
+    if (e.target.closest('#lp-more-btn')) { LP.limit = Math.min(1000, LP.limit + 100); lpSearch(); return; }
+    if (e.target.closest('#lp-csv')) { lpCsv(); return; }
+    const ln = e.target.closest('.lp-ln[data-ref]');
+    if (ln && !e.target.closest('a, button')) lpContext(ln);
+  });
+  el.addEventListener('change', (e) => {
+    const s = e.target.closest('[data-lp-add]');
+    if (!s || !s.value) return;
+    const k = s.dataset.lpAdd, id = +s.value;
+    if (!LP[k].includes(id)) LP[k].push(id);
+    LP.limit = 100; lpChips(); lpSearch();
+  });
+}
+
+function lpChips() {
+  const fs = (LP.facets && LP.facets.sources) || [];
+  const hostName = (id) => (fs.find((s) => s.host_id === id) || {}).host || '?';
+  const hosts = [...new Map(fs.map((s) => [s.host_id, s.host])).entries()];
+  const chips = [
+    ...LP.hosts.map((id) => `<button type="button" class="dchip on" data-lp-rm="hosts:${id}">${esc(hostName(id))} <span aria-hidden="true">✕</span></button>`),
+    ...LP.sources.map((id) => { const s = fs.find((x) => x.id === id); return `<button type="button" class="dchip on" data-lp-rm="sources:${id}">${esc(s ? s.host + ' › ' + s.name : '?')} <span aria-hidden="true">✕</span></button>`; }),
+  ];
+  $('#lp-scope').innerHTML = chips.join('')
+    + `<select class="lp-add" data-lp-add="hosts" aria-label="${esc(L('Server toevoegen'))}"><option value="">＋ ${L('Server')}</option>${hosts.filter(([id]) => !LP.hosts.includes(id)).map(([id, n]) => `<option value="${id}">${esc(n)}</option>`).join('')}</select>`
+    + `<select class="lp-add" data-lp-add="sources" aria-label="${esc(L('Bron toevoegen'))}"><option value="">＋ ${L('Bron')}</option>${fs.filter((s) => !LP.sources.includes(s.id) && (!LP.hosts.length || LP.hosts.includes(s.host_id))).map((s) => `<option value="${s.id}">${esc(s.host + ' › ' + s.name)}</option>`).join('')}</select>`;
+}
+
+async function lpSearch() {
+  const [from, to] = lpPeriod();
+  const busy = ++LP.busy;
+  $('#lp-res').classList.add('lp-loading');
+  let r;
+  try {
+    r = await api('log_search', null, { q: LP.q, from, to, level: LP.level, hosts: LP.hosts.join(','), sources: LP.sources.join(','), limit: LP.limit });
+  } catch (ex) {
+    if (busy !== LP.busy) return;
+    $('#lp-res').classList.remove('lp-loading');
+    $('#lp-res').innerHTML = `<p class="danger-txt lp-empty">${esc(ex.message)}</p>`;
+    return;
+  }
+  if (busy !== LP.busy) return;   // er kwam al een nieuwere zoekopdracht
+  LP.last = r;
+  $('#lp-res').classList.remove('lp-loading');
+  // Niveaus (telling over de hele periode)
+  // Aantallen per niveau van de zoekopdracht zonder niveaufilter (anders staan de andere niveaus op 0)
+  if (LP.level === '') LP.allLv = r.levels;
+  const lv = (LP.level !== '' && LP.allLv) || r.levels, all = lv.reduce((a, b) => a + b, 0);
+  $('#lp-levels').innerHTML = [['', L('Alles'), all], ['3', L('Error en erger'), lv[3] + lv[4]], ['2', 'Warning', lv[2]], ['1', 'Info', lv[0] + lv[1]]]
+    .map(([k, t, n]) => `<button type="button" class="dchip ${LP.level === k ? 'on' : ''}" data-lp-lv="${k}">${esc(t)} <b>${dec(n)}</b></button>`).join('');
+  $('#lp-total').textContent = r.total === 1 ? L('1 treffer') : L('{n} treffers', { n: dec(r.total) });
+  $('#lp-stat').textContent = L('{l} regels doorzocht in {b} blokken ({s} s)', { l: dec(r.scanned), b: dec(r.blocks), s: dec((r.ms / 1000).toFixed(2)) })
+    + (r.partial ? ' · ' + L('telling onvolledig: te veel om binnen 8 s te tellen, kies een kortere periode') : '');
+  // Grafiek
+  const max = Math.max(1, ...r.hist.map((b) => b[0] + b[1] + b[2]));
+  const fmt = (t) => { const d = new Date(t * 1000); return r.bucket >= 86400 ? d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' }) : r.bucket >= 3600 && to - from > 86400 ? d.toLocaleString(LOCALE, { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' }); };
+  $('#lp-hist').innerHTML = r.hist.map((b, i) => {
+    const n = b[0] + b[1] + b[2], s = r.start + i * r.bucket, sel = LP.hour && LP.hour[0] === s;
+    return `<button type="button" class="lp-b${sel ? ' sel' : ''}" data-lp-b="${i}" style="--h:${n ? Math.max(3, n / max * 100) : 0}%" title="${esc(fmt(s) + ': ' + L('{n} treffers', { n: dec(n) }))}"><i class="e" style="flex:${b[2]}"></i><i class="w" style="flex:${b[1]}"></i><i class="n" style="flex:${b[0]}"></i></button>`;
+  }).join('');
+  $('#lp-hist').setAttribute('aria-label', L('Treffers per tijdvak'));
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => r.start + Math.round(f * (r.hist.length - 1)) * r.bucket);
+  $('#lp-ax').innerHTML = ticks.map((t) => `<span>${esc(fmt(t))}</span>`).join('');
+  $('#lp-hint').textContent = LP.hour ? L('Alleen {t}; klik nog eens op de balk voor de hele periode.', { t: fmt(LP.hour[0]) }) : L('Klik op een balk om alleen dat tijdvak te zien; nog eens klikken heft het op.');
+  // Treffers
+  const words = r.words || [];
+  const mark = (s) => {
+    let h = esc(s);
+    words.forEach((w) => { const e = esc(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); h = h.replace(new RegExp(e, 'gi'), (m) => `<mark>${m}</mark>`); });
+    return h.replace(/••••/g, '<span class="lp-mask">••••</span>');
+  };
+  $('#lp-res').innerHTML = r.hits.length ? r.hits.map((h) => lpLine(h, mark)).join('')
+    : `<p class="muted lp-empty">${(LP.facets && LP.facets.sources.length) ? L('Niets gevonden in deze periode.') : L('Nog geen logs. Kies per server welke logs hij stuurt: Agent Manager › kaart Logs.')}</p>`;
+  $('#lp-more').innerHTML = r.hits.length ? `${r.hits.length >= r.limit && r.limit < 1000 ? `<button type="button" class="btn" id="lp-more-btn">${L('Meer laden (100)')}</button>` : ''}
+    <button type="button" class="btn" id="lp-csv">⤓ CSV</button><span class="muted small">${L('nieuwste eerst · {n} getoond', { n: dec(r.hits.length) })}</span>` : '';
+}
+
+const lpLine = (h, mark, ctx = false) => `<div class="lp-ln lv${h.level}${ctx ? ' ctx' : ''}" ${h.ref ? `data-ref="${esc(h.ref)}" tabindex="0"` : ''}>
+  <span class="lp-t" title="${esc(h.time)}">${esc(h.time.slice(5, 16).replace('-', '/'))}<small>${esc(h.time.slice(16))}</small></span>
+  <span><span class="lp-lv lp-lv${h.level}">${LP_LV[h.level] || ''}</span></span>
+  <span class="lp-h">${h.host ? esc(h.host) + ' <small>› ' + esc(h.source) + '</small>' : `<small>${esc(h.source || '')}</small>`}</span>
+  <span class="lp-m">${mark(h.msg)}</span>${h.ref ? '<span class="lp-o" aria-hidden="true">›</span>' : '<span></span>'}</div>`;
+
+async function lpContext(ln) {
+  const next = ln.nextElementSibling;
+  if (next && next.classList.contains('lp-ctx')) { next.remove(); ln.classList.remove('open'); return; }
+  ln.classList.add('open');
+  const box = document.createElement('div');
+  box.className = 'lp-ctx';
+  box.innerHTML = `<p class="muted small">${L('Laden…')}</p>`;
+  ln.after(box);
+  try {
+    const c = await api('log_context', null, { ref: ln.dataset.ref });
+    const plain = (s) => esc(s).replace(/••••/g, '<span class="lp-mask">••••</span>');
+    const row = (x) => lpLine({ ...x, host: '', source: x.source || '' }, plain, true);
+    box.innerHTML = (c.before.length ? c.before.map(row).join('') : '')
+      + `<div class="lp-ctx-here small muted">▲ ${L('ervoor')} · ${L('erna')} ▼</div>`
+      + (c.after.length ? c.after.map(row).join('') : `<p class="muted small">${L('Geen regels erna.')}</p>`)
+      + (c.other.length ? `<div class="lp-ctx-h small"><b>${L('Andere bronnen van deze server, zelfde minuut')}</b></div>${c.other.map(row).join('')}` : '');
+  } catch (ex) { box.innerHTML = `<p class="danger-txt small">${esc(ex.message)}</p>`; }
+}
+
+/** CSV: de huidige zoekopdracht, tot 5000 regels (downloaden via een link, zoals de SBOM) */
+function lpCsv() {
+  const [from, to] = lpPeriod();
+  const a = document.createElement('a');
+  a.href = 'api.php?' + new URLSearchParams({ action: 'log_export', q: LP.q, from, to, level: LP.level, hosts: LP.hosts.join(','), sources: LP.sources.join(',') });
+  a.download = '';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
 // ---------------------------------------------------------------- 1.210.0: Instellingen › Monitoring › Logs (opslag en binnenkomst)
-async function loadLogsOverview() {
-  const box = $('#logs-ov');
+async function loadLogsOverview(sel = '#logs-ov') {
+  const box = $(sel);
   if (!box) return;
   let o;
   try { o = await api('log_overview'); } catch (ex) { box.innerHTML = `<p class="bad small">${esc(ex.message)}</p>`; return; }
@@ -8095,7 +8304,7 @@ async function loadLogsOverview() {
             : h.paused ? `<span class="lg-pill bad">${L('daglimiet bereikt')}</span>`
             : h.errors ? `<span class="lg-pill warn">${h.errors === 1 ? L('1 bron met een fout') : L('{n} bronnen met een fout', { n: h.errors })}</span>`
             : `<span class="lg-pill ok">✓</span>`;
-          return `<tr><td><button type="button" class="linkbtn" data-ls-host="${h.id}"><b>${esc(h.name)}</b></button></td>
+          return `<tr><td>${isAdmin() ? `<button type="button" class="linkbtn" data-ls-host="${h.id}"><b>${esc(h.name)}</b></button>` : `<b>${esc(h.name)}</b>`}</td>
             <td>${h.sources ? (h.sources_on === h.sources ? h.sources : L('{a} van {b}', { a: h.sources_on, b: h.sources })) : '–'}</td>
             <td class="num">${h.lines_today ? dec(h.lines_today) : '–'}${h.dropped_today ? `<div class="warn-txt small">${L('{n} niet opgeslagen', { n: dec(h.dropped_today) })}</div>` : ''}</td>
             <td>${h.sources ? `<span class="lg-bar${p >= 100 || h.paused ? ' full' : ''}"><i style="width:${h.paused ? 100 : p}%"></i></span> <span class="muted small">${fmtBytes(h.bytes_today)}</span>` : '–'}</td>

@@ -536,4 +536,245 @@ final class LogStore
             'hosts' => $hosts,
         ];
     }
+
+    // ------------------------------------------------------------------ zoeken (1.211.0)
+
+    /**
+     * Zoekopdracht uit elkaar halen: woorden (alle moeten erin), "exacte zin", -uitsluiten, server:, bron:, niveau:, /regex/.
+     * @return array{words: list<string>, not: list<string>, re: ?string, hosts: list<string>, sources: list<string>, level: ?int, error: ?string}
+     */
+    public static function parseQuery(string $q): array
+    {
+        $out = ['words' => [], 'not' => [], 're' => null, 'hosts' => [], 'sources' => [], 'level' => null, 'error' => null];
+        preg_match_all('~(-?)(?:"([^"]*)"|/((?:\\\\/|[^/])+)/|(\S+))~u', $q, $m, PREG_SET_ORDER);
+        foreach ($m as $t) {
+            $neg = $t[1] === '-';
+            if (($t[3] ?? '') !== '') {   // /regex/
+                $re = '~' . str_replace('~', '\~', str_replace('\/', '/', $t[3])) . '~iu';
+                if (@preg_match($re, '') === false) {
+                    $out['error'] = t('Ongeldige reguliere expressie: /{re}/', ['re' => mb_substr($t[3], 0, 60)]);
+                } else {
+                    $out['re'] = $re;
+                }
+                continue;
+            }
+            $quoted = ($t[2] ?? '') !== '';
+            $word = $quoted ? $t[2] : ($t[4] ?? '');
+            if ($word === '') {
+                continue;
+            }
+            if (!$quoted && preg_match('/^(server|host|bron|source|niveau|level):(.+)$/iu', $word, $k)) {
+                $key = strtolower($k[1]);
+                $val = mb_strtolower($k[2]);
+                if ($key === 'server' || $key === 'host') {
+                    $out['hosts'][] = $val;
+                } elseif ($key === 'bron' || $key === 'source') {
+                    $out['sources'][] = $val;
+                } else {
+                    $out['level'] = ['debug' => 0, 'info' => 1, 'warn' => 2, 'warning' => 2, 'error' => 3, 'err' => 3, 'crit' => 4, 'critical' => 4][$val] ?? null;
+                }
+                continue;
+            }
+            $out[$neg ? 'not' : 'words'][] = mb_strtolower($word);
+        }
+        return $out;
+    }
+
+    /** Past een regel op de zoekopdracht? */
+    private static function lineMatch(string $msg, array $p): bool
+    {
+        $low = mb_strtolower($msg);
+        foreach ($p['words'] as $w) {
+            if (!str_contains($low, $w)) {
+                return false;
+            }
+        }
+        foreach ($p['not'] as $w) {
+            if (str_contains($low, $w)) {
+                return false;
+            }
+        }
+        return $p['re'] === null || preg_match($p['re'], $msg) === 1;
+    }
+
+    /** Servers en bronnen die bij server:/bron: horen (deel van de naam, hoofdletters maken niet uit) */
+    private static function scope(array $p, array $hostIds, array $sourceIds): array
+    {
+        $src = [];
+        foreach (q('SELECT s.id, s.name, s.host_id, h.name AS host FROM log_sources s JOIN hosts h ON h.id = s.host_id')->fetchAll() as $s) {
+            $src[(int) $s['id']] = $s;
+        }
+        $hosts = $hostIds;
+        foreach ($p['hosts'] as $hn) {
+            foreach ($src as $s) {
+                if (str_contains(mb_strtolower((string) $s['host']), $hn)) {
+                    $hosts[] = (int) $s['host_id'];
+                }
+            }
+            if (!$hosts) {
+                $hosts = [0];   // geen server met die naam: niets
+            }
+        }
+        $sources = $sourceIds;
+        foreach ($p['sources'] as $sn) {
+            foreach ($src as $id => $s) {
+                if (str_contains(mb_strtolower((string) $s['name']), $sn)) {
+                    $sources[] = $id;
+                }
+            }
+            if (!$sources) {
+                $sources = [0];
+            }
+        }
+        return [array_values(array_unique($hosts)), array_values(array_unique($sources)), $src];
+    }
+
+    /**
+     * Zoeken: nieuwste eerst, hooguit $limit treffers, met een telling per tijdvak en per niveau over de hele periode
+     * (tot de tijd op is: dan "partial"). Alleen blokken in de periode, bij de server en bron, en met het niveau worden uitgepakt.
+     * @param array{q?: string, from?: int, to?: int, hosts?: list<int>, sources?: list<int>, level?: ?int, limit?: int} $in
+     */
+    public static function search(array $in): array
+    {
+        $t0 = microtime(true);
+        $to = (int) ($in['to'] ?? 0) ?: time();
+        $from = (int) ($in['from'] ?? 0) ?: $to - 86400;
+        $from = max($from, strtotime('-' . self::days() . ' days midnight'));
+        $limit = max(1, min(5000, (int) ($in['limit'] ?? 100)));
+        $p = self::parseQuery((string) ($in['q'] ?? ''));
+        if ($p['error']) {
+            return ['error' => $p['error']];
+        }
+        $level = $in['level'] ?? null;
+        $level = $level !== null && $level !== '' ? (int) $level : $p['level'];
+        [$hosts, $sources, $src] = self::scope($p, array_map('intval', (array) ($in['hosts'] ?? [])), array_map('intval', (array) ($in['sources'] ?? [])));
+        // Tijdvakken voor de grafiek: per minuut (tot 3 uur), per uur (tot 3 dagen), anders per 6 uur
+        $span = $to - $from;
+        $bucket = $span <= 3 * 3600 ? 60 : ($span <= 3 * 86400 ? 3600 : 6 * 3600);
+        $start = intdiv($from, $bucket) * $bucket;
+        $hist = array_fill(0, (int) ceil(($to - $start + 1) / $bucket), [0, 0, 0]);   // [info en lager, warning, error en erger]
+        $levels = [0, 0, 0, 0, 0];
+        $hits = [];
+        $scanned = 0;
+        $blocks = 0;
+        $partial = false;
+        $have = array_column(self::dayTables(), 'name');
+        $where = ['ts_to >= ?', 'ts_from <= ?'];
+        $args = [date('Y-m-d H:i:s', $from), date('Y-m-d H:i:s', $to)];
+        if ($hosts) {
+            $where[] = 'host_id IN (' . implode(',', array_fill(0, count($hosts), '?')) . ')';
+            array_push($args, ...$hosts);
+        }
+        if ($sources) {
+            $where[] = 'source_id IN (' . implode(',', array_fill(0, count($sources), '?')) . ')';
+            array_push($args, ...$sources);
+        }
+        if ($level !== null && $level >= 3) {
+            $where[] = 'n_err > 0';
+        } elseif ($level === 2) {
+            $where[] = 'n_warn > 0';
+        }
+        $oldest = null;   // tijd van de oudste treffer in de top
+        for ($d = strtotime(date('Y-m-d', $to)); $d >= strtotime(date('Y-m-d', $from)); $d = strtotime('-1 day', $d)) {
+            $t = 'logd_' . date('Ymd', $d);
+            if (!in_array($t, $have, true)) {
+                continue;
+            }
+            $st = q("SELECT id, host_id, source_id, UNIX_TIMESTAMP(ts_to) AS t_to, data FROM `$t` WHERE " . implode(' AND ', $where) . ' ORDER BY ts_to DESC, id DESC', $args);
+            while ($b = $st->fetch()) {
+                if (microtime(true) - $t0 > 8) {
+                    $partial = true;   // te veel om alles te tellen: de nieuwste treffers kloppen, de telling is wat er tot nu toe was
+                    break 2;
+                }
+                $blocks++;
+                foreach (self::unpack((string) $b['data']) as $i => [$ts, $lvl, $msg]) {
+                    $scanned++;
+                    if ($ts < $from || $ts > $to || ($level !== null && !($level >= 3 ? $lvl >= 3 : ($level === 2 ? $lvl === 2 : $lvl <= 1)))) {
+                        continue;
+                    }
+                    if (!self::lineMatch($msg, $p)) {
+                        continue;
+                    }
+                    $levels[$lvl]++;
+                    $k = intdiv($ts - $start, $bucket);
+                    if (isset($hist[$k])) {
+                        $hist[$k][$lvl >= 3 ? 2 : ($lvl === 2 ? 1 : 0)]++;
+                    }
+                    if (count($hits) < $limit || $ts > $oldest) {
+                        $hits[] = ['ts' => $ts, 'level' => $lvl, 'msg' => mb_substr($msg, 0, 2000), 'host_id' => (int) $b['host_id'], 'source_id' => (int) $b['source_id'],
+                            'ref' => date('Ymd', $d) . ':' . $b['id'] . ':' . $i];
+                        if (count($hits) > $limit * 2) {
+                            usort($hits, static fn($x, $y) => $y['ts'] <=> $x['ts']);
+                            $hits = array_slice($hits, 0, $limit);
+                        }
+                        $oldest = count($hits) >= $limit ? min(array_column($hits, 'ts')) : null;
+                    }
+                }
+            }
+        }
+        usort($hits, static fn($x, $y) => $y['ts'] <=> $x['ts'] ?: strcmp($y['ref'], $x['ref']));
+        $hits = array_slice($hits, 0, $limit);
+        foreach ($hits as &$h) {
+            $s = $src[$h['source_id']] ?? null;
+            $h['host'] = $s ? $s['host'] : '?';
+            $h['source'] = $s ? $s['name'] : '?';
+            $h['time'] = date('Y-m-d H:i:s', $h['ts']);
+        }
+        unset($h);
+        return ['hits' => $hits, 'total' => array_sum($levels), 'levels' => $levels, 'partial' => $partial, 'blocks' => $blocks, 'scanned' => $scanned,
+            'ms' => (int) round((microtime(true) - $t0) * 1000), 'from' => $from, 'to' => $to, 'bucket' => $bucket, 'start' => $start, 'hist' => $hist,
+            'words' => array_values(array_filter($p['words'], static fn($w) => mb_strlen($w) >= 2)), 'limit' => $limit];
+    }
+
+    /** Regels rond een treffer: 3 ervoor en erna uit dezelfde bron, en uit de andere bronnen van die server dezelfde minuut */
+    public static function context(string $ref): ?array
+    {
+        if (!preg_match('/^(\d{8}):(\d+):(\d+)$/', $ref, $m)) {
+            return null;
+        }
+        $t = "logd_$m[1]";
+        if (!in_array($t, array_column(self::dayTables(), 'name'), true)) {
+            return null;
+        }
+        $b = q("SELECT id, host_id, source_id, data FROM `$t` WHERE id = ?", [(int) $m[2]])->fetch();
+        if (!$b) {
+            return null;
+        }
+        $lines = self::unpack((string) $b['data']);
+        $i = (int) $m[3];
+        if (!isset($lines[$i])) {
+            return null;
+        }
+        $pick = static fn(array $l) => ['time' => date('Y-m-d H:i:s', $l[0]), 'level' => $l[1], 'msg' => mb_substr($l[2], 0, 2000)];
+        $before = array_map($pick, array_slice($lines, max(0, $i - 3), min(3, $i)));
+        $after = array_map($pick, array_slice($lines, $i + 1, 3));
+        // Aan de rand van het blok: het blok ervoor of erna van dezelfde bron
+        if (count($before) < 3 && ($p = q("SELECT data FROM `$t` WHERE host_id = ? AND source_id = ? AND id < ? ORDER BY id DESC LIMIT 1", [$b['host_id'], $b['source_id'], $b['id']])->fetchColumn())) {
+            $before = [...array_map($pick, array_slice(self::unpack((string) $p), -(3 - count($before)))), ...$before];
+        }
+        if (count($after) < 3 && ($n = q("SELECT data FROM `$t` WHERE host_id = ? AND source_id = ? AND id > ? ORDER BY id LIMIT 1", [$b['host_id'], $b['source_id'], $b['id']])->fetchColumn())) {
+            $after = [...$after, ...array_map($pick, array_slice(self::unpack((string) $n), 0, 3 - count($after)))];
+        }
+        // Andere bronnen van dezelfde server, dezelfde minuut
+        $ts = $lines[$i][0];
+        $m0 = $ts - $ts % 60;
+        $names = array_column(q('SELECT id, name FROM log_sources WHERE host_id = ?', [$b['host_id']])->fetchAll(), 'name', 'id');
+        $other = [];
+        foreach (q("SELECT source_id, data FROM `$t` WHERE host_id = ? AND source_id <> ? AND ts_to >= ? AND ts_from <= ?", [$b['host_id'], $b['source_id'], date('Y-m-d H:i:s', $m0), date('Y-m-d H:i:s', $m0 + 59)])->fetchAll() as $r) {
+            foreach (self::unpack((string) $r['data']) as $l) {
+                if ($l[0] >= $m0 && $l[0] < $m0 + 60 && count($other) < 10) {
+                    $other[] = $pick($l) + ['source' => $names[(int) $r['source_id']] ?? '?'];
+                }
+            }
+        }
+        usort($other, static fn($x, $y) => strcmp($x['time'], $y['time']));
+        return ['before' => $before, 'after' => $after, 'other' => $other];
+    }
+
+    /** Alle bronnen (voor de filters op de zoekpagina) */
+    public static function facets(): array
+    {
+        return array_map(static fn($r) => ['id' => (int) $r['id'], 'name' => $r['name'], 'host_id' => (int) $r['host_id'], 'host' => $r['host']],
+            q('SELECT s.id, s.name, s.host_id, h.name AS host FROM log_sources s JOIN hosts h ON h.id = s.host_id ORDER BY h.name, s.name')->fetchAll());
+    }
 }

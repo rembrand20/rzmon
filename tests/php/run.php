@@ -2003,5 +2003,25 @@ ok(!in_array($lsOld, array_column(LogStore::dayTables(), 'name'), true) && in_ar
 $lsOv = LogStore::overview();
 ok($lsOv['raw'] > 0 && $lsOv['used'] > 0 && $lsOv['rows'] >= 2, 'overzicht: opslag en aantallen');
 
+section('Logs zoeken (1.211.0)');
+$lsQ = LogStore::parseQuery('"Failed password" -deploy server:ci-a bron:nginx niveau:error /port \d+/');
+ok($lsQ['words'] === ['failed password'] && $lsQ['not'] === ['deploy'] && $lsQ['hosts'] === ['ci-a'] && $lsQ['sources'] === ['nginx'] && $lsQ['level'] === 3 && $lsQ['re'] !== null,
+    'zoekopdracht: zin, uitsluiten, server:, bron:, niveau: en regex');
+ok(isset(LogStore::search(['q' => '/[kapot/'])['error']), 'een ongeldige regex geeft een foutmelding');
+$lsNow2 = time();
+$lsRaw2 = "rzlogs1\tci-zoek\t$lsNow2\t0\t+0000\n";
+foreach (range(1, 30) as $i) {
+    $lsRaw2 .= "L\t$lsA\t$lsNow2\t" . gmdate('Y-m-d H:i:s', $lsNow2 - 600 + $i * 10) . ($i % 3 ? " INFO gewone regel $i" : " ERROR Failed password for root regel $i") . "\n";
+}
+LogStore::ingest(['id' => $ha, 'name' => 'ci-a'], $lsRaw2);
+$lsS = LogStore::search(['q' => '"failed password" regel', 'from' => $lsNow2 - 3600, 'to' => $lsNow2 + 60, 'limit' => 3]);
+$lsS2 = LogStore::search(['q' => 'regel -failed', 'from' => $lsNow2 - 3600, 'to' => $lsNow2 + 60, 'level' => 1]);
+ok($lsS['total'] === 10 && count($lsS['hits']) === 3 && str_contains($lsS['hits'][0]['msg'], 'regel 30') && $lsS['hits'][0]['ts'] > $lsS['hits'][1]['ts']
+    && $lsS['levels'][3] === 10 && array_sum(array_merge(...$lsS['hist'])) === 10, 'zoeken: alle treffers geteld, de nieuwste eerst, per niveau en per tijdvak');
+ok($lsS2['total'] === 20, 'uitsluiten en het niveaufilter (info)');
+$lsC = LogStore::context($lsS['hits'][1]['ref']);
+ok($lsC !== null && count($lsC['before']) === 3 && count($lsC['after']) === 3 && str_contains($lsC['after'][0]['msg'], 'regel 28'), 'regels eromheen: 3 ervoor en de regels erna');
+ok(LogStore::search(['q' => 'regel server:bestaatniet', 'from' => $lsNow2 - 3600])['total'] === 0, 'server: die niet bestaat geeft niets');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

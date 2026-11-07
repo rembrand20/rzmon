@@ -68,6 +68,7 @@ final class Features
         ['servers', ['TrueNAS SCALE', 'TrueNAS SCALE'], ['Meldingen, taken, apps, updates en temperaturen via midclt.', 'Alerts, jobs, apps, updates and temperatures through midclt.'], '1.174.0', '', '#dashboard'],
         ['servers', ['Home Assistant-add-on', 'Home Assistant add-on'], ['De agent als add-on: HA Core, Supervisor, add-ons en HA OS.', 'The agent as an add-on: HA Core, Supervisor, add-ons and HA OS.'], '1.24.0', '', 'agents'],
         ['servers', ['Logs verzamelen', 'Log collection'], ['Logs per server gecomprimeerd en versleuteld naar RzMon, gemaskeerd en gecomprimeerd bewaard, met daglimiet en bewaartermijn.', 'Logs per server sent compressed and encrypted to RzMon, masked and stored compressed, with a daily limit and retention.'], '1.210.0', 'logs_on', 'logs'],
+        ['servers', ['Logs zoeken', 'Log search'], ['Zoeken in de logs van al je servers: woorden, zinnen, uitsluiten, server, bron, niveau en regex, met een grafiek, de regels eromheen en CSV.', 'Search the logs of all your servers: words, phrases, exclusions, server, source, level and regex, with a chart, the lines around a hit and CSV.'], '1.211.0', '', '#logs'],
         ['servers', ['Store-and-forward', 'Store-and-forward'], ['De agent bewaart rapporten als RzMon even weg is.', 'The agent keeps reports while RzMon is away.'], '1.137.0', '', 'agents'],
         ['servers', ['Waakhond', 'Watchdog'], ['De agent meldt via Pushover als RzMon of cron stilstaat.', 'The agent notifies through Pushover when RzMon or cron stops.'], '1.107.0', '', 'agents'],
 

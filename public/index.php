@@ -170,6 +170,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <?php if ($showVulns || $showLeaks): ?><button class="tab" data-tab="vulns" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 2 1.9 1.9M16 2l-1.9 1.9"/><path d="M9 7.1V6a3 3 0 1 1 6 0v1.1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9M6.5 13H3M21 13h-3.5M6 17l-2.5 2M18 17l2.5 2M6 9 3.5 7.5M18 9l2.5-1.5"/></svg><span class="tab-badge" id="vuln-badge" hidden></span></span><span class="tab-lbl has-s"><?= th('Kwetsbaarheden') ?></span><span class="tab-lbl-s"><?= th('CVE\'s') ?></span></button><?php endif; ?>
       <?php if ($showStats || $showNet): ?><span class="tab-group side-only" role="presentation"><?= th('Analyse en netwerk') ?></span><?php endif; ?>
       <?php if ($showStats): ?><button class="tab" data-tab="analytics" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></span><span class="tab-lbl"><?= th('Analyse') ?></span></button><?php endif; ?>
+      <?php if ($showStats): ?><button class="tab" data-tab="logs" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="tab-lbl"><?= th('Logs') ?></span></button><?php endif; ?>
       <?php if ($showNet): ?><button class="tab" data-tab="net" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="5" rx="1"/><rect x="2" y="17" width="6" height="5" rx="1"/><rect x="16" y="17" width="6" height="5" rx="1"/><path d="M12 7v5M5 17v-2.5a1.5 1.5 0 0 1 1.5-1.5h11a1.5 1.5 0 0 1 1.5 1.5V17"/></svg><span class="tab-badge s1" id="net-badge" hidden></span></span><span class="tab-lbl"><?= th('Netwerk') ?></span></button><?php endif; ?>
       <!-- 1.196.0: op een telefoon de rest onder "Meer" (een blad van onderaf) -->
       <button class="tab mobile-only tab-more" type="button" id="tab-more" aria-haspopup="dialog" title="<?= th('Meer pagina\'s') ?>"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg><span class="tab-badge" id="more-badge" hidden></span></span><span class="tab-lbl"><?= th('Meer') ?></span></button>
@@ -542,6 +543,12 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
     </section>
     <?php endif; ?>
 
+    <?php if ($showStats): ?>
+    <section id="tab-logs" class="tab-panel" hidden>
+      <!-- 1.211.0: zoeken in de logs van je servers (beheerder en gebruiker) -->
+      <div id="logs-page" class="logs-page"><p class="muted"><?= th('Laden…') ?></p></div>
+    </section>
+    <?php endif; ?>
     <section id="tab-analytics" class="tab-panel" hidden>
       <!-- 1.106.0: trends door de tijd -->
       <div class="pg-tools" data-pgtools="an"></div>
