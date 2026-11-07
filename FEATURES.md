@@ -89,6 +89,7 @@ Dezelfde tabel staat in RzMon bij *Instellingen → Overzicht → Functies*, met
 | 🔔 Meldingen | **Bundelen per server** | Eén melding als meerdere checks tegelijk misgaan. | 1.25.0 |
 | 🔔 Meldingen | **Escaleren** | Een volgende stap als niemand reageert. | 1.108.0 |
 | 🔔 Meldingen | **Info-meldingen** | Gebeurtenissen die geen storing zijn: herstart, ingelogd, bijgewerkt … | 1.52.0 |
+| 🔔 Meldingen | **Meldingenpagina per storing** | Een storing en zijn herstel op één regel met de duur, Nu open bovenaan, kleur en golf zoals op Monitoring, en een zijpaneel met grafiek en acties. | 1.207.0 |
 | 🔔 Meldingen | **Oorzaak erbij** | Bij een melding wat er net daarvoor gebeurde. | 1.108.0 |
 | 🔧 Storingen en onderhoud | **Storingen bevestigen** | In het dashboard, via een link of in de Pushover-app. | 1.3.0 |
 | 🔧 Storingen en onderhoud | **Onderhoudsmodus** | Voor alles, per server of per check, ook met vaste vensters. | 1.2.0 |

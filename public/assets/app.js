@@ -1599,24 +1599,30 @@ function init() {
     days.forEach((x) => { x.open = !all; });   // het toggle-event bouwt de inhoud op en onthoudt de stand
   };
   $('#alerts').addEventListener('click', (e) => {
-    // Gebundelde herhalingen (5×) uitklappen
-    if (toggleBundle(e, alertBundles)) return;
+    // 1.207.0: herhalingen (4× in 2 u) uitklappen
+    const rb = e.target.closest('[data-al2-rep]');
+    if (rb) {
+      const sub = $(`#alerts .al2-sub[data-bfor="${rb.dataset.al2Rep}"]`);
+      if (sub) (sub.classList.toggle('closed') ? alertBundles.delete(sub.dataset.b) : alertBundles.add(sub.dataset.b));
+      return;
+    }
     // ⛔ bij een geweigerde verbinding of mislukte login: dat IP blokkeren
     const bl = e.target.closest('[data-block-ip]');
     if (bl) { e.stopPropagation(); return blockDialog(bl.dataset.blockIp); }
     // Kolomkop: sorteren (oplopend → aflopend → standaard)
-    const th = e.target.closest('th[data-sort]');
+    const th = e.target.closest('.al2-headrow [data-sort]');
     if (th) {
       const k = th.dataset.sort;
       alertSort = alertSort.key !== k ? { key: k, dir: 1 } : alertSort.dir > 0 ? { key: k, dir: -1 } : { key: '', dir: 1 };
       return saveAlertSort();
     }
-    // Small: klik op het bericht klapt het hele bericht uit
-    const td = e.target.closest('.alert-table.small .at-msg');
-    if (td) return td.parentElement.classList.toggle('at-open');
-    // Anders: popup van de check
-    const row = e.target.closest('[data-cid]');
-    if (row && !e.target.closest('button, a')) checkInfo(row.dataset.cid);
+    // Anders: zijpaneel met de details
+    const row = e.target.closest('.al2-row[data-aid]');
+    if (row && !e.target.closest('button, a')) al2Open(row.dataset.aid);
+  });
+  $('#alerts').addEventListener('keydown', (e) => {
+    const row = e.target.closest && e.target.closest('.al2-row[data-aid]');
+    if (row && e.target === row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); al2Open(row.dataset.aid); }
   });
   const setAlertFilter = (f) => {
     alertFilter = alertFilter === f && f !== 'all' ? 'all' : f;
@@ -11288,21 +11294,6 @@ function alertDetail(a) {
   try { return JSON.parse(a.detail || '{}'); } catch (e) { return {}; }
 }
 
-/** Tellers in de kop van een dag: hoeveel critical, warning, onbekend, hersteld en bevestigd */
-function alertDayCounts(list) {
-  const n = { crit: 0, warn: 0, unknown: 0, ok: 0, info: 0, ack: 0, auth: 0, authfail: 0 };
-  list.forEach((a) => {
-    if (a.kind === 'auth' || a.kind === 'authfail' || a.kind === 'info') n[a.kind]++;
-    else if (a.kind === 'ack') n.ack++;
-    else if (+a.status === 2) n.crit++;
-    else if (+a.status === 1) n.warn++;
-    else if (+a.status === 3) n.unknown++;
-    else n.ok++;
-  });
-  return [['crit', '🔴', 'critical'], ['warn', '🟠', 'warning'], ['unknown', '⚪', L('onbekend')], ['ok', '✅', L('hersteld/OK')], ['info', 'ℹ️', 'info'], ['ack', '✔', L('bevestigd')], ['auth', '🔑', L('logins en sudo')], ['authfail', '❌', L('mislukte logins/sudo')]]
-    .filter(([k]) => n[k]).map(([k, i, t]) => `<span class="ad-count" title="${n[k]} ${t}">${i} ${n[k]}</span>`).join('');
-}
-
 /** Server en check van een melding; van een verwijderde check uit de titel ("🔴 CRITICAL: server – check") */
 function alertCols(a) {
   const t = a.title.match(/:\s*(.+?) – (.+)$/);
@@ -11350,47 +11341,6 @@ function alertBlock(a) {
     : ` <button type="button" class="linkbtn" data-block-ip="${esc(a.ip)}" title="${esc(L('{ip} blokkeren', { ip: a.ip }))}">⛔ ${L('blokkeren')}</button>`;
 }
 
-function alertRows(list, layout, density) {
-  const time = (a) => esc(a.created_at.slice(11, 16));
-  list = sortAlerts(list);
-  const cid = (a) => (a.check_id ? ` data-cid="${a.check_id}"` : '');
-  if (layout === 'l1nes') {
-    const th = (k) => `<th class="sortable${alertSort.key === k ? ' sorted' : ''}" data-sort="${k}" title="${L('Sorteren op {k}', { k: ALERT_SORTS[k].toLowerCase() })}">${ALERT_SORTS[k]}${alertSort.key === k ? (alertSort.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`;
-    return `<table class="alert-table ${density}"><thead><tr>${Object.keys(ALERT_SORTS).map(th).join('')}</tr></thead><tbody>
-      ${list.map((a) => {
-        const { host, check } = alertCols(a);
-        return `<tr class="${a.kind === 'ack' ? 'ack' : a.kind === 'auth' ? 'auth' : a.kind === 'info' ? 'info' : 's' + a.status}${a.check_id ? ' clickable' : ''}"${cid(a)}>
-          <td class="at-time" title="${esc(a.created_at)}">${time(a)}</td>
-          <td class="at-st">${alertStatusText(a)}</td>
-          <td>${esc(host)}</td>
-          <td>${esc(check)}</td>
-          <td class="at-msg" title="${density === 'small' ? L('Klik voor het hele bericht') : ''}">${esc(splitSent(a.message)[0])}</td>
-          <td class="at-ch">${channelIcons(a)}${alertBlock(a)}</td></tr>`;
-      }).join('')}</tbody></table>`;
-  }
-  // Blox: compacte rijen; dezelfde melding direct achter elkaar wordt gebundeld (5×, uit te klappen)
-  const dot = { crit: 's2', warn: 's1', unk: 's3', ok: 's0', info: 'info', sec: 'sec', other: 'ack' };
-  const row = (a, n = 0, bkey = '') => {
-    const { host } = alertCols(a);
-    return `<div class="mrow ${density === 'small' ? 'compact' : ''}${a.check_id ? ' clickable' : ''}"${cid(a)}>
-      <span class="m-t" title="${esc(a.created_at)}">${time(a)}</span><i class="adot ${dot[alertCat(a)]}"></i>
-      <span class="m-tt">${esc(a.title)}${n ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} keer dezelfde melding – klik om ze te tonen', { n }))}">${n}×</button>` : ''}<small>${esc(splitSent(a.message)[0])}</small></span>
-      <span class="m-sv">${esc(host)}</span>
-      <span class="m-ch">${channelIcons(a)}${alertBlock(a)}</span></div>`;
-  };
-  const groups = [];
-  list.forEach((a) => {
-    const k = `${a.kind}|${a.title}|${splitSent(a.message)[0]}`;
-    const g = groups[groups.length - 1];
-    if (g && g.k === k) g.items.push(a); else groups.push({ k, items: [a] });
-  });
-  return groups.map((g) => {
-    if (g.items.length === 1) return row(g.items[0]);
-    const bkey = 'b' + g.items[g.items.length - 1].id;   // de oudste blijft gelijk als er een nieuwe bijkomt
-    return `<div class="bundle${alertBundles.has(bkey) ? ' open' : ''}" data-bundle="${bkey}">${row(g.items[0], g.items.length)}${g.items.slice(1).map((a) => row(a)).join('')}</div>`;
-  }).join('');
-}
-
 const alertBundles = new Set();   // uitgeklapte bundels
 /** Klik op 5×: bundel uit- of inklappen (en onthouden tot de pagina herladen wordt). true = afgehandeld */
 function toggleBundle(e, set = idsBundles) {
@@ -11419,10 +11369,21 @@ function alertCat(a) {
   if (/^\S+ (HERSTELD|RECOVERED)/.test(a.title)) return 'ok';
   return ['ok', 'warn', 'crit', 'unk'][+a.status] || 'other';
 }
-const ALERT_CATS = [['crit', 2, 'Critical'], ['warn', 1, 'Warning'], ['unk', 3, () => L('Onbekend')], ['ok', 0, () => L('Hersteld')], ['info', 'i', 'Info'], ['sec', 'x', () => L('Beveiliging')]];
+// [filter, soort voor kleur en vorm (al2), naam]
+const ALERT_CATS = [['crit', 'crit', 'Critical'], ['warn', 'warn', 'Warning'], ['unk', 'unk', () => L('Onbekend')], ['ok', 'ok', () => L('Hersteld')], ['info', 'ichk', 'Info'], ['isys', 'isys', () => L('Systeeminfo')], ['sec', 'sec', () => L('Beveiliging')]];
 const catLabel = (k) => { const w = ALERT_CATS.find((c) => c[0] === k)[2]; return typeof w === 'function' ? w() : w; };
-// 'noinfo' (1.84.0): alles behalve de ℹ️-systeeminfo
-const alertMatch = (f, a) => f === 'all' || (f === 'noinfo' ? alertCat(a) !== 'info' : f === 'problems' ? ['crit', 'warn', 'unk'].includes(alertCat(a)) : alertCat(a) === f);
+// 'noinfo' (1.84.0, 1.207.0): alles behalve de systeeminfo; 'isys' alleen systeeminfo, 'info' alleen info van een check
+// 'open' (1.207.0) gaat over een storing, niet over één melding: dat regelt renderAlerts
+function alertMatch(f, a) {
+  if (f === 'all') return true;
+  if (f === 'noinfo') return !alertIsSys(a);
+  if (f === 'isys') return alertIsSys(a);
+  if (f === 'open') return false;
+  if (f === 'problems') return ['crit', 'warn', 'unk'].includes(alertCat(a));
+  if (f === 'info') return alertCat(a) === 'info' && !alertIsSys(a);
+  if (f === 'ok') return alertCat(a) === 'ok' && !alertIsSys(a) && a.kind !== 'authfail';
+  return alertCat(a) === f;
+}
 
 /** Tellers (vandaag) en kerncijfers bovenaan de pagina Meldingen */
 function renderAlertTop(d) {
@@ -11432,9 +11393,9 @@ function renderAlertTop(d) {
   const today = d.alerts.filter((a) => a.created_at.startsWith(d.today));
   const todayB = base.filter((a) => a.created_at.startsWith(d.today));
   const n = (f) => today.filter((a) => alertMatch(f, a)).length;
-  $('#alerts-counts').innerHTML = ALERT_CATS.map(([k, st]) => {
+  $('#alerts-counts').innerHTML = ALERT_CATS.map(([k, k2]) => {
     const c = n(k);
-    return `<button type="button" class="hc s${st} ${alertFilter === k ? 'on' : ''} ${c ? '' : 'zero'}" data-af="${k}" title="${esc(L('Klik om alleen deze te tonen'))}"><span class="hc-dot"></span><b>${c}</b> <span class="hc-w">${catLabel(k)}</span></button>`;
+    return `<button type="button" class="hc al2-hc k-${k2} ${alertFilter === k ? 'on' : ''} ${c ? '' : 'zero'}" data-af="${k}" title="${esc(L('Klik om alleen deze te tonen'))}"><span class="al2-shape" aria-hidden="true">${AL2_SHAPE[k2]}</span><b>${c}</b> <span class="hc-w">${catLabel(k)}</span></button>`;
   }).join('');
   const y = new Date(d.today + 'T12:00:00'); y.setDate(y.getDate() - 1);
   const yday = y.toISOString().slice(0, 10);
@@ -11461,7 +11422,7 @@ function renderAlertTop(d) {
   const open = state.health ? state.health.open_problems : 0;
   const lastA = base[0];
   $('#alerts-kpis').innerHTML = `
-    <div class="kpi kpi-main" title="${esc(L('Per uur vandaag'))}"><div class="kpi-txt"><div class="kpi-lbl">${noInfo ? L('Meldingen vandaag, zonder info') : L('Meldingen vandaag')}</div><div class="kpi-val">${todayB.length}</div>
+    <div class="kpi kpi-main" title="${esc(L('Per uur vandaag'))}"><div class="kpi-txt"><div class="kpi-lbl">${noInfo ? L('Meldingen vandaag, zonder systeeminfo') : L('Meldingen vandaag')}</div><div class="kpi-val">${todayB.length}</div>
       <div class="kpi-sub">${L('gisteren {n}', { n: nY })}${diff !== null && diff !== 0 ? ` · <b class="${diff > 0 ? 'danger-txt' : 'good-txt'}">${diff > 0 ? '+' : ''}${diff}%</b>` : ''}</div></div>
       ${hours.length > 1 ? `<svg class="kpi-spark kpi-spark-big" viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true"><path d="${path}L100,26L0,26Z" fill="var(--primary)" opacity=".14"/><path d="${path}" fill="none" stroke="var(--primary)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>` : ''}</div>
     <div class="kpi ${open ? 'bad' : ''}"><div class="kpi-lbl">${L('Nu open')}</div><div class="kpi-val">${open}</div>
@@ -11473,14 +11434,267 @@ function renderAlertTop(d) {
     <div class="kpi"><div class="kpi-lbl">${L('Laatste melding')}</div><div class="kpi-val kpi-val-txt">${lastA ? esc(lastA.created_at.startsWith(d.today) ? lastA.created_at.slice(11, 16) : fmtDateTime(lastA.created_at)) : '–'}</div>
       <div class="kpi-sub">${lastA ? esc(lastA.title) : ''}</div></div>`;
   // Chips met aantallen (alle dagen) en de keuzelijst met servers
-  const chips = [['all', L('Alles')], ['noinfo', L('Zonder info')], ['problems', L('Storingen')], ['ok', L('Hersteld')], ['info', 'Info'], ['sec', L('Beveiliging')]];
-  $('#alerts-filter').innerHTML = chips.map(([k, l]) => `<button type="button" class="dchip ${alertFilter === k ? 'on' : ''}" data-af="${k}">${l} <b>${d.alerts.filter((a) => alertMatch(k, a)).length}</b></button>`).join('')
+  const chips = [['all', L('Alles')], ['noinfo', L('Zonder systeeminfo')], ['open', L('Nog open')], ['problems', L('Storingen')], ['ok', L('Hersteld')], ['info', 'Info'], ['isys', L('Systeeminfo')], ['sec', L('Beveiliging')]];
+  const nOpen = alertEpisodesCache.filter((it) => it.open).length;
+  $('#alerts-filter').innerHTML = chips.map(([k, l]) => `<button type="button" class="dchip ${alertFilter === k ? 'on' : ''}${k === 'open' && nOpen ? ' al2-hot' : ''}" data-af="${k}">${l} <b>${k === 'open' ? nOpen : d.alerts.filter((a) => alertMatch(k, a)).length}</b></button>`).join('')
     + (['crit', 'warn', 'unk'].includes(alertFilter) ? `<button type="button" class="dchip on" data-af="${alertFilter}" title="${esc(L('Filter opheffen'))}">${catLabel(alertFilter)} ✕</button>` : '');
   const sel = $('#alerts-host'), cur = sel.value;
   const names = [...new Set(d.alerts.map((a) => alertCols(a).host))].sort((p, q) => p.localeCompare(q, LANG, { sensitivity: 'base' }));
   sel.innerHTML = `<option value="">${L('Alle servers')}</option>` + names.map((h) => `<option value="${esc(h)}">${esc(h)}</option>`).join('');
   sel.value = names.includes(cur) ? cur : '';
 }
+
+// ---------------------------------------------------------------- 1.207.0: meldingen in een nieuwe vorm
+/* Eén regel per storing (de storing en zijn herstel samen, met de duur), "Nu open" bovenaan, kleur per soort die van links
+   naar rechts uitloopt, een golf zolang een storing open is, een vorm naast de kleur, en een zijpaneel met details. */
+const AL2_SHAPE = { crit: '⬣', warn: '▲', unk: '?', ok: '✓', ichk: 'ⓘ', isys: 'ⓘ', sec: '⛨', oth: '•' };
+const AL2_PROBLEM = ['crit', 'warn', 'unk'];
+const al2Rank = (k) => ({ crit: 3, warn: 2, unk: 1 }[k] || 0);
+/** Systeeminfo: info zonder check (RzMon bijgewerkt, agent bijgewerkt …) en ingelogd */
+const alertIsSys = (a) => (a.kind === 'info' && !a.check_id) || a.kind === 'auth';
+/** Soort voor de kleur: crit, warn, unk, ok, ichk (info van een check), isys (systeeminfo), sec (beveiliging), oth (bevestigd, onderhoud, flapt) */
+function alertKind2(a) {
+  if (a.kind === 'auth') return 'isys';
+  if (a.kind === 'authfail') return 'sec';
+  if (/^\S+ (STABIEL|FLAPPEND|STABLE|FLAPPING)/.test(a.title || '')) return 'oth';
+  const c = alertCat(a);
+  if (c === 'info') return a.check_id ? 'ichk' : 'isys';
+  return c === 'other' ? 'oth' : c;
+}
+function al2Label(k, a) {
+  if (k === 'oth') return alertStatusText(a).replace(EMOJI_LEAD, '').trim();
+  return { crit: 'Critical', warn: 'Warning', unk: L('Onbekend'), ok: L('Hersteld'), ichk: 'Info', isys: L('Systeeminfo'), sec: L('Beveiliging') }[k];
+}
+const al2Plain = (a) => !['info', 'sec', 'ids', 'ack', 'maint', 'auth', 'authfail'].includes(a.kind || '') && !/^\S+ (STABIEL|FLAPPEND|STABLE|FLAPPING)/.test(a.title || '');
+const al2Ts = (dt) => new Date(String(dt).replace(' ', 'T')).getTime();
+function al2Dur(ms) {
+  const m = Math.max(1, Math.round(ms / 60000));
+  if (m < 60) return L('{n} min', { n: m });
+  const h = Math.floor(m / 60), r = m % 60;
+  if (h < 48) return r ? L('{h} u {m} min', { h, m: r }) : L('{h} u', { h });
+  return L('{n} dagen', { n: Math.round(h / 24) });
+}
+/** Wanneer: vandaag hoe lang geleden, anders de tijd */
+function al2When(dt, today) {
+  if (!dt.startsWith(today)) return esc(dt.slice(11, 16));
+  const ms = Date.now() - al2Ts(dt);
+  return ms < 60000 ? L('nu') : esc(al2Dur(ms));
+}
+/** Bericht in delen: de kop (eerste regel, zonder drempel) en chips (drempel) */
+function al2Parts(msg) {
+  let head = String(msg || '').split('\n')[0].trim();
+  const chips = [];
+  head = head.replace(/\s*\(((?:drempel|threshold)[^)]*)\)/gi, (m, x) => { chips.push(x.trim()); return ''; }).trim();
+  return { head, chips };
+}
+/**
+ * Meldingen → regels. Een storing (critical/warning/onbekend) van een check en de meldingen erna tot het herstel worden één
+ * regel (episode); het herstel hoort bij die regel. De rest blijft een losse regel. Nieuwste (op begintijd) eerst.
+ */
+function alertEpisodes(all) {
+  const asc = [...all].sort((x, y) => (x.created_at < y.created_at ? -1 : x.created_at > y.created_at ? 1 : x.id - y.id));
+  const open = new Map(), items = [];
+  for (const a of asc) {
+    const k = alertKind2(a);
+    if (a.check_id && al2Plain(a) && AL2_PROBLEM.includes(k)) {
+      let ep = open.get(+a.check_id);
+      if (!ep) { ep = { ep: true, k, first: a, last: a, alerts: [a], rec: null }; open.set(+a.check_id, ep); items.push(ep); }
+      else { ep.alerts.push(a); ep.last = a; if (al2Rank(k) > al2Rank(ep.k)) ep.k = k; }
+    } else if (a.check_id && al2Plain(a) && k === 'ok' && open.has(+a.check_id)) {
+      const ep = open.get(+a.check_id);
+      ep.rec = a; ep.alerts.push(a);
+      open.delete(+a.check_id);
+    } else items.push({ ep: false, k, first: a, last: a, alerts: [a], rec: null });
+  }
+  // Nog open? Dat zegt de check zelf (een herstel kan buiten de geladen dagen vallen, of niet gemeld zijn)
+  const checks = new Map();
+  ((state && state.hosts) || []).forEach((h) => h.checks.forEach((c) => checks.set(+c.id, c)));
+  items.forEach((it) => {
+    if (!it.ep || it.rec) return;
+    const c = checks.get(+it.first.check_id);
+    it.open = !!c && +c.status !== 0;
+    it.nowOk = !c || +c.status === 0;
+  });
+  return items.reverse();
+}
+/** Kanalen van een regel: ✕ als er iets niet aankwam, ✓ als er iets verstuurd is */
+function al2Channels(it) {
+  let bad = '', sent = false;
+  it.alerts.forEach((a) => {
+    const why = splitSent(a.message)[1];
+    if (why || (a.email_ok !== null && a.email_ok !== undefined && !+a.email_ok) || (a.webhook_ok !== null && a.webhook_ok !== undefined && !+a.webhook_ok)) bad = why || L('niet alles verzonden');
+    if (+a.sent_ok || +a.email_ok || +a.webhook_ok) sent = true;
+  });
+  if (bad) return `<span class="al2-ch bad" title="${esc(L('Niet verzonden') + ': ' + bad)}">✕</span>`;
+  return sent ? `<span class="al2-ch ok" title="${esc(L('Verzonden'))}">✓</span>` : '';
+}
+function al2Life(it) {
+  if (!it.ep) return '';
+  const t0 = al2Ts(it.first.created_at);
+  if (it.rec) {
+    const ms = al2Ts(it.rec.created_at) - t0;
+    return `<span class="al2-life"><span class="mono muted">${esc(it.first.created_at.slice(11, 16))}</span>→<b class="al2-okt">✓ ${esc(it.rec.created_at.slice(11, 16))}</b>
+      <span class="al2-bar" style="--w:${Math.min(100, Math.max(6, ms / 144000))}%"><i></i></span><span class="muted">${esc(al2Dur(ms))}</span></span>`;
+  }
+  if (it.open) {
+    const ms = Date.now() - t0;
+    return `<span class="al2-life"><span class="al2-bar" style="--w:${Math.min(100, Math.max(6, ms / 144000))}%"><i></i></span><span class="al2-open">${esc(L('nog open · {t}', { t: al2Dur(ms) }))}</span></span>`;
+  }
+  return `<span class="al2-life"><b class="al2-okt">✓ ${esc(L('nu OK'))}</b></span>`;
+}
+const AL2_ITEMS = new Map();   // id van de eerste melding → regel (voor het zijpaneel)
+function al2Row(it, today, sub = false) {
+  const a = it.first, k = it.k, last = it.ep ? it.alerts.filter((x) => x !== it.rec).pop() : a;
+  AL2_ITEMS.set(String(a.id), it);
+  const { host, check } = alertCols(a);
+  const { head, chips } = al2Parts(splitSent(last.message)[0]);
+  const quiet = k === 'isys' || k === 'oth' || (k === 'ok' && !it.ep);
+  const cls = ['al2-row', 'al2-tint', 'k-' + k, it.open && (k === 'crit' || k === 'warn') ? 'al2-wave' : '', quiet ? 'al2-quiet' : '', it.ep && !it.open ? 'al2-done' : '', sub ? 'al2-subrow' : ''].filter(Boolean).join(' ');
+  return `<div class="${cls}" role="row" tabindex="0" data-aid="${a.id}">
+    <span class="al2-when" title="${esc(fmtDateTime(a.created_at))}">${al2When(a.created_at, today)}</span>
+    <span><span class="al2-badge"><span class="al2-shape" aria-hidden="true">${AL2_SHAPE[k]}</span>${esc(al2Label(k, a))}</span></span>
+    <span class="al2-src">${esc(host)}${check && check !== '–' ? `<span class="al2-sep">›</span><span class="al2-chk">${esc(check)}</span>` : ''}</span>
+    <span class="al2-what"><b>${esc(head || a.title)}</b>${chips.map((c) => `<span class="al2-vchip">${esc(c)}</span>`).join('')}${it.ep && it.alerts.length - (it.rec ? 1 : 0) > 1 ? `<span class="al2-vchip" title="${esc(L('Meldingen in deze storing'))}">${it.alerts.length - (it.rec ? 1 : 0)}×</span>` : ''}${it.rep ? `<button type="button" class="al2-rep" data-al2-rep="${a.id}">${esc(it.rep)}</button>` : ''}${alertBlock(a)}</span>
+    <span class="al2-lifec">${al2Life(it)}</span>
+    <span class="al2-chc">${al2Channels(it)}</span></div>`;
+}
+function al2Head() {
+  const h = (k, t, cls = '', title = '') => `<span class="al2-sortable${cls}${alertSort.key === k ? ' sorted' : ''}" data-sort="${k}" title="${esc(title || L('Sorteren op {k}', { k: t.toLowerCase() }))}">${t}${alertSort.key === k ? (alertSort.dir > 0 ? ' ▲' : ' ▼') : ''}</span>`;
+  return `<div class="al2-row al2-headrow" role="row">${h('time', L('Wanneer'))}${h('status', 'Status')}${h('server', L('Bron'))}${h('message', L('Wat'))}<span class="al2-lifec">${L('Verloop')}</span>${h('channels', '📨', ' al2-chc', L('Kanalen'))}</div>`;
+}
+/** Regels van één dag (of van Nu open), met herhalingen achter elkaar gebundeld (4× in 2 u) */
+function al2List(items, today, layout) {
+  const groups = [];
+  items.forEach((it) => {
+    const key = it.ep ? null : `${it.k}|${it.first.title}|${al2Parts(splitSent(it.first.message)[0]).head}`;
+    const g = groups[groups.length - 1];
+    if (key && g && g.key === key) g.items.push(it); else groups.push({ key, items: [it] });
+  });
+  return `<div class="al2-list${layout === 'l1nes' ? '' : ' al2-blox'}"><div class="al2-grid" role="table">${al2Head()}${groups.map((g) => {
+    const [first, ...rest] = g.items;
+    if (!rest.length) return al2Row(first, today);
+    const span = al2Ts(first.first.created_at) - al2Ts(rest[rest.length - 1].first.created_at);
+    first.rep = L('{n}× in {t}', { n: g.items.length, t: al2Dur(span) });
+    const key = 'b' + rest[rest.length - 1].first.id;
+    return al2Row(first, today) + `<div class="al2-sub${alertBundles.has(key) ? '' : ' closed'}" data-b="${key}" data-bfor="${first.first.id}">${rest.map((x) => al2Row(x, today, true)).join('')}</div>`;
+  }).join('')}</div></div>`;
+}
+/** Dagkop: aantallen per soort, en hoe lang er storing was */
+function al2DayCounts(items) {
+  const n = {};
+  let down = 0;
+  items.forEach((it) => {
+    n[it.k] = (n[it.k] || 0) + 1;
+    if (it.ep && it.rec) down += al2Ts(it.rec.created_at) - al2Ts(it.first.created_at);
+  });
+  const out = ['crit', 'warn', 'unk', 'ok', 'ichk', 'isys', 'sec', 'oth'].filter((k) => n[k])
+    .map((k) => `<span class="al2-dc k-${k}"><b>${n[k]}</b> ${esc((k === 'oth' ? L('overig') : al2Label(k, {})).toLowerCase())}</span>`);
+  if (down) out.push(`<span class="al2-dc">${esc(L('{t} storing', { t: al2Dur(down) }))}</span>`);
+  return out.join('');
+}
+
+// ---------------------------------------------------------------- zijpaneel
+let al2Sel = null;
+function al2Drawer() {
+  let d = $('#al2-drawer');
+  if (!d) {
+    document.body.insertAdjacentHTML('beforeend', '<div class="al2-scrim" id="al2-scrim" hidden></div><aside class="al2-drawer" id="al2-drawer" aria-label="" hidden></aside>');
+    d = $('#al2-drawer');
+    $('#al2-scrim').onclick = al2Close;
+    d.addEventListener('click', al2DrawerClick);
+  }
+  return d;
+}
+function al2Close() {
+  const d = $('#al2-drawer');
+  if (!d || d.hidden) return;
+  d.classList.remove('on');
+  $('#al2-scrim').classList.remove('on');
+  setTimeout(() => { if (!d.classList.contains('on')) { d.hidden = true; $('#al2-scrim').hidden = true; } }, 260);
+  $$('#alerts .al2-row.al2-sel').forEach((r) => r.classList.remove('al2-sel'));
+  al2Sel = null;
+}
+async function al2Open(aid) {
+  const it = AL2_ITEMS.get(String(aid));
+  if (!it) return;
+  al2Sel = String(aid);
+  $$('#alerts .al2-row.al2-sel').forEach((r) => r.classList.remove('al2-sel'));
+  const row = $(`#alerts .al2-row[data-aid="${aid}"]`);
+  if (row) row.classList.add('al2-sel');
+  const d = al2Drawer(), a = it.first, k = it.k;
+  const { host, check } = alertCols(a);
+  const t0 = a.created_at, t1 = it.rec ? it.rec.created_at : null;
+  const sub = it.ep ? (t1 ? L('{from} → hersteld {to} ({d})', { from: fmtDateTime(t0), to: t1.slice(11, 16), d: al2Dur(al2Ts(t1) - al2Ts(t0)) })
+    : it.open ? L('{from} · nog open ({d})', { from: fmtDateTime(t0), d: al2Dur(Date.now() - al2Ts(t0)) }) : fmtDateTime(t0)) : fmtDateTime(t0);
+  // Eerdere keren: andere storingen van dezelfde check in de geladen dagen
+  const prev = a.check_id ? (alertEpisodesCache || []).filter((x) => x.ep && x !== it && +x.first.check_id === +a.check_id && x.first.created_at < a.created_at).slice(0, 6) : [];
+  const canAct = (isAdmin() || isUser()) && a.check_id;
+  d.className = 'al2-drawer k-' + k;
+  d.setAttribute('aria-label', L('Details van de melding'));
+  d.innerHTML = `<div class="al2-dh"><span class="al2-badge"><span class="al2-shape" aria-hidden="true">${AL2_SHAPE[k]}</span>${esc(al2Label(k, a))}</span>
+      <button type="button" class="al2-x icon-btn" data-al2-close aria-label="${esc(L('Sluiten'))}">✕</button>
+      <h3>${esc(host)}${check && check !== '–' ? ' › ' + esc(check) : ''}</h3><div class="muted small">${esc(sub)}</div></div>
+    <div class="al2-db">
+      <div class="al2-ds"><h4>${L('Bericht')}</h4>${it.alerts.map((x) => `<div class="al2-msg">${it.alerts.length > 1 ? `<div class="muted small">${esc(fmtDateTime(x.created_at))} · ${esc(al2Label(alertKind2(x), x))}</div>` : ''}${esc(splitSent(x.message)[0])}</div>`).join('')}</div>
+      ${a.check_id ? `<div class="al2-ds"><h4>${L('Het uur eromheen')}</h4><div id="al2-chart" class="al2-chart"><p class="muted small">${L('Laden…')}</p></div></div>` : ''}
+      ${a.check_id ? `<div class="al2-ds"><h4>${L('Eerdere keren')}</h4><div class="al2-hist">${prev.length ? prev.map((x) => `<div><span class="mono">${esc(fmtDateTime(x.first.created_at))}</span><span class="muted">${x.rec ? esc(L('hersteld na {d}', { d: al2Dur(al2Ts(x.rec.created_at) - al2Ts(x.first.created_at)) })) : esc(al2Label(x.k, x.first))}</span></div>`).join('') : `<span class="muted">${L('Niet eerder in deze periode.')}</span>`}</div></div>` : ''}
+      <div class="al2-ds"><h4>${L('Bezorging')}</h4><div class="al2-deliv">${it.alerts.map((x) => `<div><span class="mono muted">${esc(x.created_at.slice(11, 16))}</span> ${channelIcons(x)}${splitSent(x.message)[1] ? ` <span class="bad small">${esc(splitSent(x.message)[1])}</span>` : ''}</div>`).join('')}</div></div>
+    </div>
+    <div class="al2-da">${canAct && it.open ? `<button type="button" class="btn primary" data-al2-act="ack">✔ ${L('Bevestigen')}</button><button type="button" class="btn" data-al2-act="maint">🔕 ${L('Stil 1 uur')}</button>` : ''}
+      ${a.check_id ? `<button type="button" class="btn" data-al2-act="check">${L('Naar de check')} →</button>` : ''}</div>`;
+  d.hidden = false;
+  $('#al2-scrim').hidden = false;
+  requestAnimationFrame(() => { d.classList.add('on'); $('#al2-scrim').classList.add('on'); });
+  if (a.check_id) al2Chart(it);
+}
+async function al2Chart(it) {
+  const a = it.first, t0 = al2Ts(a.created_at), t1 = it.rec ? al2Ts(it.rec.created_at) : (it.open ? Date.now() : t0);
+  const from = t0 - 1800000, to = Math.min(Date.now(), t1 + 1800000);
+  let r;
+  try { r = await api('history', null, { check_id: a.check_id, hours: Math.max(1, Math.ceil((Date.now() - from) / 3600000) + 1) }); } catch (ex) { r = null; }
+  const box = $('#al2-chart');
+  if (!box || al2Sel !== String(a.id)) return;
+  const pts = ((r && r.points) || []).filter((p) => p.t * 1000 >= from && p.t * 1000 <= to);
+  if (pts.length < 2) { box.innerHTML = `<p class="muted small">${L('Geen meetwaarden uit die tijd.')}</p>`; return; }
+  const useV = pts.some((p) => p.v !== null && p.v !== undefined);
+  const val = (p) => (useV ? +p.v : 3 - Math.min(3, +p.s));
+  const vs = pts.map(val), max = Math.max(...vs), min = Math.min(...vs, 0), span = max - min || 1;
+  const W = 380, H = 64, X = (t) => ((t - from) / (to - from) * W).toFixed(1), Y = (v) => (H - 4 - (v - min) / span * (H - 10)).toFixed(1);
+  const line = pts.map((p) => `${X(p.t * 1000)},${Y(val(p))}`).join(' ');
+  const mark = (t, c) => `<line x1="${X(t)}" y1="0" x2="${X(t)}" y2="${H}" stroke="${c}" stroke-dasharray="3 3"/>`;
+  box.innerHTML = `<svg viewBox="0 0 ${W} ${H + 14}" preserveAspectRatio="none" role="img" aria-label="${esc(L('Verloop rond de melding'))}">
+    <polyline points="${X(pts[0].t * 1000)},${H} ${line} ${X(pts[pts.length - 1].t * 1000)},${H}" fill="color-mix(in srgb, var(--c) 16%, transparent)"/><polyline points="${line}" fill="none" stroke="var(--c)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    ${mark(t0, 'var(--c)')}${it.rec ? mark(t1, 'var(--ok)') : ''}<line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="var(--border)"/>
+    <text x="0" y="${H + 12}">${esc(new Date(from).toTimeString().slice(0, 5))}</text><text x="${W}" y="${H + 12}" text-anchor="end">${esc(new Date(to).toTimeString().slice(0, 5))}</text></svg>
+    ${useV ? `<div class="muted small">${L('hoogste {v}', { v: dec(Math.round(max * 10) / 10) })}</div>` : `<div class="muted small">${L('status (hoger = beter)')}</div>`}`;
+}
+async function al2DrawerClick(e) {
+  if (e.target.closest('[data-al2-close]')) return al2Close();
+  const b = e.target.closest('[data-al2-act]');
+  if (!b || !al2Sel) return;
+  const it = AL2_ITEMS.get(al2Sel);
+  const cid = it && it.first.check_id;
+  if (!cid) return;
+  try {
+    if (b.dataset.al2Act === 'check') { al2Close(); return checkInfo(cid); }
+    b.disabled = true;
+    if (b.dataset.al2Act === 'ack') { await api('ack', { id: cid, comment: '' }); toast('✔ ' + L('Bevestigd')); }
+    if (b.dataset.al2Act === 'maint') { await api('maintenance_set', { scope: 'check', id: cid, minutes: 60 }); toast('🔕 ' + L('Stil tot over een uur')); }
+    refresh();
+  } catch (ex) { toast(ex.message, 'err'); b.disabled = false; }
+}
+document.addEventListener('keydown', (e) => {
+  const d = $('#al2-drawer');
+  if (!d || d.hidden || !al2Sel) return;
+  if (e.key === 'Escape') { e.preventDefault(); return al2Close(); }
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  if (e.target.closest && e.target.closest('input, select, textarea')) return;
+  const rows = $$('#alerts .al2-row[data-aid]').filter((r) => r.offsetParent);
+  const i = rows.findIndex((r) => r.dataset.aid === al2Sel);
+  const n = rows[Math.max(0, Math.min(rows.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))];
+  if (n && n.dataset.aid !== al2Sel) { e.preventDefault(); al2Open(n.dataset.aid); n.scrollIntoView({ block: 'nearest' }); }
+});
+let alertEpisodesCache = [];
 
 function renderAlerts() {
   try { renderAlertCharts(); } catch (e) { /* grafiek mag de lijst nooit tegenhouden */ }
@@ -11496,40 +11710,62 @@ function renderAlerts() {
   $('#alerts-info').textContent = (d.alerts.length === 1 ? L('1 melding') : L('{n} meldingen', { n: d.alerts.length }))
     + ' · ' + (d.days === 1 ? L('van de laatste dag') : L('van de laatste {n} dagen', { n: d.days }))
     + (d.truncated ? ' ' + L('(alleen de nieuwste 10.000)') : '');
-  if (!['all', 'noinfo', 'problems', 'crit', 'warn', 'unk', 'ok', 'info', 'sec'].includes(alertFilter)) alertFilter = 'all';
+  if (!['all', 'noinfo', 'open', 'problems', 'crit', 'warn', 'unk', 'ok', 'info', 'isys', 'sec'].includes(alertFilter)) alertFilter = 'all';
+  // 1.207.0: een storing en zijn herstel worden één regel
+  alertEpisodesCache = alertEpisodes(d.alerts);
+  AL2_ITEMS.clear();
   renderAlertTop(d);
   const q = $('#alerts-search').value.trim().toLowerCase();
   const host = $('#alerts-host').value;
-  const shown = d.alerts.filter((a) => alertMatch(alertFilter, a) && (!host || alertCols(a).host === host)
-    && (!q || `${a.title} ${a.message} ${alertCols(a).host}`.toLowerCase().includes(q)) && fxPass('alerts', a));
+  const pass = (a) => (!host || alertCols(a).host === host)
+    && (!q || `${a.title} ${a.message} ${alertCols(a).host}`.toLowerCase().includes(q)) && fxPass('alerts', a);
+  let items = alertEpisodesCache.filter((it) => it.alerts.some((a) => pass(a) && (alertFilter === 'open' ? it.open : alertMatch(alertFilter, a))));
+  if (ALERT_SORTS[alertSort.key]) {
+    const byFirst = new Map(items.map((it) => [it.first, it]));
+    items = sortAlerts(items.map((it) => it.first)).map((a) => byFirst.get(a));
+  }
   fxRender('alerts');
   const narrowed = !!q || !!host || fxActive('alerts');
   if (q) moreDaysWhenSearching('alerts', d);
-  if (!shown.length) { el.innerHTML = `<p class="muted">${d.alerts.length ? L('Geen meldingen met dit filter.') : L('Nog geen meldingen.') + ' 👌'}</p>` + moreDays('alerts', d); $('#alerts-toggle').hidden = true; return; }
+  if (!items.length) { el.innerHTML = `<p class="muted">${d.alerts.length ? L('Geen meldingen met dit filter.') : L('Nog geen meldingen.') + ' 👌'}</p>` + moreDays('alerts', d); $('#alerts-toggle').hidden = true; return; }
+  // Nu open: bovenaan, los van de dagen
+  // Ergste eerst, daarna wat het langst open staat (tenzij je zelf sorteert)
+  const openIt = items.filter((it) => it.open);
+  if (!ALERT_SORTS[alertSort.key]) openIt.sort((x, y) => al2Rank(y.k) - al2Rank(x.k) || (x.first.created_at < y.first.created_at ? -1 : 1));
+  const longest = openIt.reduce((m, it) => Math.max(m, Date.now() - al2Ts(it.first.created_at)), 0);
+  const openHtml = openIt.length ? `<section class="al2-openblk"><div class="al2-sech al2-openh"><h3>${L('Nu open')}</h3>
+      <span class="al2-sum"><span><b>${openIt.length}</b> ${openIt.length === 1 ? L('storing') : L('storingen')}</span><span>${esc(L('langste {t}', { t: al2Dur(longest) }))}</span></span></div>
+      ${al2List(openIt, d.today, layout)}</section>` : '';
   const byDay = new Map();
-  shown.forEach((a) => {
-    const day = a.created_at.slice(0, 10);
+  items.filter((it) => !it.open).forEach((it) => {
+    const day = it.first.created_at.slice(0, 10);
     if (!byDay.has(day)) byDay.set(day, []);
-    byDay.get(day).push(a);
+    byDay.get(day).push(it);
   });
+  const nAlerts = (list) => list.reduce((n, it) => n + it.alerts.length, 0);
   // Vandaag altijd open (1.78.0); de andere dagen dicht, met zoeken of een filter de dagen met treffers open
-  const fresh = todayFresh('alerts', alertDayOpen, d.today, (byDay.get(d.today) || []).length);
+  const fresh = todayFresh('alerts', alertDayOpen, d.today, nAlerts(byDay.get(d.today) || []));
   const isOpen = (day) => alertDayOpen[day] ?? (day === d.today || narrowed);
-  el.innerHTML = (!narrowed && !byDay.has(d.today) ? todayEmpty(d.today, L('geen meldingen') + ' 👌') : '') + [...byDay].map(([day, list]) => `
-    <details class="alert-day" data-day="${day}" ${isOpen(day) ? 'open' : ''} ${fresh && day === d.today ? 'data-fresh="1"' : ''}>
+  el.innerHTML = openHtml + (!narrowed && !byDay.has(d.today) && !openIt.length ? todayEmpty(d.today, L('geen meldingen') + ' 👌') : '') + [...byDay].map(([day, list]) => `
+    <details class="alert-day al2-day" data-day="${day}" ${isOpen(day) ? 'open' : ''} ${fresh && day === d.today ? 'data-fresh="1"' : ''}>
       <summary><span class="ad-title">${esc(dayLabel(day, d.today))}</span>
-        <span class="ad-counts">${alertDayCounts(list)}</span>
-        <span class="muted small ad-total">${list.length === 1 ? L('1 melding') : L('{n} meldingen', { n: list.length })}</span></summary>
-      <div class="ad-body">${isOpen(day) ? alertRows(list, layout, density) : ''}</div>
+        <span class="ad-counts al2-dcs">${al2DayCounts(list)}</span>
+        <span class="muted small ad-total">${nAlerts(list) === 1 ? L('1 melding') : L('{n} meldingen', { n: nAlerts(list) })}</span></summary>
+      <div class="ad-body">${isOpen(day) ? al2List(list, d.today, layout) : ''}</div>
     </details>`).join('') + moreDays('alerts', d);
   // Pas bij openen opbouwen: snel, ook met duizenden meldingen
   $$('.alert-day', el).forEach((det) => (det.ontoggle = () => {
     alertDayOpen[det.dataset.day] = det.open;
-    if (det.open && !$('.ad-body', det).innerHTML) $('.ad-body', det).innerHTML = alertRows(byDay.get(det.dataset.day), layout, density);
+    if (det.open && !$('.ad-body', det).innerHTML) $('.ad-body', det).innerHTML = al2List(byDay.get(det.dataset.day), d.today, layout);
     alertToggleLabel();
   }));
   $('#alerts-toggle').hidden = byDay.size < 2;
   alertToggleLabel();
+  // Het zijpaneel blijft bij dezelfde regel
+  if (al2Sel) {
+    const r = $(`#alerts .al2-row[data-aid="${al2Sel}"]`);
+    if (r) r.classList.add('al2-sel');
+  }
 }
 
 /** Onderaan Meldingen en IDS: ouder laden (1.119.0) */

@@ -105,6 +105,7 @@ final class Features
         ['notify', ['Bundelen per server', 'Bundle per server'], ['Eén melding als meerdere checks tegelijk misgaan.', 'One notification when several checks fail at once.'], '1.25.0', 'notify_bundle_hosts', 'rules'],
         ['notify', ['Escaleren', 'Escalation'], ['Een volgende stap als niemand reageert.', 'A next step when nobody responds.'], '1.108.0', 'esc_on', 'rules'],
         ['notify', ['Info-meldingen', 'Info notifications'], ['Gebeurtenissen die geen storing zijn: herstart, ingelogd, bijgewerkt …', 'Events that are not an outage: restart, logged in, updated …'], '1.52.0', '', 'sysinfo'],
+        ['notify', ['Meldingenpagina per storing', 'Alerts page per outage'], ['Een storing en zijn herstel op één regel met de duur, Nu open bovenaan, kleur en golf zoals op Monitoring, en een zijpaneel met grafiek en acties.', 'An outage and its recovery on one line with the duration, Open now at the top, colour and wave as on Monitoring, and a side panel with chart and actions.'], '1.207.0', '', '#alerts'],
         ['notify', ['Oorzaak erbij', 'Cause included'], ['Bij een melding wat er net daarvoor gebeurde.', 'What happened just before, with a notification.'], '1.108.0', 'context_on', 'rules'],
 
         // Storingen en onderhoud

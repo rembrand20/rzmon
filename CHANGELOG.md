@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.207.0**: **meldingen per storing** op één regel met de duur, *Nu open* bovenaan, kleur en golf zoals op Monitoring, en een zijpaneel met details.
 - **1.206.0**: **bevestigen met een vinkje** in plaats van je wachtwoord, per rol in te stellen, met een vangnet van 60 minuten.
 - **1.205.0**: **agents wachten tijdens een update** van RzMon (wachtrij, vrijgave, samenvatting) en geven pas na 5 minuten alarm.
 - **1.204.0**: een **nieuw update-venster** met voortgangsring, tijdlijn per stap en duidelijke foutmeldingen.
 - **1.203.0**: de **zijbalk klapt vanzelf in** tot icoontjes als je hem smaller sleept of het venster smal is.
-- **1.202.0**: een **laadteller** met animatie als een pagina lang duurt, en de **zijbalk** als zwevend paneel.
+
+## 1.207.0 – 2026-11-07
+### Nieuw
+- **Meldingen: één regel per storing.** Een warning of critical van een check en de meldingen erna tot het herstel staan nu op één regel, met *van → ✓ hersteld om*, een balkje en hoe lang het duurde. Het bericht staat los van de drempel (als label), en herhalingen staan samen als *3× in 20 min*.
+- **Nu open** bovenaan de pagina: wat nog niet hersteld is, de ergste eerst, met hoe lang al. Daaronder de dagen, met per dag de aantallen per soort en de totale storingsduur.
+- **Kleur zoals op Monitoring**: critical rood, warning oranje, onbekend grijs, hersteld groen, info van een check donkerblauw, systeeminfo lichtblauw, beveiliging paars. De kleur is links sterk en loopt naar rechts uit; een storing die nog open staat, krijgt een golf van links naar rechts. Naast de kleur staat een vorm (⬣ ▲ ? ✓ ⓘ ⛨), zodat je het ook zonder kleur ziet. Systeeminfo staat kleiner en rustiger.
+- **Zijpaneel met details**: klik op een regel voor alle berichten, een grafiek van het uur eromheen, eerdere keren, de bezorging per kanaal en de knoppen *Bevestigen*, *Stil 1 uur* en *Naar de check*. Met ↑/↓ blader je, Esc sluit.
+- **Systeeminfo apart**: een eigen teller en chip *Systeeminfo* (RzMon of een agent bijgewerkt, ingelogd), los van *Info* van een check. De chip *Zonder info* heet nu *Zonder systeeminfo*; nieuw is de chip *Nog open*.
+- Op een telefoon staan tijd en status boven, met de bron en het bericht eronder.
 
 ## 1.206.2 – 2026-11-06
 ### Opgelost
