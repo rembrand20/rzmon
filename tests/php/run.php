@@ -2155,5 +2155,21 @@ q('DELETE FROM edr_events WHERE host_id = ?', [$hl]);
 q('DELETE FROM ids_incidents WHERE host_id = ?', [$hl]);
 q('DELETE FROM hosts WHERE id = ?', [$hl]);
 
+// 1.220.0: memo() bewaart kort; mDS geeft per server de ping (laatste metingen, gemiddeld, verlies)
+$mk = 'ci-memo-' . bin2hex(random_bytes(4));
+$m1 = memo($mk, 60, static fn() => ['a' => 1]);
+$m2 = memo($mk, 60, static fn() => ['a' => 2]);
+ok($m1 === ['a' => 1] && $m2 === ['a' => 1], 'memo: binnen de tijd het bewaarde antwoord');
+q("INSERT INTO hosts (name, address, mode) VALUES ('ci-mds', '10.0.0.91', 'remote')");
+$hm = (int) db()->lastInsertId();
+q("INSERT INTO checks (host_id, type, name, status, enabled) VALUES (?, 'ping', 'Ping', 0, 1)", [$hm]);
+$cm = (int) db()->lastInsertId();
+q('INSERT INTO results (check_id, status, value, created_at) VALUES (?, 0, 2.0, NOW() - INTERVAL 30 MINUTE), (?, 0, 4.0, NOW() - INTERVAL 20 MINUTE), (?, 2, NULL, NOW() - INTERVAL 10 MINUTE)', [$cm, $cm, $cm]);
+$mp = Mds::data()['hosts'][$hm]['ping'] ?? null;
+ok($mp && $mp['last'] === [2.0, 4.0, null] && $mp['avg'] == 3.0 && $mp['max'] == 4.0 && abs($mp['loss'] - 33.3) < 0.1, 'mDS: ping per apparaat (laatste, gemiddeld, hoogste, verlies)');
+q('DELETE FROM results WHERE check_id = ?', [$cm]);
+q('DELETE FROM checks WHERE host_id = ?', [$hm]);
+q('DELETE FROM hosts WHERE id = ?', [$hm]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

@@ -178,6 +178,25 @@ function agent_contact(array $h): array
 }
 
 /** Na hoeveel seconden zonder rapport een agent "stil" is: de instelling, maar minstens 3 tikken. */
+/**
+ * 1.220.0: kort bewaren wat zwaar is om uit te rekenen en niet per seconde verandert (bv. IDS: hardening, aanvallers).
+ * Een bestand in de tijdelijke map per installatie; mislukt lezen of schrijven, dan gewoon opnieuw uitrekenen.
+ */
+function memo(string $key, int $ttl, callable $fn): mixed
+{
+    $file = sys_get_temp_dir() . '/rzsense-memo-' . substr(md5(SM_ROOT . '|' . $key), 0, 16) . '.json';
+    $raw = @file_get_contents($file);
+    if ($raw !== false) {
+        $d = json_decode($raw, true);
+        if (is_array($d) && isset($d['t']) && array_key_exists('v', $d) && (int) $d['t'] > time() - $ttl) {
+            return $d['v'];
+        }
+    }
+    $v = $fn();
+    @file_put_contents($file, (string) json_encode(['t' => time(), 'v' => $v]), LOCK_EX);
+    return $v;
+}
+
 function agent_stale_seconds(?int $own): int
 {
     return max((int) setting('agent_stale_minutes', 5) * 60, 3 * agent_tick($own) + 30);

@@ -52,6 +52,19 @@ final class Perf
         self::$partAt = $now;
     }
 
+    /** 1.220.0: de onderdelen ook als Server-Timing-kop (zichtbaar in de ontwikkelaarshulpmiddelen van de browser) */
+    public static function timingHeader(): void
+    {
+        if (headers_sent() || !self::$parts) {
+            return;
+        }
+        $h = [];
+        foreach (self::$parts as $name => $ms) {
+            $h[] = preg_replace('/[^a-z0-9_-]/i', '-', $name) . ';dur=' . round($ms, 1);
+        }
+        header('Server-Timing: ' . implode(', ', array_slice($h, 0, 20)));
+    }
+
     /** Grootte van het antwoord (voor de tabel) */
     public static function bytes(int $n): void
     {

@@ -12,7 +12,65 @@ final class Mds
     /** @return array<string, mixed> */
     public static function data(): array
     {
-        return ['at' => time(), 'sec' => self::safe(static fn() => self::sec()), 'net' => self::safe(static fn() => self::net())];
+        return ['at' => time(), 'sec' => self::safe(static fn() => self::sec()), 'net' => self::safe(static fn() => self::net()),
+            'hosts' => self::safe(static fn() => self::hosts()) ?: (object) []];
+    }
+
+    /**
+     * 1.220.0: per server/apparaat wat mDS naast de naam toont: het netwerkverkeer nu en vandaag (van de agent of de switch,
+     * via het apparaat met hetzelfde IP in Netwerk) en de ping (laatste 12 metingen, gemiddeld, hoogste en verlies over 24 uur).
+     * @return array<int, array<string, mixed>>
+     */
+    private static function hosts(): array
+    {
+        $out = [];
+        // Verkeer: net_devices op IP-adres van de server (adres en de adressen die de agent meldt)
+        $byIp = [];
+        foreach (q("SELECT d.ip, c.rate_rx, c.rate_tx, c.at, (SELECT rx + tx FROM net_traffic_day t WHERE t.device_id = d.id AND t.day = CURDATE()) AS today
+                    FROM net_devices d JOIN net_counters c ON c.device_id = d.id WHERE c.at >= ?", [time() - 1800]) as $r) {
+            $byIp[(string) $r['ip']] = ['rx' => (int) $r['rate_rx'], 'tx' => (int) $r['rate_tx'], 'today' => $r['today'] !== null ? (int) $r['today'] : null];
+        }
+        if ($byIp) {
+            foreach (q('SELECT id, address, agent_ips FROM hosts WHERE enabled = 1') as $h) {
+                foreach (array_merge([(string) $h['address']], parse_list((string) ($h['agent_ips'] ?? ''))) as $ip) {
+                    if (isset($byIp[$ip])) {
+                        $out[(int) $h['id']]['net'] = $byIp[$ip];
+                        break;
+                    }
+                }
+            }
+        }
+        // Ping: de ping-check per apparaat (de eerste als er meer zijn)
+        $pings = q("SELECT MIN(id) AS id, host_id FROM checks WHERE type = 'ping' AND enabled = 1 GROUP BY host_id")->fetchAll(PDO::FETCH_KEY_PAIR);
+        if ($pings) {
+            $ids = array_map('intval', array_keys($pings));
+            $in = implode(',', $ids);
+            $agg = q("SELECT check_id, AVG(IF(status = 0, value, NULL)) AS avg, MAX(IF(status = 0, value, NULL)) AS mx, COUNT(*) AS n, SUM(status <> 0) AS bad
+                      FROM results WHERE check_id IN ($in) AND created_at >= NOW() - INTERVAL 1 DAY GROUP BY check_id")->fetchAll(PDO::FETCH_UNIQUE);
+            $last = [];
+            foreach (q("SELECT check_id, status, value FROM results WHERE check_id IN ($in) AND created_at >= NOW() - INTERVAL 3 HOUR ORDER BY id DESC") as $r) {
+                $k = (int) $r['check_id'];
+                if (count($last[$k] ?? []) < 12) {
+                    $last[$k][] = (int) $r['status'] === 0 && $r['value'] !== null ? round((float) $r['value'], 1) : null;
+                }
+            }
+            $hours = [];
+            foreach (q("SELECT check_id, FLOOR(TIMESTAMPDIFF(MINUTE, created_at, NOW()) / 60) AS b, AVG(IF(status = 0, value, NULL)) AS v
+                        FROM results WHERE check_id IN ($in) AND created_at >= NOW() - INTERVAL 1 DAY GROUP BY check_id, b") as $r) {
+                $hours[(int) $r['check_id']][23 - min(23, (int) $r['b'])] = $r['v'] !== null ? round((float) $r['v'], 1) : null;
+            }
+            foreach ($pings as $cid => $hid) {
+                $a = $agg[$cid] ?? null;
+                $h24 = [];
+                for ($i = 0; $i < 24; $i++) {
+                    $h24[] = $hours[(int) $cid][$i] ?? null;
+                }
+                $out[(int) $hid]['ping'] = ['check' => (int) $cid, 'last' => array_reverse($last[(int) $cid] ?? []),
+                    'avg' => $a && $a['avg'] !== null ? round((float) $a['avg'], 1) : null, 'max' => $a && $a['mx'] !== null ? round((float) $a['mx'], 1) : null,
+                    'loss' => $a && (int) $a['n'] ? round((int) $a['bad'] / (int) $a['n'] * 100, 1) : null, 'h24' => $h24];
+            }
+        }
+        return $out;
     }
 
     /**

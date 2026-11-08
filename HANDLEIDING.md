@@ -15,6 +15,8 @@ Je kunt hem draaien op elke Linux-machine met PHP 8 en MariaDB: een VM, een Rasp
 > **Meldingskaart (1.218.0):** klik op een melding voor het paneel met de waarde, de drempels, de grafiek en eerdere keren. Slaat een check vaak kort aan, dan stelt de kaart voor om pas na meer metingen te melden of een slimme drempel te gebruiken (één klik). Op een telefoon sluit je het blad door het omlaag te vegen.
 >
 > **RzSense-kern en IDS Live (1.219.0):** bovenaan *Monitoring* staat de **RzSense-kern**: CPU, RAM, disk en cron van de server waar RzSense op draait, met één oordeel; klik erop voor alle details. *IDS → Live* begint nu met een oordeel en de soorten, toont standaard alleen wat aandacht vraagt (**Aandacht · Alles · Toegestaan**), zegt elke gebeurtenis in gewone taal en voegt herhalingen samen. Klik op een treffer voor uitleg en de knoppen *Bekijk incident*, *Proces stoppen* en *Dit is normaal*.
+>
+> **mDS en IDS (1.220.0):** op *mDS* staan de servers en apparaten per soort (tik op *Servers*, *Netwerk* … om alleen die te zien), met bij servers het netwerkverkeer (**Net**) en bij apparaten zonder CPU/RAM/Disk de **ping**. De IDS-pagina toont meteen het vorige beeld en werkt het daarna bij; hoe lang elk onderdeel duurt zie je bij *Instellingen → Prestaties en fouten*.
 
 ---
 

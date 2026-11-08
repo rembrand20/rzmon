@@ -5358,9 +5358,14 @@ switch ($action) {
                            (SELECT value FROM agent_data ad WHERE ad.host_id = h.id AND ad.metric = 'realtime') AS rt,
                            (SELECT value FROM agent_data ad WHERE ad.host_id = h.id AND ad.metric = 'tools') AS tools, s.fim_count, s.fim_cand, s.baseline_until, s.fw_state, s.fw_error, s.decoy_state, s.last_report
                     FROM hosts h LEFT JOIN ids_state s ON s.host_id = h.id WHERE h.mode = 'agent' AND h.enabled = 1 ORDER BY h.name")->fetchAll();
+        Perf::part('ids:servers');   // 1.220.0: per onderdeel meten (Instellingen → Prestaties en fouten)
         $open = q("SELECT host_id, severity, COUNT(*) AS n FROM ids_incidents WHERE status = 'open' GROUP BY host_id, severity")->fetchAll();
         $blocks = Ids::activeBlocks();
-        $hard = Hardening::enabled() ? Hardening::scores() : [];
+        Perf::part('ids:blokkades');
+        // 1.220.0: hardening verandert niet per seconde: één minuut bewaren
+        $hard = Hardening::enabled() ? memo('ids-hardening', 60, static fn() => Hardening::scores()) : [];
+        $hard = array_combine(array_map('intval', array_keys($hard)), array_values($hard)) ?: [];
+        Perf::part('ids:hardening');
         $iso = q('SELECT id, isolate_until, isolate_by, isolate_state FROM hosts')->fetchAll(PDO::FETCH_UNIQUE);
         foreach ($hosts as &$h) {
             $h['hard'] = $hard[(int) $h['id']] ?? null;
@@ -5383,21 +5388,37 @@ switch ($action) {
             'hosts' => $hosts,
             // 1.217.0: open en de periode apart (dan gebruikt de database zijn indexen); van afgehandelde incidenten een kortere
             // omschrijving (het hele verhaal staat in het venster) en "wat RzSense deed" alleen voor open en recente incidenten
-            'incidents' => $incs = q("SELECT * FROM (
-                    SELECT i.*, h.name AS host_name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.status = 'open'
-                    UNION SELECT i.*, h.name AS host_name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.created_at >= CURDATE() - INTERVAL ? DAY
-                ) x ORDER BY x.created_at DESC, x.id DESC LIMIT 5000", [$days - 1])->fetchAll(),
+            // 1.220.0: van afgehandelde incidenten ouder dan 2 dagen alleen het begin van de omschrijving (het venster haalt de rest op)
+            'incidents' => $incs = (static function () use ($days): array {
+                $cols = "i.id, i.host_id, i.severity, i.type, i.dkey, i.title, IF(i.status = 'open' OR i.created_at >= NOW() - INTERVAL 2 DAY, i.detail, LEFT(i.detail, 240)) AS detail,
+                         i.ip, i.hits, i.status, i.handled_by, i.handled_at, i.created_at, i.last_seen, i.cc, i.mode, i.dport, i.proto, i.service, i.dir, h.name AS host_name";
+                $r = q("SELECT * FROM (
+                    SELECT $cols FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.status = 'open'
+                    UNION SELECT $cols FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.created_at >= CURDATE() - INTERVAL ? DAY
+                ) x ORDER BY x.created_at DESC, x.id DESC LIMIT 5000", [$days - 1])->fetchAll();
+                Perf::part('ids:incidenten');
+                return $r;
+            })(),
             // 1.217.0: de grafiek en de staafjes per server (14 dagen) uit tellingen, zodat de lijst zelf kort kan blijven
-            'perday' => q("SELECT DATE(created_at) AS d, host_id, type, severity, COUNT(*) AS n FROM ids_incidents
-                           WHERE created_at >= CURDATE() - INTERVAL 13 DAY GROUP BY DATE(created_at), host_id, type, severity")->fetchAll(),
-            'prot' => Protect::describeAll(array_values(array_filter($incs, static fn($i) => $i['status'] === 'open' || strtotime((string) $i['created_at']) >= time() - 2 * 86400))),
+            'perday' => (static function (): array {
+                $r = memo('ids-perday', 60, static fn() => q("SELECT DATE(created_at) AS d, host_id, type, severity, COUNT(*) AS n FROM ids_incidents
+                           WHERE created_at >= CURDATE() - INTERVAL 13 DAY GROUP BY DATE(created_at), host_id, type, severity")->fetchAll());
+                Perf::part('ids:per-dag');
+                return $r;
+            })(),
+            'prot' => (static function (array $l): array { $r = Protect::describeAll($l); Perf::part('ids:wat-rzsense-deed'); return $r; })(array_values(array_filter($incs, static fn($i) => $i['status'] === 'open' || strtotime((string) $i['created_at']) >= time() - 2 * 86400))),
             'blocks' => Ids::readable($blocks),
             'removed' => Ids::readable(q('SELECT b.*, h.name AS host_name FROM ids_blocks b JOIN hosts h ON h.id = b.host_id
                             WHERE b.removed_at IS NOT NULL OR (b.until IS NOT NULL AND b.until <= NOW()) ORDER BY COALESCE(b.removed_at, b.until) DESC LIMIT 30')->fetchAll()),
             'my_ip' => client_ip(),
             // 1.166.0: wat het IDS de laatste 24 uur deed
             'blocked24' => (int) q('SELECT COUNT(*) FROM ids_blocks WHERE created_at >= NOW() - INTERVAL 1 DAY')->fetchColumn(),
-            'top24' => ids_top_attackers($hosts),
+            'top24' => (static function () use ($hosts): array {
+                $r = memo('ids-top24', 60, static fn() => ids_top_attackers($hosts));
+                Perf::part('ids:aanvallers');
+                Perf::timingHeader();
+                return $r;
+            })(),
         ]);
 
     // Toegang: logins, sudo en su (zonder wat inmiddels op de lijst Negeren staat)

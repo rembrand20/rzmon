@@ -102,6 +102,7 @@ final class Features
         ['notify', ['Meldingskaart met advies', 'Alert card with advice'], ['Leesbare samenvatting, drempels in de grafiek en een voorstel als een check flapt.', 'Readable summary, thresholds in the chart and a suggestion when a check flaps.'], '1.218.0', '', '#alerts'],
         ['dash', ['RzSense-kern', 'RzSense core'], ['CPU, RAM, disk en cron van de server waar RzSense op draait, als futuristische meters met één oordeel.', 'CPU, RAM, disk and cron of the server RzSense runs on, as futuristic gauges with one verdict.'], '1.219.0', '', '#monitoring'],
         ['ids', ['Live begrijpelijk', 'Live made clear'], ['Oordeel, soorten, alleen wat aandacht vraagt, gewone taal, herhalingen samengevoegd en uitleg bij een treffer.', 'Verdict, kinds, only what needs attention, plain language, merged repeats and an explanation per hit.'], '1.219.0', '', '#ids/live'],
+        ['dash', ['mDS per soort, met netwerk en ping', 'mDS by kind, with network and ping'], ['Servers en apparaten per soort; Net bij servers en de ping bij apparaten zonder CPU/RAM/disk.', 'Servers and devices by kind; Net for servers and ping for devices without CPU/RAM/disk.'], '1.220.0', '', '#mds'],
 
         // Meldingen
         ['notify', ['Pushover', 'Pushover'], ['Met prioriteit per status en bevestigen vanuit de app.', 'With priority per status and acknowledge from the app.'], '1.0.0', 'pushover_enabled|pushover_token,pushover_user', 'channels'],

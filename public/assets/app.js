@@ -1129,7 +1129,7 @@ if (pwForce) {
     try { await api('pw_forced', { new: pwForce.password.value }); toast(L('Wachtwoord gewijzigd')); location.replace(location.pathname); }
     catch (ex) { err.textContent = ex.message; err.hidden = false; b.disabled = false; }
   });
-  $('#pwforce-logout').onclick = async (e) => { e.preventDefault(); try { await api('logout', {}); } catch (ex) { /* toch weg */ } location.replace(location.pathname + '?login=1'); };
+  $('#pwforce-logout').onclick = async (e) => { e.preventDefault(); try { sessionStorage.removeItem('rzs-ids-cache'); await api('logout', {}); } catch (ex) { /* toch weg */ } location.replace(location.pathname + '?login=1'); };
 }
 
 // ---------------------------------------------------------------- Login
@@ -1240,7 +1240,7 @@ function init() {
     try { const r = await api('advice_run', {}); toast(L('{n} nieuwe voorstel(len)', { n: r.n })); loadAdvice(); } catch (ex) { toast(ex.message, 'err'); }
     e.target.disabled = false;
   };
-  if ($('#logout')) $('#logout').onclick = async () => { await api('logout', {}); location.reload(); };
+  if ($('#logout')) $('#logout').onclick = async () => { try { sessionStorage.removeItem('rzs-ids-cache'); } catch (ex) { /* geen opslag */ } await api('logout', {}); location.reload(); };
   $('#add-host').onclick = () => hostForm();
   $('#run-all').onclick = async (e) => {
     e.target.disabled = true;
@@ -3127,6 +3127,14 @@ function mdsBar(v, cls = '') {
   const p = Math.max(0, Math.min(100, +v));
   return `<span class="mds-bar ${cls} ${p >= 90 ? 'crit' : p >= 75 ? 'warn' : ''}"><i style="width:${p}%"></i></span>`;
 }
+let mdsGroup = uiGet('mds_group', 'rzmon-mds-group', '');
+/** 1.220.0: bytes per seconde als Mb/s, één decimaal onder de 100 */
+const mdsMbit = (bps) => { const m = (+bps || 0) * 8 / 1e6; return dec(m >= 100 ? String(Math.round(m)) : m.toFixed(1)); };
+/** Staafjes van de laatste pingtijden (null = geen antwoord); de hoogste in oranje als hij er duidelijk uitspringt */
+function mdsSpark(vals, n, cls = 'mds-spk') {
+  const v = vals.slice(-n), ok = v.filter((x) => x !== null), mx = Math.max(1, ...ok), avg = ok.length ? ok.reduce((a, b) => a + b, 0) / ok.length : 0;
+  return `<span class="${cls}" aria-hidden="true">${v.map((x) => `<span class="${x === null ? 'miss' : x > avg * 2 && x === Math.max(...ok) ? 'hi' : ''}" style="height:${x === null ? 100 : Math.max(12, Math.round(x / mx * 100))}%"></span>`).join('')}</span>`;
+}
 function renderMds() {
   const el = $('#mds');
   if (!el || !state || !state.hosts) return;
@@ -3180,16 +3188,41 @@ function renderMds() {
     const top = n.top && n.top.length ? `<div class="mds-top"><small>${L('Meeste verkeer vandaag')}${n.today ? ` · ${L('totaal {b}', { b: fmtBytes(n.today) })}` : ''}</small>${n.top.map((d, k) => `<div class="mds-row"><span>${k + 1}. ${esc(d.name)}</span><b class="mono">${fmtBytes(d.bytes)}</b></div>`).join('')}</div>` : '';
     net = `<section class="mds-sec"><h3>${L('Netwerk')}</h3>${inet}${wan}${nw}${top}</section>`;
   }
-  // 5. Servers en agents
+  // 5. Servers en apparaten (1.220.0: per soort, met netwerkverkeer bij servers en de ping bij apparaten zonder CPU/RAM/disk)
   const val = (h, t) => { const v = h.checks.filter((c) => c.type === t && +c.enabled && c.last_value !== null).map((c) => +c.last_value); return v.length ? Math.max(...v) : null; };
-  const srv = hosts.slice().sort((a, b) => STATUS_RANK[hostStatus(b)] - STATUS_RANK[hostStatus(a)] || String(a.name).localeCompare(String(b.name))).map((h) => {
-    const st = hostStatus(h);
+  const extra = (mdsData && mdsData.hosts) || {};
+  const groups = {};
+  hosts.forEach((h) => { const g = hostGroup(h) || 'other'; (groups[g] = groups[g] || []).push(h); });
+  const order = ['server', 'network', 'storage', 'smarthome', 'power', 'camera', 'other'].filter((g) => groups[g]);
+  if (mdsGroup && !groups[mdsGroup]) mdsGroup = '';
+  const chips = order.length > 1 ? `<div class="mds-chips" role="group" aria-label="${esc(L('Soort'))}"><button type="button" class="mds-chip${mdsGroup ? '' : ' on'}" data-mds="grp" data-g="">${L('Alle')} <b>${hosts.length}</b></button>${order.map((g) => {
+    const bad = groups[g].some((h) => hostStatus(h) === 2);
+    return `<button type="button" class="mds-chip${mdsGroup === g ? ' on' : ''}" data-mds="grp" data-g="${g}">${GROUP_INFO[g][0]} ${esc(GROUP_INFO[g][1]())} <b>${groups[g].length}</b>${bad ? '<i aria-label="' + esc(L('probleem')) + '"></i>' : ''}</button>`;
+  }).join('')}</div>` : '';
+  const row = (h) => {
+    const st = hostStatus(h), x = extra[h.id] || {};
     const quiet = h.mode === 'agent' && h.agent_seen && Date.now() - toTime(h.agent_seen) > 10 * 60000;
     const c = val(h, 'cpu'), r = val(h, 'ram'), d = val(h, 'disk');
-    return `<button type="button" class="mds-s s${st}" data-mds="host" data-id="${h.id}"><i class="mds-dot"></i><span class="mds-sn"><b>${esc(h.name)}</b>${quiet ? `<small class="warn-txt">${L('agent stil {d}', { d: dur(h.agent_seen) })}</small>` : ''}</span>
-      ${c !== null || r !== null || d !== null ? `<span class="mds-m"><em>CPU</em>${mdsBar(c)}<em>RAM</em>${mdsBar(r)}<em>${L('Disk')}</em>${mdsBar(d)}</span>` : ''}</button>`;
+    let right = '';
+    if (c !== null || r !== null || d !== null) {
+      right = `<span class="mds-m"><em>CPU</em>${mdsBar(c)}<em>RAM</em>${mdsBar(r)}<em>${L('Disk')}</em>${mdsBar(d)}${x.net ? `<em>Net</em><span class="mds-net">↓<b>${mdsMbit(x.net.rx)}</b> ↑<b>${mdsMbit(x.net.tx)}</b> Mb/s</span>` : ''}</span>`;
+    } else if (x.ping) {
+      const now = x.ping.last.length ? x.ping.last[x.ping.last.length - 1] : null;
+      const down = now === null && st === 2;
+      right = `<span class="mds-ping${down ? ' down' : ''}"><em>PING</em><b>${down ? esc(L('geen antwoord')) : now === null ? '–' : `${dec(now)}<small>ms</small>`}</b>${mdsSpark(x.ping.last, 12)}</span>`;
+    } else {
+      const up = stats.uptime && stats.uptime[h.id] ? stats.uptime[h.id].h24 : null;
+      right = `<span class="mds-ping${st === 2 ? ' down' : ''}"><em>${st === 2 ? '' : L('bereikbaar')}</em><b>${st === 2 ? esc(L('onbereikbaar')) : up !== null ? pct(up) : '✔'}</b></span>`;
+    }
+    return `<button type="button" class="mds-s s${st}" data-mds="host" data-id="${h.id}"><i class="mds-dot"></i><span class="mds-sn"><b>${esc(h.name)}</b>${quiet ? `<small class="warn-txt">${L('agent stil {d}', { d: dur(h.agent_seen) })}</small>` : ''}</span>${right}</button>`;
+  };
+  const byStatus = (a, b) => STATUS_RANK[hostStatus(b)] - STATUS_RANK[hostStatus(a)] || String(a.name).localeCompare(String(b.name));
+  const body = order.filter((g) => !mdsGroup || g === mdsGroup).map((g) => {
+    const hs = groups[g].slice().sort(byStatus), bad = hs.filter((h) => hostStatus(h) === 2).length, warn = hs.filter((h) => hostStatus(h) === 1).length;
+    const tag = bad ? `<span class="bad">${bad === 1 ? L('1 probleem') : L('{n} problemen', { n: bad })}</span>` : warn ? `<span class="warn">${L('{n} let op', { n: warn })}</span>` : `<span class="ok">✔ ${L('alles in orde')}</span>`;
+    return `${order.length > 1 ? `<div class="mds-gh">${GROUP_INFO[g][0]} ${esc(GROUP_INFO[g][1]())} · ${hs.length} ${tag}</div>` : ''}<div class="mds-srv">${hs.map(row).join('')}</div>`;
   }).join('');
-  const servers = `<section class="mds-sec"><h3>${L('Servers')}</h3><div class="mds-srv">${srv}</div></section>`;
+  const servers = `<section class="mds-sec"><h3>${L('Servers en apparaten')}</h3>${chips}${body}</section>`;
   el.innerHTML = hero + attn + sec + net + servers;
   const badge = $('#mds-badge');
   if (badge) { badge.hidden = !open.length; badge.textContent = open.length; badge.classList.toggle('s1', !crit); }
@@ -3240,6 +3273,15 @@ function mdsCheckSheet(id) {
     ${user ? `<div class="mds-bigs">${!c.acked_at && +c.status ? btn('ack', '✔', L('Bevestigen'), 'pri') : ''}${btn('run', '↻', L('Nu checken'))}${btn('maint', '🔧', L('Onderhoud 1 uur'))}${btn('quiet', '🌙', L('Stil 1 uur'))}</div>` : ''}
     <button type="button" class="mds-link" data-mds="full" data-id="${c.id}">${L('Volledige check openen')} ›</button>`);
 }
+/** 1.220.0: de ping groot in het blad: nu, gemiddeld en hoogste over 24 uur, per uur, en het verlies */
+function mdsPingBlock(pg) {
+  const now = pg.last.length ? pg.last[pg.last.length - 1] : null;
+  const ms = (v) => (v === null || v === undefined ? '–' : `${dec(v)} ms`);
+  const hours = pg.h24.filter((x) => x !== null);
+  return `<div class="mds-pbig"><div><span>${L('Ping nu')}</span><b>${now === null ? esc(L('geen antwoord')) : ms(now)}</b></div><div><span>${L('Gem. 24 u')}</span><b>${ms(pg.avg)}</b></div><div><span>${L('Hoogste')}</span><b>${ms(pg.max)}</b></div></div>
+    ${hours.length ? `${mdsSpark(pg.h24, 24, 'mds-pspk')}<div class="mds-pax"><span>${L('24 u geleden')}</span><span>${L('12 u')}</span><span>${L('nu')}</span></div>` : ''}
+    ${pg.loss !== null ? `<div class="mds-row"><span>${L('Pakketverlies 24 u')}</span><b class="mono${pg.loss > 1 ? ' warn-txt' : ''}">${dec(pg.loss)}%</b></div>` : ''}`;
+}
 function mdsHostSheet(id) {
   const h = findHost(id);
   if (!h) return;
@@ -3248,9 +3290,11 @@ function mdsHostSheet(id) {
   const val = (t) => { const x = h.checks.filter((c) => c.type === t && +c.enabled && c.last_value !== null).map((c) => +c.last_value); return x.length ? Math.max(...x) : null; };
   const met = [['CPU', val('cpu')], ['RAM', val('ram')], [L('Disk'), val('disk')]].filter(([, x]) => x !== null);
   const up = stats.uptime && stats.uptime[h.id] ? stats.uptime[h.id].h24 : null;
+  const xh = ((mdsData && mdsData.hosts) || {})[h.id] || {};   // 1.220.0: verkeer en ping
   mdsSheet(`<div class="mds-sh s${st}"><i class="mds-dot"></i><div><b>${esc(h.name)}</b><small class="mono">${esc(h.address || '')}${up !== null ? ` · ${L('24 u')} ${pct(up)}` : ''}</small></div></div>
     ${h.mode === 'agent' && h.agent_seen ? `<p class="mds-msg muted">${L('agent {ago}', { ago: L('{d} geleden', { d: dur(h.agent_seen) }) })}</p>` : ''}
-    ${met.length ? `<div class="mds-mets">${met.map(([l, x]) => `<div><span>${l}</span>${mdsBar(x, 'wide')}<b class="mono">${dec(String(Math.round(x)))}%</b></div>`).join('')}</div>` : ''}
+    ${met.length || xh.net ? `<div class="mds-mets">${met.map(([l, x]) => `<div><span>${l}</span>${mdsBar(x, 'wide')}<b class="mono">${dec(String(Math.round(x)))}%</b></div>`).join('')}${xh.net ? `<div><span>Net</span><span class="mds-net wide">↓ <b>${mdsMbit(xh.net.rx)}</b> Mb/s · ↑ <b>${mdsMbit(xh.net.tx)}</b> Mb/s${xh.net.today !== null ? ` · ${L('vandaag')} <b>${fmtBytes(xh.net.today)}</b>` : ''}</span></div>` : ''}</div>` : ''}
+    ${!met.length && xh.ping ? mdsPingBlock(xh.ping) : ''}
     <h4 class="mds-h4">${probs.length ? L('Vraagt aandacht') + ` · ${probs.length}` : '✔ ' + L('Alle checks in orde')}</h4>
     ${probs.map((c) => `<button type="button" class="mds-li s${+c.status}" data-mds="open" data-id="${c.id}"><i class="mds-dot"></i><span><b>${esc(c.name)}</b><small>${esc(String(c.last_message || '').slice(0, 80))}</small></span><span class="mds-dur">›</span></button>`).join('')}
     ${user ? `<div class="mds-bigs">${btnHost('hmaint', '🔧', L('Onderhoud 1 uur'), h.id)}${btnHost('hquiet', '🌙', L('Stil 1 uur'), h.id)}</div>` : ''}
@@ -3288,6 +3332,7 @@ document.addEventListener('click', async (e) => {
   if (act === 'open') return mdsCheckSheet(id);
   if (act === 'host') return mdsHostSheet(id);
   if (act === 'all') { mdsAll = !mdsAll; return renderMds(); }
+  if (act === 'grp') { mdsGroup = b.dataset.g || ''; uiSet('mds_group', 'rzmon-mds-group', mdsGroup); return renderMds(); }   // 1.220.0
   if (act === 'full') { mdsSheetClose(); return checkInfo(id); }
   if (act === 'tab') { mdsSheetClose(); return showTab(b.dataset.tab); }
   if (act === 'hostpage') { mdsSheetClose(); showTab('dashboard'); setTimeout(() => { const t = $(`[data-hid="${id}"]`); if (t) t.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 300); return; }
@@ -9904,10 +9949,59 @@ function idsNoisy(d) {
       <button type="button" class="btn small-btn" data-ids="handle" data-many="${x.open.join(',')}">✔ ${L('Afhandelen ({n})', { n: x.open.length })}</button></span></div>`).join('')}</div>`;
 }
 
+/*
+ * 1.220.0: de IDS-pagina voelt direct:
+ *  1. eerst het vorige beeld (uit het geheugen, of na herladen uit sessionStorage van dit tabblad) met "bijwerken…";
+ *  2. de incidenten tekenen zodra ze binnen zijn, Toegang (logins) daarna op de achtergrond;
+ *  3. de allereerste keer grijze blokken in plaats van een lege pagina.
+ * Hoe lang het duurde staat bij de tijd rechtsboven (muis erop) en per onderdeel bij Instellingen → Prestaties en fouten.
+ */
+const IDS_CACHE_KEY = 'rzs-ids-cache';
+let idsBusy = false, idsAgain = false;
+function idsCacheLoad() {
+  if (idsData) return true;
+  try {
+    const c = JSON.parse(sessionStorage.getItem(IDS_CACHE_KEY) || 'null');
+    if (c && c.ids && Date.now() - c.at < 6 * 3600000) { idsData = c.ids; accData = c.acc || accData; return true; }
+  } catch (ex) { /* geen opslag */ }
+  return false;
+}
+function idsCacheSave() {
+  try {
+    const raw = JSON.stringify({ at: Date.now(), ids: idsData, acc: accData });
+    if (raw.length < 3e6) sessionStorage.setItem(IDS_CACHE_KEY, raw); else sessionStorage.removeItem(IDS_CACHE_KEY);
+  } catch (ex) { /* vol of uit: dan de volgende keer gewoon laden */ }
+}
+function idsSkeleton() {
+  const sk = (n, h) => Array.from({ length: n }, () => `<div class="sk-blk" style="height:${h}px"></div>`).join('');
+  if ($('#ids-kpis')) $('#ids-kpis').innerHTML = `<div class="sk-row">${sk(5, 92)}</div>`;
+  if ($('#ids-attn')) $('#ids-attn').innerHTML = sk(4, 46);
+}
 async function loadIds() {
-  try { [idsData, accData] = await Promise.all([api('ids', null, { days: histDays.ids }), api('ids_access')]); } catch (ex) { toast(ex.message, 'err'); return; }
-  keepOpen($('#tab-ids'), () => { renderIds(); renderAccess(); });
-  showIdsTab();   // Live en Regels worden daar (opnieuw) geladen
+  if (idsBusy) { idsAgain = true; return; }   // al bezig: daarna nog één keer (bv. na een actie)
+  idsBusy = true;
+  const t0 = performance.now();
+  const had = idsCacheLoad();
+  const tab = $('#tab-ids');
+  tab.classList.add('ids-syncing');
+  if (had) { keepOpen(tab, () => { renderIds(); if (accData) renderAccess(); }); showIdsTab(); } else idsSkeleton();
+  const accP = api('ids_access').then((d) => { accData = d; }).catch(() => null);
+  try {
+    idsData = await api('ids', null, { days: histDays.ids });
+  } catch (ex) { idsBusy = false; tab.classList.remove('ids-syncing'); toast(ex.message, 'err'); return; }
+  const t1 = performance.now();
+  keepOpen(tab, () => renderIds());
+  if (!had) showIdsTab();   // Live en Regels worden daar (opnieuw) geladen
+  const t2 = performance.now();
+  await accP;
+  if (accData) keepOpen(tab, () => { renderIds(); renderAccess(); });
+  tab.classList.remove('ids-syncing');
+  idsBusy = false;
+  idsCacheSave();
+  const s = (ms) => dec((ms / 1000).toFixed(1));
+  const tip = L('Geladen in {a} s: incidenten {b} s, tekenen {c} s, toegang {d} s', { a: s(performance.now() - t0), b: s(t1 - t0), c: s(t2 - t1), d: s(performance.now() - t2) });
+  if ($('#ids-last')) $('#ids-last').title = tip;
+  if (idsAgain) { idsAgain = false; loadIds(); }
 }
 
 function showIdsTab() {

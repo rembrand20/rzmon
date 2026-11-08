@@ -8,15 +8,30 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.220.0**: **mDS per soort** met netwerk en ping, en een **veel snellere IDS-pagina**.
 - **1.219.0**: de **RzSense-kern** (futuristische meters voor de eigen server) en een **begrijpelijke IDS Live-pagina**.
 - **1.218.0**: een **vernieuwde meldingskaart**: leesbaar, met advies als een check flapt, en op de telefoon een blad van onderaf.
 - **1.217.0**: **IDS-incidenten veel sneller**: afhandelen reageert meteen, bundels en een keuze in één keer, en voorstellen voor wat vaak terugkomt.
 - **1.216.0**: een **vernieuwde zijbalk** met statuslampje, een **paginakop met klikbaar pad** en **rustiger Liquid Glass**.
-- **1.215.0**: een **bewegende HUD-achtergrond op de inlogpagina**, ook mooi op een telefoon.
+
+## 1.220.0 – 2026-11-08
+### Nieuw
+- **mDS (telefoon): servers en apparaten per soort**: bovenaan knoppen *Alle · Servers · Netwerk · Opslag · Smart home* (met aantallen en een rood stipje bij een probleem), en de lijst in groepen met *✔ alles in orde* of *2 problemen*.
+- **mDS: netwerk bij servers**: onder CPU, RAM en Disk een regel **Net** met het verkeer nu (↓ en ↑ in Mb/s); in het venster ook het verkeer van vandaag. Uit de verkeersmeting van de agent of de switch (het apparaat met hetzelfde IP-adres onder *Netwerk*).
+- **mDS: ping bij apparaten zonder CPU/RAM/Disk** (switches, access points, printers): de pingtijd met staafjes van de laatste metingen, en *geen antwoord* in rood als hij niet reageert. In het venster de ping groot (nu, gemiddeld en hoogste over 24 uur), per uur en het pakketverlies.
+- **IDS-pagina sneller**:
+  - het **vorige beeld staat er meteen** (ook na herladen, in dit tabblad), met een dunne lopende lijn zolang hij bijwerkt; de allereerste keer grijze blokken in plaats van een lege pagina;
+  - **Toegang** (logins) wordt op de achtergrond geladen en houdt de incidenten niet meer op;
+  - van **afgehandelde incidenten ouder dan 2 dagen** alleen het begin van de omschrijving (het venster haalt de rest op): bij duizenden incidenten zo'n 3× minder gegevens;
+  - **hardening, aanvallers van 24 uur en de telling per dag** worden een minuut bewaard;
+  - **meten**: elk onderdeel staat bij *Instellingen → Prestaties en fouten* (*ids:incidenten*, *ids:hardening* …), en met de muis op de tijd rechtsboven zie je hoe lang het laden duurde.
+
+### Opgelost
+- **mDS: het venster van een server of check was doorzichtig** met glass aan, en de tabbalk viel eroverheen. Nu is het dicht en ligt het boven de tabbalk.
 
 ## 1.219.1 – 2026-11-08
 ### Opgelost
-- **Afwijkingen: de leerperiode** liep na de overgang naar winter- of zomertijd een uur te lang of te kort, omdat 14 dagen als 14 × 24 uur werd geteld. Nu telt RzSense in kalenderdagen, zodat de leerperiode precies op dezelfde klok­tijd eindigt (ook op de pagina *Afwijkingen*).
+- **Afwijkingen: de leerperiode** liep na de overgang naar winter- of zomertijd een uur te lang of te kort, omdat 14 dagen als 14 × 24 uur werd geteld. Nu telt RzSense in kalenderdagen, zodat de leerperiode precies op dezelfde kloktijd eindigt (ook op de pagina *Afwijkingen*).
 
 ## 1.219.0 – 2026-11-08
 ### Nieuw
