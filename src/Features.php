@@ -100,6 +100,8 @@ final class Features
         ['dash', ['Statuslampje en paginakop', 'Status light and page header'], ['Een levend lampje in de zijbalk en bovenaan elke pagina een klikbaar pad met titel.', 'A live light in the sidebar and a clickable path with title on top of every page.'], '1.216.0', '', ''],
         ['ids', ['Incidenten snel afhandelen', 'Handle incidents quickly'], ['Meteen, in bundels of een keuze, per server, en voorstellen voor wat vaak terugkomt.', 'Instantly, in bundles or a selection, per server, with suggestions for what keeps coming back.'], '1.217.0', '', '#ids/inc'],
         ['notify', ['Meldingskaart met advies', 'Alert card with advice'], ['Leesbare samenvatting, drempels in de grafiek en een voorstel als een check flapt.', 'Readable summary, thresholds in the chart and a suggestion when a check flaps.'], '1.218.0', '', '#alerts'],
+        ['dash', ['RzSense-kern', 'RzSense core'], ['CPU, RAM, disk en cron van de server waar RzSense op draait, als futuristische meters met één oordeel.', 'CPU, RAM, disk and cron of the server RzSense runs on, as futuristic gauges with one verdict.'], '1.219.0', '', '#monitoring'],
+        ['ids', ['Live begrijpelijk', 'Live made clear'], ['Oordeel, soorten, alleen wat aandacht vraagt, gewone taal, herhalingen samengevoegd en uitleg bij een treffer.', 'Verdict, kinds, only what needs attention, plain language, merged repeats and an explanation per hit.'], '1.219.0', '', '#ids/live'],
 
         // Meldingen
         ['notify', ['Pushover', 'Pushover'], ['Met prioriteit per status en bevestigen vanuit de app.', 'With priority per status and acknowledge from the app.'], '1.0.0', 'pushover_enabled|pushover_token,pushover_user', 'channels'],

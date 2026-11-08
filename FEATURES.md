@@ -86,6 +86,8 @@ Dezelfde tabel staat in RzSense bij *Instellingen → Overzicht → Functies*, m
 | 🧭 Dashboard en weergave | **Statuslampje en paginakop** | Een levend lampje in de zijbalk en bovenaan elke pagina een klikbaar pad met titel. | 1.216.0 |
 | 🛡️ IDS en endpoint-bewaking | **Incidenten snel afhandelen** | Meteen, in bundels of een keuze, per server, en voorstellen voor wat vaak terugkomt. | 1.217.0 |
 | 🔔 Meldingen | **Meldingskaart met advies** | Leesbare samenvatting, drempels in de grafiek en een voorstel als een check flapt. | 1.218.0 |
+| 🧭 Dashboard en weergave | **RzSense-kern** | CPU, RAM, disk en cron van de server waar RzSense op draait, als futuristische meters met één oordeel. | 1.219.0 |
+| 🛡️ IDS en endpoint-bewaking | **Live begrijpelijk** | Oordeel, soorten, alleen wat aandacht vraagt, gewone taal, herhalingen samengevoegd en uitleg bij een treffer. | 1.219.0 |
 | 🔔 Meldingen | **Pushover** | Met prioriteit per status en bevestigen vanuit de app. | 1.0.0 |
 | 🔔 Meldingen | **E-mail** | SMTP met STARTTLS of SSL/TLS. | 1.7.0 |
 | 🔔 Meldingen | **ntfy** | Gratis pushmeldingen via ntfy.sh of je eigen server. | 1.140.0 |

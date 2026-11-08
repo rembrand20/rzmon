@@ -13,6 +13,8 @@ Je kunt hem draaien op elke Linux-machine met PHP 8 en MariaDB: een VM, een Rasp
 > **IDS-incidenten (1.217.0):** afhandelen gaat meteen. Vink meerdere incidenten aan om ze in één keer af te handelen, of gebruik *Alles van deze server afhandelen* op de serverkaart. Wat vaak terugkomt staat bovenaan met *Dit is normaal*. De pagina toont de open incidenten en de laatste 2 dagen; ouder haal je op met *Ouder laden*.
 >
 > **Meldingskaart (1.218.0):** klik op een melding voor het paneel met de waarde, de drempels, de grafiek en eerdere keren. Slaat een check vaak kort aan, dan stelt de kaart voor om pas na meer metingen te melden of een slimme drempel te gebruiken (één klik). Op een telefoon sluit je het blad door het omlaag te vegen.
+>
+> **RzSense-kern en IDS Live (1.219.0):** bovenaan *Monitoring* staat de **RzSense-kern**: CPU, RAM, disk en cron van de server waar RzSense op draait, met één oordeel; klik erop voor alle details. *IDS → Live* begint nu met een oordeel en de soorten, toont standaard alleen wat aandacht vraagt (**Aandacht · Alles · Toegestaan**), zegt elke gebeurtenis in gewone taal en voegt herhalingen samen. Klik op een treffer voor uitleg en de knoppen *Bekijk incident*, *Proces stoppen* en *Dit is normaal*.
 
 ---
 
@@ -2861,7 +2863,7 @@ De agent kijkt nu op het moment zelf mee op de server, en niet pas bij het volge
   - **IP blokkeren** bij een webaanval met een herkende payload;
   - **server isoleren** (24 uur) bij een reverse shell of cryptominer: alleen RzSense en je LAN kunnen er dan nog bij.
   - Elk van de drie zet je los aan of uit. Wat RzSense deed, staat altijd in het incident; een critical gaat ook naar Pushover.
-- **🛰️ Live** (*🛡️ IDS → 🛰️ Live*): alles wat de agents de laatste 3 dagen zagen (hooguit 300), met *Alleen treffers*, een filter per server en de treffers per regel. Werkt live bij.
+- **🛰️ Live** (*🛡️ IDS → 🛰️ Live*): alles wat de agents de laatste 3 dagen zagen (hooguit 300). Werkt live bij. Vanaf 1.219.0: bovenaan een oordeel met de laatste 24 uur per uur en de soorten (klikbaar); **Aandacht** (alleen treffers, standaard), **Alles** of **Toegestaan** (RzSense zelf en uitzonderingen); elke regel in gewone taal, herhalingen samengevoegd (*48×*), per dag en met *nieuw sinds je laatste bezoek*. Een treffer klapt open met *Wat betekent dit?*, *Wat kun je doen?*, **Bekijk incident**, **Proces stoppen** (alleen een proces dat de agent zelf meldde, nooit iets van RzSense), **Dit is normaal** en AI-advies.
 - **Payload-inspectie van webverzoeken (SWAG):** de agent stuurt verdachte verzoeken mee (met wachtwoorden en tokens weggelakt). RzSense decodeert ze (ook dubbel gecodeerd) en herkent **SQL-injectie, XSS, command injection, path traversal, PHP-wrappers, RFI, Log4Shell, SSRF, Shellshock, SSTI, PHP-code en OGNL**, bekende exploits met hun **CVE** (34 stuks, bv. `eval-stdin.php` = CVE-2017-9841) en scanners (`sqlmap`, `nuclei`, `zgrab` …). Eén incident per IP, met de laatste 10 verzoeken en het verdachte stuk gemarkeerd. Kreeg een verzoek een gewoon antwoord (2xx/3xx), dan staat dat erbij: kijk dan of het lukte. Je LAN en de whitelist worden nooit geblokkeerd.
 
 **Aanzetten**

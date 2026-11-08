@@ -8,11 +8,29 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.219.0**: de **RzSense-kern** (futuristische meters voor de eigen server) en een **begrijpelijke IDS Live-pagina**.
 - **1.218.0**: een **vernieuwde meldingskaart**: leesbaar, met advies als een check flapt, en op de telefoon een blad van onderaf.
 - **1.217.0**: **IDS-incidenten veel sneller**: afhandelen reageert meteen, bundels en een keuze in één keer, en voorstellen voor wat vaak terugkomt.
 - **1.216.0**: een **vernieuwde zijbalk** met statuslampje, een **paginakop met klikbaar pad** en **rustiger Liquid Glass**.
 - **1.215.0**: een **bewegende HUD-achtergrond op de inlogpagina**, ook mooi op een telefoon.
-- **1.214.0**: **Rz//Sense AI**: een nieuwe naam en een nieuw logo, een ronde rand om de inhoud, en Monitoring heet ook zo.
+
+## 1.219.0 – 2026-11-08
+### Nieuw
+- **De RzSense-kern op Monitoring**: in plaats van de meters van "de zwaarste server" zie je nu hoe het gaat met **de server waar RzSense zelf op draait**:
+  - een draaiende kern met het schild en één oordeel (*Gezond*, *Aandacht* of *Probleem*), de naam van de server en hoe lang hij aan staat;
+  - **vier ronde meters** in de stijl van het logo: **CPU** (met load en cores), **RAM**, **Disk** (waar de database staat, met *vol over ~X dagen*) en **Cron** (hoe lang de laatste ronde duurde); oranje of rood als er iets is;
+  - **klik op de kern** voor een paneel met het oordeel in één zin, CPU, geheugen, disk, database (grootte, groei, grootste tabellen), cron-ronde en PHP-fouten, en knoppen naar *Database en server* en *Prestaties en fouten*;
+  - draait er een agent op dezelfde server, dan komen CPU en geheugen van de agent; anders meet RzSense ze zelf (in een container bij benadering, met ≈);
+  - na het scrollen blijft een compacte versie bovenaan staan; op een telefoon staat hij onder de tellers, met de vier meters op één rij.
+- **IDS → Live begrijpelijk gemaakt**:
+  - **bovenaan een oordeel** (*Alles rustig* of *2 dingen vragen aandacht*), hoeveel er op hoeveel servers gezien is, en een staafje per uur van de laatste 24 uur (rood/oranje = met een treffer);
+  - **de soorten met woorden en aantallen** (Processen, Verbindingen, Bestanden, Accounts en systeem, Containers); klik om alleen die soort te zien;
+  - **Aandacht · Alles · Toegestaan** in plaats van vinkjes; standaard alleen wat aandacht vraagt;
+  - **elke regel in gewone taal** (*root startte het programma bash*, *python3 maakte verbinding met …*), met een gekleurde streep, de soort, de server en een legenda;
+  - **herhalingen samengevoegd** (*cron startte backup.sh* **48×**), ingedeeld in *Vandaag* / *Gisteren* en met een streep **nieuw sinds je laatste bezoek**;
+  - **klik op een treffer** voor *Wat betekent dit?* (de uitleg van de regel), *Wat kun je doen?*, de knoppen **Bekijk incident**, **Proces stoppen**, **Dit is normaal** en **AI-advies**, en de technische details inklapbaar;
+  - **Proces stoppen** kan alleen voor een proces dat de agent zelf meldde (pid en starttijd, hooguit een dag oud) en nooit voor iets van RzSense of de agent; de agent controleert eerst dat het nog hetzelfde proces is;
+  - op een telefoon zijn het kaartjes.
 
 ## 1.218.1 – 2026-11-07
 ### Opgelost

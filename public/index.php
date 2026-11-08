@@ -234,10 +234,11 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <div class="dash-counters" id="dash-counters">
         <div class="dash-in">
           <div class="health-counts" id="health-counts" role="group" aria-label="<?= th('Filter op status') ?>"></div>
-          <div class="mres-row" id="mini-res" role="group" aria-label="<?= th('CPU, RAM en disk') ?>"></div><!-- 1.199.0 -->
+          <div class="mres-row" id="mini-res" role="group" aria-label="<?= th('RzSense-server') ?>"></div><!-- 1.199.0; 1.219.0: de RzSense-kern -->
           <span class="dash-last muted small"><span class="live-dot" id="live-dot" title="<?= th('Live: wijzigingen komen binnen een paar seconden binnen') ?>"></span> <span id="last-run"></span></span>
         </div>
       </div>
+      <div class="rzk-m" id="rz-core-m" role="group" aria-label="<?= th('RzSense-server') ?>"></div><!-- 1.219.0: telefoon -->
       <!-- 1.169.0: Checks (zoals altijd) of Beschikbaarheid per groep -->
       <div class="subtabs mon-tabs" role="tablist" aria-label="<?= th('Monitoring') ?>" id="mon-tabs">
         <button type="button" class="seg-btn active" data-msub="checks" role="tab" aria-selected="true"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><?= th('Monitoring') ?></button>
@@ -375,11 +376,19 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <div class="card" id="mitre-matrix"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
       <div class="ids-pane" data-pane="live" hidden>
-        <div class="dash-bar"><select id="edr-host" aria-label="<?= th('Server') ?>"><option value=""><?= th('Alle servers') ?></option></select>
-          <label class="switch small"><input type="checkbox" id="edr-hits"><span></span> <?= th('Alleen treffers') ?></label>
-          <label class="switch small"><input type="checkbox" id="edr-own" checked><span></span> <?= th('Toegestaan tonen (RzSense zelf en uitzonderingen)') ?></label>
-          <span class="muted small" id="edr-info"></span></div>
-        <div class="card" id="edr-feed"><p class="muted"><?= th('Laden…') ?></p></div>
+        <!-- 1.219.0: Live begrijpelijk: oordeel, soorten, Aandacht/Alles/Toegestaan, gewone taal, uitleg en acties -->
+        <div id="edr-hero"></div>
+        <div class="lv-kinds" id="edr-kinds" role="group" aria-label="<?= th('Soorten') ?>"></div>
+        <div class="lv-bar">
+          <div class="lv-seg" id="edr-mode" role="tablist" aria-label="<?= th('Wat tonen') ?>">
+            <button type="button" data-lv-mode="hits"><?= th('Aandacht') ?> <em id="edr-n-hits"></em></button>
+            <button type="button" data-lv-mode="all"><?= th('Alles') ?> <em id="edr-n-all"></em></button>
+            <button type="button" data-lv-mode="own"><?= th('Toegestaan') ?> <em id="edr-n-own"></em></button>
+          </div>
+          <select id="edr-host" aria-label="<?= th('Server') ?>"><option value=""><?= th('Alle servers') ?></option></select>
+          <span class="muted small lv-info" id="edr-info"></span>
+        </div>
+        <div id="edr-feed"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
       <div class="ids-pane" data-pane="rules" hidden>
         <div class="dash-bar"><div class="seg" id="rule-src"><button type="button" class="seg-btn active" data-rs=""><?= th('Alle') ?></button><button type="button" class="seg-btn" data-rs="rzmon">RzSense</button><button type="button" class="seg-btn" data-rs="sigma">Sigma</button></div>

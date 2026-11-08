@@ -2124,5 +2124,36 @@ $lfBy = array_column($lf['groups']['dirs'], null, 'name');
 ok(!$lf['pending'] && $lf['new'] === 1 && $lfBy['fail2ban.log']['new'] && $lfBy['nginx']['have'] && !$lfBy['auth.log']['have'],
     'opnieuw gezocht: fail2ban.log is nieuw, nginx is al verzameld (met een eigen patroon), en de lijst blijft na het opruimen van een rapport');
 
+// 1.219.0: de RzSense-kern (oordeel) en IDS Live (samenvatting, incident bij een treffer, proces stoppen alleen als het mag)
+$sv = SelfStatus::verdict(['disk' => ['pct' => 82.0, 'full_days' => 140], 'mem' => ['pct' => 40.0], 'cpu' => ['pct' => 10.0, 'load' => [0.2, 0.3, 0.2], 'cores' => 4],
+    'cron' => ['ago' => 30, 'over' => 0], 'errors' => ['n' => 0, 'fatal' => 0]]);
+$sv2 = SelfStatus::verdict(['disk' => ['pct' => 50.0, 'full_days' => null], 'mem' => ['pct' => 40.0], 'cpu' => null, 'cron' => ['ago' => 900, 'over' => 0], 'errors' => ['n' => 2, 'fatal' => 1]]);
+$sv3 = SelfStatus::verdict(['disk' => ['pct' => 40.0, 'full_days' => null], 'mem' => ['pct' => 30.0], 'cpu' => null, 'cron' => ['ago' => 20, 'over' => 0], 'errors' => ['n' => 0, 'fatal' => 0]]);
+ok($sv[0] === 1 && count($sv[1]) === 1 && $sv2[0] === 2 && count($sv2[1]) === 2 && $sv3[0] === 0 && !$sv3[1],
+    'RzSense-kern: disk 82% = aandacht; cron stil en een ernstige fout = probleem; anders gezond');
+$ss = SelfStatus::get();
+ok(isset($ss['status'], $ss['db']['size'], $ss['cron']) && in_array($ss['src'], ['self', 'agent'], true), 'RzSense-kern: self_status geeft oordeel, database en cron');
+q("INSERT INTO hosts (name, address, mode) VALUES ('ci-live', '10.0.0.90', 'agent')");
+$hl = (int) db()->lastInsertId();
+q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, detail, status, created_at, last_seen) VALUES (?, 2, 'edr', 'rz-dlexec|/usr/bin/bash<sshd', 'x', 'x', 'open', NOW(), NOW())", [$hl]);
+$il = (int) db()->lastInsertId();
+q("INSERT INTO edr_events (host_id, at, kind, sig, data, rule, sev, own) VALUES (?, NOW(), 'x', 'a', ?, 'rz-dlexec', 2, NULL)", [$hl, json_encode(['exe' => '/usr/bin/bash', 'pid' => 4242, 'st' => 777])]);
+$el = (int) db()->lastInsertId();
+q("INSERT INTO edr_events (host_id, at, kind, sig, data, rule, sev, own) VALUES (?, NOW(), 'x', 'b', ?, NULL, 0, 'agent')", [$hl, json_encode(['exe' => '/usr/sbin/smartctl', 'pid' => 4243, 'st' => 778])]);
+$eo = (int) db()->lastInsertId();
+$lsum = Edr::liveSummary($hl);
+$lfeed = Edr::feed(50, $hl);
+$lown = Edr::feed(50, $hl, false, 0, true, true);
+ok($lsum['day']['n'] === 2 && $lsum['day']['hits'] === 1 && $lsum['day']['crit'] === 1 && $lsum['day']['own'] === 1 && $lsum['kinds']['exec']['hits'] === 1 && $lsum['hours'][23]['sev'] === 2 && $lsum['list']['hits'] === 1,
+    'Live: samenvatting 24 uur (treffer, critical, toegestaan, per soort en het laatste uur)');
+$lhit = array_values(array_filter($lfeed, fn($x) => $x['id'] === $el))[0] ?? null;
+ok($lhit && $lhit['inc'] === $il && $lhit['rule_what'] && count($lown) === 1 && $lown[0]['id'] === $eo, 'Live: treffer met incident en uitleg; Toegestaan toont alleen wat van RzSense zelf is');
+ok(Edr::killFromEvent($el, 'ci') === true && (bool) q('SELECT 1 FROM ids_kills WHERE host_id = ? AND pid = 4242 AND start = 777', [$hl])->fetchColumn()
+    && Edr::killFromEvent($eo, 'ci') !== true, 'Live: proces stoppen alleen met pid en starttijd van de agent, nooit iets van RzSense zelf');
+q('DELETE FROM ids_kills WHERE host_id = ?', [$hl]);
+q('DELETE FROM edr_events WHERE host_id = ?', [$hl]);
+q('DELETE FROM ids_incidents WHERE host_id = ?', [$hl]);
+q('DELETE FROM hosts WHERE id = ?', [$hl]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

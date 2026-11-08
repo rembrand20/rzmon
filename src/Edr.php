@@ -162,6 +162,9 @@ final class Edr
                 if ($kind === 'net' && ($ev['dir'] ?? '') === 'out' && $hit === null) {
                     self::knownBad($host, $ev);
                 }
+                if (!empty($hit['inc'])) {
+                    $ev['_inc'] = (int) $hit['inc'];   // 1.219.0: Live opent het incident
+                }
                 q('INSERT INTO edr_events (host_id, at, kind, sig, data, rule, sev, own) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
                     [$hid, $at, $ev['k'], $sig, json_encode($ev, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE),
                         $hit['rule'] ?? null, $hit['sev'] ?? 0, $exc ? 'exc' : null]);
@@ -469,12 +472,15 @@ final class Edr
     }
 
     /** Live: de laatste gebeurtenissen (alle servers of één), nieuwste eerst */
-    public static function feed(int $limit = 200, ?int $hostId = null, bool $hitsOnly = false, int $after = 0, bool $own = true): array
+    public static function feed(int $limit = 200, ?int $hostId = null, bool $hitsOnly = false, int $after = 0, bool $own = true, bool $ownOnly = false): array
     {
-        $w = ['e.id > ?'];
+        $w = ['e.id > ?', 'e.at >= NOW() - INTERVAL 3 DAY'];
         $p = [$after];
         if (!$own) {
             $w[] = 'e.own IS NULL';
+        }
+        if ($ownOnly) {
+            $w[] = 'e.own IS NOT NULL';
         }
         if ($hostId) {
             $w[] = 'e.host_id = ?';
@@ -484,9 +490,91 @@ final class Edr
             $w[] = 'e.rule IS NOT NULL';
         }
         $titles = self::titles();
-        return array_map(static fn($r) => ['id' => (int) $r['id'], 'host_id' => (int) $r['host_id'], 'host' => $r['host'], 'at' => $r['at'], 'kind' => self::FEED_KINDS[$r['kind']] ?? $r['kind'],
-            'own' => $r['own'], 'sig' => $r['sig'], 'rule' => $r['rule'], 'rule_title' => $r['rule'] ? ($titles[$r['rule']] ?? $r['rule']) : null, 'sev' => (int) $r['sev'], 'ev' => json_decode((string) $r['data'], true) ?: []],
-            q('SELECT e.*, h.name AS host FROM edr_events e JOIN hosts h ON h.id = e.host_id WHERE ' . implode(' AND ', $w) . ' ORDER BY e.id DESC LIMIT ' . max(1, min(500, $limit)), $p)->fetchAll());
+        $what = self::ruleWhat();
+        $incs = [];
+        $out = [];
+        foreach (q('SELECT e.*, h.name AS host FROM edr_events e JOIN hosts h ON h.id = e.host_id WHERE ' . implode(' AND ', $w) . ' ORDER BY e.id DESC LIMIT ' . max(1, min(500, $limit)), $p) as $r) {
+            $ev = json_decode((string) $r['data'], true) ?: [];
+            $inc = isset($ev['_inc']) ? (int) $ev['_inc'] : null;
+            if ($r['rule'] && $inc === null && !$r['own']) {
+                // 1.219.0: van vóór 1.219.0: het nieuwste incident van deze regel op deze server
+                $k = $r['host_id'] . '|' . $r['rule'];
+                $incs[$k] ??= (int) (q("SELECT id FROM ids_incidents WHERE host_id = ? AND type = 'edr' AND dkey LIKE ? AND created_at <= ? + INTERVAL 1 DAY ORDER BY id DESC LIMIT 1",
+                    [$r['host_id'], str_replace(['%', '_'], ['\\%', '\\_'], (string) $r['rule']) . '|%', $r['at']])->fetchColumn() ?: 0);
+                $inc = $incs[$k] ?: null;
+            }
+            $out[] = ['id' => (int) $r['id'], 'host_id' => (int) $r['host_id'], 'host' => $r['host'], 'at' => $r['at'], 'kind' => self::FEED_KINDS[$r['kind']] ?? $r['kind'],
+                'own' => $r['own'], 'sig' => $r['sig'], 'rule' => $r['rule'], 'rule_title' => $r['rule'] ? ($titles[$r['rule']] ?? $r['rule']) : null,
+                'rule_what' => $r['rule'] ? ($what[$r['rule']] ?? null) : null, 'sev' => (int) $r['sev'], 'inc' => $inc, 'ev' => $ev];
+        }
+        return $out;
+    }
+
+    /** Uitleg per regel (1.219.0: "Wat betekent dit?" in Live): eigen regels vertaald, Sigma met de beschrijving */
+    private static function ruleWhat(): array
+    {
+        $t = [];
+        foreach (EdrRules::all() as $r) {
+            $t[$r['id']] = t((string) ($r['what'] ?? ''));
+        }
+        foreach (Sigma::rules() as $r) {
+            $t[$r['id']] = (string) ($r['desc'] ?? '');
+        }
+        return $t;
+    }
+
+    /**
+     * Live in één oogopslag (1.219.0): de laatste 24 uur per soort (met treffers en toegestaan) en per uur,
+     * en hoeveel er in de 3 dagen van de lijst staat (Aandacht / Alles / Toegestaan).
+     */
+    public static function liveSummary(?int $hostId = null): array
+    {
+        $hw = $hostId ? ' AND host_id = ' . (int) $hostId : '';
+        $kinds = [];
+        $tot = ['n' => 0, 'hits' => 0, 'crit' => 0, 'own' => 0];
+        foreach (q("SELECT kind, COUNT(*) AS n, SUM(rule IS NOT NULL AND own IS NULL) AS hits, SUM(rule IS NOT NULL AND own IS NULL AND sev >= 2) AS crit, SUM(own IS NOT NULL) AS own
+                    FROM edr_events WHERE at >= NOW() - INTERVAL 1 DAY$hw GROUP BY kind") as $r) {
+            $k = self::FEED_KINDS[$r['kind']] ?? $r['kind'];
+            $kinds[$k] = ['n' => (int) $r['n'], 'hits' => (int) $r['hits'], 'crit' => (int) $r['crit']];
+            foreach (['n', 'hits', 'crit', 'own'] as $f) {
+                $tot[$f] += (int) $r[$f];
+            }
+        }
+        $hours = array_fill(0, 24, ['n' => 0, 'sev' => 0]);
+        foreach (q("SELECT LEAST(23, FLOOR(TIMESTAMPDIFF(MINUTE, at, NOW()) / 60)) AS b, COUNT(*) AS n, MAX(IF(rule IS NOT NULL AND own IS NULL, GREATEST(sev, 1), 0)) AS sev
+                    FROM edr_events WHERE at >= NOW() - INTERVAL 1 DAY$hw GROUP BY b") as $r) {
+            $b = 23 - max(0, min(23, (int) $r['b']));   // 0 = 24 uur geleden, 23 = het afgelopen uur
+            $hours[$b] = ['n' => (int) $r['n'], 'sev' => (int) $r['sev']];
+        }
+        $hosts = (int) q("SELECT COUNT(DISTINCT host_id) FROM edr_events WHERE at >= NOW() - INTERVAL 1 DAY$hw")->fetchColumn();
+        $c3 = q("SELECT COUNT(*) AS n, SUM(rule IS NOT NULL AND own IS NULL) AS hits, SUM(own IS NOT NULL) AS own FROM edr_events WHERE at >= NOW() - INTERVAL 3 DAY$hw")->fetch() ?: [];
+        return ['day' => $tot + ['hosts' => $hosts], 'kinds' => $kinds, 'hours' => $hours,
+            'list' => ['all' => (int) ($c3['n'] ?? 0), 'hits' => (int) ($c3['hits'] ?? 0), 'own' => (int) ($c3['own'] ?? 0)], 'blocking' => Ids::blocking()];
+    }
+
+    /**
+     * Proces stoppen vanuit Live (1.219.0): alleen een proces dat de agent zelf meldde (pid én starttijd uit de gebeurtenis),
+     * nooit iets van RzSense of de agent zelf. De agent controleert bij het stoppen opnieuw dat het hetzelfde proces is.
+     */
+    public static function killFromEvent(int $eventId, string $by): true|string
+    {
+        $r = q('SELECT e.*, h.name AS host FROM edr_events e JOIN hosts h ON h.id = e.host_id WHERE e.id = ?', [$eventId])->fetch();
+        if (!$r) {
+            return t('Gebeurtenis niet gevonden');
+        }
+        $ev = json_decode((string) $r['data'], true) ?: [];
+        $pid = (int) ($ev['pid'] ?? 0);
+        $st = (int) ($ev['st'] ?? 0);
+        if ($r['own'] || !in_array($r['kind'], ['x', 'a', 'n'], true) || $pid <= 1 || $st <= 0) {
+            return t('Dit proces kan niet vanuit RzSense gestopt worden');
+        }
+        if (strtotime((string) $r['at']) < time() - 86400) {
+            return t('Deze gebeurtenis is ouder dan een dag; het proces draait waarschijnlijk niet meer');
+        }
+        q('INSERT IGNORE INTO ids_kills (host_id, pid, start, dkey, created_at) VALUES (?, ?, ?, ?, ?)',
+            [$r['host_id'], $pid, $st, mb_substr('manual|' . $by . '|' . $r['sig'], 0, 255), now()]);
+        AgentCommands::audit($by, 'Endpoint-bewaking: proces stoppen', $r['host'] . ': pid ' . $pid . ' (' . basename((string) ($ev['exe'] ?? $ev['comm'] ?? '?')) . ')');
+        return true;
     }
 
     // ------------------------------------------------------------------ sensoren en onderdelen per server

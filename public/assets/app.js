@@ -1504,8 +1504,7 @@ function init() {
     if (b) mitreSignals(b.dataset.mt, b.dataset.ta);
   };
   $('#edr-host').onchange = () => loadEdrFeed();
-  $('#edr-hits').onchange = () => loadEdrFeed();
-  $('#edr-own').onchange = () => loadEdrFeed();
+  initLive();   // 1.219.0
   ['#rule-q', '#rule-q-set'].forEach((id) => { if ($(id)) $(id).oninput = () => renderEdrRules(); });
   ['#rule-src', '#rule-src-set'].forEach((id) => {
     if (!$(id)) return;
@@ -2100,30 +2099,123 @@ function diskDays(c) {
   const d = (100 - +c.last_value) / t;
   return d <= 365 ? d : null;
 }
-function miniRes(inGroup) {
+// ---------------------------------------------------------------- 1.219.0: de RzSense-kern
+// Reactor-meters voor de server waar RzSense zelf op draait (CPU, RAM, disk, cron) en een paneel met de rest.
+// Vervangt de meters van "de zwaarste server" (1.199.0). Gegevens: api self_status, elke 30 s zolang Monitoring open is.
+let selfStat = null, selfAt = 0, selfBusy = false;
+async function selfLoad(force) {
+  if (selfBusy || document.hidden || (!force && Date.now() - selfAt < 25000)) return;
+  if (!$('#mini-res') || ($('#tab-dashboard') && $('#tab-dashboard').hidden)) return;
+  selfBusy = true;
+  try { selfStat = await api('self_status'); selfAt = Date.now(); } catch (ex) { selfAt = Date.now(); } finally { selfBusy = false; }
+  miniRes();
+}
+setInterval(() => selfLoad(false), 30000);
+const rzPolar = (r, a) => [31 + r * Math.cos((a - 90) * Math.PI / 180), 31 + r * Math.sin((a - 90) * Math.PI / 180)];
+const rzArc = (r, a0, a1) => { const [x0, y0] = rzPolar(r, a0), [x1, y1] = rzPolar(r, a1); return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`; };
+/** Eén ronde meter: lvl 0 = cyaan, 1 = oranje, 2 = rood */
+function rzGauge(key, label, pct, val, unit, sub, lvl, tip) {
+  const a0 = -135, a1 = 135, av = pct === null ? a0 : a0 + (a1 - a0) * Math.max(0, Math.min(1, pct / 100));
+  let ticks = '';
+  for (let i = 0; i < 28; i++) {
+    const a = a0 + (a1 - a0) * i / 27, [x0, y0] = rzPolar(29.5, a), [x1, y1] = rzPolar(i % 9 === 0 ? 26 : 27.5, a);
+    ticks += `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" class="${a <= av && pct !== null ? 'on' : ''}"/>`;
+  }
+  const [dx, dy] = rzPolar(22, av);
+  return `<div class="rzk-g l${lvl}" title="${esc(tip || '')}"><svg viewBox="0 0 62 62" aria-hidden="true"><defs><linearGradient id="rzk-${key}" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" class="s0"/><stop offset="1" class="s1"/></linearGradient></defs><g class="tk">${ticks}</g>
+      <path class="bg" d="${rzArc(22, a0, a1)}"/>${pct === null ? '' : `<path class="arc" d="${rzArc(22, a0, Math.max(a0 + 2, av))}" stroke="url(#rzk-${key})"/><circle class="tip" cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="2.6"/>`}</svg>
+    <span class="v">${esc(val)}<small>${esc(unit)}</small></span><span class="k">${esc(label)}</span><span class="s">${esc(sub)}</span></div>`;
+}
+const RZ_SHIELD = '<path d="M27 15l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9v-6z" class="sh"/>';
+function rzCoreSvg(st) {
+  const mark = st === 0 ? '<path d="M23.5 24l2.5 2.5 4.5-5" class="ok"/>' : `<path d="M27 20.5v5" class="mk"/><circle cx="27" cy="28.6" r="1.1" class="mkd"/>`;
+  return `<svg viewBox="0 0 54 54" class="rzk-core-ic" aria-hidden="true"><circle cx="27" cy="27" r="25" class="ring"/>
+    <g class="spin">${[0, 120, 240].map((a) => `<path d="${rzArcC(22, a, a + 70)}" class="seg"/>`).join('')}</g>
+    <g class="spin2"><circle cx="27" cy="27" r="18" class="dash"/></g>${RZ_SHIELD}${mark}</svg>`;
+}
+function rzArcC(r, a0, a1) { const p = (a) => [27 + r * Math.cos((a - 90) * Math.PI / 180), 27 + r * Math.sin((a - 90) * Math.PI / 180)]; const [x0, y0] = p(a0), [x1, y1] = p(a1); return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 0 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`; }
+const rzUp = (s) => (s === null || s === undefined ? '' : s >= 86400 ? L('up {n} d', { n: Math.floor(s / 86400) }) : s >= 3600 ? L('up {n} u', { n: Math.floor(s / 3600) }) : L('up {n} min', { n: Math.max(1, Math.floor(s / 60)) }));
+const rzAgo = (s) => (s === null || s === undefined ? '–' : s < 60 ? L('{n} s geleden', { n: s }) : s < 7200 ? L('{n} min geleden', { n: Math.floor(s / 60) }) : s < 172800 ? L('{n} u geleden', { n: Math.floor(s / 3600) }) : L('{n} d geleden', { n: Math.floor(s / 86400) }));
+/** Meetwaarden en niveaus, gedeeld door de balk en het paneel */
+function rzParts(d) {
+  const ax = d.approx ? '≈' : '';
+  const c = d.cpu, m = d.mem, k = d.disk, cr = d.cron || {};
+  const diskLvl = !k ? 0 : (k.pct >= 95 || (k.full_days !== null && k.full_days <= 7)) ? 2 : (k.pct >= 80 || (k.full_days !== null && k.full_days <= 30)) ? 1 : 0;
+  const cronLvl = cr.ago === null || cr.ago === undefined ? 1 : cr.ago > 300 ? 2 : (cr.ago > 150 || cr.over > 0) ? 1 : 0;
+  return {
+    cpu: c ? { pct: c.pct, val: ax + dec(Math.round(c.pct)), sub: L('load {l} · {n}c', { l: dec((c.load[0] || 0).toFixed(2)), n: c.cores }), lvl: c.pct >= 95 ? 2 : (c.cores && (c.load[1] || 0) > c.cores * 1.5) || c.pct >= 85 ? 1 : 0 } : null,
+    mem: m ? { pct: m.pct, val: ax + dec(Math.round(m.pct)), sub: `${fmtBytes(m.used)} / ${fmtBytes(m.total)}`, lvl: m.pct >= 95 ? 2 : m.pct >= 90 ? 1 : 0 } : null,
+    disk: k ? { pct: k.pct, val: dec(Math.round(k.pct)), sub: k.full_days !== null ? L('vol ~{n} d', { n: k.full_days }) : L('{b} vrij', { b: fmtBytes(k.total - k.used) }), lvl: diskLvl } : null,
+    cron: { pct: cr.last === null || cr.last === undefined ? null : Math.min(100, cr.last / 60 * 100), val: cr.last === null || cr.last === undefined ? '–' : dec(Math.round(cr.last * 10) / 10), sub: rzAgo(cr.ago), lvl: cronLvl },
+  };
+}
+const RZ_STATE = () => [L('Gezond'), L('Aandacht'), L('Probleem')];
+function miniRes() {
   const el = $('#mini-res');
   if (!el) return;
-  const fxOn = fxActive('dash');
-  const hosts = state.hosts.filter((h) => +h.enabled && inGroup(h.id) && (!fxOn || h.checks.some((c) => fxPass('dash', { h, c }))));
-  el.innerHTML = MINI_RES.map(([type, lbl]) => {
-    const all = [];
-    hosts.forEach((h) => h.checks.forEach((c) => {
-      if (c.type === type && +c.enabled && !c.maintenance && c.last_value !== null && c.last_value !== undefined) all.push({ h, c, v: +c.last_value });
-    }));
-    if (!all.length) return '';
-    all.sort((a, b) => b.v - a.v);
-    const top = all[0];
-    const st = [0, 1, 2].includes(+top.c.status) ? +top.c.status : 3;
-    const days = type === 'disk' ? diskDays(top.c) : null;
-    const seen = new Set();
-    const top3 = all.filter((x) => (seen.has(x.h.id) ? false : seen.add(x.h.id))).slice(0, 3)
-      .map((x) => `${x.h.name}${type === 'disk' && x.c.target ? ' ' + x.c.target : ''}: ${Math.round(x.v)}%`).join(' · ');
-    const on = dashSort === type;
-    return `<button type="button" class="mres s${st}${on ? ' on' : ''}" data-mres="${type}" title="${esc(top3)} – ${esc(on ? L('klik: weer ergste eerst') : L('klik: servers sorteren op {w}', { w: lbl() }))}">
-      <span class="mres-k">${esc(lbl())}</span><span class="mres-bar"><b style="width:${Math.min(100, Math.max(2, top.v))}%"></b></span>
-      <b class="mres-v">${Math.round(top.v)}%</b><span class="mres-h">${esc(top.h.name)}${days !== null ? ` · <span class="${days <= 14 ? 'crit-txt' : 'warn-txt'}">${esc(L('vol over {n} d', { n: Math.max(1, Math.round(days)) }))}</span>` : ''}</span></button>`;
-  }).join('');
+  if (!selfStat) { el.innerHTML = ''; selfLoad(true); return; }
+  if (Date.now() - selfAt > 30000) selfLoad(false);
+  const d = selfStat, p = rzParts(d), st = +d.status || 0;
+  const tip = (d.issues || []).map((x) => x.txt).join(' · ') || L('Alles werkt zoals het hoort.');
+  const g = (key, lbl, x, unit, t) => (x ? rzGauge(key, lbl, x.pct, x.val, unit, x.sub, x.lvl, t) : '');
+  const html = `<div class="rzk s${st}${$('#rzk-pop') ? ' open' : ''}">
+    <button type="button" class="rzk-core" id="rzk-btn" aria-expanded="${$('#rzk-pop') ? 'true' : 'false'}" title="${esc(tip)}">${rzCoreSvg(st)}
+      <span class="t"><b>${esc(L('RZSENSE-KERN'))}</b><span>${esc(RZ_STATE()[st])}</span><i>${esc(d.host)}${d.uptime ? ' · ' + esc(rzUp(d.uptime)) : ''}</i></span></button>
+    <div class="rzk-gs">${g('cpu', 'CPU', p.cpu, '%', L('CPU van de RzSense-server'))}${g('mem', 'RAM', p.mem, '%', L('Geheugen van de RzSense-server'))}${g('disk', 'DISK', p.disk, '%', L('Disk waar de database staat'))}${g('cron', 'CRON', p.cron, 's', L('Hoe lang de laatste cron-ronde duurde'))}</div></div>`;
+  el.innerHTML = html;
+  const m = $('#rz-core-m');
+  if (m) m.innerHTML = html.replace('id="rzk-btn"', 'id="rzk-btn-m"');
+  if ($('#rzk-pop')) rzPopFill();
 }
+/** Het paneel met de hele gezondheid (klik op de kern) */
+function rzPopFill() {
+  const box = $('#rzk-pop'), d = selfStat;
+  if (!box || !d) return;
+  const p = rzParts(d), st = +d.status || 0;
+  const bar = (pct, lvl) => (pct === null || pct === undefined ? '' : `<div class="bar l${lvl}"><b style="width:${Math.max(2, Math.min(100, pct))}%"></b></div>`);
+  const cell = (k, right, v, sub, pct, lvl) => `<div class="rzk-cell l${lvl}"><div class="k"><span>${k}</span><span>${right || ''}</span></div><div class="v">${v}</div><div class="s">${sub}</div>${bar(pct, lvl)}</div>`;
+  const c = d.cpu, m = d.mem, k = d.disk, db = d.db || {}, cr = d.cron || {}, e = d.errors || { n: 0, fatal: 0 };
+  const per = (b) => (b ? (b > 0 ? '+' : '') + fmtBytes(b) + L('/dag') : '');
+  const verdict = st === 0 ? `<b>✔ ${L('Gezond.')}</b> ${L('Alles werkt zoals het hoort.')}`
+    : `<b>${st === 2 ? '✖ ' + L('Probleem.') : '▲ ' + L('Aandacht.')}</b> ${(d.issues || []).map((x) => esc(x.txt)).join(' · ')}`;
+  box.innerHTML = `<div class="rzk-pop-h">${rzCoreSvg(st)}<div><b>${L('RzSense-server')}</b><span>${esc([d.host, d.os, 'RzSense ' + d.version].filter(Boolean).join(' · '))}</span></div>
+      <button type="button" class="rzk-x" data-rzk-close aria-label="${esc(L('Sluiten'))}">✕</button></div>
+    <div class="rzk-verdict s${st}">${verdict}</div>
+    <div class="rzk-grid">
+      ${c ? cell('CPU', c.load.length ? L('load {a} · {b} · {c}', { a: dec(c.load[0].toFixed(2)), b: dec((c.load[1] || 0).toFixed(2)), c: dec((c.load[2] || 0).toFixed(2)) }) : '', p.cpu.val + '%', L('{n} cores', { n: c.cores }), c.pct, p.cpu.lvl) : ''}
+      ${m ? cell(L('Geheugen'), m.swap !== null && m.swap !== undefined ? L('swap {p}%', { p: m.swap }) : '', p.mem.val + '%', L('{u} van {t} in gebruik', { u: fmtBytes(m.used), t: fmtBytes(m.total) }), m.pct, p.mem.lvl) : ''}
+      ${k ? cell(L('Disk') + ' ' + esc(k.path), per(k.growth_day), p.disk.val + '%', L('{u} van {t}', { u: fmtBytes(k.used), t: fmtBytes(k.total) }) + (k.full_days !== null ? ' · ' + L('vol over ~{n} dagen', { n: k.full_days }) : ''), k.pct, p.disk.lvl) : ''}
+      ${cell(L('Database'), per(db.growth_day), fmtBytes(db.size || 0), (db.top || []).length ? L('grootste: {t}', { t: db.top.map((x) => `${esc(x.name)} (${fmtBytes(x.bytes)})`).join(', ') }) : '', null, 0)}
+      ${cell(L('Cron-ronde'), cr.avg !== null && cr.avg !== undefined ? L('gem. {s} s', { s: dec(cr.avg) }) : '', cr.last !== null && cr.last !== undefined ? dec(Math.round(cr.last * 10) / 10) + ' s' : '–',
+        L('laatste ronde {t}', { t: rzAgo(cr.ago) }) + (cr.over ? ' · ' + L('{n}× uitgelopen', { n: cr.over }) : ''), p.cron.pct, p.cron.lvl)}
+      ${cell(L('Fouten'), L('24 u'), String(e.n), e.fatal ? L('{n} ernstig', { n: e.fatal }) : e.n ? L('PHP-waarschuwingen') : L('geen PHP-fouten'), null, e.fatal ? 2 : e.n ? 1 : 0)}
+    </div>
+    <div class="rzk-foot"><a class="btn small-btn primary need-admin" href="#settings/db" data-goto="settings/db">${L('Database en server')}</a>
+      <a class="btn small-btn need-admin" href="#settings/perf" data-goto="settings/perf">${L('Prestaties en fouten')}</a>
+      <span class="muted small">${d.src === 'agent' ? L('CPU en geheugen: agent op deze server ({h})', { h: esc(d.agent || '') }) : d.approx ? L('≈ RzSense draait in een container: CPU en geheugen zijn bij benadering') : L('gemeten door RzSense zelf')}</span></div>`;
+}
+function rzPopToggle(anchor) {
+  const old = $('#rzk-pop');
+  if (old) { old.remove(); document.querySelectorAll('.rzk').forEach((x) => x.classList.remove('open')); return; }
+  const box = document.createElement('div');
+  box.id = 'rzk-pop'; box.className = 'rzk-pop'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', L('RzSense-server'));
+  document.body.appendChild(box);
+  rzPopFill();
+  const r = anchor.getBoundingClientRect();
+  if (innerWidth > 760) { box.style.top = `${Math.round(r.bottom + 10)}px`; box.style.left = `${Math.round(Math.max(12, Math.min(innerWidth - box.offsetWidth - 12, r.left)))}px`; }
+  anchor.closest('.rzk')?.classList.add('open');
+  selfLoad(true);
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('#rzk-btn, #rzk-btn-m');
+  if (b) { rzPopToggle(b); return; }
+  const pop = $('#rzk-pop');
+  if (pop && (e.target.closest('[data-rzk-close]') || e.target.closest('[data-goto]') || !e.target.closest('#rzk-pop'))) { pop.remove(); document.querySelectorAll('.rzk').forEach((x) => x.classList.remove('open')); }
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#rzk-pop')) { $('#rzk-pop').remove(); document.querySelectorAll('.rzk').forEach((x) => x.classList.remove('open')); } });
+window.addEventListener('scroll', () => { const pop = $('#rzk-pop'); if (pop && innerWidth > 760) { pop.remove(); document.querySelectorAll('.rzk').forEach((x) => x.classList.remove('open')); } }, { passive: true });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) selfLoad(false); });
 
 /** Kerncijfers, tellers en "Nu aandacht nodig" bovenaan het dashboard. Toestand en score komen van de server (Health.php). */
 function renderHealth() {
@@ -2140,7 +2232,7 @@ function renderHealth() {
       <span class="hc-dot"></span><b data-flash>${n}</b> <span class="hc-w">${WORD[st]}</span></button>`;
   }).join('');
 
-  miniRes(inGroup);   // 1.199.0
+  miniRes();   // 1.199.0; 1.219.0: de RzSense-kern
   // Kerncijfers als tegels
   const stateCls = { ok: 'ok', attention: 'warn', outage: 'bad' }[hl.state];
   const hostLink = (id, text) => `<button type="button" class="hl-link" data-host="${id}">${esc(text)}</button>`;
@@ -9875,20 +9967,195 @@ function edrOwn(e) {
   if (e.kind === 'ids') return `${tag} ${esc(v.title || '')} <span class="muted small">${esc((v.detail || '').slice(0, 160))}</span>`;   // 1.132.0
   return `${tag} ${edrSummary(e)}${v._would ? `<br><span class="muted small">${e.own === 'exc' ? L('zou {r} raken', { r: esc(v._would) }) : L('zou {r} raken, maar is RzSense zelf', { r: esc(v._would) })}</span>` : ''}`;
 }
+// ---------------------------------------------------------------- IDS → Live (1.219.0: begrijpelijk)
+// Bovenaan een oordeel met de laatste 24 uur per uur, de soorten met aantallen, en Aandacht / Alles / Toegestaan.
+// Elke regel in gewone taal; herhalingen samengevoegd; bij een treffer uitleg, wat je kunt doen en knoppen.
+let lvMode = uiGet('edr_mode', 'rzmon-edr-mode', 'hits'), lvKind = '', lvOpen = new Set(), lvSeenPrev = null;
+const LV_IC = {
+  exec: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/>',
+  net: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  file: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/>',
+  audit: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  ctr: '<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/>',
+  ids: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>',
+  own: '<path d="M20 6L9 17l-5-5"/>',
+};
+const lvIc = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${LV_IC[k] || LV_IC.ids}</svg>`;
+const LV_KIND = { exec: () => L('Proces'), net: () => L('Verbinding'), file: () => L('Bestand'), audit: () => L('Systeem'), ctr: () => L('Container'), sur: () => L('Netwerk-IDS'), dns: () => 'DNS', web: () => L('Web'), ids: () => 'IDS', own: () => L('RzSense') };
+const LV_KINDS = { exec: () => L('Processen'), net: () => L('Verbindingen'), file: () => L('Bestanden'), audit: () => L('Accounts en systeem'), ctr: () => L('Containers'), sur: () => L('Netwerk-IDS'), own: () => L('RzSense zelf') };
+const lvIcKind = (k) => (['sur', 'dns', 'web', 'ids'].includes(k) ? 'ids' : k);
+/** Eén zin in gewone taal, met een korte toelichting eronder */
+function lvSentence(e) {
+  const v = e.ev || {}, prog = esc(edrBase(v.exe) || v.comm || '?'), who = esc(v.u || (v.uid !== undefined ? 'uid ' + v.uid : '?'));
+  switch (e.kind) {
+    case 'exec':
+      if (v.pc === 'cron' || v.pc === 'crond') return [L('<b>cron</b> startte <b>{p}</b>', { p: prog }), `${L('gebruiker {u}', { u: who })} · <code>${esc((v.cmd || '').slice(0, 120))}</code>`];
+      return [L('<b>{u}</b> startte het programma <b>{p}</b>', { u: who, p: prog }), `<code>${esc((v.cmd || '').slice(0, 140))}</code>${v.pc ? ' · ' + L('gestart door {x}', { x: esc(v.pc) }) : ''}`];
+    case 'net':
+      if (v.dir === 'listen') return [L('<b>{p}</b> luistert op poort <b>{n}</b>', { p: esc(v.comm || edrBase(v.exe) || '?'), n: +v.lp }), ''];
+      return [L('<b>{p}</b> maakte verbinding met <b>{a}</b>', { p: esc(v.comm || edrBase(v.exe) || '?'), a: esc(`${v.rip || ''}:${+v.rp}`) }), v.dir === 'in' ? L('inkomend') : L('uitgaand')];
+    case 'file': return [L('Nieuw {w} neergezet: <b>{f}</b>', { w: +v.elf ? L('programma') : L('bestand'), f: esc(v.path || '') }), [fmtBytes(+v.size || 0), v.susp ? esc(v.susp) : ''].filter(Boolean).join(' · ')];
+    case 'audit': {
+      const what = { rzmon_id: L('Accounts of sudo-rechten gewijzigd'), rzmon_persist: L('Geplande taak, dienst of SSH-sleutels gewijzigd'), rzmon_mod: L('Kernelmodule geladen') }[v.key] || L('Bewaakt bestand gewijzigd');
+      return [`${what}: <b>${esc(v.name || '')}</b>`, L('door {p}, gebruiker {u}', { p: prog, u: who })];
+    }
+    case 'ctr': {
+      const act = { start: L('gestart'), stop: L('gestopt'), die: L('gestopt'), restart: L('opnieuw gestart'), exec: L('iemand opende er een shell in'), create: L('aangemaakt') }[v.act] || esc(v.act || '');
+      return [L('Container <b>{n}</b>: {a}', { n: esc(v.name || ''), a: act }), [esc(v.img || ''), +v.priv ? '--privileged' : ''].filter(Boolean).join(' · ')];
+    }
+    default: return [edrOwn(e), ''];
+  }
+}
+/** Technische details (inklapbaar) */
+function lvTech(e) {
+  const v = e.ev || {}, rows = [];
+  const add = (k, x) => { if (x !== undefined && x !== null && x !== '') rows.push(`<dt>${k}</dt><dd>${esc(String(x))}</dd>`); };
+  add(L('Programma'), v.exe ? v.exe + (v.pid ? ` (pid ${v.pid})` : '') : v.comm);
+  add(L('Opdracht'), v.cmd);
+  add(L('Gebruiker'), v.u || v.uid);
+  add(L('Gestart door'), v.pc);
+  add(L('Adres'), v.rip ? `${v.rip}:${v.rp}` : v.lp ? L('poort {n}', { n: v.lp }) : '');
+  add(L('Bestand'), v.path || v.name);
+  add('Image', v.img);
+  add(L('Regel'), e.rule ? `${e.rule_title || e.rule} (${e.rule})` : '');
+  add(L('Tijd'), fmtDateTime(e.at));
+  return rows.length ? `<details class="lv-tech"><summary>${L('Technische details')}</summary><dl>${rows.join('')}</dl></details>` : '';
+}
+function lvHitOpen(e) {
+  const blocking = !!(edrFeed.sum && edrFeed.sum.blocking);
+  const what = e.rule_what || L('Een regel van de endpoint-bewaking was raak. Bekijk het incident voor het bewijs en de uitleg.');
+  const canKill = isAdmin() && !e.own && ['exec', 'audit', 'net'].includes(e.kind) && +(e.ev || {}).pid > 1 && +(e.ev || {}).st > 0 && Date.now() - new Date(e.at.replace(' ', 'T')).getTime() < 86400000;
+  return `<div class="lv-open">
+    <div class="lv-box mean"><h5>${L('Wat betekent dit?')}</h5>${esc(what)}</div>
+    <div class="lv-box"><h5>${L('Wat kun je doen?')}</h5>${L('1. Herken je het en deed jij (of een update) dit? Dan is het normaal.')}<br>${L('2. Niet herkend? Bekijk het incident en stop zo nodig het proces.')}
+      <br><span class="muted">${blocking ? L('Modus Blokkeren: RzSense grijpt zelf in als de regel dat zegt (zie het incident).') : L('Modus Leren: RzSense greep niet in.')}</span></div>
+    <div class="lv-btns">${e.inc ? `<button type="button" class="btn small-btn primary" data-lv-inc="${e.inc}">${L('Bekijk incident')}</button>` : `<a class="btn small-btn primary" href="#ids/inc" data-goto="ids/inc">${L('Naar incidenten')}</a>`}
+      ${canKill ? `<button type="button" class="btn small-btn" data-lv-kill="${e.id}">⛔ ${L('Proces stoppen')}</button>` : ''}
+      ${e.inc ? `<button type="button" class="btn small-btn need-admin" data-lv-normal="${e.inc}">✔ ${L('Dit is normaal')}</button>${aiBtn('ids', e.inc, true)}` : ''}</div>
+    ${lvTech(e)}</div>`;
+}
+const lvDay = (at) => { const d = at.slice(0, 10), t = new Date(), y = new Date(Date.now() - 86400000);
+  const loc = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+  return d === loc(t) ? L('Vandaag') : d === loc(y) ? L('Gisteren') : new Date(d + 'T12:00:00').toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' }); };
+function lvRow(e) {
+  const hit = e.rule && !e.own, cls = hit ? (e.sev >= 2 ? 'c' : 'w') : e.own ? 'ok' : '';
+  const [s1, s2] = lvSentence(e);
+  const open = hit && lvOpen.has(e.id);
+  const t = e.at.slice(11, 16), ki = e.kind === 'own' ? 'own' : lvIcKind(e.kind);
+  const ownTag = e.own && e.kind !== 'own' ? `<span class="okl">✔ ${L('toegestaan')} · ${esc((EDR_OWN[e.own] || (() => e.own))())}${e.own === 'exc' && (e.ev || {})._exc ? ': ' + esc(e.ev._exc) : ''}</span>` : '';
+  const span = e.n > 1 ? L('{n}× tussen {a} en {b}', { n: e.n, a: e.first.slice(11, 16), b: t }) : '';
+  return `<div class="lv-row ${cls}${open ? ' open' : ''}" data-key="e${e.id}" ${hit ? `data-lv-row="${e.id}" tabindex="0" role="button" aria-expanded="${open}"` : ''}>
+    <span class="st"></span><span class="lv-t" title="${esc(fmtDateTime(e.at))}">${t}</span>
+    <span class="lv-k">${lvIc(ki)} ${esc((LV_KIND[e.kind] || (() => e.kind))())}</span>
+    <span class="lv-s">${s1}${s2 ? `<span class="why">${s2}</span>` : ''}${hit ? `<span class="hitl">${e.sev >= 2 ? '●' : '▲'} ${esc(e.rule_title || e.rule)} · ${e.sev >= 2 ? 'Critical' : 'Warning'}</span>` : ''}${ownTag ? `<span class="why">${ownTag}</span>` : ''}</span>
+    ${e.n > 1 ? `<span class="lv-n" title="${esc(span)}">${e.n}×</span>` : '<span></span>'}<span class="lv-h">${esc(e.host)}</span><span class="lv-go">${hit ? (open ? '▾' : '▸') : ''}</span>
+    <span class="lv-meta">${t} · ${esc(e.host)}${span ? ' · ' + esc(span) : ''}</span>
+    ${open ? lvHitOpen(e) : ''}</div>`;
+}
+/** Herhalingen samenvoegen: zelfde server, soort en handtekening (geen treffers) op dezelfde dag */
+function lvGroup(evs) {
+  const out = [], seen = new Map();
+  for (const e of evs) {
+    if (e.rule && !e.own) { out.push(e); continue; }
+    const k = `${e.host_id}|${e.kind}|${e.sig}|${e.own || ''}|${e.at.slice(0, 10)}`;
+    const g = seen.get(k);
+    if (g) { g.n++; g.first = e.at; continue; }
+    const x = { ...e, n: 1, first: e.at };
+    seen.set(k, x); out.push(x);
+  }
+  return out;
+}
+function lvHero(sum, hitsListed) {
+  const d = sum.day, crit = sum.kinds && Object.values(sum.kinds).some((k) => k.crit > 0);
+  const st = hitsListed ? (crit ? 2 : 1) : 0;
+  const title = st ? (hitsListed === 1 ? L('1 ding vraagt aandacht') : L('{n} dingen vragen aandacht', { n: hitsListed })) : L('Alles rustig');
+  const sub = d.n ? L('<b>{n} gebeurtenissen</b> gezien op <b>{h} servers</b> in de laatste 24 uur. {o} daarvan zijn van RzSense zelf of een uitzondering.', { n: d.n.toLocaleString(LOCALE), h: d.hosts, o: d.own.toLocaleString(LOCALE) })
+    : L('In de laatste 24 uur kwam er niets binnen van de endpoint-bewaking.');
+  const mx = Math.max(1, ...sum.hours.map((h) => h.n));
+  const hr = (back) => { const x = new Date(Date.now() - back * 3600000); return String(x.getHours()).padStart(2, '0') + ':00'; };
+  const bars = sum.hours.map((h, i) => `<span class="${h.sev >= 2 ? 'h' : h.sev ? 'w' : ''}" style="height:${h.n ? Math.max(4, Math.round(h.n / mx * 100)) : 2}%" title="${esc(L('{t}: {n} gebeurtenissen', { t: hr(23 - i), n: h.n }))}"></span>`).join('');
+  return `<div class="lv-hero s${st}"><span class="big" aria-hidden="true">${st === 2 ? '🔴' : st ? '🟠' : '🟢'}</span>
+    <div class="lv-hero-t"><h3>${title}</h3><p>${sub}</p>
+      <div class="act">${st && lvMode !== 'hits' ? `<button type="button" class="btn small-btn primary" data-lv-mode="hits">${hitsListed === 1 ? L('Bekijk de treffer') : L('Bekijk de {n} treffers', { n: hitsListed })}</button>` : ''}</div>
+      ${xpHtml(L('Wat is deze pagina?'), L('<b>Live:</b> alles wat de agents de laatste 3 dagen zagen op je servers: programma\'s die starten, verbindingen, nieuwe bestanden, wijzigingen aan accounts en systeem, en containers. <b>Treffer:</b> een gebeurtenis die op een regel past; die wordt ook een IDS-incident (rood = critical, oranje = warning). <b>Toegestaan:</b> iets van RzSense of de agent zelf, of iets waarvoor je een uitzondering maakte (groen); dat wordt nooit tegengehouden. <b>Samengevoegd:</b> wat vaak terugkomt staat er één keer, met hoe vaak (bv. 48×).'))}</div>
+    <div class="lv-spark"><div class="lg"><span><i class="n"></i>${L('gebeurtenissen per uur')}</span><span><i class="c"></i>${L('met een treffer')}</span></div>
+      <div class="bars">${bars}</div><div class="lv-ax"><span>${hr(24)}</span><span>${hr(18)}</span><span>${hr(12)}</span><span>${hr(6)}</span><span>${L('nu')}</span></div></div></div>`;
+}
 async function loadEdrFeed() {
-  const host = $('#edr-host').value, hits = $('#edr-hits').checked, own = $('#edr-own').checked;
-  try { edrFeed = await api('edr_feed', null, { limit: 300, ...(host ? { host } : {}), ...(hits ? { hits: 1 } : {}), ...(own ? {} : { own: 0 }) }); } catch (ex) { $('#edr-feed').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const host = $('#edr-host').value;
+  if (lvSeenPrev === null) {   // "nieuw sinds je laatste bezoek": het moment van het vorige bezoek, deze sessie vast
+    try { lvSeenPrev = sessionStorage.getItem('rzs-live-prev') ?? localStorage.getItem('rzs-live-seen') ?? ''; sessionStorage.setItem('rzs-live-prev', lvSeenPrev); } catch (ex) { lvSeenPrev = ''; }
+  }
+  try { localStorage.setItem('rzs-live-seen', new Date().toISOString().slice(0, 19).replace('T', ' ')); } catch (ex) { /* geen opslag */ }
+  try {
+    edrFeed = await api('edr_feed', null, { limit: 300, ...(host ? { host } : {}), ...(lvMode === 'hits' ? { hits: 1, own: 0 } : lvMode === 'own' ? { only_own: 1 } : {}) });
+  } catch (ex) { $('#edr-feed').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const sel = $('#edr-host');
   if (sel.options.length < 2) sel.innerHTML += (state.hosts || []).filter((h) => h.mode === 'agent').map((h) => `<option value="${h.id}">${esc(h.name)}</option>`).join('');
-  const evs = edrFeed.events;
-  $('#edr-info').textContent = !edrFeed.on ? L('Endpoint-bewaking staat uit (Instellingen → IDS → Endpoint-bewaking)') : L('{n} gebeurtenissen (laatste 3 dagen, hooguit 300)', { n: evs.length });
-  withMorph(() => {
-    $('#edr-feed').innerHTML = evs.length ? `<div class="edr-list">${evs.map((e) => `<div class="edr-row ${e.rule ? 'hit s' + e.sev : ''}${e.own ? ' own' : ''}" data-key="e${e.id}">
-      <span class="m-t" title="${esc(e.at)}">${esc(e.at.slice(5, 16).replace(' ', ' · '))}</span>
-      <span class="edr-k" title="${esc(e.kind)}">${e.own ? '✔' : EDR_KIND_IC[e.kind] || '·'}</span>
-      <span class="m-sv">${esc(e.host)}</span>
-      <span class="edr-sum">${e.own ? edrOwn(e) : edrSummary(e)}${e.rule ? `<br><span class="edr-hit">${e.sev === 2 ? '🔴' : '🟠'} ${esc(e.rule_title || e.rule)}</span>` : ''}</span></div>`).join('')}</div>`
-      : `<p class="muted">${edrFeed.on ? L('Nog niets gezien. Staat de endpoint-bewaking aan op je servers (Agent Manager), en is de agent 1.63.0 of nieuwer?') : ''}</p>`;
+  renderLive();
+}
+function renderLive() {
+  if (!edrFeed) return;
+  const sum = edrFeed.sum || { day: { n: 0, hits: 0, own: 0, hosts: 0 }, kinds: {}, hours: Array(24).fill({ n: 0, sev: 0 }), list: { all: 0, hits: 0, own: 0 } };
+  const nf = (n) => (+n || 0).toLocaleString(LOCALE);
+  $('#edr-n-hits').textContent = nf(sum.list.hits); $('#edr-n-all').textContent = nf(sum.list.all); $('#edr-n-own').textContent = nf(sum.list.own);
+  $$('#edr-mode [data-lv-mode]').forEach((b) => { b.classList.toggle('on', b.dataset.lvMode === lvMode); b.setAttribute('aria-selected', b.dataset.lvMode === lvMode); });
+  $('#edr-hero').innerHTML = edrFeed.on ? lvHero(sum, sum.list.hits) : `<div class="lv-hero s1"><span class="big">⚠️</span><div class="lv-hero-t"><h3>${L('Endpoint-bewaking staat uit')}</h3><p>${L('Zet hem aan bij Instellingen → IDS → Endpoint-bewaking.')}</p></div></div>`;
+  const order = ['exec', 'net', 'file', 'audit', 'ctr', 'sur'];
+  const kinds = Object.entries(sum.kinds).filter(([k]) => k !== 'own' && k !== 'dns' && k !== 'web' && k !== 'ids').sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]));
+  $('#edr-kinds').innerHTML = kinds.length ? kinds.map(([k, x]) => `<button type="button" class="lv-kind${lvKind === k ? ' on' : ''}" data-lv-kind="${k}" aria-pressed="${lvKind === k}" title="${esc(L('Laatste 24 uur · klik om alleen deze soort te tonen'))}">
+      ${lvIc(lvIcKind(k))} ${esc((LV_KINDS[k] || (() => k))())} <b>${nf(x.n)}</b>${x.hits ? ` <span class="hit ${x.crit ? 'c' : 'w'}">· ${x.hits}</span>` : ''}</button>`).join('') : '';
+  $('#edr-info').textContent = edrFeed.on ? `● ${L('live')} · ${L('laatste 3 dagen')}${lvMode !== 'hits' ? ' · ' + L('herhalingen samengevoegd') : ''}` : '';
+  // nieuwste eerst op tijd (een agent kan oudere gebeurtenissen later sturen, na een storing)
+  let evs = [...edrFeed.events].sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : y.id - x.id));
+  if (lvKind) evs = evs.filter((e) => e.kind === lvKind);
+  const rows = lvGroup(evs);
+  let html = '', day = '', newShown = false;
+  const newer = lvSeenPrev && rows.some((e) => e.at > lvSeenPrev) && rows.some((e) => e.at <= lvSeenPrev);
+  for (const e of rows) {
+    const dd = lvDay(e.at);
+    if (dd !== day) { html += `${day ? '</div>' : ''}<div class="lv-day">${esc(dd)}</div><div class="lv-list">`; day = dd; }
+    if (newer && !newShown && e.at <= lvSeenPrev) { html += `<div class="lv-new">${L('nieuw sinds je laatste bezoek ({t})', { t: esc(lvSeenPrev.slice(11, 16)) })}</div>`; newShown = true; }
+    html += lvRow(e);
+  }
+  if (day) html += '</div>';
+  const legend = `<div class="lv-legend"><span><i class="c"></i>${L('treffer, critical')}</span><span><i class="w"></i>${L('treffer, warning')}</span><span><i class="n"></i>${L('gezien, niets bijzonders')}</span><span><i class="ok"></i>${L('toegestaan (RzSense zelf of een uitzondering)')}</span><span>· <b>48×</b> = ${L('zo vaak samengevoegd')}</span></div>`;
+  const empty = !edrFeed.on ? '' : lvMode === 'hits'
+    ? `<p class="lv-empty">✔ ${L('Niets verdachts in de laatste 3 dagen.')} ${sum.list.all ? `<button type="button" class="btn small-btn" data-lv-mode="all">${L('Alles tonen ({n})', { n: nf(sum.list.all) })}</button>` : ''}</p>`
+    : `<p class="muted">${L('Nog niets gezien. Staat de endpoint-bewaking aan op je servers (Agent Manager), en is de agent 1.63.0 of nieuwer?')}</p>`;
+  withMorph(() => { $('#edr-feed').innerHTML = rows.length ? html + (lvMode === 'hits' && sum.list.all > sum.list.hits ? `<p class="muted small lv-more">${L('Verder niets verdachts. Kies <b>Alles</b> om alle {n} gebeurtenissen te zien.', { n: nf(sum.list.all) })}</p>` : '') + legend : empty; });
+}
+function initLive() {
+  const pane = $('.ids-pane[data-pane="live"]');
+  if (!pane || pane.dataset.lvInit) return;
+  pane.dataset.lvInit = '1';
+  pane.addEventListener('click', async (e) => {
+    const m = e.target.closest('[data-lv-mode]');
+    if (m) { lvMode = m.dataset.lvMode; uiSet('edr_mode', 'rzmon-edr-mode', lvMode); lvOpen.clear(); $('#edr-feed').innerHTML = `<p class="muted">${L('Laden…')}</p>`; return loadEdrFeed(); }
+    const k = e.target.closest('[data-lv-kind]');
+    if (k) { lvKind = lvKind === k.dataset.lvKind ? '' : k.dataset.lvKind; return renderLive(); }
+    const inc = e.target.closest('[data-lv-inc]');
+    if (inc) return incidentDialog(+inc.dataset.lvInc);
+    const kill = e.target.closest('[data-lv-kill]');
+    if (kill) {
+      if (!confirm(L('Dit proces op de server stoppen? De agent controleert eerst dat het nog hetzelfde proces is.'))) return undefined;
+      try { await api('edr_kill', { id: +kill.dataset.lvKill }); toast(L('Wordt gestopt bij het volgende contact met de agent')); kill.disabled = true; } catch (ex) { toast(ex.message, 'err'); }
+      return undefined;
+    }
+    const nor = e.target.closest('[data-lv-normal]');
+    if (nor) {
+      if (!confirm(L('Afhandelen en dit voortaan niet meer melden op deze server?'))) return undefined;
+      try { await api('ids_incident', { id: +nor.dataset.lvNormal, action: 'normal' }); toast(L('Afgehandeld; dit wordt voortaan niet meer gemeld')); nor.disabled = true; } catch (ex) { toast(ex.message, 'err'); }
+      return undefined;
+    }
+    if (e.target.closest('a, button, details, .xp')) return undefined;
+    const row = e.target.closest('[data-lv-row]');
+    if (row) { const id = +row.dataset.lvRow; if (lvOpen.has(id)) lvOpen.delete(id); else lvOpen.add(id); renderLive(); }
+    return undefined;
+  });
+  pane.addEventListener('keydown', (e) => {
+    const row = e.target.closest && e.target.closest('[data-lv-row]');
+    if (row && (e.key === 'Enter' || e.key === ' ') && e.target === row) { e.preventDefault(); row.click(); }
   });
 }
 async function loadEdrRules() {
