@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.216.0**: een **vernieuwde zijbalk** met statuslampje, een **paginakop met klikbaar pad** en **rustiger Liquid Glass**.
 - **1.215.0**: een **bewegende HUD-achtergrond op de inlogpagina**, ook mooi op een telefoon.
 
+## 1.219.1 – 2026-11-08
+### Opgelost
+- **Afwijkingen: de leerperiode** liep na de overgang naar winter- of zomertijd een uur te lang of te kort, omdat 14 dagen als 14 × 24 uur werd geteld. Nu telt RzSense in kalenderdagen, zodat de leerperiode precies op dezelfde klok­tijd eindigt (ook op de pagina *Afwijkingen*).
+
 ## 1.219.0 – 2026-11-08
 ### Nieuw
 - **De RzSense-kern op Monitoring**: in plaats van de meters van "de zwaarste server" zie je nu hoe het gaat met **de server waar RzSense zelf op draait**:

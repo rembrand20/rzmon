@@ -38,7 +38,8 @@ final class Anomaly
     public static function learning(array $host): bool
     {
         $from = $host['edr_learn_from'] ?? null;
-        return !$from || strtotime((string) $from) + self::learnDays() * 86400 > time();
+        // 1.219.0: in kalenderdagen (strtotime '+N days'), zodat de overgang naar zomer- of wintertijd het einde niet een uur verschuift
+        return !$from || (int) strtotime((string) $from . ' +' . self::learnDays() . ' days') > time();
     }
 
     /** Leerstatus voor de pagina */
@@ -46,7 +47,7 @@ final class Anomaly
     {
         $from = $host['edr_learn_from'] ?? null;
         $days = self::learnDays();
-        $until = $from ? strtotime((string) $from) + $days * 86400 : null;
+        $until = $from ? (int) strtotime((string) $from . " +$days days") : null;
         $done = $from ? min($days, max(0, (time() - strtotime((string) $from)) / 86400)) : 0;
         return ['from' => $from, 'until' => $until ? date('Y-m-d H:i:s', $until) : null, 'days' => $days, 'day' => (int) floor($done) + ($until && $until > time() ? 1 : 0),
             'pct' => (int) round($done / $days * 100), 'learning' => self::learning($host)];
@@ -65,7 +66,7 @@ final class Anomaly
     public static function relearn(int $hostId, bool $finish): void
     {
         if ($finish) {
-            q('UPDATE hosts SET edr_learn_from = ? WHERE id = ?', [date('Y-m-d H:i:s', time() - self::learnDays() * 86400 - 60), $hostId]);
+            q('UPDATE hosts SET edr_learn_from = ? WHERE id = ?', [date('Y-m-d H:i:s', (int) strtotime('-' . self::learnDays() . ' days') - 60), $hostId]);
             return;
         }
         q('DELETE FROM edr_seen WHERE host_id = ?', [$hostId]);
