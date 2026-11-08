@@ -113,6 +113,37 @@ final class Edr
         $evs = array_slice(array_values(array_filter((array) ($edr['ev'] ?? []), 'is_array')), 0, self::MAX_EVENTS);
         // 1.131.0: alle gebeurtenissen van dit rapport in één transactie (was: twee schrijfacties per gebeurtenis, elk
         // apart bevestigd; bij honderden gebeurtenissen duurde een rapport zo tientallen seconden)
+        // 1.221.1: twee rapporten tegelijk kunnen elkaar in de database blokkeren (deadlock); MariaDB breekt er dan één af.
+        // Dan dat rapport opnieuw (hooguit 3 keer), met lege tussenstanden, in plaats van het hele rapport te verliezen.
+        for ($try = 1; ; $try++) {
+            try {
+                self::processTx($host, $hid, $evs);
+                break;
+            } catch (PDOException $e) {
+                if ($try >= 3 || !db_retryable($e)) {
+                    throw $e;
+                }
+                self::$kills = [];
+                unset(self::$ownAgg[$hid]);
+                Anomaly::forget($hid);
+                Chain::forget($hid);
+                Exceptions::reset();
+                usleep(random_int(50, 250) * 1000 * $try);
+            }
+        }
+        // 1.113.0: Suricata-alerts, en de YARA-regels naar de agent als die nog niet de nieuwste heeft
+        if (is_array($edr['sur'] ?? null)) {
+            Suricata::process($host, $edr['sur']);
+        }
+        if (($edr['info']['yara'] ?? '') === 'ok' && setting('edr_yara', '1') === '1' && ($edr['info']['ysha'] ?? '') !== hash('sha256', self::yaraRules())) {
+            return (self::$kills ? ['edr_kill' => array_values(self::$kills)] : []) + ['edr_yara' => base64_encode(self::yaraRules())];
+        }
+        return self::$kills ? ['edr_kill' => array_values(self::$kills)] : [];
+    }
+
+    /** De gebeurtenissen van één rapport in één transactie */
+    private static function processTx(array $host, int $hid, array $evs): void
+    {
         in_tx(static function () use ($host, $hid, $evs): void {
             if ($evs) {
                 Anomaly::start($host);   // het leren (afwijkingen, 1.111.0) begint bij de eerste gebeurtenis
@@ -175,14 +206,6 @@ final class Edr
             self::ownFlush($host);
             Exceptions::flush();
         });
-        // 1.113.0: Suricata-alerts, en de YARA-regels naar de agent als die nog niet de nieuwste heeft
-        if (is_array($edr['sur'] ?? null)) {
-            Suricata::process($host, $edr['sur']);
-        }
-        if (($edr['info']['yara'] ?? '') === 'ok' && setting('edr_yara', '1') === '1' && ($edr['info']['ysha'] ?? '') !== hash('sha256', self::yaraRules())) {
-            return (self::$kills ? ['edr_kill' => array_values(self::$kills)] : []) + ['edr_yara' => base64_encode(self::yaraRules())];
-        }
-        return self::$kills ? ['edr_kill' => array_values(self::$kills)] : [];
     }
 
     /**

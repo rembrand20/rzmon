@@ -60,6 +60,7 @@ final class Exceptions
     {
         self::$active = null;
         self::$groups = [];
+        self::$hits = [];   // 1.221.1: ook de tellers (na een afgebroken transactie niets dubbel)
     }
 
     private static function active(): array

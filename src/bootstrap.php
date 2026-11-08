@@ -103,6 +103,13 @@ function rz_sh(string $cmd): string
  * Veel schrijfacties in één transactie (1.131.0): de database bevestigt dan één keer op schijf in plaats van na elke
  * regel. Op een VM-schijf scheelt dat seconden per agentrapport. Al in een transactie? Dan gewoon meedoen.
  */
+/** 1.221.1: deadlock of lock-timeout van de database (dan mag de transactie opnieuw) */
+function db_retryable(Throwable $e): bool
+{
+    $code = $e instanceof PDOException ? (int) ($e->errorInfo[1] ?? 0) : 0;
+    return in_array($code, [1205, 1213], true) || ($e instanceof PDOException && (string) $e->getCode() === '40001');
+}
+
 function in_tx(callable $fn): mixed
 {
     $pdo = db();

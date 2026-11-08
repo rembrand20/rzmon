@@ -24,6 +24,12 @@ final class Anomaly
     /** Uren met interactieve activiteit in dit rapport */
     private static array $active = [];
 
+    /** 1.221.1: opnieuw beginnen na een afgebroken transactie (deadlock): niets dubbel tellen */
+    public static function forget(int $hid): void
+    {
+        unset(self::$hourly[$hid], self::$active[$hid]);
+    }
+
     public static function on(): bool
     {
         return setting('edr_anom', '1') === '1';

@@ -122,6 +122,8 @@ else
     git -C "$DIR" merge --quiet --ff-only "$commit" >>"$LOG" 2>&1 || fail "Bijwerken van de bestanden mislukt (zie het logboek); er is niets veranderd"
 fi
 to=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
+# 1.221.1: meteen de database bijwerken, zodat agents die nu een rapport sturen niet tegen ontbrekende kolommen lopen
+php "$DIR/install/install.php" --upgrade >>"$LOG" 2>&1 || true
 
 step=install
 status running install "Installeren: rechten, database en hulpdienst ($from → $to)" 40

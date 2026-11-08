@@ -20,6 +20,12 @@ final class Chain
     /** Nieuwe signalen in dit verzoek per server (alleen dan wordt er naar ketens gekeken) */
     private static array $new = [];
 
+    /** 1.221.1: signalen uit een afgebroken transactie vergeten */
+    public static function forget(int $hid): void
+    {
+        unset(self::$new[$hid]);
+    }
+
     /** Score van IDS-incidenten (anders: critical 60, warning 30) */
     private const SCORES = ['breakin' => 70, 'newip' => 40, 'rootlogin' => 30, 'webshell' => 70, 'revshell' => 70, 'out_bad' => 60, 'decoy_user' => 50, 'decoy_port' => 40, 'web_cve' => 70];
     private const LOGIN = ['ssh_login', 'newip', 'rootlogin', 'breakin'];

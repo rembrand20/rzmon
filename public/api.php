@@ -120,6 +120,8 @@ $method = $_SERVER['REQUEST_METHOD'];
 $GLOBALS['agent_req'] = $action === 'ping' || str_starts_with((string) $action, 'agent');
 if (is_configured()) {
     Perf::request($GLOBALS['agent_req'] ? 'g' : 'a', (string) $action);   // snelheidsmeter (1.119.0)
+    // 1.221.1: na een update eerst de database bijwerken, ook als een agent als eerste binnenkomt (anders "Unknown column")
+    Installer::ensureSchema();
 }
 
 // Taal: vóór het inloggen die van dit apparaat of de browser; een agent (geen gebruiker) krijgt de taal van

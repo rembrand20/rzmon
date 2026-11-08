@@ -55,12 +55,30 @@ final class Installer
         if ($current === RZMON_VERSION) {
             return null;
         }
+        // 1.221.1: één proces tegelijk (agents, cron en de pagina kunnen tegelijk binnenkomen); daarna opnieuw kijken
+        $locked = false;
+        try {
+            $locked = (int) db()->query("SELECT GET_LOCK('rzmon_schema', 30)")->fetchColumn() === 1;
+            if ($locked && db()->query("SELECT value FROM settings WHERE name = 'db_version'")->fetchColumn() === RZMON_VERSION) {
+                db()->query("SELECT RELEASE_LOCK('rzmon_schema')");
+                return null;   // een ander proces was al klaar
+            }
+        } catch (Throwable) {
+            // geen lock: dan gewoon bijwerken zoals voorheen
+        }
         try {
             self::runSchema();
             self::infoUpdated($current);
             return null;
         } catch (Throwable $e) {
             return t('Database bijwerken naar {v} mislukt', ['v' => RZMON_VERSION]) . ': ' . $e->getMessage();
+        } finally {
+            if ($locked) {
+                try {
+                    db()->query("SELECT RELEASE_LOCK('rzmon_schema')");
+                } catch (Throwable) {
+                }
+            }
         }
     }
 

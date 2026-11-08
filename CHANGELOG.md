@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.218.0**: een **vernieuwde meldingskaart**: leesbaar, met advies als een check flapt, en op de telefoon een blad van onderaf.
 - **1.217.0**: **IDS-incidenten veel sneller**: afhandelen reageert meteen, bundels en een keuze in één keer, en voorstellen voor wat vaak terugkomt.
 
+## 1.221.1 – 2026-11-08
+### Opgelost
+- **'Unknown column' na een update** (bijv. `logscan_req`, `logs_interval`): agents die net tijdens een update een rapport stuurden, kwamen al bij de nieuwe code terwijl de database nog niet was bijgewerkt. Nu werkt elk verzoek aan de API de database eerst bij (één proces tegelijk, met een slot), en het updatescript doet dat direct na het overschakelen.
+- **Deadlock bij agentrapporten** (`Deadlock found … Anomaly.php`): als twee rapporten tegelijk binnenkwamen, brak MariaDB er soms één af en ging dat rapport verloren. Dat rapport wordt nu tot 3 keer opnieuw verwerkt (zonder iets dubbel te tellen), en een melding wordt daarbij niet twee keer gepusht.
+
 ## 1.221.0 – 2026-11-08
 ### Nieuw
 - **Bijwerken veel sneller** (bij jou duurde een update bijna 3 minuten; nu naar verwachting zo'n 15–30 seconden):

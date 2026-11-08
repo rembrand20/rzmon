@@ -1338,6 +1338,11 @@ final class Ids
     /** Naar Pushover (ook tijdens stille uren), en in Meldingen. Critical, of (SSH-login van buiten) warning. */
     private static function notify(string $title, string $detail, int $status = STATUS_CRIT): void
     {
+        static $done = [];   // 1.221.1: na een nieuwe poging (deadlock) niet nog eens pushen
+        if (isset($done[$title])) {
+            return;
+        }
+        $done[$title] = true;
         $sent = null;
         $err = '';
         if (Push::enabled()) {

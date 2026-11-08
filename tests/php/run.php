@@ -2183,5 +2183,13 @@ q('DELETE FROM results WHERE check_id = ?', [$cm]);
 q('DELETE FROM checks WHERE host_id = ?', [$hm]);
 q('DELETE FROM hosts WHERE id = ?', [$hm]);
 
+// 1.221.1: een deadlock (1213) of lock-timeout (1205) mag opnieuw; een ontbrekende kolom niet
+$dl = new PDOException('Deadlock found');
+$dl->errorInfo = ['40001', 1213, 'Deadlock found when trying to get lock'];
+$nc = new PDOException('Unknown column');
+$nc->errorInfo = ['42S22', 1054, 'Unknown column'];
+ok(db_retryable($dl) && !db_retryable($nc) && !db_retryable(new RuntimeException('x')), 'deadlock en lock-timeout: opnieuw proberen; andere fouten niet');
+ok(Installer::ensureSchema() === null, 'database bijwerken: al bij, met de lock niets te doen');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);
