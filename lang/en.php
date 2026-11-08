@@ -8981,4 +8981,5 @@ return [
     '12 u' => '12 h',
     'Pakketverlies 24 u' => 'Packet loss 24 h',
     'Geladen in {a} s: incidenten {b} s, tekenen {c} s, toegang {d} s' => 'Loaded in {a} s: incidents {b} s, drawing {c} s, access {d} s',
+    'Logregels' => 'Log lines',
 ];

@@ -327,6 +327,7 @@ const WAIT_LABELS = () => ({
   alerts: L('Meldingen'), home: L('Dashboard'), analytics: L('Analyse'), incidents: L('Incidenten'), vulns: L('Kwetsbaarheden'),
   hibp_overview: L('Datalekken'), net_devices: L('Apparaten'), net_discover: L('Ontdekken'), settings: L('Instellingen'),
   availability: L('Beschikbaarheid'), containers: L('Containers'), paths: L('Netwerkpaden'), mds: L('mDS'),
+  log_search: L('Logregels'), log_facets: L('Bronnen'), log_overview: L('Binnenkomst'), log_watches: L('Vaste zoekacties'),
 });
 function waitTimes() { try { return JSON.parse(localStorage.getItem('rzmon-waits') || '{}') || {}; } catch (ex) { return {}; } }
 function waitPageName(p) {
@@ -8604,11 +8605,15 @@ async function loadLogsPage() {
   if (LP.sub === 'watch') { lwLoad(); return; }   // 1.212.0
   if (!LW.list) api('log_watches').then((r) => { LW.list = r.watches; lwCount(); }).catch(() => {});
   $('#lp-custom').hidden = LP.range !== 'custom';
-  if (!LP.facets) { try { LP.facets = await api('log_facets'); } catch (ex) { LP.facets = { sources: [], days: 14 }; } }
   $('#lp-q').value = LP.q;
   $('#lp-range').value = LP.range;
-  lpChips();
+  // 1.220.1: bronnen en zoeken tegelijk starten (meteen, niet na elkaar), zodat de laadanimatie loopt tot de regels er zijn,
+  // en de regels met de binnenkomst-animatie verschijnen, ook als het zoeken langer duurt
+  LP.enter = true;
+  const facets = LP.facets ? null : api('log_facets').catch(() => ({ sources: [], days: 14 }));
   lpSearch();
+  if (facets) LP.facets = await facets;
+  lpChips();
 }
 
 function lpBuild(el) {
@@ -8713,6 +8718,7 @@ async function lpSearch() {
   if (busy !== LP.busy) return;   // er kwam al een nieuwere zoekopdracht
   LP.last = r;
   $('#lp-res').classList.remove('lp-loading');
+  if (LP.enter) { LP.enter = false; lpEnter($('#logs-page')); }   // 1.220.1: de regels komen binnen met de animatie
   // Niveaus (telling over de hele periode)
   // Aantallen per niveau van de zoekopdracht zonder niveaufilter (anders staan de andere niveaus op 0)
   if (LP.level === '') LP.allLv = r.levels;

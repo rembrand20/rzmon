@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.217.0**: **IDS-incidenten veel sneller**: afhandelen reageert meteen, bundels en een keuze in één keer, en voorstellen voor wat vaak terugkomt.
 - **1.216.0**: een **vernieuwde zijbalk** met statuslampje, een **paginakop met klikbaar pad** en **rustiger Liquid Glass**.
 
+## 1.220.1 – 2026-11-08
+### Opgelost
+- **Logs: geen laadanimatie**: de pagina haalde eerst de lijst met bronnen op en begon pas daarna te zoeken, waardoor de laadanimatie al stopte voordat de regels er waren. Nu starten beide tegelijk: tijdens het zoeken loopt de animatie (met *Bronnen ✓ · Logregels …*), en de regels komen daarna binnen met dezelfde animatie als de andere pagina's, ook als het zoeken langer duurt.
+
 ## 1.220.0 – 2026-11-08
 ### Nieuw
 - **mDS (telefoon): servers en apparaten per soort**: bovenaan knoppen *Alle · Servers · Netwerk · Opslag · Smart home* (met aantallen en een rood stipje bij een probleem), en de lijst in groepen met *✔ alles in orde* of *2 problemen*.
