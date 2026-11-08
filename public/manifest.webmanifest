@@ -1,14 +1,17 @@
 {
+  "id": "./",
   "name": "Rz//Sense AI",
   "short_name": "RzSense",
+  "description": "Monitoring en beveiliging van je servers en netwerk",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#0e1838",
   "theme_color": "#0e1838",
   "icons": [
-    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ]
 }

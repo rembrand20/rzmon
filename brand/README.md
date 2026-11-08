@@ -10,7 +10,7 @@ Sinds 1.214.0 heet RzMon **Rz//Sense AI** (kort: RzSense), met de slogan *Watchi
 | `pushover-icon-72.png` | icoon voor je Pushover-applicatie (pushover.net → *Your Applications* → *Edit* → *Icon*) |
 
 Elders in de repository:
-- `public/favicon.svg` (klein icoon: één boog, dikkere lijnen), `public/favicon.ico`, `public/apple-touch-icon.png`, `public/assets/icons/` (tabblad, beginscherm, `manifest.webmanifest`). Niet in `public/icons/`: die map is in Apache al van Apache zelf (`Alias /icons/`);
+- `public/favicon.svg` (klein icoon: één boog, dikkere lijnen), `public/favicon.ico`, `public/apple-touch-icon.png`, `public/icon-*.png` (1.221.2: in de hoofdmap; tabblad, beginscherm, `manifest.webmanifest`). Niet in `public/icons/`: die map is in Apache al van Apache zelf (`Alias /icons/`);
 - `ha-addon/rzmon_agent/icon.png` (128×128) en `logo.png` (250×100);
 - in de pagina's staat het logo inline via `Brand::logo()` (`src/Brand.php`); de kleuren van de letters staan in `app.css` (`--rz-name`, `--rz-acc`, `--rz-slogan`).
 

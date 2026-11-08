@@ -7,7 +7,7 @@ declare(strict_types=1);
  * hetzelfde; de letters krijgen hun kleur uit app.css (--rz-name, --rz-acc, --rz-slogan). "Rz" in de tegel is een
  * pad (Orbitron ExtraBold), dus het icoon heeft geen lettertype nodig; het woordmerk gebruikt Orbitron uit
  * public/assets/fonts/. De technische naam blijft rzmon (map, add-on, service).
- * Bestanden: public/favicon.svg, public/apple-touch-icon.png, public/assets/icons/, brand/ (README, Pushover).
+ * Bestanden: public/favicon.svg, favicon.ico, apple-touch-icon.png en icon-*.png (1.221.2: in de hoofdmap, niet onder /assets/), brand/ (README, Pushover).
  */
 final class Brand
 {
@@ -69,13 +69,33 @@ final class Brand
             . '<svg class="rz-hud-dial" viewBox="-60 -60 120 120"><circle r="54"/><circle class="d1" r="36"/><path class="d2" d="M0 -54A54 54 0 0 1 54 0"/></svg></div>';
     }
 
+    /** Versie in de URL van de iconen: na een nieuw icoon haalt de browser het opnieuw op in plaats van een oud (leeg) icoon te houden */
+    private static function iconVersion(): string
+    {
+        return defined('RZMON_VERSION') ? rawurlencode((string) RZMON_VERSION) : '1';
+    }
+
+    /**
+     * Alleen de iconen (1.221.2), ook voor de statuspagina: SVG voor nieuwe browsers, .ico voor bladwijzers (Chrome, Edge),
+     * een groot PNG voor een snelkoppeling op het beginscherm van Android, en het Apple-icoon. Alles in de hoofdmap,
+     * dus niet geraakt door een proxy-regel die /assets/ afschermt.
+     */
+    public static function icons(): string
+    {
+        $v = self::iconVersion();
+        return '<link rel="icon" href="favicon.ico?v=' . $v . '" sizes="32x32">'
+            . '<link rel="icon" href="favicon.svg?v=' . $v . '" type="image/svg+xml">'
+            . '<link rel="icon" href="icon-192.png?v=' . $v . '" sizes="192x192" type="image/png">'
+            . '<link rel="apple-touch-icon" href="apple-touch-icon.png?v=' . $v . '">';
+    }
+
     /** Favicon, icoon voor het beginscherm en het manifest (in <head>) */
     public static function head(): string
     {
-        return '<link rel="icon" href="favicon.svg" type="image/svg+xml">'
-            . '<link rel="icon" href="assets/icons/icon-32.png" sizes="32x32" type="image/png">'
-            . '<link rel="apple-touch-icon" href="apple-touch-icon.png">'
-            . '<link rel="manifest" href="manifest.webmanifest">'
+        // 1.221.2: met crossorigin="use-credentials" haalt Chrome het manifest mét cookies op (anders weigert een proxy die
+        // op een cookie controleert het manifest, en krijgt een snelkoppeling op het beginscherm geen icoon)
+        return self::icons()
+            . '<link rel="manifest" href="manifest.webmanifest?v=' . self::iconVersion() . '" crossorigin="use-credentials">'
             . '<link rel="preload" href="assets/fonts/orbitron.woff2" as="font" type="font/woff2" crossorigin>'
             . '<meta name="theme-color" content="#0e1838">';
     }

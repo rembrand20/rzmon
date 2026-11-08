@@ -35,6 +35,7 @@ header('Content-Type: text/html; charset=utf-8');
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="refresh" content="60">
 <meta name="robots" content="noindex, nofollow">
+<?= Brand::icons() ?>
 <title><?= $e($d['title']) ?></title>
 <style>
 :root { --bg: #f5f6f8; --card: #fff; --text: #1d2330; --muted: #6b7280; --border: #e3e6eb; --ok: #1a9e5c; --ok2: #7cc59c; --warn: #d08a00; --crit: #d43c3c; --none: #e3e6eb; --maint: #5b6ee1; }

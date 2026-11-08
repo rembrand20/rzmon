@@ -14,6 +14,15 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.218.0**: een **vernieuwde meldingskaart**: leesbaar, met advies als een check flapt, en op de telefoon een blad van onderaf.
 - **1.217.0**: **IDS-incidenten veel sneller**: afhandelen reageert meteen, bundels en een keuze in één keer, en voorstellen voor wat vaak terugkomt.
 
+## 1.221.2 – 2026-11-08
+### Opgelost
+- **Icoon bij bladwijzers en op het beginscherm** (Chrome, Android): een bladwijzer of snelkoppeling kreeg soms een leeg wereldbolletje of een grijze letter in plaats van het RzSense-logo.
+  - De iconen staan nu in de hoofdmap (`/icon-192.png`, `/icon-512.png` …) in plaats van onder `/assets/icons/`, zodat een proxyregel die `/assets/` afschermt (zoals in de handleiding bij *Onzichtbaar van buiten*) ze niet meer tegenhoudt.
+  - Chrome haalt het manifest nu mét je cookies op (`crossorigin="use-credentials"`); zonder cookies weigerde zo'n proxy het manifest.
+  - Er is een `favicon.ico` voor bladwijzers en een groot icoon (192 px) voor snelkoppelingen; het manifest heeft een `id` en een SVG-icoon.
+  - De iconen hebben het versienummer in hun adres, zodat Chrome een oud (leeg) icoon niet blijft gebruiken. De statuspagina heeft nu ook een icoon.
+  - **Bestaande bladwijzer of snelkoppeling**: open RzSense één keer (Chrome werkt het icoon dan bij), of verwijder hem en voeg hem opnieuw toe. Op Android: snelkoppeling verwijderen en via ⋮ → *Toevoegen aan startscherm* opnieuw maken.
+
 ## 1.221.1 – 2026-11-08
 ### Opgelost
 - **'Unknown column' na een update** (bijv. `logscan_req`, `logs_interval`): agents die net tijdens een update een rapport stuurden, kwamen al bij de nieuwe code terwijl de database nog niet was bijgewerkt. Nu werkt elk verzoek aan de API de database eerst bij (één proces tegelijk, met een slot), en het updatescript doet dat direct na het overschakelen.
