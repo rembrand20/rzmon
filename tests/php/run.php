@@ -703,7 +703,19 @@ save_setting('backup_keep_manual', '2');
 Backup::prune();
 ok($mine('manual') === 2 && is_file(Backup::dir() . '/rzmon-backup-20260104-120000-manual.zip') && !is_file(Backup::dir() . '/rzmon-backup-20260101-120000-manual.zip') && $mine('upload') === 1,
     'handmatige back-ups: de nieuwste 2 blijven, geüploade blijven staan');
+// 1.221.0: snelle back-up voor een update: zonder grote geschiedenis en logs; de laatste 5 bewaren
+q("INSERT INTO perf_stats (hour, kind, name, n, total_ms, max_ms, bytes) VALUES (NOW(), 'a', 'ci-bk', 1, 1, 1, 0) ON DUPLICATE KEY UPDATE n = n + 1");
+$bu = Backup::create('update', false, true);
+$bz = new ZipArchive();
+$bsql = $bu['ok'] && $bz->open(Backup::dir() . '/' . $bu['file']) === true ? (string) $bz->getFromName('database.sql') : '';
+$binfo = $bsql !== '' ? (string) $bz->getFromName('info.txt') : '';
+ok($bu['ok'] && str_ends_with((string) $bu['file'], '-update.zip') && str_contains($bsql, 'CREATE TABLE `settings`') && !str_contains($bsql, 'INSERT INTO `perf_stats`')
+    && str_contains($bsql, '-- perf_stats: zonder gegevens') && str_contains($binfo, 'snel (update)'), 'snelle back-up (update): instellingen wel, geschiedenis en logs niet');
+foreach ([1, 2, 3, 4, 5, 6] as $d) { $mkzip("rzmon-backup-2026020$d-120000-update.zip"); }
+Backup::prune();
+ok($mine('update') === 5, 'back-ups voor een update: de laatste 5 blijven');
 foreach (glob(Backup::dir() . '/*') ?: [] as $f) { unlink($f); }
+foreach (glob(Backup::dir() . '/.*.sql') ?: [] as $f) { unlink($f); }
 rmdir(Backup::dir());
 $GLOBALS['sm_config']['backup_dir'] = $bkOld;
 save_setting('backup_keep_manual', '0');

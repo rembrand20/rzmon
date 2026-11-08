@@ -16456,7 +16456,8 @@ async function loadUpdate(force) {
   if (u.status && ['queued', 'running'].includes(u.status.state)) pollUpdate();
 }
 
-const UPDATE_STEPS = [['check', L('Controleren')], ['backup', L('Back-up maken')], ['download', L('Nieuwste versie ophalen')], ['install', L('Installeren')], ['klaar', L('Klaar')]];
+// 1.221.0: eerst ophalen, dan de back-up (snel of volledig, afhankelijk van de nieuwe versie)
+const UPDATE_STEPS = [['check', L('Controleren')], ['download', L('Nieuwste versie ophalen')], ['backup', L('Back-up maken')], ['install', L('Installeren')], ['klaar', L('Klaar')]];
 
 function showUpdateProgress(s, log) {
   const el = $('#update-progress');
@@ -16697,6 +16698,7 @@ function showUpdateDialog(s, log, force = false) {
           <div><b>${updBackup === null ? '–' : updBackup ? '✓' : '✕'}</b><small>${L('back-up gemaakt')}</small></div>
           <div><b>${updDownMs ? updSecs(updDownMs) : '–'}</b><small>${L('niet bereikbaar')}</small></div>
         </div>
+        ${s.detail ? `<p class="muted small upd-durs">${esc(s.detail)}</p>` : ''}
         <div class="upd-reload"><i></i></div>
       </div></div>`;
   } else {

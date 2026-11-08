@@ -17,6 +17,8 @@ Je kunt hem draaien op elke Linux-machine met PHP 8 en MariaDB: een VM, een Rasp
 > **RzSense-kern en IDS Live (1.219.0):** bovenaan *Monitoring* staat de **RzSense-kern**: CPU, RAM, disk en cron van de server waar RzSense op draait, met één oordeel; klik erop voor alle details. *IDS → Live* begint nu met een oordeel en de soorten, toont standaard alleen wat aandacht vraagt (**Aandacht · Alles · Toegestaan**), zegt elke gebeurtenis in gewone taal en voegt herhalingen samen. Klik op een treffer voor uitleg en de knoppen *Bekijk incident*, *Proces stoppen* en *Dit is normaal*.
 >
 > **mDS en IDS (1.220.0):** op *mDS* staan de servers en apparaten per soort (tik op *Servers*, *Netwerk* … om alleen die te zien), met bij servers het netwerkverkeer (**Net**) en bij apparaten zonder CPU/RAM/Disk de **ping**. De IDS-pagina toont meteen het vorige beeld en werkt het daarna bij; hoe lang elk onderdeel duurt zie je bij *Instellingen → Prestaties en fouten*.
+>
+> **Bijwerken sneller (1.221.0):** een update maakt een snelle back-up (zonder geschiedenis en logs; volledig als de database-opbouw verandert) en slaat over wat al goed staat. Na afloop staat de duur per stap in het venster.
 
 ---
 
@@ -3978,9 +3980,11 @@ Onder **Instellingen → ⬆ RzSense bijwerken** werk je RzSense bij zonder term
 - **Is er een update?** RzSense kijkt één keer per dag op GitHub, of direct met **🔍 Nu controleren**. Is er een nieuwe versie, dan zie je bovenin naast het versienummer een groen label **⬆ 1.x.y**, en op de kaart **wat er nieuw is** (de changelog van alle versies sinds de jouwe).
 - **⬆ Nu bijwerken naar 1.x.y** (of klik op het groene label **⬆ 1.x.y** bovenin): een venster vraagt of je wilt bijwerken. Bovenaan staan je versie en de nieuwe als chips (*1.203.0 → 1.204.0*), daaronder *Wat is er nieuw* als korte kaartjes (met **Alles lezen** voor de hele lijst), de schakelaar **Eerst een back-up maken** en de versiekeuze. Na **⬆ Bijwerken** zie je in hetzelfde venster een **voortgangsring** met percentage en verstreken tijd, en ernaast een **tijdlijn van de stappen** met de duur per stap en **waar de installatie nu mee bezig is** (bij *Installeren* het onderdeel, bv. *Onderdeel 4 van 9: Database*). Het **logboek** staat eronder als terminal (dicht; bij een fout open). Tijdens het herstarten is RzSense even niet bereikbaar; een oranje regel zegt dan *RzSense wordt herstart* en het venster wacht. **Klaar**: een vinkje, hoe lang het duurde, of er een back-up is gemaakt en hoe lang RzSense niet bereikbaar was; de pagina herlaadt na 3 seconden (of meteen met **Nu herladen**). **Mislukt**: je ziet welke stap misging, of er iets veranderd is, en **↻ Opnieuw proberen** (vanaf 1.204.0). Met **Op de achtergrond** sluit je het venster; het label bovenin toont dan *⏳ Bijwerken…*, en na herladen of in een ander tabblad gaat het venster vanzelf weer open. De hulpdienst op de server voert vaste stappen uit:
   1. *Controleren:* de RzSense-map moet vergrendeld zijn en alle bestanden van root;
-  2. *Back-up maken:* als de schakelaar **Eerst een back-up maken** aan staat (standaard). De back-up staat daarna in de lijst onder *Back-up*;
-  3. *Nieuwste versie ophalen* (`git pull`);
-  4. *Installeren:* het installatiescript (`install-rocky.sh --yes`), net als wanneer je het commando zelf uitvoert: rechten, SELinux, hulpdienst en tabellen.
+  2. *Nieuwste versie ophalen* (`git fetch`; de bestanden veranderen dan nog niet);
+  3. *Back-up maken:* als de schakelaar **Eerst een back-up maken** aan staat (standaard). Vanaf 1.221.0 een **snelle back-up** (instellingen, servers, checks, gebruikers en configuratie; zonder de grote geschiedenis en logs, die bij herstellen gewoon blijven staan), of een **volledige** als de nieuwe versie de opbouw van de database verandert. De back-up staat daarna in de lijst onder *Back-up* (*voor update*; de laatste 5 blijven);
+  4. *Installeren:* overschakelen naar de nieuwe versie en het installatiescript (`install-rocky.sh --yes --quick`): rechten, SELinux, hulpdienst en tabellen. Met `--quick` (1.221.0) slaat het over wat al goed staat: pakketten als de lijst niet veranderd is, SELinux-instellingen die al aan staan, de hulpdienst als die niet veranderd is.
+
+  Na afloop zie je in het venster en in `/var/lib/rzmon/update.log` hoe lang elke stap duurde.
 
   Daarna laadt de pagina vanzelf de nieuwe versie. (De onderdelen van *Installeren* zie je vanaf de update ná 1.55.0: de hulpdienst zelf wordt bij het installeren bijgewerkt.) Gaat er iets mis, dan zie je de foutmelding en het logboek; is het ophalen mislukt, dan is er niets veranderd.
 - **🔁 Andere versie…** (vanaf 1.90.0): in het venster kies je een **versie** uit de lijst (alle versies uit de changelog op GitHub, met datum).

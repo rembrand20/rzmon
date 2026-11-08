@@ -12,12 +12,18 @@ final class Backup
     public const DEFAULT_DIR = Installer::HELPER_DIR . '/backups';
     /** Tabellen met meethistorie: alleen in de back-up als "Meethistorie meenemen" aan staat. */
     public const HISTORY_TABLES = ['results', 'agent_log'];
-    public const TYPES = ['auto' => 'automatisch', 'manual' => 'handmatig', 'pre-restore' => 'voor herstel', 'upload' => 'geüpload'];
+    /**
+     * 1.221.0: snelle back-up bij een update: ook de grote geschiedenis, logs en gedownloade lijsten niet (die verandert een
+     * update niet; bij herstellen blijven ze staan zoals ze zijn). Plus de logtabellen per dag (logd_JJJJMMDD).
+     */
+    public const UPDATE_SKIP = ['results', 'results_hourly', 'agent_log', 'edr_events', 'edr_hourly', 'ssh_events', 'net_traffic', 'net_events',
+        'perf_stats', 'access_log', 'ids_attempts', 'weblog_attempts', 'ip_blocklist', 'ip_geo', 'mac_vendors', 'vuln_cache'];
+    public const TYPES = ['auto' => 'automatisch', 'manual' => 'handmatig', 'pre-restore' => 'voor herstel', 'upload' => 'geüpload', 'update' => 'voor update'];
     /** Veiligheidsback-ups van vóór een herstel: zoveel blijven er bewaard. */
     private const KEEP_PRE_RESTORE = 3;
     private const SQL_HEADER = '-- RzMon-back-up';
     private const SQL_FOOTER = '-- einde';
-    private const NAME_RE = '/^rzmon-backup-(\d{8}-\d{6})-(auto|manual|pre-restore|upload)\.zip$/';
+    private const NAME_RE = '/^rzmon-backup-(\d{8}-\d{6})-(auto|manual|pre-restore|upload|update)\.zip$/';
     /** Grootste zip die je mag uploaden. */
     public const MAX_UPLOAD = 2 * 1024 ** 3;
 
@@ -92,7 +98,7 @@ final class Backup
      * @param bool|null $history meethistorie meenemen (null = volgens de instelling)
      * @return array{ok: bool, file: ?string, size: int, error: ?string}
      */
-    public static function create(string $type = 'manual', ?bool $history = null): array
+    public static function create(string $type = 'manual', ?bool $history = null, bool $lean = false): array
     {
         if ($p = self::problem()) {
             return ['ok' => false, 'file' => null, 'size' => 0, 'error' => $p];
@@ -101,14 +107,14 @@ final class Backup
             return ['ok' => false, 'file' => null, 'size' => 0, 'busy' => true, 'error' => t('Er loopt al een back-up of herstel; probeer het zo opnieuw')];
         }
         try {
-            return self::make($type, $history ?? setting('backup_history', '1') === '1');
+            return self::make($type, $history ?? setting('backup_history', '1') === '1', null, $lean);
         } finally {
             self::unlock();
         }
     }
 
     /** @param string|null $keepSql database-export hier bewaren (voor terugdraaien bij een mislukt herstel) */
-    private static function make(string $type, bool $history, ?string $keepSql = null): array
+    private static function make(string $type, bool $history, ?string $keepSql = null, bool $lean = false): array
     {
         @set_time_limit(0);
         ignore_user_abort(true);
@@ -124,7 +130,7 @@ final class Backup
         $sql = "$dir/.$file.sql";
         $tmp = "$dir/.$file.tmp";
         try {
-            $tables = self::dump($sql, $history);
+            $tables = self::dump($sql, $history, $lean);
             $pass = (string) setting('backup_pass', '');
             if ($pass !== '' && !self::encryptionSupported()) {
                 throw new RuntimeException(t('Deze PHP kan geen versleutelde zip maken (libzip te oud)'));
@@ -138,7 +144,7 @@ final class Backup
             if ($config !== false) {
                 $zip->addFromString('config.php', $config);
             }
-            $zip->addFromString('info.txt', self::infoText($type, $history, $pass !== '', $config !== false, $tables));
+            $zip->addFromString('info.txt', self::infoText($type, $history && !$lean, $pass !== '', $config !== false, $tables) . ($lean ? "snel (update): grote geschiedenis en logs niet meegenomen\n" : ''));
             if ($pass !== '') {
                 foreach (['database.sql', 'config.php'] as $n) {
                     if ($zip->locateName($n) !== false && !$zip->setEncryptionName($n, ZipArchive::EM_AES_256, $pass)) {
@@ -170,7 +176,7 @@ final class Backup
      * Elke INSERT staat op één regel (regeleinden in teksten worden \n), zodat herstellen regel voor regel kan.
      * @return array<string, int|null> rijen per tabel (null = zonder gegevens)
      */
-    private static function dump(string $file, bool $history): array
+    private static function dump(string $file, bool $history, bool $lean = false): array
     {
         $pdo = self::pdo();
         $pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false);   // grote tabellen niet in het geheugen
@@ -182,7 +188,7 @@ final class Backup
         $tables = $pdo->query("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'")->fetchAll(PDO::FETCH_COLUMN);
         $counts = [];
         foreach ($tables as $t) {
-            if (!$history && in_array($t, self::HISTORY_TABLES, true)) {
+            if ((!$history && in_array($t, self::HISTORY_TABLES, true)) || ($lean && (in_array($t, self::UPDATE_SKIP, true) || preg_match('/^logd_\d{8}$/', (string) $t)))) {
                 // Tabel blijft bij herstellen staan zoals hij is
                 fwrite($fh, "-- $t: zonder gegevens (meethistorie niet meegenomen)\n");
                 $counts[$t] = null;
@@ -302,7 +308,7 @@ final class Backup
      */
     public static function prune(): int
     {
-        $keep = ['auto' => max(1, (int) setting('backup_keep', 7)), 'pre-restore' => self::KEEP_PRE_RESTORE];
+        $keep = ['auto' => max(1, (int) setting('backup_keep', 7)), 'pre-restore' => self::KEEP_PRE_RESTORE, 'update' => 5];   // 1.221.0: de laatste 5 van updates
         if (($km = (int) setting('backup_keep_manual', '0')) > 0) {
             $keep['manual'] = $km;
         }

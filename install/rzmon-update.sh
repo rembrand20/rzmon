@@ -47,6 +47,9 @@ status() {   # status <state> <stap> <tekst> [procent] [onderdeel, bv. "3/9 Dien
     printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$3" >>"$LOG"
 }
 fail() { status error "${step:-}" "$1"; finished=1; exit 1; }
+# 1.221.0: duur per stap (voor het logboek en de melding na afloop)
+t_last=$(date +%s); durs=""
+lap() { local now; now=$(date +%s); durs="${durs:+$durs · }$1 $((now - t_last)) s"; t_last=$now; }
 
 # Teken van leven: elke 10 seconden het statusbestand aanraken, zodat RzSense ziet dat de update nog loopt.
 # Stopt het script onverwacht (zonder ok of fout), dan zegt het dat zelf.
@@ -65,20 +68,15 @@ status running check "Controleren" 3
 odd=$(find "$DIR" \( ! -user root -o \( ! -type l -perm /0022 \) \) -print -quit 2>/dev/null)
 [ -z "$odd" ] || fail "Niet veilig om als root bij te werken: $odd is niet van root of is schrijfbaar voor anderen. Zet de rechten goed met: sudo bash $DIR/install/install-rocky.sh --lock"
 
-if [ "$backup" = 1 ]; then
-    step=backup
-    status running backup "Back-up maken" 8
-    if ! php "$DIR/install/install.php" --backup >>"$LOG" 2>&1; then
-        fail "Back-up mislukt; er is niets bijgewerkt (zie het logboek)"
-    fi
-    find "$HELPER_DIR/backups" -maxdepth 1 -name 'rzmon-backup-*.zip' -user root -exec chgrp "$GROUP" {} + -exec chmod 0640 {} + 2>/dev/null
-fi
+lap Controleren
 
+# 1.221.0: eerst ophalen (de bestanden veranderen dan nog niet), dan de back-up (snel, tenzij de database-opbouw
+# verandert), en pas daarna overschakelen. Zo is de back-up klein als het kan en volledig als het moet.
 step=download
 branch=$(git -C "$DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)
 git -C "$DIR" config core.fileMode false
 if [ -n "$want" ]; then
-    status running download "Versie $want ophalen" 30
+    status running download "Versie $want ophalen" 10
     # Hele geschiedenis nodig om een oudere versie te vinden (een ondiepe kopie eerst aanvullen)
     if [ "$(git -C "$DIR" rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
         git -C "$DIR" fetch --quiet --unshallow origin "$branch" >>"$LOG" 2>&1 || fail "Ophalen van GitHub mislukt (zie het logboek); er is niets veranderd"
@@ -91,21 +89,48 @@ if [ -n "$want" ]; then
         [ "$(git -C "$DIR" show "$c:VERSION" 2>/dev/null)" = "$want" ] && { commit=$c; break; }
     done < <(git -C "$DIR" log --format=%H "origin/$branch" -- VERSION 2>/dev/null)
     [ -n "$commit" ] || fail "Versie $want niet gevonden op GitHub; er is niets veranderd"
+else
+    status running download "Nieuwste versie ophalen" 10
+    git -C "$DIR" fetch --quiet origin "$branch" >>"$LOG" 2>&1 || fail "Ophalen van GitHub mislukt (zie het logboek); er is niets veranderd"
+    commit=$(git -C "$DIR" rev-parse "origin/$branch" 2>/dev/null)
+    [ -n "$commit" ] || fail "Ophalen van GitHub mislukt (zie het logboek); er is niets veranderd"
+fi
+lap Ophalen
+
+if [ "$backup" = 1 ]; then
+    step=backup
+    bk_args="--snel"
+    if git -C "$DIR" diff --quiet HEAD "$commit" -- install/schema.sql src/Installer.php 2>/dev/null; then
+        status running backup "Snelle back-up maken (instellingen; geschiedenis en logs blijven staan)" 20
+    else
+        status running backup "Volledige back-up maken (de database-opbouw verandert)" 20
+        bk_args=""
+    fi
+    # shellcheck disable=SC2086
+    if ! php "$DIR/install/install.php" --backup $bk_args >>"$LOG" 2>&1; then
+        fail "Back-up mislukt; er is niets bijgewerkt (zie het logboek)"
+    fi
+    find "$HELPER_DIR/backups" -maxdepth 1 -name 'rzmon-backup-*.zip' -user root -exec chgrp "$GROUP" {} + -exec chmod 0640 {} + 2>/dev/null
+    lap Back-up
+fi
+
+step=download
+if [ -n "$want" ]; then
     git -C "$DIR" reset --quiet --hard "$commit" >>"$LOG" 2>&1 || fail "Overschakelen naar $want mislukt (zie het logboek)"
 else
-    status running download "Nieuwste versie ophalen" 30
     # Na een eerdere keuze voor een oudere versie gaat dit gewoon weer vooruit (fast-forward)
-    if ! git -C "$DIR" fetch --quiet origin "$branch" >>"$LOG" 2>&1 || ! git -C "$DIR" pull --quiet --ff-only origin "$branch" >>"$LOG" 2>&1; then
-        fail "Ophalen van GitHub mislukt (zie het logboek); er is niets veranderd"
-    fi
+    git -C "$DIR" merge --quiet --ff-only "$commit" >>"$LOG" 2>&1 || fail "Bijwerken van de bestanden mislukt (zie het logboek); er is niets veranderd"
 fi
 to=$(cat "$DIR/VERSION" 2>/dev/null || echo "?")
 
 step=install
 status running install "Installeren: rechten, database en hulpdienst ($from → $to)" 40
-# Het installatiescript is opnieuw uitvoeren-veilig; --yes: geen vragen. Zijn stappen ("==> 3/9 Diensten starten")
+# Het installatiescript is opnieuw uitvoeren-veilig; --yes: geen vragen; --quick (1.221.0): alleen wat nodig is. Zijn stappen ("==> 3/9 Diensten starten")
 # gaan als voortgang naar de webpagina: 40% tot 98% over de stappen verdeeld.
-bash "$DIR/install/install-rocky.sh" --yes --dir "$DIR" 2>&1 | while IFS= read -r line; do
+quick=""
+grep -q -- '--quick)' "$DIR/install/install-rocky.sh" 2>/dev/null && quick="--quick"   # oudere versies kennen --quick niet
+# shellcheck disable=SC2086
+bash "$DIR/install/install-rocky.sh" --yes $quick --dir "$DIR" 2>&1 | while IFS= read -r line; do
     printf '%s\n' "$line" >>"$LOG"
     if [[ "$line" =~ ==\>\ ([0-9]+)/([0-9]+)\ (.*)$ ]] && [ "${BASH_REMATCH[2]}" -gt 0 ]; then
         status running install "Installeren ($from → $to)" $((40 + 58 * (BASH_REMATCH[1] - 1) / BASH_REMATCH[2])) \
@@ -116,11 +141,14 @@ if [ "${PIPESTATUS[0]}" -ne 0 ]; then
     fail "Installatiescript gaf een fout (zie het logboek). De nieuwe code staat er, maar controleer RzSense; de back-up staat klaar"
 fi
 
+lap Installeren
 step=klaar
+total=$(( $(date +%s) - started ))
+printf '[%s] Duur: %s · totaal %s s\n' "$(date '+%H:%M:%S')" "$durs" "$total" >>"$LOG"
 if [ -n "$want" ] && [ "$(printf '%s\n%s\n' "$to" "$from" | sort -V | head -n 1)" = "$to" ] && [ "$to" != "$from" ]; then
-    status ok klaar "RzSense teruggezet van $from naar $to" 100
+    status ok klaar "RzSense teruggezet van $from naar $to in $total s" 100 "$durs"
 else
-    status ok klaar "RzSense bijgewerkt van $from naar $to" 100
+    status ok klaar "RzSense bijgewerkt van $from naar $to in $total s" 100 "$durs"
 fi
 finished=1
 exit 0

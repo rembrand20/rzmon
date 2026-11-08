@@ -32,6 +32,8 @@ DO_FIREWALL=1
 DO_UPDATE=0                # dnf update vooraf
 WRITE_CONFIG=1             # 0 = databasegegevens zelf in de browser invullen
 ASSUME_YES=0
+QUICK=0                    # 1.221.0: bij een update vanuit RzSense alleen doen wat nodig is
+STATE_DIR=/var/lib/rzmon   # onthoudt wat er al staat (pakketlijst, hulpdienst)
 MODE="install"             # install | lock | unlock
 REPO_SET=0
 
@@ -72,6 +74,7 @@ Opties:
   --no-firewall        firewalld niet aanpassen
   --no-config          Geen config.php schrijven: database zelf in de browser invullen
   --update             Eerst het systeem bijwerken (dnf update)
+  --quick              Bij een update: pakketten, SELinux-instellingen en hulpdienst alleen als er iets veranderd is
   -y, --yes            Niet om bevestiging vragen
   --lock               Na de browser-setup: schrijfrechten van de webserver weer intrekken
   --unlock             Schrijfrechten tijdelijk teruggeven (om via Setup config.php te wijzigen)
@@ -95,6 +98,7 @@ while [ $# -gt 0 ]; do
         --no-config) WRITE_CONFIG=0 ;;
         --update) DO_UPDATE=1 ;;
         -y|--yes) ASSUME_YES=1 ;;
+        --quick) QUICK=1 ;;
         --lock) MODE="lock" ;;
         --unlock) MODE="unlock" ;;
         -h|--help) usage; exit 0 ;;
@@ -218,20 +222,32 @@ if [ "$DO_UPDATE" -eq 1 ]; then
     ok "Systeem bijgewerkt"
 fi
 
-dnf -y install \
-    httpd mod_ssl \
-    php php-fpm php-cli php-common php-mysqlnd php-mbstring php-process php-opcache php-zip \
-    mariadb-server mariadb \
-    iputils iproute cronie git curl openssl tar unzip \
-    policycoreutils policycoreutils-python-utils
-ok "httpd, PHP-FPM, MariaDB en hulpprogramma's geïnstalleerd"
-
+PKGS=(httpd mod_ssl
+    php php-fpm php-cli php-common php-mysqlnd php-mbstring php-process php-opcache php-zip
+    mariadb-server mariadb
+    iputils iproute cronie git curl openssl tar unzip
+    policycoreutils policycoreutils-python-utils)
 # Handig maar niet noodzakelijk: niet afbreken als een pakket ontbreekt
 # (php-snmp: apparaten uitlezen via SNMP; net-snmp-utils: snmpwalk om zelf OID's op te zoeken)
 # (php-sodium, 1.147.2: om de handtekening van de agent te controleren; zit op Rocky/RHEL niet standaard in PHP)
-for pkg in php-intl php-xml php-gd php-snmp php-sodium net-snmp-utils; do
-    dnf -y install "$pkg" >/dev/null 2>&1 && info "extra: $pkg" || warn "Optioneel pakket $pkg niet beschikbaar (geen probleem)"
-done
+EXTRA_PKGS=(php-intl php-xml php-gd php-snmp php-sodium net-snmp-utils)
+# 1.221.0: bij een update dnf overslaan als de pakketlijst niet veranderd is en alles er nog staat
+pkg_sum=$(printf '%s\n' "${PKGS[@]}" "${EXTRA_PKGS[@]}" | sha256sum | cut -c1-16)
+if [ "$QUICK" -eq 1 ] && [ "$DO_UPDATE" -eq 0 ] && [ "$(cat "$STATE_DIR/pkgs.sum" 2>/dev/null)" = "$pkg_sum" ] && rpm -q "${PKGS[@]}" >/dev/null 2>&1; then
+    ok "Pakketten ongewijzigd: overgeslagen"
+else
+    dnf -y install "${PKGS[@]}"
+    ok "httpd, PHP-FPM, MariaDB en hulpprogramma's geïnstalleerd"
+    # In één keer (sneller); lukt dat niet, dan per pakket zodat één ontbrekend pakket de rest niet tegenhoudt
+    if ! dnf -y install --skip-unavailable "${EXTRA_PKGS[@]}" >/dev/null 2>&1; then
+        for pkg in "${EXTRA_PKGS[@]}"; do
+            dnf -y install "$pkg" >/dev/null 2>&1 && info "extra: $pkg" || warn "Optioneel pakket $pkg niet beschikbaar (geen probleem)"
+        done
+    else
+        info "extra: ${EXTRA_PKGS[*]}"
+    fi
+    if [ -d "$STATE_DIR" ]; then printf '%s\n' "$pkg_sum" > "$STATE_DIR/pkgs.sum"; fi
+fi
 
 php_version=$(php -r 'echo PHP_VERSION;')
 php -r 'exit(PHP_VERSION_ID >= 80100 ? 0 : 1);' || die "PHP $php_version is te oud (minimaal 8.1)"
@@ -256,7 +272,11 @@ ok "/etc/php.d/90-rzmon.ini (tijdzone $TIMEZONE)"
 # ----------------------------------------------------------------- 3. diensten
 step "3/9 Diensten starten"
 systemctl enable --now mariadb php-fpm crond >/dev/null
-systemctl restart php-fpm
+if [ "$QUICK" -eq 1 ]; then
+    systemctl reload php-fpm || systemctl restart php-fpm   # 1.221.0: lopende verzoeken gaan gewoon door
+else
+    systemctl restart php-fpm
+fi
 ok "mariadb, php-fpm en crond draaien en starten automatisch"
 
 # ----------------------------------------------------------------- 4. MariaDB
@@ -357,8 +377,9 @@ fi
 # ----------------------------------------------------------------- 7. SELinux
 step "7/9 SELinux"
 if selinux_on; then
-    setsebool -P httpd_can_network_connect_db 1
-    setsebool -P httpd_can_network_connect 1
+    for sb in httpd_can_network_connect_db httpd_can_network_connect; do
+        getsebool "$sb" 2>/dev/null | grep -q -- '--> on$' || setsebool -P "$sb" 1   # 1.221.0: alleen als hij nog uit staat
+    done
     restorecon -R "$INSTALL_DIR"
     ok "SELinux $(getenforce): database- en netwerktoegang voor PHP toegestaan, labels hersteld"
 else
@@ -473,12 +494,17 @@ step "9/9 Cron"
 printf '# RzSense – checks elke minuut\n* * * * * %s /usr/bin/php %s/cron/run.php >/dev/null 2>&1\n' "$WEB_USER" "$INSTALL_DIR" > /etc/cron.d/rzmon
 chmod 644 /etc/cron.d/rzmon
 ok "/etc/cron.d/rzmon (als gebruiker $WEB_USER)"
-if [ "$WRITE_CONFIG" -eq 1 ]; then
+if [ "$WRITE_CONFIG" -eq 1 ] && [ "$QUICK" -eq 0 ]; then
     as_web php "$INSTALL_DIR/cron/run.php" >/dev/null && ok "Eerste testrun van de checks geslaagd"
 fi
 # Hulpdienst: laat "Databasewachtwoord vernieuwen" in RzSense werken terwijl de map vergrendeld is
-if bash "$INSTALL_DIR/install/install-helper.sh" --group "$WEB_USER" >/dev/null; then
+# 1.221.0: bij een update alleen opnieuw als het hulpdienst- of updatescript veranderd is
+helper_sum=$(cat "$INSTALL_DIR/install/install-helper.sh" "$INSTALL_DIR/install/rzmon-update.sh" 2>/dev/null | sha256sum | cut -c1-16)
+if [ "$QUICK" -eq 1 ] && [ "$(cat "$STATE_DIR/helper.sum" 2>/dev/null)" = "$helper_sum" ] && [ -f "$STATE_DIR/update.installed" ]; then
+    ok "Hulpdienst ongewijzigd: overgeslagen"
+elif bash "$INSTALL_DIR/install/install-helper.sh" --group "$WEB_USER" >/dev/null; then
     ok "Hulpdienst rzmon-helper (databasewachtwoord vernieuwen vanuit RzSense)"
+    if [ -d "$STATE_DIR" ]; then printf '%s\n' "$helper_sum" > "$STATE_DIR/helper.sum"; fi
 else
     warn "Hulpdienst niet geïnstalleerd; databasewachtwoord vernieuwen kan via: sudo php $INSTALL_DIR/install/install.php --rotate-db-password"
 fi
@@ -506,6 +532,10 @@ url="http://${ip_addr:-$SERVER_NAME}/"
 } > "$SUMMARY_FILE"
 chmod 600 "$SUMMARY_FILE"
 
+if [ "$QUICK" -eq 1 ]; then
+    printf '\n%s  RzSense %s is bijgewerkt%s\n' "$C_OK" "$(cat "$INSTALL_DIR/VERSION" 2>/dev/null)" "$C_OFF"
+    exit 0
+fi
 cat <<EOF
 
 ${C_OK}════════════════════════════════════════════════════════════════════${C_OFF}

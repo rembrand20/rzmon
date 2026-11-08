@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.221.0**: **bijwerken veel sneller**: snelle back-up en alleen doen wat nodig is (van minuten naar seconden).
 - **1.220.0**: **mDS per soort** met netwerk en ping, en een **veel snellere IDS-pagina**.
 - **1.219.0**: de **RzSense-kern** (futuristische meters voor de eigen server) en een **begrijpelijke IDS Live-pagina**.
 - **1.218.0**: een **vernieuwde meldingskaart**: leesbaar, met advies als een check flapt, en op de telefoon een blad van onderaf.
 - **1.217.0**: **IDS-incidenten veel sneller**: afhandelen reageert meteen, bundels en een keuze in één keer, en voorstellen voor wat vaak terugkomt.
-- **1.216.0**: een **vernieuwde zijbalk** met statuslampje, een **paginakop met klikbaar pad** en **rustiger Liquid Glass**.
+
+## 1.221.0 – 2026-11-08
+### Nieuw
+- **Bijwerken veel sneller** (bij jou duurde een update bijna 3 minuten; nu naar verwachting zo'n 15–30 seconden):
+  - **snelle back-up**: bij een update alleen instellingen, servers, checks, gebruikers en configuratie, zonder de grote geschiedenis, logs en gedownloade lijsten (die blijven bij herstellen gewoon staan). Verandert de nieuwe versie de opbouw van de database, dan maakt RzSense vanzelf een **volledige** back-up. Van de back-ups *voor update* blijven de laatste 5 staan;
+  - eerst **ophalen**, dan de back-up, dan pas overschakelen: zo weet RzSense vóór de back-up wat er verandert;
+  - **pakketten** (dnf) worden overgeslagen als de pakketlijst niet veranderd is en alles er nog staat;
+  - **SELinux**: instellingen die al aan staan worden niet opnieuw (traag) vastgezet;
+  - **php-fpm** wordt herladen in plaats van herstart (lopende verzoeken gaan door);
+  - de **hulpdienst** wordt alleen opnieuw geïnstalleerd als er iets aan veranderd is, en er is geen extra testrun van alle checks;
+  - na afloop staat in het venster en het logboek **hoe lang elke stap duurde** (*Controleren 0 s · Ophalen 2 s · Back-up 4 s · Installeren 9 s*), en het logboek eindigt met een korte samenvatting in plaats van de installatietekst.
+- **Let op**: de update náár 1.221.0 gebruikt nog de oude, trage manier (die draait op de vorige versie). Vanaf de update daarna gaat het snel.
 
 ## 1.220.1 – 2026-11-08
 ### Opgelost

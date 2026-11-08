@@ -4,7 +4,7 @@
 //         php install/install.php --reset-2fa <gebruikersnaam>   (telefoon kwijt: 2FA uitzetten)
 //         php install/install.php --reset-password <gebruikersnaam>   (wachtwoord kwijt en geen mail)
 //         sudo php install/install.php --rotate-db-password     (nieuw databasewachtwoord, overal opgeslagen)
-//         sudo php install/install.php --backup [--zonder-historie]   (back-up maken)
+//         sudo php install/install.php --backup [--zonder-historie] [--snel]   (back-up maken; --snel = bij een update, zonder geschiedenis en logs)
 //         sudo php install/install.php --list-backups
 //         sudo php install/install.php --unblock-all   (alle blokkades opheffen, bv. als je jezelf buitensloot)
 //         sudo php install/install.php --unlock <gebruikersnaam>   (account deblokkeren na te veel mislukte logins)
@@ -182,7 +182,8 @@ if (($argv[1] ?? '') === '--apply-config') {
 }
 if (($argv[1] ?? '') === '--backup') {
     Installer::ensureSchema();
-    $r = Backup::create('manual', in_array('--zonder-historie', $argv, true) ? false : null);
+    $snel = in_array('--snel', $argv, true);   // 1.221.0: snelle back-up voor een update
+    $r = Backup::create($snel ? 'update' : 'manual', in_array('--zonder-historie', $argv, true) || $snel ? false : null, $snel);
     if (!$r['ok']) {
         fwrite(STDERR, "Mislukt: {$r['error']}\n");
         exit(1);
