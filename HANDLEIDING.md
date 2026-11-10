@@ -519,7 +519,7 @@ Beweeg over een grafiek voor de precieze waarde. RzSense houdt hiervoor elk uur 
 
 - **Per rapport stel je in:**
   - aan of uit;
-  - elke week (een dag van de week) of elke maand (dag 1 tot en met 28);
+  - elke week (een dag van de week), elke maand (dag 1 tot en met 28) of, vanaf 1.234.0, **elk kwartaal** (in januari, april, juli en oktober op de gekozen dag, over het vorige kwartaal);
   - de tijd;
   - de kanalen: 📧 e-mail en/of 📱 push;
   - **ontvangers van dit rapport** (vanaf 1.233.0, alleen beheerders): eigen e-mailadressen, met een komma ertussen (maximaal 20). Leeg = de algemene ontvangers bij *Instellingen → E-mail*. Met **Ook naar de algemene ontvangers** gaat hij naar allebei. Zo stuur je bijvoorbeeld het maandoverzicht of het NIS2-rapport naar je directie of adviseur, zonder dat die je storingsmeldingen krijgt. Gebruikers zien de adressen niet, alleen dát een rapport eigen ontvangers heeft.
@@ -3208,6 +3208,7 @@ Status: *geregeld*, *deels* of *ontbreekt*. Wijzigingen komen in het logboek en 
 Vink per stap *verstuurd* aan. Komt een termijn binnen 6 uur (eindverslag: 3 dagen) of is hij verlopen, dan krijg je een melding (*Instellingen → Meldingen → Systeemmeldingen → NIS2*). Vul bij **CSIRT** in waar je meldt (het NCSC of het CSIRT van je sector).
 
 **Rapport:** *NIS2-rapport (afdrukken als PDF)* geeft alles op één pagina: maatregelen, bewijs, notities en de meldingen.
+**Automatisch versturen** (vanaf 1.234.0): bij *Instellingen → Rapporten → 🇪🇺 NIS2-overzicht*. Standaard elk kwartaal; je kunt ook elke week of maand kiezen, en eigen ontvangers opgeven (bijvoorbeeld je directie of adviseur). Het rapport laat de stand van het moment van versturen zien. Je kunt het ook aanvinken als onderdeel van het Maandoverzicht.
 
 **Let op:** dit is geen juridisch advies en geen certificering. Het laat zien wat RzSense technisch ziet; of je onder NIS2 valt en wat significant is, bepaal je zelf (of met je adviseur). **Aan/uit:** daar, of *Overzicht → Functies*.
 

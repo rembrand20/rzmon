@@ -701,7 +701,8 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <label class="switch"><input type="checkbox" name="nis2_on"><span></span> <?= t('<b>NIS2-overzicht</b> en meldtermijnen') ?></label>
           <label><?= th('Organisatie') ?> <span class="hint"><?= th('(voor het rapport)') ?></span><input name="nis2_org" maxlength="120"></label>
           <label><?= th('CSIRT') ?> <span class="hint"><?= th('(waar je meldt, bv. het NCSC of het CSIRT van je sector)') ?></span><input name="nis2_csirt" maxlength="200"></label>
-          <div id="nis2-box"><p class="muted"><?= th('Laden…') ?></p></div>
+          <p class="small muted"><?= th('Het rapport automatisch versturen (bijvoorbeeld elk kwartaal naar je directie of adviseur) stel je in bij Rapporten.') ?> <a href="#settings/reports" data-goto="settings/reports"><?= th('Naar Rapporten') ?></a></p>
+        <div id="nis2-box"><p class="muted"><?= th('Laden…') ?></p></div>
         </div>
 
         <div data-sk="pushover" class="card">

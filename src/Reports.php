@@ -21,10 +21,13 @@ final class Reports
         'backup' => ['💾', null],
         'leaks' => ['🔓', null],
         'traffic' => ['📊', null],   // 1.187.0
+        'nis2' => ['🇪🇺', null],   // 1.234.0: standaard elk kwartaal
         'all' => ['📦', null],
     ];
     /** Onderdelen die in het Maandoverzicht kunnen */
-    public const PARTS = ['month', 'ids_week', 'vulns', 'avail', 'backup', 'leaks', 'traffic'];
+    public const PARTS = ['month', 'ids_week', 'vulns', 'avail', 'backup', 'leaks', 'traffic', 'nis2'];
+    /** Frequenties die je kunt kiezen (1.234.0: ook elk kwartaal) */
+    public const FREQS = ['week', 'month', 'quarter'];
 
     public static function label(string $k): string
     {
@@ -37,6 +40,7 @@ final class Reports
             'backup' => t('Back-ups'),
             'leaks' => t('Datalekken'),
             'traffic' => t('Netwerkverkeer'),
+            'nis2' => t('NIS2-overzicht'),
             'all' => t('Maandoverzicht (alles in één)'),
             default => $k,
         };
@@ -45,8 +49,8 @@ final class Reports
     /** Standaard voor een rapport */
     private static function def(string $k): array
     {
-        return ['on' => false, 'freq' => self::LIST[$k][1] ?? 'month', 'day' => 1, 'time' => '08:00', 'email' => true, 'push' => false, 'to' => '', 'also' => false]
-            + ($k === 'all' ? ['parts' => self::PARTS] : []);
+        return ['on' => false, 'freq' => self::LIST[$k][1] ?? ($k === 'nis2' ? 'quarter' : 'month'), 'day' => 1, 'time' => '08:00', 'email' => true, 'push' => false, 'to' => '', 'also' => false]
+            + ($k === 'all' ? ['parts' => array_values(array_diff(self::PARTS, ['nis2']))] : []);
     }
 
     /** De instellingen van alle rapporten (bij de eerste keer uit de oude instellingen) */
@@ -75,7 +79,7 @@ final class Reports
     {
         $d = self::def($k);
         $fixed = self::LIST[$k][1];
-        $freq = $fixed ?? (in_array($in['freq'] ?? '', ['week', 'month'], true) ? $in['freq'] : $d['freq']);
+        $freq = $fixed ?? (in_array($in['freq'] ?? '', self::FREQS, true) ? $in['freq'] : $d['freq']);
         $out = [
             'on' => !empty($in['on'] ?? $d['on']), 'freq' => $freq,
             'day' => $freq === 'week' ? max(1, min(7, (int) ($in['day'] ?? 1))) : max(1, min(28, (int) ($in['day'] ?? 1))),
@@ -167,6 +171,10 @@ final class Reports
         if ($c['freq'] === 'week') {
             return (int) date('N', $now) === $c['day'] ? date('o-\WW', $now) : null;
         }
+        if ($c['freq'] === 'quarter') {   // 1.234.0: in de eerste maand van het kwartaal (januari, april, juli, oktober)
+            $m = (int) date('n', $now);
+            return $m % 3 === 1 && (int) date('j', $now) >= $c['day'] ? date('Y', $now) . '-Q' . intdiv($m + 2, 3) : null;
+        }
         return (int) date('j', $now) >= $c['day'] ? date('Y-m', $now) : null;
     }
 
@@ -180,7 +188,7 @@ final class Reports
             if ($id === null || ($last[$k] ?? '') === $id) {
                 continue;
             }
-            if ($k === 'ids_week' && !Ids::enabled()) {
+            if (($k === 'ids_week' && !Ids::enabled()) || ($k === 'nis2' && !Nis2::enabled())) {
                 continue;
             }
             $last[$k] = $id;
@@ -304,6 +312,11 @@ final class Reports
         if ($freq === 'week') {
             return [date('Y-m-d', $now - 7 * 86400), date('Y-m-d', $now - 86400)];
         }
+        if ($freq === 'quarter') {   // het vorige kwartaal
+            $q0 = strtotime(date('Y', $now) . '-' . sprintf('%02d', intdiv((int) date('n', $now) - 1, 3) * 3 + 1) . '-01');
+            $from = date('Y-m-d', strtotime('-3 months', $q0));
+            return [$from, date('Y-m-d', $q0 - 86400)];
+        }
         $from = date('Y-m-01', strtotime('first day of last month', $now));
         return [$from, date('Y-m-t', strtotime($from))];
     }
@@ -313,7 +326,11 @@ final class Reports
     {
         $e = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES);
         [$from, $to] = self::period($freq);
-        $when = $freq === 'week' ? t('afgelopen 7 dagen') : self::month(substr($from, 0, 7));
+        $when = match ($freq) {
+            'week' => t('afgelopen 7 dagen'),
+            'quarter' => t('{q}e kwartaal {y}', ['q' => intdiv((int) substr($from, 5, 2) + 2, 3), 'y' => substr($from, 0, 4)]),
+            default => self::month(substr($from, 0, 7)),
+        };
         switch ($k) {
             case 'ids_week':
                 [$subject, $body, $short] = Ids::weeklyText();
@@ -334,6 +351,8 @@ final class Reports
                 return self::partVulns($when, $e);
             case 'avail':
                 return self::partAvail($freq, $when, $e);
+            case 'nis2':   // 1.234.0: de stand van nu (geen periode)
+                return Nis2::reportPart();
             case 'backup':
                 return self::partBackup($from, $to, $when, $e);
             case 'leaks':
@@ -403,7 +422,7 @@ final class Reports
 
     private static function partAvail(string $freq, string $when, callable $e): array
     {
-        $r = Availability::report($freq === 'week' ? 7 : 30);
+        $r = Availability::report($freq === 'week' ? 7 : ($freq === 'quarter' ? 90 : 30));
         $names = q('SELECT id, name FROM hosts')->fetchAll(PDO::FETCH_KEY_PAIR);
         $rows = [];
         foreach ($r['hosts'] as $hid => $h) {

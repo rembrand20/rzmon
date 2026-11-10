@@ -242,34 +242,106 @@ final class Nis2
         return $n ? "NIS2: $n termijnen" : null;
     }
 
+    /** Status per maatregel: icoon, tekst, kleur */
+    private static function st(): array
+    {
+        return ['ok' => ['✔', t('geregeld'), '#1fa35d'], 'manual' => ['✔', t('zelf als geregeld gemarkeerd'), '#1fa35d'], 'partial' => ['◐', t('deels'), '#d98a0b'], 'missing' => ['✘', t('ontbreekt'), '#dc3b3b']];
+    }
+
+    /** De maatregelen en de meldingen als HTML-blok (alleen inline-opmaak: ook geschikt voor e-mail). @return array{0: string, 1: string} */
+    private static function blocks(array $o): array
+    {
+        $e = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $mu = 'color:#5f6b7f';
+        $rows = '';
+        foreach ($o['measures'] as $m) {
+            [$ic, $lbl, $col] = self::st()[$m['status']];
+            $ev = implode('', array_map(static fn($x) => '<li>' . ($x['ok'] === true ? '✔ ' : ($x['ok'] === false ? '✘ ' : '• ')) . $e($x['text']) . '</li>', $m['evidence']));
+            $rows .= '<div style="margin:0 0 14px"><h3 style="font-size:15px;margin:14px 0 2px"><span style="color:' . $col . '">' . $ic . '</span> ' . strtoupper($m['code']) . '. ' . $e($m['title']) . ' <small style="color:' . $col . '">' . $e($lbl) . '</small></h3>'
+                . '<p style="' . $mu . ';margin:2px 0">' . $e($m['desc']) . '</p><ul style="margin:4px 0">' . $ev . '</ul>'
+                . ($m['note'] !== '' ? '<p style="margin:4px 0"><b>' . $e(t('Notitie')) . ':</b> ' . nl2br($e($m['note'])) . ($m['by'] ? ' <span style="' . $mu . '">(' . $e($m['by']) . ', ' . $e($m['at']) . ')</span>' : '') . '</p>' : '') . '</div>';
+        }
+        $inc = '';
+        $td = 'border-bottom:1px solid #e1e6ee;padding:6px;text-align:left;vertical-align:top';
+        foreach ($o['incidents'] as $i) {
+            $c = static fn($sent, $due) => $sent ? '✔ ' . $e($sent) : '⏳ ' . $e(t('uiterlijk {d}', ['d' => $due]));
+            $inc .= '<tr><td style="' . $td . '">' . $e($i['title']) . '<br><span style="' . $mu . '">' . $e($i['host'] ?? '') . ' · ' . $e($i['at']) . '</span></td><td style="' . $td . '">' . $c($i['warn'], $i['warn_due'])
+                . '</td><td style="' . $td . '">' . $c($i['notify'], $i['notify_due']) . '</td><td style="' . $td . '">' . $c($i['final'], $i['final_due']) . '</td></tr>';
+        }
+        $incHtml = $inc !== '' ? '<table style="border-collapse:collapse;width:100%"><tr><th style="' . $td . '">' . $e(t('Incident')) . '</th><th style="' . $td . '">' . $e(t('24 uur')) . '</th><th style="' . $td . '">' . $e(t('72 uur')) . '</th><th style="' . $td . '">' . $e(t('Eindverslag')) . '</th></tr>' . $inc . '</table>'
+            : '<p style="' . $mu . '">' . $e(t('Geen significante incidenten.')) . '</p>';
+        return [$rows, $incHtml];
+    }
+
+    /** De disclaimer onder elk NIS2-rapport */
+    private static function disclaimer(): string
+    {
+        return t('Dit overzicht laat zien wat RzSense technisch ziet van de maatregelen uit artikel 21 van de NIS2-richtlijn (Cyberbeveiligingswet), met je eigen notities. Het is geen juridisch advies en geen certificering.');
+    }
+
+    /**
+     * 1.234.0: het NIS2-overzicht als gepland rapport (Instellingen → Rapporten): titel, onderwerp, platte tekst,
+     * HTML-blok en een korte zin voor push.
+     */
+    public static function reportPart(): array
+    {
+        $o = self::overview();
+        $e = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $cnt = array_count_values(array_map(static fn($m) => $m['status'] === 'manual' ? 'ok' : $m['status'], $o['measures']));
+        $open = 0;
+        foreach ($o['incidents'] as $i) {
+            foreach (['warn', 'notify', 'final'] as $w) {
+                $open += $i[$w] ? 0 : 1;
+            }
+        }
+        $short = t('{ok} geregeld · {p} deels · {m} ontbreekt', ['ok' => $cnt['ok'] ?? 0, 'p' => $cnt['partial'] ?? 0, 'm' => $cnt['missing'] ?? 0])
+            . ($open ? ' · ' . t('{n} meldingen nog te versturen', ['n' => $open]) : '');
+        $lines = [$short, ''];
+        foreach ($o['measures'] as $m) {
+            $lines[] = strtoupper($m['code']) . '. ' . $m['title'] . ': ' . self::st()[$m['status']][1];
+            foreach ($m['evidence'] as $x) {
+                $lines[] = '   ' . ($x['ok'] === true ? '✔' : ($x['ok'] === false ? '✘' : '•')) . ' ' . $x['text'];
+            }
+            if ($m['note'] !== '') {
+                $lines[] = '   ' . t('Notitie') . ': ' . str_replace("\n", ' ', $m['note']);
+            }
+        }
+        $lines[] = '';
+        $lines[] = t('Significante incidenten en meldingen (art. 23)') . ':';
+        foreach ($o['incidents'] as $i) {
+            $lines[] = '- ' . $i['title'] . ' (' . $i['at'] . ')';
+            foreach (['warn' => t('24 uur'), 'notify' => t('72 uur'), 'final' => t('Eindverslag')] as $w => $lbl) {
+                $lines[] = "   $lbl: " . ($i[$w] ? '✔ ' . $i[$w] : '⏳ ' . t('uiterlijk {d}', ['d' => $i[$w . '_due']]));
+            }
+        }
+        if (!$o['incidents']) {
+            $lines[] = t('Geen significante incidenten.');
+        }
+        $lines[] = '';
+        $lines[] = self::disclaimer();
+        [$rows, $incHtml] = self::blocks($o);
+        $tile = static fn($l, $v, $c) => '<div class="tile ' . $c . '"><small>' . $e($l) . '</small><b>' . $v . '</b></div>';
+        $html = '<div class="tiles">' . $tile(t('geregeld'), (string) ($cnt['ok'] ?? 0), 'g') . $tile(t('deels'), (string) ($cnt['partial'] ?? 0), 'w')
+            . $tile(t('ontbreekt'), (string) ($cnt['missing'] ?? 0), 'c') . $tile(t('Meldingen nog te versturen'), (string) $open, $open ? 'c' : 'g') . '</div>'
+            . '<p style="border:1px solid #e1e6ee;border-radius:8px;padding:8px 10px;background:#f6f8fb">' . $e(self::disclaimer()) . '</p>'
+            . ($o['csirt'] !== '' ? '<p>' . $e(t('Melden bij: {c}', ['c' => $o['csirt']])) . '</p>' : '')
+            . $rows . '<h3 style="font-size:15px;margin:16px 0 4px">' . $e(t('Significante incidenten en meldingen (art. 23)')) . '</h3>' . $incHtml;
+        return ['title' => t('NIS2-overzicht') . ($o['org'] !== '' ? ' – ' . $o['org'] : ''), 'subject' => '🇪🇺 ' . t('NIS2-overzicht') . ($o['org'] !== '' ? ' – ' . $o['org'] : '') . ' (' . date('Y-m-d') . ')',
+            'text' => implode("\n", $lines), 'html' => $html, 'short' => $short];
+    }
+
     /** Het NIS2-rapport: afdrukbare HTML (geen scripts) */
     public static function html(): string
     {
         $o = self::overview();
         $e = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $st = ['ok' => ['✔', t('geregeld'), '#1fa35d'], 'manual' => ['✔', t('zelf als geregeld gemarkeerd'), '#1fa35d'], 'partial' => ['◐', t('deels'), '#d98a0b'], 'missing' => ['✘', t('ontbreekt'), '#dc3b3b']];
-        $rows = '';
-        foreach ($o['measures'] as $m) {
-            [$ic, $lbl, $col] = $st[$m['status']];
-            $ev = implode('', array_map(static fn($x) => '<li>' . ($x['ok'] === true ? '✔ ' : ($x['ok'] === false ? '✘ ' : '• ')) . $e($x['text']) . '</li>', $m['evidence']));
-            $rows .= '<section><h2><span style="color:' . $col . '">' . $ic . '</span> ' . strtoupper($m['code']) . '. ' . $e($m['title']) . ' <small style="color:' . $col . '">' . $e($lbl) . '</small></h2>'
-                . '<p class="muted">' . $e($m['desc']) . '</p><ul>' . $ev . '</ul>'
-                . ($m['note'] !== '' ? '<p><b>' . $e(t('Notitie')) . ':</b> ' . nl2br($e($m['note'])) . ($m['by'] ? ' <span class="muted">(' . $e($m['by']) . ', ' . $e($m['at']) . ')</span>' : '') . '</p>' : '') . '</section>';
-        }
-        $inc = '';
-        foreach ($o['incidents'] as $i) {
-            $c = static fn($sent, $due) => $sent ? '✔ ' . $e($sent) : '⏳ ' . $e(t('uiterlijk {d}', ['d' => $due]));
-            $inc .= '<tr><td>' . $e($i['title']) . '<br><span class="muted">' . $e($i['host'] ?? '') . ' · ' . $e($i['at']) . '</span></td><td>' . $c($i['warn'], $i['warn_due'])
-                . '</td><td>' . $c($i['notify'], $i['notify_due']) . '</td><td>' . $c($i['final'], $i['final_due']) . '</td></tr>';
-        }
+        [$rows, $incHtml] = self::blocks($o);
         return '<!doctype html><html lang="nl"><head><meta charset="utf-8"><title>' . $e(t('NIS2-overzicht')) . '</title><style>body{font:14px/1.45 system-ui,sans-serif;max-width:900px;margin:2rem auto;color:#18202b}'
             . 'h1{font-size:1.5rem}h2{font-size:1.05rem;margin:1.4rem 0 .2rem}.muted{color:#5f6b7f}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #e1e6ee;padding:.4rem;text-align:left;vertical-align:top}'
             . '.disc{border:1px solid #e1e6ee;border-radius:8px;padding:.6rem .8rem;background:#f6f8fb}</style></head><body>'
             . '<h1>' . $e(t('NIS2-overzicht')) . ($o['org'] !== '' ? ' – ' . $e($o['org']) : '') . '</h1><p class="muted">' . $e(t('Gemaakt door RzSense op {d}', ['d' => date('Y-m-d H:i')])) . '</p>'
-            . '<p class="disc">' . $e(t('Dit overzicht laat zien wat RzSense technisch ziet van de maatregelen uit artikel 21 van de NIS2-richtlijn (Cyberbeveiligingswet), met je eigen notities. Het is geen juridisch advies en geen certificering.')) . '</p>'
-            . $rows . '<h2>' . $e(t('Significante incidenten en meldingen (art. 23)')) . '</h2>'
-            . ($inc !== '' ? '<table><tr><th>' . $e(t('Incident')) . '</th><th>' . $e(t('24 uur')) . '</th><th>' . $e(t('72 uur')) . '</th><th>' . $e(t('Eindverslag')) . '</th></tr>' . $inc . '</table>'
-                : '<p class="muted">' . $e(t('Geen significante incidenten.')) . '</p>')
+            . '<p class="disc">' . $e(self::disclaimer()) . '</p>'
+            . $rows . '<h2>' . $e(t('Significante incidenten en meldingen (art. 23)')) . '</h2>' . $incHtml
             . '</body></html>';
     }
 }

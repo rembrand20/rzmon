@@ -6050,6 +6050,7 @@ const REP_INFO = {
   backup: () => L('Hoeveel back-ups er gemaakt zijn, hoeveel ruimte ze innemen, de laatste en of er een probleem is.'),
   leaks: () => L('Nieuwe datalekken op je adressen en wat nog niet afgehandeld is.'),
   traffic: () => L('Het verkeer van je internetlijn en de top 10 apparaten, met de verandering ten opzichte van de periode ervoor.'),
+  nis2: () => L('De tien NIS2-maatregelen met wat RzSense ziet en je notities, en de meldtermijnen van significante incidenten. De stand van het moment van versturen; standaard elk kwartaal.'),
 };
 let repData = null;
 let repTimer = null;
@@ -6057,7 +6058,8 @@ let repTimer = null;
 function repSub(c, fixed) {
   const f = fixed || c.freq;
   const n = c.to ? c.to.split(/[,;\s]+/).filter(Boolean).length : 0;
-  return !c.on ? L('uit') : (f === 'week' ? L('elke {d} om {t}', { d: REP_DAYS().find(([v]) => v === c.day)[1], t: c.time }) : L('elke maand op de {d}e om {t}', { d: c.day, t: c.time }))
+  return !c.on ? L('uit') : (f === 'week' ? L('elke {d} om {t}', { d: REP_DAYS().find(([v]) => v === c.day)[1], t: c.time })
+    : f === 'quarter' ? L('elk kwartaal op de {d}e (jan, apr, jul, okt) om {t}', { d: c.day, t: c.time }) : L('elke maand op de {d}e om {t}', { d: c.day, t: c.time }))
     + ' · ' + [c.email ? L('e-mail') : '', c.push ? L('push') : ''].filter(Boolean).join(' + ')
     + (c.email && (n || c.own) ? ' · ' + (n ? L('{n} eigen ontvanger(s)', { n }) : L('eigen ontvangers')) + (c.also ? ' + ' + L('algemene') : '') : '');
 }
@@ -6068,7 +6070,7 @@ async function loadReports() {
   const r = repData;
   const ro = !r.admin;
   const need = { ai_week: r.ai ? '' : L('AI-advies staat uit (Instellingen → Koppelingen → AI-advies).'), ids_week: r.ids ? '' : L('Het IDS staat uit.'),
-    vulns: r.vulns ? '' : L('Kwetsbaarheden staat uit.'), leaks: r.hibp ? '' : L('Datalekken staat uit.') };
+    vulns: r.vulns ? '' : L('Kwetsbaarheden staat uit.'), leaks: r.hibp ? '' : L('Datalekken staat uit.'), nis2: r.nis2 ? '' : L('Het NIS2-overzicht staat uit (Instellingen → Overzicht → NIS2).') };
   const card = (m) => {
     const c = r.cfg[m.key];
     const dis = ro ? 'disabled' : '';
@@ -6079,9 +6081,9 @@ async function loadReports() {
         <p class="muted small rep-what">${esc(REP_INFO[m.key]())}</p>
         ${need[m.key] ? `<p class="warn-txt small">⚠️ ${esc(need[m.key])}</p>` : ''}
         <div class="rep-grid">
-          ${m.fixed ? '' : `<label>${L('Hoe vaak')} ${swSeg('freq', [['week', L('elke week')], ['month', L('elke maand')]], c.freq, `data-rep-f="freq" ${dis}`)}</label>`}
+          ${m.fixed ? '' : `<label>${L('Hoe vaak')} ${swSeg('freq', [['week', L('elke week')], ['month', L('elke maand')], ['quarter', L('elk kwartaal')]], c.freq, `data-rep-f="freq" ${dis}`)}</label>`}
           <label data-rep-dayw ${freq === 'week' ? '' : 'hidden'}>${L('Dag')} ${swSeg('dayw', REP_DAYS(), c.day, `data-rep-f="dayw" ${dis}`)}</label>
-          <label data-rep-daym ${freq === 'month' ? '' : 'hidden'}>${L('Dag van de maand')} <input type="number" min="1" max="28" value="${c.day}" data-rep-f="daym" ${dis}></label>
+          <label data-rep-daym ${freq !== 'week' ? '' : 'hidden'}>${freq === 'quarter' ? L('Dag (jan, apr, jul, okt)') : L('Dag van de maand')} <input type="number" min="1" max="28" value="${c.day}" data-rep-f="daym" ${dis}></label>
           <label>${L('Om')} <input type="time" value="${esc(c.time)}" data-rep-f="time" ${dis}></label>
         </div>
         <div class="rep-ch">
@@ -6136,7 +6138,8 @@ function repWire(el) {
     const c = repRead(el);
     const freq = (repData.meta.find((m) => m.key === k) || {}).fixed || c.freq;
     $('[data-rep-dayw]', el).hidden = freq !== 'week';
-    $('[data-rep-daym]', el).hidden = freq !== 'month';
+    $('[data-rep-daym]', el).hidden = freq === 'week';
+    $('[data-rep-daym]', el).firstChild.textContent = freq === 'quarter' ? L('Dag (jan, apr, jul, okt)') + ' ' : L('Dag van de maand') + ' ';
     clearTimeout(repTimer);
     repTimer = setTimeout(async () => {
       try {

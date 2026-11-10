@@ -8,11 +8,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.234.0**: het **NIS2-rapport automatisch versturen**, standaard elk kwartaal, en **elk kwartaal** als keuze bij alle rapporten.
 - **1.233.0**: **eigen ontvangers per rapport** (alleen in te stellen door een beheerder) en **Verstuur naar mij** voor iedereen met een account.
 - **1.232.0**: **NIS2-overzicht** met de tien maatregelen, je notities, de meldtermijnen (24 uur, 72 uur, een maand) en een rapport, en **25 extra CIS-controles** in de hardening-score.
 - **1.231.0**: **tijdelijk sudo** met wachtwoord en 2FA dat vanzelf weer weggaat, een **AdGuard-blokkadelijst** uit RzSense, en **nieuw geregistreerde domeinen** herkennen.
 - **1.230.0**: **updates installeren**: beveiligingsupdates met één klik of automatisch in het onderhoudsvenster, eerst een snapshot, Home Assistant met een back-up.
-- **1.229.0**: **onbekende programma's** herkennen (toestaan, blokkeren, stoppen) en **jagen op sporen** uit een waarschuwing, ook op de servers zelf.
+
+## 1.234.0 – 2026-11-10
+### Nieuw
+- **NIS2-rapport automatisch versturen** (*Instellingen → Rapporten → 🇪🇺 NIS2-overzicht*): de tien maatregelen met wat RzSense ziet en je notities, de meldtermijnen van significante incidenten en de disclaimer, als HTML-mail (push: een korte samenvatting). Standaard **elk kwartaal**; met eigen ontvangers, bijvoorbeeld je directie of adviseur. Ook als onderdeel van het Maandoverzicht te kiezen. Staat het NIS2-overzicht uit, dan wordt het niet verstuurd.
+- **Elk kwartaal** als keuze bij de rapporten (naast elke week en elke maand): in januari, april, juli en oktober op de gekozen dag, over het vorige kwartaal.
 
 ## 1.233.0 – 2026-11-10
 ### Nieuw

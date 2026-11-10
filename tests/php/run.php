@@ -2619,6 +2619,15 @@ Reports::log('month', ['ok' => true, 'sent' => ['email']], 'ci');
 ok(str_contains((string) q("SELECT detail FROM host_actions WHERE module = 'report' ORDER BY id DESC LIMIT 1")->fetchColumn(), 'adviseur@voorbeeld.nl'), 'Rapport: verzending in het logboek met de ontvangers');
 Reports::save(['month' => ['to' => '', 'also' => false]]);
 save_setting('mail_to', '');
+// 1.234.0: NIS2 als gepland rapport, elk kwartaal
+$q = ['on' => true, 'freq' => 'quarter', 'day' => 2, 'time' => '08:00'];
+ok(Reports::due('nis2', $q, strtotime('2026-10-02 09:00')) === '2026-Q4' && Reports::due('nis2', $q, strtotime('2026-11-02 09:00')) === null
+    && Reports::due('nis2', $q, strtotime('2026-10-01 09:00')) === null && Reports::period('quarter', strtotime('2026-11-10')) === ['2026-07-01', '2026-09-30']
+    && Reports::period('quarter', strtotime('2026-02-03')) === ['2025-10-01', '2025-12-31'], 'Rapport elk kwartaal: in jan/apr/jul/okt vanaf de gekozen dag, over het vorige kwartaal');
+$nr = Reports::clean('nis2', []);
+$nd = Reports::build('nis2');
+ok($nr['freq'] === 'quarter' && !in_array('nis2', Reports::clean('all', [])['parts'], true) && str_contains($nd['html'], 'geen juridisch advies') && str_contains($nd['text'], 'A. ')
+    && str_contains($nd['short'], 'geregeld'), 'NIS2-rapport: standaard elk kwartaal, niet vanzelf in het maandoverzicht, met maatregelen, disclaimer en samenvatting');
 // 1.232.2: links in rapporten en meldingen met de externe URL
 $cfgOld = $GLOBALS['sm_config'];
 $GLOBALS['sm_config']['base_url'] = 'http://192.168.2.207';
