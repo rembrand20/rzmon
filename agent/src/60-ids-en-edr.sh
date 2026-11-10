@@ -195,6 +195,9 @@ if [ -n "$ids_mode" ]; then
             if command -v sshd >/dev/null 2>&1 && sshd_t=$(sshd -T 2>/dev/null) && [ -n "$sshd_t" ]; then
                 printf 'ssh_pw=%s\nssh_root=%s\nssh_empty=%s\n' "$(awk '$1 == "passwordauthentication" { print $2 }' <<<"$sshd_t")" \
                     "$(awk '$1 == "permitrootlogin" { print $2 }' <<<"$sshd_t")" "$(awk '$1 == "permitemptypasswords" { print $2 }' <<<"$sshd_t")"
+                # Agent 1.94.0 (CIS 5.2): pogingen per verbinding, X11, afmelden bij stilte, tijd om in te loggen
+                awk '$1 == "maxauthtries" { print "ssh_maxauth=" $2 } $1 == "x11forwarding" { print "ssh_x11=" $2 }
+                     $1 == "clientaliveinterval" { print "ssh_idle=" $2 } $1 == "logingracetime" { print "ssh_grace=" $2 }' <<<"$sshd_t"
             fi
             h_fw=none
             if systemctl is-active -q firewalld 2>/dev/null; then h_fw=firewalld
@@ -218,6 +221,23 @@ if [ -n "$ids_mode" ]; then
             printf 'empty_pw=%s\n' "$(awk -F: '$2 == "" { print $1 }' /etc/shadow 2>/dev/null | paste -sd, -)"
             printf 'sudo_nopw=%s\n' "$(grep -hsE '^[^#]*NOPASSWD' /etc/sudoers /etc/sudoers.d/* 2>/dev/null | awk '{ print $1 }' | sort -u | paste -sd, -)"
             if command -v getenforce >/dev/null 2>&1; then printf 'selinux=%s\n' "$(getenforce 2>/dev/null)"; fi
+            # Agent 1.94.0: extra controles uit de CIS Benchmarks (alleen uitlezen; RzSense beoordeelt)
+            printf 'shadow_perm=%s\npasswd_perm=%s\ncrontab_perm=%s\n' "$(stat -c '%a %U' /etc/shadow 2>/dev/null)" "$(stat -c '%a %U' /etc/passwd 2>/dev/null)" "$(stat -c '%a %U' /etc/crontab 2>/dev/null)"
+            printf 'pass_max_days=%s\numask=%s\n' "$(awk '$1 == "PASS_MAX_DAYS" { print $2 }' /etc/login.defs 2>/dev/null)" "$(awk '$1 == "UMASK" { print $2 }' /etc/login.defs 2>/dev/null)"
+            printf 'uid0=%s\n' "$(awk -F: '$3 == 0 && $1 != "root" { print $1 }' /etc/passwd 2>/dev/null | paste -sd, -)"
+            for h_k in kernel/randomize_va_space net/ipv4/conf/all/accept_redirects net/ipv4/tcp_syncookies net/ipv4/conf/all/rp_filter kernel/dmesg_restrict kernel/yama/ptrace_scope fs/suid_dumpable; do
+                [ -r "/proc/sys/$h_k" ] && printf 'sys_%s=%s\n' "${h_k##*/}" "$(cat "/proc/sys/$h_k" 2>/dev/null)"
+            done
+            if systemctl is-active -q auditd 2>/dev/null; then printf 'auditd=yes\n'; elif command -v systemctl >/dev/null 2>&1; then printf 'auditd=no\n'; fi
+            h_ts=none
+            for u in chronyd chrony systemd-timesyncd ntpd ntp ntpsec; do systemctl is-active -q "$u" 2>/dev/null && h_ts=$u && break; done
+            printf 'time_sync=%s\n' "$h_ts"
+            printf 'ww_files=%s\n' "$(timeout 20 find /etc /usr/bin /usr/sbin /usr/local/bin /usr/local/sbin -xdev -type f -perm -0002 2>/dev/null | head -n 5 | paste -sd, -)"
+            printf 'legacy_svc=%s\n' "$(ss -Htuln 2>/dev/null | awk '{ p = $5; sub(/.*:/, "", p); if (p ~ /^(21|23|69|512|513|514)$/) print p }' | sort -un | paste -sd, -)"
+            if grep -qsE '^[^#]*(pam_faillock|pam_tally2)' /etc/pam.d/* 2>/dev/null; then printf 'faillock=yes\n'; else printf 'faillock=no\n'; fi
+            printf 'pw_minlen=%s\n' "$(cat /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf 2>/dev/null | awk -F= '$1 ~ /^[ \t]*minlen[ \t]*$/ { v = $2; gsub(/[ \t]/, "", v) } END { print v }')"
+            for h_g in /boot/grub2/grub.cfg /boot/grub/grub.cfg; do [ -f "$h_g" ] && { printf 'grub_perm=%s\n' "$(stat -c '%a' "$h_g")"; break; }; done
+            if findmnt -no OPTIONS /dev/shm 2>/dev/null | grep -q noexec; then printf 'shm_noexec=yes\n'; elif [ -d /dev/shm ]; then printf 'shm_noexec=no\n'; fi
         } >"$i_dir/hard.tmp" 2>/dev/null && mv -f "$i_dir/hard.tmp" "$i_dir/hard"
         [ -s "$i_dir/hard" ] && hard_part=",\"hard\":{$(awk '/^[a-z_]+=/ { k = $0; sub(/=.*/, "", k); v = substr($0, length(k) + 2); gsub(/[\\"]/, "", v); printf "\"%s\":\"%s\",", k, v }' "$i_dir/hard" | sed 's/,$//')}"
     fi

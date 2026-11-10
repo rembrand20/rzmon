@@ -2570,5 +2570,43 @@ save_setting('dns_nrd', '0');
 save_setting('dnsbl_on', '0');
 q('DELETE FROM hosts WHERE id = ?', [$hsd]);
 
+section('CIS-hardening en NIS2 (1.232.0)');
+q("INSERT INTO hosts (name, address, mode, agent_version) VALUES ('ci-cis', '10.0.0.102', 'agent', '1.94.0')");
+$hcis = (int) db()->lastInsertId();
+$rowC = q('SELECT * FROM hosts WHERE id = ?', [$hcis])->fetch();
+Hardening::store($rowC, ['ssh_maxauth' => '6', 'ssh_x11' => 'no', 'ssh_idle' => '300', 'ssh_grace' => '120', 'shadow_perm' => '640 root', 'passwd_perm' => '666 root',
+    'crontab_perm' => '600 root', 'pass_max_days' => '99999', 'umask' => '027', 'uid0' => 'toor', 'sys_randomize_va_space' => '2', 'sys_rp_filter' => '0',
+    'auditd' => 'yes', 'time_sync' => 'chronyd', 'ww_files' => '', 'legacy_svc' => '23', 'faillock' => 'no', 'pw_minlen' => '14', 'grub_perm' => '644', 'shm_noexec' => 'yes'], static fn() => null);
+$items = array_column(Hardening::detail($hcis)['items'], null, 'item');
+$want = ['ssh_maxauth' => false, 'ssh_x11' => true, 'ssh_idle' => true, 'ssh_grace' => false, 'shadow_perm' => true, 'passwd_perm' => false, 'crontab_perm' => true,
+    'pass_max_days' => false, 'umask' => true, 'uid0' => false, 'sys_randomize_va_space' => true, 'sys_rp_filter' => false, 'auditd' => true, 'time_sync' => true,
+    'ww_files' => true, 'legacy_svc' => false, 'faillock' => false, 'pw_minlen' => true, 'grub_perm' => false, 'shm_noexec' => true];
+$bad = array_filter($want, static fn($ok, $k) => ($items[$k]['ok'] ?? 'x') !== $ok, ARRAY_FILTER_USE_BOTH);
+ok(!$bad && $items['uid0']['cis'] === 5 && $items['shm_noexec']['cis'] === 1 && $items['ssh_x11']['help']['check'] !== '', 'CIS: 20 punten goed beoordeeld, met hoofdstuk en controlecommando' . ($bad ? ' (fout: ' . implode(', ', array_keys($bad)) . ')' : ''));
+Hardening::store($rowC, ['uid0' => '', 'ssh_maxauth' => '3'], static fn() => null);
+$inc = [];
+Hardening::store($rowC, ['uid0' => 'achterdeur', 'ssh_maxauth' => '3'], static function ($sev, $type, $item) use (&$inc) { $inc[] = [$sev, $item]; });
+ok($inc === [[2, 'uid0']], 'CIS: een tweede account met UID 0 erbij = critical incident (alleen bij verslechteren)');
+$ov = Nis2::overview();
+ok(count($ov['measures']) === 10 && !array_diff(array_column($ov['measures'], 'status'), ['ok', 'partial', 'missing', 'manual']) && $ov['measures'][0]['code'] === 'a',
+    'NIS2: tien maatregelen (a–j) met een status');
+Nis2::saveNote('g', 'Jaarlijkse phishing-training, maart 2026 (alle medewerkers)', true, 'ci');
+ok(array_column(Nis2::overview()['measures'], 'status', 'code')['g'] === 'manual' && (int) q("SELECT COUNT(*) FROM host_actions WHERE module = 'nis2'")->fetchColumn() >= 1,
+    'NIS2: notitie en zelf als geregeld gemarkeerd, in het logboek');
+q("INSERT INTO incidents (source, ref_key, host_id, severity, title, opened_at, updated_at) VALUES ('ids', 'ci-nis2-1', ?, 2, 'Ransomware op ci-cis', NOW() - INTERVAL 20 HOUR, NOW())", [$hcis]);
+$iid = (int) db()->lastInsertId();
+Nis2::mark($iid, true, 'ci');
+$ni = Nis2::incidents()[0] ?? null;
+ok($ni && $ni['id'] === $iid && abs(strtotime($ni['warn_due']) - (time() + 4 * 3600)) < 120 && abs(strtotime($ni['notify_due']) - (time() + 52 * 3600)) < 120,
+    'NIS2: significant incident: 24 uur en 72 uur vanaf het moment dat het bekend was');
+$c1 = Nis2::cron();
+$c2 = Nis2::cron();
+ok(str_contains((string) $c1, '1 termijn') && $c2 === null, 'NIS2: melding als de 24 uur binnen 6 uur verloopt, maar één keer');
+Nis2::sent($iid, 'warn', true, 'ci');
+ok((bool) Nis2::incidents()[0]['warn'] && str_contains(Nis2::html(), 'geen juridisch advies') && str_contains(Nis2::html(), 'Ransomware op ci-cis'), 'NIS2: verstuurd aangevinkt, rapport met disclaimer en het incident');
+q('DELETE FROM incidents WHERE id = ?', [$iid]);
+q('DELETE FROM hosts WHERE id = ?', [$hcis]);
+save_setting('nis2_notes', '');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

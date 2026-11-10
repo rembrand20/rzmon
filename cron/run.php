@@ -170,6 +170,9 @@ try {
         echo date('c') . " DNS: $n nieuw geregistreerde domeinen\n";
     }
     Sudo::cron();   // 1.231.0: verlopen tijdelijk sudo afsluiten
+    if ($msg = Nis2::cron()) {   // 1.232.0: NIS2-meldtermijnen
+        echo date('c') . " $msg\n";
+    }
     Perf::lap('dns');
     if ($msg = Ioc::cron()) {   // 1.229.0: bewaakte sporen (elke 10 minuten)
         echo date('c') . " $msg\n";

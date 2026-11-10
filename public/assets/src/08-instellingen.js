@@ -743,7 +743,8 @@ const SET_NAV = [
   ['overzicht', SET_IC('<path d="M3 12h4l3 8 4-16 3 8h4"/>'), L('Overzicht'), [
     ['overview', L('Status'), ['overview'], L('Wat er nog aandacht nodig heeft, met een knop om het te regelen.')],
     ['features', L('Functies'), ['features'], L('Alle functies van RzSense, met wat er aan staat en waar je het instelt.')],
-    ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzSense elke minuut uitvoert.')]]],
+    ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzSense elke minuut uitvoert.')],
+    ['nis2', L('NIS2'), ['nis2'], L('De tien maatregelen uit de NIS2-richtlijn met wat RzSense ziet, je notities en de meldtermijnen.')]]],
   ['checks', SET_IC('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>'), L('Monitoring'), [
     ['allchecks', L('Alle checks'), ['allchecks'], L('Alle checks van alle servers in één lijst, ook samen bewerken.')],
     ['templates', L('Sjablonen'), ['templates'], L('Vaste sets checks voor een nieuwe server.')],
@@ -893,6 +894,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'ids_apps') loadAppsSet();   // 1.229.0
   if (setSection === 'patch') loadPatchSet();   // 1.230.0
   if (setSection === 'sudo') loadSudoSet();   // 1.231.0
+  if (setSection === 'nis2') loadNis2();   // 1.232.0
   if (setSection === 'ids_ti') loadDnsbl();
   if (setSection === 'ids_edr' && cards.includes('ids_rules')) { ruleWhere = 'set'; loadEdrRules(); }   // 1.162.0
   if (setSection === 'ids_attack' && cards.includes('whitelist')) loadBlocks();
@@ -1956,7 +1958,7 @@ const SYSINFO_ROWS = [
   ['IDS', [['isolate', '🧱 ' + L('Server geïsoleerd of opgeheven')]]],
   [L('Netwerk'), [['net_new', '🆕 ' + L('Nieuw apparaat op het netwerk')], ['net_traffic', '📈 ' + L('Ongewoon netwerkverkeer (veel of \'s nachts)')], ['net_cap', '📶 ' + L('Datalimiet internet bijna of helemaal op')], ['path_change', '🛣️ ' + L('Pad naar een doel gewijzigd (pad-check, als die dat mag)')]]],
   [L('Checks'), [['smart_drift', '🧠 ' + L('Normaalwaarde stijgt sluipend (slimme drempels)')], ['smart_auto', '🧠 ' + L('Drempels zelf aangepast (naar slim)')], ['alert_auto', '🔔 ' + L('Melden na N zelf aangepast')], ['heal', '🩹 ' + L('Zelf hersteld (of herstel mislukt)')],
-    ['watchdog', '🐕 ' + L('Waakhond: RzSense was onbereikbaar of de checks stonden stil')], ['trend', '📉 ' + L('Trend: een grens wordt binnenkort bereikt (Analyse → Trends)')], ['eol', '⏳ ' + L('End-of-life: software krijgt binnenkort of geen updates meer')]]],
+    ['watchdog', '🐕 ' + L('Waakhond: RzSense was onbereikbaar of de checks stonden stil')], ['trend', '📉 ' + L('Trend: een grens wordt binnenkort bereikt (Analyse → Trends)')], ['eol', '⏳ ' + L('End-of-life: software krijgt binnenkort of geen updates meer')], ['nis2', '🇪🇺 ' + L('NIS2: een meldtermijn komt dichtbij of is verlopen')]]],
   ['RzSense', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],
   [L('Logs'), [['logs_limit', '📜 ' + L('Daglimiet van een server bereikt')], ['logs_full', '📜 ' + L('Maximum bereikt: oudste dag weggegooid')], ['logs_watch_off', '📜 ' + L('Vaste zoekactie te traag, uitgezet')]]],   // 1.210.0
   [L('AI-advies'), [['ai_advice', '🤖 ' + L('Samenvatting van een automatisch advies')], ['ai_week', '📅 ' + L('Weekoverzicht')], ['ai_credit', '💳 ' + L('Tegoed of budget bijna op of op')]]],   // 1.173.0
@@ -2705,7 +2707,7 @@ const AL_MOD = {
   userlock: () => '🔒 ' + L('Gebruikers'), kill: () => '⛔ ' + L('Processen'), heal: () => '🩹 ' + L('Zelf herstellen'), update: () => '⬆️ ' + L('Agent bijwerken'),
   packages: () => '📦 ' + L('Pakketten'), edr: () => '🛡️ EDR', firewall: () => '🧯 ' + L('Firewall'), logs: () => '📜 ' + L('Logs'),
   ransom: () => '🧬 ' + L('Ransomware'), patch: () => '🩹 ' + L('Updates'), sudo: () => '🔑 ' + L('Tijdelijk sudo'), appctl: () => '🧩 ' + L('Programma\'s'),
-  ioc: () => '🔎 ' + L('Sporen'), dns: () => '🌐 DNS', harden: () => '🧰 ' + L('Hardening'),
+  ioc: () => '🔎 ' + L('Sporen'), dns: () => '🌐 DNS', harden: () => '🧰 ' + L('Hardening'), nis2: () => '🇪🇺 NIS2',
 };
 const AL_SRC = { user: ['🧑', () => L('Beheerder')], rzsense: ['🤖', () => 'RzSense'], agent: ['🖥️', () => L('Agent')] };
 /** Rijen van het logboek; withHost: de server erbij (overzicht van alle servers) */

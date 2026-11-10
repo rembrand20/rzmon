@@ -343,6 +343,11 @@ final class Installer
         ['hosts', 'patch_time', "CHAR(5) NOT NULL DEFAULT '03:30'"],      // tijd bij auto
         ['hosts', 'patch_last', 'DATETIME NULL'],                         // laatst (automatisch) gevraagd
         ['hosts', 'patch_ha_req', 'TEXT NULL'],                           // openstaande opdracht voor Home Assistant (JSON)
+        ['incidents', 'nis2', 'TINYINT(1) NOT NULL DEFAULT 0'],           // 1.232.0: significant incident (NIS2-meldplicht)
+        ['incidents', 'nis2_at', 'DATETIME NULL'],                        // sinds wanneer bekend (begin van de termijnen)
+        ['incidents', 'nis2_warn', 'DATETIME NULL'],                      // vroegtijdige waarschuwing verstuurd (24 uur)
+        ['incidents', 'nis2_notify', 'DATETIME NULL'],                    // incidentmelding verstuurd (72 uur)
+        ['incidents', 'nis2_final', 'DATETIME NULL'],                     // eindverslag verstuurd (een maand)
         ['checks', 'cstate', 'VARCHAR(10) NULL'],
         ['checks', 'path_sum', 'VARCHAR(255) NULL'],   // 1.177.0: pad-check in het kort (bolletjes per hop, ms, Mbit/s) voor de tegels
         ['hosts', 'logs_interval', 'SMALLINT UNSIGNED NULL'],   // 1.210.0: logs versturen elke … minuten (leeg = de algemene instelling)

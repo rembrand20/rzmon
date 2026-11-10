@@ -35,7 +35,7 @@ final class Features
      * Wat meer vraagt (een sleutel, je wachtwoord, een keuze) zet je aan op zijn eigen pagina.
      */
     public const TOGGLE = ['edr_on', 'ti_on', 'dns_on', 'suricata_on', 'logs_on', 'cve_buzz_on', 'anomaly_on', 'context_on', 'esc_on', 'perf_on',
-        'smart_auto', 'net_traffic', 'ids_block_shared', 'ids_geo', 'ids_blocklists', 'mailsec_on', 'eol_on', 'ransom_on', 'appctl_on', 'ioc_on', 'patch_on', 'sudo_on', 'dnsbl_on', 'dns_nrd'];
+        'smart_auto', 'net_traffic', 'ids_block_shared', 'ids_geo', 'ids_blocklists', 'mailsec_on', 'eol_on', 'ransom_on', 'appctl_on', 'ioc_on', 'patch_on', 'sudo_on', 'dnsbl_on', 'dns_nrd', 'nis2_on'];
 
     public const LIST = [
         // Checks en monitoring
@@ -225,6 +225,8 @@ final class Features
         ['ids', ['AdGuard-blokkadelijst', 'AdGuard blocklist'], ['Een lijst voor AdGuard Home met malwaredomeinen, je bewaakte sporen en eigen domeinen, zodat ze in je hele netwerk geblokkeerd worden.', 'A list for AdGuard Home with malware domains, your watched indicators and own domains, so they are blocked across your network.'], '1.231.0', 'dnsbl_on', 'ids_ti'],
         ['ids', ['Nieuw geregistreerde domeinen', 'Newly registered domains'], ['Een apparaat dat een gloednieuw domein opvraagt (jonger dan 30 dagen, via RDAP): vaak phishing of malware.', 'A device requesting a brand-new domain (younger than 30 days, via RDAP): often phishing or malware.'], '1.231.0', 'dns_nrd', 'ids_ti'],
         ['sec', ['Tijdelijk sudo', 'Temporary sudo'], ['Een gebruiker voor korte tijd sudo geven op één server, met je wachtwoord en 2FA; gaat vanzelf weer weg.', 'Give a user sudo on one server for a short time, with your password and 2FA; removed automatically.'], '1.231.0', 'sudo_on', 'sudo'],
+        ['sec', ['NIS2-overzicht', 'NIS2 overview'], ['De tien maatregelen uit artikel 21 met wat RzSense ziet en je notities, de meldtermijnen (24 uur, 72 uur, een maand) en een rapport.', 'The ten measures from article 21 with what RzSense sees and your notes, the reporting deadlines (24 hours, 72 hours, one month) and a report.'], '1.232.0', 'nis2_on', 'nis2'],
+        ['ids', ['CIS-hardening', 'CIS hardening'], ['25 extra controles uit de CIS Benchmarks per server (SSH, kernel, rechten, wachtwoorden, audit), gegroepeerd per hoofdstuk.', '25 extra checks from the CIS Benchmarks per server (SSH, kernel, permissions, passwords, audit), grouped per chapter.'], '1.232.0', 'ids_harden', 'ids'],
         ['vuln', ['E-mailbeveiliging van je domein', 'E-mail security of your domain'], ['SPF, DKIM, DMARC en MTA-STS: kan iemand mailen namens jouw domein? Met het record om te plakken.', 'SPF, DKIM, DMARC and MTA-STS: can someone send mail as your domain? With the record to paste.'], '1.227.0', 'mailsec_on', 'mailsec'],
         ['vuln', ['End-of-life', 'End of life'], ['Besturingssysteem en software die geen updates meer krijgen, of binnenkort niet (endoflife.date).', 'Operating systems and software that no longer get updates, or soon will not (endoflife.date).'], '1.227.0', 'eol_on', 'vulns'],
         ['vuln', ['Updates installeren', 'Install updates'], ['Welke updates er klaarstaan, en ze installeren: met de hand, in het onderhoudsvenster of elke dag; eerst een snapshot, Home Assistant met een back-up.', 'Which updates are waiting, and installing them: by hand, in the maintenance window or daily; a snapshot first, Home Assistant with a backup.'], '1.230.0', 'patch_on', 'patch'],

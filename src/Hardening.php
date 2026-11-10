@@ -12,6 +12,45 @@ final class Hardening
     private const ITEMS = [
         'ssh_pw' => [3, 1], 'ssh_root' => [3, 1], 'ssh_empty' => [3, 2], 'firewall' => [3, 1], 'autoupdate' => [2, 1],
         'open_db' => [3, 1], 'docker_sock' => [3, 2], 'empty_pw' => [3, 2], 'sudo_nopw' => [1, 1], 'tmp_noexec' => [1, 1], 'selinux' => [1, 1],
+        // 1.232.0 (agent 1.94.0): extra controles uit de CIS Benchmarks voor Linux
+        'ssh_maxauth' => [1, 1], 'ssh_x11' => [1, 1], 'ssh_idle' => [1, 1], 'ssh_grace' => [1, 1], 'shadow_perm' => [2, 1], 'passwd_perm' => [1, 1],
+        'crontab_perm' => [1, 1], 'pass_max_days' => [1, 1], 'umask' => [1, 1], 'uid0' => [3, 2], 'sys_randomize_va_space' => [2, 1],
+        'sys_accept_redirects' => [1, 1], 'sys_tcp_syncookies' => [1, 1], 'sys_rp_filter' => [1, 1], 'sys_dmesg_restrict' => [1, 1],
+        'sys_ptrace_scope' => [1, 1], 'sys_suid_dumpable' => [1, 1], 'auditd' => [1, 1], 'time_sync' => [1, 1], 'ww_files' => [2, 1],
+        'legacy_svc' => [2, 1], 'faillock' => [1, 1], 'pw_minlen' => [1, 1], 'grub_perm' => [1, 1], 'shm_noexec' => [1, 1],
+    ];
+
+    /**
+     * Bij welk hoofdstuk van de CIS Benchmark (Linux, o.a. RHEL en Debian) een punt hoort. De nummers binnen een hoofdstuk
+     * verschillen per distributie en versie, daarom alleen het hoofdstuk. 0 = geen CIS-punt (wel belangrijk).
+     */
+    public const CIS = [
+        'tmp_noexec' => 1, 'shm_noexec' => 1, 'grub_perm' => 1, 'selinux' => 1, 'autoupdate' => 1, 'sys_randomize_va_space' => 1, 'sys_ptrace_scope' => 1,
+        'sys_suid_dumpable' => 1, 'sys_dmesg_restrict' => 1, 'time_sync' => 2, 'legacy_svc' => 2, 'crontab_perm' => 2,
+        'sys_accept_redirects' => 3, 'sys_tcp_syncookies' => 3, 'sys_rp_filter' => 3, 'firewall' => 4,
+        'ssh_pw' => 5, 'ssh_root' => 5, 'ssh_empty' => 5, 'ssh_maxauth' => 5, 'ssh_x11' => 5, 'ssh_idle' => 5, 'ssh_grace' => 5, 'sudo_nopw' => 5,
+        'faillock' => 5, 'pw_minlen' => 5, 'pass_max_days' => 5, 'umask' => 5, 'uid0' => 5, 'empty_pw' => 5, 'auditd' => 6,
+        'shadow_perm' => 7, 'passwd_perm' => 7, 'ww_files' => 7, 'open_db' => 0, 'docker_sock' => 0,
+    ];
+
+    /** Namen van de hoofdstukken van de CIS Benchmark */
+    public static function cisChapter(int $n): string
+    {
+        return [0 => t('Extra (geen CIS-punt)'), 1 => t('1 Basisinstallatie'), 2 => t('2 Diensten'), 3 => t('3 Netwerk'), 4 => t('4 Firewall'),
+            5 => t('5 Toegang en inloggen'), 6 => t('6 Logging en audit'), 7 => t('7 Systeemonderhoud')][$n] ?? (string) $n;
+    }
+
+    /** Hoe je het zelf controleert, voor de punten zonder uitgebreide uitleg */
+    private const CHECK = [
+        'ssh_maxauth' => 'sudo sshd -T | grep -i maxauthtries', 'ssh_x11' => 'sudo sshd -T | grep -i x11forwarding', 'ssh_idle' => 'sudo sshd -T | grep -i clientaliveinterval',
+        'ssh_grace' => 'sudo sshd -T | grep -i logingracetime', 'shadow_perm' => 'stat -c "%a %U" /etc/shadow', 'passwd_perm' => 'stat -c "%a %U" /etc/passwd',
+        'crontab_perm' => 'stat -c "%a %U" /etc/crontab', 'pass_max_days' => 'grep ^PASS_MAX_DAYS /etc/login.defs', 'umask' => 'grep ^UMASK /etc/login.defs',
+        'uid0' => "awk -F: '\$3 == 0' /etc/passwd", 'sys_randomize_va_space' => 'sysctl kernel.randomize_va_space', 'sys_accept_redirects' => 'sysctl net.ipv4.conf.all.accept_redirects',
+        'sys_tcp_syncookies' => 'sysctl net.ipv4.tcp_syncookies', 'sys_rp_filter' => 'sysctl net.ipv4.conf.all.rp_filter', 'sys_dmesg_restrict' => 'sysctl kernel.dmesg_restrict',
+        'sys_ptrace_scope' => 'sysctl kernel.yama.ptrace_scope', 'sys_suid_dumpable' => 'sysctl fs.suid_dumpable', 'auditd' => 'systemctl is-active auditd',
+        'time_sync' => 'timedatectl', 'ww_files' => 'sudo find /etc /usr/bin /usr/sbin -xdev -type f -perm -0002', 'legacy_svc' => 'sudo ss -tulpn | grep -E ":(21|23|69|512|513|514) "',
+        'faillock' => 'grep -l pam_faillock /etc/pam.d/*', 'pw_minlen' => 'grep minlen /etc/security/pwquality.conf', 'grub_perm' => 'stat -c %a /boot/grub*/grub.cfg',
+        'shm_noexec' => 'findmnt /dev/shm',
     ];
 
     public static function enabled(): bool
@@ -33,8 +72,33 @@ final class Hardening
             'docker_sock' => $v === 'ok',
             'tmp_noexec' => $v === 'yes',
             'selinux' => $v === '' ? null : strtolower($v) !== 'disabled',
+            'ssh_maxauth' => $v === '' ? null : (int) $v <= 4,
+            'ssh_x11' => $v === '' ? null : $v === 'no',
+            'ssh_idle' => $v === '' ? null : (int) $v > 0 && (int) $v <= 900,
+            'ssh_grace' => $v === '' ? null : (int) $v > 0 && (int) $v <= 60,
+            'shadow_perm', 'grub_perm', 'crontab_perm', 'passwd_perm' => self::permOk($item, $v),
+            'pass_max_days' => $v === '' ? null : (int) $v > 0 && (int) $v <= 365,
+            'umask' => $v === '' ? null : (octdec($v) & 027) === 027,
+            'uid0', 'ww_files', 'legacy_svc' => $v === '',
+            'sys_randomize_va_space' => $v === '2', 'sys_accept_redirects' => $v === '0', 'sys_tcp_syncookies' => $v === '1',
+            'sys_rp_filter' => in_array($v, ['1', '2'], true), 'sys_dmesg_restrict' => $v === '1', 'sys_ptrace_scope' => (int) $v >= 1, 'sys_suid_dumpable' => $v === '0',
+            'auditd', 'faillock', 'shm_noexec' => $v === 'yes',
+            'time_sync' => $v !== 'none',
+            'pw_minlen' => (int) $v >= 14,
             default => null,
         };
+    }
+
+    /** Rechten van een bestand ("640 root"): eigenaar root, en niet te ruim */
+    private static function permOk(string $item, string $v): ?bool
+    {
+        if (!preg_match('/^([0-7]{3,4})(?: (\S+))?$/', $v, $m)) {
+            return null;
+        }
+        $mode = octdec($m[1]);
+        $owner = $m[2] ?? 'root';
+        $mask = ['shadow_perm' => 007, 'passwd_perm' => 022, 'crontab_perm' => 077, 'grub_perm' => 077][$item] ?? 077;
+        return ($mode & $mask) === 0 && $owner === 'root';
     }
 
     /** [titel, uitleg en hoe je het dichtzet] */
@@ -52,6 +116,31 @@ final class Hardening
             'sudo_nopw' => [t('sudo vraagt altijd een wachtwoord'), t('NOPASSWD in /etc/sudoers(.d) betekent: wie die gebruiker overneemt, is meteen root. Alleen gebruiken voor één vaste opdracht.')],
             'tmp_noexec' => [t('/tmp zonder uitvoeren (noexec)'), t('Veel malware wordt in /tmp gezet en daar gestart. Mount /tmp met noexec,nosuid,nodev (bv. systemctl enable tmp.mount en de opties in /etc/fstab).')],
             'selinux' => [t('SELinux aan'), t('SELinux beperkt wat een gehackte dienst kan. Zet SELINUX=enforcing in /etc/selinux/config en herstart (eerst permissive om te testen).')],
+            'ssh_maxauth' => [t('SSH: hooguit 4 pogingen per verbinding'), t('Minder pogingen per verbinding maakt raden trager. In sshd_config: MaxAuthTries 4.')],
+            'ssh_x11' => [t('SSH: geen X11-doorsturen'), t('Op een server is X11 zelden nodig, en het opent een extra weg naar je computer. In sshd_config: X11Forwarding no.')],
+            'ssh_idle' => [t('SSH: stille sessies gaan dicht'), t('Een vergeten open sessie is een open deur. In sshd_config: ClientAliveInterval 300 en ClientAliveCountMax 3.')],
+            'ssh_grace' => [t('SSH: hooguit 60 seconden om in te loggen'), t('Een korte tijd om in te loggen voorkomt dat aanvallers veel halve verbindingen openhouden. In sshd_config: LoginGraceTime 60.')],
+            'shadow_perm' => [t('/etc/shadow alleen voor root'), t('Hierin staan de wachtwoord-hashes. chown root:root /etc/shadow (Debian: root:shadow) en chmod 640 /etc/shadow (of 600).')],
+            'passwd_perm' => [t('/etc/passwd niet schrijfbaar voor anderen'), t('chown root:root /etc/passwd && chmod 644 /etc/passwd.')],
+            'crontab_perm' => [t('/etc/crontab alleen voor root'), t('Wie de crontab kan lezen of wijzigen, ziet of plant taken als root. chown root:root /etc/crontab && chmod 600 /etc/crontab.')],
+            'pass_max_days' => [t('Wachtwoorden verlopen (hooguit 365 dagen)'), t('In /etc/login.defs: PASS_MAX_DAYS 365 (geldt voor nieuwe accounts; bestaande met chage --maxdays 365 NAAM). Met alleen SSH-sleutels is dit minder belangrijk.')],
+            'umask' => [t('Standaard umask 027'), t('Nieuwe bestanden zijn dan niet leesbaar voor iedereen. In /etc/login.defs: UMASK 027.')],
+            'uid0' => [t('Alleen root heeft UID 0'), t('Een tweede account met UID 0 is een verborgen root, vaak een achterdeur. Kijk wie het is en haal het weg (userdel) of geef het een gewone UID.')],
+            'sys_randomize_va_space' => [t('Geheugen op willekeurige plekken (ASLR)'), t('Maakt het misbruiken van geheugenfouten veel moeilijker. sysctl -w kernel.randomize_va_space=2 en zet het in /etc/sysctl.d/60-rzsense.conf.')],
+            'sys_accept_redirects' => [t('Geen ICMP-redirects aannemen'), t('Een aanvaller in je netwerk kan je verkeer dan niet omleiden. net.ipv4.conf.all.accept_redirects = 0 (en default) in /etc/sysctl.d.')],
+            'sys_tcp_syncookies' => [t('SYN-cookies aan'), t('Beschermt tegen het overspoelen met halve verbindingen (SYN flood). net.ipv4.tcp_syncookies = 1 in /etc/sysctl.d.')],
+            'sys_rp_filter' => [t('Controle op vervalste afzenders (rp_filter)'), t('Pakketten met een onmogelijk afzenderadres worden dan weggegooid. net.ipv4.conf.all.rp_filter = 1 in /etc/sysctl.d (2 bij asymmetrische routes).')],
+            'sys_dmesg_restrict' => [t('Kernelmeldingen alleen voor root'), t('In de kernelmeldingen staan adressen die helpen bij een aanval. kernel.dmesg_restrict = 1 in /etc/sysctl.d.')],
+            'sys_ptrace_scope' => [t('Processen kunnen elkaar niet zomaar uitlezen'), t('Met ptrace kan een gehackt proces het geheugen van een ander uitlezen (wachtwoorden). kernel.yama.ptrace_scope = 1 in /etc/sysctl.d.')],
+            'sys_suid_dumpable' => [t('Geen core dumps van programma\'s met setuid'), t('Een core dump kan wachtwoorden of sleutels bevatten. fs.suid_dumpable = 0 in /etc/sysctl.d, en * hard core 0 in /etc/security/limits.conf.')],
+            'auditd' => [t('Audit-logboek (auditd) draait'), t('auditd legt vast wie wat deed (ook de endpoint-bewaking gebruikt het). Rocky/RHEL: dnf install audit; Debian/Ubuntu: apt install auditd; daarna systemctl enable --now auditd.')],
+            'time_sync' => [t('Tijd wordt gesynchroniseerd'), t('Zonder juiste tijd kloppen logboeken en certificaten niet. systemctl enable --now chronyd (of systemd-timesyncd).')],
+            'ww_files' => [t('Geen systeembestanden die iedereen kan wijzigen'), t('Een bestand in /etc of /usr/bin dat iedereen kan wijzigen, is een snelle weg naar root. chmod o-w op de genoemde bestanden.')],
+            'legacy_svc' => [t('Geen oude, onversleutelde diensten'), t('FTP, telnet, TFTP en rsh sturen wachtwoorden leesbaar over het netwerk. Zet ze uit en gebruik SSH/SFTP.')],
+            'faillock' => [t('Account op slot na mislukte pogingen'), t('Met pam_faillock gaat een account na een paar fouten even op slot. Rocky/RHEL: authselect enable-feature with-faillock; Debian: pam_faillock in /etc/pam.d/common-auth.')],
+            'pw_minlen' => [t('Wachtwoorden minstens 14 tekens'), t('In /etc/security/pwquality.conf: minlen = 14 (pakket libpwquality / libpam-pwquality).')],
+            'grub_perm' => [t('Opstartconfiguratie alleen voor root'), t('chown root:root /boot/grub*/grub.cfg && chmod 600 /boot/grub*/grub.cfg.')],
+            'shm_noexec' => [t('/dev/shm zonder uitvoeren (noexec)'), t('Net als /tmp een plek waar iedereen mag schrijven. In /etc/fstab: tmpfs /dev/shm tmpfs defaults,noexec,nosuid,nodev 0 0, daarna mount -o remount /dev/shm.')],
             default => [$item, ''],
         };
     }
@@ -110,7 +199,7 @@ final class Hardening
                 'getenforce; sestatus',
                 [[t('Eerst testen (permissive), daarna afdwingen'), "sudo sed -i 's/^SELINUX=.*/SELINUX=permissive/' /etc/selinux/config && sudo touch /.autorelabel && sudo reboot"]],
                 t('Na de herstart: kijk een paar dagen in de logboeken (ausearch -m avc), en zet het daarna op enforcing.')],
-            default => [$short, '', '', [], ''],
+            default => [$short, '', self::CHECK[$item] ?? '', [], ''],
         };
         return ['title' => $title, 'what' => $h[0], 'why' => $h[1], 'check' => $h[2], 'fix' => $short, 'cmds' => $h[3], 'caution' => $h[4]];
     }
@@ -151,6 +240,7 @@ final class Hardening
             }
             [$title, $advice] = self::text($r['item']);
             $out[] = ['item' => $r['item'], 'title' => $title, 'advice' => $advice, 'help' => self::help($r['item']), 'value' => $r['value'], 'ok' => $r['ok'] === null ? null : (bool) $r['ok'],
+                'cis' => self::CIS[$r['item']] ?? 0, 'cis_name' => self::cisChapter(self::CIS[$r['item']] ?? 0),
                 'ignored' => (bool) $r['ignored'], 'weight' => self::ITEMS[$r['item']][0], 'updated_at' => $r['updated_at']];
         }
         usort($out, static fn($a, $b) => [$a['ok'] === false && !$a['ignored'] ? 0 : 1, -$a['weight']] <=> [$b['ok'] === false && !$b['ignored'] ? 0 : 1, -$b['weight']]);

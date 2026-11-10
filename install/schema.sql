@@ -1609,3 +1609,5 @@ CREATE TABLE IF NOT EXISTS dns_seen (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('sudo_on', '1'), ('sudo_max', '240'), ('dnsbl_on', '0'), ('dnsbl_ti', '1'), ('dnsbl_ioc', '1'),
     ('dnsbl_own', ''), ('dnsbl_allow', ''), ('dns_nrd', '0'), ('dns_nrd_days', '30');
+-- 1.232.0: NIS2-overzicht (maatregelen, notities, meldtermijnen)
+INSERT IGNORE INTO settings (name, value) VALUES ('nis2_on', '1'), ('nis2_org', ''), ('nis2_csirt', '');

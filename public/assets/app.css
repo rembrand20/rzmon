@@ -5627,3 +5627,18 @@ span.app-sum-b { cursor: default; }
 .linkish { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font: inherit; text-align: left; }
 .linkish:hover { text-decoration: underline; }
 .hunt-hist span, .hunt-watch code { word-break: break-all; }
+/* 1.232.0: hardening per CIS-hoofdstuk */
+.hard-grp { margin: 12px 0 4px; font-size: .9em; }
+/* 1.232.0: NIS2 */
+.nis2-list { display: grid; gap: 6px; }
+.nis2-m { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; }
+.nis2-m.nis2-bad { border-color: color-mix(in srgb, var(--crit) 45%, var(--border)); }
+.nis2-m.nis2-warn { border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); }
+.nis2-m summary { cursor: pointer; }
+.nis2-ev { margin: 6px 0; padding-left: 1.1rem; }
+.nis2-m textarea { width: 100%; box-sizing: border-box; }
+.nis2-inc { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; margin: 6px 0; }
+.nis2-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+@media (max-width: 700px) { .nis2-steps { grid-template-columns: minmax(0, 1fr); } }
+.nis2-step { border: 1px dashed var(--border); border-radius: 8px; padding: 6px 8px; font-size: .9em; }
+.nis2-step.done { border-style: solid; border-color: color-mix(in srgb, var(--ok) 50%, var(--border)); }

@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.232.0**: **NIS2-overzicht** met de tien maatregelen, je notities, de meldtermijnen (24 uur, 72 uur, een maand) en een rapport, en **25 extra CIS-controles** in de hardening-score.
 - **1.231.0**: **tijdelijk sudo** met wachtwoord en 2FA dat vanzelf weer weggaat, een **AdGuard-blokkadelijst** uit RzSense, en **nieuw geregistreerde domeinen** herkennen.
 - **1.230.0**: **updates installeren**: beveiligingsupdates met één klik of automatisch in het onderhoudsvenster, eerst een snapshot, Home Assistant met een back-up.
 - **1.229.0**: **onbekende programma's** herkennen (toestaan, blokkeren, stoppen) en **jagen op sporen** uit een waarschuwing, ook op de servers zelf.
 - **1.228.0**: **ransomware herkennen** in je shares, met lokaasbestanden, een snapshot bij alarm en eventueel stoppen.
-- **1.227.0**: **e-mailbeveiliging van je domein** (SPF, DKIM, DMARC, met het record om te plakken) en **end-of-life** van besturingssysteem en software.
+
+## 1.232.0 – 2026-11-10
+### Nieuw
+- **NIS2-overzicht** (*Instellingen → Overzicht → NIS2*): een hulpmiddel bij de zorgplicht uit de NIS2-richtlijn (Cyberbeveiligingswet).
+  - De **tien maatregelen** uit artikel 21 (a–j), elk met wat RzSense er zelf van ziet (IDS, back-ups, kwetsbaarheden, updates, hardening, 2FA, https, logboek …) en een **eigen notitie** (beleid, afspraken met leveranciers, training). Een maatregel kun je ook zelf als geregeld markeren;
+  - **meldplicht**: markeer een incident als *significant*; RzSense telt af naar de **vroegtijdige waarschuwing (24 uur)**, de **incidentmelding (72 uur)** en het **eindverslag (een maand)**, geeft een melding als een termijn dichtbij komt of verlopen is (*Systeemmeldingen → NIS2*), en je vinkt aan wat je verstuurd hebt;
+  - een **NIS2-rapport** om af te drukken als PDF;
+  - geen juridisch advies en geen certificering: het laat zien wat RzSense technisch ziet. Aan/uit bij *Overzicht → Functies*.
+- **CIS-hardening** (**nieuwe agent 1.94.0**): de hardening-score per server heeft **25 extra controles** uit de CIS Benchmarks voor Linux (SSH, rechten, wachtwoordbeleid, kernel, audit, tijd, oude diensten …), met per punt uitleg, het commando om het te controleren en hoe je het dichtzet. In het venster staan de punten nu **per CIS-hoofdstuk**. Een tweede account met UID 0 erbij is een critical incident.
+- Nieuwe agent 1.94.0.
 
 ## 1.231.0 – 2026-11-10
 ### Nieuw

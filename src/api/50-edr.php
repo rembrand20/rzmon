@@ -254,6 +254,43 @@ switch ($action) {
         $inc = Incidents::info((int) ($_GET['id'] ?? 0));
         $inc ? out($inc) : out(['error' => t('Incident niet gevonden')], 404);
 
+    // ---------- 1.232.0: NIS2 ----------
+    case 'nis2':
+        out(Nis2::overview());
+
+    case 'nis2_note':
+        $in = input();
+        try {
+            Nis2::saveNote((string) ($in['code'] ?? ''), (string) ($in['note'] ?? ''), !empty($in['manual']), (string) $user['username']);
+            out(['ok' => true]);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    case 'nis2_mark':
+        $in = input();
+        try {
+            Nis2::mark((int) ($in['id'] ?? 0), !empty($in['on']), (string) $user['username']);
+            out(['ok' => true]);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    case 'nis2_sent':
+        $in = input();
+        try {
+            Nis2::sent((int) ($in['id'] ?? 0), (string) ($in['which'] ?? ''), !empty($in['on']), (string) $user['username']);
+            out(['ok' => true]);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    case 'nis2_report':
+        header('Content-Type: text/html; charset=utf-8');
+        header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; img-src data:");
+        echo Nis2::html();
+        exit;
+
     case 'incident_set':
         $in = input();
         $err = Incidents::update((int) ($in['id'] ?? 0), $user['username'],

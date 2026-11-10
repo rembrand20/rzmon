@@ -695,6 +695,15 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <button type="button" class="btn" id="set-toggle-all"><?= th('⊞ Alles openen') ?></button>
       </div>
       <form id="settings-form" class="settings-grid" data-pgrid="set">
+        <div data-sk="nis2" class="card" id="nis2-card">
+          <h2>🇪🇺 <?= th('NIS2') ?></h2>
+          <?= xp(t('Een hulpmiddel bij de zorgplicht uit de NIS2-richtlijn (in Nederland de Cyberbeveiligingswet).'), t('<b>Wat het is:</b> per maatregel uit <b>artikel 21</b> (a tot en met j) zie je wat RzSense er zelf van ziet, en schrijf je erbij wat je verder geregeld hebt (beleid, afspraken met leveranciers, training). Een <b>significant incident</b> markeer je hieronder; RzSense telt af naar de <b>vroegtijdige waarschuwing (24 uur)</b>, de <b>incidentmelding (72 uur)</b> en het <b>eindverslag (een maand)</b> aan je CSIRT, en waarschuwt als een termijn dichtbij komt. Het <b>rapport</b> kun je afdrukken als PDF. <b>Let op:</b> dit is geen juridisch advies en geen certificering; het laat zien wat RzSense technisch ziet.')) ?>
+          <label class="switch"><input type="checkbox" name="nis2_on"><span></span> <?= t('<b>NIS2-overzicht</b> en meldtermijnen') ?></label>
+          <label><?= th('Organisatie') ?> <span class="hint"><?= th('(voor het rapport)') ?></span><input name="nis2_org" maxlength="120"></label>
+          <label><?= th('CSIRT') ?> <span class="hint"><?= th('(waar je meldt, bv. het NCSC of het CSIRT van je sector)') ?></span><input name="nis2_csirt" maxlength="200"></label>
+          <div id="nis2-box"><p class="muted"><?= th('Laden…') ?></p></div>
+        </div>
+
         <div data-sk="pushover" class="card">
           <h2>Pushover</h2>
           <?= xp(t('Pushmeldingen op je telefoon via de Pushover-app.'), t('<b>Wat het is:</b> Pushover is een app voor iPhone, Android en de computer die berichten van RzSense meteen op je scherm zet, met een eigen geluid per prioriteit en noodmeldingen die blijven herhalen tot je reageert. <b>Instellen:</b> maak op <a href="https://pushover.net/apps/build" target="_blank" rel="noopener">pushover.net</a> een applicatie aan; dat geeft het <i>API-token</i>. Je <i>user key</i> staat op je Pushover-dashboard. <b>Goed om te weten:</b> na een gratis proefperiode betaal je Pushover één keer per platform.')) ?>

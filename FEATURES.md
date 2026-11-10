@@ -184,6 +184,8 @@ Dezelfde tabel staat in RzSense bij *Instellingen → Overzicht → Functies*, m
 | 🛡️ IDS en endpoint-bewaking | **AdGuard-blokkadelijst** | Een lijst voor AdGuard Home met malwaredomeinen, je bewaakte sporen en eigen domeinen, zodat ze in je hele netwerk geblokkeerd worden. | 1.231.0 |
 | 🛡️ IDS en endpoint-bewaking | **Nieuw geregistreerde domeinen** | Een apparaat dat een gloednieuw domein opvraagt (jonger dan 30 dagen, via RDAP): vaak phishing of malware. | 1.231.0 |
 | 🔐 Toegang en beveiliging | **Tijdelijk sudo** | Een gebruiker voor korte tijd sudo geven op één server, met je wachtwoord en 2FA; gaat vanzelf weer weg. | 1.231.0 |
+| 🔐 Toegang en beveiliging | **NIS2-overzicht** | De tien maatregelen uit artikel 21 met wat RzSense ziet en je notities, de meldtermijnen (24 uur, 72 uur, een maand) en een rapport. | 1.232.0 |
+| 🛡️ IDS en endpoint-bewaking | **CIS-hardening** | 25 extra controles uit de CIS Benchmarks per server (SSH, kernel, rechten, wachtwoorden, audit), gegroepeerd per hoofdstuk. | 1.232.0 |
 | 🐞 Kwetsbaarheden en datalekken | **E-mailbeveiliging van je domein** | SPF, DKIM, DMARC en MTA-STS: kan iemand mailen namens jouw domein? Met het record om te plakken. | 1.227.0 |
 | 🐞 Kwetsbaarheden en datalekken | **End-of-life** | Besturingssysteem en software die geen updates meer krijgen, of binnenkort niet (endoflife.date). | 1.227.0 |
 | 🐞 Kwetsbaarheden en datalekken | **Updates installeren** | Welke updates er klaarstaan, en ze installeren: met de hand, in het onderhoudsvenster of elke dag; eerst een snapshot, Home Assistant met een back-up. | 1.230.0 |

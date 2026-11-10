@@ -1444,6 +1444,12 @@ function renderIds() {
 }
 
 // ---------------------------------------------------------------- Beveiliging per server (1.88.0)
+/** 1.232.0: hardening-punten per hoofdstuk van de CIS Benchmark (punten zonder CIS-nummer achteraan) */
+function hardGroups(items) {
+  const g = new Map();
+  items.forEach((i) => { const k = +i.cis || 0; if (!g.has(k)) g.set(k, [k, i.cis_name || '', []]); g.get(k)[2].push(i); });
+  return [...g.values()].sort((a, b) => (a[0] || 99) - (b[0] || 99));
+}
 /** Hardening-score, isoleren en gebruikers vergrendelen voor één server */
 async function hostSecDialog(hostId) {
   const h = (idsData?.hosts || []).find((x) => +x.id === hostId) || { name: '?' };
@@ -1457,13 +1463,13 @@ async function hostSecDialog(hostId) {
     wide: true,
     body: `<h3 class="set-sub" style="margin-top:0">${L('Hardening')} ${d.score !== null ? `<span class="hard-chip ${d.score >= 85 ? 'good' : d.score >= 60 ? 'warn' : 'bad'}">${d.score}/100</span>` : ''}</h3>
       ${d.items.length ? `<p class="muted small" style="margin-top:-.3rem">${L('Klik op een punt voor uitleg, hoe je het controleert en hoe je het dichtzet.')}</p>
-        <div class="hard-list">${d.items.map((i, n) => { const hp = i.help || {}; return `<details class="hard-item ${i.ignored ? 'muted' : ''}" ${i.ok === false && !i.ignored ? 'open' : ''}>
+        <div class="hard-list">${hardGroups(d.items).map(([cis, name, items]) => `<h4 class="hard-grp">${cis ? 'CIS ' : ''}${esc(name)} <span class="muted small">${items.filter((i) => i.ok === true).length}/${items.filter((i) => i.ok !== null && !i.ignored).length}</span></h4>${items.map((i) => { const n = d.items.indexOf(i); const hp = i.help || {}; return `<details class="hard-item ${i.ignored ? 'muted' : ''}" ${i.ok === false && !i.ignored ? 'open' : ''}>
         <summary>${ic(i)} <b>${esc(i.title)}</b>${i.value ? ` <code>${esc(i.value)}</code>` : ''}
           <label class="small need-admin hard-ign"><input type="checkbox" data-hard-ign="${esc(i.item)}" ${i.ignored ? 'checked' : ''}> ${L('negeren')}</label></summary>
         <div class="hard-help">${hp.what ? `<p><b>${L('Wat is het?')}</b> ${esc(i.ok === true ? hp.why : hp.what + ' ' + hp.why)}</p>` : ''}
           ${hp.check ? `<div class="adv-cmd"><span class="small muted">${L('Controleren')}</span>${copyBox(`hard-chk-${n}`, hp.check)}</div>` : ''}
           ${i.ok !== true ? `<p><b>${L('Oplossen')}</b> ${esc(hp.fix || i.advice)}</p>${cmdList(hp.cmds || [], `hard-fix-${n}`)}` : `<p class="good small">✔ ${L('In orde; niets te doen.')}</p>`}
-          ${hp.caution && i.ok !== true ? `<p class="callout small">⚠️ ${esc(hp.caution)}</p>` : ''}</div></details>`; }).join('')}</div>`
+          ${hp.caution && i.ok !== true ? `<p class="callout small">⚠️ ${esc(hp.caution)}</p>` : ''}</div></details>`; }).join('')}`).join('')}</div>`
         : `<p class="muted small">${L('Nog geen gegevens: agent 1.57.0 nodig; hij stuurt ze elk uur.')}</p>`}
       <div class="need-admin">
       ${d.truenas ? `<h3 class="set-sub">🗄️ ${L('TrueNAS: ingrijpen door het IDS')}</h3>

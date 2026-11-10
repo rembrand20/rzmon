@@ -2764,6 +2764,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - **✅ Vrijgeven:** zet het IP op de ✅ whitelist (1, 7, 30 dagen of altijd). Dan wordt het niet meer gemeld en niet meer geblokkeerd.
 
 **🧰 Hardening-score** (vanaf 1.88.0, agent 1.57.0; aan/uit bij *Instellingen → IDS → Per server*)
+- **Vanaf 1.232.0 (agent 1.94.0)** komen er **25 controles uit de CIS Benchmarks** bij (SSH-instellingen, rechten van /etc/shadow, /etc/passwd, /etc/crontab en grub.cfg, wachtwoordbeleid, umask, een tweede account met UID 0, kernelinstellingen zoals ASLR en SYN-cookies, auditd, tijdsynchronisatie, bestanden die iedereen kan wijzigen, FTP/telnet/rsh, /dev/shm met noexec). In het venster staan ze **per CIS-hoofdstuk** (1 Basisinstallatie … 7 Systeemonderhoud), elk met het commando om het te controleren en hoe je het dichtzet. Alleen het hoofdstuk wordt genoemd: de nummers daarbinnen verschillen per distributie en versie.
 - Elk uur stuurt de agent een paar instellingen die het verschil maken. RzSense maakt er per server een score van 0 tot 100 van (🛡️ bij elke server op de IDS-pagina).
 - De punten:
   - SSH met wachtwoord, als root of met lege wachtwoorden;
@@ -3188,6 +3189,25 @@ Iemand moet even iets als root doen (een dienst herstarten, een update)? Geef di
 Aanzetten bij *Instellingen → IDS → Dreigingsinformatie → AdGuard-blokkadelijst*. Daar staat de **geheime URL** (alleen bereikbaar vanaf je lokale netwerk). Met **Toevoegen aan AdGuard** zet RzSense hem zelf in je AdGuard-instanties (als AdGuard gekoppeld is bij *Koppelingen*); anders plak je de URL in AdGuard bij *Filters → DNS-blokkadelijsten → Blokkadelijst toevoegen → Eigen lijst*. Met **Nieuwe geheime URL** maak je de oude onbruikbaar.
 
 **Nieuw geregistreerde domeinen:** vraagt een apparaat (via AdGuard) een domein op dat **jonger is dan 30 dagen**, dan krijg je een warning *… vroeg een nieuw geregistreerd domein op*. Phishing en malware gebruiken vaak gloednieuwe domeinen. RzSense zoekt elk hoofddomein **één keer** op via RDAP (hooguit 15 per minuut). Dit staat **standaard uit**, omdat de domeinnaam dan naar de RDAP-server van de registry gaat; aanzetten en de grens in dagen bij *Instellingen → IDS → Dreigingsinformatie*.
+
+### 8.12g NIS2 🇪🇺 (vanaf 1.232.0)
+Valt je organisatie onder de **NIS2-richtlijn** (in Nederland de Cyberbeveiligingswet), dan moet je passende maatregelen nemen (artikel 21) en significante incidenten op tijd melden (artikel 23). RzSense helpt je dat bij te houden: *Instellingen → Overzicht → NIS2*.
+
+**De tien maatregelen (a–j):** risicoanalyse en beleid, incidentbehandeling, bedrijfscontinuïteit, toeleveringsketen, veilig aanschaffen en onderhouden (kwetsbaarheden), beoordelen of het werkt, cyberhygiëne en training, cryptografie, personeel/toegang/inventaris, en MFA en beveiligde communicatie. Bij elke maatregel:
+- **wat RzSense ziet** (✔ / ✘), met een link naar de plek waar je het regelt: bijvoorbeeld de hardening-score, of het IDS aan staat en er een meldkanaal is, back-ups, openstaande actief misbruikte lekken (KEV), automatische beveiligingsupdates, het maandrapport, https, 2FA per gebruiker;
+- een **notitie** voor wat RzSense niet kan zien (beleid, afspraken met leveranciers, training, wie en wanneer);
+- **zelf als geregeld markeren**, als je het buiten RzSense geregeld hebt.
+Status: *geregeld*, *deels* of *ontbreekt*. Wijzigingen komen in het logboek en het wijzigingslogboek.
+
+**Meldtermijnen (art. 23):** kies onderaan een incident (van de laatste 30 dagen) en klik **Als significant markeren**. Vanaf het moment dat het incident bekend was, telt RzSense af naar:
+1. de **vroegtijdige waarschuwing**: binnen **24 uur**;
+2. de **incidentmelding**: binnen **72 uur**;
+3. het **eindverslag**: binnen **een maand** na de incidentmelding.
+Vink per stap *verstuurd* aan. Komt een termijn binnen 6 uur (eindverslag: 3 dagen) of is hij verlopen, dan krijg je een melding (*Instellingen → Meldingen → Systeemmeldingen → NIS2*). Vul bij **CSIRT** in waar je meldt (het NCSC of het CSIRT van je sector).
+
+**Rapport:** *NIS2-rapport (afdrukken als PDF)* geeft alles op één pagina: maatregelen, bewijs, notities en de meldingen.
+
+**Let op:** dit is geen juridisch advies en geen certificering. Het laat zien wat RzSense technisch ziet; of je onder NIS2 valt en wat significant is, bepaal je zelf (of met je adviseur). **Aan/uit:** daar, of *Overzicht → Functies*.
 
 ### 8.13 Kwetsbaarheden 🐞
 Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) horen daarbij? Standaard uit; aanzetten bij *Instellingen → 🐞 Kwetsbaarheden*. Daarna staat er een tabblad **🐞 Kwetsbaarheden** in de bovenbalk (voor beheerders en gebruikers, niet voor *alleen lezen*).

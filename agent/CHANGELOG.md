@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.94.0 – 2026-11-10
+- **CIS-hardening**: de agent leest elk uur 25 extra instellingen uit voor de hardening-score, uit de CIS Benchmarks voor Linux: SSH (pogingen per verbinding, X11, stille sessies, tijd om in te loggen), rechten van /etc/shadow, /etc/passwd, /etc/crontab en grub.cfg, wachtwoordbeleid (verlopen, minimale lengte, slot na mislukte pogingen), umask, een tweede account met UID 0, kernelinstellingen (ASLR, ICMP-redirects, SYN-cookies, rp_filter, dmesg, ptrace, core dumps), auditd, tijdsynchronisatie, systeembestanden die iedereen kan wijzigen, oude onversleutelde diensten (FTP, telnet, TFTP, rsh) en /dev/shm met noexec. Alleen uitlezen: de agent verandert niets.
+
 ## 1.93.0 – 2026-11-10
 - **Tijdelijk sudo** (gevraagd in RzSense: *Agent Manager → Tijdelijk sudo*): de agent zet een eigen bestand `/etc/sudoers.d/rzsense-jit-<gebruiker>` neer, eerst als verborgen bestand door `visudo` gecontroleerd en daarna de hele sudo-configuratie nog eens. Een systemd-timer haalt het op tijd weg, ook als de agent stopt; de agent haalt het zelf weg als de tijd voorbij is of het is ingetrokken.
   - Alleen de eigen `rzsense-jit`-bestanden worden ooit aangeraakt, nooit `/etc/sudoers` of andere bestanden; nooit voor root of een onbekende gebruiker. Een mislukte aanvraag wordt niet elke minuut opnieuw geprobeerd.
