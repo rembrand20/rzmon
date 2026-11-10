@@ -8,11 +8,26 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.229.0**: **onbekende programma's** herkennen (toestaan, blokkeren, stoppen) en **jagen op sporen** uit een waarschuwing, ook op de servers zelf.
 - **1.228.0**: **ransomware herkennen** in je shares, met lokaasbestanden, een snapshot bij alarm en eventueel stoppen.
 - **1.227.0**: **e-mailbeveiliging van je domein** (SPF, DKIM, DMARC, met het record om te plakken) en **end-of-life** van besturingssysteem en software.
 - **1.226.0**: **logboek per server**: wat de agent, RzSense en beheerders deden en veranderden, met uitkomst, filters en CSV.
 - **1.225.0**: **de code is opgesplitst in overzichtelijke onderdelen** (interface en API), met controles die fouten eerder vangen.
-- **1.224.0**: **Trends**: wat langzaam de verkeerde kant op gaat (accu, SSD, responstijd, geheugen, aanvallen), met een datum waarop het misgaat.
+
+## 1.229.0 – 2026-11-10
+### Nieuw
+- **Onbekende programma's** (**nieuwe agent 1.91.0**): RzSense houdt bij welke programma's er op je servers draaien, en laat het weten als er een onbekend programma bij komt.
+  - Wat uit een pakket komt is goed. In de **leerperiode** (standaard 7 dagen na het eerste rapport van een server) geldt wat er draait als normaal; daarna geeft een programma zonder pakket een **warning-incident**, en de vingerafdruk gaat naar de dreigingsinformatie (bekende malware wordt critical). Een programma (zonder pakket) dat ineens een andere vingerafdruk heeft, valt ook op;
+  - nieuw tabblad **IDS → 🧩 Programma's**: wat er draait per server, met filters; **toestaan** of **blokkeren** op vingerafdruk, pad of map, voor één server of alle servers, met een notitie. Toestaan sluit het incident;
+  - een geblokkeerd programma dat draait = **critical incident**. Per server kun je de agent het laten **stoppen** (Agent Manager, kaart 🧩 *Programma's*; aanzetten vraagt je wachtwoord);
+  - wachtwoorden in de opdrachtregel worden gemaskeerd voordat ze worden opgeslagen.
+- **Jagen op sporen (IOC)**: nieuw tabblad **IDS → 🔎 Jagen**. Plak IP-adressen, domeinen, URL's, vingerafdrukken (sha256) of paden, bijvoorbeeld uit een waarschuwing van het NCSC (ook `1.2.3[.]4` en `hxxp://` werken).
+  - RzSense zoekt ze in IDS-incidenten, SSH-logins en -pogingen, blokkades, inlogpogingen op RzSense, aanvallen op je websites, de endpoint-bewaking, de programma's per server en de logs, over de periode die je kiest;
+  - met **ook op de servers** zoeken de agents (1.91.0) zelf naar de paden en vingerafdrukken; de uitkomst verschijnt bij de jacht, en een treffer is een critical incident;
+  - **bewaken**: zet sporen op een lijst; elke 10 minuten vergelijkt RzSense wat er nieuw binnenkwam, een treffer is een critical incident;
+  - eerdere jachten blijven 180 dagen bewaard.
+- Beide aan/uit voor alles bij **Instellingen → IDS → Programma's** en **Jagen op sporen**, en bij *Overzicht → Functies*. Alles wat er gebeurt (gezien, toegestaan, geblokkeerd, gestopt, gezocht) staat in het **logboek** van de server.
+- Nieuwe agent 1.91.0.
 
 ## 1.228.0 – 2026-11-10
 ### Nieuw

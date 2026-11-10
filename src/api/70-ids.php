@@ -108,6 +108,65 @@ switch ($action) {
             out(['error' => $e->getMessage()], 422);
         }
 
+    // ---------- 1.229.0: onbekende programma's (agent 1.91.0) ----------
+    case 'apps':
+        out(AppControl::list($_GET));
+
+    case 'apps_info':
+        out(AppControl::info((int) ($_GET['host_id'] ?? 0)));
+
+    case 'apps_decide':
+        $in = input();
+        try {
+            $n = AppControl::decide((string) ($in['action'] ?? ''), (string) ($in['sha'] ?? ''), (string) ($in['path'] ?? ''), (int) ($in['host_id'] ?? 0),
+                trim((string) ($in['note'] ?? '')), (string) $user['username']);
+            out(['ok' => true, 'n' => $n]);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    case 'apps_rule_delete':
+        AppControl::deleteRule((int) (input()['id'] ?? 0), (string) $user['username']);
+        out(['ok' => true]);
+
+    case 'apps_host_save':
+        $in = input();
+        $hid = (int) ($in['host_id'] ?? 0);
+        $hr = q("SELECT id, appctl_kill FROM hosts WHERE id = ? AND mode = 'agent'", [$hid])->fetch();
+        if (!$hr) {
+            out(['error' => t('Server niet gevonden')], 404);
+        }
+        if (!empty($in['kill']) && !(int) $hr['appctl_kill']) {
+            $confirm('STOPPEN');   // geblokkeerde programma's laten stoppen door de agent: met je wachtwoord
+        }
+        out(AppControl::saveHost($hid, !empty($in['on']), !empty($in['kill']), (string) $user['username']));
+
+    // ---------- 1.229.0: jagen op sporen (IOC) ----------
+    case 'ioc_hunt':
+        $in = input();
+        try {
+            out(Ioc::hunt((string) ($in['text'] ?? ''), (int) ($in['days'] ?? 30), !empty($in['agents']), (string) $user['username']));
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    case 'ioc_get':
+        try {
+            out(Ioc::get((int) ($_GET['id'] ?? 0)));
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 404);
+        }
+
+    case 'ioc_hunts':
+        out(['on' => Ioc::enabled(), 'hunts' => Ioc::hunts(), 'watch' => Ioc::watchList()]);
+
+    case 'ioc_watch_add':
+        $in = input();
+        out(Ioc::watchAdd((string) ($in['text'] ?? ''), trim((string) ($in['note'] ?? '')), (string) $user['username']));
+
+    case 'ioc_watch_delete':
+        out(['n' => Ioc::watchDelete((array) (input()['ids'] ?? []), (string) $user['username'])]);
+
     case 'eol':   // 1.227.0: end-of-life per server
         out(Eol::overview());
 

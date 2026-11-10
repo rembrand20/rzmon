@@ -51,6 +51,13 @@ jobs:
           bash tests/agent-ransom.sh 2>&1 | tee /tmp/ransom.out
           rc=${PIPESTATUS[0]}
           [ "$rc" = 0 ] || { echo "::error title=Ransomware op ${{ matrix.image }}::$(tail -n 15 /tmp/ransom.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
+      - name: Programma's en jagen (vingerafdruk, pakket, blokkeren, sporen)
+        shell: bash
+        run: |
+          set +e +o pipefail
+          bash tests/agent-apps.sh 2>&1 | tee /tmp/apps.out
+          rc=${PIPESTATUS[0]}
+          [ "$rc" = 0 ] || { echo "::error title=Programma's op ${{ matrix.image }}::$(tail -n 15 /tmp/apps.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
       - name: Endpoint-bewaking (auditd-, SWAG- en Suricata-parser)
         shell: bash
         run: |

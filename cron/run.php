@@ -167,6 +167,9 @@ try {
         echo date('c') . " $msg\n";
     }
     Perf::lap('dns');
+    if ($msg = Ioc::cron()) {   // 1.229.0: bewaakte sporen (elke 10 minuten)
+        echo date('c') . " $msg\n";
+    }
 } catch (Throwable $e) {
     cron_err('Agents/certificaat', $e);
 }

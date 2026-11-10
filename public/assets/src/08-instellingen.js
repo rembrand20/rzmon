@@ -763,6 +763,8 @@ const SET_NAV = [
       [['bewaking', L('Bewaking'), ['ids_edr']], ['regels', L('Regels en uitzonderingen'), ['ids_rules']]]],
     ['ids_ti', L('Dreigingsinformatie'), ['ids_ti'], L('Bekende aanvallers en malware opzoeken, en DNS en Suricata.')],
     ['ids_ransom', L('Ransomware'), ['ransom'], L('Mappen bewaken op versleutelen, met lokaasbestanden, snapshot en stoppen.')],
+    ['ids_apps', L('Programma\'s'), ['apps'], L('Welke programma\'s er draaien; onbekende vallen op na een leerperiode. Toestaan, blokkeren en stoppen.')],
+    ['ids_hunt', L('Jagen op sporen'), ['hunt'], L('IP-adressen, domeinen, vingerafdrukken en paden zoeken, ook op de servers, en bewaken.')],
     ['ids_attack', L('Netwerk en aanvallers'), ['ids_attack', 'whitelist'], L('Blocklists, landen, uitgaand verkeer, de logs van webdiensten en de whitelist.'),
       [['aanvallers', L('Aanvallers en verkeer'), ['ids_attack']], ['whitelist', L('Whitelist'), ['whitelist']]]],
     ['ids_servers', L('Per server'), ['ids_servers'], L('Welke servers het IDS gebruiken, en wat ze bewaken.')]]],
@@ -886,6 +888,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'changelog') loadChangeLog();
   if (setSection === 'actlog') loadActLog();   // 1.226.0
   if (setSection === 'ids_ransom') loadRansomSet();   // 1.228.0
+  if (setSection === 'ids_apps') loadAppsSet();   // 1.229.0
   if (setSection === 'ids_edr' && cards.includes('ids_rules')) { ruleWhere = 'set'; loadEdrRules(); }   // 1.162.0
   if (setSection === 'ids_attack' && cards.includes('whitelist')) loadBlocks();
   if (setSection === 'db' || setSection === 'perf') loadSyscheck();   // 1.151.0: systeemcheck, cron, database, prestaties

@@ -586,7 +586,7 @@ function showTab(name) {
   if (/^(ids|vulns)\//.test(name)) {
     const [tab, s] = name.split('/');
     name = tab;
-    if (tab === 'ids' && ['inc', 'map', 'acc', 'blk', 'prot', 'live', 'rules', 'anom', 'mitre'].includes(s)) idsTab = s;
+    if (tab === 'ids' && ['inc', 'map', 'acc', 'blk', 'prot', 'live', 'rules', 'anom', 'mitre', 'apps', 'hunt'].includes(s)) idsTab = s;
     if (tab === 'vulns' && ['cve', 'leak', 'eol'].includes(s)) vulnTab = s;
   }
   if (qs) {

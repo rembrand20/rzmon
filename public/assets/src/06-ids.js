@@ -254,7 +254,7 @@ async function loadIds() {
 }
 
 function showIdsTab() {
-  if (!['inc', 'map', 'acc', 'blk', 'prot', 'live', 'rules', 'anom', 'mitre'].includes(idsTab)) idsTab = 'inc';
+  if (!['inc', 'map', 'acc', 'blk', 'prot', 'live', 'rules', 'anom', 'mitre', 'apps', 'hunt'].includes(idsTab)) idsTab = 'inc';
   $$('#ids-tabs .seg-btn').forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab));
   $$('#tab-ids .ids-pane').forEach((x) => { x.hidden = x.dataset.pane !== idsTab; });
   const nAnom = ((idsData && idsData.incidents) || []).filter((i) => (i.type === 'chain' || i.type === 'anomaly') && i.status === 'open').length;
@@ -265,6 +265,8 @@ function showIdsTab() {
     if (idsTab === 'rules') { ruleWhere = 'ids'; if (ruleSrc === 'exc') ruleSrc = ''; loadEdrRules(); }
     if (idsTab === 'anom') loadAnom();
     if (idsTab === 'mitre') loadMitre();
+    if (idsTab === 'apps') { initApps(); loadApps(); }   // 1.229.0
+    if (idsTab === 'hunt') { initHunt(); loadHunt(); }
     if (idsTab === 'prot') loadProt();
     if (idsTab === 'map') { initAttackMap(); loadAttackMap(); }   // 1.149.0
   });
@@ -1082,7 +1084,7 @@ function accIgnoreDialog(r) {
 
 const IDS_CATS = [['ports', () => L('Poorten'), ['port_new', 'kev_port']], ['net', () => '🌐 ' + L('Uitgaand'), ['outbound', 'out_bad', 'out_country']],
   ['web', () => '🕸️ ' + L('Webshell en diensten'), ['webshell', 'unit_new']], ['weblog', () => '📜 ' + L('Webdiensten'), ['web_attack']], ['files', () => L('Bestanden'), ['file', 'fim', 'fim_bulk']],
-  ['procs', () => L('Processen'), ['proc', 'proc_suspicious', 'revshell']], ['logins', () => L('Logins'), ['bruteforce', 'breakin', 'rootlogin', 'newip', 'user_new', 'ssh_login', 'group_add', 'uid0']], ['decoy', () => '🍯 ' + L('Honeypot'), ['decoy_user', 'decoy_port']], ['ransom', () => '🧬 ' + L('Ransomware'), ['ransom', 'ransom_mass']]];
+  ['procs', () => L('Processen'), ['proc', 'proc_suspicious', 'revshell']], ['logins', () => L('Logins'), ['bruteforce', 'breakin', 'rootlogin', 'newip', 'user_new', 'ssh_login', 'group_add', 'uid0']], ['decoy', () => '🍯 ' + L('Honeypot'), ['decoy_user', 'decoy_port']], ['ransom', () => '🧬 ' + L('Ransomware'), ['ransom', 'ransom_mass']], ['apps', () => '🧩 ' + L('Programma\'s'), ['app_new', 'app_changed', 'app_block']], ['ioc', () => '🔎 ' + L('Sporen'), ['ioc']]];
 const idsCatOf = (i) => (IDS_CATS.find((c) => c[2].includes(i.type)) || [''])[0];
 
 /** Toegang in de laatste 24 uur: [gelukt, mislukt (pogingen), per uur mislukt] */

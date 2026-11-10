@@ -5,6 +5,14 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.91.0 – 2026-11-10
+- **Onbekende programma's** (aan per server in RzSense: *Agent Manager → Programma's*):
+  - de agent meldt elk programma dat draait één keer, met een **vingerafdruk** (sha256) en het **pakket** waar het bij hoort (rpm, dpkg, apk, pacman; snap, flatpak en nix apart). Alleen wat nieuw of veranderd is krijgt een nieuwe vingerafdruk, dus het kost na de eerste ronde bijna niets;
+  - programma's in containers tellen niet mee (die hebben hun eigen bewaking);
+  - een programma dat je in RzSense **blokkeerde** wordt gestopt zodra het draait, als je *Geblokkeerde programma's stoppen* aanzette (alleen dat proces, op PID; systeemprocessen nooit). Uitzetten op de server: `APPCTL=0`.
+- **Jagen op sporen**: vraagt RzSense het, dan zoekt de agent één keer of bepaalde paden bestaan en of een draaiend programma of een bestand in /tmp, /var/tmp, /dev/shm, /usr/local, /opt, /root, /home, /srv of /var/www een bepaalde vingerafdruk heeft. Hooguit 2 minuten, met lage voorrang.
+- Alles in het logboek van de server.
+
 ## 1.90.0 – 2026-11-10
 - **Ransomware herkennen** (aan per server in RzSense: *Agent Manager → Ransomware*, met de mappen die je kiest):
   - **lokaasbestanden** in elke map (vooraan en achteraan): gewijzigd, hernoemd of weg = meteen alarm;

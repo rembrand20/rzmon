@@ -333,6 +333,10 @@ final class Installer
         ['hosts', 'ransom_snap', 'TINYINT(1) NOT NULL DEFAULT 1'],         // snapshot bij een sterk signaal
         ['hosts', 'ransom_kill', 'TINYINT(1) NOT NULL DEFAULT 0'],         // schrijvende processen stoppen (standaard uit)
         ['hosts', 'ransom_canary', 'TINYINT(1) NOT NULL DEFAULT 1'],       // lokaasbestanden   // 1.174.0: IDS mag op deze TrueNAS blokkeren (standaard uit)
+        ['hosts', 'appctl', 'TINYINT(1) NOT NULL DEFAULT 1'],             // 1.229.0: programma's bijhouden (agent 1.91.0)
+        ['hosts', 'appctl_kill', 'TINYINT(1) NOT NULL DEFAULT 0'],        // geblokkeerde programma's stoppen (standaard uit)
+        ['hosts', 'appctl_since', 'DATETIME NULL'],                       // eerste rapport: begin van de leerperiode
+        ['hosts', 'ioc_req', 'TEXT NULL'],                                // 1.229.0: openstaande jacht voor de agent (JSON)
         ['checks', 'cstate', 'VARCHAR(10) NULL'],
         ['checks', 'path_sum', 'VARCHAR(255) NULL'],   // 1.177.0: pad-check in het kort (bolletjes per hop, ms, Mbit/s) voor de tegels
         ['hosts', 'logs_interval', 'SMALLINT UNSIGNED NULL'],   // 1.210.0: logs versturen elke … minuten (leeg = de algemene instelling)

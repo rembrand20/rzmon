@@ -1521,3 +1521,58 @@ INSERT IGNORE INTO settings (name, value) VALUES ('actlog_days', '365');
 INSERT IGNORE INTO settings (name, value) VALUES ('mailsec_on', '1'), ('eol_on', '1');
 -- 1.228.0: ransomware herkennen (per server de mappen in de Agent Manager); ondergrens voor "heel veel tegelijk"
 INSERT IGNORE INTO settings (name, value) VALUES ('ransom_on', '1'), ('ransom_min', '300');
+
+-- 1.229.0: programma's per server (agent 1.91.0): wat er draaide, met vingerafdruk (sha256) en het pakket waar het bij hoort.
+-- status: pkg (uit een pakket), learn (gezien in de leerperiode), ok (toegestaan), new (onbekend), block (geblokkeerd).
+CREATE TABLE IF NOT EXISTS app_seen (
+    host_id    INT UNSIGNED NOT NULL,
+    sha        CHAR(64)     NOT NULL,
+    path       VARCHAR(300) NOT NULL,
+    pkg        VARCHAR(80)  NOT NULL DEFAULT '',
+    username   VARCHAR(64)  NOT NULL DEFAULT '',
+    cmd        VARCHAR(300) NOT NULL DEFAULT '',
+    status     VARCHAR(5)   NOT NULL DEFAULT 'new',
+    first_seen DATETIME     NOT NULL,
+    last_seen  DATETIME     NOT NULL,
+    PRIMARY KEY (host_id, sha, path),
+    INDEX idx_apps_sha (sha),
+    INDEX idx_apps_status (status, last_seen),
+    CONSTRAINT fk_apps_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- Wat je besliste: toestaan of blokkeren, op vingerafdruk of op pad (een pad dat eindigt op / = alles in die map);
+-- host_id 0 = alle servers
+CREATE TABLE IF NOT EXISTS app_rules (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id    INT UNSIGNED NOT NULL DEFAULT 0,
+    sha        CHAR(64)     NOT NULL DEFAULT '',
+    path       VARCHAR(300) NOT NULL DEFAULT '',
+    action     VARCHAR(5)   NOT NULL,
+    note       VARCHAR(200) NOT NULL DEFAULT '',
+    username   VARCHAR(100) NULL,
+    created_at DATETIME     NOT NULL,
+    INDEX idx_appr_sha (sha)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- 1.229.0: jagen op sporen (IOC): bewaakte sporen (elke 10 minuten vergeleken met wat er nieuw binnenkwam) en eerdere jachten
+CREATE TABLE IF NOT EXISTS ioc_watch (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    kind       VARCHAR(6)   NOT NULL,
+    value      VARCHAR(253) NOT NULL,
+    note       VARCHAR(200) NOT NULL DEFAULT '',
+    username   VARCHAR(100) NULL,
+    created_at DATETIME     NOT NULL,
+    last_hit   DATETIME     NULL,
+    hits       INT UNSIGNED NOT NULL DEFAULT 0,
+    UNIQUE KEY uq_ioc_watch (kind, value)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS ioc_hunts (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    created_at DATETIME     NOT NULL,
+    username   VARCHAR(100) NULL,
+    iocs       TEXT         NOT NULL,
+    days       SMALLINT UNSIGNED NOT NULL DEFAULT 30,
+    hits       INT UNSIGNED NOT NULL DEFAULT 0,
+    result     MEDIUMTEXT   NULL,
+    agents     TEXT         NULL,
+    INDEX idx_iochunt_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('appctl_on', '1'), ('appctl_learn', '7'), ('ioc_on', '1');

@@ -347,6 +347,8 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <button type="button" class="seg-btn" data-it="rules"><?= th('🔏 Regels') ?></button>
         <button type="button" class="seg-btn" data-it="anom"><?= th('🧬 Afwijkingen') ?> <span class="it-n" id="it-n-anom"></span></button>
         <button type="button" class="seg-btn" data-it="mitre"><?= th('🧭 MITRE') ?></button>
+        <button type="button" class="seg-btn" data-it="apps"><?= th('🧩 Programma\'s') ?> <span class="it-n" id="it-n-apps"></span></button>
+        <button type="button" class="seg-btn" data-it="hunt"><?= th('🔎 Jagen') ?></button>
       </div>
       <!-- 1.149.0: aanvalskaart -->
       <div class="ids-pane" data-pane="map" hidden>
@@ -371,6 +373,29 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <div class="card" id="anom-learn"><p class="muted"><?= th('Laden…') ?></p></div>
         <div class="card" id="anom-chains"></div>
         <div class="card" id="anom-list"></div>
+      </div>
+      <!-- 1.229.0: onbekende programma's en jagen op sporen -->
+      <div class="ids-pane" data-pane="apps" hidden>
+        <div class="dash-bar"><select id="apps-host" aria-label="<?= th('Server') ?>"><option value=""><?= th('Alle servers') ?></option></select>
+          <input id="apps-q" type="search" placeholder="<?= th('Zoeken: pad, pakket, vingerafdruk …') ?>" autocomplete="off">
+          <a class="btn small-btn need-admin" href="#settings/ids_apps" data-goto="settings/ids_apps">⚙️ <?= th('Instellen') ?></a></div>
+        <div class="card" id="apps-body"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+      <div class="ids-pane" data-pane="hunt" hidden>
+        <div class="callout small" id="hunt-off" hidden><?= th('Jagen op sporen staat uit (Instellingen → IDS → Jagen op sporen).') ?></div>
+        <div class="hunt-grid">
+          <div class="card">
+            <h3 class="set-sub">🔎 <?= th('Sporen zoeken') ?></h3>
+            <p class="muted small"><?= th('Plak IP-adressen, domeinen, URL\'s, vingerafdrukken (sha256) of paden, bijvoorbeeld uit een waarschuwing van het NCSC. Ook 1.2.3[.]4 en hxxp:// werken.') ?></p>
+            <textarea id="hunt-text" rows="7" class="mono" placeholder="185.220.101.4&#10;evil-domain[.]com&#10;/tmp/.x/kworker&#10;e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"></textarea>
+            <div class="btn-row"><label><?= th('Periode') ?> <select id="hunt-days"><option value="7">7 <?= th('dagen') ?></option><option value="30" selected>30 <?= th('dagen') ?></option><option value="90">90 <?= th('dagen') ?></option><option value="365">365 <?= th('dagen') ?></option></select></label>
+              <label class="switch small need-admin"><input type="checkbox" id="hunt-agents" checked><span></span> <?= th('Ook op de servers zoeken (paden en vingerafdrukken)') ?></label></div>
+            <div class="btn-row"><button type="button" class="btn primary need-admin" id="hunt-go">🔎 <?= th('Zoeken') ?></button>
+              <button type="button" class="btn need-admin" id="hunt-watch">👁 <?= th('Bewaken') ?></button></div>
+            <div id="hunt-result"></div>
+          </div>
+          <div class="card" id="hunt-side"><p class="muted"><?= th('Laden…') ?></p></div>
+        </div>
       </div>
       <div class="ids-pane" data-pane="mitre" hidden>
         <div class="dash-bar"><select id="mitre-host" aria-label="<?= th('Server') ?>"><option value=""><?= th('Alle servers') ?></option></select>
@@ -1184,6 +1209,23 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
             <input type="number" name="ransom_min" min="20" max="100000" class="num-in"></label>
           <h3 class="set-sub"><?= th('Per server') ?></h3>
           <div id="ransom-hosts"><p class="muted"><?= th('Laden…') ?></p></div>
+        </div>
+
+        <div data-sk="apps" class="card" id="apps-card">
+          <h2>🧩 <?= th('Onbekende programma\'s') ?></h2>
+          <?= xp(t('Ziet welke programma\'s er op je servers draaien, en laat je weten als er een nieuw, onbekend programma bij komt.'), t('<b>Hoe het werkt:</b> de agent meldt elk programma dat draait één keer, met een <b>vingerafdruk</b> (sha256) en het <b>pakket</b> waar het bij hoort. Wat uit een pakket komt is goed. In de <b>leerperiode</b> (na het eerste rapport) geldt wat er draait als normaal; daarna geeft een programma zonder pakket dat je niet toestond een <b>incident</b>, en de vingerafdruk gaat naar de dreigingsinformatie (bekende malware = critical). In <b>IDS → Programma\'s</b> sta je toe of blokkeer je, op vingerafdruk, pad of map, voor één of alle servers. Een geblokkeerd programma dat draait = critical incident; per server kun je de agent het laten <b>stoppen</b> (Agent Manager, met je wachtwoord). Alles staat in het logboek. <b>Agent 1.91.0</b> of nieuwer, als root; containers tellen niet mee.')) ?>
+          <label class="switch"><input type="checkbox" name="appctl_on"><span></span> <?= t('<b>Onbekende programma\'s</b> bijhouden en melden') ?></label>
+          <label><?= th('Leerperiode') ?> <span class="hint"><?= th('(dagen na het eerste rapport van een server; 0 = meteen melden)') ?></span>
+            <input type="number" name="appctl_learn" min="0" max="90" class="num-in"></label>
+          <h3 class="set-sub"><?= th('Per server') ?></h3>
+          <div id="apps-hosts"><p class="muted"><?= th('Laden…') ?></p></div>
+        </div>
+
+        <div data-sk="hunt" class="card" id="hunt-card">
+          <h2>🔎 <?= th('Jagen op sporen') ?></h2>
+          <?= xp(t('Zoek in één keer of sporen uit een waarschuwing (IP, domein, vingerafdruk, pad) bij jou voorkomen.'), t('<b>Hoe het werkt:</b> in <b>IDS → Jagen</b> plak je sporen. RzSense zoekt ze in IDS-incidenten, SSH-logins, blokkades, inlogpogingen, aanvallen op je websites, de endpoint-bewaking, de programma\'s per server en de logs. Met <b>ook op de servers</b> zoekt elke agent (1.91.0) zelf naar de paden en vingerafdrukken (draaiende programma\'s, /tmp, /opt, /home …), hooguit 2 minuten en met lage voorrang. <b>Bewaken</b> zet sporen op een lijst: elke 10 minuten vergelijkt RzSense wat er nieuw binnenkwam, en een treffer is een critical incident. Er gaat niets naar buiten.')) ?>
+          <label class="switch"><input type="checkbox" name="ioc_on"><span></span> <?= t('<b>Jagen op sporen</b> en bewaakte sporen') ?></label>
+          <p class="small"><a href="#ids/hunt" data-goto="ids/hunt"><?= th('Naar IDS → Jagen') ?> →</a></p>
         </div>
 
         <div data-sk="eol" class="card" id="eol-card">

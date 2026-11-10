@@ -3137,6 +3137,36 @@ Ransomware versleutelt je bestanden en vraagt losgeld. Hoe eerder je het ziet, h
 
 **Goed om te weten:** dit is een vangnet, geen vervanging van **back-ups**. Een snapshot staat op dezelfde schijf; zorg ook voor een back-up op een andere plek.
 
+### 8.12c Onbekende programma's 🧩 (vanaf 1.229.0, agent 1.91.0)
+Een aanvaller zet vaak een eigen programma op je server: een cryptominer, een achterdeur, een scanner. RzSense houdt bij welke programma's er draaien en laat het weten als er een onbekend programma bij komt.
+
+**Hoe het werkt:** de agent meldt elk programma dat draait één keer, met een **vingerafdruk** (sha256) en het **pakket** waar het bij hoort. Programma's in containers tellen niet mee.
+- **Uit een pakket** (rpm, dpkg, apk, pacman; ook snap, flatpak, nix) = goed.
+- **Leerperiode** (standaard 7 dagen na het eerste rapport van een server): wat er dan draait geldt als normaal (*geleerd*).
+- Daarna: een programma **zonder pakket** dat je niet toestond = **warning** *Onbekend programma*. De vingerafdruk gaat naar de dreigingsinformatie (CIRCL, MalwareBazaar): bekende malware = **critical**.
+- Een programma zonder pakket met ineens een **andere vingerafdruk** = warning *Programma veranderd* (een eigen update, of vervangen?).
+
+**Beslissen:** in *IDS → 🧩 Programma's* (of op de kaart in de Agent Manager) kies je bij een programma **✔ Toestaan** of **⛔ Blokkeren**:
+- op de **vingerafdruk** (precies dit programma), het **pad** (ook na een update) of, bij toestaan, de hele **map**;
+- voor **deze server** of **alle servers**, met een notitie. Onder *Wat je besliste* haal je een keuze weer weg.
+
+**Blokkeren:** draait een geblokkeerd programma, dan krijg je een **critical** incident. Zet je per server **Geblokkeerde programma's stoppen** aan (*Agent Manager → 🧩 Programma's*, met je wachtwoord), dan stopt de agent het meteen (alleen dat proces; systeemprocessen nooit). Een hele systeemmap (`/usr/`, `/bin/` …) blokkeren kan niet.
+
+**Aan/uit:** voor alles bij *Instellingen → IDS → Programma's* (daar ook de leerperiode) of *Overzicht → Functies*; per server in de Agent Manager. Op de server zelf: `APPCTL=0` in `/etc/default/rzmon-agent`. Agent **1.91.0** of nieuwer, als root.
+
+**Goed om te weten:** scripts (Python, bash) zie je als hun interpreter (`python3`, `bash`), die uit een pakket komt. Dit is dus een lichte vorm van *application control*: het vangt vreemde programma's, niet elk script.
+
+### 8.12d Jagen op sporen 🔎 (vanaf 1.229.0)
+Krijg je een waarschuwing met **sporen** (IOC's: IP-adressen, domeinen, vingerafdrukken, paden), bijvoorbeeld van het NCSC of een leverancier, dan zoek je in *IDS → 🔎 Jagen* in één keer of ze bij jou voorkomen.
+1. Plak de sporen in het vak. Ook onschadelijk gemaakte schrijfwijzen werken (`1.2.3[.]4`, `hxxps://evil[.]com/…`); een URL wordt het domein. md5/sha1 worden overgeslagen (alleen sha256).
+2. Kies de periode (7 tot 365 dagen) en of de **servers ook zelf zoeken** (paden en vingerafdrukken).
+3. **🔎 Zoeken**: per spoor zie je waar het voorkwam: IDS-incidenten, SSH-logins en -pogingen, blokkades, inlogpogingen op RzSense, aanvallen op je websites, EDR, de programma's per server en de logs. Een spoor dat bij de dreigingsinformatie bekend is, krijgt ☣.
+4. **Op de servers**: elke agent (1.91.0) zoekt bij zijn volgende ronde of de paden bestaan en of een draaiend programma of een bestand in `/tmp`, `/var/tmp`, `/dev/shm`, `/usr/local`, `/opt`, `/root`, `/home`, `/srv` of `/var/www` die vingerafdruk heeft (hooguit 2 minuten, lage voorrang). De uitkomst verschijnt vanzelf bij de jacht; een treffer is een **critical** incident.
+
+**👁 Bewaken:** zet de sporen op een lijst (met een notitie). Elke 10 minuten vergelijkt RzSense wat er nieuw binnenkwam met de lijst; een treffer = **critical** incident *Bewaakt spoor gezien*.
+
+**Eerdere jachten** blijven 180 dagen staan (rechts). Alles staat in het logboek. **Aan/uit:** *Instellingen → IDS → Jagen op sporen* of *Overzicht → Functies*. Er gaat niets naar buiten: alles wordt vergeleken met wat RzSense al heeft.
+
 ### 8.13 Kwetsbaarheden 🐞
 Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) horen daarbij? Standaard uit; aanzetten bij *Instellingen → 🐞 Kwetsbaarheden*. Daarna staat er een tabblad **🐞 Kwetsbaarheden** in de bovenbalk (voor beheerders en gebruikers, niet voor *alleen lezen*).
 

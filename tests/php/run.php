@@ -2414,5 +2414,66 @@ $b = ['hist' => array_merge(array_fill(0, 150, 10), array_fill(0, 18, 200))];
 ok(Ransom::threshold(['hist' => [5, 6]]) === 300 && Ransom::threshold($b) === 800, 'ransomware: drempel = ondergrens tot 3 dagen geleerd, daarna 4 × het 95e percentiel');
 q('DELETE FROM hosts WHERE id = ?', [$hr]);
 
+section("Programma's en jagen (1.229.0)");
+q("INSERT INTO hosts (name, address, mode, agent_version, appctl_since) VALUES ('ci-apps', '10.0.0.96', 'agent', '1.91.0', NOW() - INTERVAL 30 DAY)");
+$ha = (int) db()->lastInsertId();
+q("INSERT INTO hosts (name, address, mode, agent_version) VALUES ('ci-apps-nieuw', '10.0.0.97', 'agent', '1.91.0')");
+$hl = (int) db()->lastInsertId();
+ok(AppControl::agentLines($ha) === ["0\tapps\t0"], "programma's: aan voor de agent, zonder stoppen en zonder blokkades");
+$shaA = str_repeat('a', 64); $shaB = str_repeat('b', 64); $shaP = str_repeat('c', 64);
+$st = db()->prepare('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)');
+$rowA = q('SELECT * FROM hosts WHERE id = ?', [$ha])->fetch();
+$rep = ['apps' => ['on' => 1, 'n' => 3, 'new' => [['p' => '/usr/bin/bash', 'sha' => $shaP, 'pkg' => 'bash', 'u' => 'root', 'cmd' => 'bash'],
+    ['p' => '/opt/x/tool', 'sha' => $shaA, 'pkg' => '', 'u' => 'www', 'cmd' => '/opt/x/tool --password=geheim123 run']], 'run' => [$shaA]]];
+AppControl::fromAgent($rowA, $rep, $st, now());
+AppControl::fromAgent($rowA, $rep, $st, now());
+$sa = q('SELECT status, cmd FROM app_seen WHERE host_id = ? AND sha = ?', [$ha, $shaA])->fetch();
+ok($sa && $sa['status'] === 'new' && (string) q('SELECT status FROM app_seen WHERE host_id = ? AND sha = ?', [$ha, $shaP])->fetchColumn() === 'pkg'
+    && (int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'app_new'", [$ha])->fetchColumn() === 1
+    && (int) q("SELECT severity FROM ids_incidents WHERE host_id = ? AND type = 'app_new'", [$ha])->fetchColumn() === 1,
+    "programma's: uit een pakket = goed, zonder pakket na de leerperiode = één warning (niet dubbel)");
+ok(!str_contains((string) $sa['cmd'], 'geheim123'), "programma's: wachtwoord in de opdrachtregel gemaskeerd");
+AppControl::fromAgent(q('SELECT * FROM hosts WHERE id = ?', [$hl])->fetch(), ['apps' => ['on' => 1, 'new' => [['p' => '/opt/x/tool', 'sha' => $shaA, 'pkg' => '']]]], $st, now());
+ok((string) q('SELECT status FROM app_seen WHERE host_id = ? AND sha = ?', [$hl, $shaA])->fetchColumn() === 'learn'
+    && !q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'app_new'", [$hl])->fetchColumn(), "programma's: in de leerperiode geleerd, geen incident");
+AppControl::decide('allow', $shaA, '', $ha, 'eigen tool', 'ci');
+ok((string) q('SELECT status FROM app_seen WHERE host_id = ? AND sha = ?', [$ha, $shaA])->fetchColumn() === 'ok'
+    && (string) q("SELECT status FROM ids_incidents WHERE host_id = ? AND type = 'app_new'", [$ha])->fetchColumn() === 'done'
+    && (string) q('SELECT status FROM app_seen WHERE host_id = ? AND sha = ?', [$hl, $shaA])->fetchColumn() === 'learn',
+    "programma's: toestaan op één server sluit het incident, de andere server blijft zoals hij was");
+$err = '';
+try { AppControl::decide('block', '', '/usr/', 0, '', 'ci'); } catch (InvalidArgumentException $e) { $err = $e->getMessage(); }
+ok($err !== '', "programma's: een brede map (/usr/) blokkeren kan niet");
+AppControl::decide('block', '', '/opt/evil/', 0, 'test', 'ci');
+AppControl::fromAgent($rowA, ['apps' => ['on' => 1, 'new' => [['p' => '/opt/evil/miner', 'sha' => $shaB, 'pkg' => '']]]], $st, now());
+ok((string) q('SELECT status FROM app_seen WHERE host_id = ? AND sha = ?', [$ha, $shaB])->fetchColumn() === 'block' && in_array("0\tappblock\t$shaB", AppControl::agentLines($ha), true),
+    "programma's: blokkeren op map: nieuw programma daarin = geblokkeerd, en de vingerafdruk gaat naar de agent");
+AppControl::fromAgent($rowA, ['apps' => ['on' => 1, 'blk' => [['p' => '/opt/evil/miner', 'sha' => $shaB, 'u' => 'root', 'killed' => 1]]]], $st, now());
+ok((int) q("SELECT severity FROM ids_incidents WHERE host_id = ? AND type = 'app_block'", [$ha])->fetchColumn() === 2, "programma's: geblokkeerd en het draaide = critical");
+ok((int) q("SELECT COUNT(*) FROM host_actions WHERE host_id = ? AND module = 'appctl'", [$ha])->fetchColumn() >= 3, "programma's: gezien, toegestaan en geblokkeerd staan in het logboek");
+$pz = Ioc::parse("1.2.3[.]4, hxxp://Evil-Domain[.]com/pad?x=1 $shaB /tmp/.x/kworker d41d8cd98f00b204e9800998ecf8427e zomaar");
+ok(array_column($pz['iocs'], 'kind') === ['ip', 'domain', 'sha', 'path'] && $pz['iocs'][1]['value'] === 'evil-domain.com' && count($pz['skipped']) === 2,
+    'jagen: IP, URL → domein, sha256 en pad herkend (ook onschadelijk gemaakt), md5 en losse woorden overgeslagen');
+q("INSERT INTO ssh_events (host_id, at, ok, ip, username) VALUES (?, NOW(), 0, '203.0.113.77', 'root')", [$ha]);
+$sr = Ioc::search([['kind' => 'ip', 'value' => '203.0.113.77'], ['kind' => 'sha', 'value' => $shaB], ['kind' => 'ip', 'value' => '198.51.100.1']], 7);
+ok($sr['hits'] >= 2 && $sr['iocs'][2]['n'] === 0 && in_array('ssh', array_column($sr['iocs'][0]['hits'] ?: $sr['iocs'][1]['hits'], 'src'), true) || in_array('ssh', array_column(array_merge(...array_column($sr['iocs'], 'hits')), 'src'), true),
+    'jagen: IP gevonden in SSH-pogingen, vingerafdruk bij de programma\'s, onbekend IP niet');
+$hu = Ioc::hunt("$shaB\n/etc/passwd", 7, true, 'ci');
+$lines = Ioc::agentLines($ha);
+ok($hu['agents']['asked'] >= 1 && $lines[0] === "0\tiochunt\t" . $hu['id'] && in_array("0\tiocsha\t$shaB", $lines, true) && in_array("0\tiocpath\t" . base64_encode('/etc/passwd'), $lines, true),
+    'jagen: de agents krijgen de opdracht (vingerafdrukken en paden)');
+Ioc::fromAgent($rowA, ['ioc' => ['id' => $hu['id'], 'files' => 1200, 'secs' => 4, 'hits' => [['t' => 'path', 'v' => '/etc/passwd', 'p' => '/etc/passwd']]]]);
+$g = Ioc::get($hu['id']);
+ok(!q('SELECT ioc_req FROM hosts WHERE id = ?', [$ha])->fetchColumn() && isset($g['agents']['done'][$ha]) && (int) q("SELECT severity FROM ids_incidents WHERE host_id = ? AND type = 'ioc'", [$ha])->fetchColumn() === 2,
+    'jagen: uitkomst van de agent bij de jacht, opdracht weg, treffer = critical');
+Ioc::watchAdd('203.0.113.88', 'ci', 'ci');
+save_setting('ioc_state', '');
+q("INSERT INTO ssh_events (host_id, at, ok, ip, username) VALUES (?, NOW(), 1, '203.0.113.88', 'admin')", [$ha]);
+Ioc::cron();
+ok((int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'ioc' AND ip = '203.0.113.88'", [$ha])->fetchColumn() === 1
+    && (int) q("SELECT hits FROM ioc_watch WHERE value = '203.0.113.88'")->fetchColumn() >= 1, 'jagen: bewaakt spoor gezien = incident en teller');
+q('DELETE FROM hosts WHERE id IN (?, ?)', [$ha, $hl]);
+q('DELETE FROM app_rules'); q('DELETE FROM ioc_watch');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

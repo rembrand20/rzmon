@@ -1356,6 +1356,8 @@ final class Monitor
         PasswordReset::purge();
         ChangeLog::purge();   // wijzigingslogboek: bewaartermijn instelbaar (1.97.0)
         ActionLog::purge();   // 1.226.0: logboek per server (actlog_days)
+        AppControl::purge();   // 1.229.0
+        Ioc::purge();
         Security::purge();
         Ids::purge();
         Edr::purge();
