@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.91.0"
+AGENT_VERSION="1.91.1"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -3413,7 +3413,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ -r "${t_cache-}" ]; then
         rm -f "$ap_dir/todo" "$ap_dir/todo.1" "$ap_dir/pkg"
         if [ -n "$ap_line" ]; then
             IFS=$'\t' read -r _ _ ap_kill _ <<<"$ap_line"
-            ap_block=" $(awk -F'\t' '$1 == "0" && $2 == "appblock" && $3 ~ /^[0-9a-f]{64}$/ { printf "%s ", $3 }' "$t_cache")"
+            ap_block=" $(awk -F'\t' '$1 == "0" && $2 == "appblock" && length($3) == 64 && $3 ~ /^[0-9a-f]+$/ { printf "%s ", $3 }' "$t_cache")"
             # Wat er nu draait zonder pakket (vingerafdrukken), en geblokkeerde programma's stoppen
             ap_run=""; ap_blk=""; ap_n=0
             while IFS=$'\t' read -r ap_f ap_pid ap_u; do
@@ -3449,7 +3449,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ -r "${t_cache-}" ]; then
                 [ "${ap_f:0:1}" = / ] || continue
                 if [ -e "$ap_f" ]; then ap_hits+="{\"t\":\"path\",\"v\":\"$(json_escape "$ap_f")\",\"p\":\"$(json_escape "$ap_f")\"},"; ap_nh=$((ap_nh + 1)); fi
             done < <(awk -F'\t' '$1 == "0" && $2 == "iocpath" { print $3 }' "$t_cache" | head -n 200)
-            awk -F'\t' '$1 == "0" && $2 == "iocsha" && $3 ~ /^[0-9a-f]{64}$/ { print $3 }' "$t_cache" | head -n 500 | sort -u >"$ap_dir/ioc.sha"
+            awk -F'\t' '$1 == "0" && $2 == "iocsha" && length($3) == 64 && $3 ~ /^[0-9a-f]+$/ { print $3 }' "$t_cache" | head -n 500 | sort -u >"$ap_dir/ioc.sha"
             ap_files=0
             if [ -s "$ap_dir/ioc.sha" ]; then
                 {

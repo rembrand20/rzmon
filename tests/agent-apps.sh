@@ -20,10 +20,11 @@ awk '/^# -+ Onbekende programma/{f=1} f&&/^# -+ /&&!/Onbekende programma/{exit} 
     echo ". '$work/mod.sh'"
     echo 'printf "%s\n%s" "$apps_json" "$ioc_json"'
 } >"$work/run.sh"
-# Een eigen programma: een kopie van sleep op een plek zonder pakket
+# Een eigen programma: een kopie van python3 op een plek zonder pakket (sleep is op Alpine en Rocky een multi-call-
+# programma dat onder een andere naam niet start)
 mkdir -p /usr/local/libexec
-cp "$(command -v sleep)" /usr/local/libexec/rzsense-test-prog
-/usr/local/libexec/rzsense-test-prog 300 &
+cp "$(readlink -f "$(command -v python3)")" /usr/local/libexec/rzsense-test-prog
+/usr/local/libexec/rzsense-test-prog -c 'import time; time.sleep(300)' &
 pid=$!; disown "$pid" 2>/dev/null
 sleep 1
 printf '0\tapps\t0\n' >"$work/cache/tests.cache"

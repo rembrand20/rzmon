@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.226.0**: **logboek per server**: wat de agent, RzSense en beheerders deden en veranderden, met uitkomst, filters en CSV.
 - **1.225.0**: **de code is opgesplitst in overzichtelijke onderdelen** (interface en API), met controles die fouten eerder vangen.
 
+## 1.229.1 – 2026-11-10
+### Nieuw
+- 
+
 ## 1.229.0 – 2026-11-10
 ### Nieuw
 - **Onbekende programma's** (**nieuwe agent 1.91.0**): RzSense houdt bij welke programma's er op je servers draaien, en laat het weten als er een onbekend programma bij komt.

@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.91.1 – 2026-11-10
+- **Opgelost:** op servers met mawk (o.a. Debian) kwamen de geblokkeerde programma's en de vingerafdrukken om naar te jagen niet aan, waardoor blokkeren en jagen op vingerafdruk niets deden.
+
 ## 1.91.0 – 2026-11-10
 - **Onbekende programma's** (aan per server in RzSense: *Agent Manager → Programma's*):
   - de agent meldt elk programma dat draait één keer, met een **vingerafdruk** (sha256) en het **pakket** waar het bij hoort (rpm, dpkg, apk, pacman; snap, flatpak en nix apart). Alleen wat nieuw of veranderd is krijgt een nieuwe vingerafdruk, dus het kost na de eerste ronde bijna niets;

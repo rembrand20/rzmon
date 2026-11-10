@@ -154,7 +154,7 @@ final class AppControl
                     t('Draait als {u}: {cmd}', ['u' => $user ?: '?', 'cmd' => $cmd]) . ' · ' . t('niet uit een pakket') . ' · sha256 ' . substr($sha, 0, 16) . '… · '
                     . t('Vertrouw je het? Sta het toe in IDS → Programma\'s; anders blokkeren.'));
                 ActionLog::add($hid, 'rzsense', 'appctl', t('Onbekend programma gezien'), "$path · sha256 " . substr($sha, 0, 16) . '…');
-            } elseif (!empty($x['ch']) && $status !== 'block') {
+            } elseif (!empty($x['ch'])) {
                 $inc = Ids::raise($host, 1, 'app_changed', substr(sha1($path), 0, 16), t('Programma veranderd: {p}', ['p' => $path]),
                     t('Dit programma (niet uit een pakket) heeft een andere vingerafdruk dan eerst. Een eigen update, of is het vervangen?') . ' · sha256 ' . substr($sha, 0, 16) . '…');
                 ActionLog::add($hid, 'rzsense', 'appctl', t('Programma veranderd'), "$path · sha256 " . substr($sha, 0, 16) . '…');
