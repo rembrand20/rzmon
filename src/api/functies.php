@@ -500,7 +500,7 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
         $sent = now();
         $req ??= now();
         $status = '⏳ ' . t('Bijwerken naar {v} gestart…', ['v' => AGENT_LATEST]);
-        ActionLog::add($hostId, $req !== null && $h['agent_update_req'] !== null ? 'user' : 'rzsense', 'update', t('Agent bijwerken naar {v} gestuurd', ['v' => AGENT_LATEST]), $version ? t('nu {v}', ['v' => $version]) : '', null, '', null, 'RzSense');
+        ActionLog::add($hostId, $h['agent_update_req'] !== null ? 'user' : 'rzsense', 'update', t('Agent bijwerken naar {v} gestuurd', ['v' => AGENT_LATEST]), $version ? t('nu {v}', ['v' => $version]) : '', null, '', null, 'RzSense');
     } elseif ($req !== null && $sent === null) {
         // Gevraagd, maar deze agent kan het niet: uitleggen waarom
         $status = '✘ ' . match ($via) {

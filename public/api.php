@@ -128,7 +128,7 @@ if ($isAdmin && $method === 'POST' && in_array($action, HOST_LOGGED, true)) {
                     }
                 }
                 if ($a) {
-                    ChangeLog::record('host', $hostLogId, 'update', $hostBefore['name'] . ' (' . t(HOST_LOGGED_LABEL[$action] ?? $action) . ')', $b + ['name' => $hostBefore['name']], $a + ['name' => $after['name']]);
+                    ChangeLog::record('host', $hostLogId, 'update', $hostBefore['name'] . ' (' . t(HOST_LOGGED_LABEL[$action]) . ')', $b + ['name' => $hostBefore['name']], $a + ['name' => $after['name']]);
                 }
             } catch (Throwable) {
             }
