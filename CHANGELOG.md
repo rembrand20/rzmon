@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.219.0**: de **RzSense-kern** (futuristische meters voor de eigen server) en een **begrijpelijke IDS Live-pagina**.
 - **1.218.0**: een **vernieuwde meldingskaart**: leesbaar, met advies als een check flapt, en op de telefoon een blad van onderaf.
 
+## 1.222.1 – 2026-11-10
+### Opgelost
+- **Tokens en wachtwoorden in adressen uit de weblogs worden weggelakt** (`?token=***`) vóór ze in een incident, een melding (Pushover, e-mail) of *Aanvallen per site* komen. Wat al bewaard was (incidenten, blokkades, meldingen, aanvallen per site), wordt bij de update schoongemaakt. Nieuwe agent 1.86.1: die lakt ze al weg vóór iets de server verlaat.
+- **Extra logbestand zonder gebruikersnaam en verwijzer**: de twee regels voor `nginx.conf` (*Instellingen → IDS → Netwerk en aanvallers*) schrijven die niet meer op; RzSense heeft ze niet nodig. Had je de regels van 1.222.0 al gezet, vervang ze dan (de nieuwe staan er ingeklapt bij) en herstart SWAG.
+
 ## 1.222.0 – 2026-11-10
 ### Nieuw
 - **Het hele pad van een webaanval** (*agent 1.86.0 nodig*). Nieuwe agent 1.86.0.

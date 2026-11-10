@@ -2766,6 +2766,8 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
   - **Nginx Proxy Manager**: niets te doen, de logs per site hebben de site en de dienst al.
 - **Dienst erachter:** de container (de agent zoekt het IP-adres op bij Docker of Podman), of een van je servers in RzSense (op IP-adres), of anders het adres zoals de proxy het noemt.
 - Bij *Gevonden op je servers* zie je per server: welke proxy, welke log, *✔ met site en dienst* of *⚠ zonder sitenaam*.
+- **Privacy (1.222.1, agent 1.86.1):** het extra logbestand bevat geen gebruikersnaam (`$remote_user`) en geen verwijzer (*referer*). Het pad met de query blijft staan, want daarin herkent RzSense aanvallen. Tokens, wachtwoorden, sleutels en handtekeningen in een adres (`?token=…`, `password=…`, `api_key=…`, `sig=…`, `*_token=…` …) lakt de agent weg (`token=***`) voordat iets de server verlaat, en RzSense doet dat nog een keer vóór een incident, melding of de kaart per site. Wat al bewaard was, is bij de update schoongemaakt. Onderweg gaat alles via https en is het rapport daarbovenop versleuteld. Het logbestand zelf versleutelen heeft weinig zin (de sleutel zou op dezelfde server staan); wil je alles op schijf versleuteld, gebruik dan schijfversleuteling (LUKS).
+  - Had je de regels van 1.222.0 al gezet? Vervang ze door de nieuwe (*Instellingen → IDS → Netwerk en aanvallers*, Kopiëren) en herstart SWAG.
 
 **🧱 Isoleren** (vanaf 1.88.0, agent 1.57.0; via de score bij een server)
 - Bij een hack zet je de server met één klik in quarantaine: alleen RzSense, je lokale netwerken (*Toegang*) en jouw IP-adres kunnen er nog bij. Al het andere verkeer stopt: inkomend, uitgaand en van containers. Een aanvaller verliest zijn verbinding, en malware kan niets meer naar buiten sturen.

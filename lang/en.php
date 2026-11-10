@@ -9022,4 +9022,6 @@ return [
     'Herstart SWAG: {c}' => 'Restart SWAG: {c}',
     'Laad nginx opnieuw: {c}' => 'Reload nginx: {c}',
     'Bij het volgende rapport van de agent staat hier {s}.' => 'At the next report of the agent this shows {s}.',
+    'Het extra logbestand bevat geen gebruikersnamen en geen verwijzers; tokens en wachtwoorden in een adres lakt de agent weg voordat iets de server verlaat.' => 'The extra log file contains no user names and no referrers; the agent masks tokens and passwords in an address before anything leaves the server.',
+    'De regels voor het extra logbestand op {host} (opnieuw) tonen' => 'Show the lines for the extra log file on {host} (again)',
 ];

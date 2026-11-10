@@ -2222,6 +2222,15 @@ WebLog::process($hpx, ['swag' => ['path' => '/var/log/nginx/access.log', 'ips' =
 $i3 = q("SELECT i.*, h.name AS host_name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.host_id = ? AND i.dkey = 'swag|198.51.100.9'", [$hp])->fetch();
 $w3 = $i3 ? WebLog::path($i3) : null;
 ok($w3 && $w3['sites'] === [] && $w3['verdict'] === null, 'webaanval: oude agent of log zonder site: alleen aanvaller → proxy, zonder oordeel');
+// 1.222.1: tokens in adressen weggelakt, ook in wat al bewaard was
+WebLog::process($hpx, ['swag' => ['path' => '/x', 'ips' => ['198.51.100.10' => [2, 2, 0, 0, '', ['/.env?token=GEHEIM1&a=1', '/reset?password=GEHEIM2']]]]]);
+$d4 = (string) q("SELECT CONCAT(title, ' ', detail) FROM ids_incidents WHERE host_id = ? AND dkey = 'swag|198.51.100.10'", [$hp])->fetchColumn();
+q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, detail, ip) VALUES (?, 1, 'web_attack', 'swag|198.51.100.11', 'Web: aanvalspad /.env?api_key=GEHEIM3 vanaf 198.51.100.11', 'Paden: /a?refresh_token=GEHEIM4', '198.51.100.11')", [$hp]);
+$old = (int) db()->lastInsertId();
+Installer::runSchema();
+$d5 = (string) q("SELECT CONCAT(title, ' ', detail) FROM ids_incidents WHERE id = ?", [$old])->fetchColumn();
+ok($d4 !== '' && !str_contains($d4, 'GEHEIM') && str_contains($d4, 'token=***') && !str_contains($d5, 'GEHEIM') && str_contains($d5, 'api_key=***') && str_contains($d5, 'refresh_token=***'),
+    'webaanval: tokens en wachtwoorden in adressen weggelakt (nieuw, en bestaande na een update)');
 q('DELETE FROM hosts WHERE id IN (?, ?)', [$hp, $hp + 1]);
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");

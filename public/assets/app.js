@@ -14855,7 +14855,8 @@ async function loadWeblogStatus() {
   const pxHtml = px.length ? `<div class="rp"><b>${L('Reverse proxy: gevonden op je servers')}</b>${px.map((r) => `<div class="rp-srv"><b>${esc(r.host)}</b>
       <span class="p">${r.label ? `${ic[r.label] || ''} <b>${esc(r.label)}</b>${r.ctr ? ` (${L('container')} <code>${esc(r.ctr)}</code>)` : ''} · ` : ''}<code>${esc(r.path)}</code>${r.sites ? `<br>${L('{n} sites, {r} verdachte verzoeken in 24 uur', { n: r.sites, r: (+r.req).toLocaleString(LOCALE) })}` : ''}</span>
       <span class="rp-st ${r.full ? 'ok' : 'w'}">${r.full ? '✔ ' + L('met site en dienst') : r.label ? '⚠ ' + L('zonder sitenaam') : L('agent 1.86.0 nodig voor het hele pad')}</span></div>`).join('')}
-    ${px.filter((r) => !r.full && r.label && r.label !== 'Nginx Proxy Manager').map((r) => weblogFullHow(r)).join('')}</div>` : '';
+    ${px.filter((r) => !r.full && r.label && r.label !== 'Nginx Proxy Manager').map((r) => weblogFullHow(r)).join('')}
+    ${px.filter((r) => r.full && /rzsense\.log$/.test(String(r.path))).map((r) => `<details class="adv"><summary>${L('De regels voor het extra logbestand op {host} (opnieuw) tonen', { host: esc(r.host) })}</summary>${weblogFullHow(r)}</details>`).join('')}</div>` : '';
   box.innerHTML = pxHtml + (other.length ? other.map((r) => `✔ <b>${names[r.src] || esc(r.src)}</b> ${L('op {host}', { host: esc(r.host) })}: <code>${esc(r.path)}</code>`
       + (r.hint ? `<br><span class="warn-txt">⚠️ ${esc(r.hint)}</span>` : '')).join('<br>') : '')
     + (!found.length ? `<span class="muted">${L('Nog nergens gevonden (agent 1.58.0 nodig; het zoeken gebeurt bij het volgende rapport).')}</span>` : '')
@@ -14870,9 +14871,10 @@ function weblogFullHow(r) {
   const inDir = swag ? '/config/log/nginx' : dir;
   const conf = swag ? '/config/nginx/nginx.conf' : '/etc/nginx/nginx.conf';
   const pid = 'wlf-' + String(r.host).replace(/[^A-Za-z0-9_-]/g, '_');
-  const lines = `log_format rzsense '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" "$host" "$upstream_addr" $request_time';\naccess_log ${inDir}/rzsense.log rzsense;`;
+  // 1.222.1: zonder gebruikersnaam en verwijzer (die heeft RzSense niet nodig); de agent lakt tokens in adressen weg
+  const lines = `log_format rzsense '$remote_addr - - [$time_local] "$request" $status $body_bytes_sent "-" "$http_user_agent" "$host" "$upstream_addr" $request_time';\naccess_log ${inDir}/rzsense.log rzsense;`;
   return `<div class="rp-snip"><b>🛤️ ${L('Het hele pad zien voor {p} op {host}', { p: esc(r.label), host: esc(r.host) })}</b> <span class="muted small">(${L('één keer, ± 1 minuut')})</span>
-    <p class="small" style="margin:.3rem 0">${L('Nu weet RzSense wie en wat, maar niet welke site en welke dienst. Met een extra logbestand wel. Je bestaande log blijft zoals hij is, dus fail2ban blijft gewoon werken.')}</p>
+    <p class="small" style="margin:.3rem 0">${L('Nu weet RzSense wie en wat, maar niet welke site en welke dienst. Met een extra logbestand wel. Je bestaande log blijft zoals hij is, dus fail2ban blijft gewoon werken.')} ${L('Het extra logbestand bevat geen gebruikersnamen en geen verwijzers; tokens en wachtwoorden in een adres lakt de agent weg voordat iets de server verlaat.')}</p>
     <ol><li>${L('Open {f}', { f: `<code>${conf}</code>` })}${swag ? ` (${L('op de server: {f}', { f: `<code>${esc(dir.replace(/\/log\/nginx$/, '/nginx/nginx.conf'))}</code>` })})` : ''}.</li>
     <li>${L('Zet deze twee regels in het blok {b}, onder de regel met {a}:', { b: '<code>http { … }</code>', a: '<code>access_log</code>' })}</li></ol>
     <div class="rp-pre"><pre class="mono" id="${pid}">${esc(lines)}</pre><button type="button" class="btn" data-copy="${pid}">📋 ${L('Kopiëren')}</button></div>

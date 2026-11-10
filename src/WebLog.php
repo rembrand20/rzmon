@@ -107,7 +107,8 @@ final class WebLog
     {
         $hid = (int) $host['id'];
         [$total, $c404, $c40x, $c444, $ua, $paths] = [(int) ($v[0] ?? 0), (int) ($v[1] ?? 0), (int) ($v[2] ?? 0), (int) ($v[3] ?? 0), (string) ($v[4] ?? ''), (array) ($v[5] ?? [])];
-        $paths = array_map(static fn($p) => mb_substr((string) $p, 0, 120), array_slice($paths, 0, 8));
+        // 1.222.1: tokens en wachtwoorden in een adres weglakken (?token=***) vóór een incident, melding of de kaart per site
+        $paths = array_map(static fn($p) => mb_substr(Inspect::redact((string) $p), 0, 120), array_slice($paths, 0, 8));
         $shown = implode(' · ', array_slice($paths, 0, 5));
         // 1.222.0: per site het aantal, hoeveel een gewoon antwoord kregen, en de dienst erachter (agent 1.86.0)
         $sites = self::sitesOf($v[6] ?? null);

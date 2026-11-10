@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.86.0"
+AGENT_VERSION="1.86.1"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -291,6 +291,11 @@ edr_audit_awk() {
 edr_swag_req() {
     awk -F'"' '
     function esc(s) { gsub(/\\/, "&&", s); gsub(/"/, "\\\"", s); gsub(/[\001-\037\177]/, " ", s); return s }
+    function red(s,   o, l) { o = ""   # agent 1.86.1: tokens en wachtwoorden in een adres weglakken (?token=***)
+        while ((l = tolower(s)) != "" && match(l, /[?&;](pass|passwd|password|pwd|[a-z_]*token|api_?key|apikey|secret|key|auth|authsig|session|sid|jwt|code|sig|signature|otp|ticket)=/)) {
+            o = o substr(s, 1, RSTART + RLENGTH - 1) "***"; s = substr(s, RSTART + RLENGTH)
+            if (match(s, /[&;# ]/)) s = substr(s, RSTART); else s = "" }
+        return o s }
     {
         split($1, a, " "); ip = a[1]
         if (ip !~ /^[0-9a-fA-F:.]+$/) next
@@ -303,8 +308,8 @@ edr_swag_req() {
             && m ~ /^(GET|POST|HEAD|OPTIONS|-)$/) next
         if (++n > 100) exit
         # Agent 1.86.0: met de site en de dienst erachter als de log die heeft (rzsense.log, Nginx Proxy Manager)
-        printf "%s[\"%s\",\"%s\",\"%s\",\"%s\",%d,%d,\"%s\",\"%s\",\"%s\",\"%s\"]", (n > 1 ? "," : ""), ip, esc(tm), esc(substr(m, 1, 20)), esc(substr(uri, 1, 512)),
-            st, by, esc(substr(ua, 1, 200)), esc(substr(ref, 1, 200)), esc(substr($8, 1, 120)), esc(substr($10, 1, 80))
+        printf "%s[\"%s\",\"%s\",\"%s\",\"%s\",%d,%d,\"%s\",\"%s\",\"%s\",\"%s\"]", (n > 1 ? "," : ""), ip, esc(tm), esc(substr(m, 1, 20)), esc(substr(red(uri), 1, 512)),
+            st, by, esc(substr(ua, 1, 200)), esc(substr(red(ref), 1, 200)), esc(substr($8, 1, 120)), esc(substr($10, 1, 80))
     }'
 }
 
@@ -2800,7 +2805,12 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
                     w_req=$(printf '%s\n' "$w_lines" | edr_swag_req)
                     w_body=$(printf '%s\n' "$w_lines" | awk -F'"' -v cmap="$w_cmap" '
                         function js(s) { gsub(/[\\"]/, "", s); gsub(/[^ -~]/, "?", s); return substr(s, 1, 120) }
-                        { split($1, a, " "); ip = a[1]; split($3, b, " "); st = b[1] + 0; split($2, r, " "); p = r[2]; ua = tolower($6)
+                        function red(s,   o, l) { o = ""   # agent 1.86.1: tokens en wachtwoorden in een adres weglakken (?token=***)
+                            while ((l = tolower(s)) != "" && match(l, /[?&;](pass|passwd|password|pwd|[a-z_]*token|api_?key|apikey|secret|key|auth|authsig|session|sid|jwt|code|sig|signature|otp|ticket)=/)) {
+                                o = o substr(s, 1, RSTART + RLENGTH - 1) "***"; s = substr(s, RSTART + RLENGTH)
+                                if (match(s, /[&;# ]/)) s = substr(s, RSTART); else s = "" }
+                            return o s }
+                        { split($1, a, " "); ip = a[1]; split($3, b, " "); st = b[1] + 0; split($2, r, " "); p = red(r[2]); ua = tolower($6)
                           if (ip !~ /^[0-9a-fA-F:.]+$/) next
                           n[ip]++; if (st == 404) c404[ip]++; if (st == 401 || st == 403) c40x[ip]++; if (st == 444) c444[ip]++
                           if (match(ua, /(sqlmap|nikto|nmap|masscan|zgrab|nuclei|wpscan|dirbuster|gobuster|ffuf|feroxbuster|l9explore|censysinspect)/)) u[ip] = substr(ua, RSTART, RLENGTH)

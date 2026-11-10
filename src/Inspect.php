@@ -70,9 +70,12 @@ final class Inspect
     private const SCANNERS = '~(sqlmap|nikto|nmap|masscan|zgrab|nuclei|wpscan|dirbuster|gobuster|ffuf|feroxbuster|l9explore|censysinspect|acunetix|netsparker|openvas|hydra|wfuzz|jaeles|xray)~i';
 
     /** Geheimen in de query maskeren: password=…, token=…, key=…, Authorization */
+    /** 1.222.1: ook *_token, handtekeningen, eenmalige codes en tickets */
+    public const SECRET_PARAMS = 'pass(?:word|wd)?|pwd|[a-z_]*token|api_?key|apikey|secret|key|auth|authsig|session|sid|jwt|code|sig|signature|otp|ticket';
+
     public static function redact(string $s): string
     {
-        return (string) preg_replace('~((?:^|[?&;])(?:pass(?:word|wd)?|pwd|token|access_token|api_?key|apikey|secret|key|auth|session|sid|jwt|code)=)[^&;#\s]*~i', '$1***', $s);
+        return (string) preg_replace('~((?:^|[?&;])(?:' . self::SECRET_PARAMS . ')=)[^&;#\s]*~i', '$1***', $s);
     }
 
     /** Meerdere keren decoderen (dubbel gecodeerde aanvallen) */

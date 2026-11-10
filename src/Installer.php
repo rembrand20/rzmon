@@ -362,6 +362,7 @@ final class Installer
         NotifyRules::migrate($pdo);
         self::moveAccessLog($pdo);
         self::swagToWeb($pdo);
+        self::redactWebPaths($pdo);
         AgentAudit::migrateServiceChecks($pdo);
     }
 
@@ -369,6 +370,32 @@ final class Installer
      * 1.221.3: incidenten en blokkades uit de nginx-log heten "Web:" in plaats van "SWAG:" (het is de log van elke reverse
      * proxy, niet alleen SWAG). Bestaande titels en redenen omzetten; doet daarna niets meer.
      */
+    /**
+     * 1.222.1: tokens en wachtwoorden in adressen uit de weblogs weglakken in wat al bewaard is (incidenten, blokkades,
+     * meldingen, aanvallen per site). Alleen rijen waar nog een onbedekte waarde staat; daarna doet het niets meer.
+     */
+    private static function redactWebPaths(PDO $pdo): void
+    {
+        $re = "[?&;](" . str_replace(['(?:', '[a-z_]*'], ['(', '[a-z_]*'], Inspect::SECRET_PARAMS) . ")=[^*&;# ]";
+        $jobs = [['ids_incidents', 'id', ['title', 'detail'], "type IN ('web_attack', 'web_payload')"], ['ids_blocks', 'id', ['reason'], '1'],
+            ['rz_blocks', 'id', ['reason'], '1'], ['block_log', 'id', ['reason'], '1'], ['alerts', 'id', ['title', 'message'], "kind = 'ids'"]];
+        foreach ($jobs as [$t, $pk, $cols, $where]) {
+            $cond = implode(' OR ', array_map(static fn($c) => "`$c` REGEXP ?", $cols));
+            $st = $pdo->prepare("SELECT `$pk`, `" . implode('`, `', $cols) . "` FROM `$t` WHERE ($where) AND ($cond) LIMIT 5000");
+            $st->execute(array_fill(0, count($cols), $re));
+            $up = $pdo->prepare("UPDATE `$t` SET " . implode(', ', array_map(static fn($c) => "`$c` = ?", $cols)) . " WHERE `$pk` = ?");
+            foreach ($st->fetchAll() as $r) {
+                $up->execute([...array_map(static fn($c) => Inspect::redact((string) $r[$c]), $cols), $r[$pk]]);
+            }
+        }
+        $st = $pdo->prepare('SELECT host_id, hour, site, ip, top FROM web_sites WHERE top REGEXP ?');
+        $st->execute([$re]);
+        $up = $pdo->prepare('UPDATE web_sites SET top = ? WHERE host_id = ? AND hour = ? AND site = ? AND ip = ?');
+        foreach ($st->fetchAll() as $r) {
+            $up->execute([Inspect::redact((string) $r['top']), $r['host_id'], $r['hour'], $r['site'], $r['ip']]);
+        }
+    }
+
     private static function swagToWeb(PDO $pdo): void
     {
         $pdo->exec("UPDATE ids_incidents SET title = CONCAT('Web: ', SUBSTRING(title, 7)) WHERE type = 'web_attack' AND title LIKE 'SWAG: %'");

@@ -41,12 +41,12 @@ if len(eve) != 2 or eve[0][:7] != ['2026-10-28T10:00:01.123456+0100', '203.0.113
         or eve[1][7] != 'ET MALWARE Cobalt Strike "Beacon" C2 \\ test' or eve[1][9] != 1 or eve[1][10] != 'blocked':
     bad.append('Suricata-alerts niet goed gelezen: %r' % eve)
 npm = json.loads('[' + open(sys.argv[4]).read().strip() + ']')
-if len(npm) != 3 or npm[0][:4] != ['185.220.101.47', '10/Nov/2026:10:42:07 +0100', 'GET', '/.env'] or npm[0][4] != 404 or npm[0][8:] != ['vault.jouwdomein.nl', 'vaultwarden'] \
+if len(npm) != 3 or npm[0][:4] != ['185.220.101.47', '10/Nov/2026:10:42:07 +0100', 'GET', '/.env?token=***'] or npm[0][4] != 404 or npm[0][8:] != ['vault.jouwdomein.nl', 'vaultwarden'] \
         or npm[1][2] != 'POST' or npm[2][4] != 444 or npm[2][9] != '-':
     bad.append('Nginx Proxy Manager niet goed gelezen (site en dienst): %r' % npm)
 if bad:
     print('✘ ' + '\n✘ '.join(bad)); sys.exit(1)
-print('✔ auditd: %d gebeurtenissen (proces met hex-argument, bewaakt pad, dubbel overgeslagen, eigen processen herkend) · SWAG: %d verdachte verzoeken · Suricata: %d alerts · Nginx Proxy Manager: %d met site en dienst' % (len(ev), len(req), len(eve), len(npm)))
+print('✔ auditd: %d gebeurtenissen (proces met hex-argument, bewaakt pad, dubbel overgeslagen, eigen processen herkend) · SWAG: %d verdachte verzoeken · Suricata: %d alerts · Nginx Proxy Manager: %d met site en dienst, tokens weggelakt' % (len(ev), len(req), len(eve), len(npm)))
 PY
 rc=$?
 [ "$rc" = 0 ] || exit "$rc"
