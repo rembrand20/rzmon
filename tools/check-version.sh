@@ -51,10 +51,12 @@ same agent/rzmon-agent.sh "$ADDON/rzmon-agent.sh"
 if tools/build-agent.sh --check >/dev/null 2>&1; then echo "  ✔ agent/rzmon-agent.sh gebouwd uit agent/src"; else echo "  ✘ agent/rzmon-agent.sh wijkt af van agent/src (voer tools/build-agent.sh uit)"; fail=1; fi
 same agent/CHANGELOG.md "$ADDON/CHANGELOG.md"
 echo "Interface:"
+# 1.225.0: de interface wordt gebouwd uit public/assets/src; het gebouwde app.js moet daar precies mee kloppen
+if tools/build-js.sh --check >/dev/null 2>&1; then echo "  ✔ public/assets/app.js gebouwd uit public/assets/src"; else echo "  ✘ public/assets/app.js wijkt af van public/assets/src (voer tools/build-js.sh uit)"; fail=1; fi
 # 1.151.2: twee functies met dezelfde naam in app.js: de laatste overschrijft de eerste (zo opende een IDS-incident
 # het verkeerde venster: "Incident niet gevonden")
-dups=$(grep -oE '^(async )?function [A-Za-z0-9_$]+' public/assets/app.js | awk '{print $NF}' | sort | uniq -d | tr '\n' ' ')
-if [ -z "$dups" ]; then echo "  ✔ geen dubbele functienamen in public/assets/app.js"; else echo "  ✘ dubbele functienamen in public/assets/app.js: $dups"; fail=1; fi
+dups=$(grep -ohE '^((async )?function|const|let|var|class) [A-Za-z0-9_$]+' public/assets/app.js | awk '{print $NF}' | sort | uniq -d | tr '\n' ' ')
+if [ -z "$dups" ]; then echo "  ✔ geen dubbele namen (functies, const, let, class) in public/assets/app.js"; else echo "  ✘ dubbele namen in public/assets/app.js: $dups"; fail=1; fi
 echo "Vertaling (Engels):"
 if command -v php >/dev/null 2>&1; then php tools/check-i18n.php; else echo "  · php niet gevonden: overgeslagen"; fi
 exit "$fail"

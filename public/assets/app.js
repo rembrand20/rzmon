@@ -1,4 +1,5 @@
 'use strict';
+// RzSense-interface. Gebouwd uit public/assets/src/*.js met tools/build-js.sh: wijzig de modules, niet public/assets/app.js.
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];

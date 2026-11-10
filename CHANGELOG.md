@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.225.0**: **de code is opgesplitst in overzichtelijke onderdelen** (interface en API), met controles die fouten eerder vangen.
 - **1.224.0**: **Trends**: wat langzaam de verkeerde kant op gaat (accu, SSD, responstijd, geheugen, aanvallen), met een datum waarop het misgaat.
 - **1.223.0**: **slimme oordelen bij IDS-incidenten**: per soort, regels en jouw keuze eerst, de AI alleen als het nog onzeker is.
 - **1.222.0**: **het hele pad van een webaanval**: aanvaller → reverse proxy → site → dienst, met een oordeel, en aanvallen per site.
 - **1.221.0**: **bijwerken veel sneller**: snelle back-up en alleen doen wat nodig is (van minuten naar seconden).
-- **1.220.0**: **mDS per soort** met netwerk en ping, en een **veel snellere IDS-pagina**.
+
+## 1.225.0 – 2026-11-10
+### Nieuw
+- **De code is opgesplitst in overzichtelijke onderdelen** (voor wie aan RzSense werkt; voor jou als gebruiker verandert er niets):
+  - de interface (`app.js`, bijna 20.000 regels) staat nu in 12 modules in `public/assets/src/`, en wordt met `tools/build-js.sh` weer één bestand. De browser laadt dus nog steeds één bestand;
+  - de API (`api.php`, 6.000 regels) is verdeeld over `src/api/`: hulpfuncties, de agents, inloggen, en de acties per onderwerp (monitoring, agents, sjablonen, toegang, EDR, account, IDS, systeem). `api.php` zelf doet nog alleen inloggen, rechten en CSRF;
+  - CI controleert dat het gebouwde `app.js` klopt met de modules, en dat er geen twee functies of variabelen met dezelfde naam zijn (zo'n dubbele naam overschreef eerder ongemerkt een andere functie);
+  - vensters ruimen hun eigen afhandelingen en controles op (sinds 1.224.4): een vaste werkwijze, beschreven in `CLAUDE.md`, zodat de fout met dubbele klikken niet terugkomt.
 
 ## 1.224.4 – 2026-11-10
 ### Opgelost

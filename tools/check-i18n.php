@@ -24,7 +24,7 @@ function unquote(string $q, string $body): string
 }
 
 $found = [];
-$files = array_merge(glob("$root/public/*.php") ?: [], glob("$root/src/*.php") ?: []);
+$files = array_merge(glob("$root/public/*.php") ?: [], glob("$root/src/*.php") ?: [], glob("$root/src/api/*.php") ?: []);   // 1.225.0: ook de API-onderdelen
 foreach ($files as $f) {
     preg_match_all('/\bth?\(\s*(\')((?:[^\'\\\\]|\\\\.)*)\'/s', (string) file_get_contents($f), $m, PREG_SET_ORDER);
     foreach ($m as $x) {
