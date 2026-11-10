@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.229.0**: **onbekende programma's** herkennen (toestaan, blokkeren, stoppen) en **jagen op sporen** uit een waarschuwing, ook op de servers zelf.
 - **1.228.0**: **ransomware herkennen** in je shares, met lokaasbestanden, een snapshot bij alarm en eventueel stoppen.
 
+## 1.232.1 – 2026-11-10
+### Opgelost
+- Een controle in de code van de hardening-score opgeschoond (geen verandering in wat je ziet).
+
 ## 1.232.0 – 2026-11-10
 ### Nieuw
 - **NIS2-overzicht** (*Instellingen → Overzicht → NIS2*): een hulpmiddel bij de zorgplicht uit de NIS2-richtlijn (Cyberbeveiligingswet).

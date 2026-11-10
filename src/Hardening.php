@@ -33,6 +33,12 @@ final class Hardening
         'shadow_perm' => 7, 'passwd_perm' => 7, 'ww_files' => 7, 'open_db' => 0, 'docker_sock' => 0,
     ];
 
+    /** Hoofdstuk van de CIS Benchmark van een punt (0 = geen) */
+    public static function cisOf(string $item): int
+    {
+        return array_key_exists($item, self::CIS) ? self::CIS[$item] : 0;
+    }
+
     /** Namen van de hoofdstukken van de CIS Benchmark */
     public static function cisChapter(int $n): string
     {
@@ -240,7 +246,7 @@ final class Hardening
             }
             [$title, $advice] = self::text($r['item']);
             $out[] = ['item' => $r['item'], 'title' => $title, 'advice' => $advice, 'help' => self::help($r['item']), 'value' => $r['value'], 'ok' => $r['ok'] === null ? null : (bool) $r['ok'],
-                'cis' => self::CIS[$r['item']] ?? 0, 'cis_name' => self::cisChapter(self::CIS[$r['item']] ?? 0),
+                'cis' => self::cisOf((string) $r['item']), 'cis_name' => self::cisChapter(self::cisOf((string) $r['item'])),
                 'ignored' => (bool) $r['ignored'], 'weight' => self::ITEMS[$r['item']][0], 'updated_at' => $r['updated_at']];
         }
         usort($out, static fn($a, $b) => [$a['ok'] === false && !$a['ignored'] ? 0 : 1, -$a['weight']] <=> [$b['ok'] === false && !$b['ignored'] ? 0 : 1, -$b['weight']]);
