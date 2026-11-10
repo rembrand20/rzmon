@@ -44,6 +44,7 @@ $mustChange = $user && !$resetToken && must_change_password($user);
 // Tabblad Kwetsbaarheden: CVE's (scan aan) en/of Datalekken (controle aan, alleen beheerders)
 $showVulns = Vulns::enabled() && $role !== 'readonly';
 $showLeaks = $user && Hibp::enabled() && $role === 'admin';
+$showEol = $user && Eol::enabled() && $role !== 'readonly';   // 1.227.0: Kwetsbaarheden → Verouderd
 $showStats = $role !== 'readonly';   // 1.106.0: 📊 Analyse, voor beheerders en gebruikers
 $showNet = $role !== 'readonly' && (NetScan::enabled() || $role === 'admin');   // 1.103.0: netwerkscan
 // Voorkeuren van de gebruiker; het thema (1.135.0) per gebruiker, zodat het op elk apparaat hetzelfde is
@@ -169,7 +170,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <span class="tab-group side-only" role="presentation"><?= th('Beveiliging') ?></span>
       <button class="tab" data-tab="ids" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><span class="tab-badge" id="ids-badge" hidden></span></span><span class="tab-lbl">IDS</span></button>
       <?php if ($role !== 'readonly'): ?><button class="tab" data-tab="incidents" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17.5v.01"/></svg><span class="tab-badge" id="inc-badge" hidden></span></span><span class="tab-lbl has-s"><?= th('Incidenten') ?></span><span class="tab-lbl-s"><?= th('Incid.') ?></span></button><?php endif; ?>
-      <?php if ($showVulns || $showLeaks): ?><button class="tab" data-tab="vulns" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 2 1.9 1.9M16 2l-1.9 1.9"/><path d="M9 7.1V6a3 3 0 1 1 6 0v1.1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9M6.5 13H3M21 13h-3.5M6 17l-2.5 2M18 17l2.5 2M6 9 3.5 7.5M18 9l2.5-1.5"/></svg><span class="tab-badge" id="vuln-badge" hidden></span></span><span class="tab-lbl has-s"><?= th('Kwetsbaarheden') ?></span><span class="tab-lbl-s"><?= th('CVE\'s') ?></span></button><?php endif; ?>
+      <?php if ($showVulns || $showLeaks || $showEol): ?><button class="tab" data-tab="vulns" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 2 1.9 1.9M16 2l-1.9 1.9"/><path d="M9 7.1V6a3 3 0 1 1 6 0v1.1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9M6.5 13H3M21 13h-3.5M6 17l-2.5 2M18 17l2.5 2M6 9 3.5 7.5M18 9l2.5-1.5"/></svg><span class="tab-badge" id="vuln-badge" hidden></span></span><span class="tab-lbl has-s"><?= th('Kwetsbaarheden') ?></span><span class="tab-lbl-s"><?= th('CVE\'s') ?></span></button><?php endif; ?>
       <?php if ($showStats || $showNet): ?><span class="tab-group side-only" role="presentation"><?= th('Analyse en netwerk') ?></span><?php endif; ?>
       <?php if ($showStats): ?><button class="tab" data-tab="analytics" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></span><span class="tab-lbl"><?= th('Analyse') ?></span></button><?php endif; ?>
       <?php if ($showStats): ?><button class="tab" data-tab="logs" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="tab-lbl"><?= th('Logs') ?></span></button><?php endif; ?>
@@ -460,12 +461,13 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       </div>
     </section>
 
-    <?php if ($showVulns || $showLeaks): ?>
+    <?php if ($showVulns || $showLeaks || $showEol): ?>
     <section id="tab-vulns" class="tab-panel" role="tabpanel" hidden>
-      <?php if ($showVulns && $showLeaks): ?>
+      <?php if ((int) $showVulns + (int) $showLeaks + (int) $showEol > 1): ?>
       <div class="subtabs vuln-tabs" role="tablist" aria-label="<?= th('Kwetsbaarheden') ?>" id="vuln-tabs">
-        <button type="button" class="seg-btn active" data-vt="cve">🐞 <?= th('Kwetsbaarheden') ?> <span class="it-n" id="vt-n-cve"></span></button>
-        <button type="button" class="seg-btn" data-vt="leak">🔓 <?= th('Datalekken') ?> <span class="it-n" id="vt-n-leak"></span></button>
+        <?php if ($showVulns): ?><button type="button" class="seg-btn active" data-vt="cve">🐞 <?= th('Kwetsbaarheden') ?> <span class="it-n" id="vt-n-cve"></span></button><?php endif; ?>
+        <?php if ($showEol): ?><button type="button" class="seg-btn" data-vt="eol">⏳ <?= th('Verouderd') ?> <span class="it-n" id="vt-n-eol"></span></button><?php endif; ?>
+        <?php if ($showLeaks): ?><button type="button" class="seg-btn" data-vt="leak">🔓 <?= th('Datalekken') ?> <span class="it-n" id="vt-n-leak"></span></button><?php endif; ?>
       </div>
       <?php endif; ?>
       <?php if ($showVulns): ?>
@@ -507,8 +509,21 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       </div>
       </div>
       <?php endif; ?>
+      <?php if ($showEol): ?>
+      <div class="vuln-pane" data-vpane="eol" <?= $showVulns ? 'hidden' : '' ?>>
+        <div class="dash-counters"><div class="dash-in">
+          <div class="health-counts" id="eol-counts"></div>
+          <span class="dash-last muted small" id="eol-info"></span>
+        </div></div>
+        <?= xp(t('Welk besturingssysteem en welke software geen updates meer krijgt, of binnenkort niet.'), t('<b>Wat het is:</b> uit de softwarelijst die de agent stuurt, kijkt RzSense bij <a href="https://endoflife.date" target="_blank" rel="noopener">endoflife.date</a> tot wanneer een versie updates krijgt (alleen productnamen gaan de deur uit). <b>Oordeel:</b> ⛔ besturingssysteem buiten ondersteuning = critical; ⏳ binnen 90 dagen = warning; software van de leverancier zelf (zoals docker-ce) buiten ondersteuning = warning. Software uit de pakketbron van je distributie krijgt vaak nog beveiligingsupdates van de distributie, ook als de maker zelf stopt: dan alleen ℹ️ ter info. <b>Meldingen:</b> 90 en 30 dagen vooraf en op de dag zelf (Systeemmeldingen → End-of-life). <b>Uitzetten:</b> Instellingen → Overzicht → Functies.')) ?>
+        <div class="dash-bar"><input type="search" id="eol-search" placeholder="<?= th('🔍 Zoek server of software…') ?>" autocomplete="off">
+          <div class="dash-chips" id="eol-filter" role="group" aria-label="<?= th('Filter') ?>"></div><span class="dash-sp"></span>
+          <button type="button" class="btn need-admin" id="eol-refresh">🔄 <?= th('Nu opzoeken') ?></button></div>
+        <div id="eol-list"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+      <?php endif; ?>
       <?php if ($showLeaks): ?>
-      <div class="vuln-pane" data-vpane="leak" <?= $showVulns ? 'hidden' : '' ?>>
+      <div class="vuln-pane" data-vpane="leak" <?= $showVulns || $showEol ? 'hidden' : '' ?>>
         <div class="dash-counters"><div class="dash-in">
           <div class="health-counts" id="leak-counts"></div>
           <span class="dash-last muted small" id="leak-info"></span>
@@ -1159,6 +1174,18 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <div class="vuln-exclude"><span class="muted small"><?= th('Niet scannen:') ?></span> <span id="vuln-exclude-list"></span></div>
           <?= xp(t('Wat er nodig is, wanneer je een melding krijgt en hoe bijwerken werkt.'), t('<b>Nodig:</b> uitgaand HTTPS naar <code>api.osv.dev</code>, <code>www.cisa.gov</code>, <code>api.first.org</code> en <code>services.nvd.nist.gov</code>. <b>Meldingen:</b> een ℹ️ info-melding bij een nieuwe critical of actief misbruikte kwetsbaarheid volgt de rij <i>Info</i> bij Meldingen. <b>Bijwerken:</b> via de agent kan dat als commando\'s als root aan staan voor die server; anders krijg je het commando om zelf uit te voeren.')) ?>
           <div class="btn-row"><button type="button" class="btn" id="vuln-scan-now">🔍 <?= th('Nu scannen') ?></button> <span class="muted small" id="vuln-scan-info"></span></div>
+        </div>
+
+        <div data-sk="eol" class="card" id="eol-card">
+          <h2>⏳ <?= th('End-of-life') ?></h2>
+          <?= xp(t('Besturingssysteem en software die geen updates meer krijgen, of binnenkort niet.'), t('<b>Wat het doet:</b> uit dezelfde softwarelijst als de kwetsbaarheden (dit werkt ook als Kwetsbaarheden uit staat) kijkt RzSense eens per dag bij <b>endoflife.date</b> tot wanneer een versie updates krijgt. Het overzicht staat bij 🐞 Kwetsbaarheden → ⏳ Verouderd. <b>Privacy:</b> naar endoflife.date gaan alleen productnamen (zoals debian of php), geen versies, servernamen of IP-adressen. <b>Meldingen:</b> 90 en 30 dagen vooraf en op de dag zelf, bij Systeemmeldingen → End-of-life.')) ?>
+          <label class="switch"><input type="checkbox" name="eol_on"><span></span> <?= t('<b>End-of-life bijhouden</b>') ?></label>
+        </div>
+
+        <div data-sk="mailsec" class="card" id="mailsec-card">
+          <h2>✉️ <?= th('E-mailbeveiliging van je domein') ?></h2>
+          <?= xp(t('Kan iemand mail versturen uit naam van jouw domein? Controle van SPF, DKIM en DMARC.'), t('<b>Wat het doet:</b> bij een <b>Domein-check</b> kies je <i>Wat controleren → E-mailbeveiliging</i>. RzSense kijkt dan eens per 3 uur in DNS naar SPF, DKIM, DMARC, MTA-STS en TLS-rapporten, en geeft per punt het oordeel en het DNS-record om te plakken. <b>Toevoegen:</b> bij een server (bv. de server van RzSense) → ＋ Check → Domein. <b>Domein zonder mail?</b> Vink dat aan bij de check: dan hoort er <code>v=spf1 -all</code> en DMARC <code>p=reject</code> te staan. <b>Uit:</b> de checks gaan dan op onbekend.')) ?>
+          <label class="switch"><input type="checkbox" name="mailsec_on"><span></span> <?= t('<b>E-mailbeveiliging controleren</b>') ?></label>
         </div>
 
         <div data-sk="cvebuzz" class="card" id="cvebuzz-card">

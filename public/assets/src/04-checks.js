@@ -149,6 +149,11 @@ async function checkInfo(id, live = false, more = null) {
       cl.slow_n || cl.deadlocks ? [L('Sinds de vorige check'), [cl.slow_n ? L('{n} trage query\'s', { n: cl.slow_n }) : '', cl.deadlocks ? L('{n} deadlocks', { n: cl.deadlocks }) : ''].filter(Boolean).join(' · ')] : null,
       m.size !== null && m.size !== undefined ? [L('Grootte'), `<b>${fmtBytes(m.size)}</b>${sizes.length > 1 ? `<br><span class="muted small">${sizes.map(([k, v]) => `${esc(k)} ${fmtBytes(v)}`).join(' · ')}</span>` : ''}`] : null,
       (m.longq || []).length ? [L('Lopende query\'s'), m.longq.slice(0, 3).map((q) => `<div class="small"><b class="${q.sec >= 300 ? 'ct-bad' : ''}">${esc(durText(q.sec))}</b> <span class="muted">${esc(q.user)}${q.db ? '@' + esc(q.db) : ''}</span><br><code>${esc(q.q.slice(0, 160))}</code></div>`).join('')] : null];
+  } else if (d && d.kind === 'mail') {
+    // 1.227.0: e-mailbeveiliging: per punt het oordeel, en het DNS-record om te plakken
+    const ic = { ok: '✔', info: 'ℹ️', warn: '⚠️', crit: '✘' };
+    det = [[L('Score'), `<b class="${d.worst === 'crit' ? 'ct-bad' : ''}">${d.score}/100</b>${d.at ? ` <span class="muted small">${L('opgezocht {t}', { t: esc(new Date(d.at * 1000).toLocaleString(LOCALE, { dateStyle: 'short', timeStyle: 'short' })) })}</span>` : ''}`],
+      ...d.items.map((i) => [`${ic[i.st] || ''} ${esc(i.title)}`, `${i.detail ? `<span class="small">${esc(i.detail)}</span>` : ''}${i.fix ? `<div class="mail-fix"><code>${esc(i.fix)}</code> <button type="button" class="btn small-btn" data-mail-copy="${esc(i.fix)}" title="${esc(L('Kopiëren'))}">📋</button></div>` : ''}`])];
   } else if (d && d.kind === 'days') {
     det = ([[L('Nog geldig'), `<b class="${d.days < 14 ? 'ct-bad' : ''}">${Math.floor(d.days)} ${L('dagen')}</b>`], [L('Verloopt'), esc(new Date(Date.now() + d.days * 86400000).toLocaleDateString(LOCALE, { dateStyle: 'medium' }))]]);
   } else det = rows.slice(0, 2);
@@ -214,6 +219,12 @@ async function checkInfo(id, live = false, more = null) {
     if ($('#modal').dataset.btns === sig) return;
   }
   modal({ title, wide: true, body: ciBody, buttons: btns });
+  // 1.227.0: e-mailbeveiliging: het DNS-record kopiëren
+  $('#modal-body').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-mail-copy]');
+    if (!b) return;
+    try { await navigator.clipboard.writeText(b.dataset.mailCopy); toast(L('Gekopieerd')); } catch (ex) { toast(L('Kopiëren lukte niet'), 'err'); }
+  }, { signal: modalSignal() });
   $('#modal').dataset.live = 'check:' + id;
   $('#modal').dataset.ciMore = more ? String(id) : '';
   if (!live) { const mb = $('#modal-body'); if (mb && !more) mb.scrollTop = 0; }
@@ -1444,6 +1455,15 @@ function checkForm(c, h, preset = {}, tpl = null) {
         <label class="switch"><input type="checkbox" name="change" ${+opts.change ? 'checked' : ''}><span></span> ${L('Pad gewijzigd als ℹ️ info melden')}</label>
         <p class="hint">${L('De vertraging naar het doel staat hierboven bij de drempels (ms). Op de server zijn mtr (of traceroute) en voor de doorvoer iperf3 nodig, ook op het apparaat waar naartoe gemeten wordt; dat start daar kort een ontvanger die na één meting stopt.')}</p>
       </div>
+      <label id="dm-wrap" hidden>${L('Wat controleren')}
+        <select name="metric">${Object.entries(DOMAIN_METRICS).map(([k, m]) => `<option value="${k}" ${(c.type === 'domain' ? c.metric || '' : '') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
+      </label>
+      <div id="mail-x-wrap" hidden>
+        <label>${L('DKIM-selectors')} <span class="hint">${L('(optioneel; de selector van je mailprovider, bv. google of selector1. De bekendste probeert RzSense zelf)')}</span>
+          <input name="mail_dkim" class="mono" maxlength="300" value="${esc(c.type === 'domain' ? (opts.dkim || []).join(', ') : '')}" placeholder="google, selector1"></label>
+        <label class="chk"><input type="checkbox" name="mail_nomail" ${opts.nomail ? 'checked' : ''}> ${L('Dit domein verstuurt geen e-mail (dan hoort er v=spf1 -all en DMARC p=reject te staan)')}</label>
+        <label class="chk"><input type="checkbox" name="mail_starttls" ${opts.starttls ? 'checked' : ''}> ${L('Ook testen of de mailserver STARTTLS doet (poort 25; vaak dicht op een thuisverbinding)')}</label>
+      </div>
       <label id="vpn-wrap" hidden>${L('Welke VPN')}
         <select name="metric">${Object.entries(VPN_METRICS).filter(([k]) => k !== 'wg' || h.mode === 'agent' || c.metric === 'wg').map(([k, m]) => `<option value="${k}" ${(c.type === 'vpn' ? c.metric || 'gluetun' : 'gluetun') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
         <span class="hint" id="vpn-help"></span>
@@ -1788,6 +1808,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
   const inetSel = $('#inet-wrap [name=metric]', form);
   const trSel = $('#tr-wrap [name=metric]', form);   // 1.187.0
   const vpnSel = $('#vpn-wrap [name=metric]', form);   // 1.170.0
+  const dmSel = $('#dm-wrap [name=metric]', form);   // 1.227.0
   const tnSel = $('#tn-wrap [name=metric]', form);   // 1.174.0
   const dbSel = $('#db-metric', form);   // 1.200.0
   const dbVia = () => (h.mode === 'agent' && $('[name=db_via]', form) ? $('[name=db_via]', form).value : 'rzmon');
@@ -1824,6 +1845,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     const isInet = typeSel.value === 'internet';
     const isTr = typeSel.value === 'traffic';
     const isVpn = typeSel.value === 'vpn';
+    const isDm = typeSel.value === 'domain';   // 1.227.0
     const isTn = typeSel.value === 'truenas';
     const isDb = typeSel.value === 'mysql';   // 1.200.0
     const isSnmp = typeSel.value === 'snmp';
@@ -1834,6 +1856,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
       : isInet ? { ...TYPES.internet, ...INET_METRICS[inetSel.value] }
       : isTr ? { ...TYPES.traffic, ...TRAFFIC_METRICS[trSel.value] }
       : isVpn ? { ...TYPES.vpn, ...VPN_METRICS[vpnSel.value] }
+      : isDm && dmSel.value === 'mail' ? { ...TYPES.domain, ...DOMAIN_METRICS.mail }
       : isTn ? { ...TYPES.truenas, ...TN_METRICS[tnSel.value] }
       : isDb ? { ...TYPES.mysql, ...DB_METRICS[dbSel.value], target: dbVia() === 'rzmon' ? TYPES.mysql.target : null }
       : isSnmp ? snmpType({ metric: snmpSel.value, options: JSON.stringify({ mode: oidMode, unit: $('[name=oid_unit]', form).value, low: $('[name=oid_low]', form).checked }) })
@@ -1857,6 +1880,10 @@ function checkForm(c, h, preset = {}, tpl = null) {
     $('#inet-help').textContent = isInet ? INET_METRICS[inetSel.value].help : '';
     $('#vpn-wrap').hidden = !isVpn;
     vpnSel.disabled = !isVpn;
+    $('#dm-wrap').hidden = !isDm;
+    dmSel.disabled = !isDm;
+    $('#mail-x-wrap').hidden = !(isDm && dmSel.value === 'mail');
+    $$('#mail-x-wrap input', form).forEach((el) => { el.disabled = !(isDm && dmSel.value === 'mail'); });
     $('#tn-wrap').hidden = !isTn;
     tnSel.disabled = !isTn;
     const isPath = typeSel.value === 'path';   // 1.177.0
@@ -1878,7 +1905,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     $('#oid-wrap').hidden = !isOid;
     $$('#oid-wrap [data-oid]', form).forEach((el) => { el.hidden = (el.dataset.oid === 'text') !== (oidMode === 'text'); });
     $('#ha-help').textContent = isHa ? HA_METRICS[haSel.value].help : '';
-    $('#type-help').textContent = TYPES[typeSel.value].help;
+    $('#type-help').textContent = isDm && dmSel.value === 'mail' ? DOMAIN_METRICS.mail.help : TYPES[typeSel.value].help;   // 1.227.0
     const isProc = typeSel.value === 'process';
     $('#res-wrap').hidden = !isContainer && !isProc;
     $('#proc-wrap').hidden = !isProc;
@@ -2162,6 +2189,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
   haSel.onchange = () => update('metric');
   pveSel.onchange = () => update('metric');
   vpnSel.onchange = () => update('metric');   // 1.170.0
+  dmSel.onchange = () => update('metric');   // 1.227.0
   tnSel.onchange = () => update('metric');   // 1.174.0
   snmpSel.onchange = () => update('metric');
   $('[name=oid_mode]', form).onchange = () => update(false);

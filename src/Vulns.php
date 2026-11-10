@@ -81,7 +81,7 @@ final class Vulns
         }
         $p = $in['packages'] ?? null;
         if (is_array($p) && preg_match('/^[0-9a-f]{16}$/', (string) ($p['hash'] ?? ''))) {
-            if (!self::enabled()) {
+            if (!self::enabled() && !Eol::enabled()) {   // 1.227.0: end-of-life gebruikt dezelfde lijst
                 $out['packages_ok'] = true;   // uit: niets bewaren, en de agent hoeft de lijst niet steeds opnieuw te sturen
             } elseif (is_array($p['data'] ?? null)) {
                 self::storeInventory((int) $host['id'], (string) $p['hash'], $p['data']);

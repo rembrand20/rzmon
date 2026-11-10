@@ -239,7 +239,7 @@ function check_unit(array $check): ?string
             'unifi_cu' => '%', 'unifi_traffic' => 'Mbit/s', 'unifi_quality' => '%'][$check['metric'] ?? ''] ?? null;
     }
     return ['ping' => 'ms', 'tcp' => 'ms', 'http' => 'ms', 'ssl' => 'dagen', 'disk' => '%', 'cpu' => '%', 'ram' => '%', 'log' => 'treffers',
-        'dns' => 'ms', 'ntp' => 'ms', 'smart' => '°C', 'ups' => '%', 'mysql' => Db::UNITS[($check['metric'] ?? '') ?: 'overview'] ?? 'ms', 'domain' => 'dagen', 'mqtt' => 'ms', 'vpn' => ($check['metric'] ?? '') === 'wg' ? 's' : null][$check['type']] ?? null;
+        'dns' => 'ms', 'ntp' => 'ms', 'smart' => '°C', 'ups' => '%', 'mysql' => Db::UNITS[($check['metric'] ?? '') ?: 'overview'] ?? 'ms', 'domain' => ($check['metric'] ?? '') === 'mail' ? 'punten' : 'dagen', 'mqtt' => 'ms', 'vpn' => ($check['metric'] ?? '') === 'wg' ? 's' : null][$check['type']] ?? null;
 }
 
 function now(): string

@@ -78,7 +78,7 @@ const TYPES = {
   ups:     { label: L('UPS (NUT)'), target: L('UPS'), unit: '%', warn: 50, crit: 20, low: true, ph: L('leeg = de eerste'), help: L('Via de agent en NUT (upsc) op de server waar de UPS aan hangt: op de batterij = WARNING, batterij bijna leeg = CRITICAL, en de lading met de drempels hierboven. In het bericht de resterende tijd en de belasting. Agent 1.70.0 of nieuwer.') },
   mysql:   { label: L('Database (MariaDB, MySQL, PostgreSQL)'), target: L('Adres[:poort]'), unit: 'ms', warn: 500, crit: 2000, ph: L('leeg = adres van de server (poort 3306 of 5432)'), help: L('Bewaakt een database echt van binnen: verbindingen, lopende en trage query\'s, cache, replicatie, grootte en (PostgreSQL) vacuum. Kies het overzicht (alles in één check) of één waarde met eigen drempels en grafiek. Op een server met de agent leest de agent de database lokaal uit, zonder dat hij open op het netwerk hoeft. Alleen lezen; het wachtwoord gaat nooit terug naar de browser.') },
   // 1.170.0: domein, MQTT-broker en VPN
-  domain:  { label: L('Domein (verloopdatum)'), target: L('Domein'), unit: 'dagen', warn: 30, crit: 14, low: true, ph: 'example.nl', help: L('Wanneer verloopt je domein? RzSense vraagt het hooguit twee keer per dag op bij de registry (RDAP, de opvolger van WHOIS). Sommige registries, zoals die van .nl, publiceren geen verloopdatum: dan controleert RzSense of het domein nog geregistreerd en actief is (status als opheffing of quarantaine = CRITICAL).') },
+  domain:  { label: L('Domein (verloopdatum of e-mail)'), target: L('Domein'), unit: 'dagen', warn: 30, crit: 14, low: true, ph: 'example.nl', help: L('Wanneer verloopt je domein? RzSense vraagt het hooguit twee keer per dag op bij de registry (RDAP, de opvolger van WHOIS). Sommige registries, zoals die van .nl, publiceren geen verloopdatum: dan controleert RzSense of het domein nog geregistreerd en actief is (status als opheffing of quarantaine = CRITICAL).') },
   mqtt:    { label: L('MQTT-broker'), target: L('Adres[:poort]'), unit: 'ms', warn: 500, crit: 2000, ph: L('leeg = adres van de server (poort 1883, met TLS 8883)'), help: L('RzSense logt in bij de broker (bv. Mosquitto), stuurt een testbericht en ontvangt het zelf weer: de waarde is die rondgang in ms. Lukt inloggen niet, of komt het bericht niet terug, dan CRITICAL. Daarnaast kun je een topic bekijken, bv. zigbee2mqtt/bridge/state met "online".') },
   vpn:     { label: L('VPN (Gluetun of WireGuard)'), target: null, unit: null, help: L('Werkt je VPN? Kies hieronder Gluetun of WireGuard.') },
   // 1.187.0: verkeer van een apparaat (uit UniFi)
@@ -187,6 +187,11 @@ const isTnHost = (h) => h.metrics.includes('truenas');
 const VPN_METRICS = {
   gluetun: { label: L('Gluetun (control server)'), target: L('Control server'), unit: null, ph: L('leeg = http://<adres van de server>:8000'), help: L('RzSense vraagt de control server van Gluetun of de VPN draait en via welk publiek IP het verkeer gaat. Is dat je eigen IP (van de internetlijn van RzSense), dan lekt de VPN: CRITICAL. Staat de control server achter een API-sleutel, vul die hieronder in.') },
   wg: { label: L('WireGuard (via de agent)'), target: L('Peer'), unit: 's', warn: 300, crit: 900, ph: L('leeg = alle peers, of bv. wg0'), help: L('Hoe lang geleden de laatste handshake was (de oudste peer telt). Met verkeer of PersistentKeepalive is dat elke 2 minuten; een tunnel zonder verkeer en zonder keepalive maakt geen handshakes. Agent 1.75.0 als root nodig.') },
+};
+/** 1.227.0: Domein-check: de verloopdatum, of de e-mailbeveiliging van het domein */
+const DOMAIN_METRICS = {
+  '': { label: L('📅 Verloopdatum (RDAP)'), help: '' },
+  mail: { label: L('✉️ E-mailbeveiliging (SPF, DKIM, DMARC)'), unit: null, nothresh: true, help: L('Kan iemand anders mail versturen uit naam van dit domein? RzSense kijkt in DNS naar SPF, DKIM, DMARC, MTA-STS en TLS-rapporten, en zegt per punt wat er mis is en welk DNS-record je kunt plakken. Geen SPF of DMARC = CRITICAL; DMARC op p=none of een korte DKIM-sleutel = WARNING. Eens per 3 uur opnieuw opgezocht.') },
 };
 /** 1.200.0: wat een databasecheck bewaakt (zoals Db::UNITS); only = alleen bij die database */
 const DB_METRICS = {
@@ -660,7 +665,7 @@ function fxCurrent() {
   if (tab === 'dashboard') return 'dash';
   if (tab === 'alerts') return 'alerts';
   if (tab === 'ids') return { inc: 'ids', acc: 'acc', blk: 'blk' }[idsTab] || 'ids';
-  if (tab === 'vulns') return $('#vuln-tabs') ? (vulnTab === 'leak' ? 'leaks' : 'vulns') : ($('#leak-list') && !$('#vuln-search') ? 'leaks' : 'vulns');
+  if (tab === 'vulns') return $('#vuln-tabs') ? (vulnTab === 'leak' ? 'leaks' : vulnTab === 'eol' ? 'eol' : 'vulns') : ($('#leak-list') && !$('#vuln-search') ? 'leaks' : 'vulns');
   return null;
 }
 function fxQuery(page) {

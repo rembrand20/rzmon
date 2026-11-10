@@ -4,6 +4,7 @@ function init() {
   if ($('#net-search')) initNet();
   if ($('#an-body')) initAnalytics();
   if ($('#leak-list')) initLeaks();
+  initEol();   // 1.227.0
   // 1.224.0: UniFi en AdGuard Home elk op een eigen pagina, met een eigen testknop
   $$('[data-netlinks-test]').forEach((b) => (b.onclick = async (e) => {
     const btn = e.currentTarget, which = btn.dataset.netlinksTest, box = $(`[data-netlinks-result="${which}"]`);
@@ -586,7 +587,7 @@ function showTab(name) {
     const [tab, s] = name.split('/');
     name = tab;
     if (tab === 'ids' && ['inc', 'map', 'acc', 'blk', 'prot', 'live', 'rules', 'anom', 'mitre'].includes(s)) idsTab = s;
-    if (tab === 'vulns' && ['cve', 'leak'].includes(s)) vulnTab = s;
+    if (tab === 'vulns' && ['cve', 'leak', 'eol'].includes(s)) vulnTab = s;
   }
   if (qs) {
     const page = { dashboard: 'dash', alerts: 'alerts', ids: { inc: 'ids', acc: 'acc', blk: 'blk' }[idsTab], vulns: vulnTab === 'leak' ? 'leaks' : 'vulns' }[name];
@@ -619,7 +620,7 @@ function showTab(name) {
   if (name === 'analytics') loadAnalytics();
   if (name === 'logs') loadLogsPage();   // 1.211.0
   if (name === 'incidents') loadIncidents();
-  if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); }
+  if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); if ($('#eol-list') && !$('#vuln-tabs')) loadEol(); }
   pageWaitClose();
   crumbs();   // 1.199.0
 }

@@ -49,6 +49,9 @@ final class NetChecks
         if ($name === null) {
             return Checks::result(STATUS_UNKNOWN, null, t('Ongeldige domeinnaam'));
         }
+        if (($check['metric'] ?? '') === 'mail') {   // 1.227.0: e-mailbeveiliging (SPF, DKIM, DMARC, MTA-STS)
+            return MailSec::check($check, $o, $name);
+        }
         $cache = is_array($o['_rdap'] ?? null) && ($o['_rdap']['name'] ?? '') === $name ? $o['_rdap'] : null;
         $note = '';
         if (!$cache || (int) ($cache['at'] ?? 0) < time() - 43200) {

@@ -769,7 +769,8 @@ const SET_NAV = [
     ['access', L('Inloggen'), ['access'], L('Lokaal netwerk, uitloggen en blokkeren na mislukte pogingen.')],
     ['outside', L('Beheer via https'), ['https', 'outside'], L('Veilig beheren van buiten je netwerk.')],
     ['users', L('Gebruikers'), ['users', 'confirmpw'], L('Accounts, rollen, tweestapsverificatie en bevestigen bij acties.')],
-    ['vulns', L('Kwetsbaarheden'), ['vulns', 'cvebuzz'], L('Bekende lekken in de software op je servers.')],
+    ['vulns', L('Kwetsbaarheden'), ['vulns', 'eol', 'cvebuzz'], L('Bekende lekken in de software op je servers, en software die geen updates meer krijgt.')],
+    ['mailsec', L('E-mailbeveiliging'), ['mailsec'], L('SPF, DKIM en DMARC van je domeinen: kan iemand mailen namens jou?')],
     ['hibp', L('Datalekken'), ['hibp'], L('Staan je e-mailadressen of domein in een datalek?')],
     ['netscan', L('Netwerkscan'), ['netscan'], L('Nieuwe apparaten en open poorten in je netwerk.')]]],
   ['agents', SET_IC('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'), L('Agents'), [
@@ -1945,7 +1946,7 @@ const SYSINFO_ROWS = [
   ['IDS', [['isolate', '🧱 ' + L('Server geïsoleerd of opgeheven')]]],
   [L('Netwerk'), [['net_new', '🆕 ' + L('Nieuw apparaat op het netwerk')], ['net_traffic', '📈 ' + L('Ongewoon netwerkverkeer (veel of \'s nachts)')], ['net_cap', '📶 ' + L('Datalimiet internet bijna of helemaal op')], ['path_change', '🛣️ ' + L('Pad naar een doel gewijzigd (pad-check, als die dat mag)')]]],
   [L('Checks'), [['smart_drift', '🧠 ' + L('Normaalwaarde stijgt sluipend (slimme drempels)')], ['smart_auto', '🧠 ' + L('Drempels zelf aangepast (naar slim)')], ['alert_auto', '🔔 ' + L('Melden na N zelf aangepast')], ['heal', '🩹 ' + L('Zelf hersteld (of herstel mislukt)')],
-    ['watchdog', '🐕 ' + L('Waakhond: RzSense was onbereikbaar of de checks stonden stil')], ['trend', '📉 ' + L('Trend: een grens wordt binnenkort bereikt (Analyse → Trends)')]]],
+    ['watchdog', '🐕 ' + L('Waakhond: RzSense was onbereikbaar of de checks stonden stil')], ['trend', '📉 ' + L('Trend: een grens wordt binnenkort bereikt (Analyse → Trends)')], ['eol', '⏳ ' + L('End-of-life: software krijgt binnenkort of geen updates meer')]]],
   ['RzSense', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],
   [L('Logs'), [['logs_limit', '📜 ' + L('Daglimiet van een server bereikt')], ['logs_full', '📜 ' + L('Maximum bereikt: oudste dag weggegooid')], ['logs_watch_off', '📜 ' + L('Vaste zoekactie te traag, uitgezet')]]],   // 1.210.0
   [L('AI-advies'), [['ai_advice', '🤖 ' + L('Samenvatting van een automatisch advies')], ['ai_week', '📅 ' + L('Weekoverzicht')], ['ai_credit', '💳 ' + L('Tegoed of budget bijna op of op')]]],   // 1.173.0

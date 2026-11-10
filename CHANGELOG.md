@@ -8,11 +8,26 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.227.0**: **e-mailbeveiliging van je domein** (SPF, DKIM, DMARC, met het record om te plakken) en **end-of-life** van besturingssysteem en software.
 - **1.226.0**: **logboek per server**: wat de agent, RzSense en beheerders deden en veranderden, met uitkomst, filters en CSV.
 - **1.225.0**: **de code is opgesplitst in overzichtelijke onderdelen** (interface en API), met controles die fouten eerder vangen.
 - **1.224.0**: **Trends**: wat langzaam de verkeerde kant op gaat (accu, SSD, responstijd, geheugen, aanvallen), met een datum waarop het misgaat.
 - **1.223.0**: **slimme oordelen bij IDS-incidenten**: per soort, regels en jouw keuze eerst, de AI alleen als het nog onzeker is.
-- **1.222.0**: **het hele pad van een webaanval**: aanvaller → reverse proxy → site → dienst, met een oordeel, en aanvallen per site.
+
+## 1.227.0 – 2026-11-10
+### Nieuw
+- **E-mailbeveiliging van je domein** (een keuze bij de **Domein-check**: *Wat controleren → ✉️ E-mailbeveiliging*): kan iemand mail versturen die van jouw domein lijkt te komen?
+  - RzSense kijkt eens per 3 uur in DNS naar **SPF** (bestaat het, streng genoeg, niet meer dan 10 opzoekingen), **DMARC** (beleid, pct, rapporten), **DKIM** (de selectors die je opgeeft en de bekendste, met de sleutellengte), **MTA-STS** en **TLS-rapporten**, en optioneel of de mailserver **STARTTLS** doet;
+  - per punt een oordeel, en in de popup het **DNS-record om te plakken** (📋 kopiëren). Geen SPF of DMARC = critical, DMARC op `p=none` of een korte DKIM-sleutel = warning;
+  - een **domein zonder mail** (aanvinken, of geen MX) hoort `v=spf1 -all` en DMARC `p=reject` te hebben;
+  - werkt DNS niet, dan wordt de check *onbekend* en niet *critical*.
+- **End-of-life** (*🐞 Kwetsbaarheden → ⏳ Verouderd*): welk besturingssysteem en welke software geen updates meer krijgt, of binnenkort niet.
+  - Uit de softwarelijst van de agents: Rocky, AlmaLinux, RHEL, Debian, Ubuntu, Alpine, Fedora, Proxmox VE …, en PHP, MariaDB, MySQL, PostgreSQL, nginx, Node.js, Python, Docker Engine, Redis en OpenSSL;
+  - de einddatums komen eens per dag van **endoflife.date** (alleen productnamen gaan de deur uit);
+  - besturingssysteem buiten ondersteuning = critical, binnen 90 dagen = warning; software uit de pakketbron van je distributie alleen ter info (die levert vaak nog beveiligingsupdates), met de **opvolger** erbij;
+  - een ℹ️-melding 90 en 30 dagen vooraf en op de dag zelf (*Systeemmeldingen → End-of-life*), en een regel in het logboek van de server;
+  - werkt ook als Kwetsbaarheden zelf uit staat.
+- **Allebei aan en uit te zetten** in *Instellingen → Overzicht → Functies*, en op hun eigen pagina (*Beveiliging → E-mailbeveiliging*, *Beveiliging → Kwetsbaarheden → End-of-life*).
 
 ## 1.226.0 – 2026-11-10
 ### Nieuw

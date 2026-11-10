@@ -5590,3 +5590,7 @@ body.lg .mds-sheet-p { background: var(--bg-2, var(--bg)); -webkit-backdrop-filt
 .al-ok { min-width: 1rem; text-align: center; }
 .al-mod { font-size: .78rem; padding: .05rem .4rem; border-radius: .6rem; background: color-mix(in srgb, var(--primary) 12%, transparent); white-space: nowrap; }
 .al-detail { overflow-wrap: anywhere; }
+
+/* 1.227.0: e-mailbeveiliging in de check-popup */
+.mail-fix { display: flex; gap: .4rem; align-items: center; margin-top: .25rem; }
+.mail-fix code { overflow-wrap: anywhere; font-size: .78rem; }

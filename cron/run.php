@@ -188,6 +188,12 @@ try {
     cron_err('Kwetsbaarheden', $e);
 }
 Perf::lap('kwetsbaarheden');
+// 1.227.0: end-of-life (endoflife.date), eens per dag
+try {
+    Eol::daily();
+} catch (Throwable $e) {
+    cron_err('End-of-life', $e);
+}
 // Netwerkscan (1.103.0): elk uur een ronde, een paar keer per dag dieper (Instellingen → Beveiliging → Netwerkscan)
 try {
     if ($msg = NetScan::cron()) {

@@ -178,6 +178,8 @@ Dezelfde tabel staat in RzSense bij *Instellingen → Overzicht → Functies*, m
 | ⚙️ Beheer | **RzSense bijwerken** | Vanuit de webinterface, ook automatisch en naar een gekozen versie. | 1.29.0 |
 | ⚙️ Beheer | **Back-up en herstel** | Automatisch of met de hand, met terugzetten. | 1.18.0 |
 | ⚙️ Beheer | **Wijzigingslogboek** | Wie veranderde wat en wanneer, met terugdraaien. | 1.97.0 |
+| 🐞 Kwetsbaarheden en datalekken | **E-mailbeveiliging van je domein** | SPF, DKIM, DMARC en MTA-STS: kan iemand mailen namens jouw domein? Met het record om te plakken. | 1.227.0 |
+| 🐞 Kwetsbaarheden en datalekken | **End-of-life** | Besturingssysteem en software die geen updates meer krijgen, of binnenkort niet (endoflife.date). | 1.227.0 |
 | 🖥️ Servers en agents | **Logboek per server** | Wat de agent, RzSense en beheerders op een server deden, en wat er veranderde. | 1.226.0 |
 | ⚙️ Beheer | **Exporteren en importeren** | Checks en instellingen naar een andere RzSense. | 1.97.0 |
 | ⚙️ Beheer | **Database en server** | Systeemcheck, grootte, groei en bewaartermijnen. | 1.92.0 |

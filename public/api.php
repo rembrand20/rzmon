@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /** 1.224.1: acties die met GET mogen (alleen lezen of downloaden). Al het andere moet een POST met CSRF-token zijn. */
 const API_GET = [
-    'access_info', 'actlog', 'actlog_csv', 'advice_list', 'agent_cert', 'agent_cert_renew_status', 'agent_certs', 'agent_commands', 'agent_procs', 'agent_selftest_get',
+    'access_info', 'actlog', 'actlog_csv', 'advice_list', 'eol', 'agent_cert', 'agent_cert_renew_status', 'agent_certs', 'agent_commands', 'agent_procs', 'agent_selftest_get',
     'agent_services', 'agent_status', 'agent_url_options', 'ai_get', 'ai_info', 'alerts', 'analytics', 'api_keys', 'availability', 'backup_download',
     'backup_info', 'blocks_overview', 'changelog', 'check_info', 'checks_all', 'cleanup', 'connections', 'contacts', 'containers', 'db_info',
     'db_rotate_status', 'discover', 'edr_feed', 'edr_host', 'edr_rules', 'exc_export', 'exc_list', 'exc_proposals', 'export', 'features',
@@ -80,7 +80,7 @@ $need = match ($action) {
     'home', 'mds', 'self_status', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'web_sites', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'trends', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'alert_seen', 'log_sources', 'log_source_lines', 'log_search', 'log_context', 'log_export', 'log_facets', 'log_overview', 'log_watches', 'log_watch_save', 'log_watch_toggle', 'log_watch_delete', 'log_watch_test', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'actlog', 'actlog_csv', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi', 'quiet_now' => 'user',
+    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'alert_seen', 'log_sources', 'log_source_lines', 'log_search', 'log_context', 'log_export', 'log_facets', 'log_overview', 'log_watches', 'log_watch_save', 'log_watch_toggle', 'log_watch_delete', 'log_watch_test', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'actlog', 'actlog_csv', 'eol', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi', 'quiet_now' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -229,6 +229,7 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                     out(['error' => t('Vul een domeinnaam in, bv. example.nl')], 422);
                 }
                 $target = $dn;
+                $metric = ($in['metric'] ?? '') === 'mail' ? 'mail' : null;   // 1.227.0: verloopdatum of e-mailbeveiliging
             }
             // 1.200.0: database (MariaDB/MySQL of PostgreSQL): overzicht of één waarde
             if ($type === 'mysql') {
@@ -578,7 +579,14 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
             }
             if ($type === 'domain') {
                 $old = (int) ($in['id'] ?? 0) ? json_decode((string) q('SELECT options FROM checks WHERE id = ?', [(int) $in['id']])->fetchColumn(), true) ?: [] : [];
-                $options = isset($old['_rdap']) && ($old['_rdap']['name'] ?? '') === $target ? json_encode(['_rdap' => $old['_rdap']], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null;
+                if ($metric === 'mail') {   // 1.227.0: DKIM-selectors, geen mail, STARTTLS testen
+                    $sels = array_slice(array_values(array_unique(array_filter(preg_split('/[\s,;]+/', strtolower((string) ($in['mail_dkim'] ?? ''))) ?: [],
+                        static fn($s) => (bool) preg_match('/^[a-z0-9._-]{1,63}$/', $s)))), 0, 10);
+                    $mo = ['dkim' => $sels, 'nomail' => !empty($in['mail_nomail']) ? 1 : 0, 'starttls' => !empty($in['mail_starttls']) ? 1 : 0];
+                    $options = json_encode($mo, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);   // gegevens opnieuw opzoeken na een wijziging
+                } else {
+                    $options = isset($old['_rdap']) && ($old['_rdap']['name'] ?? '') === $target ? json_encode(['_rdap' => $old['_rdap']], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null;
+                }
             }
             if ($type === 'mysql') {
                 $old = (int) ($in['id'] ?? 0) ? json_decode((string) q('SELECT options FROM checks WHERE id = ?', [(int) $in['id']])->fetchColumn(), true) ?: [] : [];
@@ -608,7 +616,7 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                 $in['name'] = ['overview' => 'Proxmox', 'guest' => $g ? ($g['kind'] === 'ct' ? '📦 ' : '🖥️ ') . ($g['name'] ?: "VM $target") : "VM $target",
                     'backups' => $target !== '' ? t('Back-up {id}', ['id' => $target]) : t('Proxmox-back-ups'), 'storage' => t('Proxmox-opslag') . ($target !== '' ? " $target" : ''), 'zfs' => 'ZFS'][$metric];
             }
-            $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'process' => t('Proces'), 'http' => 'HTTP', 'dns' => 'DNS', 'ntp' => t('Tijd'), 'smart' => t('Schijfgezondheid'), 'ups' => 'UPS', 'mysql' => (($in['db_engine'] ?? '') === 'pgsql' ? 'PostgreSQL' : 'MariaDB') . ($metric ? ' · ' . t(Db::LABELS[$metric] ?? $metric) : ''), 'domain' => t('Domein'), 'mqtt' => 'MQTT', 'vpn' => $metric === 'wg' ? 'WireGuard' : 'Gluetun',
+            $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'process' => t('Proces'), 'http' => 'HTTP', 'dns' => 'DNS', 'ntp' => t('Tijd'), 'smart' => t('Schijfgezondheid'), 'ups' => 'UPS', 'mysql' => (($in['db_engine'] ?? '') === 'pgsql' ? 'PostgreSQL' : 'MariaDB') . ($metric ? ' · ' . t(Db::LABELS[$metric] ?? $metric) : ''), 'domain' => $metric === 'mail' ? t('E-mailbeveiliging') : t('Domein'), 'mqtt' => 'MQTT', 'vpn' => $metric === 'wg' ? 'WireGuard' : 'Gluetun',
                 'truenas' => ['alerts' => t('TrueNAS-meldingen'), 'tasks' => t('TrueNAS-taken'), 'apps' => t('TrueNAS-apps'), 'update' => t('TrueNAS-update'), 'temp' => t('Schijftemperatuur')][$metric] ?? 'TrueNAS', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
                 'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando', 'reboot' => t('Herstart'), 'heartbeat' => 'Heartbeat', 'snmp' => t(SnmpMonitor::METRICS[$metric]['label'] ?? 'SNMP'),
                 'ha' => ['backup' => 'HA back-up', 'integrations' => 'HA integraties', 'repairs' => 'HA systeemstatus', 'reboot' => 'HA OS herstart',

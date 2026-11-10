@@ -1517,3 +1517,5 @@ CREATE TABLE IF NOT EXISTS host_actions (
     INDEX idx_host_actions_at (at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('actlog_days', '365');
+-- 1.227.0: e-mailbeveiliging (Domein-check) en end-of-life, standaard aan
+INSERT IGNORE INTO settings (name, value) VALUES ('mailsec_on', '1'), ('eol_on', '1');

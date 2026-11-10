@@ -55,14 +55,18 @@ const LEAK_SRC = { user: () => '👤 ' + L('gebruiker'), list: () => '📋 ' + L
 
 function showVulnTab() {
   if (!$('#vuln-tabs')) return;
-  if (!['cve', 'leak'].includes(vulnTab)) vulnTab = 'cve';
+  const have = $$('#vuln-tabs .seg-btn').map((x) => x.dataset.vt);
+  if (!have.includes(vulnTab)) vulnTab = have[0] || 'cve';
+  if (vulnTab === 'eol') loadEol();   // 1.227.0
   $$('#vuln-tabs .seg-btn').forEach((x) => x.classList.toggle('active', x.dataset.vt === vulnTab));
   $$('#tab-vulns .vuln-pane').forEach((x) => { x.hidden = x.dataset.vpane !== vulnTab; });
   crumbs();   // 1.199.0
 }
 
-function initLeaks() {
-  if ($('#vuln-tabs')) {
+/** De tabbladen Kwetsbaarheden / Verouderd / Datalekken (1.227.0: los, want Datalekken kan uit staan) */
+function initVulnTabs() {
+  if ($('#vuln-tabs') && !$('#vuln-tabs').dataset.init) {
+    $('#vuln-tabs').dataset.init = '1';
     $('#vuln-tabs').onclick = (e) => {
       const b = e.target.closest('[data-vt]');
       if (!b) return;
@@ -73,6 +77,9 @@ function initLeaks() {
     };
     showVulnTab();
   }
+}
+function initLeaks() {
+  initVulnTabs();
   $('#leak-search').oninput = () => renderLeaks();
   $('#leak-toggle').onclick = () => {
     const cards = $$('#leak-list details.leak-card');
@@ -718,3 +725,45 @@ function vulnExcludeEditor() {
   }));
 }
 
+// ---------------------------------------------------------------- ⏳ Verouderd: end-of-life (1.227.0)
+let eolData = null;
+let eolFilter = 'bad';
+const EOL_LV = { crit: ['⛔', () => L('Buiten ondersteuning')], warn: ['⏳', () => L('Binnenkort')], info: ['ℹ️', () => L('Ter info')], ok: ['✔', () => L('Ondersteund')] };
+async function loadEol() {
+  const box = $('#eol-list');
+  if (!box) return;
+  try { eolData = await api('eol'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  renderEol();
+}
+function renderEol() {
+  const d = eolData, box = $('#eol-list');
+  if (!d || !box) return;
+  const c = d.counts || {};
+  const bad = (c.crit || 0) + (c.warn || 0);
+  if ($('#vt-n-eol')) $('#vt-n-eol').textContent = bad ? String(bad) : '';
+  $('#eol-counts').innerHTML = ['crit', 'warn', 'info', 'ok'].map((k) => `<span class="hc hc-${k === 'crit' ? 'crit' : k === 'warn' ? 'warn' : k === 'ok' ? 'ok' : 'unknown'}"><b>${c[k] || 0}</b> ${EOL_LV[k][0]} ${esc(EOL_LV[k][1]())}</span>`).join('');
+  const st = d.state || {};
+  $('#eol-info').textContent = st.ok ? L('Bijgewerkt {t}', { t: new Date(st.ok * 1000).toLocaleString(LOCALE, { dateStyle: 'short', timeStyle: 'short' }) }) + (st.error ? ' · ⚠ ' + st.error : '') : (st.error || L('Nog niet opgezocht: dat gebeurt eens per dag'));
+  const chips = [['bad', L('Aandacht')], ['all', L('Alles')]];
+  $('#eol-filter').innerHTML = chips.map(([k, l]) => `<button type="button" class="dchip ${eolFilter === k ? 'on' : ''}" data-eol-f="${k}">${l}</button>`).join('');
+  const q = ($('#eol-search').value || '').toLowerCase();
+  const rows = d.rows.filter((r) => (eolFilter === 'all' || ['crit', 'warn'].includes(r.level)) && (!q || `${r.host} ${r.label} ${r.cycle}`.toLowerCase().includes(q)));
+  if (!d.rows.length) { box.innerHTML = `<p class="muted">${L('Nog geen softwarelijsten van de agents. Die komen met het volgende rapport (agent 1.47.0 of nieuwer).')}</p>`; return; }
+  box.innerHTML = rows.length ? `<div class="table-scroll"><table class="vuln-table eol-tbl"><thead><tr><th>${L('Server')}</th><th>${L('Software')}</th><th>${L('Versie')}</th><th>${L('Updates tot')}</th><th>${L('Opvolger')}</th></tr></thead><tbody>${rows.map((r) => {
+    const lv = EOL_LV[r.level] || EOL_LV.ok;
+    const until = !r.known ? `<span class="muted">${L('onbekend bij endoflife.date')}</span>` : r.eol ? `${esc(new Date(r.eol + 'T12:00').toLocaleDateString(LOCALE, { dateStyle: 'medium' }))} <span class="muted small">${r.days < 0 ? L('{n} dagen geleden', { n: -r.days }) : L('over {n} dagen', { n: r.days })}</span>` : r.state === 'eol' ? L('al voorbij') : L('geen einddatum bekend');
+    return `<tr class="eol-${r.level}"><td>${esc(r.host)}</td><td>${lv[0]} <b>${esc(r.label)} ${esc(r.cycle)}</b>${r.kind === 'os' ? ` <span class="pill">${L('systeem')}</span>` : ''}${r.lts ? ' <span class="pill">LTS</span>' : ''}${r.level === 'info' ? `<div class="muted small">${L('uit de pakketbron van je distributie: die levert vaak nog beveiligingsupdates')}</div>` : ''}</td>
+      <td class="mono small">${esc(r.version)}</td><td>${until}</td><td>${r.successor ? esc(r.label + ' ' + r.successor) : '–'}</td></tr>`;
+  }).join('')}</tbody></table></div>` : `<p class="muted">✔ ${L('Niets wat aandacht vraagt.')}</p>`;
+}
+function initEol() {
+  initVulnTabs();
+  if (!$('#eol-list')) return;
+  $('#eol-search').oninput = renderEol;
+  $('#eol-filter').onclick = (e) => { const b = e.target.closest('[data-eol-f]'); if (b) { eolFilter = b.dataset.eolF; renderEol(); } };
+  $('#eol-refresh').onclick = async (e) => {
+    e.target.disabled = true;
+    try { eolData = await api('eol_refresh', {}); renderEol(); toast(L('Opgezocht bij endoflife.date')); } catch (ex) { toast(ex.message, 'err'); }
+    e.target.disabled = false;
+  };
+}

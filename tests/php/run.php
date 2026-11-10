@@ -2348,5 +2348,43 @@ ActionLog::purge();
 ok((int) q('SELECT COUNT(*) FROM host_actions WHERE host_id = ?', [$hl])->fetchColumn() === 1, 'logboek: opruimen na de bewaartermijn (standaard 365 dagen)');
 q('DELETE FROM hosts WHERE id = ?', [$hl]);
 
+section('E-mailbeveiliging en end-of-life (1.227.0)');
+$kp = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+$key2048 = preg_replace('/-----[A-Z ]+-----|\s+/', '', (string) openssl_pkey_get_details($kp)['key']);
+$good = ['mx' => [[10, 'mx.example.nl']], 'spf' => ['v=spf1 include:_spf.example.net -all'], 'spf_lookups' => 3,
+    'dmarc' => ['v=DMARC1; p=reject; rua=mailto:d@example.nl'], 'dkim' => ['google' => "v=DKIM1; k=rsa; p=$key2048"],
+    'sts' => ['v=STSv1; id=1'], 'sts_policy' => ['mode' => 'enforce', 'mx' => ['mx.example.nl']], 'tlsrpt' => ['v=TLSRPTv1; rua=mailto:t@example.nl']];
+$r = MailSec::evaluate('example.nl', $good);
+ok($r['worst'] === 'ok' && $r['score'] >= 95, 'e-mail: SPF -all, DMARC reject, DKIM 2048, MTA-STS enforce = in orde');
+$r = MailSec::evaluate('example.nl', ['mx' => [[10, 'mx.example.nl']], 'spf' => [], 'dmarc' => [], 'dkim' => []]);
+$keys = array_column(array_filter($r['items'], static fn($i) => $i['st'] === 'crit'), 'key');
+ok($r['worst'] === 'crit' && in_array('spf', $keys, true) && in_array('dmarc', $keys, true), 'e-mail: geen SPF en geen DMARC = critical');
+ok(str_contains(json_encode($r['items']), 'v=spf1 mx -all'), 'e-mail: met een SPF-record om te plakken');
+$r = MailSec::evaluate('example.nl', ['dmarc' => ['v=DMARC1; p=none'], 'spf' => ['v=spf1 +all']] + $good);
+$st = array_column($r['items'], 'st', 'key');
+ok($st['spf'] === 'crit' && $st['dmarc'] === 'warn', 'e-mail: +all = critical, DMARC p=none = warning');
+$r = MailSec::evaluate('example.nl', ['spf_lookups' => 12] + $good);
+ok(array_column($r['items'], 'st', 'key')['spf_n'] === 'crit', 'e-mail: meer dan 10 DNS-opzoekingen in SPF = critical');
+$r = MailSec::evaluate('parked.nl', ['mx' => [], 'spf' => ['v=spf1 -all'], 'dmarc' => ['v=DMARC1; p=reject']]);
+ok($r['worst'] === 'ok' && !$r['sends'], 'e-mail: domein zonder mail met -all en reject = in orde, geen DKIM nodig');
+$r = MailSec::evaluate('parked.nl', ['mx' => [], 'spf' => ['v=spf1 include:x.nl ~all'], 'dmarc' => ['v=DMARC1; p=quarantine']]);
+ok(array_column($r['items'], 'st', 'key')['spf'] === 'warn' && array_column($r['items'], 'st', 'key')['dmarc'] === 'warn', 'e-mail: domein zonder mail zonder -all/reject = warning met advies');
+ok(MailSec::keyBits("v=DKIM1; p=$key2048") === 2048 && MailSec::keyBits('v=DKIM1; p=') === 0, 'e-mail: DKIM-sleutellengte (2048, ingetrokken)');
+
+$inv = ['os_id' => 'debian', 'os_version' => '11', 'os_name' => 'Debian GNU/Linux 11', 'packages' => json_encode([
+    ['php8.2-cli', '8.2.7-1~deb12u1', 'amd64', 'php8.2', ''], ['mariadb-server', '1:10.11.6-0+deb12u1', 'amd64', '', ''],
+    ['docker-ce', '5:24.0.7-1~debian.11~bullseye', 'amd64', '', ''], ['nginx', '1.22.1-9', 'amd64', '', ''], ['bash', '5.2', 'amd64', '', '']])];
+$det = array_column(Eol::detect($inv), null, 'product');
+ok(($det['debian']['cycle'] ?? '') === '11' && ($det['php']['cycle'] ?? '') === '8.2' && ($det['mariadb']['cycle'] ?? '') === '10.11'
+    && ($det['docker-engine']['cycle'] ?? '') === '24' && ($det['nginx']['cycle'] ?? '') === '1.22' && count($det) === 5, 'end-of-life: besturingssysteem en software herkend (epoch en achtervoegsel weg)');
+$now = strtotime('2026-11-10');
+$deb = [['cycle' => '13', 'eol' => '2030-06-10', 'latest' => '13.1'], ['cycle' => '12', 'eol' => '2028-06-10', 'latest' => '12.8'], ['cycle' => '11', 'eol' => '2024-08-14', 'latest' => '11.11']];
+$j = Eol::judge($det['debian'], $deb, $now);
+ok($j['state'] === 'eol' && $j['successor'] === '13' && Eol::level($det['debian'], $j['state']) === 'crit', 'end-of-life: Debian 11 buiten ondersteuning = critical, opvolger 13');
+$j = Eol::judge(['cycle' => '12', 'kind' => 'os', 'vendor' => true], [['cycle' => '12', 'eol' => '2027-01-15']], $now);
+ok($j['state'] === 'soon' && $j['days'] === 66 && Eol::level(['kind' => 'os', 'vendor' => true], 'soon') === 'warn', 'end-of-life: binnen 90 dagen = warning, met het aantal dagen');
+ok(Eol::level($det['php'], 'eol') === 'info' && Eol::level($det['docker-engine'], 'eol') === 'warn', 'end-of-life: software uit de distributie = ter info, van de leverancier (docker-ce) = warning');
+ok(Eol::judge(['cycle' => '8', 'kind' => 'os', 'vendor' => true], [['cycle' => '8.2', 'eol' => false]], $now)['known'], 'end-of-life: cyclus op de major gevonden (Proxmox 8 → 8.2)');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

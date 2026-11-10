@@ -86,6 +86,14 @@ switch ($action) {
 
     // Toegang: logins, sudo en su (zonder wat inmiddels op de lijst Negeren staat)
     // ---------- Kwetsbaarheden (beheerders en gebruikers; bijwerken en scannen alleen beheerders) ----------
+    case 'eol':   // 1.227.0: end-of-life per server
+        out(Eol::overview());
+
+    case 'eol_refresh':
+        save_setting('eol_last', '0');
+        Eol::daily();
+        out(Eol::overview());
+
     case 'vulns':
         out(Vulns::enabled() ? Vulns::overview() : ['enabled' => false]);
 

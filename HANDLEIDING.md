@@ -81,6 +81,7 @@ RzSense bestaat uit vier onderdelen:
 | **Schijfgezondheid (SMART)** (vanaf 1.138.0) | Gezondheidstest, temperatuur, slijtage (SSD/NVMe), vervangen en twijfelachtige sectoren, per schijf of alle; schijven in slaapstand worden niet gewekt | Temperatuur in °C. Test mislukt of ≥ 90% versleten = CRITICAL; sectoren of ≥ 80% versleten = WARNING | Agent 1.70.0 met smartmontools |
 | **UPS (NUT)** (vanaf 1.138.0) | Op het net of op de batterij, lading, resterende tijd, belasting | Lading in % (lager is slechter). Op de batterij = WARNING, bijna leeg = CRITICAL | Agent 1.70.0 met NUT (`upsc`) |
 | **Database** (MariaDB, MySQL, PostgreSQL; vanaf 1.138.0, uitgebreid in 1.200.0) | Van binnen: verbindingen, lopende en trage query's, cache, replicatie, grootte, deadlocks en (PostgreSQL) wraparound en idle in transaction. Overzicht in één check, of één waarde (§8.5c) | Overzicht: hoe lang de meting duurde (ms); niet verbonden = CRITICAL. Losse waarden met hun eigen eenheid | Via de agent (lokaal of in een container) of RzSense maakt verbinding |
+| **Domein → E-mailbeveiliging** (vanaf 1.227.0) | Kan iemand mail versturen uit naam van je domein? SPF, DKIM, DMARC, MTA-STS en TLS-RPT in DNS, eens per 3 uur. Zie [8.13b](#813b-e-mailbeveiliging-van-je-domein-️-vanaf-12270) | Score 0–100. Geen SPF of DMARC, `+all` of meer dan 10 SPF-opzoekingen = CRITICAL; DMARC `p=none`, een DKIM-sleutel korter dan 2048 bits of geen DKIM = WARNING | Alle servers (RzSense vraagt het op) |
 | **Domein (verloopdatum)** (vanaf 1.170.0) | Wanneer je domein verloopt, via RDAP (de opvolger van WHOIS), hooguit twee keer per dag opgevraagd; registrar en status erbij. Registries die geen verloopdatum publiceren (zoals .nl): of het domein nog geregistreerd en actief is | Dagen tot het verloopt (standaard warning 30, critical 14). Niet gevonden, of een status als *pending delete*, *redemption* of *quarantaine* = CRITICAL | Alle servers (RzSense vraagt het op) |
 | **MQTT-broker** (vanaf 1.170.0) | Inloggen (eventueel met gebruiker, wachtwoord en TLS), een testbericht op `rzmon/check/…` sturen en zelf terug ontvangen, en eventueel een topic bekijken (bv. `zigbee2mqtt/bridge/state` moet `online` bevatten) | Rondgang in ms. Niet verbonden, inloggen geweigerd, testbericht komt niet terug of het topic klopt niet = CRITICAL; geen bericht op het topic (niet *retained*?) = WARNING | Alle servers (RzSense maakt verbinding) |
 | **VPN: Gluetun** (vanaf 1.170.0) | De control server van Gluetun (standaard `http://<server>:8000`, eventueel met API-sleutel): draait de VPN, welk publiek IP, land en provider | Gestopt = CRITICAL; **lek** (het publieke IP is je eigen IP, dat van de internetlijn van RzSense) = CRITICAL; ander land dan verwacht = WARNING | Alle servers (RzSense vraagt het op) |
@@ -3191,6 +3192,41 @@ Vanaf **70** is het rood: **🔥 Hoog risico** (ook als filter), vanaf 40 oranje
 **🤖 Raakt dit jou echt?** Met AI-advies aan staat deze knop in de popup. De AI krijgt de gegevens van de CVE (CVSS, EPSS, KEV, SSVC, rugbaarheid) en per server het pakket, de versie, de oplossing en of het pakket op het netwerk luistert. Hij antwoordt met een oordeel (**eerst doen**, **kan wachten** of **niet van toepassing**), waarom, per server, wat je moet doen en wat je kunt doen als bijwerken nu niet kan. Het oordeel staat daarna als 🤖 bij de CVE in de lijst. Het is alleen tekst: RzSense voert niets uit wat de AI voorstelt. Met *Gegevens maskeren* aan gaan servernamen en IP-adressen gemaskeerd naar een cloud-AI.
 
 **🎯 Eén update, veel opgelost** staat bovenaan *Kwetsbaarheden*: de updates die het meeste risico wegnemen. Per pakket zie je naar welke versie, hoeveel kwetsbaarheden het oplost, op hoeveel servers, en of er actief misbruikte of veelbesproken bij zijn. Met **⬆ Bijwerken** werk je één server meteen bij; staat het pakket op meer servers, dan kies je eerst de server.
+
+### 8.13b E-mailbeveiliging van je domein ✉️ (vanaf 1.227.0)
+Kan iemand anders mail versturen die van jouw domein lijkt te komen (phishing uit jouw naam)? Dat hangt af van drie DNS-records: **SPF** (welke servers mogen mailen), **DKIM** (een handtekening op elke mail) en **DMARC** (wat een ontvanger doet met mail die niet klopt).
+
+**Toevoegen:** bij een server (bv. de server van RzSense) → **＋ Check** → type **Domein** → *Wat controleren*: **✉️ E-mailbeveiliging**. Vul het domein in en eventueel de **DKIM-selector** van je mailprovider (bv. `google` bij Google Workspace, `selector1` bij Microsoft 365; de bekendste probeert RzSense zelf).
+
+**Wat RzSense controleert** (eens per 3 uur, met een score van 0 tot 100):
+
+| Punt | Goed | Niet goed |
+|---|---|---|
+| **SPF** | één record dat eindigt op `-all` of `~all`, hooguit 10 DNS-opzoekingen | geen SPF, meer dan één, `+all` (= iedereen mag), meer dan 10 opzoekingen → CRITICAL; `?all`, geen `all`, `ptr` → WARNING |
+| **DMARC** | `p=quarantine` of `p=reject` | geen DMARC → CRITICAL; `p=none` (alleen kijken) of `pct` onder 100 → WARNING |
+| **DKIM** | een sleutel van 2048 bits (of ed25519) | geen sleutel gevonden of 1024 bits → WARNING |
+| **MTA-STS** en **TLS-RPT** | `mode: enforce` en een rapportadres | ontbreekt → alleen ℹ️ (een aanrader) |
+| **STARTTLS** (optioneel) | de mailserver versleutelt | geen STARTTLS → CRITICAL. Standaard uit: poort 25 is vaak dicht op een thuisverbinding |
+
+- **Met het record om te plakken:** in de popup van de check staat per punt wat er mis is, met het DNS-record dat je bij je DNS-provider kunt plakken (📋 kopieert het).
+- **Domein zonder mail** (bv. een domein dat je alleen voor een website gebruikt): vink *Dit domein verstuurt geen e-mail* aan, of RzSense ziet het zelf (geen MX). Dan hoort er `v=spf1 -all` en DMARC `p=reject` te staan: de beste bescherming tegen misbruik van je naam.
+- **DNS werkt niet?** Dan wordt de check *onbekend*, niet *critical*: RzSense oordeelt alleen als het domein zelf te vinden is.
+- **Uitzetten:** *Instellingen → Overzicht → Functies* of *Beveiliging → E-mailbeveiliging*.
+
+### 8.13c End-of-life ⏳ (vanaf 1.227.0)
+Een besturingssysteem of programma dat geen updates meer krijgt, krijgt ook geen beveiligingsupdates meer. Dat zie je niet aan een CVE-lijst: er komen gewoon geen meldingen meer. Daarom kijkt RzSense ook **tot wanneer** iets ondersteund wordt.
+
+- **Waar:** *🐞 Kwetsbaarheden → ⏳ Verouderd*. Staat standaard aan, ook als Kwetsbaarheden zelf uit staat (dezelfde softwarelijst van de agent, 1.47.0 of nieuwer).
+- **Wat:** het besturingssysteem (Rocky, AlmaLinux, RHEL, CentOS, Oracle Linux, Fedora, Debian en Raspberry Pi OS, Ubuntu, Alpine, openSUSE, Amazon Linux, Proxmox VE) en bekende software (PHP, MariaDB, MySQL, PostgreSQL, nginx, Node.js, Python, Docker Engine, Redis, OpenSSL).
+- **Waarvandaan:** [endoflife.date](https://endoflife.date), eens per dag (*Achtergrondtaken: End-of-life opzoeken*). Alleen **productnamen** gaan de deur uit (zoals `debian` of `php`), geen versies, servernamen of IP-adressen. **🔄 Nu opzoeken** haalt het meteen op.
+- **Oordeel:**
+  - ⛔ **besturingssysteem buiten ondersteuning** = critical;
+  - ⏳ **binnen 90 dagen** = warning;
+  - software **van de leverancier zelf** (zoals `docker-ce`) buiten ondersteuning = warning;
+  - ℹ️ software **uit de pakketbron van je distributie** (zoals PHP op Debian) = ter info: de distributie levert vaak nog jaren beveiligingsupdates, ook als de maker zelf stopt.
+- **Opvolger:** bij elke regel de nieuwste versie die nog ondersteund wordt.
+- **Meldingen:** een ℹ️-melding 90 en 30 dagen vooraf en op de dag zelf (*Instellingen → Meldingen → Systeemmeldingen → End-of-life*), één keer per stap, en een regel in het logboek van de server.
+- **Uitzetten:** *Instellingen → Overzicht → Functies* of *Beveiliging → Kwetsbaarheden → End-of-life*.
 
 ### 8.14 Netwerkscan: wat zit er op je netwerk? 🔎 (vanaf 1.103.0)
 RzSense zoekt zelf welke apparaten er op je **lokale netwerken** zitten: telefoons, laptops, camera's, printers, slimme stekkers, je NAS. Je ziet ze op het tabblad **Netwerk**.

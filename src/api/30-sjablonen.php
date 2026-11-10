@@ -364,7 +364,7 @@ switch ($action) {
             'confirm_fails', 'confirm_ok', 'confirm_types', 'confirm_fast',   // 1.185.0, 1.193.0
             'net_traffic', 'net_traffic_swap', 'net_wan_cap_gb',   // 1.186.0, 1.187.0
             'logs_on', 'logs_interval', 'logs_days', 'logs_max_gb', 'logs_day_mb', 'logs_mask', 'logs_mask_extra',
-            'trend_alert_days', 'trend_ups_min'];   // 1.224.0   // 1.210.0
+            'trend_alert_days', 'trend_ups_min', 'mailsec_on', 'eol_on'];   // 1.227.0   // 1.224.0   // 1.210.0
         // 1.179.0: Mastodon alleen via https naar een gewone hostnaam
         if (isset($in['cve_mastodon_url']) && trim((string) $in['cve_mastodon_url']) !== '' && !CveBuzz::safeUrl(rtrim(trim((string) $in['cve_mastodon_url']), '/'))) {
             out(['error' => t('Mastodon: vul een https-adres in, bv. https://infosec.exchange')], 422);

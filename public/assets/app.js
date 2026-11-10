@@ -78,7 +78,7 @@ const TYPES = {
   ups:     { label: L('UPS (NUT)'), target: L('UPS'), unit: '%', warn: 50, crit: 20, low: true, ph: L('leeg = de eerste'), help: L('Via de agent en NUT (upsc) op de server waar de UPS aan hangt: op de batterij = WARNING, batterij bijna leeg = CRITICAL, en de lading met de drempels hierboven. In het bericht de resterende tijd en de belasting. Agent 1.70.0 of nieuwer.') },
   mysql:   { label: L('Database (MariaDB, MySQL, PostgreSQL)'), target: L('Adres[:poort]'), unit: 'ms', warn: 500, crit: 2000, ph: L('leeg = adres van de server (poort 3306 of 5432)'), help: L('Bewaakt een database echt van binnen: verbindingen, lopende en trage query\'s, cache, replicatie, grootte en (PostgreSQL) vacuum. Kies het overzicht (alles in één check) of één waarde met eigen drempels en grafiek. Op een server met de agent leest de agent de database lokaal uit, zonder dat hij open op het netwerk hoeft. Alleen lezen; het wachtwoord gaat nooit terug naar de browser.') },
   // 1.170.0: domein, MQTT-broker en VPN
-  domain:  { label: L('Domein (verloopdatum)'), target: L('Domein'), unit: 'dagen', warn: 30, crit: 14, low: true, ph: 'example.nl', help: L('Wanneer verloopt je domein? RzSense vraagt het hooguit twee keer per dag op bij de registry (RDAP, de opvolger van WHOIS). Sommige registries, zoals die van .nl, publiceren geen verloopdatum: dan controleert RzSense of het domein nog geregistreerd en actief is (status als opheffing of quarantaine = CRITICAL).') },
+  domain:  { label: L('Domein (verloopdatum of e-mail)'), target: L('Domein'), unit: 'dagen', warn: 30, crit: 14, low: true, ph: 'example.nl', help: L('Wanneer verloopt je domein? RzSense vraagt het hooguit twee keer per dag op bij de registry (RDAP, de opvolger van WHOIS). Sommige registries, zoals die van .nl, publiceren geen verloopdatum: dan controleert RzSense of het domein nog geregistreerd en actief is (status als opheffing of quarantaine = CRITICAL).') },
   mqtt:    { label: L('MQTT-broker'), target: L('Adres[:poort]'), unit: 'ms', warn: 500, crit: 2000, ph: L('leeg = adres van de server (poort 1883, met TLS 8883)'), help: L('RzSense logt in bij de broker (bv. Mosquitto), stuurt een testbericht en ontvangt het zelf weer: de waarde is die rondgang in ms. Lukt inloggen niet, of komt het bericht niet terug, dan CRITICAL. Daarnaast kun je een topic bekijken, bv. zigbee2mqtt/bridge/state met "online".') },
   vpn:     { label: L('VPN (Gluetun of WireGuard)'), target: null, unit: null, help: L('Werkt je VPN? Kies hieronder Gluetun of WireGuard.') },
   // 1.187.0: verkeer van een apparaat (uit UniFi)
@@ -187,6 +187,11 @@ const isTnHost = (h) => h.metrics.includes('truenas');
 const VPN_METRICS = {
   gluetun: { label: L('Gluetun (control server)'), target: L('Control server'), unit: null, ph: L('leeg = http://<adres van de server>:8000'), help: L('RzSense vraagt de control server van Gluetun of de VPN draait en via welk publiek IP het verkeer gaat. Is dat je eigen IP (van de internetlijn van RzSense), dan lekt de VPN: CRITICAL. Staat de control server achter een API-sleutel, vul die hieronder in.') },
   wg: { label: L('WireGuard (via de agent)'), target: L('Peer'), unit: 's', warn: 300, crit: 900, ph: L('leeg = alle peers, of bv. wg0'), help: L('Hoe lang geleden de laatste handshake was (de oudste peer telt). Met verkeer of PersistentKeepalive is dat elke 2 minuten; een tunnel zonder verkeer en zonder keepalive maakt geen handshakes. Agent 1.75.0 als root nodig.') },
+};
+/** 1.227.0: Domein-check: de verloopdatum, of de e-mailbeveiliging van het domein */
+const DOMAIN_METRICS = {
+  '': { label: L('📅 Verloopdatum (RDAP)'), help: '' },
+  mail: { label: L('✉️ E-mailbeveiliging (SPF, DKIM, DMARC)'), unit: null, nothresh: true, help: L('Kan iemand anders mail versturen uit naam van dit domein? RzSense kijkt in DNS naar SPF, DKIM, DMARC, MTA-STS en TLS-rapporten, en zegt per punt wat er mis is en welk DNS-record je kunt plakken. Geen SPF of DMARC = CRITICAL; DMARC op p=none of een korte DKIM-sleutel = WARNING. Eens per 3 uur opnieuw opgezocht.') },
 };
 /** 1.200.0: wat een databasecheck bewaakt (zoals Db::UNITS); only = alleen bij die database */
 const DB_METRICS = {
@@ -660,7 +665,7 @@ function fxCurrent() {
   if (tab === 'dashboard') return 'dash';
   if (tab === 'alerts') return 'alerts';
   if (tab === 'ids') return { inc: 'ids', acc: 'acc', blk: 'blk' }[idsTab] || 'ids';
-  if (tab === 'vulns') return $('#vuln-tabs') ? (vulnTab === 'leak' ? 'leaks' : 'vulns') : ($('#leak-list') && !$('#vuln-search') ? 'leaks' : 'vulns');
+  if (tab === 'vulns') return $('#vuln-tabs') ? (vulnTab === 'leak' ? 'leaks' : vulnTab === 'eol' ? 'eol' : 'vulns') : ($('#leak-list') && !$('#vuln-search') ? 'leaks' : 'vulns');
   return null;
 }
 function fxQuery(page) {
@@ -1211,6 +1216,7 @@ function init() {
   if ($('#net-search')) initNet();
   if ($('#an-body')) initAnalytics();
   if ($('#leak-list')) initLeaks();
+  initEol();   // 1.227.0
   // 1.224.0: UniFi en AdGuard Home elk op een eigen pagina, met een eigen testknop
   $$('[data-netlinks-test]').forEach((b) => (b.onclick = async (e) => {
     const btn = e.currentTarget, which = btn.dataset.netlinksTest, box = $(`[data-netlinks-result="${which}"]`);
@@ -1793,7 +1799,7 @@ function showTab(name) {
     const [tab, s] = name.split('/');
     name = tab;
     if (tab === 'ids' && ['inc', 'map', 'acc', 'blk', 'prot', 'live', 'rules', 'anom', 'mitre'].includes(s)) idsTab = s;
-    if (tab === 'vulns' && ['cve', 'leak'].includes(s)) vulnTab = s;
+    if (tab === 'vulns' && ['cve', 'leak', 'eol'].includes(s)) vulnTab = s;
   }
   if (qs) {
     const page = { dashboard: 'dash', alerts: 'alerts', ids: { inc: 'ids', acc: 'acc', blk: 'blk' }[idsTab], vulns: vulnTab === 'leak' ? 'leaks' : 'vulns' }[name];
@@ -1826,7 +1832,7 @@ function showTab(name) {
   if (name === 'analytics') loadAnalytics();
   if (name === 'logs') loadLogsPage();   // 1.211.0
   if (name === 'incidents') loadIncidents();
-  if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); }
+  if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); if ($('#eol-list') && !$('#vuln-tabs')) loadEol(); }
   pageWaitClose();
   crumbs();   // 1.199.0
 }
@@ -5287,6 +5293,11 @@ async function checkInfo(id, live = false, more = null) {
       cl.slow_n || cl.deadlocks ? [L('Sinds de vorige check'), [cl.slow_n ? L('{n} trage query\'s', { n: cl.slow_n }) : '', cl.deadlocks ? L('{n} deadlocks', { n: cl.deadlocks }) : ''].filter(Boolean).join(' · ')] : null,
       m.size !== null && m.size !== undefined ? [L('Grootte'), `<b>${fmtBytes(m.size)}</b>${sizes.length > 1 ? `<br><span class="muted small">${sizes.map(([k, v]) => `${esc(k)} ${fmtBytes(v)}`).join(' · ')}</span>` : ''}`] : null,
       (m.longq || []).length ? [L('Lopende query\'s'), m.longq.slice(0, 3).map((q) => `<div class="small"><b class="${q.sec >= 300 ? 'ct-bad' : ''}">${esc(durText(q.sec))}</b> <span class="muted">${esc(q.user)}${q.db ? '@' + esc(q.db) : ''}</span><br><code>${esc(q.q.slice(0, 160))}</code></div>`).join('')] : null];
+  } else if (d && d.kind === 'mail') {
+    // 1.227.0: e-mailbeveiliging: per punt het oordeel, en het DNS-record om te plakken
+    const ic = { ok: '✔', info: 'ℹ️', warn: '⚠️', crit: '✘' };
+    det = [[L('Score'), `<b class="${d.worst === 'crit' ? 'ct-bad' : ''}">${d.score}/100</b>${d.at ? ` <span class="muted small">${L('opgezocht {t}', { t: esc(new Date(d.at * 1000).toLocaleString(LOCALE, { dateStyle: 'short', timeStyle: 'short' })) })}</span>` : ''}`],
+      ...d.items.map((i) => [`${ic[i.st] || ''} ${esc(i.title)}`, `${i.detail ? `<span class="small">${esc(i.detail)}</span>` : ''}${i.fix ? `<div class="mail-fix"><code>${esc(i.fix)}</code> <button type="button" class="btn small-btn" data-mail-copy="${esc(i.fix)}" title="${esc(L('Kopiëren'))}">📋</button></div>` : ''}`])];
   } else if (d && d.kind === 'days') {
     det = ([[L('Nog geldig'), `<b class="${d.days < 14 ? 'ct-bad' : ''}">${Math.floor(d.days)} ${L('dagen')}</b>`], [L('Verloopt'), esc(new Date(Date.now() + d.days * 86400000).toLocaleDateString(LOCALE, { dateStyle: 'medium' }))]]);
   } else det = rows.slice(0, 2);
@@ -5352,6 +5363,12 @@ async function checkInfo(id, live = false, more = null) {
     if ($('#modal').dataset.btns === sig) return;
   }
   modal({ title, wide: true, body: ciBody, buttons: btns });
+  // 1.227.0: e-mailbeveiliging: het DNS-record kopiëren
+  $('#modal-body').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-mail-copy]');
+    if (!b) return;
+    try { await navigator.clipboard.writeText(b.dataset.mailCopy); toast(L('Gekopieerd')); } catch (ex) { toast(L('Kopiëren lukte niet'), 'err'); }
+  }, { signal: modalSignal() });
   $('#modal').dataset.live = 'check:' + id;
   $('#modal').dataset.ciMore = more ? String(id) : '';
   if (!live) { const mb = $('#modal-body'); if (mb && !more) mb.scrollTop = 0; }
@@ -6582,6 +6599,15 @@ function checkForm(c, h, preset = {}, tpl = null) {
         <label class="switch"><input type="checkbox" name="change" ${+opts.change ? 'checked' : ''}><span></span> ${L('Pad gewijzigd als ℹ️ info melden')}</label>
         <p class="hint">${L('De vertraging naar het doel staat hierboven bij de drempels (ms). Op de server zijn mtr (of traceroute) en voor de doorvoer iperf3 nodig, ook op het apparaat waar naartoe gemeten wordt; dat start daar kort een ontvanger die na één meting stopt.')}</p>
       </div>
+      <label id="dm-wrap" hidden>${L('Wat controleren')}
+        <select name="metric">${Object.entries(DOMAIN_METRICS).map(([k, m]) => `<option value="${k}" ${(c.type === 'domain' ? c.metric || '' : '') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
+      </label>
+      <div id="mail-x-wrap" hidden>
+        <label>${L('DKIM-selectors')} <span class="hint">${L('(optioneel; de selector van je mailprovider, bv. google of selector1. De bekendste probeert RzSense zelf)')}</span>
+          <input name="mail_dkim" class="mono" maxlength="300" value="${esc(c.type === 'domain' ? (opts.dkim || []).join(', ') : '')}" placeholder="google, selector1"></label>
+        <label class="chk"><input type="checkbox" name="mail_nomail" ${opts.nomail ? 'checked' : ''}> ${L('Dit domein verstuurt geen e-mail (dan hoort er v=spf1 -all en DMARC p=reject te staan)')}</label>
+        <label class="chk"><input type="checkbox" name="mail_starttls" ${opts.starttls ? 'checked' : ''}> ${L('Ook testen of de mailserver STARTTLS doet (poort 25; vaak dicht op een thuisverbinding)')}</label>
+      </div>
       <label id="vpn-wrap" hidden>${L('Welke VPN')}
         <select name="metric">${Object.entries(VPN_METRICS).filter(([k]) => k !== 'wg' || h.mode === 'agent' || c.metric === 'wg').map(([k, m]) => `<option value="${k}" ${(c.type === 'vpn' ? c.metric || 'gluetun' : 'gluetun') === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select>
         <span class="hint" id="vpn-help"></span>
@@ -6926,6 +6952,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
   const inetSel = $('#inet-wrap [name=metric]', form);
   const trSel = $('#tr-wrap [name=metric]', form);   // 1.187.0
   const vpnSel = $('#vpn-wrap [name=metric]', form);   // 1.170.0
+  const dmSel = $('#dm-wrap [name=metric]', form);   // 1.227.0
   const tnSel = $('#tn-wrap [name=metric]', form);   // 1.174.0
   const dbSel = $('#db-metric', form);   // 1.200.0
   const dbVia = () => (h.mode === 'agent' && $('[name=db_via]', form) ? $('[name=db_via]', form).value : 'rzmon');
@@ -6962,6 +6989,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     const isInet = typeSel.value === 'internet';
     const isTr = typeSel.value === 'traffic';
     const isVpn = typeSel.value === 'vpn';
+    const isDm = typeSel.value === 'domain';   // 1.227.0
     const isTn = typeSel.value === 'truenas';
     const isDb = typeSel.value === 'mysql';   // 1.200.0
     const isSnmp = typeSel.value === 'snmp';
@@ -6972,6 +7000,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
       : isInet ? { ...TYPES.internet, ...INET_METRICS[inetSel.value] }
       : isTr ? { ...TYPES.traffic, ...TRAFFIC_METRICS[trSel.value] }
       : isVpn ? { ...TYPES.vpn, ...VPN_METRICS[vpnSel.value] }
+      : isDm && dmSel.value === 'mail' ? { ...TYPES.domain, ...DOMAIN_METRICS.mail }
       : isTn ? { ...TYPES.truenas, ...TN_METRICS[tnSel.value] }
       : isDb ? { ...TYPES.mysql, ...DB_METRICS[dbSel.value], target: dbVia() === 'rzmon' ? TYPES.mysql.target : null }
       : isSnmp ? snmpType({ metric: snmpSel.value, options: JSON.stringify({ mode: oidMode, unit: $('[name=oid_unit]', form).value, low: $('[name=oid_low]', form).checked }) })
@@ -6995,6 +7024,10 @@ function checkForm(c, h, preset = {}, tpl = null) {
     $('#inet-help').textContent = isInet ? INET_METRICS[inetSel.value].help : '';
     $('#vpn-wrap').hidden = !isVpn;
     vpnSel.disabled = !isVpn;
+    $('#dm-wrap').hidden = !isDm;
+    dmSel.disabled = !isDm;
+    $('#mail-x-wrap').hidden = !(isDm && dmSel.value === 'mail');
+    $$('#mail-x-wrap input', form).forEach((el) => { el.disabled = !(isDm && dmSel.value === 'mail'); });
     $('#tn-wrap').hidden = !isTn;
     tnSel.disabled = !isTn;
     const isPath = typeSel.value === 'path';   // 1.177.0
@@ -7016,7 +7049,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     $('#oid-wrap').hidden = !isOid;
     $$('#oid-wrap [data-oid]', form).forEach((el) => { el.hidden = (el.dataset.oid === 'text') !== (oidMode === 'text'); });
     $('#ha-help').textContent = isHa ? HA_METRICS[haSel.value].help : '';
-    $('#type-help').textContent = TYPES[typeSel.value].help;
+    $('#type-help').textContent = isDm && dmSel.value === 'mail' ? DOMAIN_METRICS.mail.help : TYPES[typeSel.value].help;   // 1.227.0
     const isProc = typeSel.value === 'process';
     $('#res-wrap').hidden = !isContainer && !isProc;
     $('#proc-wrap').hidden = !isProc;
@@ -7300,6 +7333,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
   haSel.onchange = () => update('metric');
   pveSel.onchange = () => update('metric');
   vpnSel.onchange = () => update('metric');   // 1.170.0
+  dmSel.onchange = () => update('metric');   // 1.227.0
   tnSel.onchange = () => update('metric');   // 1.174.0
   snmpSel.onchange = () => update('metric');
   $('[name=oid_mode]', form).onchange = () => update(false);
@@ -14104,7 +14138,8 @@ const SET_NAV = [
     ['access', L('Inloggen'), ['access'], L('Lokaal netwerk, uitloggen en blokkeren na mislukte pogingen.')],
     ['outside', L('Beheer via https'), ['https', 'outside'], L('Veilig beheren van buiten je netwerk.')],
     ['users', L('Gebruikers'), ['users', 'confirmpw'], L('Accounts, rollen, tweestapsverificatie en bevestigen bij acties.')],
-    ['vulns', L('Kwetsbaarheden'), ['vulns', 'cvebuzz'], L('Bekende lekken in de software op je servers.')],
+    ['vulns', L('Kwetsbaarheden'), ['vulns', 'eol', 'cvebuzz'], L('Bekende lekken in de software op je servers, en software die geen updates meer krijgt.')],
+    ['mailsec', L('E-mailbeveiliging'), ['mailsec'], L('SPF, DKIM en DMARC van je domeinen: kan iemand mailen namens jou?')],
     ['hibp', L('Datalekken'), ['hibp'], L('Staan je e-mailadressen of domein in een datalek?')],
     ['netscan', L('Netwerkscan'), ['netscan'], L('Nieuwe apparaten en open poorten in je netwerk.')]]],
   ['agents', SET_IC('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'), L('Agents'), [
@@ -15280,7 +15315,7 @@ const SYSINFO_ROWS = [
   ['IDS', [['isolate', '🧱 ' + L('Server geïsoleerd of opgeheven')]]],
   [L('Netwerk'), [['net_new', '🆕 ' + L('Nieuw apparaat op het netwerk')], ['net_traffic', '📈 ' + L('Ongewoon netwerkverkeer (veel of \'s nachts)')], ['net_cap', '📶 ' + L('Datalimiet internet bijna of helemaal op')], ['path_change', '🛣️ ' + L('Pad naar een doel gewijzigd (pad-check, als die dat mag)')]]],
   [L('Checks'), [['smart_drift', '🧠 ' + L('Normaalwaarde stijgt sluipend (slimme drempels)')], ['smart_auto', '🧠 ' + L('Drempels zelf aangepast (naar slim)')], ['alert_auto', '🔔 ' + L('Melden na N zelf aangepast')], ['heal', '🩹 ' + L('Zelf hersteld (of herstel mislukt)')],
-    ['watchdog', '🐕 ' + L('Waakhond: RzSense was onbereikbaar of de checks stonden stil')], ['trend', '📉 ' + L('Trend: een grens wordt binnenkort bereikt (Analyse → Trends)')]]],
+    ['watchdog', '🐕 ' + L('Waakhond: RzSense was onbereikbaar of de checks stonden stil')], ['trend', '📉 ' + L('Trend: een grens wordt binnenkort bereikt (Analyse → Trends)')], ['eol', '⏳ ' + L('End-of-life: software krijgt binnenkort of geen updates meer')]]],
   ['RzSense', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],
   [L('Logs'), [['logs_limit', '📜 ' + L('Daglimiet van een server bereikt')], ['logs_full', '📜 ' + L('Maximum bereikt: oudste dag weggegooid')], ['logs_watch_off', '📜 ' + L('Vaste zoekactie te traag, uitgezet')]]],   // 1.210.0
   [L('AI-advies'), [['ai_advice', '🤖 ' + L('Samenvatting van een automatisch advies')], ['ai_week', '📅 ' + L('Weekoverzicht')], ['ai_credit', '💳 ' + L('Tegoed of budget bijna op of op')]]],   // 1.173.0
@@ -18349,14 +18384,18 @@ const LEAK_SRC = { user: () => '👤 ' + L('gebruiker'), list: () => '📋 ' + L
 
 function showVulnTab() {
   if (!$('#vuln-tabs')) return;
-  if (!['cve', 'leak'].includes(vulnTab)) vulnTab = 'cve';
+  const have = $$('#vuln-tabs .seg-btn').map((x) => x.dataset.vt);
+  if (!have.includes(vulnTab)) vulnTab = have[0] || 'cve';
+  if (vulnTab === 'eol') loadEol();   // 1.227.0
   $$('#vuln-tabs .seg-btn').forEach((x) => x.classList.toggle('active', x.dataset.vt === vulnTab));
   $$('#tab-vulns .vuln-pane').forEach((x) => { x.hidden = x.dataset.vpane !== vulnTab; });
   crumbs();   // 1.199.0
 }
 
-function initLeaks() {
-  if ($('#vuln-tabs')) {
+/** De tabbladen Kwetsbaarheden / Verouderd / Datalekken (1.227.0: los, want Datalekken kan uit staan) */
+function initVulnTabs() {
+  if ($('#vuln-tabs') && !$('#vuln-tabs').dataset.init) {
+    $('#vuln-tabs').dataset.init = '1';
     $('#vuln-tabs').onclick = (e) => {
       const b = e.target.closest('[data-vt]');
       if (!b) return;
@@ -18367,6 +18406,9 @@ function initLeaks() {
     };
     showVulnTab();
   }
+}
+function initLeaks() {
+  initVulnTabs();
   $('#leak-search').oninput = () => renderLeaks();
   $('#leak-toggle').onclick = () => {
     const cards = $$('#leak-list details.leak-card');
@@ -19012,6 +19054,48 @@ function vulnExcludeEditor() {
   }));
 }
 
+// ---------------------------------------------------------------- ⏳ Verouderd: end-of-life (1.227.0)
+let eolData = null;
+let eolFilter = 'bad';
+const EOL_LV = { crit: ['⛔', () => L('Buiten ondersteuning')], warn: ['⏳', () => L('Binnenkort')], info: ['ℹ️', () => L('Ter info')], ok: ['✔', () => L('Ondersteund')] };
+async function loadEol() {
+  const box = $('#eol-list');
+  if (!box) return;
+  try { eolData = await api('eol'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  renderEol();
+}
+function renderEol() {
+  const d = eolData, box = $('#eol-list');
+  if (!d || !box) return;
+  const c = d.counts || {};
+  const bad = (c.crit || 0) + (c.warn || 0);
+  if ($('#vt-n-eol')) $('#vt-n-eol').textContent = bad ? String(bad) : '';
+  $('#eol-counts').innerHTML = ['crit', 'warn', 'info', 'ok'].map((k) => `<span class="hc hc-${k === 'crit' ? 'crit' : k === 'warn' ? 'warn' : k === 'ok' ? 'ok' : 'unknown'}"><b>${c[k] || 0}</b> ${EOL_LV[k][0]} ${esc(EOL_LV[k][1]())}</span>`).join('');
+  const st = d.state || {};
+  $('#eol-info').textContent = st.ok ? L('Bijgewerkt {t}', { t: new Date(st.ok * 1000).toLocaleString(LOCALE, { dateStyle: 'short', timeStyle: 'short' }) }) + (st.error ? ' · ⚠ ' + st.error : '') : (st.error || L('Nog niet opgezocht: dat gebeurt eens per dag'));
+  const chips = [['bad', L('Aandacht')], ['all', L('Alles')]];
+  $('#eol-filter').innerHTML = chips.map(([k, l]) => `<button type="button" class="dchip ${eolFilter === k ? 'on' : ''}" data-eol-f="${k}">${l}</button>`).join('');
+  const q = ($('#eol-search').value || '').toLowerCase();
+  const rows = d.rows.filter((r) => (eolFilter === 'all' || ['crit', 'warn'].includes(r.level)) && (!q || `${r.host} ${r.label} ${r.cycle}`.toLowerCase().includes(q)));
+  if (!d.rows.length) { box.innerHTML = `<p class="muted">${L('Nog geen softwarelijsten van de agents. Die komen met het volgende rapport (agent 1.47.0 of nieuwer).')}</p>`; return; }
+  box.innerHTML = rows.length ? `<div class="table-scroll"><table class="vuln-table eol-tbl"><thead><tr><th>${L('Server')}</th><th>${L('Software')}</th><th>${L('Versie')}</th><th>${L('Updates tot')}</th><th>${L('Opvolger')}</th></tr></thead><tbody>${rows.map((r) => {
+    const lv = EOL_LV[r.level] || EOL_LV.ok;
+    const until = !r.known ? `<span class="muted">${L('onbekend bij endoflife.date')}</span>` : r.eol ? `${esc(new Date(r.eol + 'T12:00').toLocaleDateString(LOCALE, { dateStyle: 'medium' }))} <span class="muted small">${r.days < 0 ? L('{n} dagen geleden', { n: -r.days }) : L('over {n} dagen', { n: r.days })}</span>` : r.state === 'eol' ? L('al voorbij') : L('geen einddatum bekend');
+    return `<tr class="eol-${r.level}"><td>${esc(r.host)}</td><td>${lv[0]} <b>${esc(r.label)} ${esc(r.cycle)}</b>${r.kind === 'os' ? ` <span class="pill">${L('systeem')}</span>` : ''}${r.lts ? ' <span class="pill">LTS</span>' : ''}${r.level === 'info' ? `<div class="muted small">${L('uit de pakketbron van je distributie: die levert vaak nog beveiligingsupdates')}</div>` : ''}</td>
+      <td class="mono small">${esc(r.version)}</td><td>${until}</td><td>${r.successor ? esc(r.label + ' ' + r.successor) : '–'}</td></tr>`;
+  }).join('')}</tbody></table></div>` : `<p class="muted">✔ ${L('Niets wat aandacht vraagt.')}</p>`;
+}
+function initEol() {
+  initVulnTabs();
+  if (!$('#eol-list')) return;
+  $('#eol-search').oninput = renderEol;
+  $('#eol-filter').onclick = (e) => { const b = e.target.closest('[data-eol-f]'); if (b) { eolFilter = b.dataset.eolF; renderEol(); } };
+  $('#eol-refresh').onclick = async (e) => {
+    e.target.disabled = true;
+    try { eolData = await api('eol_refresh', {}); renderEol(); toast(L('Opgezocht bij endoflife.date')); } catch (ex) { toast(ex.message, 'err'); }
+    e.target.disabled = false;
+  };
+}
 // ---------------------------------------------------------------- Dashboard (1.134.0)
 // De startpagina: alles samen. Servers en checks komen uit `state` (live), de rest uit api('home') (hooguit eens per minuut).
 const HM_PERIODS = [['7d', () => L('7 dagen')], ['30d', () => L('30 dagen')], ['90d', () => L('90 dagen')]];

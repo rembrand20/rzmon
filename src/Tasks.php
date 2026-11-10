@@ -49,6 +49,10 @@ final class Tasks
         $out[] = ['key' => 'hibp', 'label' => t('Datalekken (Have I Been Pwned)'), 'on' => Hibp::enabled() && Hibp::hasKey(), 'every' => t('dagelijks, verspreid'),
             'last_ok' => $hibpOk, 'error' => (string) ($setting('hibp_last_error', '') ?: $setting('hibp_domain_error', '')), 'stale' => 3 * self::DAY, 'alert' => true];
 
+        $eo = json_decode((string) $setting('eol_state', ''), true) ?: [];   // 1.227.0
+        $out[] = ['key' => 'eol', 'label' => t('End-of-life opzoeken (endoflife.date)'), 'on' => $setting('eol_on', '1') === '1', 'every' => t('dagelijks'),
+            'last_ok' => $ts($eo['ok'] ?? null), 'last_try' => $ts($eo['try'] ?? null), 'error' => (string) ($eo['error'] ?? ''),
+            'next' => isset($eo['try']) ? (int) $eo['try'] + self::DAY : null, 'stale' => 3 * self::DAY, 'alert' => true];
         $out[] = ['key' => 'vulns', 'label' => t('Kwetsbaarheden zoeken (OSV, KEV, EPSS)'), 'on' => Vulns::enabled(),
             'every' => t('dagelijks om {t}', ['t' => $setting('vuln_time', '03:30')]), 'last_ok' => $ts($setting('vuln_last_scan', '')),
             'next' => $at((string) $setting('vuln_time', '03:30')), 'stale' => 3 * self::DAY, 'alert' => true];
