@@ -15,8 +15,8 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.225.0**: **de code is opgesplitst in overzichtelijke onderdelen** (interface en API), met controles die fouten eerder vangen.
 
 ## 1.229.1 – 2026-11-10
-### Nieuw
-- 
+### Opgelost
+- **Nieuwe agent 1.91.1**: blokkeren van programma's en jagen op vingerafdruk werken nu ook op servers met mawk (o.a. Debian).
 
 ## 1.229.0 – 2026-11-10
 ### Nieuw
