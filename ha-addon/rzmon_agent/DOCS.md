@@ -54,6 +54,7 @@ Valt Home Assistant helemaal uit, dan stopt de agent ook met rapporteren. RzSens
 | `pin` | Alleen bij een eigen (self-signed) certificaat van RzSense: de vingerafdruk (staat bij de koppelcode) |
 | `token` | Oude manier: agent-token, alleen zonder koppelcode |
 | `interval` | Alleen voor oudere RzSense-versies. Vanaf RzSense 1.41.0 kies je in RzSense hoe vaak de add-on rapporteert (*Agent Manager → Rapporteren elke …*; standaard 60 s) |
+| `stats_interval` | Hoe vaak (in minuten) de add-on CPU, geheugen en netwerk van Core, Supervisor en elke add-on ophaalt; standaard 5, 1 = elke minuut, 0 = nooit. Elke vraag kost de Supervisor ~2 s en een regel in zijn log. Of een add-on draait, wordt altijd elke minuut gecontroleerd |
 | `verify_ssl` | Uitzetten bij een self-signed certificaat |
 | `certs` | Certificaten waarvan RzSense de vervaldatum bewaakt: bestanden in `/ssl` (standaard `/ssl/fullchain.pem`, van de Let's Encrypt- of DuckDNS-add-on) en/of `host:poort`, ook op internet, bv. `mijndomein.duckdns.org:443`. Kies ze in RzSense bij een check van het type *SSL-certificaat* |
 

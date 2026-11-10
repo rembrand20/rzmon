@@ -17,6 +17,9 @@ configuration:
   interval:
     name: Interval (seconds)
     description: Only for older RzSense versions. From RzSense 1.41.0 you set the interval in RzSense (Agent Manager → Report every …).
+  stats_interval:
+    name: Statistics per add-on (minutes)
+    description: How often the add-on fetches CPU, memory and network of Core, Supervisor and every add-on (default 5). Each request costs the Supervisor about 2 seconds and a line in its log. 1 = every minute, 0 = never (then only whether an add-on is running). Whether an add-on is running is always checked every minute.
   verify_ssl:
     name: Verify SSL certificate
     description: Disable when RzSense uses a self-signed certificate.

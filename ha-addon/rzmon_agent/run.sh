@@ -14,10 +14,12 @@ PAIR_CODE=$(jq -r '.pair_code // empty' "$OPTIONS")
 PIN=$(jq -r '.pin // empty' "$OPTIONS")
 # Tik als RzSense er geen doorgeeft; normaal stel je hem in RzSense in (Agent Manager)
 INTERVAL=$(jq -r '.interval // 60' "$OPTIONS")
+# Agent 1.88.0: CPU en geheugen per add-on eens per zoveel minuten (standaard 5, 0 = uit); elke vraag kost de Supervisor ~2 s
+STATS_INTERVAL=$(jq -r '.stats_interval // 5' "$OPTIONS")
 INSECURE=$(jq -r 'if .verify_ssl == false then 1 else 0 end' "$OPTIONS")
 # Certificaten: bestanden in /ssl en/of host:poort (ook op internet)
 CERTS=$(jq -r '(.certs // []) | join(" ")' "$OPTIONS")
-export MONITOR_URL MONITOR_URL_FALLBACK TOKEN INSECURE CERTS INTERVAL PAIR_CODE PIN
+export MONITOR_URL MONITOR_URL_FALLBACK TOKEN INSECURE CERTS INTERVAL PAIR_CODE PIN STATS_INTERVAL
 
 if [ -z "$MONITOR_URL" ] || { [ -z "$TOKEN" ] && [ -z "$PAIR_CODE" ] && [ ! -s /data/rzmon-keys/agent.key ]; }; then
     log "FOUT: vul 'monitor_url' en 'pair_code' in op het tabblad Configuratie."

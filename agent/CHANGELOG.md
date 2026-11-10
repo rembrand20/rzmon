@@ -5,6 +5,11 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.88.0 – 2026-11-10
+- **Home Assistant-add-on: veel minder belasting van de Supervisor**: CPU, geheugen en netwerk van Core, Supervisor en elke add-on worden nu eens per 5 minuten opgehaald (was: elke minuut, één voor één), met 4 tegelijk. Daartussen toont RzSense de laatste cijfers. Dat scheelt zo'n 80% van de regels `/addons/…/stats access from …_rzmon_agent` in het Supervisor-log, en de add-on is elke minuut veel sneller klaar.
+  - Zelf aan te passen in de add-on: *Configuratie → Statistieken per add-on (minuten)* (`stats_interval`): 1 = elke minuut, 0 = nooit.
+  - Of een add-on draait of gestopt is, wordt nog altijd elke minuut gecontroleerd.
+
 ## 1.87.1 – 2026-11-10
 - **Home Assistant-add-on op Alpine 3.22**: Alpine 3.20 krijgt sinds april 2026 geen beveiligingsupdates meer. De agent zelf is niet veranderd.
 

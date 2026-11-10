@@ -104,18 +104,53 @@ if [ "$HA_MODE" = 1 ]; then
            vendor: (.attributes.ID_VENDOR_FROM_DATABASE // .attributes.ID_VENDOR // "")}] | unique_by(.id)' 2>/dev/null)
 
     # Containers: naam <tab> weergavenaam <tab> status <tab> statistieken (JSON)
+    # Agent 1.88.0: de statistieken (CPU, geheugen, netwerk) van Core, Supervisor en de add-ons niet elke tik, maar eens per
+    # STATS_INTERVAL minuten (standaard 5, 0 = nooit), met 4 tegelijk. Elke vraag kost de Supervisor ~2 s (hij vraagt het aan
+    # Docker) en een regel in zijn log; met 20 add-ons was de agent zo elke minuut ~40 s bezig. Daartussen de laatste cijfers.
+    # Of een add-on draait, komt gewoon elke tik uit de lijst van add-ons.
+    st_min=${STATS_INTERVAL:-5}; [[ "$st_min" =~ ^[0-9]+$ ]] || st_min=5
+    st_cache="$ha_dir/stats.cache"
+    st_due=0
+    if [ "$st_min" -gt 0 ]; then
+        if [ ! -s "$st_cache" ] || [ $(( $(date +%s) - $(stat -c %Y "$st_cache" 2>/dev/null || echo 0) )) -ge $(( st_min * 60 - 15 )) ]; then st_due=1; fi
+    else
+        rm -f "$st_cache"
+    fi
+    if [ "$st_due" = 1 ]; then
+        st_tmp=$(mktemp -d "$ha_dir/st.XXXXXX") && {
+            st_get() {  # st_get <naam> <pad>: statistieken naar $st_tmp/<naam>
+                local x
+                x=$(sv "$2" | jq -c '.data // empty' 2>/dev/null)
+                [ -n "$x" ] && printf '%s\t%s\n' "$1" "$x" >"$st_tmp/$1"
+            }
+            st_list=$(printf 'homeassistant /core/stats\nhassio_supervisor /supervisor/stats\n'
+                [ -n "$addons" ] && jq -r '.data.addons[] | select(.state == "started") | "addon_\(.slug) /addons/\(.slug)/stats"' <<<"$addons" 2>/dev/null)
+            st_pids=()   # alleen op deze vragen wachten (niet op andere achtergrondtaken van de agent)
+            while read -r st_n st_p; do
+                [ -n "$st_n" ] && [ -n "$st_p" ] || continue
+                st_get "$st_n" "$st_p" &
+                st_pids+=("$!")
+                if [ "${#st_pids[@]}" -ge 4 ]; then wait "${st_pids[@]}"; st_pids=(); fi
+            done <<<"$st_list"
+            [ "${#st_pids[@]}" -gt 0 ] && wait "${st_pids[@]}"
+            cat "$st_tmp"/* 2>/dev/null >"$st_cache.new" && mv -f "$st_cache.new" "$st_cache"
+            rm -rf "$st_tmp"
+        }
+    fi
+    declare -A ct_stats=()
+    if [ -s "$st_cache" ]; then
+        while IFS=$'\t' read -r st_n st_v; do [ -n "$st_n" ] && ct_stats[$st_n]=$st_v; done <"$st_cache"
+    fi
     ct_raw=$(
-        s=$(sv /core/stats | jq -c '.data // empty' 2>/dev/null)
-        printf '%s\t%s\t%s\t%s\n' homeassistant "Home Assistant Core" "$([ "$core_state" = active ] && echo running || echo stopped)" "${s:-null}"
-        s=$(sv /supervisor/stats | jq -c '.data // empty' 2>/dev/null)
-        printf '%s\t%s\t%s\t%s\n' hassio_supervisor Supervisor running "${s:-null}"
+        printf '%s\t%s\t%s\t%s\n' homeassistant "Home Assistant Core" "$([ "$core_state" = active ] && echo running || echo stopped)" "${ct_stats[homeassistant]:-null}"
+        printf '%s\t%s\t%s\t%s\n' hassio_supervisor Supervisor running "${ct_stats[hassio_supervisor]:-null}"
         for p in dns audio cli multicast observer; do
             [ -n "${pl_stats[$p]-}" ] && printf '%s\t%s\t%s\t%s\n' "hassio_$p" "Plugin $p" running "${pl_stats[$p]}"
         done
         [ -n "$addons" ] && jq -r '.data.addons[] | [.slug, .name, .state] | @tsv' <<<"$addons" 2>/dev/null |
             while IFS=$'\t' read -r slug name state; do
-                s=""; [ "$state" = started ] && s=$(sv "/addons/$slug/stats" | jq -c '.data // empty' 2>/dev/null)
-                printf '%s\t%s\t%s\t%s\n' "addon_$slug" "$name" "$state" "${s:-null}"
+                s=null; [ "$state" = started ] && s=${ct_stats[addon_$slug]:-null}
+                printf '%s\t%s\t%s\t%s\n' "addon_$slug" "$name" "$state" "$s"
             done
     )
     [ -f "$ha_dir/ct.state" ] || : >"$ha_dir/ct.state"

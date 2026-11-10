@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.222.0**: **het hele pad van een webaanval**: aanvaller → reverse proxy → site → dienst, met een oordeel, en aanvallen per site.
 - **1.221.0**: **bijwerken veel sneller**: snelle back-up en alleen doen wat nodig is (van minuten naar seconden).
 
+## 1.225.1 – 2026-11-10
+### Opgelost
+- **Nieuwe agent 1.88.0**: de Home Assistant-add-on vraagt de statistieken per add-on (CPU, geheugen, netwerk) nog maar eens per 5 minuten op, met 4 tegelijk. Dat haalt het grootste deel van de regels `/addons/…/stats access` uit het Supervisor-log. Zelf aan te passen in de add-on (*Statistieken per add-on (minuten)*, 0 = uit); of een add-on draait, blijft elke minuut zichtbaar.
+
 ## 1.225.0 – 2026-11-10
 ### Nieuw
 - **De code is opgesplitst in overzichtelijke onderdelen** (voor wie aan RzSense werkt; voor jou als gebruiker verandert er niets):

@@ -17,6 +17,9 @@ configuration:
   interval:
     name: Interval (seconden)
     description: Alleen voor oudere RzSense-versies. Vanaf RzSense 1.41.0 stel je de tik in RzSense in (Agent Manager → Rapporteren elke …).
+  stats_interval:
+    name: Statistieken per add-on (minuten)
+    description: Hoe vaak de add-on CPU, geheugen en netwerk van Core, Supervisor en elke add-on ophaalt (standaard 5). Elke vraag kost de Supervisor ongeveer 2 seconden en een regel in zijn log. 1 = elke minuut, 0 = nooit (dan alleen of een add-on draait). Of een add-on draait, wordt altijd elke minuut gecontroleerd.
   verify_ssl:
     name: SSL-certificaat controleren
     description: Uitzetten als RzSense een self-signed certificaat gebruikt.
