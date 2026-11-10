@@ -148,8 +148,7 @@ final class Trends
         }
         $b = self::median($sl);
         $a = self::median(array_map(static fn($x, $y) => $y - $b * $x, $xs, $ys));
-        $pairs = count($sl);
-        return [$b, $a, $pairs ? ($con - $dis) / $pairs : 0.0];
+        return [$b, $a, ($con - $dis) / count($sl)];
     }
 
     /** @param array<int|float> $v */
