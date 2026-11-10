@@ -9070,4 +9070,5 @@ return [
     'Nog niets ingevuld (sla eerst op).' => 'Nothing filled in yet (save first).',
     'Namen, wifi, verkeer en weren van je apparaten uit je UniFi-controller.' => 'Names, wifi, traffic and blocking of your devices from your UniFi controller.',
     'Koppel UniFi (Instellingen → Koppelingen → UniFi) om het verkeer per apparaat te zien.' => 'Connect UniFi (Settings → Integrations → UniFi) to see the traffic per device.',
+    '{v} is geen IP-adres; daar valt niets te blokkeren' => '{v} is not an IP address; there is nothing to block',
 ];

@@ -280,7 +280,7 @@ final class Security
                 }
                 $err = $err ? ' [' . t('niet verzonden') . ': ' . implode('; ', $err) . ']' : '';
                 q("INSERT INTO alerts (check_id, status, title, message, sent_ok, email_ok, webhook_ok, kind, ip, detail) VALUES (NULL, ?, ?, ?, ?, ?, ?, 'sec', ?, ?)", [
-                    STATUS_WARN, mb_substr($title, 0, 250), mb_substr($msg . $err, 0, 1000), $sent ? 1 : 0, $mail === null ? null : (int) $mail, $hook === null ? null : (int) $hook, mb_substr($ip, 0, 45),
+                    STATUS_WARN, mb_substr($title, 0, 250), mb_substr($msg . $err, 0, 1000), $sent ? 1 : 0, $mail === null ? null : (int) $mail, $hook === null ? null : (int) $hook, (@inet_pton($ip) !== false ? mb_substr($ip, 0, 45) : null),   // 1.223.3: alleen een echt IP-adres
                     json_encode(['key' => $key, 'what' => $what, 'n' => 1, 'last' => now()], JSON_UNESCAPED_UNICODE)]);
             });
         } catch (Throwable) {

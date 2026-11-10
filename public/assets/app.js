@@ -7955,8 +7955,17 @@ function initBlocks() {
   });
 }
 
+/** Is dit een IP-adres (IPv4 met vier delen tot 255, of IPv6 met minstens twee dubbele punten)? */
+function isIpAddr(s) {
+  s = String(s || '').trim();
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(s)) return s.split('.').every((x) => +x <= 255);
+  return /^[0-9a-f:]+$/i.test(s) && (s.match(/:/g) || []).length >= 2;
+}
+
 /** Venster om een IP-adres (of het netwerk eromheen) te blokkeren, vanuit een melding */
 function blockDialog(ip) {
+  // 1.223.3: alleen een echt IP-adres (geen poortnummer zoals 2049 dat per ongeluk als adres in een melding stond)
+  if (!isIpAddr(ip)) { toast(L('{v} is geen IP-adres; daar valt niets te blokkeren', { v: ip }), 'err'); return; }
   const v4 = /^\d+\.\d+\.\d+\.\d+$/.test(ip);
   const net = v4 ? ip.replace(/\.\d+$/, '.0/24') : ip.split(':').slice(0, 4).join(':') + '::/64';
   modal({
@@ -12684,7 +12693,7 @@ function sortAlerts(list) {
 function alertBlock(a) {
   if (!a.ip || !isAdmin() || !(a.kind === 'sec' || (a.detail || '').includes('"loginfail"'))) return '';
   return a.blocked ? ` <span class="muted small" title="${esc(a.ip)}">⛔ ${L('geblokkeerd')}</span>`
-    : ` <button type="button" class="linkbtn" data-block-ip="${esc(a.ip)}" title="${esc(L('{ip} blokkeren', { ip: a.ip }))}">⛔ ${L('blokkeren')}</button>`;
+    : !isIpAddr(a.ip) ? '' : ` <button type="button" class="linkbtn" data-block-ip="${esc(a.ip)}" title="${esc(L('{ip} blokkeren', { ip: a.ip }))}">⛔ ${L('blokkeren')}</button>`;
 }
 
 const alertBundles = new Set();   // uitgeklapte bundels

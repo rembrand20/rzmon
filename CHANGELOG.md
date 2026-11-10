@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.220.0**: **mDS per soort** met netwerk en ping, en een **veel snellere IDS-pagina**.
 - **1.219.0**: de **RzSense-kern** (futuristische meters voor de eigen server) en een **begrijpelijke IDS Live-pagina**.
 
+## 1.223.3 – 2026-11-10
+### Opgelost
+- **"Blokkeren" bij een melding met iets wat geen IP-adres is** (bv. een poortnummer als `2049`): de knop verschijnt nu alleen bij een echt IP-adres, en het venster weigert andere waarden. Daarvoor kon je per ongeluk een willekeurig IPv6-netwerk (`2049::/64`) blokkeren. Meldingen bewaren voortaan ook alleen een echt IP-adres.
+
 ## 1.223.2 – 2026-11-10
 ### Opgelost
 - **Koppelingen: UniFi en AdGuard Home elk op een eigen pagina** (*Instellingen → Koppelingen → UniFi* en *→ AdGuard Home*), met per pagina een eigen testknop en uitleg in gewone taal: wat de koppeling doet, waar je het terugziet (Netwerk, verkeer, DPI, internetlijn, netwerkpaden; bij AdGuard ook Analyse en de DNS-controle van het IDS), wat weren doet, en per onderdeel (adres, site, account, API-sleutel, meerdere AdGuards, certificaat) hoe je het invult. De instellingen zelf zijn niet veranderd; oude links naar de gezamenlijke pagina gaan naar UniFi.

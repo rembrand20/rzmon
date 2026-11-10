@@ -1189,6 +1189,9 @@ final class Monitor
         if (!$always && ($channels[NotifyRules::PAGE] ?? true) === false) {
             return;   // niet op de pagina Meldingen (kanaal uit)
         }
+        if ($ip !== null && @inet_pton(trim($ip, '[]')) === false) {
+            $ip = null;   // 1.223.3: alleen een echt IP-adres bij de melding (geen poortnummer of naam)
+        }
         q('INSERT INTO alerts (check_id, host_id, status, title, message, sent_ok, webhook_ok, email_ok, kind, ip, detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
             $check['id'] ?? null, $hostId, STATUS_OK, mb_substr($title, 0, 250),
             mb_substr($message . ($errors ? ' [' . t('niet verzonden') . ': ' . implode('; ', $errors) . ']' : ''), 0, 1000),
