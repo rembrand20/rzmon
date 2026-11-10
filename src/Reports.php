@@ -45,7 +45,7 @@ final class Reports
     /** Standaard voor een rapport */
     private static function def(string $k): array
     {
-        return ['on' => false, 'freq' => self::LIST[$k][1] ?? 'month', 'day' => 1, 'time' => '08:00', 'email' => true, 'push' => false]
+        return ['on' => false, 'freq' => self::LIST[$k][1] ?? 'month', 'day' => 1, 'time' => '08:00', 'email' => true, 'push' => false, 'to' => '', 'also' => false]
             + ($k === 'all' ? ['parts' => self::PARTS] : []);
     }
 
@@ -81,11 +81,51 @@ final class Reports
             'day' => $freq === 'week' ? max(1, min(7, (int) ($in['day'] ?? 1))) : max(1, min(28, (int) ($in['day'] ?? 1))),
             'time' => preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) ($in['time'] ?? '')) ? (string) $in['time'] : $d['time'],
             'email' => !empty($in['email'] ?? $d['email']), 'push' => !empty($in['push'] ?? $d['push']),
+            'to' => implode(', ', self::addrs((string) ($in['to'] ?? ''))), 'also' => !empty($in['also'] ?? false),
         ];
         if ($k === 'all') {
             $out['parts'] = array_values(array_intersect(self::PARTS, (array) ($in['parts'] ?? $d['parts'])));
         }
         return $out;
+    }
+
+    /** Maximaal aantal eigen ontvangers per rapport (1.233.0) */
+    public const MAX_TO = 20;
+
+    /** E-mailadressen uit een lijst (komma, puntkomma, spatie of regeleinde ertussen): geldig, zonder dubbele, in kleine letters */
+    public static function addrs(string $s): array
+    {
+        $out = [];
+        foreach (preg_split('/[,;\s]+/', $s) ?: [] as $a) {
+            $a = strtolower(trim($a));
+            if ($a !== '' && filter_var($a, FILTER_VALIDATE_EMAIL)) {
+                $out[$a] = true;
+            }
+        }
+        return array_slice(array_keys($out), 0, self::MAX_TO);
+    }
+
+    /** Ongeldige adressen in een lijst (voor een duidelijke foutmelding bij opslaan) */
+    public static function badAddrs(string $s): array
+    {
+        return array_values(array_filter(array_map('trim', preg_split('/[,;\s]+/', $s) ?: []), static fn($a) => $a !== '' && !filter_var($a, FILTER_VALIDATE_EMAIL)));
+    }
+
+    /**
+     * Naar wie de e-mail van een rapport gaat (1.233.0): de eigen ontvangers van het rapport, met de schakelaar
+     * "ook naar de algemene ontvangers" ook die; zonder eigen ontvangers de algemene (Instellingen → E-mail).
+     * @return string|null null = de algemene ontvangers
+     */
+    public static function recipients(array $c): ?string
+    {
+        $own = self::addrs((string) ($c['to'] ?? ''));
+        if (!$own) {
+            return null;
+        }
+        if (!empty($c['also'])) {
+            $own = array_values(array_unique(array_merge($own, self::addrs((string) setting('mail_to', '')))));
+        }
+        return implode(', ', $own);
     }
 
     /** Opslaan vanuit de beheerportal */
@@ -94,6 +134,15 @@ final class Reports
         $cur = self::cfg();
         foreach (array_keys(self::LIST) as $k) {
             if (isset($in[$k]) && is_array($in[$k])) {
+                if (isset($in[$k]['to'])) {
+                    $bad = self::badAddrs((string) $in[$k]['to']);
+                    if ($bad) {
+                        throw new InvalidArgumentException(t('Ongeldig e-mailadres') . ': ' . implode(', ', array_slice($bad, 0, 3)));
+                    }
+                    if (count(array_filter(preg_split('/[,;\s]+/', (string) $in[$k]['to']) ?: [])) > self::MAX_TO) {
+                        throw new InvalidArgumentException(t('Maximaal {n} ontvangers per rapport', ['n' => self::MAX_TO]));
+                    }
+                }
                 $cur[$k] = self::clean($k, $in[$k] + $cur[$k]);
             }
         }
@@ -142,6 +191,7 @@ final class Reports
                 continue;
             }
             $r = self::send($k);
+            self::log($k, $r, 'RzSense');
             $done[] = $k . ($r['ok'] ? '' : ' (' . ($r['error'] ?? '?') . ')');
         }
         return $done ? t('Rapporten: {l}', ['l' => implode(', ', $done)]) : null;
@@ -151,6 +201,7 @@ final class Reports
 
     /**
      * Een rapport versturen via de ingestelde kanalen (of: alleen naar $to per e-mail, de knop "Naar mij").
+     * E-mail gaat naar de eigen ontvangers van het rapport, of anders naar de algemene (recipients()).
      * @return array{ok: bool, error?: string, sent: array}
      */
     public static function send(string $k, ?string $to = null): array
@@ -177,7 +228,7 @@ final class Reports
         }
         $email = $c['email'] || !$c['push'];   // geen kanaal gekozen: dan e-mail
         if ($email) {
-            $r = Mailer::send($doc['subject'], $doc['text'], null, null, $doc['html']);
+            $r = Mailer::send($doc['subject'], $doc['text'], null, self::recipients($c), $doc['html']);
             $r['ok'] ? $sent[] = 'email' : $err = 'E-mail: ' . $r['error'];
         }
         if ($c['push'] && Push::enabled()) {
@@ -185,6 +236,18 @@ final class Reports
             !empty($r['ok']) ? $sent[] = 'push' : $err = ($err ? $err . ' · ' : '') . 'Push: ' . ($r['error'] ?? '?');
         }
         return ['ok' => (bool) $sent, 'error' => $err, 'sent' => $sent];
+    }
+
+    /** Een verzending in het logboek (1.233.0): wie, welk rapport, via wat en naar welke adressen. $to: alleen naar dat adres */
+    public static function log(string $k, array $r, string $by, ?string $to = null): void
+    {
+        if (!isset(self::LIST[$k])) {
+            return;
+        }
+        $where = $to ?? (in_array('email', $r['sent'] ?? [], true) ? (self::recipients(self::cfg()[$k]) ?? t('de algemene ontvangers')) : '');
+        $via = implode(' + ', array_map(static fn($c) => $c === 'email' ? 'e-mail' : 'push', $r['sent'] ?? []));
+        ActionLog::by($by, null, 'report', $to !== null ? t('Rapport naar mij') : t('Rapport verstuurd'),
+            self::label($k) . ($via !== '' ? " · $via" : '') . ($where !== '' ? ' → ' . $where : '') . (!empty($r['error']) ? ' · ' . $r['error'] : ''), (bool) ($r['ok'] ?? false));
     }
 
     /** Het AI-weekoverzicht laten maken (zelfde week: niet opnieuw) */
@@ -204,7 +267,7 @@ final class Reports
     public static function afterAiWeek(): void
     {
         if (self::cfg()['ai_week']['on']) {
-            self::send('ai_week');
+            self::log('ai_week', self::send('ai_week'), 'RzSense');
         }
     }
 

@@ -521,16 +521,18 @@ Beweeg over een grafiek voor de precieze waarde. RzSense houdt hiervoor elk uur 
   - aan of uit;
   - elke week (een dag van de week) of elke maand (dag 1 tot en met 28);
   - de tijd;
-  - de kanalen: 📧 e-mail en/of 📱 push.
+  - de kanalen: 📧 e-mail en/of 📱 push;
+  - **ontvangers van dit rapport** (vanaf 1.233.0, alleen beheerders): eigen e-mailadressen, met een komma ertussen (maximaal 20). Leeg = de algemene ontvangers bij *Instellingen → E-mail*. Met **Ook naar de algemene ontvangers** gaat hij naar allebei. Zo stuur je bijvoorbeeld het maandoverzicht of het NIS2-rapport naar je directie of adviseur, zonder dat die je storingsmeldingen krijgt. Gebruikers zien de adressen niet, alleen dát een rapport eigen ontvangers heeft.
 - **Een rapport gaat over:** de afgelopen 7 dagen (elke week) of de vorige maand (elke maand). Het wordt één keer per week of maand verstuurd, op of na de gekozen tijd.
 - **Hoe het aankomt:**
   - E-mail is **HTML** (zoals het rapport op Analyse), met een platte versie erbij.
   - Push is een korte samenvatting.
   - Geen kanaal gekozen: dan e-mail.
 - **Knoppen per rapport:**
-  - **Nu versturen** (beheerders): verstuurt hem meteen.
+  - **Nu versturen** (beheerders): verstuurt hem meteen, naar dezelfde ontvangers als het automatische rapport.
   - **Voorbeeld**: opent hem in een nieuw tabblad.
-  - **Naar mij**: stuurt hem naar het e-mailadres bij *Mijn account*.
+  - **Verstuur naar mij** (beheerders en gebruikers): stuurt hem alleen naar het e-mailadres bij *Mijn account*. Hooguit 10 keer per uur per account.
+  - Elke verzending (wie, welk rapport, naar welke adressen) komt in het **logboek** (*Overzicht → Logboek*).
 - **Nodig:** e-mail bij *Meldingen → Kanalen*, en voor push Pushover of ntfy.
 - **Over het AI-weekoverzicht:** de AI maakt het op de gekozen dag en tijd, en zodra het klaar is wordt het verstuurd.
 
@@ -3679,7 +3681,8 @@ Onder *Instellingen → Gebruikers* beheer je wie er mag inloggen, en met welke 
 | Eigen wachtwoord en eigen 2FA | ✅ | ✅ | ✅ |
 | Storing bevestigen, nu checken, onderhoud, poortscan | ✅ | ✅ | ❌ |
 | Beheerportal bekijken: Status, Advies, Rapporten, Wijzigingslogboek (vanaf 1.181.0) | ✅ | 👁 | ❌ |
-| Rapport naar je eigen e-mailadres sturen (*Rapporten → Naar mij*) | ✅ | ✅ | ❌ |
+| Rapport naar je eigen e-mailadres sturen (*Rapporten → Verstuur naar mij*) | ✅ | ✅ | ❌ |
+| Ontvangers per rapport instellen (*Rapporten*) | ✅ | ❌ | ❌ |
 | Servers en checks inrichten, agents, instellingen wijzigen, gebruikers, API-sleutels, Setup | ✅ | ❌ | ❌ |
 
 - De rol kies je bij het aanmaken. Wijzigen gaat met de keuzelijst bij de gebruiker.

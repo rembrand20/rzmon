@@ -2707,7 +2707,7 @@ const AL_MOD = {
   userlock: () => '🔒 ' + L('Gebruikers'), kill: () => '⛔ ' + L('Processen'), heal: () => '🩹 ' + L('Zelf herstellen'), update: () => '⬆️ ' + L('Agent bijwerken'),
   packages: () => '📦 ' + L('Pakketten'), edr: () => '🛡️ EDR', firewall: () => '🧯 ' + L('Firewall'), logs: () => '📜 ' + L('Logs'),
   ransom: () => '🧬 ' + L('Ransomware'), patch: () => '🩹 ' + L('Updates'), sudo: () => '🔑 ' + L('Tijdelijk sudo'), appctl: () => '🧩 ' + L('Programma\'s'),
-  ioc: () => '🔎 ' + L('Sporen'), dns: () => '🌐 DNS', harden: () => '🧰 ' + L('Hardening'), nis2: () => '🇪🇺 NIS2',
+  ioc: () => '🔎 ' + L('Sporen'), dns: () => '🌐 DNS', harden: () => '🧰 ' + L('Hardening'), nis2: () => '🇪🇺 NIS2', report: () => '📬 ' + L('Rapporten'),
 };
 const AL_SRC = { user: ['🧑', () => L('Beheerder')], rzsense: ['🤖', () => 'RzSense'], agent: ['🖥️', () => L('Agent')] };
 /** Rijen van het logboek; withHost: de server erbij (overzicht van alle servers) */

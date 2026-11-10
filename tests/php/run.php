@@ -2607,6 +2607,18 @@ ok((bool) Nis2::incidents()[0]['warn'] && str_contains(Nis2::html(), 'geen jurid
 q('DELETE FROM incidents WHERE id = ?', [$iid]);
 q('DELETE FROM hosts WHERE id = ?', [$hcis]);
 save_setting('nis2_notes', '');
+// 1.233.0: ontvangers per rapport
+save_setting('mail_to', 'algemeen@voorbeeld.nl');
+$rc = Reports::save(['month' => ['to' => 'Directie@Voorbeeld.nl; adviseur@voorbeeld.nl, directie@voorbeeld.nl']])['month'];
+ok($rc['to'] === 'directie@voorbeeld.nl, adviseur@voorbeeld.nl' && Reports::recipients($rc) === 'directie@voorbeeld.nl, adviseur@voorbeeld.nl', 'Rapport: eigen ontvangers opgeschoond (kleine letters, zonder dubbele) en alleen die');
+$rc = Reports::save(['month' => ['also' => true]])['month'];
+ok(Reports::recipients($rc) === 'directie@voorbeeld.nl, adviseur@voorbeeld.nl, algemeen@voorbeeld.nl' && Reports::recipients(Reports::cfg()['vulns']) === null, 'Rapport: ook naar de algemene ontvangers; zonder eigen ontvangers de algemene');
+try { Reports::save(['month' => ['to' => 'geen-adres']]); $bad = false; } catch (InvalidArgumentException) { $bad = true; }
+ok($bad && Reports::cfg()['month']['to'] === 'directie@voorbeeld.nl, adviseur@voorbeeld.nl', 'Rapport: een ongeldig adres wordt geweigerd, de oude ontvangers blijven');
+Reports::log('month', ['ok' => true, 'sent' => ['email']], 'ci');
+ok(str_contains((string) q("SELECT detail FROM host_actions WHERE module = 'report' ORDER BY id DESC LIMIT 1")->fetchColumn(), 'adviseur@voorbeeld.nl'), 'Rapport: verzending in het logboek met de ontvangers');
+Reports::save(['month' => ['to' => '', 'also' => false]]);
+save_setting('mail_to', '');
 // 1.232.2: links in rapporten en meldingen met de externe URL
 $cfgOld = $GLOBALS['sm_config'];
 $GLOBALS['sm_config']['base_url'] = 'http://192.168.2.207';

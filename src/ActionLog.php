@@ -13,7 +13,7 @@ final class ActionLog
 {
     /** Onderdelen (module) die in het logboek voorkomen; de agent mag alleen deze gebruiken */
     public const MODULES = ['agent', 'settings', 'checks', 'isolate', 'userlock', 'kill', 'heal', 'update', 'packages', 'edr', 'firewall', 'logs',
-        'ransom', 'patch', 'sudo', 'appctl', 'ioc', 'dns', 'harden', 'nis2'];
+        'ransom', 'patch', 'sudo', 'appctl', 'ioc', 'dns', 'harden', 'nis2', 'report'];
     public const SOURCES = ['user', 'rzsense', 'agent'];
 
     /** Eén regel vastleggen. $ok: true gelukt, false mislukt, null ter info. Mag nooit iets tegenhouden. */

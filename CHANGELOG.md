@@ -8,11 +8,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.233.0**: **eigen ontvangers per rapport** (alleen in te stellen door een beheerder) en **Verstuur naar mij** voor iedereen met een account.
 - **1.232.0**: **NIS2-overzicht** met de tien maatregelen, je notities, de meldtermijnen (24 uur, 72 uur, een maand) en een rapport, en **25 extra CIS-controles** in de hardening-score.
 - **1.231.0**: **tijdelijk sudo** met wachtwoord en 2FA dat vanzelf weer weggaat, een **AdGuard-blokkadelijst** uit RzSense, en **nieuw geregistreerde domeinen** herkennen.
 - **1.230.0**: **updates installeren**: beveiligingsupdates met één klik of automatisch in het onderhoudsvenster, eerst een snapshot, Home Assistant met een back-up.
 - **1.229.0**: **onbekende programma's** herkennen (toestaan, blokkeren, stoppen) en **jagen op sporen** uit een waarschuwing, ook op de servers zelf.
-- **1.228.0**: **ransomware herkennen** in je shares, met lokaasbestanden, een snapshot bij alarm en eventueel stoppen.
+
+## 1.233.0 – 2026-11-10
+### Nieuw
+- **Ontvangers per rapport** (*Instellingen → Rapporten*): een beheerder geeft bij elk rapport eigen e-mailadressen op (komma ertussen, maximaal 20). Het automatische rapport en *Nu versturen* gaan dan naar die adressen; met **Ook naar de algemene ontvangers** ook naar de ontvangers bij *Instellingen → E-mail*. Leeg = de algemene ontvangers, zoals voorheen. Gebruikers zien de adressen niet.
+- **Verstuur naar mij** (was *Naar mij*): beheerders en gebruikers sturen een rapport naar het adres bij *Mijn account*, hooguit 10 keer per uur per account.
+- Elke verzending van een rapport (wie, welk rapport, naar welke adressen) staat in het logboek; een wijziging van de ontvangers in het wijzigingslogboek.
 
 ## 1.232.2 – 2026-11-10
 ### Opgelost

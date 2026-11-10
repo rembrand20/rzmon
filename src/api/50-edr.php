@@ -364,15 +364,26 @@ switch ($action) {
             $meta[] = ['key' => $k, 'label' => Reports::label($k), 'icon' => $icon, 'fixed' => $fixed, 'last' => $rl[$k] ?? null];
         }
         $me = (string) q('SELECT email FROM users WHERE id = ?', [(int) ($user['id'] ?? 0)])->fetchColumn();
-        out(['cfg' => Reports::cfg(), 'meta' => $meta, 'parts' => Reports::PARTS, 'admin' => $isAdmin,
-            'mail' => trim((string) setting('smtp_host', '')) !== '' && trim((string) setting('mail_to', '')) !== '', 'push' => Push::enabled(),
+        $rcfg = Reports::cfg();
+        if (!$isAdmin) {
+            // 1.233.0: de ontvangers van een rapport zijn alleen voor beheerders (adressen van anderen)
+            $rcfg = array_map(static fn($c) => ['to' => '', 'also' => false, 'own' => $c['to'] !== ''] + $c, $rcfg);
+        }
+        out(['cfg' => $rcfg, 'meta' => $meta, 'parts' => Reports::PARTS, 'admin' => $isAdmin, 'smtp' => trim((string) setting('smtp_host', '')) !== '',
+            'mail' => trim((string) setting('smtp_host', '')) !== '' && trim((string) setting('mail_to', '')) !== '', 'push' => Push::enabled(), 'max_to' => Reports::MAX_TO,
             'ai' => Ai::on(), 'ids' => Ids::enabled(), 'vulns' => Vulns::enabled(), 'hibp' => Hibp::enabled(), 'me' => $me]);
 
     case 'reports_save':
-        out(['ok' => true, 'cfg' => Reports::save((array) (input()['cfg'] ?? []))]);
+        try {
+            out(['ok' => true, 'cfg' => Reports::save((array) (input()['cfg'] ?? []))]);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
 
     case 'report_send':
-        $r = Reports::send((string) (input()['key'] ?? ''));
+        $rk = (string) (input()['key'] ?? '');
+        $r = Reports::send($rk);
+        Reports::log($rk, $r, (string) $user['username']);
         $r['ok'] ? out(['ok' => true, 'sent' => $r['sent'], 'warn' => $r['error'] ?? null]) : out(['error' => $r['error'] ?? t('Versturen mislukt')], 422);
 
     case 'report_me':
@@ -380,7 +391,20 @@ switch ($action) {
         if ($to === '') {
             out(['error' => t('Vul eerst je e-mailadres in bij Mijn account')], 422);
         }
-        $r = Reports::send((string) (input()['key'] ?? ''), $to);
+        // 1.233.0: hooguit 10 keer per uur per account (geen mailbom vanuit een gebruikersaccount)
+        $rl = array_filter(json_decode((string) setting('report_me_state', ''), true) ?: [], static fn($ts) => is_array($ts));
+        $uid = (string) (int) $user['id'];
+        $rl[$uid] = array_values(array_filter($rl[$uid] ?? [], static fn($ts) => (int) $ts > time() - 3600));
+        if (count($rl[$uid]) >= 10) {
+            out(['error' => t('Je hebt dit uur al 10 rapporten naar jezelf gestuurd. Probeer het later opnieuw.')], 429);
+        }
+        $rk = (string) (input()['key'] ?? '');
+        $r = Reports::send($rk, $to);
+        if ($r['ok']) {
+            $rl[$uid][] = time();
+            save_setting('report_me_state', json_encode($rl));
+        }
+        Reports::log($rk, $r, (string) $user['username'], $to);
         $r['ok'] ? out(['ok' => true, 'to' => $to]) : out(['error' => $r['error'] ?? t('Versturen mislukt')], 422);
 
     case 'report_preview':

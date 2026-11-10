@@ -909,6 +909,14 @@ const REP_INFO = {
 };
 let repData = null;
 let repTimer = null;
+/** 1.233.0: de regel onder de titel van een rapport (wanneer, kanalen, eigen ontvangers) */
+function repSub(c, fixed) {
+  const f = fixed || c.freq;
+  const n = c.to ? c.to.split(/[,;\s]+/).filter(Boolean).length : 0;
+  return !c.on ? L('uit') : (f === 'week' ? L('elke {d} om {t}', { d: REP_DAYS().find(([v]) => v === c.day)[1], t: c.time }) : L('elke maand op de {d}e om {t}', { d: c.day, t: c.time }))
+    + ' · ' + [c.email ? L('e-mail') : '', c.push ? L('push') : ''].filter(Boolean).join(' + ')
+    + (c.email && (n || c.own) ? ' · ' + (n ? L('{n} eigen ontvanger(s)', { n }) : L('eigen ontvangers')) + (c.also ? ' + ' + L('algemene') : '') : '');
+}
 async function loadReports() {
   const box = $('#reports-box');
   if (!box) return;
@@ -921,8 +929,7 @@ async function loadReports() {
     const c = r.cfg[m.key];
     const dis = ro ? 'disabled' : '';
     const freq = m.fixed || c.freq;
-    const sub = !c.on ? L('uit') : (freq === 'week' ? L('elke {d} om {t}', { d: REP_DAYS().find(([v]) => v === c.day)[1], t: c.time }) : L('elke maand op de {d}e om {t}', { d: c.day, t: c.time }))
-      + ' · ' + [c.email ? L('e-mail') : '', c.push ? L('push') : ''].filter(Boolean).join(' + ');
+    const sub = repSub(c, m.fixed);
     return `<div class="rep-card${m.key === 'all' ? ' rep-all' : ''}" data-rep="${m.key}">
       ${swsOpen({ id: 'rep-' + m.key, cb: `data-rep-on ${dis}`, icon: m.icon, title: esc(m.label), on: c.on, sub: `<span data-rep-sub>${esc(sub)}</span>` })}
         <p class="muted small rep-what">${esc(REP_INFO[m.key]())}</p>
@@ -934,9 +941,14 @@ async function loadReports() {
           <label>${L('Om')} <input type="time" value="${esc(c.time)}" data-rep-f="time" ${dis}></label>
         </div>
         <div class="rep-ch">
-          <label class="switch small"><input type="checkbox" data-rep-f="email" ${c.email ? 'checked' : ''} ${dis}><span></span> 📧 ${L('E-mail (HTML)')}${r.mail ? '' : ` <span class="warn-txt">${L('nog niet ingesteld')}</span>`}</label>
+          <label class="switch small"><input type="checkbox" data-rep-f="email" ${c.email ? 'checked' : ''} ${dis}><span></span> 📧 ${L('E-mail (HTML)')}${r.smtp && (r.mail || c.to) ? '' : ` <span class="warn-txt">${L('nog niet ingesteld')}</span>`}</label>
           <label class="switch small"><input type="checkbox" data-rep-f="push" ${c.push ? 'checked' : ''} ${dis}><span></span> 📱 ${L('Push (korte samenvatting)')}${r.push ? '' : ` <span class="warn-txt">${L('nog niet ingesteld')}</span>`}</label>
         </div>
+        ${r.admin ? `<div class="rep-to">
+          <label>${L('Ontvangers van dit rapport')} <span class="hint">${L('(komma ertussen, max. {n}; leeg = de algemene ontvangers bij Instellingen → E-mail)', { n: r.max_to })}</span>
+            <textarea rows="2" data-rep-f="to" spellcheck="false" autocomplete="off" placeholder="directie@voorbeeld.nl, adviseur@voorbeeld.nl">${esc(c.to || '')}</textarea></label>
+          <label class="switch small"><input type="checkbox" data-rep-f="also" ${c.also ? 'checked' : ''}><span></span> ${L('Ook naar de algemene ontvangers')}</label>
+        </div>` : c.own ? `<p class="muted small">📧 ${L('Dit rapport gaat naar eigen ontvangers, ingesteld door een beheerder.')}</p>` : ''}
         ${m.key === 'all' ? `<div class="rep-parts"><span class="muted small">${L('Onderdelen')}</span>${r.parts.map((p) => {
           const pm = r.meta.find((x) => x.key === p);
           return `<label class="switch small"><input type="checkbox" data-rep-part="${p}" ${c.parts.includes(p) ? 'checked' : ''} ${dis}><span></span> ${pm.icon} ${esc(pm.label)}</label>`;
@@ -945,12 +957,12 @@ async function loadReports() {
       <div class="rep-btns">
         ${r.admin ? `<button type="button" class="btn small-btn primary" data-rep-send>📤 ${L('Nu versturen')}</button>` : ''}
         <button type="button" class="btn small-btn" data-rep-prev>👁 ${L('Voorbeeld')}</button>
-        <button type="button" class="btn small-btn" data-rep-me title="${esc(r.me ? L('Naar {e}', { e: r.me }) : L('Vul eerst je e-mailadres in bij Mijn account'))}">✉️ ${L('Naar mij')}</button>
+        <button type="button" class="btn small-btn" data-rep-me title="${esc(r.me ? L('Naar {e}', { e: r.me }) : L('Vul eerst je e-mailadres in bij Mijn account'))}">✉️ ${L('Verstuur naar mij')}</button>
         ${m.last ? `<span class="muted small">${L('laatst: {p}', { p: esc(m.last) })}</span>` : ''}
       </div>
     </div>`;
   };
-  box.innerHTML = `${!r.mail ? `<div class="callout">⚠️ ${L('E-mail is nog niet ingesteld (Instellingen → Meldingen → Kanalen). Zonder e-mail gaan rapporten alleen als push.')}</div>` : ''}
+  box.innerHTML = `${!r.smtp ? `<div class="callout">⚠️ ${L('E-mail is nog niet ingesteld (Instellingen → Meldingen → Kanalen). Zonder e-mail gaan rapporten alleen als push.')}</div>` : ''}
     <div class="rep-list">${r.meta.filter((m) => m.key === 'all').map(card).join('')}${r.meta.filter((m) => m.key !== 'all').map(card).join('')}</div>`;
   $$('.rep-card', box).forEach((el) => repWire(el));
 }
@@ -966,6 +978,10 @@ function repRead(el) {
   c.time = $('[data-rep-f=time]', el).value || '08:00';
   c.email = $('[data-rep-f=email]', el).checked;
   c.push = $('[data-rep-f=push]', el).checked;
+  if ($('[data-rep-f=to]', el)) {
+    c.to = $('[data-rep-f=to]', el).value;
+    c.also = $('[data-rep-f=also]', el).checked;
+  }
   if (k === 'all') c.parts = $$('[data-rep-part]', el).filter((x) => x.checked).map((x) => x.dataset.repPart);
   return c;
 }
@@ -983,9 +999,9 @@ function repWire(el) {
         const r = await api('reports_save', { cfg: { [k]: c } });
         repData.cfg = r.cfg;
         const n = r.cfg[k];
-        const f = (repData.meta.find((m) => m.key === k) || {}).fixed || n.freq;
-        $('[data-rep-sub]', el).textContent = !n.on ? L('uit') : (f === 'week' ? L('elke {d} om {t}', { d: REP_DAYS().find(([v]) => v === n.day)[1], t: n.time }) : L('elke maand op de {d}e om {t}', { d: n.day, t: n.time }))
-          + ' · ' + [n.email ? L('e-mail') : '', n.push ? L('push') : ''].filter(Boolean).join(' + ');
+        $('[data-rep-sub]', el).textContent = repSub(n, (repData.meta.find((m) => m.key === k) || {}).fixed);
+        const ta = $('[data-rep-f=to]', el);
+        if (ta && document.activeElement !== ta) ta.value = n.to;   // opgeschoond: kleine letters, zonder dubbele
         savedFlag($('.sws-h', el), true);
       } catch (ex) { toast(ex.message, 'err'); }
     }, 400);
