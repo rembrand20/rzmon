@@ -1600,6 +1600,7 @@ final class Ids
 
     public static function purge(): void
     {
+        Triage::purge();   // 1.223.0
         self::autoClose();
         q('DELETE FROM ids_attempts WHERE at < NOW() - INTERVAL 1 DAY');
         q('DELETE FROM ids_kills WHERE created_at < NOW() - INTERVAL 30 DAY');

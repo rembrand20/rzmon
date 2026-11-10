@@ -77,12 +77,7 @@ final class Ai
         foreach (q("SELECT kind, ref_id, MAX(id) AS id FROM ai_advice WHERE created_at > NOW() - INTERVAL 3 DAY AND status IN ('done', 'pending', 'diag', 'running') GROUP BY kind, ref_id") as $r) {
             $open[$r['kind'] . ':' . $r['ref_id']] = (int) $r['id'];
         }
-        $triage = [];
-        if (self::x('ai_triage')) {
-            foreach (q("SELECT ref_id, verdict, answer FROM ai_advice WHERE kind = 'triage' AND status = 'done' AND verdict IS NOT NULL AND created_at > NOW() - INTERVAL 7 DAY ORDER BY id DESC LIMIT 500") as $r) {
-                $triage[(int) $r['ref_id']] ??= [(string) $r['verdict'], mb_substr(self::reason((string) $r['answer']), 0, 200)];
-            }
-        }
+        $triage = self::x('ai_triage') ? Triage::map() : [];   // 1.223.0: het oordeel staat bij het incident, met de bron
         $week = (int) q("SELECT MAX(ref_id) FROM ai_advice WHERE kind = 'week' AND status = 'done'")->fetchColumn();
         return ['ask' => has_role($user, 'user'), 'exec' => setting('ai_exec', '0') === '1' && has_role($user, 'admin'), 'have' => (object) $open,
             'triage' => (object) $triage, 'report' => self::x('ai_report'), 'week' => $week ?: null, 'weekly' => self::x('ai_weekly')];
@@ -386,6 +381,9 @@ final class Ai
             if ($cfg['cloud']) {
                 self::budgetWarn($cfg['provider']);
             }
+            if ($kind === 'triage') {
+                Triage::fromAi((int) $r['ref_id'], $verdict, mb_substr(self::reason($answer), 0, 255));   // 1.223.0: ook voor de rest van die soort
+            }
             self::afterDone(array_merge($r, ['answer' => $answer]));
         } catch (Throwable $e) {
             q("UPDATE ai_advice SET status = 'error', error = ?, done_at = ? WHERE id = ?", [mb_substr($e->getMessage(), 0, 500), now(), $id]);
@@ -409,16 +407,8 @@ final class Ai
             }
         }
         // 1.173.0: een oordeel bij nieuwe IDS-incidenten. Het weekoverzicht plant Reports (1.180.0, Instellingen → Rapporten).
-        if (self::x('ai_triage')) {
-            foreach (q("SELECT i.id FROM ids_incidents i WHERE i.status = 'open' AND i.severity >= 1 AND i.created_at > NOW() - INTERVAL 2 HOUR
-                        AND NOT EXISTS (SELECT 1 FROM ai_advice a WHERE a.kind = 'triage' AND a.ref_id = i.id) ORDER BY i.severity DESC, i.id DESC LIMIT 3")->fetchAll(PDO::FETCH_COLUMN) as $iid) {
-                try {
-                    self::ask('triage', (int) $iid, 'auto', false, true);
-                } catch (RuntimeException) {
-                    break;
-                }
-            }
-        }
+        // 1.223.0: slim: eerst jouw keuze, regels en eerdere oordelen; de AI alleen voor wat dan nog onzeker is (één per soort)
+        Triage::cron();
         $todo = (int) q("SELECT COUNT(*) FROM ai_advice WHERE status = 'pending' OR (status = 'diag' AND created_at < NOW() - INTERVAL " . self::DIAG_WAIT . ' SECOND)')->fetchColumn();
         if ($todo > 0 && PHP_SAPI === 'cli') {
             // Een model kan lang nadenken: in een eigen proces, zodat de checks van de volgende minuut niet wachten

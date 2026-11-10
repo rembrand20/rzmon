@@ -1481,3 +1481,17 @@ CREATE TABLE IF NOT EXISTS web_sites (
     INDEX idx_ws_hour (hour),
     CONSTRAINT fk_ws_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.223.0: slimme oordelen bij IDS-incidenten, per soort (vingerafdruk): van jou (u, verloopt niet), van de AI (a, 30 dagen)
+CREATE TABLE IF NOT EXISTS ids_triage (
+    fp         CHAR(16)     NOT NULL PRIMARY KEY,
+    verdict    VARCHAR(10)  NOT NULL,
+    src        CHAR(1)      NOT NULL,
+    why        VARCHAR(255) NOT NULL DEFAULT '',
+    by_user    VARCHAR(100) NULL,
+    created_at DATETIME     NOT NULL,
+    expires_at DATETIME     NULL,
+    n          INT UNSIGNED NOT NULL DEFAULT 0,
+    last_used  DATETIME     NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('ai_triage_max', '20');

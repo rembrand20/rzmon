@@ -2257,5 +2257,30 @@ $o = q('SELECT status, detail FROM ids_incidents WHERE id = ?', [$oi])->fetch();
 ok($o['status'] === 'done' && !str_contains($o['detail'], 'abcdef0123456789'), 'update: oud incident over de eigen curl afgehandeld en het kenmerk weggelakt');
 q('DELETE FROM hosts WHERE id = ?', [$hpv]);
 
+// 1.223.0: slimme oordelen: per soort, regels eerst, jouw keuze telt en geldt voortaan
+q("INSERT INTO hosts (name, address, mode) VALUES ('ci-tri', '10.0.0.98', 'agent')");
+$ht = (int) db()->lastInsertId();
+$mk = static function (string $type, string $dkey, string $title, ?string $ip, int $sev = 1) use ($ht): array {
+    q('INSERT INTO ids_incidents (host_id, severity, type, dkey, title, detail, ip) VALUES (?, ?, ?, ?, ?, ?, ?)', [$ht, $sev, $type, $dkey, $title, '', $ip]);
+    return q('SELECT * FROM ids_incidents WHERE id = ?', [(int) db()->lastInsertId()])->fetch();
+};
+$a1 = $mk('edr', 'sigma-curl|x', 'Sigma: Suspicious Curl · curl pid 1234', null);
+$a2 = $mk('edr', 'sigma-curl|y', 'Sigma: Suspicious Curl · curl pid 98765', null);
+$d1 = $mk('decoy_user', '203.0.113.7', 'Inlogpoging met honeypot-gebruiker admin vanaf 203.0.113.7', '203.0.113.7');
+ok(Triage::fp($a1) === Triage::fp($a2) && Triage::fp($a1) !== Triage::fp($d1), 'oordeel: dezelfde soort heeft dezelfde vingerafdruk (pid, IP en getallen tellen niet mee)');
+ok((Triage::rule($d1)[0] ?? '') === 'real' && Triage::rule($a1) === null, 'oordeel: honeypot = echt via een regel (zonder AI); onbekende soort niet');
+Triage::fromAi((int) $a1['id'], 'benign', 'Een gewone download.');
+$r2 = q('SELECT tri_v, tri_src FROM ids_incidents WHERE id = ?', [$a2['id']])->fetch();
+ok($r2['tri_v'] === 'benign' && $r2['tri_src'] === 'h' && (Triage::known(Triage::fp($a1))[0] ?? '') === 'benign', 'oordeel: één AI-antwoord geldt ook voor de andere incidenten van die soort, en wordt onthouden');
+Triage::fromUser($a1, 'real', 'admin');
+$k = Triage::known(Triage::fp($a1));
+Triage::fromAi((int) $a2['id'], 'benign', 'AI zegt iets anders');
+$k2 = Triage::known(Triage::fp($a1));
+ok(($k[0] ?? '') === 'real' && ($k[2] ?? '') === 'u' && ($k2[0] ?? '') === 'real' && ($k2[2] ?? '') === 'u'
+    && q('SELECT tri_src FROM ids_incidents WHERE id = ?', [$a2['id']])->fetchColumn() === 'u', 'oordeel: jouw keuze wint en blijft staan, ook als de AI later iets anders zegt');
+ok((Triage::map()[(int) $a1['id']][2] ?? '') === 'u', 'oordeel: in de lijst met de bron (jij)');
+q('DELETE FROM ids_triage WHERE fp IN (?, ?)', [Triage::fp($a1), Triage::fp($d1)]);
+q('DELETE FROM hosts WHERE id = ?', [$ht]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

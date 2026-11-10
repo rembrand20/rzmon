@@ -2103,7 +2103,7 @@ switch ($action) {
             'recent' => array_map([Ai::class, 'public'], q("SELECT * FROM ai_advice WHERE kind <> 'triage' ORDER BY id DESC LIMIT 8")->fetchAll()),
             'usage' => Ai::usage(), 'week_ref' => (int) date('oW'),   // 1.173.0: verbruik, tegoed, budget en het weekoverzicht
             'week_last' => (int) q("SELECT MAX(ref_id) FROM ai_advice WHERE kind = 'week'")->fetchColumn() ?: null,
-            'triage_n' => (int) q("SELECT COUNT(*) FROM ai_advice WHERE kind = 'triage' AND created_at >= CURDATE()")->fetchColumn()]);
+            'triage_n' => (int) q("SELECT COUNT(*) FROM ai_advice WHERE kind = 'triage' AND created_at >= CURDATE()")->fetchColumn(), 'triage' => Triage::stats()]);
 
     case 'ai_cost_set':   // 1.173.0: prijzen per model en het bijgehouden tegoed
         $in = input();
@@ -3722,7 +3722,7 @@ switch ($action) {
             'ai_on', 'ai_provider', 'ai_auto', 'ai_daily', 'ai_mask', 'ai_timeout', 'ai_max_tokens', 'ai_ollama_url', 'ai_ollama_key',
             'cve_buzz_on', 'cve_buzz_alert', 'cve_github_token', 'cve_mastodon_url', 'cve_mastodon_token', 'cve_exploitdb', 'cve_nuclei',   // 1.179.0
             'ai_claude_key', 'ai_claude_model', 'ai_openai_key', 'ai_openai_model', 'ai_gemini_key', 'ai_gemini_model', 'ai_grok_key', 'ai_grok_model', 'ai_ollama_model',   // 1.171.0
-            'ai_budget_month', 'ai_memory', 'ai_cache', 'ai_cache_hours', 'ai_fallback', 'ai_notify', 'ai_weekly', 'ai_weekly_day', 'ai_triage', 'ai_report',   // 1.173.0
+            'ai_budget_month', 'ai_memory', 'ai_cache', 'ai_cache_hours', 'ai_fallback', 'ai_notify', 'ai_weekly', 'ai_weekly_day', 'ai_triage', 'ai_triage_max', 'ai_report',   // 1.173.0
             'confirm_fails', 'confirm_ok', 'confirm_types', 'confirm_fast',   // 1.185.0, 1.193.0
             'net_traffic', 'net_traffic_swap', 'net_wan_cap_gb',   // 1.186.0, 1.187.0
             'logs_on', 'logs_interval', 'logs_days', 'logs_max_gb', 'logs_day_mb', 'logs_mask', 'logs_mask_extra'];   // 1.210.0
@@ -5592,6 +5592,7 @@ switch ($action) {
                 if ($act === 'normal') {
                     $incs = q("SELECT id, host_id, type, dkey, title FROM ids_incidents WHERE id IN ($ph)", $ids)->fetchAll();
                     foreach ($incs as $inc) {
+                        Triage::fromUser($inc, 'benign', (string) $user['username']);   // 1.223.0
                         q("INSERT IGNORE INTO ids_baseline (host_id, kind, item, value) VALUES (?, 'ignore', ?, ?)",
                             [$inc['host_id'], mb_substr($inc['type'] . '|' . $inc['dkey'], 0, 255), mb_substr($user['username'], 0, 255)]);
                         q("UPDATE ids_kills SET done_at = NOW(), result = ? WHERE host_id = ? AND dkey = ? AND done_at IS NULL", [t('vrijgegeven'), $inc['host_id'], $inc['dkey']]);
@@ -5607,11 +5608,20 @@ switch ($action) {
         if (!$inc) {
             out(['error' => t('Incident niet gevonden')], 404);
         }
+        if ($act === 'triage' || $act === 'notme') {   // 1.223.0: jouw oordeel (of "Nee, ik ken dit niet" = echt); verandert de status niet
+            $v = $act === 'notme' ? 'real' : (string) ($in['verdict'] ?? '');
+            if (!in_array($v, Triage::VERDICTS, true)) {
+                out(['error' => t('Onbekend oordeel')], 422);
+            }
+            Triage::fromUser($inc, $v, (string) $user['username']);
+            out(['ok' => true, 'triage' => Triage::map()]);
+        }
         if ($act === 'reopen') {
             q("UPDATE ids_incidents SET status = 'open', handled_by = NULL, handled_at = NULL WHERE id = ?", [$inc['id']]);
         } else {
             q("UPDATE ids_incidents SET status = 'done', handled_by = ?, handled_at = NOW() WHERE id = ?", [$user['username'], $inc['id']]);
             if ($act === 'normal') {
+                Triage::fromUser($inc, 'benign', (string) $user['username']);   // 1.223.0: voortaan "onschuldig" voor deze soort
                 // Voortaan niet meer melden (deze soort met deze sleutel, op deze server)
                 q("INSERT IGNORE INTO ids_baseline (host_id, kind, item, value) VALUES (?, 'ignore', ?, ?)",
                     [$inc['host_id'], mb_substr($inc['type'] . '|' . $inc['dkey'], 0, 255), mb_substr($user['username'], 0, 255)]);

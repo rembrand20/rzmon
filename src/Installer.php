@@ -329,7 +329,12 @@ final class Installer
         ['weblog_state', 'kind', 'VARCHAR(16) NULL'],       // 1.222.0: soort reverse proxy (swag, npm, nginx; agent 1.86.0)
         ['weblog_state', 'ctr', 'VARCHAR(64) NULL'],        // 1.222.0: container van de proxy
         ['weblog_state', 'full', 'TINYINT(1) NOT NULL DEFAULT 0'],   // 1.222.0: de log heeft de site en de dienst
-        ['ids_incidents', 'wpath', 'VARCHAR(1500) NULL'],   // 1.222.0: pad van een webaanval (sites en diensten, JSON)   // 1.177.0: mag doorvoertest (iperf3) ontvangen   // 1.176.0: containerstatus running/failed/stopped/paused (voor het label)
+        ['ids_incidents', 'wpath', 'VARCHAR(1500) NULL'],
+        ['ids_incidents', 'tri_v', 'VARCHAR(10) NULL'],     // 1.223.0: oordeel (benign, suspect, real)
+        ['ids_incidents', 'tri_src', 'CHAR(1) NULL'],       // u = jij, r = regel, h = eerder oordeel, a = AI
+        ['ids_incidents', 'tri_why', 'VARCHAR(255) NULL'],
+        ['ids_incidents', 'tri_fp', 'CHAR(16) NULL'],
+        ['ids_incidents', 'tri_at', 'DATETIME NULL'],   // 1.222.0: pad van een webaanval (sites en diensten, JSON)   // 1.177.0: mag doorvoertest (iperf3) ontvangen   // 1.176.0: containerstatus running/failed/stopped/paused (voor het label)
     ];
 
     private static function migrate(PDO $pdo): void
@@ -365,6 +370,7 @@ final class Installer
         self::redactWebPaths($pdo);
         self::closeAgentSelf($pdo);
         self::redactCmdSecrets($pdo);
+        Triage::migrate($pdo);   // 1.223.0: eerdere AI-oordelen bij de incidenten
         AgentAudit::migrateServiceChecks($pdo);
     }
 

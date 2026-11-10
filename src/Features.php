@@ -191,6 +191,7 @@ final class Features
         // Analyse, advies en AI
         ['ai', ['Analyse en advies', 'Analysis and advice'], ['Score, adviezen en analyses over langere tijd.', 'Score, advice and analyses over a longer period.'], '1.155.0', '', '#analytics'],
         ['ai', ['Advies voor checks', 'Check advice'], ['Voorstellen voor melden na N, onderhoudsvensters en afhankelijkheden.', 'Suggestions for notify after N, maintenance windows and dependencies.'], '1.108.0', '', 'advice'],
+        ['ai', ['Slimme oordelen bij IDS', 'Smart IDS verdicts'], ['Per soort, regels en jouw keuze eerst; de AI alleen als het nog onzeker is.', 'Per kind, rules and your choice first; the AI only when still uncertain.'], '1.223.0', 'ai_triage', 'ai'],
         ['ai', ['AI-advies', 'AI advice'], ['Uitleg en een oplossing met Claude, ChatGPT, Gemini, Grok of Ollama.', 'Explanation and a fix with Claude, ChatGPT, Gemini, Grok or Ollama.'], '1.171.0', 'ai_on|ai_provider', 'ai'],
         ['ai', ['AI: kosten en budget', 'AI: costs and budget'], ['Verbruik, tegoed en een maandbudget.', 'Usage, credit and a monthly budget.'], '1.173.0', 'ai_on|ai_provider', 'ai'],
         ['ai', ['Raakt dit jou echt?', 'Does this really affect you?'], ['AI-oordeel per CVE voor jouw servers.', 'AI verdict per CVE for your servers.'], '1.179.0', 'ai_on|ai_provider', 'vulns'],

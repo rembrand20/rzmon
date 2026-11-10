@@ -3407,11 +3407,21 @@ const aiTok = (n) => (+n || 0).toLocaleString(LOCALE);
 const aiDay = (d) => new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' });
 /** 1.173.0: oordeel van de AI bij een IDS-incident (alleen een label) */
 const AI_VERDICT = { benign: ['ok', () => L('lijkt onschuldig')], suspect: ['warn', () => L('verdacht')], real: ['bad', () => L('lijkt echt')] };
+/** 1.223.0: waar een oordeel vandaan komt: jij, een regel, een eerder oordeel over dezelfde soort, of de AI */
+const TRI_SRC = { u: ['👤', () => L('Jouw oordeel over deze soort')], r: ['⚙️', () => L('Regel van RzSense (zonder AI)')], h: ['♻️', () => L('Eerder oordeel over dezelfde soort (geen nieuwe AI-vraag)')], a: ['🤖', () => L('Oordeel van de AI')] };
 function aiTriage(id) {
   const t = aiOn() && state.ai.triage && state.ai.triage[id];
   if (!t || !AI_VERDICT[t[0]]) return '';
   const [cls, lbl] = AI_VERDICT[t[0]];
-  return `<button type="button" class="ai-verdict ${cls}" data-ai-kind="triage" data-ai-ref="${id}" title="${esc(L('Oordeel van de AI (alleen een label, er wordt niets afgehandeld)') + ': ' + t[1])}">🤖 ${esc(lbl())}</button>`;
+  const [ic, src] = TRI_SRC[t[2]] || TRI_SRC.a;
+  return `<button type="button" class="ai-verdict ${cls}" data-ai-kind="triage" data-ai-ref="${id}" title="${esc(src() + ' · ' + L('alleen een label, er wordt niets afgehandeld') + (t[1] ? ': ' + t[1] : ''))}">${ic} ${esc(lbl())}</button>`;
+}
+/** In het incidentvenster: het oordeel zelf aanpassen (geldt voortaan voor deze soort) */
+function triageEdit(id) {
+  if (!aiOn() || !state.ai.triage) return '';
+  const cur = (state.ai.triage[id] || [])[0];
+  return `<div class="tri-edit need-admin"><span class="muted small">🏷️ ${L('Jouw oordeel (geldt voortaan voor deze soort):')}</span>
+    ${['real', 'suspect', 'benign'].map((v) => `<button type="button" class="ai-verdict ${AI_VERDICT[v][0]} ${cur === v ? 'on' : 'dim'}" data-tri-set="${v}">${esc(AI_VERDICT[v][1]())}</button>`).join('')}</div>`;
 }
 
 /** Eenvoudige, veilige opmaak van het antwoord: kopjes, lijsten, vet, code en codeblokken met een kopieerknop */
@@ -3582,7 +3592,10 @@ async function loadAiSettings() {
   aiProvUi();   // 1.173.0: de waarden van het formulier zijn er nu zeker
   $('#ai-diag').checked = r.diag;
   $('#ai-exec').checked = r.exec;
-  $('#ai-usage').innerHTML = r.on ? L('Vandaag {n} vragen naar een cloudmodel.', { n: r.used }) + (r.triage_n ? ' · ' + L('{n} IDS-oordelen', { n: r.triage_n }) : '') : '';
+  $('#ai-usage').innerHTML = r.on ? L('Vandaag {n} vragen naar een cloudmodel.', { n: r.used }) : '';
+  // 1.223.0: wat de slimme oordelen vandaag deden (AI alleen voor wat nog onzeker was)
+  const tr = r.triage;
+  if ($('#ai-triage-stats')) $('#ai-triage-stats').innerHTML = tr ? `🏷️ ${L('Oordelen vandaag: {a} AI-vragen (van max. {m}), {h} hergebruikt, {r} via regels, {u} van jou · {k} soorten onthouden', { a: tr.ai, m: tr.max, h: tr.by.h, r: tr.by.r, u: tr.by.u, k: tr.kinds })}` : '';
   aiWeek = r.week_last || r.week_ref;
   aiCostRender(r.usage);
   $('#ai-recent').innerHTML = r.recent.length ? `<ul class="ai-recent">${r.recent.map((a) => `<li><span class="ai-st ${a.status}">${esc({ done: '✔', error: '✘', diag: '🔎', pending: '…', running: '…' }[a.status] || a.status)}</span>
@@ -12456,7 +12469,7 @@ async function incidentDialog(id, nav = null) {
       ${a.steps.length || a.cmds.length ? `<h3 class="set-sub">🛠️ ${L('Wat te doen')}</h3>${a.steps.length ? `<ul>${a.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}${cmdList(a.cmds, 'inc-c')}` : ''}
       ${a.prevent ? `<h3 class="set-sub">🛡️ ${L('Voorkomen')}</h3><p>${esc(a.prevent)}</p>` : ''}
       ${a.ip ? `<h3 class="set-sub">🌐 ${L('IP-adres')} <code>${esc(a.ip)}</code></h3><div id="inc-ip"></div>` : ''}
-      ${aiOn() ? `<div class="btn-row">${aiTriage(+id)}${aiBtn('ids', +id, true)}</div>` : ''}
+      ${aiOn() ? `<div class="btn-row">${aiTriage(+id)}${aiBtn('ids', +id, true)}</div>${triageEdit(+id)}` : ''}
       <div class="btn-row need-admin inc-actions">
         ${open ? `<button type="button" class="btn" data-inc-act="handle">✔ ${L('Afhandelen')}</button>
           <button type="button" class="btn" data-inc-act="normal" title="${esc(L('Afhandelen en dit voortaan niet meer melden'))}">🚫 ${L('Dit is normaal')}</button>`
@@ -12516,7 +12529,18 @@ async function incidentDialog(id, nav = null) {
         toast(b.dataset.incAct === 'normal' ? L('Afgehandeld; dit wordt voortaan niet meer gemeld') : b.dataset.incAct === 'reopen' ? L('Weer open') : L('Afgehandeld'));
         return reload();
       }
-      if (b.hasAttribute('data-inc-no')) { $('#inc-emergency').hidden = false; $('#inc-emergency').scrollIntoView({ block: 'nearest' }); return; }
+      if (b.hasAttribute('data-inc-no')) {
+        $('#inc-emergency').hidden = false; $('#inc-emergency').scrollIntoView({ block: 'nearest' });
+        api('ids_incident', { id: i.id, action: 'notme' }).then((r) => { if (r && r.triage && state.ai) state.ai.triage = r.triage; }).catch(() => null);   // 1.223.0: voortaan "lijkt echt" voor deze soort
+        return;
+      }
+      if (b.dataset.triSet) {   // 1.223.0: jouw oordeel, ook voor de andere open incidenten van deze soort
+        const r = await api('ids_incident', { id: i.id, action: 'triage', verdict: b.dataset.triSet });
+        if (r && r.triage && state.ai) state.ai.triage = r.triage;
+        toast(L('Oordeel opgeslagen; geldt voortaan voor deze soort'));
+        clearTimeout(idsRedrawT); idsRedrawT = setTimeout(() => keepOpen($('#tab-ids'), () => renderIds()), 50);
+        return incidentDialog(+i.id, nav);
+      }
       if (b.hasAttribute('data-inc-block')) { $('#modal').close(); return idsBlockDialog(a.ip, i.host_id, i.title.slice(0, 200)); }
       if (b.hasAttribute('data-inc-wl')) { $('#modal').close(); return wlDialog({ type: 'ip', value: a.ip, src: 'ids', wl: false }); }
       if (b.hasAttribute('data-inc-tl')) { $('#modal').close(); return ipTimeline(a.ip); }

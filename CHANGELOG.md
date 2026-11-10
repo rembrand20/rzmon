@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.223.0**: **slimme oordelen bij IDS-incidenten**: per soort, regels en jouw keuze eerst, de AI alleen als het nog onzeker is.
 - **1.222.0**: **het hele pad van een webaanval**: aanvaller → reverse proxy → site → dienst, met een oordeel, en aanvallen per site.
 - **1.221.0**: **bijwerken veel sneller**: snelle back-up en alleen doen wat nodig is (van minuten naar seconden).
 - **1.220.0**: **mDS per soort** met netwerk en ping, en een **veel snellere IDS-pagina**.
 - **1.219.0**: de **RzSense-kern** (futuristische meters voor de eigen server) en een **begrijpelijke IDS Live-pagina**.
-- **1.218.0**: een **vernieuwde meldingskaart**: leesbaar, met advies als een check flapt, en op de telefoon een blad van onderaf.
+
+## 1.223.0 – 2026-11-10
+### Nieuw
+- **Slimme oordelen bij IDS-incidenten** (*lijkt echt* / *verdacht* / *lijkt onschuldig*), veel zuiniger met de AI:
+  - **Per soort, niet per incident**: een incident krijgt een vingerafdruk (soort, regel en titel zonder IP-adressen, pid's en andere getallen). Hetzelfde soort incident op een andere server of een andere dag kost geen nieuwe AI-vraag.
+  - **Eerst zonder AI**: jouw eigen keuze (👤), dan regels (⚙️: honeypot, reverse shell, webshell, inbraak, bekende aanvaller of whitelist volgens de dreigingsinformatie), dan een eerder oordeel over dezelfde soort (♻️). Alleen wat dan nog onzeker is, gaat naar de AI (🤖).
+  - **Jouw keuze telt het zwaarst en leert mee**: *Dit is normaal* = voortaan onschuldig, *Nee, ik ken dit niet* = voortaan echt, en in het incidentvenster pas je het oordeel met één klik aan. Dat geldt meteen ook voor de andere open incidenten van die soort, en de AI overschrijft het nooit.
+  - **Het oordeel blijft bij het incident** (niet meer maar 7 dagen), met de bron als icoon; in de tooltip staat de reden. Een AI-oordeel geldt 30 dagen voor die soort, het jouwe blijft.
+  - **Plafond**: hooguit 20 AI-vragen per dag voor oordelen (instelbaar bij *Instellingen → AI*; 0 = alleen regels en eerdere oordelen), hooguit 3 per minuut, critical eerst. Daar staat ook een teller: AI-vragen, hergebruikt, via regels en van jou.
+  - Oordelen die de AI al gaf, staan na de update bij de incidenten en worden onthouden.
 
 ## 1.222.2 – 2026-11-10
 ### Opgelost

@@ -5503,3 +5503,8 @@ body.lg .mds-sheet-p { background: var(--bg-2, var(--bg)); -webkit-backdrop-filt
 .rp-snip ol { margin: .3rem 0 .2rem 1.1rem; padding: 0; font-size: .8rem; }
 .rp-snip ol li { margin: .15rem 0; }
 @media (max-width: 700px) { .rp-srv { grid-template-columns: 1fr auto; } .rp-srv .p { grid-column: 1 / -1; } .rp-pre { flex-direction: column; } }
+
+/* 1.223.0: je eigen oordeel aanpassen in het incidentvenster */
+.tri-edit { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin: .2rem 0 .6rem; }
+.tri-edit .ai-verdict.dim { opacity: .55; }
+.tri-edit .ai-verdict.on { box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 35%, transparent); }
