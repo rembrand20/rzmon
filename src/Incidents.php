@@ -46,7 +46,10 @@ final class Incidents
         // IDS van de laatste week, oudste eerst: hoort hij bij een open incident (zelfde server en IP, of een keten), dan wordt hij
         // daar een stap van (ook een warning); anders wordt een critical een nieuw incident
         foreach (q("SELECT i.id, i.type, i.ip, i.severity, i.title, i.detail, i.created_at, h.id AS host_id, h.name AS host FROM ids_incidents i JOIN hosts h ON h.id = i.host_id
-                    WHERE i.severity >= 1 AND i.status = 'open' AND i.created_at >= NOW() - INTERVAL 7 DAY ORDER BY i.created_at, i.id") as $x) {
+                    WHERE i.severity >= 1 AND i.status = 'open' AND i.created_at >= NOW() - INTERVAL 7 DAY
+                      AND NOT EXISTS (SELECT 1 FROM incidents k WHERE k.ref_key = CONCAT('ids:', i.id))
+                      AND NOT EXISTS (SELECT 1 FROM incident_refs r WHERE r.ref_key = CONCAT('ids:', i.id))
+                    ORDER BY i.created_at, i.id") as $x) {   // 1.224.3: al gekoppelde meteen overslaan (eerder één query per melding, elke minuut)
             $key = "ids:{$x['id']}";
             if (self::known($key)) {
                 continue;

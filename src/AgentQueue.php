@@ -42,6 +42,7 @@ final class AgentQueue
         }
         $tick = agent_tick(isset($host['agent_tick']) ? (int) $host['agent_tick'] : null);
         $n = 0;
+        $oldest = null;
         foreach (array_slice($items, 0, 500) as $it) {
             $t = (int) ($it['t'] ?? 0);
             if ($t <= time() - self::BACKLOG_MAX_AGE || $t > time()) {
@@ -58,11 +59,17 @@ final class AgentQueue
                     [$c['id'], $at, max(5, intdiv($tick, 3)), $at, max(5, intdiv($tick, 3))])->fetchColumn()) {
                     continue;
                 }
-                $st = $c['crit_threshold'] !== null && $v >= (float) $c['crit_threshold'] ? STATUS_CRIT
-                    : ($c['warn_threshold'] !== null && $v >= (float) $c['warn_threshold'] ? STATUS_WARN : STATUS_OK);
+                $st = Checks::threshold($v, $c);   // 1.224.3: dezelfde drempels als de check zelf (geen eigen kopie)
                 q('INSERT INTO results (check_id, status, value, created_at) VALUES (?, ?, ?, ?)', [$c['id'], $st, $v, $at]);
                 $n++;
+                $oldest = min($oldest ?? $t, $t);
             }
+        }
+        // 1.224.3: ingehaalde metingen van uren die al samengevat zijn: die uren opnieuw uitrekenen (anders ontbreken ze
+        // later in de grafieken van een maand of langer, juist het gat dat ze moesten vullen)
+        if ($n && isset($oldest)) {
+            $h = date('Y-m-d H:00:00', $oldest);
+            q("UPDATE settings SET value = ? WHERE name = 'hourly_rolled' AND value > ?", [$h, $h]);
         }
         return $n;
     }

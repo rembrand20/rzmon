@@ -65,6 +65,9 @@ final class SessionStore implements SessionHandlerInterface
     /** Verlopen sessies weg (elke minuut via de cron) */
     public static function purge(): int
     {
+        if (!function_exists('session_ttl')) {
+            require_once SM_ROOT . '/src/auth.php';   // 1.224.3: vanuit cron is auth.php niet geladen (dit gaf altijd een fout)
+        }
         return q('DELETE FROM php_sessions WHERE updated_at < ?', [time() - session_ttl()])->rowCount();
     }
 }

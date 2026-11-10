@@ -14,6 +14,19 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.221.0**: **bijwerken veel sneller**: snelle back-up en alleen doen wat nodig is (van minuten naar seconden).
 - **1.220.0**: **mDS per soort** met netwerk en ping, en een **veel snellere IDS-pagina**.
 
+## 1.224.3 – 2026-11-10
+### Opgelost
+- **Sneller en minder sloten bij veel metingen**: de tabellen met metingen en statuswissels krijgen een index op tijd, en oude rijen gaan in stukjes van 20.000 weg. Eerder liep RzSense elk uur de hele tabel door en zette die zolang op slot, zodat binnenkomende metingen moesten wachten. (Bij een grote database kan het bijwerken naar deze versie daarom even duren.)
+- **Geen dubbel werk meer tussen cron en de agents**: een check die net door een agentrapport is beoordeeld, slaat cron nu over. Eerder kon dezelfde check twee keer verwerkt worden met verouderde tellers, met dubbele meetpunten of een tweede melding als gevolg.
+- **Bijwerken van de database**: loopt het bijwerken al ergens anders (langer dan 30 seconden), dan begint een ander proces er niet tegelijk ook aan. Tijdstippen en tellers die cron intussen bijwerkt, worden daarna niet meer teruggezet.
+- **Open IDS-incidenten blijven bewaard**: het opruimen gooide na de bewaartermijn ook incidenten weg die nog open stonden (en het gekoppelde incident ging dan ten onrechte op "afgehandeld"). Nu alleen afgehandelde, en gerekend vanaf de laatste keer gezien.
+- **Fouten in cron zichtbaar**: een fout in een stap van cron staat nu bij *Instellingen → Prestaties en fouten* (eerder alleen op het scherm, en de crontab gooit dat weg). Elke opruimstap draait apart: één fout slaat de rest niet meer over. Ook het opruimen van de logs meldt een fout. Zo kwam meteen een oude fout boven: het opruimen van verlopen sessies faalde altijd in cron; dat is nu opgelost.
+- **Het tweede deel van cron** (back-up, internet, dreigingsinformatie, kwetsbaarheden, analyse, incidenten) loopt niet meer twee keer tegelijk als een ronde langer dan een minuut duurt.
+- **Ingehaalde metingen van een agent** (na een storing) komen nu ook in de uurgemiddelden, dus in de grafieken van een maand of langer.
+- **Zomer- en wintertijd**: kent MariaDB de tijdzones (`mysql_tzinfo_to_sql /usr/share/zoneinfo | mysql mysql`), dan gebruikt RzSense nu de tijdzone zelf, zodat tijden rond de overgang niet meer een uur verschuiven.
+- **SNMP**: start een switch opnieuw (32-bits tellers), dan geeft dat geen onmogelijk hoge snelheid en geen valse CRIT meer.
+- Kleiner: transacties bij het bijwerken van blocklists, dreigingslijsten en de fabrikantenlijst worden bij een fout netjes teruggedraaid; de incidenten-synchronisatie doet veel minder query's; bewaren = 1 dag maakt de dagtotalen van gisteren niet meer kapot; het logboek van acties wordt na 2 jaar opgeruimd; ingehaalde metingen gebruiken dezelfde drempels als de check.
+
 ## 1.224.2 – 2026-11-10
 ### Opgelost
 - **Nieuwe agent 1.87.0** (zie de changelog van de agent): bijwerken alleen met een geldige handtekening (ook het installatiescript, en nooit terug naar een oudere versie), geen sleutels of tokens meer zichtbaar in de proceslijst, een begrensde EDR-wachtrij, geen kapotte rapporten meer door tabs of kleurcodes in logregels, docker/podman met een tijdslimiet, en geen vaste bestandsnamen in `/tmp`. **Let op**: op servers met OpenSSL ouder dan 3.0 (bv. RHEL/Rocky 8) werkt de agent daarna alleen nog vanzelf bij met `UPDATE_OLD_OPENSSL=1` in `/etc/default/rzmon-agent`.

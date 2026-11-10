@@ -190,13 +190,13 @@ final class IpIntel
             return 'Blocklists: niet op te halen';
         }
         $merged = self::merge($ranges);
-        db()->beginTransaction();
-        q('DELETE FROM ip_blocklist');
-        foreach (array_chunk($merged, 500) as $chunk) {
-            q('INSERT INTO ip_blocklist (fam, start_ip, end_ip, cidr, src) VALUES ' . implode(',', array_fill(0, count($chunk), '(?, ?, ?, ?, ?)')),
-                array_merge(...array_map(fn($r) => [$r[0], $r[1], $r[2], self::cidr($r), $r[3]], $chunk)));
-        }
-        db()->commit();
+        in_tx(function () use ($merged) {   // 1.224.3: bij een fout terugdraaien (anders bleef de transactie open voor de rest van cron)
+            q('DELETE FROM ip_blocklist');
+            foreach (array_chunk($merged, 500) as $chunk) {
+                q('INSERT INTO ip_blocklist (fam, start_ip, end_ip, cidr, src) VALUES ' . implode(',', array_fill(0, count($chunk), '(?, ?, ?, ?, ?)')),
+                    array_merge(...array_map(fn($r) => [$r[0], $r[1], $r[2], self::cidr($r), $r[3]], $chunk)));
+            }
+        });
         self::state(['bl_ok' => time(), 'bl_n' => count($merged), 'bl_per' => $per, 'bl_error' => $errors ? t('niet op te halen: {list}', ['list' => implode(', ', $errors)]) : null]);
         return 'Blocklists: ' . count($merged) . ' bereiken';
     }

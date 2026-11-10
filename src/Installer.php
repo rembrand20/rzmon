@@ -32,6 +32,11 @@ final class Installer
         $restore = $pdo->prepare('UPDATE settings SET value = ? WHERE name = ?');
         $after = $pdo->query('SELECT name, value FROM settings')->fetchAll(PDO::FETCH_KEY_PAIR);
         foreach ($before as $name => $value) {
+            // 1.224.3: geen toestand die cron of een pagina intussen zelf bijwerkt (tijdstippen, caches, tellers): die terugzetten
+            // gooide hun nieuwe waarde weg. Instellingen van de gebruiker blijven zoals ze waren.
+            if (preg_match('/(_at|_cache|_rolled|_day|_sent|_hist|_durations|_seen|_last_run)$|^(cron_|stats_|trends_)/', (string) $name)) {
+                continue;
+            }
             if ($name !== 'db_version' && array_key_exists($name, $after) && $after[$name] !== $value) {
                 $restore->execute([$value, $name]);
             }
@@ -59,12 +64,15 @@ final class Installer
         $locked = false;
         try {
             $locked = (int) db()->query("SELECT GET_LOCK('rzmon_schema', 30)")->fetchColumn() === 1;
-            if ($locked && db()->query("SELECT value FROM settings WHERE name = 'db_version'")->fetchColumn() === RZMON_VERSION) {
+            if (!$locked) {
+                return null;   // 1.224.3: een ander proces is al 30 s bezig: niet tegelijk ook bijwerken, de volgende keer weer kijken
+            }
+            if (db()->query("SELECT value FROM settings WHERE name = 'db_version'")->fetchColumn() === RZMON_VERSION) {
                 db()->query("SELECT RELEASE_LOCK('rzmon_schema')");
                 return null;   // een ander proces was al klaar
             }
         } catch (Throwable) {
-            // geen lock: dan gewoon bijwerken zoals voorheen
+            // geen lock mogelijk (bv. geen rechten): dan gewoon bijwerken zoals voorheen
         }
         try {
             self::runSchema();
@@ -100,12 +108,15 @@ final class Installer
         }
     }
 
-    /** Kolommen van latere versies; werkt op MariaDB én MySQL (geen ADD COLUMN IF NOT EXISTS). */
     /** 1.217.0: extra indexen op bestaande tabellen: [tabel, naam, kolommen] */
     private const INDEXES = [
         ['ids_incidents', 'idx_idsi_status', 'status, created_at'],
+        // 1.224.3: opruimen en dagtotalen op tijd (anders elk uur de hele tabel doorlopen, met sloten)
+        ['results', 'idx_results_time', 'created_at'],
+        ['status_changes', 'idx_sc_time', 'created_at'],
     ];
 
+    /** Kolommen van latere versies; werkt op MariaDB én MySQL (geen ADD COLUMN IF NOT EXISTS). */
     private const COLUMNS = [
         ['hosts', 'parent_id', 'INT UNSIGNED NULL AFTER mode'],
         ['hosts', 'maintenance_until', 'DATETIME NULL'],
@@ -375,10 +386,6 @@ final class Installer
     }
 
     /**
-     * 1.221.3: incidenten en blokkades uit de nginx-log heten "Web:" in plaats van "SWAG:" (het is de log van elke reverse
-     * proxy, niet alleen SWAG). Bestaande titels en redenen omzetten; doet daarna niets meer.
-     */
-    /**
      * 1.222.1: tokens en wachtwoorden in adressen uit de weblogs weglakken in wat al bewaard is (incidenten, blokkades,
      * meldingen, aanvallen per site). Alleen rijen waar nog een onbedekte waarde staat; daarna doet het niets meer.
      */
@@ -404,10 +411,6 @@ final class Installer
         }
     }
 
-    /**
-     * 1.222.2: geheimen in bewaarde commando's weglakken (headers zoals X-Agent-Token en Authorization, -u gebruiker:wachtwoord):
-     * gebeurtenissen van de endpoint-bewaking, incidenten en AI-verzoeken. Alleen rijen waar nog iets onbedekt staat.
-     */
     /** 1.222.2: open incidenten over de agent zelf (zijn curl naar RzSense, met het eigen kenmerk) afhandelen; vóór het weglakken */
     private static function closeAgentSelf(PDO $pdo): void
     {
@@ -421,6 +424,10 @@ final class Installer
         }
     }
 
+    /**
+     * 1.222.2: geheimen in bewaarde commando's weglakken (headers zoals X-Agent-Token en Authorization, -u gebruiker:wachtwoord):
+     * gebeurtenissen van de endpoint-bewaking, incidenten en AI-verzoeken. Alleen rijen waar nog iets onbedekt staat.
+     */
     private static function redactCmdSecrets(PDO $pdo): void
     {
         $re = '(X-Agent-(Token|Key|Auth)|Authorization|X-Api-Key|X-Auth-Token|Cookie)[[:space:]]*:[[:space:]]*(Bearer[[:space:]]+|Basic[[:space:]]+)?[^*[:space:]]'
@@ -436,6 +443,10 @@ final class Installer
         }
     }
 
+    /**
+     * 1.221.3: incidenten en blokkades uit de nginx-log heten "Web:" in plaats van "SWAG:" (het is de log van elke reverse
+     * proxy, niet alleen SWAG). Bestaande titels en redenen omzetten; doet daarna niets meer.
+     */
     private static function swagToWeb(PDO $pdo): void
     {
         $pdo->exec("UPDATE ids_incidents SET title = CONCAT('Web: ', SUBSTRING(title, 7)) WHERE type = 'web_attack' AND title LIKE 'SWAG: %'");

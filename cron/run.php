@@ -8,6 +8,16 @@ if (PHP_SAPI !== 'cli') {
 }
 require __DIR__ . '/../src/bootstrap.php';
 
+/** 1.224.3: een fout in een stap van cron ook bewaren (Instellingen → Prestaties en fouten), niet alleen op STDERR: de crontab gooit die weg */
+function cron_err(string $label, Throwable $e): void
+{
+    fwrite(STDERR, $label . ': ' . $e->getMessage() . "\n");
+    try {
+        SelfCheck::log('error', 'cron, ' . $label . ': ' . $e->getMessage(), $e->getFile(), $e->getLine());
+    } catch (Throwable) {
+    }
+}
+
 if (!is_configured()) {
     exit("RzSense is nog niet ingesteld (open setup.php in je browser)\n");
 }
@@ -45,7 +55,7 @@ Monitor::pollReceipts();
 try {
     Ai::cron();
 } catch (Throwable $e) {
-    fwrite(STDERR, 'AI: ' . $e->getMessage() . "\n");
+    cron_err('AI', $e);
 }
 save_setting('cron_last_run', now());
 if (setting('mqtt_enabled', '0') === '1') {
@@ -60,24 +70,26 @@ if (setting('mqtt_enabled', '0') === '1') {
 try {
     LogWatch::cron();
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Logs (vaste zoekacties): ' . $e->getMessage() . "\n");
+    cron_err('Logs (vaste zoekacties)', $e);
 }
 // Verlopen blokkades (inlogbeveiliging) opheffen, met een ℹ️-melding
 try {
     Security::expire();
     SessionStore::purge();   // sessies die te lang stil waren (1.85.0)
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Blokkades: ' . $e->getMessage() . "\n");
+    cron_err('Blokkades', $e);
 }
 // Eén keer per uur opruimen (ook als de run van precies :00 is overgeslagen)
 if (strtotime((string) setting('purge_at', '')) < time() - 3600) {
+    // 1.224.3: elke stap apart: één fout (bv. een slot op een grote tabel) slaat de rest niet meer over
+    foreach (['Monitor', 'NetScan', 'Perf', 'Incidents', 'Quality', 'Internet'] as $cls) {
+        try {
+            $cls::purge();
+        } catch (Throwable $e) {
+            cron_err("Opruimen ($cls)", $e);
+        }
+    }
     save_setting('purge_at', now());
-    Monitor::purge();
-    NetScan::purge();
-    Perf::purge();
-    Incidents::purge();
-    Quality::purge();
-    Internet::purge();
     Perf::lap('opruimen');
 }
 echo date('c') . " $n check(s) uitgevoerd\n";
@@ -86,6 +98,14 @@ echo date('c') . " $n check(s) uitgevoerd\n";
 // een grote back-up mag de checks van de volgende minuut niet ophouden.
 if ($lock !== false) {
     flock($lock, LOCK_UN);
+}
+// 1.224.3: het tweede deel (back-up, internet, dreigingsinformatie, kwetsbaarheden, analyse, incidenten, slimme drempels)
+// heeft een eigen slot: loopt de vorige ronde daar nog, dan niet nog eens tegelijk (dubbele incidenten, dubbel werk)
+$tail = @fopen(sys_get_temp_dir() . "/rzmon-tail-$uid.lock", 'c');
+if ($tail !== false && !flock($tail, LOCK_EX | LOCK_NB)) {
+    save_setting('cron_overlap_at', now());
+    echo date('c') . " het tweede deel van de vorige ronde loopt nog; nu overgeslagen\n";
+    exit(0);
 }
 Perf::lap('blokkades');
 if ($msg = Backup::runScheduled()) {
@@ -98,7 +118,7 @@ try {
         echo date('c') . " $msg\n";
     }
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Snelheidstest: ' . $e->getMessage() . "\n");
+    cron_err('Snelheidstest', $e);
 }
 Perf::lap('internet');
 // Dagelijks kijken of er een nieuwe versie is; eventueel automatisch bijwerken (Instellingen → RzSense bijwerken)
@@ -111,7 +131,7 @@ try {
         echo date('c') . " $msg\n";
     }
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Update-aankondiging: ' . $e->getMessage() . "\n");
+    cron_err('Update-aankondiging', $e);
 }
 // Certificaat van het beheeradres: dagelijks (Instellingen → Beveiliging → Beheer via https)
 try {
@@ -119,7 +139,7 @@ try {
         echo date('c') . " $msg\n";
     }
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Certificaat: ' . $e->getMessage() . "\n");
+    cron_err('Certificaat', $e);
 }
 // Agents via hun reserve-adres: één samengevatte melding na 5 minuten; klaargezet certificaat wisselen (1.78.0)
 try {
@@ -148,7 +168,7 @@ try {
     }
     Perf::lap('dns');
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Agents/certificaat: ' . $e->getMessage() . "\n");
+    cron_err('Agents/certificaat', $e);
 }
 // Datalekken (Have I Been Pwned): domein en e-mailadressen, dagelijks, gespreid (Instellingen → Beveiliging → Datalekken)
 try {
@@ -156,7 +176,7 @@ try {
         echo date('c') . " $msg\n";
     }
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Datalekken: ' . $e->getMessage() . "\n");
+    cron_err('Datalekken', $e);
 }
 Perf::lap('datalekken');
 // Kwetsbaarheden: dagelijkse scan en servers waarvan de softwarelijst veranderde (Instellingen → 🐞 Kwetsbaarheden)
@@ -165,7 +185,7 @@ try {
         echo date('c') . " $msg\n";
     }
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Kwetsbaarheden: ' . $e->getMessage() . "\n");
+    cron_err('Kwetsbaarheden', $e);
 }
 Perf::lap('kwetsbaarheden');
 // Netwerkscan (1.103.0): elk uur een ronde, een paar keer per dag dieper (Instellingen → Beveiliging → Netwerkscan)
@@ -174,7 +194,7 @@ try {
         echo date('c') . " $msg\n";
     }
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Netwerkscan: ' . $e->getMessage() . "\n");
+    cron_err('Netwerkscan', $e);
 }
 Perf::lap('netwerkscan');
 // 1.186.0: netwerkverkeer per apparaat (UniFi), elke 5 minuten
@@ -183,7 +203,7 @@ try {
         echo date('c') . " $msg\n";
     }
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Verkeer: ' . $e->getMessage() . "\n");
+    cron_err('Verkeer', $e);
 }
 Perf::lap('verkeer');
 // Analyse (1.106.0): dagtotalen elk uur bijwerken, en het maandrapport op de 1e van de maand
@@ -194,7 +214,7 @@ try {
             echo date('c') . " $msg\n";
         }
     } catch (Throwable $e) {
-        fwrite(STDERR, 'Analyse en advies: ' . $e->getMessage() . "\n");
+        cron_err('Analyse en advies', $e);
     }
     if ($msg = Analytics::cron()) {
         echo date('c') . " $msg\n";
@@ -205,24 +225,24 @@ try {
             echo date('c') . " $msg\n";
         }
     } catch (Throwable $e) {
-        fwrite(STDERR, 'Trends: ' . $e->getMessage() . "\n");
+        cron_err('Trends', $e);
     }
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Analyse: ' . $e->getMessage() . "\n");
+    cron_err('Analyse', $e);
 }
 Perf::lap('analyse');
 // Incidenten (1.142.0): één lijst uit monitoring, IDS en kwetsbaarheden bijwerken
 try {
     Incidents::sync();
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Incidenten: ' . $e->getMessage() . "\n");
+    cron_err('Incidenten', $e);
 }
 Perf::lap('incidenten');
 // Slimme drempels (1.107.0): elke nacht vanaf 4:00 opnieuw leren, een paar checks per minuut
 try {
     Smart::cron();
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Slimme drempels: ' . $e->getMessage() . "\n");
+    cron_err('Slimme drempels', $e);
 }
 // Slimme voorstellen (1.108.0): één keer per nacht vanaf 4:30
 try {
@@ -230,7 +250,7 @@ try {
         echo date('c') . " $n nieuwe slimme voorstellen\n";
     }
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Slimme voorstellen: ' . $e->getMessage() . "\n");
+    cron_err('Slimme voorstellen', $e);
 }
 Perf::lap('slim');
 // Achtergrondtaken die te lang niet lukken: één melding, en een ✅ als het weer lukt (Instellingen → Systeem → Verbindingen en taken)
@@ -239,7 +259,7 @@ try {
         echo date('c') . " $msg\n";
     }
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Taken: ' . $e->getMessage() . "\n");
+    cron_err('Taken', $e);
 }
 Perf::lap('taken');
 // Gezondheid van RzSense zelf (1.96.0): dagelijks de grootte van de database, en hoe lang deze ronde duurde
@@ -247,13 +267,13 @@ try {
     SelfCheck::daily();
     SelfCheck::cronDone(microtime(true) - $cronStart);
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Systeemcheck: ' . $e->getMessage() . "\n");
+    cron_err('Systeemcheck', $e);
 }
 // Slim interval (1.108.0): checks met een probleem tussendoor opnieuw, tot vlak voor de volgende cron-minuut
 if (!$force) {
     try {
         Monitor::runFastLoop($cronStart + 50);
     } catch (Throwable $e) {
-        fwrite(STDERR, 'Slim interval: ' . $e->getMessage() . "\n");
+        cron_err('Slim interval', $e);
     }
 }

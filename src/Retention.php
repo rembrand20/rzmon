@@ -16,7 +16,7 @@ final class Retention
 
     public static function rawDays(): int
     {
-        return max(1, (int) setting('retention_days', 30));
+        return max(1, min(3650, (int) setting('retention_days', 30)));
     }
 
     public static function hourlyDays(): int
@@ -64,7 +64,7 @@ final class Retention
             $cut = $rolled;   // nog niet samengevat: nog niet weggooien
         }
         if ($rolled !== '') {
-            q('DELETE FROM results WHERE created_at < ?', [$cut]);
+            self::deleteBatched('DELETE FROM results WHERE created_at < ?', [$cut]);
         }
         q('DELETE FROM results_hourly WHERE hour < NOW() - INTERVAL ? DAY', [self::hourlyDays()]);
         q('DELETE FROM stats_daily WHERE day < CURDATE() - INTERVAL ? DAY', [self::dailyDays()]);
@@ -84,6 +84,23 @@ final class Retention
         $hist[$today] = self::dbSize();
         ksort($hist);
         save_setting('db_size_hist', json_encode(array_slice($hist, -30, null, true)));
+    }
+
+    /**
+     * 1.224.3: oude rijen in stukjes van 20.000 weggooien (met de index op created_at). Eén grote DELETE hield de tabel lang
+     * op slot, zodat binnenkomende metingen moesten wachten. Hooguit 100 stukjes per keer; de rest volgt het volgende uur.
+     */
+    public static function deleteBatched(string $sql, array $params = []): int
+    {
+        $n = 0;
+        for ($i = 0; $i < 100; $i++) {
+            $c = q($sql . ' LIMIT 20000', $params)->rowCount();
+            $n += $c;
+            if ($c < 20000) {
+                break;
+            }
+        }
+        return $n;
     }
 
     public static function dbSize(): int

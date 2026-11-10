@@ -24,6 +24,8 @@ final class Analytics
         }
         $first = !q('SELECT 1 FROM stats_daily LIMIT 1')->fetchColumn();
         $from = $first ? (string) (q('SELECT DATE(MIN(created_at)) FROM results')->fetchColumn() ?: date('Y-m-d')) : date('Y-m-d', strtotime('-1 day', $last ?: time()));
+        // 1.224.3: geen dag opnieuw berekenen waarvan de ruwe metingen al (deels) weg zijn (bewaren = 1 dag: gisteren niet meer)
+        $from = max($from, date('Y-m-d', time() - (Retention::rawDays() - 1) * 86400));
         $n = self::rollup($from, date('Y-m-d'));
         self::snapshot(date('Y-m-d'));
         save_setting('stats_daily_at', (string) time());

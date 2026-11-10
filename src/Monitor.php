@@ -29,11 +29,23 @@ final class Monitor
             <=> [$depth[$b['hid']] ?? 0, $b['type'] !== 'ping', $b['id']]);
 
         foreach ($rows as $row) {
+            if (!self::claim($row)) {
+                continue;   // 1.224.3: intussen door een agentrapport gedaan (dat had verouderde tellers gegeven)
+            }
             self::runOne($row);
         }
         self::releaseQuiet();
         self::flushQueue();
         return count($rows);
+    }
+
+    /**
+     * Een check "claimen" voor deze run (last_checked), alleen als niemand anders hem sinds het ophalen deed. Zo doen cron
+     * en een agentrapport dezelfde check nooit allebei, met de tellers (fail_count, streak) van vóór de ander.
+     */
+    private static function claim(array $row): bool
+    {
+        return q('UPDATE checks SET last_checked = NOW() WHERE id = ? AND (last_checked <=> ?)', [$row['id'], $row['last_checked']])->rowCount() === 1;
     }
 
     /** Checks die RzSense zelf uitvoert en die bij een probleem sneller mogen (slim interval) */
@@ -87,6 +99,9 @@ final class Monitor
                 if (microtime(true) > $deadline) {
                     break;
                 }
+                if (!self::claim($row)) {
+                    continue;
+                }
                 I18n::forNotify(fn() => self::runOne($row));
                 $n++;
             }
@@ -118,8 +133,7 @@ final class Monitor
                   AND (c.last_checked IS NULL OR c.last_checked <= NOW() - INTERVAL ($iv - LEAST(15, $iv DIV 4)) SECOND)", [$hostId])->fetchAll();
         $n = 0;
         foreach ($rows as $row) {
-            $claim = q('UPDATE checks SET last_checked = NOW() WHERE id = ? AND (last_checked <=> ?)', [$row['id'], $row['last_checked']]);
-            if ($claim->rowCount() !== 1) {
+            if (!self::claim($row)) {
                 continue;   // net door cron of een ander rapport gedaan
             }
             self::runOne($row);
@@ -1324,15 +1338,17 @@ final class Monitor
         Retention::purge();
         Retention::track();
         q('DELETE FROM alerts WHERE created_at < NOW() - INTERVAL ? DAY', [self::alertDays()]);
-        q('DELETE FROM status_changes WHERE created_at < NOW() - INTERVAL ? DAY', [self::alertDays()]);
+        Retention::deleteBatched('DELETE FROM status_changes WHERE created_at < NOW() - INTERVAL ? DAY', [self::alertDays()]);
         q('DELETE FROM access_log WHERE created_at < NOW() - INTERVAL ? DAY', [self::alertDays()]);
         SshEvents::purge();   // 1.152.0: 30 dagen
         try {
             LogStore::purge();   // 1.210.0: logs: bewaartermijn en maximum
-        } catch (Throwable) {
-            // opruimen mag de rest nooit tegenhouden
+        } catch (Throwable $e) {
+            // opruimen mag de rest nooit tegenhouden, maar wel zichtbaar (1.224.3): anders groeien de logs ongemerkt door
+            SelfCheck::log('error', 'Logs opruimen: ' . $e->getMessage(), $e->getFile(), $e->getLine());
         }
         q('DELETE FROM agent_log WHERE created_at < NOW() - INTERVAL 7 DAY');
+        q('DELETE FROM audit_log WHERE created_at < NOW() - INTERVAL 2 YEAR');   // 1.224.3: wijzigingen en acties: 2 jaar
         q('DELETE FROM remember_tokens WHERE last_used < NOW() - INTERVAL ? DAY', [REMEMBER_DAYS]);
         q('DELETE FROM user_sessions WHERE last_seen < NOW() - INTERVAL 2 DAY');   // allang verlopen sessies
         // Tot 1.92.2: elke controle zonder cookies (curl, een HTTP-check op RzSense zelf) gaf een LAN-sessie die nooit terugkwam

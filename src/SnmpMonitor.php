@@ -433,13 +433,17 @@ final class SnmpMonitor
             return self::res(STATUS_OK, null, "$msg · " . t('verkeer volgt na de volgende meting'));
         }
         $dt = $now - (float) $prev['t'];
-        $rate = static function (float $a, float $b) use ($hc, $dt): ?float {
+        $rate = static function (float $a, float $b) use ($hc, $dt, $speed): ?float {
             $d = $a - $b;
             if ($d < 0) {
                 if ($hc) {
                     return null;   // teller opnieuw begonnen (herstart)
                 }
                 $d += 4294967296;   // 32-bits teller liep over
+                // 1.224.3: of het apparaat herstartte (teller weer bij 0): dan komt er een onmogelijk hoge snelheid uit, en geen getal
+                if ($speed > 0 && $d * 8 / $dt > $speed * 1.1) {
+                    return null;
+                }
             }
             return $d * 8 / $dt;
         };

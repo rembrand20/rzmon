@@ -731,12 +731,12 @@ final class NetScan
             self::state(['vendors_error' => t('fabrikantenlijst niet op te halen ({url})', ['url' => parse_url($url, PHP_URL_HOST) ?: $url])]);
             return 'Fabrikanten: niet op te halen';
         }
-        db()->beginTransaction();
-        q('DELETE FROM mac_vendors');
-        foreach (array_chunk($rows, 1000) as $chunk) {
-            q('INSERT IGNORE INTO mac_vendors (prefix, vendor) VALUES ' . implode(',', array_fill(0, count($chunk), '(?, ?)')), array_merge(...$chunk));
-        }
-        db()->commit();
+        in_tx(function () use ($rows) {   // 1.224.3: bij een fout terugdraaien
+            q('DELETE FROM mac_vendors');
+            foreach (array_chunk($rows, 1000) as $chunk) {
+                q('INSERT IGNORE INTO mac_vendors (prefix, vendor) VALUES ' . implode(',', array_fill(0, count($chunk), '(?, ?)')), array_merge(...$chunk));
+            }
+        });
         foreach (q('SELECT id, mac FROM net_devices WHERE mac IS NOT NULL AND vendor IS NULL AND random_mac = 0')->fetchAll() as $d) {
             if ($v = self::vendor((string) $d['mac'])) {
                 q('UPDATE net_devices SET vendor = ? WHERE id = ?', [$v, $d['id']]);

@@ -2303,5 +2303,21 @@ $down = Trends::judge($mk(fn($x) => 23 - $x * 0.06), ['hb' => false, 'eff' => [5
 ok($down && $down['bad'] && $down['eta'] !== null, 'trends: dalende UPS-looptijd (lager is slechter) met een vervangdatum');
 ok(Trends::judge(array_slice($mk(fn($x) => $x), -10, null, true), $base) === null, 'trends: te weinig dagen = geen oordeel');
 
+// 1.224.3: IDS-opruiming laat open incidenten staan; opruimen in stukjes
+q("INSERT INTO hosts (name, address, mode) VALUES ('ci-purge', '10.0.0.97', 'agent')");
+$hp = (int) db()->lastInsertId();
+q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, detail, status, created_at, last_seen) VALUES
+   (?, 1, 'x', 'p1', 'oud open', '', 'open', NOW() - INTERVAL 400 DAY, NOW() - INTERVAL 400 DAY),
+   (?, 1, 'x', 'p2', 'oud klaar', '', 'done', NOW() - INTERVAL 400 DAY, NOW() - INTERVAL 400 DAY)", [$hp, $hp]);
+Ids::purge();
+$left = q("SELECT title FROM ids_incidents WHERE host_id = ? ORDER BY title", [$hp])->fetchAll(PDO::FETCH_COLUMN);
+ok(in_array('oud open', $left, true) && !in_array('oud klaar', $left, true), 'opruimen: een oud maar open IDS-incident blijft, een afgehandeld gaat weg');
+q('DELETE FROM hosts WHERE id = ?', [$hp]);
+q("CREATE TEMPORARY TABLE ci_del (id INT AUTO_INCREMENT PRIMARY KEY, v INT)");
+for ($i = 0; $i < 45; $i++) {
+    q('INSERT INTO ci_del (v) VALUES ' . implode(',', array_fill(0, 1000, '(1)')));
+}
+ok(Retention::deleteBatched('DELETE FROM ci_del WHERE v > ?', [0]) === 45000 && !q('SELECT COUNT(*) FROM ci_del')->fetchColumn(), 'opruimen in stukjes: alles weg, in meerdere rondes');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

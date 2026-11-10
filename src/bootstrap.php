@@ -75,8 +75,14 @@ function db(): PDO
                 PDO::ATTR_EMULATE_PREPARES => false,
             ]
         );
-        // DB-tijd gelijk trekken met PHP-tijd
-        $pdo->exec("SET time_zone = '" . (new DateTime())->format('P') . "'");
+        // DB-tijd gelijk trekken met PHP-tijd. 1.224.3: liefst de tijdzone zelf (bv. Europe/Amsterdam), dan klopt het ook over
+        // de overgang naar zomer- of wintertijd heen; dat kan als MariaDB de tijdzones kent (mysql_tzinfo_to_sql). Anders de
+        // afstand tot UTC van nu, zoals voorheen.
+        try {
+            $pdo->prepare('SET time_zone = ?')->execute([date_default_timezone_get()]);
+        } catch (PDOException) {
+            $pdo->exec("SET time_zone = '" . (new DateTime())->format('P') . "'");
+        }
     }
     return $pdo;
 }

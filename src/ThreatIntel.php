@@ -475,13 +475,13 @@ final class ThreatIntel
         $n = [];
         foreach ($lists as $src => [$kind, $rows]) {
             $name = $src === 'threatfox_d' ? 'threatfox' : $src;
-            db()->beginTransaction();
-            q('DELETE FROM ti_list WHERE kind = ? AND src = ?', [$kind, $name]);
-            foreach (array_chunk($rows, 500) as $chunk) {
-                q('INSERT IGNORE INTO ti_list (kind, value, src, info) VALUES ' . implode(',', array_fill(0, count($chunk), '(?, ?, ?, ?)')),
-                    array_merge(...array_map(static fn($r) => [$kind, mb_substr($r[0], 0, 253), $name, mb_substr((string) $r[1], 0, 120)], $chunk)));
-            }
-            db()->commit();
+            in_tx(static function () use ($kind, $name, $rows) {   // 1.224.3: bij een fout terugdraaien
+                q('DELETE FROM ti_list WHERE kind = ? AND src = ?', [$kind, $name]);
+                foreach (array_chunk($rows, 500) as $chunk) {
+                    q('INSERT IGNORE INTO ti_list (kind, value, src, info) VALUES ' . implode(',', array_fill(0, count($chunk), '(?, ?, ?, ?)')),
+                        array_merge(...array_map(static fn($r) => [$kind, mb_substr($r[0], 0, 253), $name, mb_substr((string) $r[1], 0, 120)], $chunk)));
+                }
+            });
             $n[$src] = count($rows);
             $out[] = "$name: " . count($rows);
         }

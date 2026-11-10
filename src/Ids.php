@@ -1592,7 +1592,7 @@ final class Ids
         $n = 0;
         foreach (q("SELECT id, ip FROM ids_incidents WHERE status = 'open' AND type IN ('newip', 'rootlogin', 'ssh_login') AND last_seen < NOW() - INTERVAL 1 DAY")->fetchAll() as $i) {
             if (self::internalIp((string) $i['ip'])) {
-                $n += q("UPDATE ids_incidents SET status = 'done', handled_by = 'RzMon', handled_at = NOW() WHERE id = ? AND status = 'open'", [$i['id']])->rowCount();
+                $n += q("UPDATE ids_incidents SET status = 'done', handled_by = 'RzSense', handled_at = NOW() WHERE id = ? AND status = 'open'", [$i['id']])->rowCount();
             }
         }
         return $n;
@@ -1605,7 +1605,8 @@ final class Ids
         q('DELETE FROM ids_attempts WHERE at < NOW() - INTERVAL 1 DAY');
         q('DELETE FROM ids_kills WHERE created_at < NOW() - INTERVAL 30 DAY');
         WebLog::purge();
-        q('DELETE FROM ids_incidents WHERE created_at < NOW() - INTERVAL ? DAY', [Monitor::alertDays()]);
+        // 1.224.3: alleen afgehandelde incidenten, en pas na de laatste keer gezien (een open incident blijft staan)
+        q("DELETE FROM ids_incidents WHERE status <> 'open' AND GREATEST(created_at, COALESCE(last_seen, created_at)) < NOW() - INTERVAL ? DAY", [Monitor::alertDays()]);
         // Bewaren zo lang als de meldingen, minstens 90 dagen (ook voor "eerder geblokkeerd": bij herhaling langer)
         $days = max(90, Monitor::alertDays());
         q('DELETE FROM ids_blocks WHERE (removed_at IS NOT NULL AND removed_at < NOW() - INTERVAL ? DAY) OR (until IS NOT NULL AND until < NOW() - INTERVAL ? DAY)', [$days, $days]);
