@@ -2091,10 +2091,15 @@ switch ($action) {
                 $models = Ai::models($cfg);
                 out(['models' => $models, 'suggest' => Ai::suggestModel($models)]);
             }
-            $r = Ai::chat(['max_tokens' => 200, 'timeout' => min(120, $cfg['timeout'])] + $cfg, t('Antwoord in één korte zin.'), t('Zeg dat de verbinding met RzSense werkt.'));
+            // 1.223.1: hooguit 45 s, zodat de webserver of reverse proxy (vaak 60 s) de test niet afbreekt met een foutpagina
+            $r = Ai::chat(['max_tokens' => 60, 'timeout' => min(45, $cfg['timeout'])] + $cfg, t('Antwoord in één korte zin.'), t('Zeg dat de verbinding met RzSense werkt.'));
             out(['ok' => true, 'text' => mb_substr($r['text'], 0, 300), 'ms' => $r['ms']]);
-        } catch (RuntimeException $e) {
-            out(['error' => $e->getMessage()], 422);
+        } catch (Throwable $e) {
+            $msg = $e->getMessage();
+            if ($cfg['provider'] === 'ollama' && preg_match('/timed out|time-out|timeout/i', $msg)) {
+                $msg = t('Ollama gaf binnen 45 seconden geen antwoord. De eerste vraag laadt het model in het geheugen en duurt op een gewone processor soms lang: probeer het over een minuut nog eens, of kies een kleiner model.') . ' (' . $msg . ')';
+            }
+            out(['error' => $e instanceof RuntimeException ? $msg : t('Fout bij het testen: {e}', ['e' => mb_substr($msg, 0, 200)])], 422);
         }
 
     case 'ai_info':

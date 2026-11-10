@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.220.0**: **mDS per soort** met netwerk en ping, en een **veel snellere IDS-pagina**.
 - **1.219.0**: de **RzSense-kern** (futuristische meters voor de eigen server) en een **begrijpelijke IDS Live-pagina**.
 
+## 1.223.1 – 2026-11-10
+### Opgelost
+- **AI → Testen gaf "Ongeldig antwoord van server"** (vooral met Ollama): de test kon langer duren dan de webserver of reverse proxy toestaat (vaak 60 seconden). Die brak het verzoek dan af met een foutpagina in plaats van een antwoord. De test wacht nu hooguit 45 seconden en zegt dan in gewone taal wat er aan de hand is (bij Ollama: de eerste vraag laadt het model en duurt soms lang). Ook andere fouten tijdens de test komen nu als leesbare melding terug.
+- **"Ongeldig antwoord van server" overal duidelijker**: krijgt RzSense een foutpagina terug, dan staat erbij of het verzoek te lang duurde (HTTP 502/503/504) of dat er een fout op de server was (HTTP 500, met de plek waar je de PHP-fouten ziet).
+
 ## 1.223.0 – 2026-11-10
 ### Nieuw
 - **Slimme oordelen bij IDS-incidenten** (*lijkt echt* / *verdacht* / *lijkt onschuldig*), veel zuiniger met de AI:

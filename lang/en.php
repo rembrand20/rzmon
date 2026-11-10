@@ -9050,4 +9050,8 @@ return [
     'Jouw oordeel (geldt voortaan voor deze soort):' => 'Your verdict (applies from now on to this kind):',
     'Oordelen vandaag: {a} AI-vragen (van max. {m}), {h} hergebruikt, {r} via regels, {u} van jou · {k} soorten onthouden' => 'Verdicts today: {a} AI questions (of max. {m}), {h} reused, {r} via rules, {u} by you · {k} kinds remembered',
     'Oordeel opgeslagen; geldt voortaan voor deze soort' => 'Verdict saved; applies from now on to this kind',
+    'Ollama gaf binnen 45 seconden geen antwoord. De eerste vraag laadt het model in het geheugen en duurt op een gewone processor soms lang: probeer het over een minuut nog eens, of kies een kleiner model.' => 'Ollama gave no answer within 45 seconds. The first question loads the model into memory and can take long on a regular processor: try again in a minute, or choose a smaller model.',
+    'Fout bij het testen: {e}' => 'Error while testing: {e}',
+    'De webserver of reverse proxy brak het verzoek af (HTTP {c}): het duurde waarschijnlijk te lang. Probeer het nog eens.' => 'The web server or reverse proxy aborted the request (HTTP {c}): it probably took too long. Try again.',
+    'Fout op de server (HTTP {c}). Kijk bij Instellingen → Systeem → Prestaties en fouten (PHP-fouten).' => 'Error on the server (HTTP {c}). See Settings → System → Performance and errors (PHP errors).',
 ];

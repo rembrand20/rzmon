@@ -456,7 +456,11 @@ async function apiRaw(action, body, params = {}, retried = false) {
       await new Promise((ok) => setTimeout(ok, i ? 1200 : 300));
     }
   }
-  const data = await res.json().catch(() => ({ error: L('Ongeldig antwoord van server') }));
+  // 1.223.1: geen JSON (foutpagina van de webserver of proxy): zeg wat er waarschijnlijk aan de hand is
+  const data = await res.json().catch(() => ({ error: [502, 503, 504].includes(res.status)
+    ? L('De webserver of reverse proxy brak het verzoek af (HTTP {c}): het duurde waarschijnlijk te lang. Probeer het nog eens.', { c: res.status })
+    : res.status >= 500 ? L('Fout op de server (HTTP {c}). Kijk bij Instellingen → Systeem → Prestaties en fouten (PHP-fouten).', { c: res.status })
+      : L('Ongeldig antwoord van server') + (res.status && res.status !== 200 ? ` (HTTP ${res.status})` : '') }));
   const tok = res.headers.get('X-CSRF-Token');
   if (tok) CSRF = tok;
   // 1.206.0: hoe lang het vinkje nog geldt (na het invullen van je wachtwoord)
