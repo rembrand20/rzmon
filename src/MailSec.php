@@ -132,7 +132,7 @@ final class MailSec
     }
 
     /** Het MTA-STS-beleid (mode, max_age, mx) van https://mta-sts.<domein>/.well-known/mta-sts.txt */
-    private static function stsPolicy(string $d): ?array
+    private static function stsPolicy(string $d): array
     {
         $url = "https://mta-sts.$d/.well-known/mta-sts.txt";
         if (ExtraChecks::urlBlocked($url) !== null) {
@@ -320,11 +320,11 @@ final class MailSec
 
         // MTA-STS en TLS-RPT (aanrader, geen fout)
         if ($sends) {
-            $pol = $x['sts_policy'] ?? null;
+            $pol = (array) ($x['sts_policy'] ?? []);
             if (!($x['sts'] ?? [])) {
                 $add('sts', 'info', t('Geen MTA-STS'), t('Met MTA-STS dwing je af dat mail naar jou versleuteld (TLS) aankomt. Een aanrader, geen must.'));
-            } elseif (!is_array($pol) || isset($pol['error'])) {
-                $add('sts', 'warn', t('MTA-STS-beleid niet te lezen'), t('Het record _mta-sts staat er, maar https://mta-sts.{d}/.well-known/mta-sts.txt gaf: {e}', ['d' => $d, 'e' => is_array($pol) ? (string) $pol['error'] : '?']));
+            } elseif (!$pol || isset($pol['error'])) {
+                $add('sts', 'warn', t('MTA-STS-beleid niet te lezen'), t('Het record _mta-sts staat er, maar https://mta-sts.{d}/.well-known/mta-sts.txt gaf: {e}', ['d' => $d, 'e' => (string) ($pol['error'] ?? '?')]));
             } else {
                 $mode = (string) ($pol['mode'] ?? '');
                 $add('sts', $mode === 'enforce' ? 'ok' : 'info', t('MTA-STS: {m}', ['m' => $mode ?: '?']), $mode === 'testing' ? t('Testmodus: alles gaat goed? Zet mode op enforce.') : '');
