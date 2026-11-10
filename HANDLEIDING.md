@@ -3280,6 +3280,28 @@ Een besturingssysteem of programma dat geen updates meer krijgt, krijgt ook geen
 - **Meldingen:** een ℹ️-melding 90 en 30 dagen vooraf en op de dag zelf (*Instellingen → Meldingen → Systeemmeldingen → End-of-life*), één keer per stap, en een regel in het logboek van de server.
 - **Uitzetten:** *Instellingen → Overzicht → Functies* of *Beveiliging → Kwetsbaarheden → End-of-life*.
 
+### 8.13d Updates installeren 🩹 (vanaf 1.230.0, agent 1.92.0)
+De meeste aanvallen gebruiken lekken waarvoor al lang een update is. RzSense laat zien welke updates er per server klaarstaan, en de agent kan ze installeren.
+
+**Wat je ziet** (*Kwetsbaarheden → 🩹 Updates*): per server hoeveel **updates** en **beveiligingsupdates** er klaarstaan (de agent kijkt eens per uur), of er een **herstart** nodig is (↻), en de lijst met pakketten. Bij Home Assistant: Core, OS en add-ons met een update.
+
+**Installeren met de hand:** **🛡 Beveiliging** (alleen beveiligingsupdates) of **⬆ Alles**, met je bevestiging (*BIJWERKEN* of je wachtwoord). Je ziet dezelfde voortgang als bij *pakketten bijwerken* (8.13).
+
+**Automatisch** (per server, *Agent Manager → 🩹 Updates*):
+- **Wanneer:** *met de hand* (standaard), *in het onderhoudsvenster* (het vaste onderhoudsvenster van die server: *Instellingen → Advies → Voorstellen → Vaste onderhoudsvensters*; dan krijg je in die tijd ook geen meldingen), of *elke dag om* een tijd (bv. 03:30).
+- **Wat:** *alleen beveiligingsupdates* (standaard, het veiligst) of *alle updates*.
+- **📸 Eerst een snapshot** (standaard aan): van / met ZFS, snapper of btrfs, zodat je terug kunt. Kan dat niet, dan gaat het gewoon door (dat staat in het logboek).
+- Er staat niets klaar? Dan gebeurt er niets (en komt er ook niets in het logboek).
+
+**Home Assistant:** via de Supervisor, Core en add-ons, **altijd met een back-up** vooraf. Het besturingssysteem (OS) niet: dat herstart het hele systeem; dat doe je in Home Assistant zelf.
+
+**Nooit:**
+- **TrueNAS** met apt bijwerken (dat maakt TrueNAS kapot): gebruik *System → Update* in TrueNAS;
+- **automatisch** de server bijwerken waar **RzSense zelf** op draait (gaat er iets mis, dan ziet niemand het): alleen met de hand;
+- **herstarten**: zie je ↻, kies dan zelf een moment.
+
+**Logboek:** gevraagd (door wie, of automatisch), de snapshot, de uitkomst en wat er werd overgeslagen staan in het logboek van de server. **Aan/uit:** *Instellingen → Beveiliging → Updates* of *Overzicht → Functies*. Nodig: agent **1.92.0** of nieuwer, en *commando's als root* aan voor die server (zoals bij pakketten bijwerken).
+
 ### 8.14 Netwerkscan: wat zit er op je netwerk? 🔎 (vanaf 1.103.0)
 RzSense zoekt zelf welke apparaten er op je **lokale netwerken** zitten: telefoons, laptops, camera's, printers, slimme stekkers, je NAS. Je ziet ze op het tabblad **Netwerk**.
 

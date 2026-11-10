@@ -45,6 +45,7 @@ $mustChange = $user && !$resetToken && must_change_password($user);
 $showVulns = Vulns::enabled() && $role !== 'readonly';
 $showLeaks = $user && Hibp::enabled() && $role === 'admin';
 $showEol = $user && Eol::enabled() && $role !== 'readonly';   // 1.227.0: Kwetsbaarheden → Verouderd
+$showPatch = $user && $role !== 'readonly';   // 1.230.0: Kwetsbaarheden → Updates (ook als installeren uit staat: je ziet wat er klaarstaat)
 $showStats = $role !== 'readonly';   // 1.106.0: 📊 Analyse, voor beheerders en gebruikers
 $showNet = $role !== 'readonly' && (NetScan::enabled() || $role === 'admin');   // 1.103.0: netwerkscan
 // Voorkeuren van de gebruiker; het thema (1.135.0) per gebruiker, zodat het op elk apparaat hetzelfde is
@@ -486,12 +487,13 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       </div>
     </section>
 
-    <?php if ($showVulns || $showLeaks || $showEol): ?>
+    <?php if ($showVulns || $showLeaks || $showEol || $showPatch): ?>
     <section id="tab-vulns" class="tab-panel" role="tabpanel" hidden>
-      <?php if ((int) $showVulns + (int) $showLeaks + (int) $showEol > 1): ?>
+      <?php if ((int) $showVulns + (int) $showLeaks + (int) $showEol + (int) $showPatch > 1): ?>
       <div class="subtabs vuln-tabs" role="tablist" aria-label="<?= th('Kwetsbaarheden') ?>" id="vuln-tabs">
         <?php if ($showVulns): ?><button type="button" class="seg-btn active" data-vt="cve">🐞 <?= th('Kwetsbaarheden') ?> <span class="it-n" id="vt-n-cve"></span></button><?php endif; ?>
         <?php if ($showEol): ?><button type="button" class="seg-btn" data-vt="eol">⏳ <?= th('Verouderd') ?> <span class="it-n" id="vt-n-eol"></span></button><?php endif; ?>
+        <?php if ($showPatch): ?><button type="button" class="seg-btn" data-vt="patch">🩹 <?= th('Updates') ?> <span class="it-n" id="vt-n-patch"></span></button><?php endif; ?>
         <?php if ($showLeaks): ?><button type="button" class="seg-btn" data-vt="leak">🔓 <?= th('Datalekken') ?> <span class="it-n" id="vt-n-leak"></span></button><?php endif; ?>
       </div>
       <?php endif; ?>
@@ -547,8 +549,15 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <div id="eol-list"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
       <?php endif; ?>
+      <?php if ($showPatch): ?>
+      <div class="vuln-pane" data-vpane="patch" <?= $showVulns || $showEol ? 'hidden' : '' ?>>
+        <div class="dash-bar"><span class="muted small"><?= th('Welke updates er per server klaarstaan, en ze installeren. Per server stel je in wanneer (Agent Manager → Updates).') ?></span>
+          <a class="btn small-btn need-admin" href="#settings/patch" data-goto="settings/patch">⚙️ <?= th('Instellen') ?></a></div>
+        <div class="card" id="patch-body"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+      <?php endif; ?>
       <?php if ($showLeaks): ?>
-      <div class="vuln-pane" data-vpane="leak" <?= $showVulns || $showEol ? 'hidden' : '' ?>>
+      <div class="vuln-pane" data-vpane="leak" <?= $showVulns || $showEol || $showPatch ? 'hidden' : '' ?>>
         <div class="dash-counters"><div class="dash-in">
           <div class="health-counts" id="leak-counts"></div>
           <span class="dash-last muted small" id="leak-info"></span>
@@ -1199,6 +1208,14 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <div class="vuln-exclude"><span class="muted small"><?= th('Niet scannen:') ?></span> <span id="vuln-exclude-list"></span></div>
           <?= xp(t('Wat er nodig is, wanneer je een melding krijgt en hoe bijwerken werkt.'), t('<b>Nodig:</b> uitgaand HTTPS naar <code>api.osv.dev</code>, <code>www.cisa.gov</code>, <code>api.first.org</code> en <code>services.nvd.nist.gov</code>. <b>Meldingen:</b> een ℹ️ info-melding bij een nieuwe critical of actief misbruikte kwetsbaarheid volgt de rij <i>Info</i> bij Meldingen. <b>Bijwerken:</b> via de agent kan dat als commando\'s als root aan staan voor die server; anders krijg je het commando om zelf uit te voeren.')) ?>
           <div class="btn-row"><button type="button" class="btn" id="vuln-scan-now">🔍 <?= th('Nu scannen') ?></button> <span class="muted small" id="vuln-scan-info"></span></div>
+        </div>
+
+        <div data-sk="patch" class="card" id="patch-card">
+          <h2>🩹 <?= th('Updates installeren') ?></h2>
+          <?= xp(t('Laat de agent updates installeren: met de hand, in het onderhoudsvenster van een server, of elke dag.'), t('<b>Hoe het werkt:</b> de agent (1.92.0) kijkt eens per uur welke updates er klaarstaan en welke daarvan <b>beveiligingsupdates</b> zijn. In <b>Kwetsbaarheden → Updates</b> zie je dat per server en installeer je ze met één klik. Per server kies je in de <b>Agent Manager</b>: <b>met de hand</b> (standaard), <b>in het vaste onderhoudsvenster</b> van die server, of <b>elke dag om een tijd</b>; <b>alleen beveiligingsupdates</b> (standaard) of alles; en <b>eerst een snapshot</b> (ZFS, snapper of btrfs). <b>Home Assistant</b> gaat via de Supervisor (Core en add-ons, altijd met een back-up). <b>Nooit:</b> TrueNAS (dat gaat via TrueNAS zelf), automatisch op de RzSense-server zelf, of een herstart. Alles staat in het logboek.')) ?>
+          <label class="switch"><input type="checkbox" name="patch_on"><span></span> <?= t('<b>Updates installeren</b> via de agent (met de hand of automatisch, per server)') ?></label>
+          <h3 class="set-sub"><?= th('Per server') ?></h3>
+          <div id="patch-hosts"><p class="muted"><?= th('Laden…') ?></p></div>
         </div>
 
         <div data-sk="ransom" class="card" id="ransom-card">

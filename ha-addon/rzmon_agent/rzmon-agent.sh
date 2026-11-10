@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.91.1"
+AGENT_VERSION="1.92.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -3476,6 +3476,107 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ -r "${t_cache-}" ]; then
         fi
     fi
 fi
+# ---------------------------------------------------------------- Updates (patchbeheer, agent 1.92.0)
+lap patch
+# Aan per server in RzSense (regel "0 <tab> patch <tab> 1"):
+#  - Linux (als root): eens per uur welke updates er klaarstaan en welke daarvan beveiligingsupdates zijn (dnf
+#    check-update [--security], of apt-get -s upgrade; de apt-lijsten worden hooguit eens per 6 uur ververst), en of
+#    een herstart nodig is. Installeren gaat via pkg_upgrade (mode security of all, eventueel eerst een snapshot).
+#  - Home Assistant (add-on): elke 15 minuten wat er voor Core en de add-ons klaarstaat (Supervisor). Vraagt RzSense
+#    erom ("ha_update" in het antwoord), dan werkt de agent Core en/of add-ons bij via de Supervisor, altijd met een
+#    back-up vooraf. Het besturingssysteem (OS) niet: dat herstart het hele systeem, dat doe je in Home Assistant zelf.
+# Nooit een herstart, nooit op TrueNAS (apt kan TrueNAS kapotmaken).
+patch_json=""; ha_upd_json=""
+pt_dir="$t_dir/patch"
+pt_line=""
+[ -r "${t_cache-}" ] && pt_line=$(awk -F'\t' '$1 == "0" && $2 == "patch" && $3 == "1" { print; exit }' "$t_cache")
+if [ -n "$pt_line" ] && { [ "$HA_MODE" = 1 ] || [ "$(id -u)" = 0 ]; } && ! command -v midclt >/dev/null 2>&1; then
+    mkdir -p "$pt_dir" 2>/dev/null && chmod 700 "$pt_dir" 2>/dev/null
+    pt_age=$([ "$HA_MODE" = 1 ] && echo 15 || echo 60)
+    pt_fresh=0
+    if [ ! -s "$pt_dir/avail.json" ] || [ -n "$(find "$pt_dir/avail.json" -mmin +"$pt_age" 2>/dev/null)" ] \
+        || { [ -f "${pk_dir:-/nonexistent}/upgrade.result" ] && [ "${pk_dir}/upgrade.result" -nt "$pt_dir/avail.json" ]; } \
+        || [ -f "$pt_dir/ha.result" ]; then
+        pt_fresh=1
+    fi
+    if [ "$pt_fresh" = 1 ] && [ "$HA_MODE" = 0 ]; then
+        : >"$pt_dir/list.new"; pt_mgr=""
+        if command -v dnf >/dev/null 2>&1 || command -v yum >/dev/null 2>&1; then
+            pt_mgr=rpm; pt_dnf=dnf; command -v dnf >/dev/null 2>&1 || pt_dnf=yum
+            # 3 kolommen: naam.arch versie repo; "--security" geeft alleen de beveiligingsupdates
+            pt_parse() { awk 'NF == 3 && $1 ~ /\./ && $2 ~ /[0-9]/ { n = $1; sub(/\.[^.]+$/, "", n); print n "\t" $2 }'; }
+            timeout 180 nice -n 19 "$pt_dnf" -q check-update 2>/dev/null | pt_parse | sort -u >"$pt_dir/all"
+            { timeout 180 nice -n 19 "$pt_dnf" -q check-update --security 2>/dev/null || timeout 180 nice -n 19 "$pt_dnf" -q check-upgrade --security 2>/dev/null; } \
+                | pt_parse | cut -f1 | sort -u >"$pt_dir/sec"
+            awk -F'\t' 'NR == FNR { s[$1] = 1; next } { print $1 "\t" $2 "\t" (($1 in s) ? 1 : 0) }' "$pt_dir/sec" "$pt_dir/all" >"$pt_dir/list.new"
+            pt_rb=0
+            if command -v needs-restarting >/dev/null 2>&1; then timeout 60 needs-restarting -r >/dev/null 2>&1; [ $? = 1 ] && pt_rb=1; fi
+        elif command -v apt-get >/dev/null 2>&1; then
+            pt_mgr=dpkg
+            if [ -z "$(find /var/lib/apt/lists -maxdepth 0 -mmin -360 2>/dev/null)" ]; then
+                timeout 300 nice -n 19 apt-get update -qq >/dev/null 2>&1
+            fi
+            # Inst naam [oude versie] (nieuwe versie bron [arch]); bron met "security" = beveiligingsupdate
+            timeout 120 nice -n 19 apt-get -s -o Debug::NoLocking=1 upgrade 2>/dev/null \
+                | awk '/^Inst / { v = $0; sub(/^[^(]*\(/, "", v); sub(/ .*/, "", v); print $2 "\t" v "\t" (($0 ~ /[Ss]ecurity/) ? 1 : 0) }' | sort -u >"$pt_dir/list.new"
+            pt_rb=0; [ -f /var/run/reboot-required ] && pt_rb=1
+        fi
+        if [ -n "$pt_mgr" ]; then
+            pt_n=$(wc -l <"$pt_dir/list.new"); pt_s=$(awk -F'\t' '$3 == 1' "$pt_dir/list.new" | wc -l)
+            pt_list=$(head -n 300 "$pt_dir/list.new" | while IFS=$'\t' read -r a b c; do printf '["%s","%s",%s],' "$(json_escape "$a")" "$(json_escape "$b")" "${c:-0}"; done)
+            printf '{"mgr":"%s","avail":%s,"sec":%s,"rb":%s,"at":%s,"list":[%s]}' "$pt_mgr" "$pt_n" "$pt_s" "${pt_rb:-0}" "$(date +%s)" "${pt_list%,}" >"$pt_dir/avail.json"
+            patch_json=$(cat "$pt_dir/avail.json")
+        fi
+        rm -f "$pt_dir/list.new" "$pt_dir/all" "$pt_dir/sec"
+    elif [ "$pt_fresh" = 1 ] && [ "$HA_MODE" = 1 ] && [ -n "${SUPERVISOR_TOKEN-}" ] && command -v jq >/dev/null 2>&1; then
+        pt_get() { curl -fsS -m 20 -H "Authorization: Bearer $SUPERVISOR_TOKEN" "${SUPERVISOR_URL:-http://supervisor}$1" 2>/dev/null; }
+        pt_list=$( {
+            pt_get /core/info | jq -c 'select(.data.update_available) | ["core", .data.version_latest, 0, "Home Assistant Core"]'
+            pt_get /os/info | jq -c 'select(.data.update_available) | ["os", .data.version_latest, 0, "Home Assistant OS"]'
+            pt_get /addons | jq -c '.data.addons[] | select(.update_available) | ["addon:" + .slug, (.version_latest // ""), 0, .name]'
+        } 2>/dev/null | paste -sd, -)
+        pt_n=$(printf '%s' "$pt_list" | grep -o '\["' | wc -l)
+        printf '{"mgr":"ha","avail":%s,"sec":0,"rb":0,"at":%s,"list":[%s]}' "$pt_n" "$(date +%s)" "$pt_list" >"$pt_dir/avail.json"
+        patch_json=$(cat "$pt_dir/avail.json")
+    fi
+    # Uitkomst van het bijwerken van Home Assistant (op de achtergrond gedaan) terugmelden
+    if [ -f "$pt_dir/ha.result" ] && [ ! -f "$pt_dir/ha.lock" ]; then
+        IFS=$'\t' read -r pt_id pt_ok pt_bad <"$pt_dir/ha.result"
+        if [[ "$pt_id" =~ ^[0-9a-f]{8,32}$ ]]; then
+            ha_upd_json="{\"id\":\"$pt_id\",\"ok\":\"$(json_escape "$pt_ok")\",\"bad\":\"$(json_escape "$pt_bad")\"}"
+        fi
+        rm -f "$pt_dir/ha.result"
+    fi
+fi
+
+ha_update() {  # ha_update <antwoord van RzSense>: Core en/of add-ons bijwerken via de Supervisor, met een back-up vooraf
+    local id what w
+    id=$(sed -n 's/.*"ha_update":[[:space:]]*{[^}]*"id":[[:space:]]*"\([0-9a-f]\{8,32\}\)".*/\1/p' <<<"$1")
+    what=$(sed -n 's/.*"ha_update":[[:space:]]*{[^}]*"what":[[:space:]]*\[\([^]]*\)\].*/\1/p' <<<"$1" | tr -d '"' | tr ',' ' ')
+    [ -n "$id" ] && [ -n "$what" ] && [ -n "${SUPERVISOR_TOKEN-}" ] && [ -d "$pt_dir" ] || return 0
+    if [ -f "$pt_dir/ha.lock" ] && [ -z "$(find "$pt_dir/ha.lock" -mmin +120 2>/dev/null)" ]; then return 0; fi
+    : >"$pt_dir/ha.lock"
+    act_log patch 2 "Home Assistant bijwerken gestart" "$what (met back-up vooraf)"
+    (
+        ok=""; bad=""
+        for w in $what; do
+            case "$w" in
+                core) ep=/core/update ;;
+                addon:*) s=${w#addon:}; [[ "$s" =~ ^[a-z0-9_-]{1,64}$ ]] || continue; ep="/store/addons/$s/update" ;;
+                *) continue ;;   # OS nooit: dat herstart het hele systeem
+            esac
+            code=$(curl -sS -m 3600 -o "$pt_dir/ha.out" -w '%{http_code}' -X POST -H "Authorization: Bearer $SUPERVISOR_TOKEN" \
+                -H 'Content-Type: application/json' -d '{"backup":true}' "${SUPERVISOR_URL:-http://supervisor}$ep" 2>/dev/null)
+            if [ "$code" = 200 ]; then
+                ok+="$w "; act_log patch 1 "Bijgewerkt via de Supervisor" "$w (back-up vooraf)"
+            else
+                bad+="$w ($code) "; act_log patch 0 "Bijwerken via de Supervisor mislukt" "$w: HTTP $code $(head -c 200 "$pt_dir/ha.out" 2>/dev/null | tr -d '\n')"
+            fi
+        done
+        printf '%s\t%s\t%s\n' "$id" "${ok% }" "${bad% }" >"$pt_dir/ha.result"
+        rm -f "$pt_dir/ha.lock" "$pt_dir/ha.out" "$pt_dir/avail.json"
+    ) </dev/null >/dev/null 2>&1 &
+}
 # ---------------------------------------------------------------- Podman: containers, pods en opslag
 lap containers
 # Per context: versie, containers (status, health, herstarts, grootte, volumes), pods en opslag.
@@ -4120,11 +4221,15 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzSense>: alleen dnf/yum/apt "upgra
     # Agent 1.63.0: of "install" (mode), alleen voor de onderdelen van de endpoint-bewaking (vaste lijst hieronder)
     # Agent 1.66.0: met "own" (eigen pakketnamen, door de beheerder bevestigd in RzSense) geldt die lijst niet; de namen
     # zelf moeten wel gewone pakketnamen zijn (geen opties, geen paden), en COMMANDS mag het niet blokkeren
-    local id names n=() out="$pk_dir/upgrade.result" why="" mode=upgrade own=0
+    # Agent 1.92.0: mode "security" (alle beveiligingsupdates) of "all" (alle updates), zonder namen; "snap" = eerst een
+    # snapshot van / (ZFS, snapper of btrfs). Nooit op TrueNAS, nooit een herstart.
+    local id names n=() out="$pk_dir/upgrade.result" why="" mode=upgrade own=0 snap=0
     id=$(sed -n 's/.*"pkg_upgrade":[[:space:]]*{[^}]*"id":[[:space:]]*"\([0-9a-f]\{8,32\}\)".*/\1/p' <<<"$1")
     names=$(sed -n 's/.*"pkg_upgrade":[[:space:]]*{[^}]*"pkgs":[[:space:]]*\[\([^]]*\)\].*/\1/p' <<<"$1" | tr -d '"' | tr ',' ' ')
     [[ "$1" =~ \"pkg_upgrade\":[[:space:]]*\{[^}]*\"mode\":[[:space:]]*\"install\" ]] && mode=install
     [[ "$1" =~ \"pkg_upgrade\":[[:space:]]*\{[^}]*\"own\":[[:space:]]*true ]] && own=1
+    [[ "$1" =~ \"pkg_upgrade\":[[:space:]]*\{[^}]*\"mode\":[[:space:]]*\"(security|all)\" ]] && mode=${BASH_REMATCH[1]}
+    [[ "$1" =~ \"pkg_upgrade\":[[:space:]]*\{[^}]*\"snap\":[[:space:]]*true ]] && snap=1
     [ -n "$id" ] && [ -d "$pk_dir" ] || return 0
     for p in $names; do
         [[ "$p" =~ ^[A-Za-z0-9][A-Za-z0-9.+_:~-]{0,99}$ ]] || continue
@@ -4133,7 +4238,8 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzSense>: alleen dnf/yum/apt "upgra
     done
     case "$COMMANDS" in 0|off|no|nee|nobody) why="geblokkeerd op de server (COMMANDS=$COMMANDS in /etc/default/rzmon-agent)" ;; esac
     [ "$(id -u)" = 0 ] || why="de agent draait niet als root"
-    [ "${#n[@]}" -gt 0 ] || why="geen geldige pakketnamen ontvangen"
+    [ "${#n[@]}" -gt 0 ] || [ "$mode" = security ] || [ "$mode" = all ] || why="geen geldige pakketnamen ontvangen"
+    { command -v midclt >/dev/null 2>&1 || grep -qi truenas /etc/version 2>/dev/null; } && why="TrueNAS: bijwerken via de TrueNAS-interface (System → Update), nooit met apt"
     if [ -n "$why" ]; then
         printf '%s\terror\t%s\n' "$id" "$(printf '%s' "$why" | base64 -w0)" >"$out"
         return 0
@@ -4152,6 +4258,7 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzSense>: alleen dnf/yum/apt "upgra
     # shellcheck disable=SC2016  # het script krijgt zijn waarden als argumenten mee, niet via de tekst
     local script='id=$1; mgr=${2%%:*}; mode=${2#*:}; dir=$3; shift 3
         [ "$mode" = "$2" ] && mode=upgrade
+        snap=0; case "$mode" in *:snap) snap=1; mode=${mode%:snap} ;; esac
         url=""; tok=""; ins=0; enc_key=""; last=0; stage=update; pct=2; detail=""; count=""
         if [ -r "$dir/upgrade.conf" ]; then { read -r url; read -r tok; read -r ins; read -r enc_key; } <"$dir/upgrade.conf"; rm -f "$dir/upgrade.conf"; fi
         log="$dir/upgrade.log"; : >"$log"
@@ -4169,8 +4276,17 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzSense>: alleen dnf/yum/apt "upgra
         tick() { [ "$1" != "$stage" ] && { stage=$1; post; return; }; [ $(( $(date +%s) - last )) -ge 2 ] && post; }
         export LC_ALL=C
         post
+        if [ "$snap" = 1 ]; then   # agent 1.92.0: eerst een snapshot van /, zodat je terug kunt
+            ts=$(date +%Y%m%d-%H%M%S); sn=""
+            if command -v zfs >/dev/null 2>&1 && rds=$(zfs list -H -o name / 2>/dev/null) && [ -n "$rds" ] && zfs snapshot "$rds@rzsense-patch-$ts" >>"$log" 2>&1; then sn="$rds@rzsense-patch-$ts"
+            elif command -v snapper >/dev/null 2>&1 && snapper -c root create -d "RzSense: voor updates" >>"$log" 2>&1; then sn="snapper (root)"
+            elif [ "$(stat -f -c %T / 2>/dev/null)" = btrfs ] && [ -d /.snapshots ] && btrfs subvolume snapshot -r / "/.snapshots/rzsense-patch-$ts" >>"$log" 2>&1; then sn="/.snapshots/rzsense-patch-$ts"; fi
+            if [ -n "$sn" ]; then echo "Snapshot gemaakt: $sn" >>"$log"; else echo "Geen snapshot mogelijk (geen ZFS, snapper of btrfs op /); toch doorgegaan" >>"$log"; fi
+        fi
         if [ "$mgr" = rpm ]; then
             cmd=(dnf -y upgrade "$@"); command -v dnf >/dev/null 2>&1 || cmd=(yum -y update "$@")
+            if [ "$mode" = security ]; then cmd=(dnf -y upgrade --security); command -v dnf >/dev/null 2>&1 || cmd=(yum -y update --security)
+            elif [ "$mode" = all ]; then cmd=(dnf -y upgrade); command -v dnf >/dev/null 2>&1 || cmd=(yum -y update); fi
             if [ "$mode" = install ]; then
                 # EPEL eerst apart (inotify-tools en yara staan daarin), dan de rest
                 if [ "$1" = epel-release ]; then dnf -y install epel-release >>"$log" 2>&1 || yum -y install epel-release >>"$log" 2>&1; shift; fi
@@ -4196,7 +4312,15 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzSense>: alleen dnf/yum/apt "upgra
                 stage=download; pct=15; post
                 # APT::Status-Fd: apt meldt zelf het percentage (dlstatus = downloaden, pmstatus = installeren per pakket)
                 up=--only-upgrade; [ "$mode" = install ] && up=--no-install-recommends
-                apt-get install -y -q "$up" -o Dpkg::Options::=--force-confold -o APT::Status-Fd=3 "$@" 3>&1 >>"$log" 2>&1 \
+                if [ "$mode" = security ]; then   # agent 1.92.0: alleen wat uit een security-bron komt
+                    # shellcheck disable=SC2046
+                    set -- $(apt-get -s upgrade 2>/dev/null | awk "/^Inst / && /[Ss]ecurity/ { print \$2 }" | sort -u)
+                    [ $# -gt 0 ] || echo "Geen beveiligingsupdates beschikbaar" >>"$log"
+                fi
+                acmd=(apt-get install -y -q "$up" -o Dpkg::Options::=--force-confold -o APT::Status-Fd=3 "$@")
+                [ "$mode" = all ] && acmd=(apt-get upgrade -y -q -o Dpkg::Options::=--force-confold -o APT::Status-Fd=3)
+                [ "$mode" = security ] && [ $# = 0 ] && acmd=(true)
+                "${acmd[@]}" 3>&1 >>"$log" 2>&1 \
                     | while IFS=: read -r kind p1 p2 _; do
                         p2=${p2%%.*}; [[ "$p2" =~ ^[0-9]+$ ]] || continue
                         case "$kind" in
@@ -4209,7 +4333,7 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzSense>: alleen dnf/yum/apt "upgra
         fi
         # auditd na het installeren meteen starten (de agent zet de regels bij de volgende run)
         if [ "$mode" = install ] && [ "$rc" = 0 ] && command -v auditctl >/dev/null 2>&1; then systemctl enable --now auditd >>"$log" 2>&1 || service auditd start >>"$log" 2>&1; fi
-        printf "%s\t%s\t%s\n" "$id" "$([ "$rc" = 0 ] && echo ok || echo error)" "$(tail -c 1500 "$log" | base64 -w0)" >"$dir/upgrade.result.tmp" \
+        printf "%s\t%s\t%s\n" "$id" "$([ "$rc" = 0 ] && echo ok || echo error)" "$( { grep -m1 -E "^(Snapshot gemaakt|Geen snapshot mogelijk)" "$log"; tail -c 1400 "$log"; } | base64 -w0)" >"$dir/upgrade.result.tmp" \
             && mv -f "$dir/upgrade.result.tmp" "$dir/upgrade.result"
         stage=done; pct=100; detail=""; count=""
         post ",\"done\":true,\"ok\":$([ "$rc" = 0 ] && echo true || echo false)" 1500
@@ -4221,10 +4345,10 @@ $script"   # versleutelen kan het script dan zelf
     (umask 077; printf '%s\n' "$script" >"$pk_dir/upgrade.sh") \
         || { printf '%s\terror\t%s\n' "$id" "$(printf 'kan upgrade.sh niet schrijven' | base64 -w0)" >"$out"; rm -f "$pk_dir/upgrade.lock"; return 0; }
     if [ -n "${INVOCATION_ID-}" ] && command -v systemd-run >/dev/null 2>&1; then
-        systemd-run --quiet --collect --unit="rzmon-pkg-upgrade-$(date +%s)" /bin/bash "$pk_dir/upgrade.sh" "$id" "$pk_mgr:$mode" "$pk_dir" "${n[@]}" >/dev/null 2>&1 \
+        systemd-run --quiet --collect --unit="rzmon-pkg-upgrade-$(date +%s)" /bin/bash "$pk_dir/upgrade.sh" "$id" "$pk_mgr:$mode$([ "$snap" = 1 ] && echo :snap)" "$pk_dir" "${n[@]}" >/dev/null 2>&1 \
             || { printf '%s\terror\t%s\n' "$id" "$(printf 'systemd-run mislukt' | base64 -w0)" >"$out"; rm -f "$pk_dir/upgrade.lock"; }
     else
-        setsid /bin/bash "$pk_dir/upgrade.sh" "$id" "$pk_mgr:$mode" "$pk_dir" "${n[@]}" 9>&- </dev/null >/dev/null 2>&1 &
+        setsid /bin/bash "$pk_dir/upgrade.sh" "$id" "$pk_mgr:$mode$([ "$snap" = 1 ] && echo :snap)" "$pk_dir" "${n[@]}" 9>&- </dev/null >/dev/null 2>&1 &
     fi
 }
 
@@ -4892,7 +5016,7 @@ if [ -n "$hold_id" ] && [ "$hold_since" -gt 0 ]; then
     [ "$TEST" != 1 ] && [ "${HOLD_JITTER:-1}" != 0 ] && sleep $(( RANDOM % 25 ))
 fi
 run_ms=$(( $(now_ms) - run_t0 ))
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json}${truenas_json:+,\"truenas\":$truenas_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],${logscan_json:+\"log_scan\":$logscan_json,}\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${act_json:+,\"act\":[$act_json]}${ransom_json:+,\"ransom\":$ransom_json}${apps_json:+,\"apps\":$apps_json}${ioc_json:+,\"ioc\":$ioc_json}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json}${path_json:+,\"path\":$path_json}${db_json:+,\"db\":$db_json}${iperfs_json:+,\"iperfs\":$iperfs_json}${selftest_json:+,\"selftest\":$selftest_json}${nic_json:+,\"nic\":$nic_json}${hold_json:+,\"hold\":$hold_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json}${truenas_json:+,\"truenas\":$truenas_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],${logscan_json:+\"log_scan\":$logscan_json,}\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${act_json:+,\"act\":[$act_json]}${ransom_json:+,\"ransom\":$ransom_json}${apps_json:+,\"apps\":$apps_json}${ioc_json:+,\"ioc\":$ioc_json}${patch_json:+,\"patch\":$patch_json}${ha_upd_json:+,\"ha_upd_result\":$ha_upd_json}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json}${path_json:+,\"path\":$path_json}${db_json:+,\"db\":$db_json}${iperfs_json:+,\"iperfs\":$iperfs_json}${selftest_json:+,\"selftest\":$selftest_json}${nic_json:+,\"nic\":$nic_json}${hold_json:+,\"hold\":$hold_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
 
 # Agent 1.66.1: 50 seconden wachten op RzSense (was 20): een druk bezette RzSense verwerkt een groot rapport soms trager;
 # na 20 seconden gaf de agent het op en kreeg hij het antwoord (opdrachten, instellingen, "softwarelijst ontvangen") nooit
@@ -5226,6 +5350,7 @@ if [ "$rc" -eq 0 ]; then
         done < <(grep -o '\[[0-9]*,[0-9]*\]' <<<"${BASH_REMATCH[0]#*:}" | tr -d '[]')
     fi
     [[ "$resp" =~ \"pkg_upgrade\":[[:space:]]*\{ ]] && [ -n "$pk_mgr" ] && pkg_upgrade "$resp"
+    [[ "$resp" =~ \"ha_update\":[[:space:]]*\{ ]] && [ "$HA_MODE" = 1 ] && ha_update "$resp"   # agent 1.92.0
     # Zelf herstellen: de uitkomsten zijn binnen; vraagt RzSense om een herstelcommando (alleen versleuteld)?
     if [ -s "$heal_dir/done.sending" ]; then tail -n +51 "$heal_dir/done.sending" >>"$heal_dir/done"; [ -s "$heal_dir/done" ] || rm -f "$heal_dir/done"; fi
     rm -f "$heal_dir/done.sending" "$t_dir/watchdog.gap"

@@ -170,6 +170,9 @@ try {
     if ($msg = Ioc::cron()) {   // 1.229.0: bewaakte sporen (elke 10 minuten)
         echo date('c') . " $msg\n";
     }
+    if ($msg = Patch::cron()) {   // 1.230.0: updates in het onderhoudsvenster of elke dag
+        echo date('c') . " $msg\n";
+    }
 } catch (Throwable $e) {
     cron_err('Agents/certificaat', $e);
 }

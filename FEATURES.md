@@ -183,6 +183,7 @@ Dezelfde tabel staat in RzSense bij *Instellingen → Overzicht → Functies*, m
 | 🛡️ IDS en endpoint-bewaking | **Jagen op sporen (IOC)** | Zoek IP-adressen, domeinen, vingerafdrukken en paden in alles wat RzSense weet, en op de servers zelf; bewaakte sporen geven een melding. | 1.229.0 |
 | 🐞 Kwetsbaarheden en datalekken | **E-mailbeveiliging van je domein** | SPF, DKIM, DMARC en MTA-STS: kan iemand mailen namens jouw domein? Met het record om te plakken. | 1.227.0 |
 | 🐞 Kwetsbaarheden en datalekken | **End-of-life** | Besturingssysteem en software die geen updates meer krijgen, of binnenkort niet (endoflife.date). | 1.227.0 |
+| 🐞 Kwetsbaarheden en datalekken | **Updates installeren** | Welke updates er klaarstaan, en ze installeren: met de hand, in het onderhoudsvenster of elke dag; eerst een snapshot, Home Assistant met een back-up. | 1.230.0 |
 | 🖥️ Servers en agents | **Logboek per server** | Wat de agent, RzSense en beheerders op een server deden, en wat er veranderde. | 1.226.0 |
 | ⚙️ Beheer | **Exporteren en importeren** | Checks en instellingen naar een andere RzSense. | 1.97.0 |
 | ⚙️ Beheer | **Database en server** | Systeemcheck, grootte, groei en bewaartermijnen. | 1.92.0 |

@@ -1508,6 +1508,10 @@ function agentInstructions(h, pairNow = false) {
         <p class="am-lead">${L('Welke programma\'s er draaien; een onbekend programma valt op, en je kunt toestaan of blokkeren')}</p>
         <div id="am-apps"><p class="muted">${L('Laden…')}</p></div>
       </section>` : ''}
+      ${h.mode === 'agent' ? `<section class="am-sec am-card" data-pk="patch" data-pw="12" style="--c: var(--ok)"><h3 class="am-h"><i aria-hidden="true">🩹</i>${L('Updates')}</h3>
+        <p class="am-lead">${L('Welke updates er klaarstaan, en wanneer de agent ze installeert')}</p>
+        <div id="am-patch"><p class="muted">${L('Laden…')}</p></div>
+      </section>` : ''}
       <section class="am-sec am-card" data-pk="actlog" data-pw="12" style="--c: var(--info, #2563eb)"><h3 class="am-h"><i aria-hidden="true">📒</i>${L('Logboek')}</h3>
         <p class="am-lead">${L('Wat er op deze server gebeurde (30 dagen): wat de agent veranderde, wat RzSense deed en wat een beheerder aanpaste')}</p>
         <div class="ac-bar"><select id="am-al-module" aria-label="${esc(L('Onderdeel'))}"><option value="">${L('Alle onderdelen')}</option></select>
@@ -1611,6 +1615,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   amActLog(h, body);   // 1.226.0: logboek van deze server
   if (isAdmin() && h.mode === 'agent') amRansom(h, body);   // 1.228.0
   if (h.mode === 'agent') amApps(h, body);   // 1.229.0
+  if (h.mode === 'agent') amPatch(h, body);   // 1.230.0
   // Koppelcode: één code voor alle drie de manieren; daarna wachten tot de agent gekoppeld is
   const makePair = async () => {
     let r;

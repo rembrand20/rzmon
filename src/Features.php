@@ -35,7 +35,7 @@ final class Features
      * Wat meer vraagt (een sleutel, je wachtwoord, een keuze) zet je aan op zijn eigen pagina.
      */
     public const TOGGLE = ['edr_on', 'ti_on', 'dns_on', 'suricata_on', 'logs_on', 'cve_buzz_on', 'anomaly_on', 'context_on', 'esc_on', 'perf_on',
-        'smart_auto', 'net_traffic', 'ids_block_shared', 'ids_geo', 'ids_blocklists', 'mailsec_on', 'eol_on', 'ransom_on', 'appctl_on', 'ioc_on'];
+        'smart_auto', 'net_traffic', 'ids_block_shared', 'ids_geo', 'ids_blocklists', 'mailsec_on', 'eol_on', 'ransom_on', 'appctl_on', 'ioc_on', 'patch_on'];
 
     public const LIST = [
         // Checks en monitoring
@@ -224,6 +224,7 @@ final class Features
         ['ids', ['Jagen op sporen (IOC)', 'Threat hunting (IOC)'], ['Zoek IP-adressen, domeinen, vingerafdrukken en paden in alles wat RzSense weet, en op de servers zelf; bewaakte sporen geven een melding.', 'Search IP addresses, domains, fingerprints and paths in everything RzSense knows, and on the servers themselves; watched indicators raise an alert.'], '1.229.0', 'ioc_on', 'ids_hunt'],
         ['vuln', ['E-mailbeveiliging van je domein', 'E-mail security of your domain'], ['SPF, DKIM, DMARC en MTA-STS: kan iemand mailen namens jouw domein? Met het record om te plakken.', 'SPF, DKIM, DMARC and MTA-STS: can someone send mail as your domain? With the record to paste.'], '1.227.0', 'mailsec_on', 'mailsec'],
         ['vuln', ['End-of-life', 'End of life'], ['Besturingssysteem en software die geen updates meer krijgen, of binnenkort niet (endoflife.date).', 'Operating systems and software that no longer get updates, or soon will not (endoflife.date).'], '1.227.0', 'eol_on', 'vulns'],
+        ['vuln', ['Updates installeren', 'Install updates'], ['Welke updates er klaarstaan, en ze installeren: met de hand, in het onderhoudsvenster of elke dag; eerst een snapshot, Home Assistant met een back-up.', 'Which updates are waiting, and installing them: by hand, in the maintenance window or daily; a snapshot first, Home Assistant with a backup.'], '1.230.0', 'patch_on', 'patch'],
         ['servers', ['Logboek per server', 'Log per server'], ['Wat de agent, RzSense en beheerders op een server deden, en wat er veranderde.', 'What the agent, RzSense and administrators did on a server, and what changed.'], '1.226.0', '', 'actlog'],
         ['admin', ['Exporteren en importeren', 'Export and import'], ['Checks en instellingen naar een andere RzSense.', 'Checks and settings to another RzSense.'], '1.97.0', '', 'transfer'],
         ['admin', ['Database en server', 'Database and server'], ['Systeemcheck, grootte, groei en bewaartermijnen.', 'System check, size, growth and retention.'], '1.92.0', '', 'db'],

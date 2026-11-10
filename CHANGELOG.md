@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.230.0**: **updates installeren**: beveiligingsupdates met één klik of automatisch in het onderhoudsvenster, eerst een snapshot, Home Assistant met een back-up.
 - **1.229.0**: **onbekende programma's** herkennen (toestaan, blokkeren, stoppen) en **jagen op sporen** uit een waarschuwing, ook op de servers zelf.
 - **1.228.0**: **ransomware herkennen** in je shares, met lokaasbestanden, een snapshot bij alarm en eventueel stoppen.
 - **1.227.0**: **e-mailbeveiliging van je domein** (SPF, DKIM, DMARC, met het record om te plakken) en **end-of-life** van besturingssysteem en software.
 - **1.226.0**: **logboek per server**: wat de agent, RzSense en beheerders deden en veranderden, met uitkomst, filters en CSV.
-- **1.225.0**: **de code is opgesplitst in overzichtelijke onderdelen** (interface en API), met controles die fouten eerder vangen.
+
+## 1.230.0 – 2026-11-10
+### Nieuw
+- **Updates installeren (patchbeheer)** (**nieuwe agent 1.92.0**), voortgebouwd op *pakketten bijwerken*:
+  - nieuw tabblad **Kwetsbaarheden → 🩹 Updates**: per server hoeveel updates en beveiligingsupdates er klaarstaan, of een herstart nodig is, de lijst, en met één klik **🛡 Beveiligingsupdates** of **⬆ Alles** installeren (met je bevestiging, en dezelfde voortgang als bij bijwerken);
+  - per server in de **Agent Manager** (kaart 🩹 *Updates*): **wanneer** (met de hand, standaard; in het **vaste onderhoudsvenster** van die server; of **elke dag om een tijd**), **wat** (alleen beveiligingsupdates, standaard, of alles) en **eerst een snapshot** (standaard aan);
+  - **Home Assistant** via de Supervisor: Core en add-ons, altijd met een back-up vooraf; het OS niet;
+  - **nooit**: TrueNAS bijwerken met apt, automatisch bijwerken op de RzSense-server zelf, of herstarten;
+  - aan/uit bij **Instellingen → Beveiliging → Updates** en *Overzicht → Functies*; alles (gevraagd, snapshot, uitkomst, overgeslagen) staat in het **logboek** van de server.
+- Nieuwe agent 1.92.0.
 
 ## 1.229.1 – 2026-11-10
 ### Opgelost

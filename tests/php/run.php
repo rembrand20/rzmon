@@ -2475,5 +2475,54 @@ ok((int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'ioc
 q('DELETE FROM hosts WHERE id IN (?, ?)', [$ha, $hl]);
 q('DELETE FROM app_rules'); q('DELETE FROM ioc_watch');
 
+section('Updates installeren (1.230.0)');
+q("INSERT INTO hosts (name, address, mode, agent_version, commands) VALUES ('ci-patch', '10.0.0.98', 'agent', '1.92.0', 'root')");
+$hp = (int) db()->lastInsertId();
+q("INSERT INTO hosts (name, address, mode, agent_version, agent_update_via) VALUES ('ci-ha', '10.0.0.99', 'agent', '1.92.0', 'ha')");
+$hh = (int) db()->lastInsertId();
+$st = db()->prepare('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)');
+$rowP = q('SELECT * FROM hosts WHERE id = ?', [$hp])->fetch();
+ok(Patch::agentLines($hp) === ["0\tpatch\t1"] && Patch::kind($rowP) === 'linux', 'updates: aan voor de agent (Linux)');
+Patch::fromAgent($rowP, ['patch' => ['mgr' => 'dpkg', 'avail' => 2, 'sec' => 1, 'rb' => 1, 'list' => [['libssl3', '3.0.13-4', 1], ['vim', '9.1.1', 0], ['; rm -rf /', '1', 1]]]], $st, now());
+$inf = Patch::info(q('SELECT * FROM hosts WHERE id = ?', [$hp])->fetch());
+ok($inf['avail'] === 2 && $inf['sec'] === 1 && $inf['rb'] && count($inf['list']) === 2 && $inf['mode'] === 'manual' && $inf['scope'] === 'security' && $inf['snap'],
+    'updates: klaarstaande updates opgeslagen (rare pakketnaam eruit), standaard met de hand, alleen beveiliging, snapshot aan');
+ok(Patch::request($rowP, 'security', 'ci') === true, 'updates: beveiligingsupdates gevraagd');
+$req = json_decode((string) q('SELECT vuln_upgrade_req FROM hosts WHERE id = ?', [$hp])->fetchColumn(), true);
+$resp = Vulns::agentReport(q('SELECT * FROM hosts WHERE id = ?', [$hp])->fetch(), []);
+ok($req['mode'] === 'security' && $req['pkgs'] === ['libssl3'] && ($resp['pkg_upgrade']['mode'] ?? '') === 'security' && !empty($resp['pkg_upgrade']['snap']) && $resp['pkg_upgrade']['pkgs'] === [],
+    'updates: de agent krijgt mode security met snapshot, zonder namen (hij kiest zelf wat er klaarstaat)');
+ok(is_string(Patch::request(q('SELECT * FROM hosts WHERE id = ?', [$hp])->fetch(), 'all', 'ci')), 'updates: niet twee tegelijk');
+Vulns::agentReport(q('SELECT * FROM hosts WHERE id = ?', [$hp])->fetch(), ['pkg_result' => ['id' => $req['id'], 'ok' => true, 'log_b64' => base64_encode("Snapshot gemaakt: rpool/ROOT/debian@rzsense-patch-1\nSetting up libssl3 ...\n")]]);
+$acts = q("SELECT action FROM host_actions WHERE host_id = ? AND module = 'patch' ORDER BY id", [$hp])->fetchAll(PDO::FETCH_COLUMN);
+ok(!q('SELECT vuln_upgrade_req FROM hosts WHERE id = ?', [$hp])->fetchColumn() && in_array('Snapshot gemaakt voor de updates', $acts, true) && in_array('Beveiligingsupdates geïnstalleerd', $acts, true),
+    'updates: uitkomst met de snapshot in het logboek, opdracht klaar');
+Patch::save($hp, ['mode' => 'auto', 'time' => '03:30', 'scope' => 'all', 'snap' => 1], 'ci');
+$rowP = q('SELECT * FROM hosts WHERE id = ?', [$hp])->fetch();
+$day = strtotime('tomorrow');
+ok(Patch::due(['patch_last' => null] + $rowP, $day + 3 * 3600 + 45 * 60) && !Patch::due(['patch_last' => null] + $rowP, $day + 7 * 3600)
+    && !Patch::due(['patch_last' => date('Y-m-d H:i:s', $day + 3 * 3600 + 40 * 60)] + $rowP, $day + 3 * 3600 + 50 * 60),
+    'updates: elke dag om 03:30 (tot 3 uur later), en maar één keer');
+q("INSERT INTO maint_windows (scope, ref_id, dow, start, minutes, reason, created_at) VALUES ('host', ?, 0, ?, 120, 'ci', NOW())", [$hp, date('H:i', time() - 600)]);
+Advice::windowSave(['scope' => 'host', 'ref_id' => $hp, 'dow' => 0, 'start' => '00:00', 'minutes' => 1, 'reason' => 'leeg']);   // cache van de vensters verversen
+Patch::save($hp, ['mode' => 'window', 'scope' => 'security', 'snap' => 1], 'ci');
+ok(Patch::due(['patch_last' => null] + q('SELECT * FROM hosts WHERE id = ?', [$hp])->fetch()) || date('H') === '00', 'updates: in het vaste onderhoudsvenster van de server');
+q("INSERT INTO hosts (name, address, mode, agent_version, commands) VALUES ('ci-self', '127.0.0.1', 'agent', '1.92.0', 'root')");
+$hs = (int) db()->lastInsertId();
+$err = '';
+try { Patch::save($hs, ['mode' => 'auto'], 'ci'); } catch (InvalidArgumentException $e) { $err = $e->getMessage(); }
+ok($err !== '' && Patch::isSelf(q('SELECT * FROM hosts WHERE id = ?', [$hs])->fetch()), 'updates: de RzSense-server zelf alleen met de hand');
+$rowH = q('SELECT * FROM hosts WHERE id = ?', [$hh])->fetch();
+Patch::fromAgent($rowH, ['patch' => ['mgr' => 'ha', 'avail' => 3, 'list' => [['core', '2026.11.2', 0, 'Home Assistant Core'], ['os', '16.3', 0], ['addon:core_mosquitto', '6.5', 0, 'Mosquitto']]]], $st, now());
+ok(Patch::request($rowH, null, 'ci') === true, 'updates: Home Assistant gevraagd');
+$r1 = Patch::agentResponse($rowH);
+$r2 = Patch::agentResponse($rowH);
+ok(($r1['ha_update']['what'] ?? null) === ['core', 'addon:core_mosquitto'] && $r2 === [], 'updates: Home Assistant Core en add-ons, het OS niet, en maar één keer meegestuurd');
+Patch::fromAgent($rowH, ['ha_upd_result' => ['id' => $r1['ha_update']['id'], 'ok' => 'core addon:core_mosquitto', 'bad' => '']], $st, now());
+ok(!q('SELECT patch_ha_req FROM hosts WHERE id = ?', [$hh])->fetchColumn() && (int) q("SELECT ok FROM host_actions WHERE host_id = ? AND module = 'patch' ORDER BY id DESC LIMIT 1", [$hh])->fetchColumn() === 1,
+    'updates: uitkomst van Home Assistant in het logboek');
+q('DELETE FROM hosts WHERE id IN (?, ?, ?)', [$hp, $hh, $hs]);
+q("DELETE FROM maint_windows WHERE reason IN ('ci', 'leeg')");
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

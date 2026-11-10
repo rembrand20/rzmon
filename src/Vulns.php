@@ -966,7 +966,10 @@ final class Vulns
         $req['sent'] = now();
         q('UPDATE hosts SET vuln_upgrade_req = ?, vuln_upgrade_status = ? WHERE id = ?',
             [json_encode($req), json_encode(['state' => 'running', 'at' => now(), 'sent' => now(), 'pkgs' => $req['pkgs']]), $hostId]);
-        return ['id' => $req['id'], 'pkgs' => $req['pkgs']] + (($req['mode'] ?? '') === 'install' ? ['mode' => 'install'] : []) + (!empty($req['own']) ? ['own' => true] : []);
+        // 1.230.0: mode security/all (patchbeheer, agent 1.92.0): zonder namen, de agent kiest zelf wat er klaarstaat
+        $mode = (string) ($req['mode'] ?? '');
+        return ['id' => $req['id'], 'pkgs' => in_array($mode, ['security', 'all'], true) ? [] : $req['pkgs']]
+            + (in_array($mode, ['install', 'security', 'all'], true) ? ['mode' => $mode] : []) + (!empty($req['own']) ? ['own' => true] : []) + (!empty($req['snap']) ? ['snap' => true] : []);
     }
 
     /** Voortgang van de agent tijdens het bijwerken (stap, procent, pakket, laatste uitvoer), of de uitkomst als hij klaar is */
@@ -1005,6 +1008,9 @@ final class Vulns
             [json_encode(['state' => $ok ? 'ok' : 'error', 'at' => now(), 'sent' => $prev['sent'] ?? $req['sent'], 'pkgs' => $req['pkgs'], 'log' => AgentText::tr($log)],
                 JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), $host['id']]);
         $inst = ($req['mode'] ?? '') === 'install';   // 1.110.0: onderdelen installeren
+        if (in_array($req['mode'] ?? '', ['security', 'all'], true)) {   // 1.230.0: patchbeheer
+            Patch::result($host, $req, $ok, $log);
+        }
         AgentCommands::audit((string) $req['by'], $inst ? ($ok ? 'Onderdelen geïnstalleerd' : 'Onderdelen installeren mislukt') : ($ok ? 'Pakketten bijgewerkt' : 'Pakketten bijwerken mislukt'),
             "{$host['name']}: " . implode(' ', $req['pkgs']));
         ActionLog::add((int) $host['id'], 'agent', 'packages', $inst ? ($ok ? t('Onderdelen geïnstalleerd') : t('Onderdelen installeren mislukt')) : ($ok ? t('Pakketten bijgewerkt') : t('Pakketten bijwerken mislukt')),

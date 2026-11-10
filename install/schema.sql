@@ -1576,3 +1576,5 @@ CREATE TABLE IF NOT EXISTS ioc_hunts (
     INDEX idx_iochunt_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('appctl_on', '1'), ('appctl_learn', '7'), ('ioc_on', '1');
+-- 1.230.0: updates installeren (patchbeheer, per server in te stellen; standaard met de hand)
+INSERT IGNORE INTO settings (name, value) VALUES ('patch_on', '1');

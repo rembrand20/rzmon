@@ -108,6 +108,31 @@ switch ($action) {
             out(['error' => $e->getMessage()], 422);
         }
 
+    // ---------- 1.230.0: updates installeren (patchbeheer, agent 1.92.0) ----------
+    case 'patch':
+        out(Patch::overview());
+
+    case 'patch_save':
+        $in = input();
+        try {
+            out(Patch::save((int) ($in['host_id'] ?? 0), $in, (string) $user['username']));
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    case 'patch_now':
+        $in = input();
+        $h = q("SELECT * FROM hosts WHERE id = ? AND mode = 'agent'", [(int) ($in['host_id'] ?? 0)])->fetch();
+        if (!$h) {
+            out(['error' => t('Server niet gevonden')], 404);
+        }
+        $confirm('BIJWERKEN');
+        $r = Patch::request($h, (string) ($in['scope'] ?? ''), (string) $user['username']);
+        if ($r !== true) {
+            out(['error' => $r], 422);
+        }
+        out(['ok' => true]);
+
     // ---------- 1.229.0: onbekende programma's (agent 1.91.0) ----------
     case 'apps':
         out(AppControl::list($_GET));

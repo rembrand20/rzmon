@@ -587,7 +587,7 @@ function showTab(name) {
     const [tab, s] = name.split('/');
     name = tab;
     if (tab === 'ids' && ['inc', 'map', 'acc', 'blk', 'prot', 'live', 'rules', 'anom', 'mitre', 'apps', 'hunt'].includes(s)) idsTab = s;
-    if (tab === 'vulns' && ['cve', 'leak', 'eol'].includes(s)) vulnTab = s;
+    if (tab === 'vulns' && ['cve', 'leak', 'eol', 'patch'].includes(s)) vulnTab = s;
   }
   if (qs) {
     const page = { dashboard: 'dash', alerts: 'alerts', ids: { inc: 'ids', acc: 'acc', blk: 'blk' }[idsTab], vulns: vulnTab === 'leak' ? 'leaks' : 'vulns' }[name];

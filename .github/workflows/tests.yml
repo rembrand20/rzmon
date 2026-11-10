@@ -58,6 +58,13 @@ jobs:
           bash tests/agent-apps.sh 2>&1 | tee /tmp/apps.out
           rc=${PIPESTATUS[0]}
           [ "$rc" = 0 ] || { echo "::error title=Programma's op ${{ matrix.image }}::$(tail -n 15 /tmp/apps.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
+      - name: Updates (klaarstaand, beveiliging, installeren met snapshot)
+        shell: bash
+        run: |
+          set +e +o pipefail
+          bash tests/agent-patch.sh 2>&1 | tee /tmp/patch.out
+          rc=${PIPESTATUS[0]}
+          [ "$rc" = 0 ] || { echo "::error title=Updates op ${{ matrix.image }}::$(tail -n 15 /tmp/patch.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
       - name: Endpoint-bewaking (auditd-, SWAG- en Suricata-parser)
         shell: bash
         run: |

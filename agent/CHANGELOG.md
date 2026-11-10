@@ -5,6 +5,13 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.92.0 – 2026-11-10
+- **Updates (patchbeheer)**, aan per server in RzSense:
+  - eens per uur welke updates er klaarstaan en welke daarvan **beveiligingsupdates** zijn (dnf `check-update --security`, of apt: wat uit een security-bron komt; de apt-lijsten worden hooguit eens per 6 uur ververst), en of een **herstart** nodig is;
+  - **installeren** kan nu ook als *alle beveiligingsupdates* of *alle updates* (zonder lijst met namen), eventueel met eerst een **snapshot** van / (ZFS, snapper of btrfs). Op TrueNAS weigert de agent dat altijd, en hij herstart nooit;
+  - **Home Assistant (add-on)**: wat er voor Core en de add-ons klaarstaat, en bijwerken via de **Supervisor**, altijd met een back-up vooraf. Het OS niet (dat herstart het hele systeem).
+- Alles in het logboek van de server.
+
 ## 1.91.1 – 2026-11-10
 - **Opgelost:** op servers met mawk (o.a. Debian) kwamen de geblokkeerde programma's en de vingerafdrukken om naar te jagen niet aan, waardoor blokkeren en jagen op vingerafdruk niets deden.
 

@@ -58,6 +58,7 @@ function showVulnTab() {
   const have = $$('#vuln-tabs .seg-btn').map((x) => x.dataset.vt);
   if (!have.includes(vulnTab)) vulnTab = have[0] || 'cve';
   if (vulnTab === 'eol') loadEol();   // 1.227.0
+  if (vulnTab === 'patch') loadPatch();   // 1.230.0
   $$('#vuln-tabs .seg-btn').forEach((x) => x.classList.toggle('active', x.dataset.vt === vulnTab));
   $$('#tab-vulns .vuln-pane').forEach((x) => { x.hidden = x.dataset.vpane !== vulnTab; });
   crumbs();   // 1.199.0
