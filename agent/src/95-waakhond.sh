@@ -10,23 +10,36 @@ if [ -n "$wd_line" ] && [ "$WATCHDOG" != 0 ] && [ "$TEST" != 1 ]; then
     [[ "$wd_prio" =~ ^-?[0-2]$ ]] || wd_prio=1
     # ntfy (agent 1.72.0): naast of in plaats van Pushover; JSON naar de server, prioriteit -2..2 wordt 1..5
     [[ "${wd_nsrv:--}" =~ ^https?://[^[:space:]]+$ ]] || wd_nsrv=-
-    [[ "${wd_ntop:--}" =~ ^[A-Za-z0-9_-]{1,64}$ ]] || wd_nsrv=-
+    if [ "$wd_nsrv" != - ] && ! [[ "${wd_ntop:--}" =~ ^[A-Za-z0-9_-]{1,64}$ ]]; then
+        echo "Waakhond: ntfy-onderwerp \"${wd_ntop:0:70}\" is ongeldig (alleen letters, cijfers, - en _): ntfy staat uit" >&2   # agent 1.87.0
+        wd_nsrv=-
+    fi
     wd_push() {  # wd_push <titel> <bericht> <prioriteit>: 0 = verstuurd (via minstens één dienst)
         local ok=1 extra=() auth=()
         if [ "$wd_user" != - ] && [ "$wd_token" != - ] && [ -n "$wd_user" ]; then
             [ "$3" = 2 ] && extra=(--form-string retry=120 --form-string expire=3600)
-            curl -fsS -m 15 -o /dev/null --form-string "token=$wd_token" --form-string "user=$wd_user" --form-string "title=$1" \
-                --form-string "message=$2" --form-string "priority=$3" "${extra[@]}" "$PUSHOVER_API" 2>/dev/null && ok=0
+            # Agent 1.87.0: het Pushover-token in een tijdelijk curl-configbestand (alleen root), niet op de opdrachtregel
+            local cf
+            cf=$(umask 077 && mktemp "$t_dir/wd.XXXXXX" 2>/dev/null) || cf=""
+            if [ -n "$cf" ] && printf 'form-string = "token=%s"\nform-string = "user=%s"\n' "${wd_token//\"/}" "${wd_user//\"/}" >"$cf"; then
+                curl -fsS -m 15 -o /dev/null -K "$cf" --form-string "title=$1" \
+                    --form-string "message=$2" --form-string "priority=$3" "${extra[@]}" "$PUSHOVER_API" 2>/dev/null && ok=0
+            fi
+            [ -n "$cf" ] && rm -f "$cf"
         fi
         if [ "$wd_nsrv" != - ]; then
+            local nf=""
             if [ -n "$wd_ntok" ] && [ "$wd_ntok" != - ]; then
+                nf=$(umask 077 && mktemp "$t_dir/wdn.XXXXXX" 2>/dev/null) || nf=""
                 case $wd_ntok in
-                    *:*) auth=(-u "$wd_ntok") ;;
-                    *) auth=(-H "Authorization: Bearer $wd_ntok") ;;
+                    *:*) [ -n "$nf" ] && printf 'user = "%s"\n' "${wd_ntok//\"/}" >"$nf" ;;
+                    *) [ -n "$nf" ] && printf 'header = "Authorization: Bearer %s"\n' "${wd_ntok//\"/}" >"$nf" ;;
                 esac
+                [ -n "$nf" ] && auth=(-K "$nf")
             fi
             printf '{"topic":"%s","title":"%s","message":"%s","priority":%s}' "$wd_ntop" "$(json_escape "$1" | tr '\n\t\r' '   ')" "$(json_escape "$2" | tr '\n\t\r' '   ')" "$(( $3 + 3 ))" |
                 curl -fsS -m 15 -o /dev/null -H 'Content-Type: application/json' "${auth[@]}" --data-binary @- "${wd_nsrv%/}" 2>/dev/null && ok=0
+            [ -n "$nf" ] && rm -f "$nf"
         fi
         return "$ok"
     }

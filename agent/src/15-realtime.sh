@@ -123,7 +123,13 @@ if [ "${1-}" = "--watch" ]; then
     done
 fi
 
-json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+# Agent 1.87.0: tabs als \t, andere stuurtekens (bv. kleurcodes uit een logregel) weg: anders is de JSON ongeldig
+json_escape() {
+    local s
+    s=$(printf '%s' "$1" | tr -d '\000-\010\013\014\016-\037\177')
+    s=${s//\\/\\\\}; s=${s//\"/\\\"}; s=${s//$'\t'/\\t}; s=${s//$'\n'/\\n}; s=${s//$'\r'/\\r}
+    printf '%s' "$s"
+}
 # Willekeurige tekst (stdin, bv. uitvoer van een commando) als JSON-tekst: geldige UTF-8, tabs en
 # regeleindes als \t en \n, andere stuurtekens weg
 json_text() {

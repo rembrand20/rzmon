@@ -548,23 +548,28 @@ sig_check() {  # sig_check <bestand> <handtekening (base64)>: 0 = klopt, 1 = klo
     rm -rf "$d"
     [ "$rc" = 0 ] && return 0 || return 1
 }
+# Agent 1.87.0: bij bijwerken alleen met een geldige handtekening, tenzij je dat in /etc/default/rzmon-agent anders zet:
+# UPDATE_UNSIGNED=1 (ook zonder handtekening) of UPDATE_OLD_OPENSSL=1 (OpenSSL ouder dan 3.0 kan hem niet controleren).
+conf_is() { [ -r "$CONF" ] && grep -qE "^$1=[\"']?1[\"']?\$" "$CONF"; }
+unsigned_ok() { conf_is UPDATE_UNSIGNED; }
+oldssl_ok() { conf_is UPDATE_UNSIGNED || conf_is UPDATE_OLD_OPENSSL; }
 
 # ----------------------------------------------------------------- 2. agent ophalen
 step "2/5 Agent ophalen"
 tmp=$(mktemp)
-trap 'rm -f "$tmp" "$tmp.setup"' EXIT
+trap 'rm -f "$tmp" "$tmp.setup" "$tmp.err" "$tmp.sig" "$tmp.chk"' EXIT
 if [ -n "$SOURCE_FILE" ]; then
     cp "$SOURCE_FILE" "$tmp"
     info "Lokaal bestand: $SOURCE_FILE"
-elif ! curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_script${DL_KEY:+&k=$DL_KEY}" -o "$tmp" 2>/tmp/rzmon-agent-dl.err; then
-    err=$(cat /tmp/rzmon-agent-dl.err); rm -f /tmp/rzmon-agent-dl.err
+elif ! curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_script${DL_KEY:+&k=$DL_KEY}" -o "$tmp" 2>"$tmp.err"; then
+    err=$(cat "$tmp.err"); rm -f "$tmp.err"
     case "$err" in
         *pinned*|*"public key"*) die "Het certificaat van $URL past niet bij de vingerafdruk die de agent kent. Is het certificaat van RzSense vernieuwd? Kopieer dan het installatiecommando opnieuw uit RzSense (met --pin)." ;;
         *SSL*|*certificate*) die "Certificaatprobleem met $URL. Gebruikt RzSense een eigen (self-signed) certificaat? Kopieer het installatiecommando uit RzSense (met --pin), of voeg --insecure toe." ;;
         *) die "Kan de agent niet downloaden van $URL ($err). Klopt het adres en is RzSense vanaf deze server bereikbaar?" ;;
     esac
 fi
-rm -f /tmp/rzmon-agent-dl.err
+rm -f "$tmp.err"
 head -1 "$tmp" | grep -q '^#!/usr/bin/env bash' && grep -qE 'RzMon agent|RzSense agent' "$tmp" \
     || die "Het gedownloade bestand is geen RzSense-agent. Klopt het adres ($URL)?"
 if [ -n "$AGENT_SHA" ]; then
@@ -580,11 +585,17 @@ if [ -z "$SOURCE_FILE" ]; then
         rm -f "$tmp.sig"
         case "$s_rc" in
             0) ok "Handtekening van de agent klopt (ondertekend door de ontwikkelaar)" ;;
-            2) info "Handtekening niet te controleren: OpenSSL op deze server is ouder dan 3.0 (het controlegetal is wel gecontroleerd)" ;;
+            2) if [ "$MODE" = update ] && ! oldssl_ok; then
+                   die "Handtekening niet te controleren: OpenSSL op deze server is ouder dan 3.0. Niet bijgewerkt. Wil je toch bijwerken, zet dan UPDATE_OLD_OPENSSL=1 in $CONF."
+               fi
+               info "Handtekening niet te controleren: OpenSSL op deze server is ouder dan 3.0 (het controlegetal is wel gecontroleerd)" ;;
             *) die "De handtekening van de agent klopt niet: deze versie komt niet van de ontwikkelaar. Niet geïnstalleerd." ;;
         esac
     else
         rm -f "$tmp.sig"
+        if [ "$MODE" = update ] && ! unsigned_ok; then
+            die "Geen handtekening bij RzSense: niet bijgewerkt (zo kan een overgenomen RzSense geen eigen code op je servers zetten). Wil je toch bijwerken, zet dan UPDATE_UNSIGNED=1 in $CONF."
+        fi
         warn "Deze agent is (nog) niet ondertekend bij RzSense; alleen het controlegetal is gecontroleerd"
     fi
 fi
@@ -809,12 +820,30 @@ else
     ok "cron: $CRON ($sched)"
 fi
 
+# Agent 1.87.0: een gedownload installatiescript alleen bewaren als de handtekening klopt (de regel DL_KEY telt niet mee),
+# anders draait een volgende "rzmon-agent-setup --update" als root code die niet van de ontwikkelaar komt.
+setup_signed() {
+    local rc
+    if ! curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_install_sig${DL_KEY:+&k=$DL_KEY}" -o "$tmp.sig" 2>/dev/null || [ ! -s "$tmp.sig" ]; then
+        unsigned_ok && return 0
+        warn "Installatiescript niet bijgewerkt: geen handtekening bij RzSense"; return 1
+    fi
+    sed "s/^DL_KEY='[A-Za-z0-9]*'\$/DL_KEY=''/" "$1" >"$tmp.chk"
+    sig_check "$tmp.chk" "$tmp.sig"; rc=$?
+    rm -f "$tmp.sig" "$tmp.chk"
+    case "$rc" in
+        0) return 0 ;;
+        2) oldssl_ok && return 0; warn "Installatiescript niet bijgewerkt: handtekening niet te controleren (OpenSSL ouder dan 3.0)"; return 1 ;;
+        *) warn "Installatiescript niet bijgewerkt: de handtekening klopt niet"; return 1 ;;
+    esac
+}
 # Dit installatiescript bewaren voor later (bij "curl | bash" staat het nergens op schijf).
 # Vanuit RzSense bijgewerkt: dit script is al door de agent gecontroleerd, dus dat bewaren.
 # Vanaf een bestand gestart (het commando uit RzSense controleert dat bestand eerst): dat bewaren.
 if [ -f "${BASH_SOURCE[0]:-}" ] && { [ -n "$RESULT_FILE" ] || [ -n "$ARG_PAIR" ]; } && [ "$(realpath "${BASH_SOURCE[0]}")" != "$SETUP" ]; then
     install -m 755 -o root -g root "${BASH_SOURCE[0]}" "$SETUP"
-elif curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_install${DL_KEY:+&k=$DL_KEY}" -o "$tmp.setup" 2>/dev/null && grep -qE 'RzMon agent|RzSense agent' "$tmp.setup"; then
+elif curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_install${DL_KEY:+&k=$DL_KEY}" -o "$tmp.setup" 2>/dev/null && grep -qE 'RzMon agent|RzSense agent' "$tmp.setup" \
+    && setup_signed "$tmp.setup"; then
     install -m 755 -o root -g root "$tmp.setup" "$SETUP"
 elif [ -f "${BASH_SOURCE[0]:-}" ] && [ "$(realpath "${BASH_SOURCE[0]}")" != "$SETUP" ]; then
     install -m 755 -o root -g root "${BASH_SOURCE[0]}" "$SETUP"

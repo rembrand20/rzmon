@@ -459,8 +459,8 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
         local f=$2 st="$w_dir/$1.pos" ino size pino pos
         ino=$(stat -c %i "$f" 2>/dev/null) && size=$(stat -c %s "$f" 2>/dev/null) || return 1
         read -r pino pos 2>/dev/null <"$st"
-        echo "$ino $size" >"$st"
-        [ -n "$pino" ] || return 0
+        [ -n "$pino" ] || { echo "$ino $size" >"$st"; return 0; }
+        echo "$ino $size" >"$st.new"   # agent 1.87.0: pas na een geslaagd rapport de nieuwe positie (anders gaan regels verloren)
         if [ "$pino" != "$ino" ] || [ "${pos:-0}" -gt "$size" ]; then pos=0; fi   # geroteerd of nieuw
         tail -c +$(( ${pos:-0} + 1 )) "$f" 2>/dev/null | head -c $(( size - ${pos:-0} )) | tail -n 20000
     }
@@ -468,21 +468,27 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
         local c
         for c in docker podman; do
             command -v "$c" >/dev/null 2>&1 || continue
-            "$c" ps --format '{{.Names}} {{.Image}}' 2>/dev/null | awk -v p="$1" 'tolower($2) ~ p { print $1; exit }' && return 0
+            local out
+            out=$(timeout 15 "$c" ps --format '{{.Names}} {{.Image}}' 2>/dev/null | awk -v p="$1" 'tolower($2) ~ p { print $1; exit }')
+            [ -n "$out" ] && { echo "$out"; return 0; }   # agent 1.87.0: niet gevonden bij docker? Dan nog podman
         done
+        return 1
     }
     wl_mount() {  # wl_mount <container> <pad in de container>: map op de host
         local c
         for c in docker podman; do
             command -v "$c" >/dev/null 2>&1 || continue
-            "$c" inspect -f '{{range .Mounts}}{{.Destination}} {{.Source}}{{"\n"}}{{end}}' "$1" 2>/dev/null | awk -v d="$2" '$1 == d { print $2; exit }' && return 0
+            local out
+            out=$(timeout 15 "$c" inspect -f '{{range .Mounts}}{{.Destination}} {{.Source}}{{"\n"}}{{end}}' "$1" 2>/dev/null | awk -v d="$2" '$1 == d { print $2; exit }')
+            [ -n "$out" ] && { echo "$out"; return 0; }
         done
+        return 1
     }
     wl_ctr_ips() {  # "IP=naam IP=naam …" van de draaiende containers: welke dienst zit achter de proxy (agent 1.86.0)
         local c
         for c in docker podman; do
             command -v "$c" >/dev/null 2>&1 || continue
-            "$c" ps -q 2>/dev/null | head -n 200 | xargs -r "$c" inspect -f '{{.Name}}{{range .NetworkSettings.Networks}} {{.IPAddress}}{{end}}' 2>/dev/null \
+            timeout 15 "$c" ps -q 2>/dev/null | head -n 200 | xargs -r timeout 15 "$c" inspect -f '{{.Name}}{{range .NetworkSettings.Networks}} {{.IPAddress}}{{end}}' 2>/dev/null \
                 | awk '{ n = $1; sub(/^\//, "", n); for (i = 2; i <= NF; i++) if ($i != "") printf "%s=%s ", $i, n }'
             return 0
         done
@@ -686,9 +692,18 @@ if [ "$edr_want" = 1 ] && [ "$TEST" != 1 ]; then
     if [ -s "$edr_spool" ]; then
         mv -f "$edr_spool" "$edr_spool.tmp" 2>/dev/null && { cat "$edr_spool.tmp" >>"$e_send"; rm -f "$edr_spool.tmp"; }
     fi
+    # Agent 1.87.0: de wachtrij begrenzen (bv. als RzSense een dag weg is): de nieuwste 20.000 bewaren, de rest tellen als weggegooid
+    if [ -s "$e_send" ]; then
+        e_n=$(wc -l <"$e_send")
+        if [ "$e_n" -gt 20000 ]; then
+            tail -n 20000 "$e_send" >"$e_send.tmp" && mv -f "$e_send.tmp" "$e_send"
+            echo $(( $(cat "$edr_dir/edr.drop" 2>/dev/null || echo 0) + e_n - 20000 )) >"$edr_dir/edr.drop" 2>/dev/null
+        fi
+    fi
     e_ev=""
     if [ -s "$e_send" ]; then
-        e_ev=$(head -n 500 "$e_send" | grep -E '^\{.*\}$' | tr '\n' ',' | sed 's/,$//')
+        e_take=500; [ "${e_n:-0}" -gt 5000 ] && e_take=2000   # lange wachtrij: sneller inhalen
+        e_ev=$(head -n "$e_take" "$e_send" | grep -E '^\{.*\}$' | tr '\n' ',' | sed 's/,$//')
     fi
     edr_json="{\"ev\":[$e_ev],\"info\":{\"audit\":\"$e_audit\",\"file\":\"$e_file\",\"ctr\":\"$e_ctr\",\"fam\":\"$e_fam\",\"epel\":$e_epel,\"watch\":\"$e_watch\",\"systemd\":$e_sys,\"drop\":$e_drop,\"queue\":$(wc -l 2>/dev/null <"$e_send" || echo 0),\"yara\":\"$e_yara\",\"ysha\":\"$e_ysha\",\"sur\":\"$e_sur\"}${e_alerts:+,\"sur\":[$e_alerts]}}"
 elif [ "$edr_want" = 0 ] && [ "$(id -u)" = 0 ] && [ "$HA_MODE" = 0 ]; then

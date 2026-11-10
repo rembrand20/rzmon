@@ -41,4 +41,6 @@ jobs:
           git add agent/rzmon-agent.sh.sig agent/install-agent.sh.sig
           if git diff --cached --quiet; then echo "Handtekeningen ongewijzigd"; exit 0; fi
           git commit -m "Agent ondertekend [skip ci]"
-          for i in 1 2 3; do git push && break; git pull --rebase; done
+          pushed=0
+          for i in 1 2 3; do if git push; then pushed=1; break; fi; git pull --rebase; done
+          [ "$pushed" = 1 ] || git push   # 1.224.2: lukt het na 3 keer niet, dan faalt de taak (anders groen zonder handtekeningen)

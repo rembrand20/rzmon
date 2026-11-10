@@ -46,6 +46,11 @@ remote_update() {  # remote_update <antwoord van RzSense>
     sha_s=$(sed -n 's/.*"update":[[:space:]]*{[^}]*"setup_sha256":[[:space:]]*"\([0-9a-f]\{64\}\)".*/\1/p' <<<"$1")
     case "$upd_via" in systemd|direct) ;; *) return 0 ;; esac
     [ -n "$want" ] && [ -n "$sha_a" ] && [ -n "$sha_s" ] || return 0
+    # Agent 1.87.0: nooit terug naar een oudere versie (ook niet als die netjes ondertekend is: die kan een bekende fout hebben)
+    if [ "$want" != "$AGENT_VERSION" ] && [ "$(printf '%s\n%s\n' "$want" "$AGENT_VERSION" | sort -V | tail -1)" = "$AGENT_VERSION" ]; then
+        printf 'error %s\n' "versie $want is ouder dan $AGENT_VERSION: niet teruggezet" >"$upd_dir/update.result" 2>/dev/null
+        return 0
+    fi
     mkdir -p "$upd_dir" 2>/dev/null && [ -w "$upd_dir" ] || return 0
     # Loopt er al een update (minder dan 10 minuten geleden gestart)? Dan niet nog een.
     if [ -f "$upd_dir/update.lock" ] && [ $(( $(date +%s) - $(stat -c %Y "$upd_dir/update.lock" 2>/dev/null || echo 0) )) -lt 600 ]; then
@@ -82,6 +87,13 @@ remote_update() {  # remote_update <antwoord van RzSense>
         if [ "$s_a" = 1 ] || [ "$s_s" = 1 ]; then
             upd_fail "handtekening klopt niet: deze versie komt niet van de ontwikkelaar; niet bijgewerkt"
             echo bad >"$upd_dir/update.sig"
+            return 0
+        fi
+        # Agent 1.87.0: OpenSSL ouder dan 3.0 kan de handtekening niet controleren: dan niet bijwerken, tenzij je dat zelf
+        # toestaat (UPDATE_OLD_OPENSSL=1); anders kon een overgenomen RzSense op zulke servers toch eigen code zetten
+        if { [ "$s_a" = 2 ] || [ "$s_s" = 2 ]; } && [ "${UPDATE_OLD_OPENSSL:-0}" != 1 ]; then
+            upd_fail "handtekening niet te controleren (OpenSSL ouder dan 3.0): niet bijgewerkt; zet UPDATE_OLD_OPENSSL=1 in /etc/default/rzmon-agent om toch bij te werken"
+            echo old_openssl >"$upd_dir/update.sig"
             return 0
         fi
         if [ "$s_a" = 2 ]; then echo old_openssl >"$upd_dir/update.sig"; else echo ok >"$upd_dir/update.sig"; fi

@@ -3308,9 +3308,9 @@ Elke nieuwe agent wordt in GitHub **ondertekend** met een geheime sleutel die al
 - Je werkt gewoon bij zoals altijd (knop in RzSense). In de Agent Manager staat daarna *🔏 Laatste update: handtekening van de ontwikkelaar gecontroleerd*.
 - Klopt de handtekening niet, dan weigert de agent de update (*✘ Laatste update geweigerd*) en blijft de oude versie werken.
 - Ook het installatiescript (`rzmon-agent-setup`) controleert de handtekening bij installeren en met `--update`.
-- Op een server met OpenSSL ouder dan 3.0 (bv. Debian 11) kan de handtekening niet gecontroleerd worden; dan geldt alleen het controlegetal en staat dat in de Agent Manager.
 - *Instellingen → Status → Agents* laat zien of de agent die RzSense uitlevert ondertekend is.
 - Noodgeval: `UPDATE_UNSIGNED=1` in `/etc/default/rzmon-agent` werkt bij zonder handtekening (niet aangeraden).
+- OpenSSL ouder dan 3.0 (bv. RHEL/Rocky 8) kan de handtekening niet controleren. Vanaf agent 1.87.0 werkt de agent dan niet meer vanzelf bij, tenzij je `UPDATE_OLD_OPENSSL=1` in `/etc/default/rzmon-agent` zet (dan alleen met het controlegetal van RzSense). Een oudere versie dan de huidige wordt nooit geïnstalleerd.
 
 ### 8.14b Snel en betrouwbaar rapporteren ⏱ (vanaf 1.137.0, agent 1.69.0)
 Een rapport mag nooit worden opgehouden door één traag onderdeel, en een agent die gewoon bezig is, is niet "stil":

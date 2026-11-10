@@ -27,12 +27,17 @@ if [ "$(basename -- "$0")" = rzmon-hb ] || [ "${1-}" = --hb ]; then
     hb_f=$(mktemp "$hb_dir/hb.XXXXXXXX" 2>/dev/null) || { echo "rzmon-hb: kan niet schrijven in $hb_dir (is de agent geïnstalleerd?)" >&2; exit 1; }
     printf '{"n":"%s","s":"%s","t":%s%s,"m":"%s"}\n' "$hb_name" "$hb_kind" "$(date +%s)" "${hb_val:+,\"v\":$hb_val}" \
         "$(printf '%s' "$hb_msg" | head -c 300 | json_text)" >"$hb_f"
-    chmod 644 "$hb_f" 2>/dev/null
+    chmod 600 "$hb_f" 2>/dev/null   # agent 1.87.0: alleen de eigenaar (en root, de agent)
     exit 0
 fi
 
 t_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
 [ "$HA_MODE" = 1 ] && t_dir="${CACHE_DIRECTORY:-/data/rzmon-cache}"   # add-on: /data blijft bewaard
-mkdir -p "$t_dir" 2>/dev/null && [ -w "$t_dir" ] || t_dir="${TMPDIR:-/tmp}"
+# Agent 1.87.0: niet schrijfbaar (geen root)? Dan een eigen map in je home, of een nieuwe privé-map; nooit los in /tmp,
+# waar iemand anders de bestandsnamen kan voorzijn
+if ! { mkdir -p "$t_dir" 2>/dev/null && [ -w "$t_dir" ]; }; then
+    t_dir="${XDG_CACHE_HOME:-${HOME:-/nonexistent}/.cache}/rzmon-agent"
+    { mkdir -p "$t_dir" && chmod 700 "$t_dir"; } 2>/dev/null && [ -w "$t_dir" ] || t_dir=$(mktemp -d "${TMPDIR:-/tmp}/rzmon-agent.XXXXXX") || exit 1
+fi
 t_cache="$t_dir/tests.cache"
 

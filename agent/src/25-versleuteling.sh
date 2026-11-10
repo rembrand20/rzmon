@@ -28,15 +28,30 @@ if command -v openssl >/dev/null 2>&1; then
         [ -z "$enc_key" ] && [[ "${ENC_KEY-}" =~ ^[0-9a-f]{64}$ ]] && enc_key=$ENC_KEY
     fi
 fi
+# Agent 1.87.0: HMAC-SHA256 zelf uitrekenen met openssl dgst over stdin, zodat geen sleutel op de opdrachtregel staat
+# (die is voor iedereen op de server te zien in ps of /proc/*/cmdline). Uitkomst gelijk aan openssl -mac HMAC.
+hmac_hex() {  # hmac_hex <hexsleutel>: HMAC-SHA256 van stdin (hex)
+    local k=$1 ip="" op="" i x h
+    while [ "${#k}" -lt 128 ]; do k+="00"; done
+    for ((i = 0; i < 128; i += 2)); do
+        printf -v x '\\x%02x' $(( 16#${k:i:2} ^ 0x36 )); ip+=$x
+        printf -v x '\\x%02x' $(( 16#${k:i:2} ^ 0x5c )); op+=$x
+    done
+    h=$({ printf '%b' "$ip"; cat; } | openssl dgst -sha256 2>/dev/null | sed 's/^.*= *//')
+    [ "${#h}" = 64 ] || return 1
+    x=""
+    for ((i = 0; i < 64; i += 2)); do x+="\\x${h:i:2}"; done
+    { printf '%b' "$op"; printf '%b' "$x"; } | openssl dgst -sha256 2>/dev/null | sed 's/^.*= *//'
+}
 enc_sub() {  # enc_sub <sleutel> <label>: afgeleide sleutel (HMAC-SHA256, hex)
-    printf '%s' "$2" | openssl dgst -sha256 -mac HMAC -macopt "hexkey:$1" 2>/dev/null | sed 's/^.*= *//'
+    printf '%s' "$2" | hmac_hex "$1"
 }
 seal() {  # seal <invoer> <uitvoer>: versleutelen met enc_key; de nonce staat daarna in seal_n
     local ke km iv t d m
     ke=$(enc_sub "$enc_key" enc) && km=$(enc_sub "$enc_key" mac) && iv=$(openssl rand -hex 16) && seal_n=$(openssl rand -hex 16) || return 1
     t=$(date +%s)
     d=$(openssl enc -aes-256-cbc -K "$ke" -iv "$iv" -in "$1" 2>/dev/null | base64 -w0) && [ -n "$d" ] || return 1
-    m=$(printf 'rzenc1|%s|%s|%s|%s' "$t" "$seal_n" "$iv" "$d" | openssl dgst -sha256 -mac HMAC -macopt "hexkey:$km" 2>/dev/null | sed 's/^.*= *//')
+    m=$(printf 'rzenc1|%s|%s|%s|%s' "$t" "$seal_n" "$iv" "$d" | hmac_hex "$km")
     [ "${#m}" = 64 ] || return 1
     printf '{"rzenc":1,"t":%s,"n":"%s","iv":"%s","d":"%s","m":"%s"}' "$t" "$seal_n" "$iv" "$d" "$m" >"$2"
 }
@@ -49,8 +64,20 @@ unseal() {  # unseal <antwoord> <nonce van het verzoek>: handtekening controlere
     m=$(sed -n 's/.*"m":"\([0-9a-f]*\)".*/\1/p' <<<"$1")
     [ -n "$t" ] && [ -n "$d" ] && [ "${#m}" = 64 ] && [ -n "$2" ] && [ "$rn" = "$2" ] || return 1
     km=$(enc_sub "$enc_key" mac) && ke=$(enc_sub "$enc_key" enc) || return 1
-    [ "$(printf 'rzenc1r|%s|%s|%s|%s' "$t" "$rn" "$iv" "$d" | openssl dgst -sha256 -mac HMAC -macopt "hexkey:$km" 2>/dev/null | sed 's/^.*= *//')" = "$m" ] || return 1
+    [ "$(printf 'rzenc1r|%s|%s|%s|%s' "$t" "$rn" "$iv" "$d" | hmac_hex "$km")" = "$m" ] || return 1
     printf '%s' "$d" | base64 -d 2>/dev/null | openssl enc -d -aes-256-cbc -K "$ke" -iv "$iv" 2>/dev/null
+}
+# Agent 1.87.0: het token niet als argument aan curl (dan staat het in ps), maar in een curl-configbestand dat
+# alleen root kan lezen. Lukt dat niet, dan zoals voorheen.
+tok_cfg="$k_dir/token.curl"
+tok_auth() {  # tok_auth: zet tok_h op de curl-argumenten voor het token
+    local t=${TOKEN//\\/\\\\}
+    t=${t//\"/\\\"}
+    if [ -n "$TOKEN" ] && (umask 077 && printf 'header = "X-Agent-Token: %s"\n' "$t" >"$tok_cfg.new" && mv -f "$tok_cfg.new" "$tok_cfg") 2>/dev/null; then
+        tok_h=(-K "$tok_cfg")
+    else
+        tok_h=(-H "X-Agent-Token: $TOKEN")
+    fi
 }
 # Wie we zijn: met de eigen sleutel alleen het kenmerk (X-Agent-Key), anders het token
 set_auth() {
@@ -58,8 +85,10 @@ set_auth() {
     if [ -n "$own_key" ] && [ "$enc_key" = "$own_key" ]; then
         kid=$(enc_sub "$own_key" id | cut -c1-16)
         auth=(-H "X-Agent-Key: $kid")
+        rm -f "$tok_cfg" 2>/dev/null
     else
-        auth=(-H "X-Agent-Token: $TOKEN")
+        tok_auth
+        auth=("${tok_h[@]}")
     fi
 }
 set_auth
@@ -70,10 +99,11 @@ get_auth() {
     if [ -n "$kid" ]; then
         local t s
         t=$(date +%s); get_n=$(openssl rand -hex 16)
-        s=$(printf 'rzget1|%s|%s|%s' "$1" "$t" "$get_n" | openssl dgst -sha256 -mac HMAC -macopt "hexkey:$(enc_sub "$own_key" mac)" 2>/dev/null | sed 's/^.*= *//')
+        s=$(printf 'rzget1|%s|%s|%s' "$1" "$t" "$get_n" | hmac_hex "$(enc_sub "$own_key" mac)")
         ga=(-H "X-Agent-Auth: $kid:$t:$get_n:$s")
     else
-        ga=(-H "X-Agent-Token: $TOKEN")
+        tok_auth
+        ga=("${tok_h[@]}")
         if [ -n "$enc_key" ]; then get_n=$(openssl rand -hex 16) && ga+=(-H "X-Agent-Enc: $(enc_sub "$enc_key" id | cut -c1-16):$get_n"); fi
     fi
 }

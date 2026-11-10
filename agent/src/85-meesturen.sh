@@ -45,7 +45,7 @@ if [ -d "$hb_dir" ]; then
             rm -f "$f"   # geen geldige regel: weg
         fi
         [ ${#hb_files[@]} -ge 100 ] && break
-    done < <(ls -1tr "$hb_dir"/hb.* 2>/dev/null)
+    done < <(find "$hb_dir" -maxdepth 1 -name 'hb.*' -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | head -n 200 | cut -d' ' -f2-)   # agent 1.87.0: zonder glob (veel bestanden)
     # Map voor rzmon-hb: iedereen mag erin schrijven, maar niemand mag lezen of andermans regels weghalen
     [ "$(id -u)" = 0 ] && chmod 1733 "$hb_dir" 2>/dev/null
 elif [ "$(id -u)" = 0 ] && [ "$HA_MODE" != 1 ]; then
@@ -58,8 +58,10 @@ lap heal_report
 # waarin de waakhond RzSense niet bereikte
 heal_json=""; heal_cmds=""
 if [ -s "$heal_dir/done" ]; then
-    mv -f "$heal_dir/done" "$heal_dir/done.sending" 2>/dev/null
-    heal_json=$(grep -E '^\{"id":[0-9]+,"ok":[01],"t":[0-9]+,"m":"([^"\\]|\\.)*"\}$' "$heal_dir/done.sending" 2>/dev/null | tail -n 50 | paste -sd, -)
+    # Agent 1.87.0: hooguit 50 per rapport, de rest blijft voor het volgende (eerder gingen die verloren)
+    grep -E '^\{"id":[0-9]+,"ok":[01],"t":[0-9]+,"m":"([^"\\]|\\.)*"\}$' "$heal_dir/done" 2>/dev/null >"$heal_dir/done.all"; rm -f "$heal_dir/done"
+    [ -s "$heal_dir/done.sending" ] && { cat "$heal_dir/done.all" >>"$heal_dir/done.sending"; rm -f "$heal_dir/done.all"; } || mv -f "$heal_dir/done.all" "$heal_dir/done.sending"
+    heal_json=$(head -n 50 "$heal_dir/done.sending" | paste -sd, -)
 fi
 if [ "$HA_MODE" = 0 ] && [ -d "$HEAL_DIR" ]; then
     for hc_f in "$HEAL_DIR"/*; do

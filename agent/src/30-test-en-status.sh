@@ -63,11 +63,13 @@ if [ "$TEST" = 1 ]; then
         hint "Let op: er is een proxy ingesteld (http_proxy/https_proxy). Zet RzSense zo nodig in no_proxy."
     fi
 
-    curl_t=(-sS -m 15 -o /tmp/rzmon-test.$$ -w '%{http_code} %{redirect_url}' "${tls[@]}")
+    # Agent 1.87.0: eigen tijdelijke map (geen vaste naam in /tmp)
+    tt_dir=$(mktemp -d "${TMPDIR:-/tmp}/rzmon-test.XXXXXX") || tt_dir=$t_dir
+    curl_t=(-sS -m 15 -o "$tt_dir/body" -w '%{http_code} %{redirect_url}' "${tls[@]}")
 
     # 5. Draait daar RzSense?
-    read -r code redirect < <(curl "${curl_t[@]}" "$base/api.php?action=ping" 2>/tmp/rzmon-test-err.$$ || true)
-    body=$(cat /tmp/rzmon-test.$$ 2>/dev/null); err=$(cat /tmp/rzmon-test-err.$$ 2>/dev/null)
+    read -r code redirect < <(curl "${curl_t[@]}" "$base/api.php?action=ping" 2>"$tt_dir/err" || true)
+    body=$(cat "$tt_dir/body" 2>/dev/null); err=$(cat "$tt_dir/err" 2>/dev/null)
     old_rzmon=0
     if [ "$code" = 200 ] && [[ "$body" == *'"app":"RzMon"'* ]]; then
         rz_version=$(sed -n 's/.*"version":"\([^"]*\)".*/\1/p' <<<"$body")
@@ -95,7 +97,7 @@ if [ "$TEST" = 1 ]; then
         fail "Onverwacht antwoord van $base (HTTP $code)"
         [ -n "$body" ] && hint "${body:0:200}"
     fi
-    if [ "$TEST_FAILED" = 1 ]; then rm -f /tmp/rzmon-test.$$ /tmp/rzmon-test-err.$$; stop; fi
+    if [ "$TEST_FAILED" = 1 ]; then rm -f "$tt_dir/body" "$tt_dir/err"; [ "$tt_dir" != "$t_dir" ] && rmdir "$tt_dir" 2>/dev/null; stop; fi
 
     # 6. Token, of de eigen sleutel (dan is het antwoord versleuteld: zo weet de agent dat het echt RzSense is)
     if [ -n "$pin" ] && [ "${#tls[@]}" -gt 1 ]; then pass "Certificaat van RzSense vastgezet (📌 sha256//${pin:0:12}…)"
@@ -115,14 +117,14 @@ if [ "$TEST" = 1 ]; then
     elif [ "$tk_code" = 403 ]; then
         fail "$([ -n "$kid" ] && echo "Sleutel" || echo "Token") geweigerd: $(sed -n 's/.*"reason":"\([^"]*\)".*/\1/p' <<<"$tk_body")"
         hint "Maak in RzSense een koppelcode (server → Agent Manager → 🔗 Koppelcode) en voer het commando uit"
-        rm -f /tmp/rzmon-test.$$ /tmp/rzmon-test-err.$$
+        rm -f "$tt_dir/body" "$tt_dir/err"; [ "$tt_dir" != "$t_dir" ] && rmdir "$tt_dir" 2>/dev/null
         stop
     elif [ "$old_rzmon" = 1 ]; then
         hint "Tokencontrole overgeslagen (oudere RzSense-versie); het proefrapport hieronder test het token wel"
     else
         fail "Tokencontrole gaf HTTP $tk_code: ${tk_body:0:150}"
     fi
-    rm -f /tmp/rzmon-test.$$ /tmp/rzmon-test-err.$$
+    rm -f "$tt_dir/body" "$tt_dir/err"; [ "$tt_dir" != "$t_dir" ] && rmdir "$tt_dir" 2>/dev/null
 fi
 
 # ---------------------------------------------------------------- Status en instellingen (1.60.0)

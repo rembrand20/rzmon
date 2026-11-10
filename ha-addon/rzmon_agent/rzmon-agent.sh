@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.86.1"
+AGENT_VERSION="1.87.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -631,7 +631,13 @@ if [ "${1-}" = "--watch" ]; then
     done
 fi
 
-json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+# Agent 1.87.0: tabs als \t, andere stuurtekens (bv. kleurcodes uit een logregel) weg: anders is de JSON ongeldig
+json_escape() {
+    local s
+    s=$(printf '%s' "$1" | tr -d '\000-\010\013\014\016-\037\177')
+    s=${s//\\/\\\\}; s=${s//\"/\\\"}; s=${s//$'\t'/\\t}; s=${s//$'\n'/\\n}; s=${s//$'\r'/\\r}
+    printf '%s' "$s"
+}
 # Willekeurige tekst (stdin, bv. uitvoer van een commando) als JSON-tekst: geldige UTF-8, tabs en
 # regeleindes als \t en \n, andere stuurtekens weg
 json_text() {
@@ -762,13 +768,18 @@ if [ "$(basename -- "$0")" = rzmon-hb ] || [ "${1-}" = --hb ]; then
     hb_f=$(mktemp "$hb_dir/hb.XXXXXXXX" 2>/dev/null) || { echo "rzmon-hb: kan niet schrijven in $hb_dir (is de agent geïnstalleerd?)" >&2; exit 1; }
     printf '{"n":"%s","s":"%s","t":%s%s,"m":"%s"}\n' "$hb_name" "$hb_kind" "$(date +%s)" "${hb_val:+,\"v\":$hb_val}" \
         "$(printf '%s' "$hb_msg" | head -c 300 | json_text)" >"$hb_f"
-    chmod 644 "$hb_f" 2>/dev/null
+    chmod 600 "$hb_f" 2>/dev/null   # agent 1.87.0: alleen de eigenaar (en root, de agent)
     exit 0
 fi
 
 t_dir="${CACHE_DIRECTORY:-/var/cache/rzmon-agent}"
 [ "$HA_MODE" = 1 ] && t_dir="${CACHE_DIRECTORY:-/data/rzmon-cache}"   # add-on: /data blijft bewaard
-mkdir -p "$t_dir" 2>/dev/null && [ -w "$t_dir" ] || t_dir="${TMPDIR:-/tmp}"
+# Agent 1.87.0: niet schrijfbaar (geen root)? Dan een eigen map in je home, of een nieuwe privé-map; nooit los in /tmp,
+# waar iemand anders de bestandsnamen kan voorzijn
+if ! { mkdir -p "$t_dir" 2>/dev/null && [ -w "$t_dir" ]; }; then
+    t_dir="${XDG_CACHE_HOME:-${HOME:-/nonexistent}/.cache}/rzmon-agent"
+    { mkdir -p "$t_dir" && chmod 700 "$t_dir"; } 2>/dev/null && [ -w "$t_dir" ] || t_dir=$(mktemp -d "${TMPDIR:-/tmp}/rzmon-agent.XXXXXX") || exit 1
+fi
 t_cache="$t_dir/tests.cache"
 
 # ---------------------------------------------------------------- Versleuteling (RzSense 1.57.0+)
@@ -801,15 +812,30 @@ if command -v openssl >/dev/null 2>&1; then
         [ -z "$enc_key" ] && [[ "${ENC_KEY-}" =~ ^[0-9a-f]{64}$ ]] && enc_key=$ENC_KEY
     fi
 fi
+# Agent 1.87.0: HMAC-SHA256 zelf uitrekenen met openssl dgst over stdin, zodat geen sleutel op de opdrachtregel staat
+# (die is voor iedereen op de server te zien in ps of /proc/*/cmdline). Uitkomst gelijk aan openssl -mac HMAC.
+hmac_hex() {  # hmac_hex <hexsleutel>: HMAC-SHA256 van stdin (hex)
+    local k=$1 ip="" op="" i x h
+    while [ "${#k}" -lt 128 ]; do k+="00"; done
+    for ((i = 0; i < 128; i += 2)); do
+        printf -v x '\\x%02x' $(( 16#${k:i:2} ^ 0x36 )); ip+=$x
+        printf -v x '\\x%02x' $(( 16#${k:i:2} ^ 0x5c )); op+=$x
+    done
+    h=$({ printf '%b' "$ip"; cat; } | openssl dgst -sha256 2>/dev/null | sed 's/^.*= *//')
+    [ "${#h}" = 64 ] || return 1
+    x=""
+    for ((i = 0; i < 64; i += 2)); do x+="\\x${h:i:2}"; done
+    { printf '%b' "$op"; printf '%b' "$x"; } | openssl dgst -sha256 2>/dev/null | sed 's/^.*= *//'
+}
 enc_sub() {  # enc_sub <sleutel> <label>: afgeleide sleutel (HMAC-SHA256, hex)
-    printf '%s' "$2" | openssl dgst -sha256 -mac HMAC -macopt "hexkey:$1" 2>/dev/null | sed 's/^.*= *//'
+    printf '%s' "$2" | hmac_hex "$1"
 }
 seal() {  # seal <invoer> <uitvoer>: versleutelen met enc_key; de nonce staat daarna in seal_n
     local ke km iv t d m
     ke=$(enc_sub "$enc_key" enc) && km=$(enc_sub "$enc_key" mac) && iv=$(openssl rand -hex 16) && seal_n=$(openssl rand -hex 16) || return 1
     t=$(date +%s)
     d=$(openssl enc -aes-256-cbc -K "$ke" -iv "$iv" -in "$1" 2>/dev/null | base64 -w0) && [ -n "$d" ] || return 1
-    m=$(printf 'rzenc1|%s|%s|%s|%s' "$t" "$seal_n" "$iv" "$d" | openssl dgst -sha256 -mac HMAC -macopt "hexkey:$km" 2>/dev/null | sed 's/^.*= *//')
+    m=$(printf 'rzenc1|%s|%s|%s|%s' "$t" "$seal_n" "$iv" "$d" | hmac_hex "$km")
     [ "${#m}" = 64 ] || return 1
     printf '{"rzenc":1,"t":%s,"n":"%s","iv":"%s","d":"%s","m":"%s"}' "$t" "$seal_n" "$iv" "$d" "$m" >"$2"
 }
@@ -822,8 +848,20 @@ unseal() {  # unseal <antwoord> <nonce van het verzoek>: handtekening controlere
     m=$(sed -n 's/.*"m":"\([0-9a-f]*\)".*/\1/p' <<<"$1")
     [ -n "$t" ] && [ -n "$d" ] && [ "${#m}" = 64 ] && [ -n "$2" ] && [ "$rn" = "$2" ] || return 1
     km=$(enc_sub "$enc_key" mac) && ke=$(enc_sub "$enc_key" enc) || return 1
-    [ "$(printf 'rzenc1r|%s|%s|%s|%s' "$t" "$rn" "$iv" "$d" | openssl dgst -sha256 -mac HMAC -macopt "hexkey:$km" 2>/dev/null | sed 's/^.*= *//')" = "$m" ] || return 1
+    [ "$(printf 'rzenc1r|%s|%s|%s|%s' "$t" "$rn" "$iv" "$d" | hmac_hex "$km")" = "$m" ] || return 1
     printf '%s' "$d" | base64 -d 2>/dev/null | openssl enc -d -aes-256-cbc -K "$ke" -iv "$iv" 2>/dev/null
+}
+# Agent 1.87.0: het token niet als argument aan curl (dan staat het in ps), maar in een curl-configbestand dat
+# alleen root kan lezen. Lukt dat niet, dan zoals voorheen.
+tok_cfg="$k_dir/token.curl"
+tok_auth() {  # tok_auth: zet tok_h op de curl-argumenten voor het token
+    local t=${TOKEN//\\/\\\\}
+    t=${t//\"/\\\"}
+    if [ -n "$TOKEN" ] && (umask 077 && printf 'header = "X-Agent-Token: %s"\n' "$t" >"$tok_cfg.new" && mv -f "$tok_cfg.new" "$tok_cfg") 2>/dev/null; then
+        tok_h=(-K "$tok_cfg")
+    else
+        tok_h=(-H "X-Agent-Token: $TOKEN")
+    fi
 }
 # Wie we zijn: met de eigen sleutel alleen het kenmerk (X-Agent-Key), anders het token
 set_auth() {
@@ -831,8 +869,10 @@ set_auth() {
     if [ -n "$own_key" ] && [ "$enc_key" = "$own_key" ]; then
         kid=$(enc_sub "$own_key" id | cut -c1-16)
         auth=(-H "X-Agent-Key: $kid")
+        rm -f "$tok_cfg" 2>/dev/null
     else
-        auth=(-H "X-Agent-Token: $TOKEN")
+        tok_auth
+        auth=("${tok_h[@]}")
     fi
 }
 set_auth
@@ -843,10 +883,11 @@ get_auth() {
     if [ -n "$kid" ]; then
         local t s
         t=$(date +%s); get_n=$(openssl rand -hex 16)
-        s=$(printf 'rzget1|%s|%s|%s' "$1" "$t" "$get_n" | openssl dgst -sha256 -mac HMAC -macopt "hexkey:$(enc_sub "$own_key" mac)" 2>/dev/null | sed 's/^.*= *//')
+        s=$(printf 'rzget1|%s|%s|%s' "$1" "$t" "$get_n" | hmac_hex "$(enc_sub "$own_key" mac)")
         ga=(-H "X-Agent-Auth: $kid:$t:$get_n:$s")
     else
-        ga=(-H "X-Agent-Token: $TOKEN")
+        tok_auth
+        ga=("${tok_h[@]}")
         if [ -n "$enc_key" ]; then get_n=$(openssl rand -hex 16) && ga+=(-H "X-Agent-Enc: $(enc_sub "$enc_key" id | cut -c1-16):$get_n"); fi
     fi
 }
@@ -1106,11 +1147,13 @@ if [ "$TEST" = 1 ]; then
         hint "Let op: er is een proxy ingesteld (http_proxy/https_proxy). Zet RzSense zo nodig in no_proxy."
     fi
 
-    curl_t=(-sS -m 15 -o /tmp/rzmon-test.$$ -w '%{http_code} %{redirect_url}' "${tls[@]}")
+    # Agent 1.87.0: eigen tijdelijke map (geen vaste naam in /tmp)
+    tt_dir=$(mktemp -d "${TMPDIR:-/tmp}/rzmon-test.XXXXXX") || tt_dir=$t_dir
+    curl_t=(-sS -m 15 -o "$tt_dir/body" -w '%{http_code} %{redirect_url}' "${tls[@]}")
 
     # 5. Draait daar RzSense?
-    read -r code redirect < <(curl "${curl_t[@]}" "$base/api.php?action=ping" 2>/tmp/rzmon-test-err.$$ || true)
-    body=$(cat /tmp/rzmon-test.$$ 2>/dev/null); err=$(cat /tmp/rzmon-test-err.$$ 2>/dev/null)
+    read -r code redirect < <(curl "${curl_t[@]}" "$base/api.php?action=ping" 2>"$tt_dir/err" || true)
+    body=$(cat "$tt_dir/body" 2>/dev/null); err=$(cat "$tt_dir/err" 2>/dev/null)
     old_rzmon=0
     if [ "$code" = 200 ] && [[ "$body" == *'"app":"RzMon"'* ]]; then
         rz_version=$(sed -n 's/.*"version":"\([^"]*\)".*/\1/p' <<<"$body")
@@ -1138,7 +1181,7 @@ if [ "$TEST" = 1 ]; then
         fail "Onverwacht antwoord van $base (HTTP $code)"
         [ -n "$body" ] && hint "${body:0:200}"
     fi
-    if [ "$TEST_FAILED" = 1 ]; then rm -f /tmp/rzmon-test.$$ /tmp/rzmon-test-err.$$; stop; fi
+    if [ "$TEST_FAILED" = 1 ]; then rm -f "$tt_dir/body" "$tt_dir/err"; [ "$tt_dir" != "$t_dir" ] && rmdir "$tt_dir" 2>/dev/null; stop; fi
 
     # 6. Token, of de eigen sleutel (dan is het antwoord versleuteld: zo weet de agent dat het echt RzSense is)
     if [ -n "$pin" ] && [ "${#tls[@]}" -gt 1 ]; then pass "Certificaat van RzSense vastgezet (📌 sha256//${pin:0:12}…)"
@@ -1158,14 +1201,14 @@ if [ "$TEST" = 1 ]; then
     elif [ "$tk_code" = 403 ]; then
         fail "$([ -n "$kid" ] && echo "Sleutel" || echo "Token") geweigerd: $(sed -n 's/.*"reason":"\([^"]*\)".*/\1/p' <<<"$tk_body")"
         hint "Maak in RzSense een koppelcode (server → Agent Manager → 🔗 Koppelcode) en voer het commando uit"
-        rm -f /tmp/rzmon-test.$$ /tmp/rzmon-test-err.$$
+        rm -f "$tt_dir/body" "$tt_dir/err"; [ "$tt_dir" != "$t_dir" ] && rmdir "$tt_dir" 2>/dev/null
         stop
     elif [ "$old_rzmon" = 1 ]; then
         hint "Tokencontrole overgeslagen (oudere RzSense-versie); het proefrapport hieronder test het token wel"
     else
         fail "Tokencontrole gaf HTTP $tk_code: ${tk_body:0:150}"
     fi
-    rm -f /tmp/rzmon-test.$$ /tmp/rzmon-test-err.$$
+    rm -f "$tt_dir/body" "$tt_dir/err"; [ "$tt_dir" != "$t_dir" ] && rmdir "$tt_dir" 2>/dev/null
 fi
 
 # ---------------------------------------------------------------- Status en instellingen (1.60.0)
@@ -2711,8 +2754,8 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
         local f=$2 st="$w_dir/$1.pos" ino size pino pos
         ino=$(stat -c %i "$f" 2>/dev/null) && size=$(stat -c %s "$f" 2>/dev/null) || return 1
         read -r pino pos 2>/dev/null <"$st"
-        echo "$ino $size" >"$st"
-        [ -n "$pino" ] || return 0
+        [ -n "$pino" ] || { echo "$ino $size" >"$st"; return 0; }
+        echo "$ino $size" >"$st.new"   # agent 1.87.0: pas na een geslaagd rapport de nieuwe positie (anders gaan regels verloren)
         if [ "$pino" != "$ino" ] || [ "${pos:-0}" -gt "$size" ]; then pos=0; fi   # geroteerd of nieuw
         tail -c +$(( ${pos:-0} + 1 )) "$f" 2>/dev/null | head -c $(( size - ${pos:-0} )) | tail -n 20000
     }
@@ -2720,21 +2763,27 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
         local c
         for c in docker podman; do
             command -v "$c" >/dev/null 2>&1 || continue
-            "$c" ps --format '{{.Names}} {{.Image}}' 2>/dev/null | awk -v p="$1" 'tolower($2) ~ p { print $1; exit }' && return 0
+            local out
+            out=$(timeout 15 "$c" ps --format '{{.Names}} {{.Image}}' 2>/dev/null | awk -v p="$1" 'tolower($2) ~ p { print $1; exit }')
+            [ -n "$out" ] && { echo "$out"; return 0; }   # agent 1.87.0: niet gevonden bij docker? Dan nog podman
         done
+        return 1
     }
     wl_mount() {  # wl_mount <container> <pad in de container>: map op de host
         local c
         for c in docker podman; do
             command -v "$c" >/dev/null 2>&1 || continue
-            "$c" inspect -f '{{range .Mounts}}{{.Destination}} {{.Source}}{{"\n"}}{{end}}' "$1" 2>/dev/null | awk -v d="$2" '$1 == d { print $2; exit }' && return 0
+            local out
+            out=$(timeout 15 "$c" inspect -f '{{range .Mounts}}{{.Destination}} {{.Source}}{{"\n"}}{{end}}' "$1" 2>/dev/null | awk -v d="$2" '$1 == d { print $2; exit }')
+            [ -n "$out" ] && { echo "$out"; return 0; }
         done
+        return 1
     }
     wl_ctr_ips() {  # "IP=naam IP=naam …" van de draaiende containers: welke dienst zit achter de proxy (agent 1.86.0)
         local c
         for c in docker podman; do
             command -v "$c" >/dev/null 2>&1 || continue
-            "$c" ps -q 2>/dev/null | head -n 200 | xargs -r "$c" inspect -f '{{.Name}}{{range .NetworkSettings.Networks}} {{.IPAddress}}{{end}}' 2>/dev/null \
+            timeout 15 "$c" ps -q 2>/dev/null | head -n 200 | xargs -r timeout 15 "$c" inspect -f '{{.Name}}{{range .NetworkSettings.Networks}} {{.IPAddress}}{{end}}' 2>/dev/null \
                 | awk '{ n = $1; sub(/^\//, "", n); for (i = 2; i <= NF; i++) if ($i != "") printf "%s=%s ", $i, n }'
             return 0
         done
@@ -2938,9 +2987,18 @@ if [ "$edr_want" = 1 ] && [ "$TEST" != 1 ]; then
     if [ -s "$edr_spool" ]; then
         mv -f "$edr_spool" "$edr_spool.tmp" 2>/dev/null && { cat "$edr_spool.tmp" >>"$e_send"; rm -f "$edr_spool.tmp"; }
     fi
+    # Agent 1.87.0: de wachtrij begrenzen (bv. als RzSense een dag weg is): de nieuwste 20.000 bewaren, de rest tellen als weggegooid
+    if [ -s "$e_send" ]; then
+        e_n=$(wc -l <"$e_send")
+        if [ "$e_n" -gt 20000 ]; then
+            tail -n 20000 "$e_send" >"$e_send.tmp" && mv -f "$e_send.tmp" "$e_send"
+            echo $(( $(cat "$edr_dir/edr.drop" 2>/dev/null || echo 0) + e_n - 20000 )) >"$edr_dir/edr.drop" 2>/dev/null
+        fi
+    fi
     e_ev=""
     if [ -s "$e_send" ]; then
-        e_ev=$(head -n 500 "$e_send" | grep -E '^\{.*\}$' | tr '\n' ',' | sed 's/,$//')
+        e_take=500; [ "${e_n:-0}" -gt 5000 ] && e_take=2000   # lange wachtrij: sneller inhalen
+        e_ev=$(head -n "$e_take" "$e_send" | grep -E '^\{.*\}$' | tr '\n' ',' | sed 's/,$//')
     fi
     edr_json="{\"ev\":[$e_ev],\"info\":{\"audit\":\"$e_audit\",\"file\":\"$e_file\",\"ctr\":\"$e_ctr\",\"fam\":\"$e_fam\",\"epel\":$e_epel,\"watch\":\"$e_watch\",\"systemd\":$e_sys,\"drop\":$e_drop,\"queue\":$(wc -l 2>/dev/null <"$e_send" || echo 0),\"yara\":\"$e_yara\",\"ysha\":\"$e_ysha\",\"sur\":\"$e_sur\"}${e_alerts:+,\"sur\":[$e_alerts]}}"
 elif [ "$edr_want" = 0 ] && [ "$(id -u)" = 0 ] && [ "$HA_MODE" = 0 ]; then
@@ -4006,6 +4064,11 @@ remote_update() {  # remote_update <antwoord van RzSense>
     sha_s=$(sed -n 's/.*"update":[[:space:]]*{[^}]*"setup_sha256":[[:space:]]*"\([0-9a-f]\{64\}\)".*/\1/p' <<<"$1")
     case "$upd_via" in systemd|direct) ;; *) return 0 ;; esac
     [ -n "$want" ] && [ -n "$sha_a" ] && [ -n "$sha_s" ] || return 0
+    # Agent 1.87.0: nooit terug naar een oudere versie (ook niet als die netjes ondertekend is: die kan een bekende fout hebben)
+    if [ "$want" != "$AGENT_VERSION" ] && [ "$(printf '%s\n%s\n' "$want" "$AGENT_VERSION" | sort -V | tail -1)" = "$AGENT_VERSION" ]; then
+        printf 'error %s\n' "versie $want is ouder dan $AGENT_VERSION: niet teruggezet" >"$upd_dir/update.result" 2>/dev/null
+        return 0
+    fi
     mkdir -p "$upd_dir" 2>/dev/null && [ -w "$upd_dir" ] || return 0
     # Loopt er al een update (minder dan 10 minuten geleden gestart)? Dan niet nog een.
     if [ -f "$upd_dir/update.lock" ] && [ $(( $(date +%s) - $(stat -c %Y "$upd_dir/update.lock" 2>/dev/null || echo 0) )) -lt 600 ]; then
@@ -4042,6 +4105,13 @@ remote_update() {  # remote_update <antwoord van RzSense>
         if [ "$s_a" = 1 ] || [ "$s_s" = 1 ]; then
             upd_fail "handtekening klopt niet: deze versie komt niet van de ontwikkelaar; niet bijgewerkt"
             echo bad >"$upd_dir/update.sig"
+            return 0
+        fi
+        # Agent 1.87.0: OpenSSL ouder dan 3.0 kan de handtekening niet controleren: dan niet bijwerken, tenzij je dat zelf
+        # toestaat (UPDATE_OLD_OPENSSL=1); anders kon een overgenomen RzSense op zulke servers toch eigen code zetten
+        if { [ "$s_a" = 2 ] || [ "$s_s" = 2 ]; } && [ "${UPDATE_OLD_OPENSSL:-0}" != 1 ]; then
+            upd_fail "handtekening niet te controleren (OpenSSL ouder dan 3.0): niet bijgewerkt; zet UPDATE_OLD_OPENSSL=1 in /etc/default/rzmon-agent om toch bij te werken"
+            echo old_openssl >"$upd_dir/update.sig"
             return 0
         fi
         if [ "$s_a" = 2 ]; then echo old_openssl >"$upd_dir/update.sig"; else echo ok >"$upd_dir/update.sig"; fi
@@ -4111,7 +4181,7 @@ if [ -d "$hb_dir" ]; then
             rm -f "$f"   # geen geldige regel: weg
         fi
         [ ${#hb_files[@]} -ge 100 ] && break
-    done < <(ls -1tr "$hb_dir"/hb.* 2>/dev/null)
+    done < <(find "$hb_dir" -maxdepth 1 -name 'hb.*' -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | head -n 200 | cut -d' ' -f2-)   # agent 1.87.0: zonder glob (veel bestanden)
     # Map voor rzmon-hb: iedereen mag erin schrijven, maar niemand mag lezen of andermans regels weghalen
     [ "$(id -u)" = 0 ] && chmod 1733 "$hb_dir" 2>/dev/null
 elif [ "$(id -u)" = 0 ] && [ "$HA_MODE" != 1 ]; then
@@ -4124,8 +4194,10 @@ lap heal_report
 # waarin de waakhond RzSense niet bereikte
 heal_json=""; heal_cmds=""
 if [ -s "$heal_dir/done" ]; then
-    mv -f "$heal_dir/done" "$heal_dir/done.sending" 2>/dev/null
-    heal_json=$(grep -E '^\{"id":[0-9]+,"ok":[01],"t":[0-9]+,"m":"([^"\\]|\\.)*"\}$' "$heal_dir/done.sending" 2>/dev/null | tail -n 50 | paste -sd, -)
+    # Agent 1.87.0: hooguit 50 per rapport, de rest blijft voor het volgende (eerder gingen die verloren)
+    grep -E '^\{"id":[0-9]+,"ok":[01],"t":[0-9]+,"m":"([^"\\]|\\.)*"\}$' "$heal_dir/done" 2>/dev/null >"$heal_dir/done.all"; rm -f "$heal_dir/done"
+    [ -s "$heal_dir/done.sending" ] && { cat "$heal_dir/done.all" >>"$heal_dir/done.sending"; rm -f "$heal_dir/done.all"; } || mv -f "$heal_dir/done.all" "$heal_dir/done.sending"
+    heal_json=$(head -n 50 "$heal_dir/done.sending" | paste -sd, -)
 fi
 if [ "$HA_MODE" = 0 ] && [ -d "$HEAL_DIR" ]; then
     for hc_f in "$HEAL_DIR"/*; do
@@ -4549,7 +4621,7 @@ h_code=${resp##*$'\n'}; resp=${resp%$'\n'*}
 # Certificaat van RzSense past niet meer bij de vingerafdruk (curl 90), bv. een nieuw certificaat: één keer opnieuw
 # zonder vastzetten, maar alleen versleuteld. Het antwoord moet dan met onze sleutel ondertekend zijn (dat kan
 # alleen RzSense), en daarin staat de nieuwe vingerafdruk. Een ander certificaat met een vals antwoord: geweigerd.
-if [ "$rc" = 90 ] && [ -n "$seal_n" ]; then
+if [ "$rc" = 90 ] && [ -n "$seal_n" ] && [ -n "$kid" ]; then   # agent 1.87.0: alleen met de eigen sleutel (geen token naar een onbekende server)
     echo "Certificaat van RzSense is veranderd; controleren met de sleutel" >&2
     p_opts=(-fsS -m 20 -X POST -k -H "X-Agent-Pin-Fail: 1")   # RzSense bepaalt de vingerafdruk dan meteen opnieuw
     resp=$(curl "${p_opts[@]}" -H "Content-Type: application/json" "${auth[@]}" --data-binary "@$send_file" -w '\n%{http_code}' "${MONITOR_URL%/}/api.php?action=agent")
@@ -4706,9 +4778,13 @@ if [ "$rc" -eq 0 ]; then
     # Endpoint-bewaking: de meegestuurde gebeurtenissen zijn binnen; vraagt RzSense om processen meteen te stoppen?
     # (alleen versleuteld, en alleen als de starttijd klopt: nooit een ander proces dat dat nummer later kreeg)
     if [ -n "$edr_json" ] && [ -s "$edr_dir/edr.sending" ]; then
-        tail -n +501 "$edr_dir/edr.sending" >"$edr_dir/edr.rest" 2>/dev/null && mv -f "$edr_dir/edr.rest" "$edr_dir/edr.sending"
+        tail -n +$(( ${e_take:-500} + 1 )) "$edr_dir/edr.sending" >"$edr_dir/edr.rest" 2>/dev/null && mv -f "$edr_dir/edr.rest" "$edr_dir/edr.sending"
         [ -s "$edr_dir/edr.sending" ] || rm -f "$edr_dir/edr.sending"
         rm -f "$edr_dir/edr.drop"
+    fi
+    # Weblog (agent 1.87.0): ook de positie in de logbestanden pas nu bewaren
+    if [ -n "${w_dir-}" ]; then
+        for w_pos in "$w_dir"/*.pos.new; do [ -f "$w_pos" ] && mv -f "$w_pos" "${w_pos%.new}"; done
     fi
     # Suricata: de positie pas bewaren als het rapport is aangekomen
     [ -n "$edr_json" ] && [ -f "$edr_dir/eve.pos.new" ] && mv -f "$edr_dir/eve.pos.new" "$edr_dir/eve.pos"
@@ -4738,6 +4814,7 @@ if [ "$rc" -eq 0 ]; then
     fi
     [[ "$resp" =~ \"pkg_upgrade\":[[:space:]]*\{ ]] && [ -n "$pk_mgr" ] && pkg_upgrade "$resp"
     # Zelf herstellen: de uitkomsten zijn binnen; vraagt RzSense om een herstelcommando (alleen versleuteld)?
+    if [ -s "$heal_dir/done.sending" ]; then tail -n +51 "$heal_dir/done.sending" >>"$heal_dir/done"; [ -s "$heal_dir/done" ] || rm -f "$heal_dir/done"; fi
     rm -f "$heal_dir/done.sending" "$t_dir/watchdog.gap"
     if [ -n "$seal_n" ] && [ "$HEAL" != 0 ] && [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [[ "$resp" =~ \"heal_run\":\[(\[[0-9]+,\"[A-Za-z0-9._-]+\"\],?)+\] ]]; then
         while IFS=, read -r hr_id hr_name; do
@@ -4935,23 +5012,36 @@ if [ -n "$wd_line" ] && [ "$WATCHDOG" != 0 ] && [ "$TEST" != 1 ]; then
     [[ "$wd_prio" =~ ^-?[0-2]$ ]] || wd_prio=1
     # ntfy (agent 1.72.0): naast of in plaats van Pushover; JSON naar de server, prioriteit -2..2 wordt 1..5
     [[ "${wd_nsrv:--}" =~ ^https?://[^[:space:]]+$ ]] || wd_nsrv=-
-    [[ "${wd_ntop:--}" =~ ^[A-Za-z0-9_-]{1,64}$ ]] || wd_nsrv=-
+    if [ "$wd_nsrv" != - ] && ! [[ "${wd_ntop:--}" =~ ^[A-Za-z0-9_-]{1,64}$ ]]; then
+        echo "Waakhond: ntfy-onderwerp \"${wd_ntop:0:70}\" is ongeldig (alleen letters, cijfers, - en _): ntfy staat uit" >&2   # agent 1.87.0
+        wd_nsrv=-
+    fi
     wd_push() {  # wd_push <titel> <bericht> <prioriteit>: 0 = verstuurd (via minstens één dienst)
         local ok=1 extra=() auth=()
         if [ "$wd_user" != - ] && [ "$wd_token" != - ] && [ -n "$wd_user" ]; then
             [ "$3" = 2 ] && extra=(--form-string retry=120 --form-string expire=3600)
-            curl -fsS -m 15 -o /dev/null --form-string "token=$wd_token" --form-string "user=$wd_user" --form-string "title=$1" \
-                --form-string "message=$2" --form-string "priority=$3" "${extra[@]}" "$PUSHOVER_API" 2>/dev/null && ok=0
+            # Agent 1.87.0: het Pushover-token in een tijdelijk curl-configbestand (alleen root), niet op de opdrachtregel
+            local cf
+            cf=$(umask 077 && mktemp "$t_dir/wd.XXXXXX" 2>/dev/null) || cf=""
+            if [ -n "$cf" ] && printf 'form-string = "token=%s"\nform-string = "user=%s"\n' "${wd_token//\"/}" "${wd_user//\"/}" >"$cf"; then
+                curl -fsS -m 15 -o /dev/null -K "$cf" --form-string "title=$1" \
+                    --form-string "message=$2" --form-string "priority=$3" "${extra[@]}" "$PUSHOVER_API" 2>/dev/null && ok=0
+            fi
+            [ -n "$cf" ] && rm -f "$cf"
         fi
         if [ "$wd_nsrv" != - ]; then
+            local nf=""
             if [ -n "$wd_ntok" ] && [ "$wd_ntok" != - ]; then
+                nf=$(umask 077 && mktemp "$t_dir/wdn.XXXXXX" 2>/dev/null) || nf=""
                 case $wd_ntok in
-                    *:*) auth=(-u "$wd_ntok") ;;
-                    *) auth=(-H "Authorization: Bearer $wd_ntok") ;;
+                    *:*) [ -n "$nf" ] && printf 'user = "%s"\n' "${wd_ntok//\"/}" >"$nf" ;;
+                    *) [ -n "$nf" ] && printf 'header = "Authorization: Bearer %s"\n' "${wd_ntok//\"/}" >"$nf" ;;
                 esac
+                [ -n "$nf" ] && auth=(-K "$nf")
             fi
             printf '{"topic":"%s","title":"%s","message":"%s","priority":%s}' "$wd_ntop" "$(json_escape "$1" | tr '\n\t\r' '   ')" "$(json_escape "$2" | tr '\n\t\r' '   ')" "$(( $3 + 3 ))" |
                 curl -fsS -m 15 -o /dev/null -H 'Content-Type: application/json' "${auth[@]}" --data-binary @- "${wd_nsrv%/}" 2>/dev/null && ok=0
+            [ -n "$nf" ] && rm -f "$nf"
         fi
         return "$ok"
     }

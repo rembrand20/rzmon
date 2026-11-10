@@ -5,6 +5,20 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.87.0 – 2026-11-10
+- **Bijwerken alleen met een geldige handtekening**:
+  - ook het installatiescript (`rzmon-agent-setup`) wordt pas vervangen als zijn handtekening klopt; daarvoor kon een overgenomen RzSense via dat script toch eigen code laten draaien;
+  - bij `rzmon-agent-setup --update` zonder handtekening bij RzSense: niet bijgewerkt (tenzij `UPDATE_UNSIGNED=1`);
+  - **Let op, OpenSSL ouder dan 3.0** (bv. RHEL/Rocky 8): die kan de handtekening niet controleren. Dan werkt de agent niet meer vanzelf bij, tenzij je `UPDATE_OLD_OPENSSL=1` in `/etc/default/rzmon-agent` zet. RzSense toont de reden bij de agent;
+  - nooit terug naar een oudere versie, ook niet als die ondertekend is.
+- **Geen sleutels en tokens meer in `ps`**: de HMAC-handtekeningen rekent de agent zelf uit via stdin, het token en de Pushover-/ntfy-gegevens gaan via een curl-configbestand dat alleen root kan lezen. Eerder kon iedere gebruiker op de server ze zien in de proceslijst. Bij een certificaatwissel stuurt de agent het token niet meer naar een niet-gecontroleerde server.
+- **EDR-wachtrij begrensd**: was RzSense lang onbereikbaar, dan kon de wachtrij gigabytes groot worden. Nu hooguit 20.000 gebeurtenissen (de nieuwste; de rest telt als weggegooid), en bij een lange wachtrij stuurt de agent er meer per keer.
+- **Logregels met tabs of kleurcodes** braken de JSON van het rapport, waardoor de diepe servicechecks een kwartier wegvielen. Stuurtekens gaan er nu uit, tabs en regeleindes worden netjes doorgegeven.
+- **Reverse proxy zoeken**: docker en podman hebben nu een tijdslimiet (een hangende dockerd houdt de agent niet meer op), en als docker niets vindt kijkt de agent ook bij podman.
+- **Niets meer kwijt**: de positie in de logbestanden van je reverse proxy en de uitkomsten van herstelacties (meer dan 50) blijven bewaard tot het rapport echt is aangekomen.
+- **Geen vaste bestandsnamen in `/tmp`**: kan de agent zijn eigen map niet gebruiken, dan een map in je home of een nieuwe privé-map (nooit sleutels los in `/tmp`); ook het installatiescript en `--test` gebruiken nu `mktemp`. Heartbeat-bestanden zijn alleen nog leesbaar voor de eigenaar, en heel veel heartbeat-bestanden laten de agent niet meer vastlopen.
+- Waakhond: een ongeldig ntfy-onderwerp geeft nu een melding in het logboek (eerder stond ntfy dan stil uit). Home Assistant-add-on: de koppelcode staat als wachtwoordveld.
+
 ## 1.86.1 – 2026-11-10
 - **Tokens en wachtwoorden in adressen weggelakt** (logs van webdiensten): staat er in een pad of verwijzer iets als `?token=…`, `password=…`, `api_key=…`, `sig=…` of `*_token=…`, dan stuurt de agent alleen `token=***` naar RzSense. Zo'n geheim verlaat de server niet meer.
 

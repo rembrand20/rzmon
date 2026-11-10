@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.221.0**: **bijwerken veel sneller**: snelle back-up en alleen doen wat nodig is (van minuten naar seconden).
 - **1.220.0**: **mDS per soort** met netwerk en ping, en een **veel snellere IDS-pagina**.
 
+## 1.224.2 – 2026-11-10
+### Opgelost
+- **Nieuwe agent 1.87.0** (zie de changelog van de agent): bijwerken alleen met een geldige handtekening (ook het installatiescript, en nooit terug naar een oudere versie), geen sleutels of tokens meer zichtbaar in de proceslijst, een begrensde EDR-wachtrij, geen kapotte rapporten meer door tabs of kleurcodes in logregels, docker/podman met een tijdslimiet, en geen vaste bestandsnamen in `/tmp`. **Let op**: op servers met OpenSSL ouder dan 3.0 (bv. RHEL/Rocky 8) werkt de agent daarna alleen nog vanzelf bij met `UPDATE_OLD_OPENSSL=1` in `/etc/default/rzmon-agent`.
+- De workflow die de agent ondertekent faalt nu echt als het pushen van de handtekeningen niet lukt (eerder kon hij groen worden zonder handtekeningen).
+
 ## 1.224.1 – 2026-11-10
 ### Opgelost (beveiliging)
 - **Setup tijdens een databasestoring**: was de database even niet bereikbaar, dan stond de installatiepagina weer open, en kon iemand op je netwerk (of van buiten, achter een lokale reverse proxy) een eigen database in `config.php` zetten. Nu kan setup dan niets veranderen, behalve bij een nieuwe installatie (config.php jonger dan 2 uur) of vanaf de server zelf.

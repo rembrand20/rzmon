@@ -174,7 +174,7 @@ h_code=${resp##*$'\n'}; resp=${resp%$'\n'*}
 # Certificaat van RzSense past niet meer bij de vingerafdruk (curl 90), bv. een nieuw certificaat: één keer opnieuw
 # zonder vastzetten, maar alleen versleuteld. Het antwoord moet dan met onze sleutel ondertekend zijn (dat kan
 # alleen RzSense), en daarin staat de nieuwe vingerafdruk. Een ander certificaat met een vals antwoord: geweigerd.
-if [ "$rc" = 90 ] && [ -n "$seal_n" ]; then
+if [ "$rc" = 90 ] && [ -n "$seal_n" ] && [ -n "$kid" ]; then   # agent 1.87.0: alleen met de eigen sleutel (geen token naar een onbekende server)
     echo "Certificaat van RzSense is veranderd; controleren met de sleutel" >&2
     p_opts=(-fsS -m 20 -X POST -k -H "X-Agent-Pin-Fail: 1")   # RzSense bepaalt de vingerafdruk dan meteen opnieuw
     resp=$(curl "${p_opts[@]}" -H "Content-Type: application/json" "${auth[@]}" --data-binary "@$send_file" -w '\n%{http_code}' "${MONITOR_URL%/}/api.php?action=agent")
@@ -331,9 +331,13 @@ if [ "$rc" -eq 0 ]; then
     # Endpoint-bewaking: de meegestuurde gebeurtenissen zijn binnen; vraagt RzSense om processen meteen te stoppen?
     # (alleen versleuteld, en alleen als de starttijd klopt: nooit een ander proces dat dat nummer later kreeg)
     if [ -n "$edr_json" ] && [ -s "$edr_dir/edr.sending" ]; then
-        tail -n +501 "$edr_dir/edr.sending" >"$edr_dir/edr.rest" 2>/dev/null && mv -f "$edr_dir/edr.rest" "$edr_dir/edr.sending"
+        tail -n +$(( ${e_take:-500} + 1 )) "$edr_dir/edr.sending" >"$edr_dir/edr.rest" 2>/dev/null && mv -f "$edr_dir/edr.rest" "$edr_dir/edr.sending"
         [ -s "$edr_dir/edr.sending" ] || rm -f "$edr_dir/edr.sending"
         rm -f "$edr_dir/edr.drop"
+    fi
+    # Weblog (agent 1.87.0): ook de positie in de logbestanden pas nu bewaren
+    if [ -n "${w_dir-}" ]; then
+        for w_pos in "$w_dir"/*.pos.new; do [ -f "$w_pos" ] && mv -f "$w_pos" "${w_pos%.new}"; done
     fi
     # Suricata: de positie pas bewaren als het rapport is aangekomen
     [ -n "$edr_json" ] && [ -f "$edr_dir/eve.pos.new" ] && mv -f "$edr_dir/eve.pos.new" "$edr_dir/eve.pos"
@@ -363,6 +367,7 @@ if [ "$rc" -eq 0 ]; then
     fi
     [[ "$resp" =~ \"pkg_upgrade\":[[:space:]]*\{ ]] && [ -n "$pk_mgr" ] && pkg_upgrade "$resp"
     # Zelf herstellen: de uitkomsten zijn binnen; vraagt RzSense om een herstelcommando (alleen versleuteld)?
+    if [ -s "$heal_dir/done.sending" ]; then tail -n +51 "$heal_dir/done.sending" >>"$heal_dir/done"; [ -s "$heal_dir/done" ] || rm -f "$heal_dir/done"; fi
     rm -f "$heal_dir/done.sending" "$t_dir/watchdog.gap"
     if [ -n "$seal_n" ] && [ "$HEAL" != 0 ] && [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [[ "$resp" =~ \"heal_run\":\[(\[[0-9]+,\"[A-Za-z0-9._-]+\"\],?)+\] ]]; then
         while IFS=, read -r hr_id hr_name; do
