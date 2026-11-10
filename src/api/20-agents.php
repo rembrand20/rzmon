@@ -8,7 +8,7 @@ declare(strict_types=1);
  * @var array<string, mixed> $user
  * @var callable(int): void $ownOnly
  * @var callable(string): void $confirm
- * @var callable(array<string, mixed>, bool=): array<string, mixed> $checkCols
+ * @var callable(array<string, mixed>, bool=): array{array<string, mixed>, bool} $checkCols
  */
 defined('RZ_API') || exit;
 

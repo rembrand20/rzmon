@@ -4,6 +4,7 @@ declare(strict_types=1);
 // Onderdeel van public/api.php (1.225.0): acties: IDS, kwetsbaarheden, hardening, tijdlijn per IP.
 // Alleen via api.php: de variabelen hieronder (gebruiker, rechten, bevestigen …) komen daarvandaan.
 /**
+ * @var string $action
  * @var array<string, mixed> $user
  * @var bool $isAdmin
  * @var callable(string): void $confirm

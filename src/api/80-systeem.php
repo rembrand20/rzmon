@@ -4,6 +4,7 @@ declare(strict_types=1);
 // Onderdeel van public/api.php (1.225.0): acties: commando's op agents, bijwerken, back-up, wachtwoord.
 // Alleen via api.php: de variabelen hieronder (gebruiker, rechten, bevestigen …) komen daarvandaan.
 /**
+ * @var string $action
  * @var array<string, mixed> $user
  * @var callable(string): void $confirm
  */

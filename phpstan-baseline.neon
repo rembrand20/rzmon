@@ -22,7 +22,7 @@ parameters:
 			message: '#^Ternary operator condition is always true\.$#'
 			identifier: ternary.alwaysTrue
 			count: 1
-			path: public/api.php
+			path: src/api/functies.php
 
 		-
 			message: '#^Call to function method_exists\(\) with ''ZipArchive'' and ''setEncryptionName'' will always evaluate to true\.$#'
