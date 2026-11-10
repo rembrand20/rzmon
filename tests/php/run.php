@@ -2319,5 +2319,34 @@ for ($i = 0; $i < 45; $i++) {
 }
 ok(Retention::deleteBatched('DELETE FROM ci_del WHERE v > ?', [0]) === 45000 && !q('SELECT COUNT(*) FROM ci_del')->fetchColumn(), 'opruimen in stukjes: alles weg, in meerdere rondes');
 
+section('Logboek per server (1.226.0)');
+q("INSERT INTO hosts (name, address, mode) VALUES ('ci-log', '10.0.0.96', 'agent')");
+$hl = (int) db()->lastInsertId();
+$hostRow = q('SELECT * FROM hosts WHERE id = ?', [$hl])->fetch();
+$ev = ['act' => [
+    ['id' => '1700000000-1-1-1', 't' => time() - 60, 'm' => 'firewall', 'ok' => 1, 'a' => 'Firewall bijgewerkt', 'd' => "3 geblokkeerde IP's"],
+    ['id' => '1700000000-1-2-2', 't' => time() - 30, 'm' => 'onzin', 'ok' => 0, 'a' => "EDR\x01 mislukt", 'd' => ''],
+    ['id' => 'x', 't' => time(), 'm' => 'edr', 'ok' => 1, 'a' => 'ongeldig kenmerk', 'd' => ''],
+]];
+ActionLog::fromAgent($hostRow, $ev);
+ActionLog::fromAgent($hostRow, $ev);   // opnieuw verstuurd (store-and-forward): niet dubbel
+$rows = q('SELECT module, action, ok FROM host_actions WHERE host_id = ? ORDER BY id', [$hl])->fetchAll();
+ok(count($rows) === 2, 'logboek: regels van de agent één keer opgeslagen, ook als hij ze opnieuw stuurt; een ongeldig kenmerk telt niet');
+ok($rows[1]['module'] === 'agent' && $rows[1]['action'] === 'EDR mislukt' && (int) $rows[1]['ok'] === 0, 'logboek: onbekend onderdeel wordt "agent", stuurtekens eruit, mislukt blijft mislukt');
+ChangeLog::record('host', $hl, 'update', 'ci-log (⏱)', ['agent_tick' => null, 'name' => 'ci-log'], ['agent_tick' => 120, 'name' => 'ci-log']);
+ChangeLog::record('host', $hl, 'update', 'ci-log (🔗)', ['agent_token' => 'geheim1'], ['agent_token' => 'geheim2']);
+$list = ActionLog::list(['host_id' => $hl, 'days' => 1]);
+$chg = array_values(array_filter($list, static fn($r) => $r['kind'] === 'change'));
+ok(count($list) === 4 && count($chg) === 2 && str_contains($chg[1]['detail'] . $chg[0]['detail'], 'agent_tick: – → 120'), 'logboek: acties en wijzigingen van de server samen in één lijst');
+ok(!str_contains(json_encode($list), 'geheim'), 'logboek: tokens staan nooit in de lijst');
+ok(count(ActionLog::list(['host_id' => $hl, 'days' => 1, 'ok' => '0'])) === 1 && count(ActionLog::list(['host_id' => $hl, 'days' => 1, 'module' => 'firewall'])) === 1, 'logboek: filter op mislukt en op onderdeel');
+ok(count(ActionLog::list(['host_id' => $hl, 'days' => 1, 'source' => 'agent'])) === 2, 'logboek: filter op bron (alleen de agent)');
+$csv = ActionLog::csv([['at' => now(), 'host' => 'x', 'source' => 'user', 'module' => 'agent', 'action' => '=HYPERLINK("x")', 'detail' => '', 'ok' => true, 'username' => 'a', 'ip' => '']]);
+ok(str_contains($csv, "'=HYPERLINK"), 'logboek: CSV zonder Excel-formules');
+q("UPDATE host_actions SET at = NOW() - INTERVAL 400 DAY WHERE host_id = ? AND module = 'firewall'", [$hl]);
+ActionLog::purge();
+ok((int) q('SELECT COUNT(*) FROM host_actions WHERE host_id = ?', [$hl])->fetchColumn() === 1, 'logboek: opruimen na de bewaartermijn (standaard 365 dagen)');
+q('DELETE FROM hosts WHERE id = ?', [$hl]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

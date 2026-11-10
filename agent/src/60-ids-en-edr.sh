@@ -391,8 +391,12 @@ fw_build() {  # opnieuw opbouwen als de lijst of de lokaas-poort veranderde; zet
     if ! nft list table inet rzmon >/dev/null 2>&1 || [ "$(cat "$i_dir/fw.sig" 2>/dev/null)" != "$sig" ]; then
         if fw_apply "counter;" || fw_apply ""; then
             echo "$sig" >"$i_dir/fw.sig"
+            # Agent 1.89.0: in het logboek, met de aantallen (blokkades, bekende aanvallers, lokaas-poort, uitgaand)
+            fw_cnt=$(printf '%s' "$want4$want6" | tr -cd ',' | wc -c); kn_cnt=$(printf '%s' "$kn4$kn6" | tr -cd ',' | wc -c)
+            act_log firewall 1 "Firewall bijgewerkt" "$fw_cnt geblokkeerde IP's · $kn_cnt netten van bekende aanvallers${decoy_port:+ · lokaas-poort $decoy_port}$([ "$outblock" = 1 ] && echo ' · ook uitgaand')"
         else
             fw_err=$(head -c 200 "$i_dir/fw.err" | json_text)
+            [ "$(cat "$i_dir/fw.errsig" 2>/dev/null)" != "$sig" ] && { act_log firewall 0 "Firewall bijwerken mislukt" "$(head -c 200 "$i_dir/fw.err")"; echo "$sig" >"$i_dir/fw.errsig"; }
         fi
     fi
 }
@@ -633,7 +637,7 @@ edr_rules() {  # edr_rules on|off: 0 = gelukt (of niets te doen)
     local k have a p
     have=$(auditctl -l 2>/dev/null | grep -c 'key=rzmon_')
     if [ "$1" = off ]; then
-        [ "$have" -gt 0 ] && for k in $edr_keys; do auditctl -D -k "$k" >/dev/null 2>&1; done
+        [ "$have" -gt 0 ] && { for k in $edr_keys; do auditctl -D -k "$k" >/dev/null 2>&1; done; act_log edr 1 "EDR-regels uit auditd gehaald"; }
         return 0
     fi
     [ "$have" -ge 3 ] && return 0
@@ -646,7 +650,12 @@ edr_rules() {  # edr_rules on|off: 0 = gelukt (of niets te doen)
         [ -e "$p" ] && auditctl -w "$p" -p wa -k rzmon_persist >/dev/null 2>&1
     done
     auditctl -a always,exit -F arch=b64 -S init_module -S finit_module -k rzmon_mod >/dev/null 2>&1
-    [ "$(auditctl -l 2>/dev/null | grep -c 'key=rzmon_')" -gt 0 ]
+    have=$(auditctl -l 2>/dev/null | grep -c 'key=rzmon_')
+    if [ "$have" -gt 0 ]; then act_log edr 1 "EDR-regels in auditd gezet" "$have regels (programma's, gebruikers, persistentie, kernelmodules)"
+    elif [ ! -f "$t_dir/edr.failnote" ] || [ -n "$(find "$t_dir/edr.failnote" -mmin +60 2>/dev/null)" ]; then
+        act_log edr 0 "EDR-regels zetten mislukt" "auditctl nam geen regels aan"; : >"$t_dir/edr.failnote"   # hooguit eens per uur
+    fi
+    [ "$have" -gt 0 ]
 }
 edr_want=0
 [ "$EDR" != 0 ] && [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && grep -q $'^0\tedr\t1' "$t_cache" && edr_want=1

@@ -811,6 +811,16 @@ async function loadFeatures() {
   $('#feat-q').oninput = (e) => { featF.q = e.target.value; featRender(); };
   $('#feat-g').onchange = (e) => { featF.g = e.target.value; featRender(); };
   $('#feat-st').onchange = (e) => { featF.st = e.target.value; featRender(); };
+  box.onchange = async (e) => {   // 1.226.0: aan/uit meteen vanuit het overzicht
+    const t = e.target.closest('[data-feat-tog]');
+    if (!t) return;
+    try {
+      const r = await api('feature_toggle', { key: t.dataset.featTog, on: t.checked });
+      featData.rows = r.rows;
+      featRender();
+      toast(t.checked ? L('Aangezet') : L('Uitgezet'));
+    } catch (ex) { t.checked = !t.checked; toast(ex.message, 'err'); }
+  };
   box.onclick = (e) => {
     const s = e.target.closest('[data-feat-st]');
     if (s) { featF.st = featF.st === s.dataset.featSt ? '' : s.dataset.featSt; $('#feat-st').value = featF.st; featRender(); return; }
@@ -833,7 +843,7 @@ function featRender() {
     return `<tr class="feat-r-${r.status}"><td class="feat-g">${ic} ${esc(gn)}</td>
       <td><b>${esc(r.name)}</b><small>${esc(r.what)}</small></td>
       <td class="feat-v">${esc(r.since)}</td>
-      <td><span class="feat-pill feat-st-${r.status}">${st[r.status][0]} ${esc(st[r.status][1])}</span></td>
+      <td>${r.toggle && isAdmin() ? `<label class="switch small" title="${esc(L('Aan of uit'))}"><input type="checkbox" data-feat-tog="${esc(r.toggle)}" ${r.status === 'on' ? 'checked' : ''}><span></span></label> ` : ''}<span class="feat-pill feat-st-${r.status}">${st[r.status][0]} ${esc(st[r.status][1])}</span></td>
       <td class="feat-go">${canGo ? `<button type="button" class="btn small-btn" data-feat-go="${esc(r.sec)}">${r.sec.startsWith('#') ? L('Openen') : (isAdmin() ? '⚙️ ' + L('Instellen') : L('Bekijken'))} →</button>` : ''}</td></tr>`;
   }).join('') || `<tr><td colspan="5" class="muted">${L('Geen functies gevonden.')}</td></tr>`;
   $('#feat-foot').textContent = L('{n} van {t} functies', { n: rows.length, t: featData.rows.length });

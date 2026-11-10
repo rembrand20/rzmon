@@ -1496,3 +1496,24 @@ CREATE TABLE IF NOT EXISTS ids_triage (
     last_used  DATETIME     NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('ai_triage_max', '20');
+
+-- 1.226.0: logboek per server: wat de agent, RzSense of een beheerder op een server deed (acties, ingrepen, uitkomsten).
+-- source: user (een beheerder), rzsense (RzSense zelf, bv. automatisch isoleren), agent (de agent meldt wat hij deed).
+-- ok: 1 gelukt, 0 mislukt, NULL ter info. ref: kenmerk van de agent (tegen dubbel opslaan bij opnieuw versturen).
+CREATE TABLE IF NOT EXISTS host_actions (
+    id       BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id  INT UNSIGNED NULL,
+    at       DATETIME     NOT NULL,
+    source   VARCHAR(10)  NOT NULL DEFAULT 'rzsense',
+    module   VARCHAR(20)  NOT NULL DEFAULT 'agent',
+    action   VARCHAR(80)  NOT NULL,
+    detail   VARCHAR(1000) NOT NULL DEFAULT '',
+    ok       TINYINT(1)   NULL,
+    username VARCHAR(64)  NOT NULL DEFAULT '',
+    ip       VARCHAR(45)  NOT NULL DEFAULT '',
+    ref      VARCHAR(40)  NULL,
+    UNIQUE KEY uq_host_actions_ref (host_id, ref),
+    INDEX idx_host_actions_host (host_id, at),
+    INDEX idx_host_actions_at (at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('actlog_days', '365');

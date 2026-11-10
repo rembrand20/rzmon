@@ -1743,6 +1743,19 @@ Klik op een naam om de check te bewerken. Met 🙈 (*dit is normaal*) komt het p
 
 **🧪 Meldketen testen** (vanaf 1.97.0, *Instellingen → 🔔 Meldingen → Kanalen*): één testmelding door alle kanalen die aan staan (Pushover, e-mail, Home Assistant-webhook, MQTT en de meldingenpagina), met de opgeslagen instellingen, met per kanaal ✓ of ✕ en de fout.
 
+**📒 Logboek per server** (vanaf 1.226.0, agent 1.89.0; *Instellingen → Agents → Logboek*, en per server in de **Agent Manager**, kaart *Logboek*): alles wat er op een server gebeurde, in één lijst per dag, nieuwste eerst.
+- **Wat er in staat:**
+  - wat **de agent zelf** op de server veranderde: de firewall (blokkades, bekende aanvallers, lokaas-poort, met de aantallen), de EDR-regels in auditd, en de beschermingen die in de volgende versies komen (ransomware, updates, tijdelijk sudo);
+  - wat **RzSense** deed of vroeg: isoleren en opheffen, gebruikers vergrendelen, processen stoppen, zelf herstellen, pakketten bijwerken of onderdelen installeren, de agent bijwerken (met de uitkomst: ✔ gelukt, ✘ mislukt);
+  - wat **een beheerder** aanpaste aan de server en zijn checks (rapporteren, realtime, EDR, verbinding, commando-checks, logs, een nieuw token …), met de oude en de nieuwe waarde. Die wijzigingen komen uit het wijzigingslogboek en zijn daar **terug te zetten**.
+- **Bron:** 🧑 een beheerder (met gebruikersnaam en IP), 🤖 RzSense zelf, 🖥️ de agent.
+- **Filteren** op server, onderdeel, bron, periode en *alleen mislukt*, en **zoeken**. Met **⬇ CSV** download je de lijst (voor Excel, zonder formules).
+- **Geen regels kwijt:** de agent bewaart zijn regels tot RzSense ze heeft (ook als RzSense even onbereikbaar is), en elke regel heeft een eigen kenmerk, zodat hij nooit dubbel in het logboek komt.
+- **Bewaren:** standaard **1 jaar** (30 dagen tot 10 jaar). Wijzigingen aan servers en checks volgen de bewaartermijn van het wijzigingslogboek.
+- **Goed om te weten:** wachtwoorden, tokens en sleutels staan er nooit in. Het logboek staat altijd aan: het is je bewijs van wat er gebeurde (ook voor NIS2).
+
+**🔀 Functies aan en uit** (vanaf 1.226.0, *Instellingen → Overzicht → Functies*): bij een functie met een gewone aan/uit-instelling staat een **schakelaar** in de kolom Status; je zet hem daar meteen aan of uit (in het wijzigingslogboek). Wat meer vraagt (een sleutel, je wachtwoord, een keuze) stel je in via **⚙️ Instellen**.
+
 ### 7.13 Slimme drempels 🧠 (vanaf 1.107.0)
 Vaste drempels passen niet altijd: een CPU die elke nacht om 3:00 op 100% staat door de back-up, geeft elke nacht een warning, en een website die normaal in 120 ms antwoordt maar nu in 900 ms, merk je met een drempel van 1000 ms niet. Daarom kan RzSense per check **leren wat normaal is**, per uur van de week (maandag 3:00 is anders dan dinsdag 14:00), en daar de drempels op zetten.
 

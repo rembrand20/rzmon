@@ -69,6 +69,15 @@ if [ "$HA_MODE" = 0 ] && [ -d "$HEAL_DIR" ]; then
         [[ "$hc_n" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] && heal_cmd_ok "$hc_f" && heal_cmds+="${heal_cmds:+,}\"$hc_n\""
     done
 fi
+# Agent 1.89.0: logboek (act_log) meesturen: hooguit 100 regels per rapport, de rest blijft voor het volgende
+act_json=""
+if [ -s "$t_dir/act.log" ] || [ -s "$t_dir/act.sending" ]; then
+    if [ -s "$t_dir/act.log" ]; then
+        grep -E '^\{"id":"[A-Za-z0-9._-]{4,40}","t":[0-9]+,"m":"[a-z]{0,20}","ok":[012]?,"a":"([^"\\]|\\.)*","d":"([^"\\]|\\.)*"\}$' "$t_dir/act.log" 2>/dev/null >>"$t_dir/act.sending"
+        rm -f "$t_dir/act.log"
+    fi
+    act_json=$(head -n 100 "$t_dir/act.sending" 2>/dev/null | paste -sd, -)
+fi
 wd_file="$t_dir/watchdog"
 wd_gap=""
 [ -s "$wd_file.gap" ] && wd_gap=$(grep -E '^\{"down":[0-9]+,"up":[0-9]+,"sent":[01],"self":[01]\}$' "$wd_file.gap" | head -n 1)

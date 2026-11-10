@@ -731,7 +731,28 @@ switch ($action) {
 
     case 'host_token':
         q('UPDATE hosts SET agent_token = ? WHERE id = ?', [bin2hex(random_bytes(20)), (int) (input()['id'] ?? 0)]);
+        ActionLog::by((string) ($user['username'] ?? ''), (int) (input()['id'] ?? 0), 'agent', t('Nieuw token gemaakt'), t('het oude token werkt niet meer'));
         out(['ok' => true]);
+
+    // 1.226.0: logboek per server (acties en wijzigingen); host_id 0 = alle servers
+    case 'actlog':
+    case 'actlog_csv':
+        $f = ['host_id' => (int) ($_GET['host_id'] ?? 0), 'module' => preg_replace('/[^a-z]/', '', (string) ($_GET['module'] ?? '')),
+            'source' => in_array($_GET['source'] ?? '', ActionLog::SOURCES, true) ? (string) $_GET['source'] : '', 'days' => (int) ($_GET['days'] ?? 30),
+            'q' => (string) ($_GET['q'] ?? ''), 'ok' => (string) ($_GET['ok'] ?? ''), 'limit' => $action === 'actlog_csv' ? 1000 : (int) ($_GET['limit'] ?? 300)];
+        $rows = ActionLog::list($f);
+        if ($action === 'actlog_csv') {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="rzsense-logboek-' . date('Ymd-His') . '.csv"');
+            echo "\xEF\xBB\xBF" . ActionLog::csv($rows);
+            exit;
+        }
+        out(['items' => $rows, 'days' => ActionLog::days(), 'fails' => ActionLog::failsPerHost(), 'modules' => ActionLog::MODULES]);
+
+    case 'actlog_days':
+        $d = (int) (input()['days'] ?? 365);
+        save_setting('actlog_days', (string) (in_array($d, [30, 90, 180, 365, 730, 1095, 3650], true) ? $d : 365));
+        out(['ok' => true, 'days' => ActionLog::days()]);
 
     case 'host_delete':
         $id = (int) (input()['id'] ?? 0);

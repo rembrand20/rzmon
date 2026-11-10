@@ -1500,6 +1500,13 @@ function agentInstructions(h, pairNow = false) {
         <p class="am-lead">${L('Welke logs deze server naar RzSense stuurt: gecomprimeerd en versleuteld, elke paar minuten')}</p>
         <div id="am-logs"><p class="muted">${L('Laden…')}</p></div>
       </section>` : ''}
+      <section class="am-sec am-card" data-pk="actlog" data-pw="12" style="--c: var(--info, #2563eb)"><h3 class="am-h"><i aria-hidden="true">📒</i>${L('Logboek')}</h3>
+        <p class="am-lead">${L('Wat er op deze server gebeurde (30 dagen): wat de agent veranderde, wat RzSense deed en wat een beheerder aanpaste')}</p>
+        <div class="ac-bar"><select id="am-al-module" aria-label="${esc(L('Onderdeel'))}"><option value="">${L('Alle onderdelen')}</option></select>
+          <label class="switch small"><input type="checkbox" id="am-al-fail"><span></span> ${L('Alleen mislukt')}</label>
+          <button type="button" class="btn small-btn" id="am-al-all">${L('Alles en zoeken')} →</button></div>
+        <div id="am-actlog" class="al-list al-compact"><p class="muted">${L('Laden…')}</p></div>
+      </section>
       <section class="am-sec am-card need-admin" data-pk="maint" data-pw="4" style="--c: var(--muted)"><h3 class="am-h"><i aria-hidden="true">🧰</i>${L('Onderhoud')}</h3>
         <p class="am-lead">${L('Sleutels en tokens')}</p>
         ${amRow('🔗 ' + L('Opnieuw koppelen'), L('nieuwe koppelcode; de agent haalt er een nieuwe eigen sleutel mee op'), `<button type="button" class="btn small-btn" data-am-pair>${L('Koppelcode')}</button>`)}
@@ -1593,6 +1600,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   if (unhide) unhide.onclick = async () => { try { await edrHideSave(h.id, []); unhide.closest('.am-row').remove(); toast(L('Wordt weer getoond')); } catch (ex) { toast(ex.message, 'err'); } };
   if (isAdmin()) amInit(h, body);
   if (isAdmin() && h.mode === 'agent') amLogs(h);   // 1.210.0
+  amActLog(h, body);   // 1.226.0: logboek van deze server
   // Koppelcode: één code voor alle drie de manieren; daarna wachten tot de agent gekoppeld is
   const makePair = async () => {
     let r;

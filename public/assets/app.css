@@ -4868,7 +4868,7 @@ body.no-anim .al2-badge .al2-shape { animation: none !important; }
 .lg-kv dt { color: var(--muted); } .lg-kv dd { margin: 0; font-variant-numeric: tabular-nums; }
 .lg-in { min-width: 0; }
 .lg-in h3 { margin: 0 0 .4rem; }
-.am-grid > [data-pk="logs"] { grid-column: 1 / -1; }   /* 1.210.0: de tabel met bronnen over de hele breedte */
+.am-grid > [data-pk="logs"], .am-grid > [data-pk="actlog"] { grid-column: 1 / -1; }   /* 1.210.0: de tabel met bronnen over de hele breedte; 1.226.0: ook het logboek */
 
 /* ---------------------------------------------------------------- 1.211.0: pagina Logs (zoeken) */
 .logs-page { display: grid; gap: .8rem; }
@@ -5576,3 +5576,17 @@ body.lg .mds-sheet-p { background: var(--bg-2, var(--bg)); -webkit-backdrop-filt
   .tn-moves li .tn-chg { grid-column: 2; justify-self: start; }
   .tn-grid { grid-template-columns: 1fr; }
 }
+
+/* 1.226.0: logboek per server */
+.al-bar { flex-wrap: wrap; gap: .4rem; }
+.al-bar input[type=search] { min-width: 10rem; flex: 1; }
+.al-list { max-height: 34rem; overflow: auto; }
+.al-compact { max-height: 22rem; }
+.al-day { position: sticky; top: 0; background: var(--card, var(--bg)); font-weight: 600; font-size: .8rem; color: var(--muted); padding: .35rem 0 .2rem; text-transform: capitalize; z-index: 1; }
+.al-row { display: flex; gap: .6rem; align-items: flex-start; padding: .4rem 0; border-bottom: 1px solid var(--border); }
+.al-row .grow { flex: 1; min-width: 0; }
+.al-row.al-fail { background: color-mix(in srgb, var(--crit) 7%, transparent); }
+.al-time { font-size: .8rem; color: var(--muted); min-width: 2.8rem; padding-top: .1rem; }
+.al-ok { min-width: 1rem; text-align: center; }
+.al-mod { font-size: .78rem; padding: .05rem .4rem; border-radius: .6rem; background: color-mix(in srgb, var(--primary) 12%, transparent); white-space: nowrap; }
+.al-detail { overflow-wrap: anywhere; }

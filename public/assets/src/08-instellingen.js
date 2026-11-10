@@ -775,7 +775,8 @@ const SET_NAV = [
   ['agents', SET_IC('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'), L('Agents'), [
     ['agents', L('Overzicht'), ['agents'], L('Alle agents: status, versie, verbinding en wat aandacht nodig heeft.')],
     ['agentdef', L('Standaardinstellingen'), ['agentdef', 'enc'], L('Wat voor alle agents geldt: bijwerken, ritme, versleuteling en certificaat.')],
-    ['commands', L('Commando-checks'), ['commands'], L('Eigen commando\'s die agents mogen uitvoeren.')]]],
+    ['commands', L('Commando-checks'), ['commands'], L('Eigen commando\'s die agents mogen uitvoeren.')],
+    ['actlog', L('Logboek'), ['actlog'], L('Per server wat de agent, RzSense en beheerders deden, en wat er veranderde.')]]],
   ['rapporten', SET_IC('<path d="M4 4h16v16H4z"/><path d="M4 8l8 5 8-5"/>'), L('Rapporten'), [
     ['reports', L('Rapporten'), ['reports'], L('Alle overzichten die RzSense per e-mail of push verstuurt, en het Maandoverzicht.')]]],
   ['koppelingen', SET_IC('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>'), L('Koppelingen'), [
@@ -797,7 +798,7 @@ const SET_NAV = [
     ['transfer', L('Exporteren en importeren'), ['transfer'], L('Servers, checks en instellingen overzetten.')]]],
 ];
 /* 1.181.0: de rol gebruiker ziet alleen deze onderdelen, om te bekijken (de rest is voor beheerders) */
-const SET_USER = { overview: null, features: null, reports: null, advice: ['smart', 'advice'], changelog: null };
+const SET_USER = { overview: null, features: null, reports: null, advice: ['smart', 'advice'], changelog: null, actlog: null };
 if (document.body.dataset.role === 'user') {
   for (let gi = SET_NAV.length - 1; gi >= 0; gi--) {
     const subs = SET_NAV[gi][3];
@@ -881,6 +882,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'quiet') loadQuiet();   // 1.189.0
   if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
   if (setSection === 'changelog') loadChangeLog();
+  if (setSection === 'actlog') loadActLog();   // 1.226.0
   if (setSection === 'ids_edr' && cards.includes('ids_rules')) { ruleWhere = 'set'; loadEdrRules(); }   // 1.162.0
   if (setSection === 'ids_attack' && cards.includes('whitelist')) loadBlocks();
   if (setSection === 'db' || setSection === 'perf') loadSyscheck();   // 1.151.0: systeemcheck, cron, database, prestaties
@@ -2686,7 +2688,85 @@ async function loadChangeLog() {
     : `<p class="muted">${L('Nog niets.')}</p>`;
 }
 
+// ---------------------------------------------------------------- 📒 Logboek per server (1.226.0)
+const AL_MOD = {
+  agent: () => '🖥️ ' + L('Agent'), settings: () => '⚙️ ' + L('Instellingen'), checks: () => '✔ ' + L('Checks'), isolate: () => '🧱 ' + L('Isoleren'),
+  userlock: () => '🔒 ' + L('Gebruikers'), kill: () => '⛔ ' + L('Processen'), heal: () => '🩹 ' + L('Zelf herstellen'), update: () => '⬆️ ' + L('Agent bijwerken'),
+  packages: () => '📦 ' + L('Pakketten'), edr: () => '🛡️ EDR', firewall: () => '🧯 ' + L('Firewall'), logs: () => '📜 ' + L('Logs'),
+  ransom: () => '🧬 ' + L('Ransomware'), patch: () => '🩹 ' + L('Updates'), sudo: () => '🔑 ' + L('Tijdelijk sudo'), appctl: () => '🧩 ' + L('Programma\'s'),
+  ioc: () => '🔎 ' + L('Sporen'), dns: () => '🌐 DNS', harden: () => '🧰 ' + L('Hardening'),
+};
+const AL_SRC = { user: ['🧑', () => L('Beheerder')], rzsense: ['🤖', () => 'RzSense'], agent: ['🖥️', () => L('Agent')] };
+/** Rijen van het logboek; withHost: de server erbij (overzicht van alle servers) */
+function actlogRows(items, withHost) {
+  if (!items.length) return `<p class="muted">${L('Niets in deze periode.')}</p>`;
+  let day = '';
+  return items.map((i) => {
+    const d = (i.at || '').slice(0, 10), src = AL_SRC[i.source] || ['•', () => i.source];
+    const head = d !== day ? `<div class="al-day">${esc(new Date(d + 'T12:00').toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' }))}</div>` : '';
+    day = d;
+    const okTxt = i.ok === true ? `<span class="al-ok good" title="${esc(L('gelukt'))}">✔</span>` : i.ok === false ? `<span class="al-ok bad" title="${esc(L('mislukt'))}">✘</span>` : '<span class="al-ok muted">·</span>';
+    return `${head}<div class="al-row${i.ok === false ? ' al-fail' : ''}${i.undone ? ' muted' : ''}">
+      <span class="al-time mono">${esc((i.at || '').slice(11, 16))}</span>${okTxt}
+      <div class="grow"><div><span class="al-mod">${esc((AL_MOD[i.module] || (() => i.module))())}</span> <b>${esc(i.action)}</b>
+        ${withHost && i.host ? `<button type="button" class="linklike small" data-al-host="${i.host_id}">${esc(i.host)}</button>` : ''}</div>
+        ${i.detail ? `<div class="muted small al-detail">${esc(i.detail)}</div>` : ''}
+        <div class="muted small">${src[0]} ${esc(i.username || src[1]())}${i.ip ? ' · ' + esc(i.ip) : ''}${i.kind === 'change' ? ` · <button type="button" class="linklike" data-al-cl>${L('in het wijzigingslogboek')}${i.undone ? ' (' + L('teruggezet') + ')' : ''}</button>` : ''}</div></div></div>`;
+  }).join('');
+}
+function actlogParams(prefix = 'al') {
+  const v = (id) => ($('#' + prefix + '-' + id) || {}).value || '';
+  return { host_id: v('host') || '0', module: v('module'), source: v('source'), days: v('days') || '30', q: v('q'), ok: ($('#' + prefix + '-fail') || {}).checked ? '0' : '' };
+}
+async function loadActLog() {
+  const box = $('#al-list');
+  if (!box) return;
+  const hs = $('#al-host');
+  if (hs.options.length <= 1) {
+    for (const h of [...state.hosts].sort((a, b) => a.name.localeCompare(b.name))) hs.insertAdjacentHTML('beforeend', `<option value="${h.id}">${esc(h.name)}</option>`);
+    for (const k of Object.keys(AL_MOD)) $('#al-module').insertAdjacentHTML('beforeend', `<option value="${k}">${esc(AL_MOD[k]())}</option>`);
+  }
+  const p = actlogParams();
+  $('#al-csv').href = 'api.php?' + new URLSearchParams({ action: 'actlog_csv', ...p });
+  let d;
+  try { d = await api('actlog', null, p); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  if ($('#al-keep')) $('#al-keep').value = String(d.days);
+  box.innerHTML = actlogRows(d.items, +p.host_id === 0);
+}
+/** Agent Manager: het logboek van één server (laatste 30 dagen), met filter */
+async function amActLog(h, body) {
+  const box = $('#am-actlog', body);
+  if (!box) return;
+  if (document.body.dataset.role === 'readonly') { box.closest('.am-card').remove(); return; }   // alleen lezen: geen logboek
+  const sel = $('#am-al-module', body), fail = $('#am-al-fail', body);
+  const load = async () => {
+    try {
+      const d = await api('actlog', null, { host_id: h.id, days: 30, module: sel.value, ok: fail.checked ? '0' : '', limit: 150 });
+      box.innerHTML = actlogRows(d.items, false);
+    } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; }
+  };
+  if (sel.options.length <= 1) for (const k of Object.keys(AL_MOD)) sel.insertAdjacentHTML('beforeend', `<option value="${k}">${esc(AL_MOD[k]())}</option>`);
+  sel.onchange = load;
+  fail.onchange = load;
+  $('#am-al-all', body).onclick = () => { $('#modal').close(); showTab('settings/actlog'); setTimeout(() => { const hs = $('#al-host'); if (hs) { hs.value = String(h.id); loadActLog(); } }, 300); };
+  box.addEventListener('click', (e) => { if (e.target.closest('[data-al-cl]')) { $('#modal').close(); showTab('settings/changelog'); } }, { signal: modalSignal() });
+  load();
+}
+
 function initSystemTools() {
+  if ($('#al-list')) {   // 1.226.0
+    let t;
+    const again = () => { clearTimeout(t); t = setTimeout(loadActLog, 250); };
+    ['al-host', 'al-module', 'al-source', 'al-days', 'al-fail'].forEach((id) => { $('#' + id).onchange = loadActLog; });
+    $('#al-q').oninput = again;
+    $('#al-reload').onclick = loadActLog;
+    if ($('#al-keep')) $('#al-keep').onchange = async (e) => { try { await api('actlog_days', { days: +e.target.value }); toast(L('Opgeslagen')); } catch (ex) { toast(ex.message, 'err'); } };
+    $('#al-list').addEventListener('click', (e) => {
+      const hb = e.target.closest('[data-al-host]');
+      if (hb) { $('#al-host').value = hb.dataset.alHost; loadActLog(); return; }
+      if (e.target.closest('[data-al-cl]')) showTab('settings/changelog');
+    });
+  }
   if ($('#cl-list')) {
     $('#cl-reload').onclick = loadChangeLog;
     $('#cl-kind').onchange = loadChangeLog;

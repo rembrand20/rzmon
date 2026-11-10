@@ -114,6 +114,7 @@ final class Ids
             [$until, mb_substr($by, 0, 64), @inet_pton($byIp) !== false ? $byIp : null, 'wacht op de agent', $reason !== '' ? mb_substr($reason, 0, 255) : null, now(), $hostId]);
         $name = (string) q('SELECT name FROM hosts WHERE id = ?', [$hostId])->fetchColumn();
         AgentCommands::audit($by, 'Server geïsoleerd', "$name tot $until");
+        ActionLog::by($by, $hostId, 'isolate', t('Isoleren gevraagd'), t('tot {t}', ['t' => $until]) . ($reason !== '' ? ' · ' . $reason : '') . ($byIp !== '' ? ' · ' . t('toegestaan: {ip}', ['ip' => $byIp]) : ''));
         Monitor::sysInfo('isolate', $hostId, $name, '🧱 ' . t('Server geïsoleerd: {name}', ['name' => $name]),
             fn() => t('{name} is geïsoleerd door {by}: alleen RzSense, je LAN en {ip} kunnen er nog bij, tot {t}', ['name' => $name, 'by' => $by, 'ip' => $byIp, 't' => date('d-m H:i', strtotime($until))]));
     }
@@ -123,6 +124,7 @@ final class Ids
         q('UPDATE hosts SET isolate_until = NULL, isolate_state = ? WHERE id = ?', ['wordt opgeheven', $hostId]);
         $name = (string) q('SELECT name FROM hosts WHERE id = ?', [$hostId])->fetchColumn();
         AgentCommands::audit($by, 'Isolatie opgeheven', $name);
+        ActionLog::by($by, $hostId, 'isolate', t('Isolatie opheffen gevraagd'));
         Monitor::sysInfo('isolate', $hostId, $name, '🔓 ' . t('Isolatie opgeheven: {name}', ['name' => $name]), fn() => t('{name} is weer gewoon bereikbaar (door {by})', ['name' => $name, 'by' => $by]));
     }
 
@@ -140,6 +142,11 @@ final class Ids
         $hid = (int) $host['id'];
         if (is_array($in['iso'] ?? null)) {
             $st = (string) ($in['iso']['state'] ?? '');
+            $prev = (string) ($host['isolate_state'] ?? q('SELECT isolate_state FROM hosts WHERE id = ?', [$hid])->fetchColumn());
+            if ($st !== '' && $st !== $prev && !($prev === 'fout: ' . ($in['iso']['err'] ?? '') && $st === 'error')) {   // 1.226.0: alleen als het verandert
+                ActionLog::add($hid, 'agent', 'isolate', match ($st) { 'active' => t('Server geïsoleerd'), 'off' => t('Isolatie opgeheven'), default => t('Isoleren mislukt') },
+                    $st === 'error' ? (string) ($in['iso']['err'] ?? '') : '', $st !== 'error', '', null, 'agent');
+            }
             q('UPDATE hosts SET isolate_state = ? WHERE id = ?', [mb_substr($st === 'error' ? 'fout: ' . ($in['iso']['err'] ?? '') : $st, 0, 255), $hid]);
             if ($st === 'off') {
                 q('UPDATE hosts SET isolate_until = NULL WHERE id = ? AND isolate_until <= ?', [$hid, now()]);   // verlopen
@@ -147,7 +154,11 @@ final class Ids
         }
         foreach (array_slice((array) ($in['userlock'] ?? []), 0, 20) as $u) {
             [$name, $act, $res] = [(string) ($u[0] ?? ''), (string) ($u[1] ?? ''), (string) ($u[2] ?? '')];
-            q('UPDATE ids_userlocks SET done_at = ?, result = ? WHERE host_id = ? AND username = ? AND action = ?', [now(), mb_substr($res, 0, 50), $hid, $name, $act]);
+            $n = q('UPDATE ids_userlocks SET done_at = ?, result = ? WHERE host_id = ? AND username = ? AND action = ? AND done_at IS NULL', [now(), mb_substr($res, 0, 50), $hid, $name, $act])->rowCount();
+            if ($n > 0) {   // 1.226.0: de uitkomst één keer in het logboek
+                ActionLog::add($hid, 'agent', 'userlock', $act === 'lock' ? t('Gebruiker {u} vergrendeld', ['u' => $name]) : t('Gebruiker {u} vrijgegeven', ['u' => $name]),
+                    $act === 'lock' && $res === 'ok' ? t('processen van deze gebruiker gestopt') : $res, $res === 'ok', '', null, 'agent');
+            }
         }
     }
 
@@ -162,6 +173,7 @@ final class Ids
             [$hostId, $user, $lock ? 'lock' : 'unlock', mb_substr($by, 0, 64), now()]);
         $name = (string) q('SELECT name FROM hosts WHERE id = ?', [$hostId])->fetchColumn();
         AgentCommands::audit($by, $lock ? 'Gebruiker vergrendeld' : 'Gebruiker vrijgegeven', "$user op $name");
+        ActionLog::by($by, $hostId, 'userlock', $lock ? t('Gebruiker {u} vergrendelen gevraagd', ['u' => $user]) : t('Gebruiker {u} vrijgeven gevraagd', ['u' => $user]));
         return true;
     }
 
@@ -834,6 +846,7 @@ final class Ids
             }
             $label = ['ok' => t('gestopt'), 'weg' => t('was al gestopt'), 'fout' => t('stoppen mislukt'), 'eigen' => t('niet gestopt: hoort bij RzSense')][$res] ?? $res;
             q('UPDATE ids_kills SET done_at = ?, result = ? WHERE id = ?', [now(), mb_substr($label, 0, 100), $row['id']]);
+            ActionLog::add($hid, 'agent', 'kill', t('Proces {pid} {what}', ['pid' => $pid, 'what' => $label]), (string) $row['dkey'], $res === 'fout' ? false : ($res === 'ok' ? true : null), '', null, 'agent');
             q("UPDATE ids_incidents SET detail = LEFT(CONCAT(REPLACE(detail, ?, ''), ?), 1000) WHERE host_id = ? AND type = 'webshell' AND dkey = ? AND created_at >= NOW() - INTERVAL 1 DAY",
                 [' · ⛔ ' . t('proces wordt gestopt'), " · ⛔ pid $pid $label", $hid, $row['dkey']]);
             // Endpoint-regels (1.110.0): "proces 123 wordt gestopt" → "pid 123 gestopt"

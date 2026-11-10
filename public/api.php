@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /** 1.224.1: acties die met GET mogen (alleen lezen of downloaden). Al het andere moet een POST met CSRF-token zijn. */
 const API_GET = [
-    'access_info', 'advice_list', 'agent_cert', 'agent_cert_renew_status', 'agent_certs', 'agent_commands', 'agent_procs', 'agent_selftest_get',
+    'access_info', 'actlog', 'actlog_csv', 'advice_list', 'agent_cert', 'agent_cert_renew_status', 'agent_certs', 'agent_commands', 'agent_procs', 'agent_selftest_get',
     'agent_services', 'agent_status', 'agent_url_options', 'ai_get', 'ai_info', 'alerts', 'analytics', 'api_keys', 'availability', 'backup_download',
     'backup_info', 'blocks_overview', 'changelog', 'check_info', 'checks_all', 'cleanup', 'connections', 'contacts', 'containers', 'db_info',
     'db_rotate_status', 'discover', 'edr_feed', 'edr_host', 'edr_rules', 'exc_export', 'exc_list', 'exc_proposals', 'export', 'features',
@@ -19,6 +19,10 @@ const API_GET = [
 ];
 
 require __DIR__ . '/../src/bootstrap.php';
+/** 1.226.0: acties die één server veranderen en in het logboek van die server komen (met wat er veranderde) */
+const HOST_LOGGED = ['host_tick', 'host_realtime', 'host_enc', 'host_conn', 'host_info_agent', 'host_token', 'host_logs_interval', 'host_truenas_fw', 'edr_host_set', 'agent_commands_set'];
+const HOST_LOGGED_LABEL = ['host_tick' => '⏱ Rapporteren', 'host_realtime' => '⚡ Realtime', 'host_enc' => '🔐 Versleuteling', 'host_conn' => '🔗 Verbinding', 'host_info_agent' => 'ℹ️ Info bij agent-updates',
+    'host_token' => '↻ Token', 'host_logs_interval' => '📜 Logs', 'host_truenas_fw' => '🧱 TrueNAS-firewall', 'edr_host_set' => '🛡️ Endpoint-bewaking', 'agent_commands_set' => '🖥️ Commando-checks'];
 require __DIR__ . '/../src/auth.php';
 define('RZ_API', true);
 require __DIR__ . '/../src/api/functies.php';   // 1.225.0: hulpfuncties (out, input …)
@@ -76,7 +80,7 @@ $need = match ($action) {
     'home', 'mds', 'self_status', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'web_sites', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'trends', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
-    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'alert_seen', 'log_sources', 'log_source_lines', 'log_search', 'log_context', 'log_export', 'log_facets', 'log_overview', 'log_watches', 'log_watch_save', 'log_watch_toggle', 'log_watch_delete', 'log_watch_test', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi', 'quiet_now' => 'user',
+    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'alert_seen', 'log_sources', 'log_source_lines', 'log_search', 'log_context', 'log_export', 'log_facets', 'log_overview', 'log_watches', 'log_watch_save', 'log_watch_toggle', 'log_watch_delete', 'log_watch_test', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'actlog', 'actlog_csv', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi', 'quiet_now' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -100,6 +104,36 @@ if ($isAdmin && $method === 'POST' && !in_array($action, ['prefs_save', 'check_t
         } catch (Throwable) {
         }
     });
+}
+
+// 1.226.0: logboek per server: een wijziging aan één server via de Agent Manager (rapporteren, realtime, EDR, verbinding,
+// commando's, logs …) als wijziging van die server, met terugzetten. host_save, host_snmp en host_watchdog doen dat zelf al.
+if ($isAdmin && $method === 'POST' && in_array($action, HOST_LOGGED, true)) {
+    $hostIn = input();
+    $hostLogId = (int) ($hostIn['host_id'] ?? $hostIn['id'] ?? 0);
+    $hostBefore = $hostLogId > 0 ? ChangeLog::hostRow($hostLogId) : null;
+    if ($hostBefore) {
+        register_shutdown_function(static function () use ($hostBefore, $hostLogId, $action): void {
+            try {
+                $after = ChangeLog::hostRow($hostLogId);
+                if (!$after || http_response_code() >= 400) {
+                    return;
+                }
+                $b = $a = [];
+                foreach ($after as $k => $v) {
+                    if (($hostBefore[$k] ?? null) != $v && !preg_match('/^(agent_seen|agent_ip|last_|status|enc_seen|agent_conn|agent_nonce|agent_url_at|agent_url_status|isolate_state|vuln_upgrade_status)/', (string) $k)
+                        && !preg_match('/(token|_key|pass|secret|community|snmp)/i', (string) $k)) {
+                        $b[$k] = $hostBefore[$k] ?? null;
+                        $a[$k] = $v;
+                    }
+                }
+                if ($a) {
+                    ChangeLog::record('host', $hostLogId, 'update', $hostBefore['name'] . ' (' . t(HOST_LOGGED_LABEL[$action] ?? $action) . ')', $b + ['name' => $hostBefore['name']], $a + ['name' => $after['name']]);
+                }
+            } catch (Throwable) {
+            }
+        });
+    }
 }
 
 /** Niet-beheerders mogen alleen hun eigen account (2FA) beheren. */

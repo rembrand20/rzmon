@@ -311,6 +311,15 @@ switch ($action) {
     case 'features':   // 1.182.0
         out(['rows' => Features::rows(), 'groups' => Features::groups()]);
 
+    case 'feature_toggle':   // 1.226.0: een functie aan of uit vanuit het overzicht (in het wijzigingslogboek via de vergelijking in api.php)
+        $in = input();
+        $k = (string) ($in['key'] ?? '');
+        if (!in_array($k, Features::TOGGLE, true)) {
+            out(['error' => t('Deze functie zet je aan of uit op zijn eigen pagina')], 422);
+        }
+        save_setting($k, !empty($in['on']) ? '1' : '0');
+        out(['ok' => true, 'rows' => Features::rows()]);
+
     case 'reports_get':
         $rl = json_decode((string) setting('reports_last', ''), true) ?: [];
         $meta = [];

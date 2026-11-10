@@ -44,7 +44,7 @@ final class ChangeLog
     public static function record(string $kind, ?int $refId, string $action, string $label, ?array $before, ?array $after): void
     {
         try {
-            $u = function_exists('current_user') ? current_user() : null;
+            $u = PHP_SAPI !== 'cli' && function_exists('current_user') ? current_user() : null;   // 1.226.0: in cron/CLI geen sessie starten
             q('INSERT INTO change_log (at, username, ip, kind, ref_id, action, label, before_data, after_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [
                 now(), mb_substr((string) ($u['username'] ?? (PHP_SAPI === 'cli' ? 'cli' : '?')), 0, 64), mb_substr(client_ip(), 0, 45), $kind, $refId, $action,
                 mb_substr($label, 0, 200), $before === null ? null : json_encode($before, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),

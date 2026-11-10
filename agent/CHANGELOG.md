@@ -5,6 +5,11 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.89.0 – 2026-11-10
+- **Logboek: de agent meldt wat hij zelf op de server verandert.** Bijvoorbeeld de firewall (hoeveel IP's geblokkeerd, bekende aanvallers, de lokaas-poort) en de EDR-regels in auditd, ook als dat mislukt. RzSense toont het in de Agent Manager (kaart *Logboek*) en bij *Instellingen → Agents → Logboek*.
+  - Elke regel heeft een eigen kenmerk en blijft op de server bewaard tot RzSense hem heeft (hooguit 2000 regels), dus ook als RzSense even onbereikbaar is gaat er niets verloren en komt niets dubbel binnen.
+  - Een mislukte EDR-regel komt hooguit eens per uur in het logboek.
+
 ## 1.88.0 – 2026-11-10
 - **Home Assistant-add-on: veel minder belasting van de Supervisor**: CPU, geheugen en netwerk van Core, Supervisor en elke add-on worden nu eens per 5 minuten opgehaald (was: elke minuut, één voor één), met 4 tegelijk. Daartussen toont RzSense de laatste cijfers. Dat scheelt zo'n 80% van de regels `/addons/…/stats access from …_rzmon_agent` in het Supervisor-log, en de add-on is elke minuut veel sneller klaar.
   - Zelf aan te passen in de add-on: *Configuratie → Statistieken per add-on (minuten)* (`stats_interval`): 1 = elke minuut, 0 = nooit.

@@ -503,6 +503,7 @@ if ($action === 'agent') {
     }
     // 1.107.0: zelf herstellen (uitkomsten, herstelcommando's op de server) en de waakhond
     Heal::fromAgent($host, $in, $st, $now);
+    ActionLog::fromAgent($host, $in);   // 1.226.0: wat de agent zelf op de server deed (agent 1.89.0)
     // Vorige stand van de verbindingscontrole (1.100.0), vóór de oude regels verdwijnen
     $prevSec = q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'sec_state'", [$host['id']])->fetchColumn();
     Paths::cleanAgentData((int) $host['id'], $now);   // 1.189.2: oude regels weg, de pad-metingen blijven

@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.88.0"
+AGENT_VERSION="1.89.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -1644,6 +1644,19 @@ heal_log() {  # heal_log <check-id> <ok: 0/1> <bericht>: poging onthouden, en de
     tail -n 5 "$heal_dir/$1.tries" >"$heal_dir/$1.tmp" 2>/dev/null && mv -f "$heal_dir/$1.tmp" "$heal_dir/$1.tries"
     printf '{"id":%s,"ok":%s,"t":%s,"m":"%s"}\n' "$1" "$2" "$(date +%s)" "$(json_escape "$(printf '%s' "$3" | tr '\n\t' '  ' | cut -c1-200)")" >>"$heal_dir/done"
 }
+# Agent 1.89.0: logboek van wat de agent zelf op deze server verandert (firewall, EDR-regels, en later ransomware, updates,
+# sudo …). Elke regel krijgt een eigen kenmerk; hij gaat mee met het volgende rapport en blijft bewaard tot RzSense hem heeft
+# (hooguit 2000 regels; daarboven de oudste weg). RzSense toont hem in de Agent Manager (Logboek).
+act_n=0
+act_log() {  # act_log <onderdeel> <ok: 1 gelukt, 0 mislukt, 2 info> <actie> [detail]
+    act_n=$(( act_n + 1 ))
+    printf '{"id":"%s","t":%s,"m":"%s","ok":%s,"a":"%s","d":"%s"}\n' "$(date +%s)-$$-$act_n-$RANDOM" "$(date +%s)" "$(printf '%s' "$1" | tr -dc 'a-z')" \
+        "$(printf '%s' "$2" | tr -dc '012' | cut -c1)" "$(json_escape "$(printf '%s' "$3" | tr '\n\t' '  ' | cut -c1-80)")" \
+        "$(json_escape "$(printf '%s' "${4-}" | tr '\n\t' '  ' | cut -c1-900)")" >>"$t_dir/act.log" 2>/dev/null
+    if [ "$(wc -l <"$t_dir/act.log" 2>/dev/null || echo 0)" -gt 2000 ]; then
+        tail -n 2000 "$t_dir/act.log" >"$t_dir/act.log.tmp" 2>/dev/null && mv -f "$t_dir/act.log.tmp" "$t_dir/act.log"
+    fi
+}
 heal_cmd_ok() {  # heal_cmd_ok <pad>: alleen uitvoerbaar, van root en niet door anderen te wijzigen
     [ -f "$1" ] && [ ! -L "$1" ] && [ -x "$1" ] && [ "$(stat -c '%u' "$1")" = 0 ] && ! find "$1" -perm /022 | grep -q .
 }
@@ -2721,8 +2734,12 @@ fw_build() {  # opnieuw opbouwen als de lijst of de lokaas-poort veranderde; zet
     if ! nft list table inet rzmon >/dev/null 2>&1 || [ "$(cat "$i_dir/fw.sig" 2>/dev/null)" != "$sig" ]; then
         if fw_apply "counter;" || fw_apply ""; then
             echo "$sig" >"$i_dir/fw.sig"
+            # Agent 1.89.0: in het logboek, met de aantallen (blokkades, bekende aanvallers, lokaas-poort, uitgaand)
+            fw_cnt=$(printf '%s' "$want4$want6" | tr -cd ',' | wc -c); kn_cnt=$(printf '%s' "$kn4$kn6" | tr -cd ',' | wc -c)
+            act_log firewall 1 "Firewall bijgewerkt" "$fw_cnt geblokkeerde IP's · $kn_cnt netten van bekende aanvallers${decoy_port:+ · lokaas-poort $decoy_port}$([ "$outblock" = 1 ] && echo ' · ook uitgaand')"
         else
             fw_err=$(head -c 200 "$i_dir/fw.err" | json_text)
+            [ "$(cat "$i_dir/fw.errsig" 2>/dev/null)" != "$sig" ] && { act_log firewall 0 "Firewall bijwerken mislukt" "$(head -c 200 "$i_dir/fw.err")"; echo "$sig" >"$i_dir/fw.errsig"; }
         fi
     fi
 }
@@ -2963,7 +2980,7 @@ edr_rules() {  # edr_rules on|off: 0 = gelukt (of niets te doen)
     local k have a p
     have=$(auditctl -l 2>/dev/null | grep -c 'key=rzmon_')
     if [ "$1" = off ]; then
-        [ "$have" -gt 0 ] && for k in $edr_keys; do auditctl -D -k "$k" >/dev/null 2>&1; done
+        [ "$have" -gt 0 ] && { for k in $edr_keys; do auditctl -D -k "$k" >/dev/null 2>&1; done; act_log edr 1 "EDR-regels uit auditd gehaald"; }
         return 0
     fi
     [ "$have" -ge 3 ] && return 0
@@ -2976,7 +2993,12 @@ edr_rules() {  # edr_rules on|off: 0 = gelukt (of niets te doen)
         [ -e "$p" ] && auditctl -w "$p" -p wa -k rzmon_persist >/dev/null 2>&1
     done
     auditctl -a always,exit -F arch=b64 -S init_module -S finit_module -k rzmon_mod >/dev/null 2>&1
-    [ "$(auditctl -l 2>/dev/null | grep -c 'key=rzmon_')" -gt 0 ]
+    have=$(auditctl -l 2>/dev/null | grep -c 'key=rzmon_')
+    if [ "$have" -gt 0 ]; then act_log edr 1 "EDR-regels in auditd gezet" "$have regels (programma's, gebruikers, persistentie, kernelmodules)"
+    elif [ ! -f "$t_dir/edr.failnote" ] || [ -n "$(find "$t_dir/edr.failnote" -mmin +60 2>/dev/null)" ]; then
+        act_log edr 0 "EDR-regels zetten mislukt" "auditctl nam geen regels aan"; : >"$t_dir/edr.failnote"   # hooguit eens per uur
+    fi
+    [ "$have" -gt 0 ]
 }
 edr_want=0
 [ "$EDR" != 0 ] && [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && grep -q $'^0\tedr\t1' "$t_cache" && edr_want=1
@@ -4240,6 +4262,15 @@ if [ "$HA_MODE" = 0 ] && [ -d "$HEAL_DIR" ]; then
         [[ "$hc_n" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] && heal_cmd_ok "$hc_f" && heal_cmds+="${heal_cmds:+,}\"$hc_n\""
     done
 fi
+# Agent 1.89.0: logboek (act_log) meesturen: hooguit 100 regels per rapport, de rest blijft voor het volgende
+act_json=""
+if [ -s "$t_dir/act.log" ] || [ -s "$t_dir/act.sending" ]; then
+    if [ -s "$t_dir/act.log" ]; then
+        grep -E '^\{"id":"[A-Za-z0-9._-]{4,40}","t":[0-9]+,"m":"[a-z]{0,20}","ok":[012]?,"a":"([^"\\]|\\.)*","d":"([^"\\]|\\.)*"\}$' "$t_dir/act.log" 2>/dev/null >>"$t_dir/act.sending"
+        rm -f "$t_dir/act.log"
+    fi
+    act_json=$(head -n 100 "$t_dir/act.sending" 2>/dev/null | paste -sd, -)
+fi
 wd_file="$t_dir/watchdog"
 wd_gap=""
 [ -s "$wd_file.gap" ] && wd_gap=$(grep -E '^\{"down":[0-9]+,"up":[0-9]+,"sent":[01],"self":[01]\}$' "$wd_file.gap" | head -n 1)
@@ -4514,7 +4545,7 @@ if [ -n "$hold_id" ] && [ "$hold_since" -gt 0 ]; then
     [ "$TEST" != 1 ] && [ "${HOLD_JITTER:-1}" != 0 ] && sleep $(( RANDOM % 25 ))
 fi
 run_ms=$(( $(now_ms) - run_t0 ))
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json}${truenas_json:+,\"truenas\":$truenas_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],${logscan_json:+\"log_scan\":$logscan_json,}\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json}${path_json:+,\"path\":$path_json}${db_json:+,\"db\":$db_json}${iperfs_json:+,\"iperfs\":$iperfs_json}${selftest_json:+,\"selftest\":$selftest_json}${nic_json:+,\"nic\":$nic_json}${hold_json:+,\"hold\":$hold_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json}${truenas_json:+,\"truenas\":$truenas_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],${logscan_json:+\"log_scan\":$logscan_json,}\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${act_json:+,\"act\":[$act_json]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json}${path_json:+,\"path\":$path_json}${db_json:+,\"db\":$db_json}${iperfs_json:+,\"iperfs\":$iperfs_json}${selftest_json:+,\"selftest\":$selftest_json}${nic_json:+,\"nic\":$nic_json}${hold_json:+,\"hold\":$hold_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
 
 # Agent 1.66.1: 50 seconden wachten op RzSense (was 20): een druk bezette RzSense verwerkt een groot rapport soms trager;
 # na 20 seconden gaf de agent het op en kreeg hij het antwoord (opdrachten, instellingen, "softwarelijst ontvangen") nooit
@@ -4851,6 +4882,10 @@ if [ "$rc" -eq 0 ]; then
     # Zelf herstellen: de uitkomsten zijn binnen; vraagt RzSense om een herstelcommando (alleen versleuteld)?
     if [ -s "$heal_dir/done.sending" ]; then tail -n +51 "$heal_dir/done.sending" >>"$heal_dir/done"; [ -s "$heal_dir/done" ] || rm -f "$heal_dir/done"; fi
     rm -f "$heal_dir/done.sending" "$t_dir/watchdog.gap"
+    if [ -n "$act_json" ] && [ -s "$t_dir/act.sending" ]; then   # agent 1.89.0: verstuurde logboekregels weg, de rest blijft
+        tail -n +101 "$t_dir/act.sending" >"$t_dir/act.sending.tmp" 2>/dev/null && mv -f "$t_dir/act.sending.tmp" "$t_dir/act.sending"
+        [ -s "$t_dir/act.sending" ] || rm -f "$t_dir/act.sending"
+    fi
     if [ -n "$seal_n" ] && [ "$HEAL" != 0 ] && [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [[ "$resp" =~ \"heal_run\":\[(\[[0-9]+,\"[A-Za-z0-9._-]+\"\],?)+\] ]]; then
         while IFS=, read -r hr_id hr_name; do
             hr_id=${hr_id//[^0-9]/}; hr_name=${hr_name//\"/}; hr_name=${hr_name%]}

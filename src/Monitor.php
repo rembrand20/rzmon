@@ -1355,6 +1355,7 @@ final class Monitor
         q("DELETE FROM user_sessions WHERE how = 'lan' AND last_seen <= created_at + INTERVAL 1 MINUTE AND created_at < NOW() - INTERVAL 10 MINUTE");
         PasswordReset::purge();
         ChangeLog::purge();   // wijzigingslogboek: bewaartermijn instelbaar (1.97.0)
+        ActionLog::purge();   // 1.226.0: logboek per server (actlog_days)
         Security::purge();
         Ids::purge();
         Edr::purge();

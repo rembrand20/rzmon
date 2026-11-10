@@ -228,6 +228,19 @@ heal_log() {  # heal_log <check-id> <ok: 0/1> <bericht>: poging onthouden, en de
     tail -n 5 "$heal_dir/$1.tries" >"$heal_dir/$1.tmp" 2>/dev/null && mv -f "$heal_dir/$1.tmp" "$heal_dir/$1.tries"
     printf '{"id":%s,"ok":%s,"t":%s,"m":"%s"}\n' "$1" "$2" "$(date +%s)" "$(json_escape "$(printf '%s' "$3" | tr '\n\t' '  ' | cut -c1-200)")" >>"$heal_dir/done"
 }
+# Agent 1.89.0: logboek van wat de agent zelf op deze server verandert (firewall, EDR-regels, en later ransomware, updates,
+# sudo …). Elke regel krijgt een eigen kenmerk; hij gaat mee met het volgende rapport en blijft bewaard tot RzSense hem heeft
+# (hooguit 2000 regels; daarboven de oudste weg). RzSense toont hem in de Agent Manager (Logboek).
+act_n=0
+act_log() {  # act_log <onderdeel> <ok: 1 gelukt, 0 mislukt, 2 info> <actie> [detail]
+    act_n=$(( act_n + 1 ))
+    printf '{"id":"%s","t":%s,"m":"%s","ok":%s,"a":"%s","d":"%s"}\n' "$(date +%s)-$$-$act_n-$RANDOM" "$(date +%s)" "$(printf '%s' "$1" | tr -dc 'a-z')" \
+        "$(printf '%s' "$2" | tr -dc '012' | cut -c1)" "$(json_escape "$(printf '%s' "$3" | tr '\n\t' '  ' | cut -c1-80)")" \
+        "$(json_escape "$(printf '%s' "${4-}" | tr '\n\t' '  ' | cut -c1-900)")" >>"$t_dir/act.log" 2>/dev/null
+    if [ "$(wc -l <"$t_dir/act.log" 2>/dev/null || echo 0)" -gt 2000 ]; then
+        tail -n 2000 "$t_dir/act.log" >"$t_dir/act.log.tmp" 2>/dev/null && mv -f "$t_dir/act.log.tmp" "$t_dir/act.log"
+    fi
+}
 heal_cmd_ok() {  # heal_cmd_ok <pad>: alleen uitvoerbaar, van root en niet door anderen te wijzigen
     [ -f "$1" ] && [ ! -L "$1" ] && [ -x "$1" ] && [ "$(stat -c '%u' "$1")" = 0 ] && ! find "$1" -perm /022 | grep -q .
 }

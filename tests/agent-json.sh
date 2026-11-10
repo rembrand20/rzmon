@@ -132,3 +132,15 @@ if 'log_scan' in json.load(open(sys.argv[2])):
     print('✘ logs vinden: de lijst ging de volgende run opnieuw mee'); sys.exit(1)
 print('✔ logs vinden: bestanden in LOG_DIRS (zonder gedraaide en binaire), één keer meegestuurd')
 PY
+# Agent 1.89.0: logboek. Regels uit act.log gaan mee met het rapport (geldige JSON, met kenmerk) en zijn daarna weg;
+# een kapotte regel gaat niet mee.
+{ printf '{"id":"1700000000-1-1-1","t":1700000000,"m":"firewall","ok":1,"a":"Firewall bijgewerkt","d":"3 IP\x27s"}\n'
+  printf 'kapot {"id":\n'; } >"$work/cache/act.log"
+rm -f "$work/payload.json"
+MONITOR_URL="http://127.0.0.1:$port" TOKEN=ci-test RZ_FORCE=1 CACHE_DIRECTORY="$work/cache" AGENT_DIR="$work/agent" \
+    HEAL_DIR="$work/heal.d" IDS_BLOCK=0 PODMAN=0 timeout 300 bash agent/rzmon-agent.sh >"$work/out" 2>&1
+if ! python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); a=d["act"]; assert len(a)==1 and a[0]["id"]=="1700000000-1-1-1" and a[0]["m"]=="firewall"' "$work/payload.json" 2>/dev/null \
+    || [ -s "$work/cache/act.sending" ] || [ -s "$work/cache/act.log" ]; then
+    echo "✘ logboek: regels niet (goed) meegestuurd, of na een geslaagd rapport niet weg"; ls -la "$work/cache" | grep act; exit 1
+fi
+echo "✔ logboek: wat de agent veranderde gaat mee met het rapport en is daarna weg (kapotte regels niet)"

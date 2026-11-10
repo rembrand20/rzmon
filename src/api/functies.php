@@ -464,6 +464,7 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
         $status = preg_match('/^ok (\S*) (\S+)/', $result, $m)
             ? '✔ ' . date('d-m H:i') . ' ' . ($m[1] !== '' && $m[1] !== $m[2] ? t('bijgewerkt van {from} naar {to}', ['from' => $m[1], 'to' => $m[2]]) : t('bijgewerkt naar {to}', ['to' => $m[2]]))
             : '✘ ' . date('d-m H:i') . ' ' . t('bijwerken mislukt') . ': ' . AgentText::tr(mb_substr(preg_replace('/^error\s*/', '', $result), 0, 200));
+        ActionLog::add($hostId, 'agent', 'update', str_starts_with($result, 'ok') ? t('Agent bijgewerkt') : t('Agent bijwerken mislukt'), ltrim((string) $status, '✔✘ '), str_starts_with($result, 'ok'), '', null, 'agent');   // 1.226.0
         if (str_starts_with($result, 'ok')) {
             $sent = null;   // gelukt: een volgende RzSense-versie mag meteen weer automatisch (de info gaat bij de versiewissel)
         } else {
@@ -473,6 +474,7 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
         $req = null;
     } elseif ($req !== null && $sent !== null && strtotime($sent) < time() - 600) {
         $status = '✘ ' . t('Geen antwoord van de update na 10 minuten. Kijk op de server: {cmd}', ['cmd' => 'journalctl -u "rzmon-agent-update-*"']);
+        ActionLog::add($hostId, 'rzsense', 'update', t('Agent bijwerken: geen antwoord na 10 minuten'), '', false);
         Monitor::infoHost($h, fn() => '✘ ' . t('Agent bijwerken: geen antwoord na 10 minuten'), 'agent_update_fail');
         $req = null;
     }
@@ -498,6 +500,7 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
         $sent = now();
         $req ??= now();
         $status = '⏳ ' . t('Bijwerken naar {v} gestart…', ['v' => AGENT_LATEST]);
+        ActionLog::add($hostId, $req !== null && $h['agent_update_req'] !== null ? 'user' : 'rzsense', 'update', t('Agent bijwerken naar {v} gestuurd', ['v' => AGENT_LATEST]), $version ? t('nu {v}', ['v' => $version]) : '', null, '', null, 'RzSense');
     } elseif ($req !== null && $sent === null) {
         // Gevraagd, maar deze agent kan het niet: uitleggen waarom
         $status = '✘ ' . match ($via) {

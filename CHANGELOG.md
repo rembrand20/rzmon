@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.226.0**: **logboek per server**: wat de agent, RzSense en beheerders deden en veranderden, met uitkomst, filters en CSV.
 - **1.225.0**: **de code is opgesplitst in overzichtelijke onderdelen** (interface en API), met controles die fouten eerder vangen.
 - **1.224.0**: **Trends**: wat langzaam de verkeerde kant op gaat (accu, SSD, responstijd, geheugen, aanvallen), met een datum waarop het misgaat.
 - **1.223.0**: **slimme oordelen bij IDS-incidenten**: per soort, regels en jouw keuze eerst, de AI alleen als het nog onzeker is.
 - **1.222.0**: **het hele pad van een webaanval**: aanvaller → reverse proxy → site → dienst, met een oordeel, en aanvallen per site.
-- **1.221.0**: **bijwerken veel sneller**: snelle back-up en alleen doen wat nodig is (van minuten naar seconden).
+
+## 1.226.0 – 2026-11-10
+### Nieuw
+- **Logboek per server** (*Instellingen → Agents → Logboek*, en per server in de **Agent Manager**, kaart *Logboek*): alles wat er op een server gebeurde, per dag, met wie het deed (🧑 beheerder, 🤖 RzSense, 🖥️ agent) en of het lukte (✔/✘).
+  - wat de **agent** zelf veranderde (firewall, EDR-regels; **nieuwe agent 1.89.0**);
+  - wat **RzSense** deed: isoleren en opheffen, gebruikers vergrendelen, processen stoppen, zelf herstellen, pakketten bijwerken, onderdelen installeren, de agent bijwerken, met de uitkomst;
+  - wat een **beheerder** aanpaste aan de server en zijn checks, met oud → nieuw. Instellingen in de Agent Manager (rapporteren, realtime, EDR, verbinding, commando-checks, logs, TrueNAS-firewall, token) staan nu ook in het **wijzigingslogboek** en zijn daar terug te zetten;
+  - filteren op server, onderdeel, bron, periode en *alleen mislukt*, zoeken, en downloaden als **CSV**. Bewaren: standaard 1 jaar (instelbaar tot 10 jaar).
+- **Functies aan en uit vanuit het overzicht** (*Instellingen → Overzicht → Functies*): bij functies met een gewone aan/uit-instelling (EDR, dreigingsinformatie, DNS-controle, Suricata, logs, …) een schakelaar in de kolom Status. Dit is ook de plek voor de nieuwe beschermingen die in de volgende versies komen.
+- Wachtwoorden, tokens en sleutels komen nooit in het logboek.
 
 ## 1.225.1 – 2026-11-10
 ### Opgelost

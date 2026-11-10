@@ -923,6 +923,7 @@ final class Vulns
         $req = ['id' => bin2hex(random_bytes(8)), 'pkgs' => array_slice($pkgs, 0, 200), 'by' => $by, 'at' => now(), 'sent' => null];
         q('UPDATE hosts SET vuln_upgrade_req = ?, vuln_upgrade_status = ? WHERE id = ?',
             [json_encode($req), json_encode(['state' => 'queued', 'at' => now(), 'pkgs' => $req['pkgs']]), $host['id']]);
+        ActionLog::by($by, (int) $host['id'], 'packages', t('Pakketten bijwerken gevraagd ({n})', ['n' => count($req['pkgs'])]), implode(' ', array_slice($req['pkgs'], 0, 40)));
         return true;
     }
 
@@ -943,6 +944,7 @@ final class Vulns
         $req = ['id' => bin2hex(random_bytes(8)), 'pkgs' => array_values($pkgs), 'mode' => 'install', 'by' => $by, 'at' => now(), 'sent' => null] + ($own ? ['own' => true] : []);
         q('UPDATE hosts SET vuln_upgrade_req = ?, vuln_upgrade_status = ? WHERE id = ?',
             [json_encode($req), json_encode(['state' => 'queued', 'at' => now(), 'pkgs' => $req['pkgs'], 'mode' => 'install']), $host['id']]);
+        ActionLog::by($by, (int) $host['id'], 'packages', t('Onderdelen installeren gevraagd'), implode(' ', array_slice($req['pkgs'], 0, 40)));
         return true;
     }
 
@@ -957,6 +959,7 @@ final class Vulns
             if (strtotime((string) $req['sent']) < time() - 1800) {
                 q('UPDATE hosts SET vuln_upgrade_req = NULL, vuln_upgrade_status = ? WHERE id = ?',
                     [json_encode(['state' => 'error', 'at' => now(), 'pkgs' => $req['pkgs'], 'log' => t('Geen antwoord van de agent na 30 minuten')]), $hostId]);
+                ActionLog::add($hostId, 'rzsense', 'packages', t('Pakketten: geen antwoord van de agent na 30 minuten'), implode(' ', array_slice((array) $req['pkgs'], 0, 40)), false);
             }
             return null;
         }
@@ -1004,6 +1007,8 @@ final class Vulns
         $inst = ($req['mode'] ?? '') === 'install';   // 1.110.0: onderdelen installeren
         AgentCommands::audit((string) $req['by'], $inst ? ($ok ? 'Onderdelen geïnstalleerd' : 'Onderdelen installeren mislukt') : ($ok ? 'Pakketten bijgewerkt' : 'Pakketten bijwerken mislukt'),
             "{$host['name']}: " . implode(' ', $req['pkgs']));
+        ActionLog::add((int) $host['id'], 'agent', 'packages', $inst ? ($ok ? t('Onderdelen geïnstalleerd') : t('Onderdelen installeren mislukt')) : ($ok ? t('Pakketten bijgewerkt') : t('Pakketten bijwerken mislukt')),
+            implode(' ', array_slice((array) $req['pkgs'], 0, 40)) . ' · ' . mb_substr(trim((string) strrchr("\n" . trim(AgentText::tr($log)), "\n")), 0, 300), $ok, '', null, 'agent');
         // De nieuwe softwarelijst komt met het volgende rapport; daarna scant RzSense vanzelf opnieuw (andere lijst)
         $pkgs = implode(' ', array_slice($req['pkgs'], 0, 20)) . (count($req['pkgs']) > 20 ? ' …' : '');
         $last = trim((string) strrchr("\n" . trim($log), "\n"));

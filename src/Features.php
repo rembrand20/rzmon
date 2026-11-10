@@ -30,6 +30,13 @@ final class Features
         'admin'   => ['⚙️', 'Beheer', 'Administration'],
     ];
 
+    /**
+     * 1.226.0: functies die je in het overzicht met één schakelaar aan en uit zet (gewone aan/uit-instellingen, 1 of 0).
+     * Wat meer vraagt (een sleutel, je wachtwoord, een keuze) zet je aan op zijn eigen pagina.
+     */
+    public const TOGGLE = ['edr_on', 'ti_on', 'dns_on', 'suricata_on', 'logs_on', 'cve_buzz_on', 'anomaly_on', 'context_on', 'esc_on', 'perf_on',
+        'smart_auto', 'net_traffic', 'ids_block_shared', 'ids_geo', 'ids_blocklists'];
+
     public const LIST = [
         // Checks en monitoring
         ['checks', ['Ping, poort en HTTP(S)', 'Ping, port and HTTP(S)'], ['Bereikbaarheid, responstijd, statuscode en tekst op de pagina.', 'Reachability, response time, status code and text on the page.'], '1.0.0', '', '#dashboard'],
@@ -212,6 +219,7 @@ final class Features
         ['admin', ['RzSense bijwerken', 'Update RzSense'], ['Vanuit de webinterface, ook automatisch en naar een gekozen versie.', 'From the web interface, also automatically and to a chosen version.'], '1.29.0', 'update_auto', 'update'],
         ['admin', ['Back-up en herstel', 'Backup and restore'], ['Automatisch of met de hand, met terugzetten.', 'Automatic or manual, with restore.'], '1.18.0', 'backup_freq', 'backup'],
         ['admin', ['Wijzigingslogboek', 'Change log'], ['Wie veranderde wat en wanneer, met terugdraaien.', 'Who changed what and when, with undo.'], '1.97.0', '', 'changelog'],
+        ['servers', ['Logboek per server', 'Log per server'], ['Wat de agent, RzSense en beheerders op een server deden, en wat er veranderde.', 'What the agent, RzSense and administrators did on a server, and what changed.'], '1.226.0', '', 'actlog'],
         ['admin', ['Exporteren en importeren', 'Export and import'], ['Checks en instellingen naar een andere RzSense.', 'Checks and settings to another RzSense.'], '1.97.0', '', 'transfer'],
         ['admin', ['Database en server', 'Database and server'], ['Systeemcheck, grootte, groei en bewaartermijnen.', 'System check, size, growth and retention.'], '1.92.0', '', 'db'],
         ['admin', ['Prestaties en fouten', 'Performance and errors'], ['Snelheid, cron-rondes, traagste checks en PHP-fouten.', 'Speed, cron runs, slowest checks and PHP errors.'], '1.151.0', 'perf_on', 'perf'],
@@ -233,7 +241,9 @@ final class Features
             } else {
                 $status = self::status($st, $s);
             }
-            $out[] = ['id' => $i, 'g' => $g, 'name' => $name[$en ? 1 : 0], 'what' => $what[$en ? 1 : 0], 'since' => $since, 'status' => $status, 'sec' => $sec];
+            $key = explode('|', $st, 2)[0];
+            $out[] = ['id' => $i, 'g' => $g, 'name' => $name[$en ? 1 : 0], 'what' => $what[$en ? 1 : 0], 'since' => $since, 'status' => $status, 'sec' => $sec,
+                'toggle' => in_array($key, self::TOGGLE, true) && $status !== 'unset' ? $key : null];
         }
         return $out;
     }
