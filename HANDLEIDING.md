@@ -3181,7 +3181,7 @@ RzSense zoekt zelf welke apparaten er op je **lokale netwerken** zitten: telefoo
 
 **Meldingen:** een nieuw apparaat geeft een ℹ️ *Nieuw apparaat op je netwerk*, standaard alleen op de meldingenpagina. Andere kanalen (Pushover, e-mail) zet je aan bij *Instellingen → Meldingen → ℹ️ Systeeminfo → Nieuw apparaat op het netwerk*. Komen er veel tegelijk (meer dan 5), dan krijg je één bericht. De **eerste scan is de basismeting** en geeft geen meldingen.
 
-**📡 UniFi en AdGuard Home** (vanaf 1.104.0; *Instellingen → Koppelingen → UniFi en AdGuard Home*)
+**📡 UniFi en AdGuard Home** (vanaf 1.104.0; *Instellingen → Koppelingen → UniFi* en *→ AdGuard Home*, vanaf 1.224.0 twee aparte pagina's met elk een eigen uitleg en testknop)
 - **UniFi** (de Network-app, ook versie 9 en 10, op een UniFi OS-console zoals een UDM/UCG/Cloud Key, of zelf gehost):
   - vul het **adres van de controller** in (bv. `https://192.168.2.1`), de site (meestal `default`) en een **lokaal account** voor RzSense: *Admins & Users → Add admin → Restrict to local access only*, met beheerrechten voor Network en zonder 2FA;
   - alleen lezen kan ook met een **API-sleutel** (*Settings → Control Plane → Integrations*), maar dan kan RzSense niet weren;
@@ -3212,13 +3212,13 @@ Netwerk heeft drie tabbladen: **🗺️ Overzicht**, **📋 Apparaten** en **�
 - **Per netwerk**: per gescand netwerk een balk met hoeveel apparaten online zijn. Apparaten buiten die netwerken staan onder *Andere netwerken*.
 - **De kaart**: bovenaan het internet en je **router** (de standaardgateway van de RzSense-server). Daaronder je **switches** en **access points**, elk met de apparaten die eraan hangen en hoeveel er online zijn; bij een access point ook de wifi-netwerken.
   - Elk apparaat is een bolletje: **groen** = online, **grijs** = 24 uur niet gezien, **blauwe stip** = nieuw (nog niet beoordeeld), **rode stip** = riskante poort open, **groene ring** = staat in RzSense. Ga erop staan voor naam, IP en fabrikant; klik voor alle details.
-  - Aan welk access point of welke switch een apparaat hangt, komt uit **UniFi** (*Instellingen → Koppelingen → UniFi en AdGuard Home*). Bedrade apparaten waarvan de switch niet bekend is, staan onder *Bedraad*; wat UniFi niet kent, onder *Verbinding onbekend*. Zonder UniFi staat alles in één blok onder je router.
+  - Aan welk access point of welke switch een apparaat hangt, komt uit **UniFi** (*Instellingen → Koppelingen → UniFi*). Bedrade apparaten waarvan de switch niet bekend is, staan onder *Bedraad*; wat UniFi niet kent, onder *Verbinding onbekend*. Zonder UniFi staat alles in één blok onder je router.
   - Een switch of access point die zelf ook een apparaat in de scan is, krijgt zijn naam en IP-adres uit de scan; klik erop voor de details.
 
 **📊 Verkeer per apparaat** (vanaf 1.186.0)
 
 Met UniFi ziet RzSense hoeveel elk apparaat downloadt en uploadt.
-- **Aanzetten:** *Instellingen → Beveiliging → Netwerkscan → Verkeer per apparaat bijhouden* (standaard aan). Nodig: de netwerkscan aan, en UniFi gekoppeld met een **lokaal account** (*Koppelingen → UniFi en AdGuard Home*). Met alleen een API-sleutel geeft UniFi geen tellers.
+- **Aanzetten:** *Instellingen → Beveiliging → Netwerkscan → Verkeer per apparaat bijhouden* (standaard aan). Nodig: de netwerkscan aan, en UniFi gekoppeld met een **lokaal account** (*Koppelingen → UniFi*). Met alleen een API-sleutel geeft UniFi geen tellers.
 - **Hoe het werkt:** elke 5 minuten vraagt RzSense de bytetellers van alle verbonden clients op (`stat/sta`). Het verschil met de vorige keer gaat per uur (30 dagen bewaard) en per dag (een jaar) in de database. Verbindt een apparaat opnieuw, dan begint zijn teller bij nul; RzSense telt dan vanaf nul verder en ziet het niet als negatief verkeer. Een onmogelijk grote sprong (meer dan 10 Gbit/s) wordt genegeerd.
 - **Download en upload** zijn gezien vanaf het apparaat: download = wat het ontvangt, upload = wat het verstuurt. Telt jouw controller het andersom (bijvoorbeeld een camera die ineens veel *download*), zet dan *Download en upload omdraaien* aan.
 - **Waar je het ziet:**

@@ -821,31 +821,44 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <div id="reports-box"><p class="muted small"><?= th('laden…') ?></p></div>
         </div>
 
-        <div data-sk="netlinks" class="card" id="netlinks-card">
-          <h2>📡 <?= th('UniFi en AdGuard Home') ?></h2>
-          <?= xp(t('Namen en extra gegevens uit UniFi en AdGuard Home voor de netwerkscan.'), t('<b>Wat het doet:</b> de netwerkscan (tabblad Netwerk) haalt uit UniFi de namen, het wifi-netwerk en het access point van je apparaten, en uit AdGuard Home de namen en de domeinen die elk apparaat opzoekt. Je kunt een apparaat ook <b>weren</b>: van het wifi en/of geen DNS meer. <b>Goed om te weten:</b> wachtwoorden en de API-sleutel gaan nooit terug naar de browser.')) ?>
-          <h3 class="set-sub">UniFi</h3>
+        <div data-sk="unifi" class="card" id="unifi-card">
+          <h2>📡 <?= th('UniFi') ?></h2>
+          <?= xp(t('Namen, wifi, verkeer en weren van je apparaten, rechtstreeks uit je UniFi-controller.'), t('<b>Wat het doet:</b> RzSense leest elke 5 minuten de lijst met apparaten uit je UniFi Network-app (op een UniFi OS-console zoals een UDM of Cloud Gateway, of zelf gehost). <b>Waar je het ziet:</b> <i>Netwerk → Apparaten en Ontdekken</i>: de naam, het wifi-netwerk, het access point of de switchpoort van elk apparaat. <i>Verkeer per apparaat</i>: download en upload per uur (30 dagen) en per dag (een jaar), met een melding bij ongewoon veel of nachtelijk verkeer. <i>Diensten (DPI)</i>: welke soort verkeer een apparaat doet, zoals streaming of updates. <i>Internetlijn per maand</i>: het verkeer over je gateway, met een datalimiet. <i>Netwerkpaden</i>: de switchpoort en de snelheid van de verbinding. <b>Weren:</b> bij een apparaat kun je het van het wifi weren; dat gebeurt alleen als jij erop klikt. <b>Veilig:</b> het wachtwoord en de API-sleutel blijven op de RzSense-server en gaan nooit naar de browser. RzSense leest alleen, behalve als je zelf iets weert.')) ?>
+          <h3 class="set-sub"><?= th('Verbinding') ?></h3>
           <div class="row2">
             <label><?= th('Adres van de controller') ?> <span class="hint"><?= th('(bv. https://192.168.2.1 of https://unifi:8443)') ?></span><input name="unifi_url" class="mono" placeholder="https://192.168.2.1"></label>
             <label><?= th('Site') ?> <span class="hint"><?= th('(meestal default)') ?></span><input name="unifi_site" class="mono" placeholder="default"></label>
           </div>
+          <?= xp(t('Het adres van je console of controller, en de site waar je apparaten in staan.'), t('<b>Adres:</b> bij een UniFi OS-console (UDM, UDR, Cloud Gateway, Cloud Key Gen2+) het IP-adres van de console met https, zonder poort. Bij een zelf gehoste controller (Docker, Linux) meestal met poort 8443. <b>Site:</b> staat in het adres van de Network-app achter <code>/site/</code>; bij één locatie is dat bijna altijd <code>default</code>.')) ?>
+          <h3 class="set-sub"><?= th('Inloggen') ?></h3>
           <div class="row2">
             <label><?= th('Gebruikersnaam (lokaal account)') ?><input name="unifi_user" autocomplete="off"></label>
             <label><?= th('Wachtwoord') ?><input name="unifi_pass" type="password" autocomplete="new-password"></label>
           </div>
           <label><?= th('of alleen een API-sleutel') ?> <span class="hint"><?= th('(Network 9 of nieuwer: alleen lezen, weren kan dan niet)') ?></span><input name="unifi_key" type="password" autocomplete="new-password" class="mono"></label>
-          <label class="switch"><input type="checkbox" name="unifi_verify_ssl"><span></span> <?= th('Certificaat controleren') ?> <span class="hint"><?= th('(uit bij het eigen certificaat van UniFi)') ?></span></label>
           <?= xp(t('Gebruik een lokaal UniFi-account; met alleen een API-sleutel kan RzSense niet weren.'), t('<b>Instellen:</b> maak in UniFi een <b>lokaal account</b> voor RzSense (<i>Admins &amp; Users → Add admin → Restrict to local access only</i>), met beheerrechten voor Network en zonder 2FA. <b>Alleen een API-sleutel</b> (<i>Settings → Control Plane → Integrations</i>) kan ook: dan kan RzSense lezen, maar geen apparaten weren.')) ?>
-          <h3 class="set-sub">AdGuard Home</h3>
+          <label class="switch"><input type="checkbox" name="unifi_verify_ssl"><span></span> <?= th('Certificaat controleren') ?> <span class="hint"><?= th('(uit bij het eigen certificaat van UniFi)') ?></span></label>
+          <?= xp(t('Laat dit uit zolang je console zijn eigen certificaat gebruikt.'), t('<b>Waarom:</b> een UniFi-console gebruikt standaard een certificaat dat hij zelf heeft gemaakt. Dat wordt niet vertrouwd, dus de controle zou mislukken. Heb je de console een geldig certificaat gegeven (bv. via een eigen domeinnaam), zet het dan aan.')) ?>
+          <div class="btn-row"><button type="button" class="btn" data-netlinks-test="unifi">🧪 <?= th('Verbinding testen') ?></button></div>
+          <div class="small" data-netlinks-result="unifi"></div>
+        </div>
+
+        <div data-sk="adguard" class="card" id="adguard-card">
+          <h2>🛡️ <?= th('AdGuard Home') ?></h2>
+          <?= xp(t('Namen, DNS-verzoeken en DNS-blokkeren uit AdGuard Home, en de DNS-controle van het IDS.'), t('<b>Wat het doet:</b> RzSense leest uit AdGuard Home welke apparaten er zijn en welke domeinen ze opzoeken. <b>Waar je het ziet:</b> <i>Netwerk</i>: de namen van apparaten (zoals je ze in AdGuard Home noemde) en in het venster van een apparaat met welke domeinen het praat. <i>Analyse</i>: het aantal DNS-verzoeken, hoeveel AdGuard tegenhield, en de top van apparaten en geblokkeerde domeinen. <i>IDS → DNS-controle</i>: elke minuut kijkt RzSense in de query-log of een apparaat een bekend malware- of botnetdomein opzoekt, of iets wat op een DNS-tunnel lijkt; zo zie je ook camera\'s, tv\'s en andere apparaten zonder agent (aan of uit bij <i>IDS → Dreigingsinformatie</i>). <b>Weren:</b> bij een apparaat kun je het geen DNS meer geven (de lijst <i>Niet toegestane clients</i> in AdGuard Home); dat gebeurt alleen als jij erop klikt. <b>Veilig:</b> het wachtwoord blijft op de RzSense-server en gaat nooit naar de browser. Er gaat niets naar buiten: domeinen worden vergeleken met de lijsten op de RzSense-server.')) ?>
+          <h3 class="set-sub"><?= th('Verbinding') ?></h3>
           <label><?= th('Adressen') ?> <span class="hint"><?= th('(één per regel; gesynchroniseerde instanties allemaal invullen)') ?></span>
             <textarea name="adguard_urls" rows="2" class="mono" placeholder="http://192.168.2.203:3000&#10;http://192.168.2.204:3000"></textarea></label>
+          <?= xp(t('Heb je twee AdGuards die elkaar bijwerken? Vul ze allebei in.'), t('<b>Adres:</b> het adres van de webinterface van AdGuard Home, met de poort (vaak 3000 of 80; bij de Home Assistant-add-on de poort van de add-on). <b>Meerdere instanties</b> (bv. met adguardhome-sync, of een tweede DNS-server): RzSense telt hun verzoeken en statistiek bij elkaar op, en weren gebeurt op allemaal tegelijk, zodat een apparaat niet via de andere DNS-server alsnog binnenkomt.')) ?>
+          <h3 class="set-sub"><?= th('Inloggen') ?></h3>
           <div class="row2">
             <label><?= th('Gebruikersnaam') ?><input name="adguard_user" autocomplete="off"></label>
             <label><?= th('Wachtwoord') ?><input name="adguard_pass" type="password" autocomplete="new-password"></label>
           </div>
-          <label class="switch"><input type="checkbox" name="adguard_verify_ssl"><span></span> <?= th('Certificaat controleren') ?></label>
-          <div class="btn-row"><button type="button" class="btn" id="netlinks-test">🧪 <?= th('Verbinding testen') ?></button></div>
-          <div id="netlinks-result" class="small"></div>
+          <?= xp(t('Hetzelfde account als waarmee je inlogt op de webinterface van AdGuard Home.'), t('<b>Account:</b> AdGuard Home heeft geen aparte API-sleutel; RzSense gebruikt de gebruikersnaam en het wachtwoord van de webinterface. Bij meerdere instanties moeten ze op alle instanties hetzelfde zijn. Tip: maak in AdGuard Home een eigen gebruiker voor RzSense, dan zie je in de log wat RzSense deed.')) ?>
+          <label class="switch"><input type="checkbox" name="adguard_verify_ssl"><span></span> <?= th('Certificaat controleren') ?> <span class="hint"><?= th('(alleen bij https met een geldig certificaat)') ?></span></label>
+          <div class="btn-row"><button type="button" class="btn" data-netlinks-test="adguard">🧪 <?= th('Verbinding testen') ?></button></div>
+          <div class="small" data-netlinks-result="adguard"></div>
         </div>
 
         <div data-sk="snmp" class="card" id="snmp-card" data-nodirty>
@@ -1176,7 +1189,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <div id="netscan-nets" class="small"></div>
           <!-- 1.186.0: verkeer per apparaat -->
           <label class="switch"><input type="checkbox" name="net_traffic"><span></span> <?= t('<b>📊 Verkeer per apparaat</b> bijhouden (UniFi, SNMP of de agent; elke 5 minuten)') ?></label>
-          <?= xp(t('Hoeveel elk apparaat downloadt en uploadt, met een melding bij ongewoon veel verkeer.'), t('<b>Wat het doet:</b> RzSense leest elke 5 minuten de tellers van UniFi en houdt per apparaat bij hoeveel het downloadt en uploadt: per uur (30 dagen) en per dag (een jaar). Je ziet het op <i>Netwerk</i> (Overzicht, Apparaten en Ontdekken) en in het venster van elk apparaat. <b>Ongewoon veel:</b> na 7 dagen leren komt er in <i>Ontdekken</i> een melding als een apparaat op een dag 5× zoveel uploadt of downloadt als normaal (minstens 300 MB), of als het \'s nachts ineens verkeer heeft. <b>Bronnen:</b> het beste is UniFi met een lokaal account (<i>Koppelingen → UniFi en AdGuard Home</i>); dat ziet elk apparaat. Zonder UniFi telt RzSense via SNMP de poorten van je switches (een poort met één apparaat erop), en de netwerkkaarten van servers met agent 1.80.0 of nieuwer. Ziet UniFi een apparaat, dan gaat UniFi voor. Het verkeer tussen apparaten onderling wordt maar voor een deel gezien.')) ?>
+          <?= xp(t('Hoeveel elk apparaat downloadt en uploadt, met een melding bij ongewoon veel verkeer.'), t('<b>Wat het doet:</b> RzSense leest elke 5 minuten de tellers van UniFi en houdt per apparaat bij hoeveel het downloadt en uploadt: per uur (30 dagen) en per dag (een jaar). Je ziet het op <i>Netwerk</i> (Overzicht, Apparaten en Ontdekken) en in het venster van elk apparaat. <b>Ongewoon veel:</b> na 7 dagen leren komt er in <i>Ontdekken</i> een melding als een apparaat op een dag 5× zoveel uploadt of downloadt als normaal (minstens 300 MB), of als het \'s nachts ineens verkeer heeft. <b>Bronnen:</b> het beste is UniFi met een lokaal account (<i>Koppelingen → UniFi</i>); dat ziet elk apparaat. Zonder UniFi telt RzSense via SNMP de poorten van je switches (een poort met één apparaat erop), en de netwerkkaarten van servers met agent 1.80.0 of nieuwer. Ziet UniFi een apparaat, dan gaat UniFi voor. Het verkeer tussen apparaten onderling wordt maar voor een deel gezien.')) ?>
           <label class="switch small"><input type="checkbox" name="net_traffic_swap"><span></span> <?= th('Download en upload omdraaien (als je controller het andersom telt)') ?></label>
           <label><?= th('Datalimiet van je internetabonnement') ?> <span class="muted small"><?= th('(GB per maand, download + upload; leeg = geen limiet)') ?></span>
             <input type="number" name="net_wan_cap_gb" min="1" step="1" placeholder="<?= th('geen') ?>" style="max-width:10rem"></label>

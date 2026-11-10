@@ -157,7 +157,8 @@ Dezelfde tabel staat in RzSense bij *Instellingen → Overzicht → Functies*, m
 | 🧩 Checks en monitoring | **Check Verkeer** | Warning of critical als een apparaat te veel verkeer doet (nu of vandaag). | 1.187.0 |
 | 🌐 Netwerk | **Ontdekken** | Nieuwe apparaten, veranderingen (IP, poorten, domeinen, weg of terug), voorstellen met één klik en aanwezigheid per uur. | 1.183.0 |
 | 🌐 Netwerk | **Apparaten groeperen** | Per soort, fabrikant of verbinding (wifi-netwerk of bedraad). | 1.183.0 |
-| 🌐 Netwerk | **UniFi en AdGuard Home** | Namen, wifi en access point uit UniFi; DNS uit AdGuard. | 1.104.0 |
+| 🌐 Netwerk | **UniFi** | Namen, wifi, access point, verkeer en weren uit je UniFi-controller. | 1.104.0 |
+| 🌐 Netwerk | **AdGuard Home** | Namen, DNS-verzoeken en DNS-blokkeren uit AdGuard Home. | 1.104.0 |
 | 🌐 Netwerk | **Poortscan** | Open poorten per server, met één klik een check. | 1.8.0 |
 | 🌐 Netwerk | **Aanvalspad en impact** | Wat een aanvaller via een server kan bereiken. | 1.146.0 |
 | 🌐 Netwerk | **Netwerkpaden** | Alle pad-checks als netwerkkaart. | 1.177.0 |

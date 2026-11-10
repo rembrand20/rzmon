@@ -1210,17 +1210,19 @@ function init() {
   if ($('#net-search')) initNet();
   if ($('#an-body')) initAnalytics();
   if ($('#leak-list')) initLeaks();
-  $('#netlinks-test').onclick = async (e) => {   // 1.104.0: UniFi en AdGuard Home
-    const btn = e.currentTarget, box = $('#netlinks-result');
+  // 1.224.0: UniFi en AdGuard Home elk op een eigen pagina, met een eigen testknop
+  $$('[data-netlinks-test]').forEach((b) => (b.onclick = async (e) => {
+    const btn = e.currentTarget, which = btn.dataset.netlinksTest, box = $(`[data-netlinks-result="${which}"]`);
     btn.disabled = true;
     box.innerHTML = `<span class="muted">⏳ ${L('Testen…')}</span>`;
     try {
       const r = await api('net_links_test', {});
       const line = (x, lbl) => `<div class="${x.ok ? 'good-txt' : 'bad'}">${x.ok ? '✔' : '✘'} <b>${lbl}</b>: ${esc(x.msg)}</div>`;
-      box.innerHTML = [r.unifi ? line(r.unifi, 'UniFi') : '', ...(r.adguard || []).map((a) => line(a, 'AdGuard'))].join('') || `<span class="muted">${L('Nog niets ingevuld.')}</span>`;
+      const rows = which === 'unifi' ? (r.unifi ? [line(r.unifi, 'UniFi')] : []) : (r.adguard || []).map((a) => line(a, 'AdGuard Home'));
+      box.innerHTML = rows.join('') || `<span class="muted">${L('Nog niets ingevuld (sla eerst op).')}</span>`;
     } catch (ex) { box.innerHTML = `<span class="bad">${esc(ex.message)}</span>`; }
     btn.disabled = false;
-  };
+  }));
   $('#vuln-scan-now').onclick = async (e) => {
     const b = e.currentTarget;
     b.disabled = true;
@@ -14091,7 +14093,8 @@ const SET_NAV = [
   ['rapporten', SET_IC('<path d="M4 4h16v16H4z"/><path d="M4 8l8 5 8-5"/>'), L('Rapporten'), [
     ['reports', L('Rapporten'), ['reports'], L('Alle overzichten die RzSense per e-mail of push verstuurt, en het Maandoverzicht.')]]],
   ['koppelingen', SET_IC('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>'), L('Koppelingen'), [
-    ['netlinks', L('UniFi en AdGuard'), ['netlinks'], L('Apparaten en DNS uit je UniFi-controller en AdGuard Home.')],
+    ['unifi', 'UniFi', ['unifi'], L('Namen, wifi, verkeer en weren van je apparaten uit je UniFi-controller.')],
+    ['adguard', 'AdGuard Home', ['adguard'], L('Namen, DNS-verzoeken en DNS-blokkeren uit AdGuard Home, en de DNS-controle van het IDS.')],
     ['snmp', 'SNMP', ['snmp'], L('Eén SNMP-instelling voor al je apparaten, met per apparaat een uitzondering.')],
     ['mqtt', L('Home Assistant (MQTT)'), ['mqtt'], L('Sensoren en meldingen in Home Assistant.')],
     ['ai', L('AI-advies'), ['ai'], L('Advies van Claude, ChatGPT, Gemini, Grok of Ollama bij storingen.')],
@@ -14124,7 +14127,7 @@ if (document.body.dataset.role === 'user') {
   }
 }
 /** Oude adressen (vóór 1.92.0) → nieuwe plek */
-const SET_ALIAS = { ids_rules: 'ids_edr', whitelist: 'ids_attack', enc: 'agentdef', https: 'outside', setup: 'db', syscheck: 'db', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db' };   // 1.120.0: samengevoegde onderdelen
+const SET_ALIAS = { netlinks: 'unifi', ids_rules: 'ids_edr', whitelist: 'ids_attack', enc: 'agentdef', https: 'outside', setup: 'db', syscheck: 'db', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db' };   // 1.120.0: samengevoegde onderdelen
 const SET_TAB_OF = { ids_rules: 'regels', whitelist: 'whitelist', smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server' };   // oude adressen → tabblad op de pagina Advies
 let setTab = {};   // per onderdeel met tabbladen: het gekozen tabblad
 let setSection = (() => { try { return localStorage.getItem('rzmon-set-section') || 'overview'; } catch (e) { return 'overview'; } })();
@@ -17674,7 +17677,7 @@ function trTopHtml(limit = 10) {
   const pct = (a, b) => (b > 0 ? Math.round(((a - b) / b) * 100) : null);
   const cmp = (a, b) => { const p = pct(a, b); return p === null ? '' : ` <small class="${p > 0 ? 'warn-txt' : 'good-txt'}">${p > 0 ? '+' : ''}${p}% ${L('t.o.v. gisteren')}</small>`; };
   if (!st.on) {
-    return `<p class="muted small">${!st.unifi && st.setting ? L('Nog geen bron voor verkeer. Koppel UniFi (aanbevolen), zet SNMP aan op je switch, of werk de agent op je servers bij naar 1.80.0.') + ' ' + L('Koppel UniFi (Instellingen → Koppelingen → UniFi en AdGuard Home) om het verkeer per apparaat te zien.')
+    return `<p class="muted small">${!st.unifi && st.setting ? L('Nog geen bron voor verkeer. Koppel UniFi (aanbevolen), zet SNMP aan op je switch, of werk de agent op je servers bij naar 1.80.0.') + ' ' + L('Koppel UniFi (Instellingen → Koppelingen → UniFi) om het verkeer per apparaat te zien.')
       : !st.account ? L('Verkeer per apparaat vraagt een lokaal UniFi-account; met alleen een API-sleutel geeft UniFi geen tellers.')
       : !st.setting ? L('Verkeer per apparaat staat uit (Instellingen → Beveiliging → Netwerkscan).') : L('De netwerkscan staat uit.')}</p>`;
   }

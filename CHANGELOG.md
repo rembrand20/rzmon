@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.220.0**: **mDS per soort** met netwerk en ping, en een **veel snellere IDS-pagina**.
 - **1.219.0**: de **RzSense-kern** (futuristische meters voor de eigen server) en een **begrijpelijke IDS Live-pagina**.
 
+## 1.223.2 – 2026-11-10
+### Opgelost
+- **Koppelingen: UniFi en AdGuard Home elk op een eigen pagina** (*Instellingen → Koppelingen → UniFi* en *→ AdGuard Home*), met per pagina een eigen testknop en uitleg in gewone taal: wat de koppeling doet, waar je het terugziet (Netwerk, verkeer, DPI, internetlijn, netwerkpaden; bij AdGuard ook Analyse en de DNS-controle van het IDS), wat weren doet, en per onderdeel (adres, site, account, API-sleutel, meerdere AdGuards, certificaat) hoe je het invult. De instellingen zelf zijn niet veranderd; oude links naar de gezamenlijke pagina gaan naar UniFi.
+
 ## 1.223.1 – 2026-11-10
 ### Opgelost
 - **AI → Testen gaf "Ongeldig antwoord van server"** (vooral met Ollama): de test kon langer duren dan de webserver of reverse proxy toestaat (vaak 60 seconden). Die brak het verzoek dan af met een foutpagina in plaats van een antwoord. De test wacht nu hooguit 45 seconden en zegt dan in gewone taal wat er aan de hand is (bij Ollama: de eerste vraag laadt het model en duurt soms lang). Ook andere fouten tijdens de test komen nu als leesbare melding terug.

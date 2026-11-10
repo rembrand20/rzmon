@@ -5022,7 +5022,7 @@ switch ($action) {
             out(['error' => t('Niet gevonden')], 404);
         }
         if (!NetLinks::adguardOn()) {
-            out(['error' => t('AdGuard Home is niet ingesteld (Instellingen → Koppelingen → UniFi en AdGuard Home)')], 422);
+            out(['error' => t('AdGuard Home is niet ingesteld (Instellingen → Koppelingen → AdGuard Home)')], 422);
         }
         out(NetLinks::adguardDomains((string) $d['ip']));
 
