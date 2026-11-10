@@ -14,6 +14,16 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.221.0**: **bijwerken veel sneller**: snelle back-up en alleen doen wat nodig is (van minuten naar seconden).
 - **1.220.0**: **mDS per soort** met netwerk en ping, en een **veel snellere IDS-pagina**.
 
+## 1.224.1 – 2026-11-10
+### Opgelost (beveiliging)
+- **Setup tijdens een databasestoring**: was de database even niet bereikbaar, dan stond de installatiepagina weer open, en kon iemand op je netwerk (of van buiten, achter een lokale reverse proxy) een eigen database in `config.php` zetten. Nu kan setup dan niets veranderen, behalve bij een nieuwe installatie (config.php jonger dan 2 uur) of vanaf de server zelf.
+- **"Alleen van het lokale netwerk" achter een reverse proxy**: een verzoek via een proxy (X-Forwarded-For) telt alleen als lokaal als die proxy bij de vertrouwde proxy's staat. Dat geldt voor setup en voor heartbeats die alleen vanaf het LAN mogen.
+- **Niets meer veranderen met een gewone link**: acties die iets wijzigen kunnen alleen nog met een POST en het CSRF-token; GET mag alleen voor een vaste lijst leesacties en downloads, en nooit vanaf een andere website. Daarvoor kon een kwaadaardige website bv. je meldregels aanpassen of je andere apparaten uitloggen (bij "onthoud mij" of automatisch inloggen op het LAN).
+- **Noodlink**: de link wijst altijd naar het ingestelde beheeradres van RzSense, niet meer naar de hostnaam uit het verzoek (die kon de aanvrager zelf kiezen). Zonder beheeradres wordt er geen noodlink verstuurd.
+- **E-mailadres en 2FA alleen met je wachtwoord**: het e-mailadres voor "wachtwoord vergeten" wijzigen, 2FA instellen en 2FA uitzetten vragen nu je wachtwoord (thuis: het woord). Het oude e-mailadres krijgt bericht als het verandert.
+- **Heartbeat-adres** is in het venster van een check alleen nog zichtbaar voor beheerders (net als in de lijst).
+- Kleinere verbeteringen: IPv4 in IPv6-schrijfwijze (`::ffff:a9fe:a9fe`) wordt nu overal herkend (o.a. de bescherming tegen metadata-adressen); inloggen duurt even lang voor een bestaande en een onbekende gebruikersnaam; in de CSV-export van logs kan een regel geen formule meer worden in een spreadsheet.
+
 ## 1.224.0 – 2026-11-10
 ### Nieuw
 - **Analyse → Trends** (het eerste tabblad onder de adviezen): wat er over de laatste 90 dagen **langzaam verandert**, in vijf groepen:

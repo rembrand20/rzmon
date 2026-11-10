@@ -50,6 +50,12 @@ if ($installed) {
 } elseif (!is_private_client()) {
     http_response_code(403);
     exit(t('Setup is alleen bereikbaar vanaf het lokale netwerk zolang RzSense niet volledig is ingesteld.'));
+} elseif ($dbError !== null && !is_loopback_direct() && @filemtime(SM_CONFIG_FILE) < time() - 7200) {
+    // 1.224.1: config.php bestaat al lang, maar de database is (even) niet bereikbaar. Dat is waarschijnlijk een storing,
+    // geen nieuwe installatie: dan mag setup niets veranderen, anders kan iemand een eigen database instellen.
+    // Een nieuwe installatie (config.php jonger dan 2 uur) of vanaf de server zelf mag wel.
+    http_response_code(503);
+    exit(t('De database van RzSense is niet bereikbaar. Setup is daarom uit: het kan een storing zijn. Herstel de database, of pas config.php aan op de server zelf.'));
 }
 
 // ---------- JSON acties ----------

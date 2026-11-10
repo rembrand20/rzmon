@@ -1,6 +1,23 @@
 <?php
 declare(strict_types=1);
 
+/** 1.224.1: acties die met GET mogen (alleen lezen of downloaden). Al het andere moet een POST met CSRF-token zijn. */
+const API_GET = [
+    'access_info', 'advice_list', 'agent_cert', 'agent_cert_renew_status', 'agent_certs', 'agent_commands', 'agent_procs', 'agent_selftest_get',
+    'agent_services', 'agent_status', 'agent_url_options', 'ai_get', 'ai_info', 'alerts', 'analytics', 'api_keys', 'availability', 'backup_download',
+    'backup_info', 'blocks_overview', 'changelog', 'check_info', 'checks_all', 'cleanup', 'connections', 'contacts', 'containers', 'db_info',
+    'db_rotate_status', 'discover', 'edr_feed', 'edr_host', 'edr_rules', 'exc_export', 'exc_list', 'exc_proposals', 'export', 'features',
+    'harden_detail', 'hibp_info', 'hibp_overview', 'history', 'home', 'host_exposure', 'https_info', 'ids', 'ids_access', 'ids_anom',
+    'ids_attack_flow', 'ids_flows', 'ids_incident_info', 'ids_ip_events', 'ids_mitre', 'ids_protect', 'incident_info', 'incidents', 'inet_state',
+    'insight_analyses', 'insights', 'ip_info', 'ip_timeline', 'ipintel_status', 'log_context', 'log_export', 'log_facets', 'log_found',
+    'log_overview', 'log_search', 'log_source_lines', 'log_sources', 'log_watches', 'mds', 'my_access', 'my_logins', 'net_devices', 'net_discover',
+    'net_domains', 'net_dpi', 'net_traffic_device', 'path_info', 'paths', 'podman', 'pve_overview', 'pw_reset_info', 'quiet_get', 'report',
+    'report_preview', 'reports_get', 'rev', 'security', 'self_status', 'sessions', 'sessions_all', 'settings', 'settings_health', 'setup_info',
+    'smart_proposals', 'snmp_discover', 'snmp_global', 'ssh_sessions', 'state', 'stats', 'status_get', 'stealth_info', 'templates', 'ti_status',
+    'trends', 'truenas_overview', 'update_info', 'update_status', 'users', 'vuln_detail', 'vuln_packages', 'vuln_sbom', 'vuln_upgrade_status',
+    'vulns', 'web_sites', 'weblog_status',
+];
+
 require __DIR__ . '/../src/bootstrap.php';
 require __DIR__ . '/../src/auth.php';
 
@@ -1235,6 +1252,11 @@ if (!$user) {
 if ($method !== 'GET' && !hash_equals(csrf_token(), $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) {
     out(['error' => t('Ongeldig CSRF token'), 'csrf' => true], 403);
 }
+// 1.224.1: GET alleen om te lezen. Anders kon een andere website iets laten veranderen met een gewone link of een plaatje
+// (bij "onthoud mij" of automatisch inloggen op het LAN gaat de sessie gewoon mee). En nooit vanaf een andere website.
+if ($method === 'GET' && (!in_array($action, API_GET, true) || ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '') === 'cross-site')) {
+    out(['error' => t('Deze actie kan zo niet: gebruik de knop in RzSense')], 405);
+}
 
 // Wachtwoord staat in een datalek: eerst een nieuw kiezen (alleen dat, uitloggen en de taal mogen)
 if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'lang_set'], true)) {
@@ -2018,6 +2040,9 @@ switch ($action) {
         unset($ch);
         if (in_array($c['type'], ['mysql', 'mqtt', 'vpn'], true)) {
             $c['options'] = ExtraChecks::maskOptions($c['options']);
+        }
+        if (!$isAdmin) {
+            unset($c['hb_token']);   // 1.224.1: ook hier de geheime heartbeat-URL alleen voor beheerders (zoals bij 'state')
         }
         out(['check' => $c, 'flow' => Monitor::flow($c), 'uptime' => ['d1' => $pct($up['ok1'], $up['n1']), 'd7' => $pct($up['ok7'], $up['n7'])],
              'changes' => $changes, 'changes_total' => $nChanges, 'now' => now(), 'smart' => Smart::info($c), 'extra' => CheckInfo::extra($c)]);
@@ -3297,8 +3322,11 @@ switch ($action) {
         $fh = fopen('php://output', 'w');
         fwrite($fh, "\xEF\xBB\xBF");   // BOM: Excel leest het dan als UTF-8
         fputcsv($fh, [t('Tijd'), 'Server', t('Bron'), t('Niveau'), t('Regel')], ';', '"', '\\');
+        // 1.224.1: een logregel kan van een aanvaller komen: begint een cel met = + - @ (of tab/return), dan een ' ervoor,
+        // anders voert een spreadsheet hem uit als formule
+        $cell = static fn($v) => preg_match('/^[=+\-@\t\r]/', (string) $v) ? "'" . $v : (string) $v;
         foreach ($r['hits'] as $h) {
-            fputcsv($fh, [$h['time'], $h['host'], $h['source'], ['debug', 'info', 'warning', 'error', 'critical'][$h['level']] ?? '', $h['msg']], ';', '"', '\\');
+            fputcsv($fh, array_map($cell, [$h['time'], $h['host'], $h['source'], ['debug', 'info', 'warning', 'error', 'critical'][$h['level']] ?? '', $h['msg']]), ';', '"', '\\');
         }
         fclose($fh);
         exit;
@@ -5138,7 +5166,17 @@ switch ($action) {
         if ($email !== '' && q('SELECT 1 FROM users WHERE LOWER(email) = LOWER(?) AND id <> ?', [$email, $id])->fetchColumn()) {
             out(['error' => t('Dit e-mailadres hoort al bij een ander account')], 422);
         }
+        // 1.224.1: met je wachtwoord, want via dit adres kun je een nieuw wachtwoord krijgen. Het oude adres krijgt bericht.
+        $confirm('ACCOUNT');
+        $old = q('SELECT username, email FROM users WHERE id = ?', [$id])->fetch();
         q('UPDATE users SET email = ? WHERE id = ?', [$email !== '' ? $email : null, $id]);
+        if ($old && (string) $old['email'] !== '' && strcasecmp((string) $old['email'], $email) !== 0 && setting('email_enabled', '0') === '1') {
+            try {
+                Mailer::send(I18n::forNotify(fn() => t('RzSense: e-mailadres gewijzigd')), I18n::forNotify(fn() => t('Het e-mailadres van {user} in RzSense is gewijzigd door {by}. Was dit niet de bedoeling? Kijk dan meteen bij Instellingen → Gebruikers.',
+                    ['user' => $old['username'], 'by' => $user['username']])), null, (string) $old['email']);
+            } catch (Throwable) {
+            }
+        }
         out(['ok' => true]);
 
     case 'pw_reset_info':
@@ -5202,6 +5240,7 @@ switch ($action) {
         $in = input();
         $id = (int) ($in['id'] ?? 0);
         $ownOnly($id);
+        $confirm('ACCOUNT');   // 1.224.1: 2FA vervangen alleen met je wachtwoord
         $secret = $_SESSION['totp_setup'][$id] ?? null;
         if (!$secret) {
             out(['error' => t('Begin opnieuw met instellen')], 422);
@@ -5292,6 +5331,7 @@ switch ($action) {
         if ((int) (input()['id'] ?? 0) === (int) $user['id'] && Https::mfaRequired()) {
             out(['error' => t('Van buiten je interne netwerken kun je je eigen 2FA niet uitzetten')], 403);
         }
+        $confirm('ACCOUNT');   // 1.224.1: 2FA uitzetten alleen met je wachtwoord
         q('UPDATE users SET totp_secret = NULL, totp_last_step = NULL WHERE id = ?', [(int) (input()['id'] ?? 0)]);
         out(['ok' => true]);
 

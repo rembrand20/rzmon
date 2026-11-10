@@ -397,11 +397,18 @@ final class Stealth
         if (!$u || (int) q('SELECT COUNT(*) FROM stealth_doors WHERE user_id = ? AND created_at >= NOW() - INTERVAL 1 HOUR', [$u['id']])->fetchColumn() >= self::DOOR_PER_HOUR) {
             return;
         }
+        // 1.224.1: de link altijd naar het ingestelde adres van RzSense, nooit naar de Host van het verzoek (die kiest de aanvrager)
+        $base = Https::adminUrl() ?: rtrim((string) config('base_url', ''), '/');
+        if (!preg_match('#^https?://[^/?\#]+#i', $base)) {
+            Monitor::sysInfo('stealth_door', null, null, '🚪 ' . t('Noodlink aangevraagd: {user}', ['user' => $u['username']]),
+                fn() => t('Noodlink voor {user} aangevraagd vanaf {ip}', ['user' => $u['username'], 'ip' => $ip]) . ' · '
+                    . t('niet verstuurd: stel eerst het beheeradres van RzSense in (Instellingen → Beheer via https)'), $ip);
+            return;
+        }
         $token = bin2hex(random_bytes(24));
         q('INSERT INTO stealth_doors (user_id, token_hash, created_at, expires_at, ip) VALUES (?, ?, ?, ?, ?)',
             [$u['id'], hash('sha256', $token), now(), date('Y-m-d H:i:s', time() + self::DOOR_MINUTES * 60), mb_substr($ip, 0, 45)]);
-        $base = (Https::isHttps() ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . strtok((string) ($_SERVER['REQUEST_URI'] ?? '/'), '?');
-        $link = "$base?door=$token";
+        $link = "$base/?door=$token";
         $cc = IpIntel::lookupCountry($ip);
         $msg = I18n::forNotify(fn() => t('Noodlink voor {user}: {link}', ['user' => $u['username'], 'link' => $link]) . "\n\n"
             . t('Eén keer te gebruiken, {n} minuten geldig. Aangevraagd vanaf {ip}.', ['n' => self::DOOR_MINUTES, 'ip' => $ip . ($cc ? " ($cc)" : '')]) . ' '

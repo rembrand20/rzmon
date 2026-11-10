@@ -27,9 +27,10 @@ function ip_in_cidr(string $ip, string $cidr): bool
 
 function ip_in_list(string $ip, array $cidrs): bool
 {
-    // IPv4-mapped IPv6 (::ffff:192.168.1.5) als IPv4 behandelen
-    if (preg_match('/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i', $ip, $m)) {
-        $ip = $m[1];
+    // IPv4 in IPv6 (::ffff:192.168.1.5, ook als ::ffff:c0a8:105) als IPv4 behandelen (1.224.1: elke schrijfwijze)
+    $bin = @inet_pton($ip);
+    if ($bin !== false && strlen($bin) === 16 && substr($bin, 0, 10) === str_repeat("\0", 10) && substr($bin, 10, 2) === "\xff\xff") {
+        $ip = (string) inet_ntop(substr($bin, 12));
     }
     foreach ($cidrs as $cidr) {
         if ($cidr !== '' && ip_in_cidr($ip, $cidr)) {
@@ -64,7 +65,32 @@ function client_ip(?array $trustedProxies = null): string
     return $ip;
 }
 
+/**
+ * Komt de bezoeker van het lokale netwerk? 1.224.1: via een reverse proxy (X-Forwarded-For e.d.) alleen als die proxy
+ * bij de vertrouwde proxy's staat; anders zou elke bezoeker van internet achter een lokale proxy als "lokaal" tellen.
+ */
 function is_private_client(): bool
 {
+    foreach (['HTTP_X_FORWARDED_FOR', 'HTTP_FORWARDED', 'HTTP_X_REAL_IP'] as $h) {
+        if (!empty($_SERVER[$h])) {
+            try {
+                $tp = is_configured() ? parse_list((string) setting('trusted_proxies', '')) : [];
+            } catch (Throwable) {
+                $tp = [];
+            }
+            return $tp && ip_in_list((string) ($_SERVER['REMOTE_ADDR'] ?? ''), $tp) && ip_in_list(client_ip($tp), PRIVATE_NETWORKS);
+        }
+    }
     return ip_in_list(client_ip([]), PRIVATE_NETWORKS);
+}
+
+/** Rechtstreeks vanaf de server zelf (127.0.0.1 of ::1, niet via een proxy) */
+function is_loopback_direct(): bool
+{
+    foreach (['HTTP_X_FORWARDED_FOR', 'HTTP_FORWARDED', 'HTTP_X_REAL_IP'] as $h) {
+        if (!empty($_SERVER[$h])) {
+            return false;
+        }
+    }
+    return ip_in_list((string) ($_SERVER['REMOTE_ADDR'] ?? ''), ['127.0.0.0/8', '::1/128']);
 }

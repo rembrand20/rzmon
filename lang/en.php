@@ -9163,4 +9163,9 @@ return [
     'Alles ({n})' => 'All ({n})',
     '+{n} meer' => '+{n} more',
     'Uit de dagwaarden van de laatste {n} dagen. Dag- en weekritme (zoals nachtelijke back-ups) tellen niet mee: RzSense gebruikt een robuuste lijn (Theil-Sen) en noemt iets pas een trend als de verandering groot genoeg én consequent is. Bijgewerkt: {t}.' => 'From the daily values of the last {n} days. Daily and weekly rhythms (such as nightly backups) do not count: RzSense uses a robust line (Theil-Sen) and only calls something a trend when the change is large enough and consistent. Updated: {t}.',
+    'Deze actie kan zo niet: gebruik de knop in RzSense' => 'This action cannot be done this way: use the button in RzSense',
+    'RzSense: e-mailadres gewijzigd' => 'RzSense: e-mail address changed',
+    'Het e-mailadres van {user} in RzSense is gewijzigd door {by}. Was dit niet de bedoeling? Kijk dan meteen bij Instellingen → Gebruikers.' => 'The e-mail address of {user} in RzSense was changed by {by}. Was this not intended? Check Settings → Users right away.',
+    'De database van RzSense is niet bereikbaar. Setup is daarom uit: het kan een storing zijn. Herstel de database, of pas config.php aan op de server zelf.' => 'The RzSense database cannot be reached. Setup is therefore off: it may be an outage. Repair the database, or edit config.php on the server itself.',
+    'niet verstuurd: stel eerst het beheeradres van RzSense in (Instellingen → Beheer via https)' => 'not sent: first set the admin address of RzSense (Settings → Admin via https)',
 ];

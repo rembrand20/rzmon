@@ -142,7 +142,11 @@ function login(string $username, string $password, bool $remember = false): stri
 {
     start_session();
     $u = q('SELECT id, username, password_hash, totp_secret, role, locked_at, locked_until, local_only, hibp, pw_pwned, pw_pwned_at FROM users WHERE username = ?', [$username])->fetch();
-    if (!$u || !password_verify($password, $u['password_hash'])) {
+    // 1.224.1: ook bij een onbekende naam een wachtwoord controleren, zodat de tijd niet verraadt welke namen bestaan
+    $dummy = password_algo() === 'argon2id' ? '$argon2id$v=19$m=65536,t=4,p=1$eFlmVlp3ajdMejNFMGtLUQ$Wy3tQwEGB4vaso165SqIOfe7wTgsdhL/uu7wKY2WBJY'
+        : '$2y$10$0IjxnWsq1E9mapltBUPRsukncwuqi3XyC40ho25urRmNpbYij5Qtu';   // een vast, onbruikbaar wachtwoord
+    $okPw = password_verify($password, $u ? (string) $u['password_hash'] : $dummy);
+    if (!$u || !$okPw) {
         Security::loginFailed($username, $u ? 'verkeerd wachtwoord' : 'onbekende gebruiker', (bool) $u);
         usleep(500000); // brute force afremmen
         return false;

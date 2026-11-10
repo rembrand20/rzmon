@@ -14675,12 +14675,10 @@ async function loadAccount() {
   if (!me) return;
   const row = (label, ctl, hint) => `<div class="acct-field"><span class="acct-lbl">${label}${hint ? `<small>${hint}</small>` : ''}</span><span class="acct-ctl">${ctl}</span></div>`;
   $('#acct-data-body').innerHTML = row(L('Gebruikersnaam'), `<b>${esc(me.username)}</b> <span class="role-tag r-${esc(me.role)}">${ROLE_LABEL[me.role] || esc(me.role)}</span>`, L('wijzigen kan alleen een beheerder'))
-    + row(L('E-mailadres'), `<input type="email" id="acct-email" value="${esc(me.email || '')}" maxlength="190" placeholder="${esc(L('jij@voorbeeld.nl'))}" autocomplete="email">`, L('voor "wachtwoord vergeten"'))
+    + row(L('E-mailadres'), `<span class="mono">${me.email ? esc(me.email) : `<span class="muted">${L('geen')}</span>`}</span> <button type="button" class="btn small-btn" id="acct-email">✎ ${L('Wijzigen')}</button>`, L('voor "wachtwoord vergeten"'))
     + row(L('Taal'), `<span class="seg"><button type="button" data-lang-set="nl" class="${LANG === 'nl' ? 'active' : ''}">Nederlands</button><button type="button" data-lang-set="en" class="${LANG === 'en' ? 'active' : ''}">English</button></span>`)
     + row(L('Laatst ingelogd'), me.last_login ? esc(fmtDateTime(me.last_login)) : L('nooit'));
-  $('#acct-email').onchange = async (e) => {
-    try { await api('user_email', { id: me.id, email: e.target.value }); savedFlag(e.target, true); } catch (ex) { savedFlag(e.target, false, ex.message); toast(ex.message, 'err'); }
-  };
+  $('#acct-email').onclick = () => emailDialog({ ...me, me: true }, loadAccount);   // 1.224.1: met je wachtwoord
   $$('#acct-data-body [data-lang-set]').forEach((b) => (b.onclick = async () => {
     if (b.classList.contains('active')) return;
     try { await api('lang_set', { lang: b.dataset.langSet }); location.reload(); } catch (ex) { toast(ex.message, 'err'); }
@@ -14690,8 +14688,7 @@ async function loadAccount() {
     : row(L('Status'), `<b class="warn-txt">✘ ${L('uit')}</b> <button type="button" class="btn primary" id="acct-2fa-on">🔐 ${L('2FA instellen')}</button>`, L('aanbevolen: naast je wachtwoord een code uit een app op je telefoon'));
   if ($('#acct-2fa-on')) $('#acct-2fa-on').onclick = () => totpSetup(me.id, me.username);
   if ($('#acct-2fa-off')) $('#acct-2fa-off').onclick = async () => {
-    if (!confirm(L('Tweestapsverificatie uitzetten? Inloggen kan daarna weer met alleen je wachtwoord.'))) return;
-    try { await api('totp_reset', { id: me.id }); toast(L('2FA staat uit')); loadAccount(); } catch (ex) { toast(ex.message, 'err'); }
+    totpResetDialog(me, L('Tweestapsverificatie uitzetten? Inloggen kan daarna weer met alleen je wachtwoord.'), () => { toast(L('2FA staat uit')); loadAccount(); });
   };
   $('#acct-devices-body').innerHTML = `${xpHtml(L('Waar je nu bent ingelogd, en welke apparaten RzSense onthoudt.'), L('Hier zie je waar je nu bent ingelogd. <b>Onthouden apparaat (📌):</b> blijft ingelogd zonder wachtwoord en 2FA. Het wordt vergeten na 30 dagen niet gebruiken, of als je je wachtwoord wijzigt.'))}
     ${sessionRows(devices, false)}
@@ -15493,23 +15490,15 @@ async function onUsersClick(e) {
         toast(L('{user} gedeblokkeerd', { user: u.username }));
         return loadUsers();
       case 'totp-reset':
-        if (!confirm(L('Tweestapsverificatie van {user} resetten?', { user: u.username }) + '\n' + L('Inloggen kan daarna weer met alleen het wachtwoord, tot 2FA opnieuw is ingesteld.'))) return;
-        await api('totp_reset', { id: u.id });
-        toast(L('2FA van {user} gereset', { user: u.username }));
-        return loadUsers();
+        return totpResetDialog(u, L('Tweestapsverificatie van {user} resetten?', { user: u.username }) + ' ' + L('Inloggen kan daarna weer met alleen het wachtwoord, tot 2FA opnieuw is ingesteld.'),
+          () => { toast(L('2FA van {user} gereset', { user: u.username })); loadUsers(); });
       case 'delete':
         if (!confirm(L('Gebruiker {user} verwijderen?', { user: u.username }))) return;
         await api('user_delete', { id: u.id });
         toast(L('{name} verwijderd', { name: u.username }));
         return loadUsers();
       case 'email':
-        return modal({
-          title: `${L('E-mailadres')} – ${u.username}`,
-          body: `<p class="muted small" style="margin-top:0">${u.me ? L('Hierheen gaat de link als je wachtwoord vergeten is. Leeg = geen herstel per e-mail.') : L('Hierheen gaat de link als {user} zijn of haar wachtwoord vergeten is. Leeg = geen herstel per e-mail.', { user: esc(u.username) })}</p>
-            <label>${L('E-mailadres')}<input type="email" name="email" value="${esc(u.email || '')}" maxlength="190" autocomplete="email" autofocus></label>`,
-          buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }],
-          onSubmit: async (d) => { await api('user_email', { id: u.id, email: d.email }); toast(L('E-mailadres opgeslagen')); loadUsers(); },
-        });
+        return emailDialog(u, loadUsers);
       case 'password':
         return modal({
           title: `${L('Nieuw wachtwoord')} – ${u.username}`,
@@ -15606,6 +15595,28 @@ async function devicesDialog(u) {
   });
 }
 
+/** 1.224.1: e-mailadres voor "wachtwoord vergeten" wijzigen, met je wachtwoord (het oude adres krijgt bericht) */
+function emailDialog(u, after) {
+  modal({
+    title: `${L('E-mailadres')} – ${u.username}`,
+    body: `<p class="muted small" style="margin-top:0">${u.me ? L('Hierheen gaat de link als je wachtwoord vergeten is. Leeg = geen herstel per e-mail.') : L('Hierheen gaat de link als {user} zijn of haar wachtwoord vergeten is. Leeg = geen herstel per e-mail.', { user: esc(u.username) })}</p>
+      <label>${L('E-mailadres')}<input type="email" name="email" value="${esc(u.email || '')}" maxlength="190" autocomplete="email" autofocus></label>
+      ${confirmField('ACCOUNT')}`,
+    buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }],
+    onSubmit: async (d) => { await api('user_email', { id: u.id, email: d.email, confirm: d.confirm }); toast(L('E-mailadres opgeslagen')); after(); },
+  });
+}
+
+/** 1.224.1: 2FA uitzetten of resetten, met je wachtwoord */
+function totpResetDialog(u, question, after) {
+  modal({
+    title: `🔐 ${L('Tweestapsverificatie')} – ${u.username}`,
+    body: `<p>${esc(question)}</p>${confirmField('ACCOUNT')}`,
+    buttons: [{ label: L('Uitzetten'), cls: 'danger', submit: true }],
+    onSubmit: async (d) => { await api('totp_reset', { id: u.id, confirm: d.confirm }); after(); },
+  });
+}
+
 async function totpSetup(id, username) {
   let r;
   try { r = await api('totp_setup', { id }); } catch (ex) { return toast(ex.message, 'err'); }
@@ -15627,10 +15638,11 @@ async function totpSetup(id, username) {
       <ol class="steps" start="2">
         <li>${L('Vul de 6-cijferige code in die de app nu toont. Pas daarna staat 2FA aan.')}</li>
       </ol>
-      <label>${L('Code')}<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required class="mono totp-input" autofocus></label>`,
+      <label>${L('Code')}<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required class="mono totp-input" autofocus></label>
+      ${confirmField('ACCOUNT')}`,
     buttons: [{ label: L('Activeren'), cls: 'primary', submit: true }],
     onSubmit: async (d) => {
-      await api('totp_confirm', { id, code: d.code });
+      await api('totp_confirm', { id, code: d.code, confirm: d.confirm });
       toast(L('2FA staat aan voor {user}', { user: username }) + ' 🔐');
       loadUsers();
     },
@@ -16313,7 +16325,7 @@ async function loadSetupInfo() {
     catch (ex) { toast(ex.message, 'err'); }
   };
   $('#dbconn-schema').onclick = async () => {
-    try { toast((await api('setup_schema')).message); } catch (ex) { toast(ex.message, 'err'); }
+    try { toast((await api('setup_schema', {})).message); } catch (ex) { toast(ex.message, 'err'); }
   };
   $('#dbconn-save').onclick = () => modal({
     title: '🔌 ' + L('Databaseverbinding opslaan'),
