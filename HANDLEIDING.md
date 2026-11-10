@@ -967,7 +967,7 @@ Open vanaf een computer **op je lokale netwerk** `http://<ip-van-de-server>/`. J
 3. **Applicatie & PHP.**
    - **Tijdzone:** `Europe/Amsterdam`.
    - **Basis-URL:** bijvoorbeeld `http://192.168.1.10`. Die wordt gebruikt in de installatie-instructies voor agents.
-   - **Externe URL** (optioneel, vanaf 1.128.0): het adres van RzSense van buiten, bijvoorbeeld `https://status.voorbeeld.nl`. Wordt gebruikt voor de geheime link van de statuspagina als je daar *Extern* kiest.
+   - **Externe URL** (optioneel, vanaf 1.128.0): het adres van RzSense van buiten, bijvoorbeeld `https://status.voorbeeld.nl`. Wordt gebruikt voor de geheime link van de statuspagina als je daar *Extern* kiest, en **vanaf 1.232.2 voor alle links naar RzSense** in rapporten en meldingen (e-mail, Pushover, ntfy, webhooks, MQTT, wachtwoordherstel, noodlink). Leeg? Dan het beheeradres (https), anders de basis-URL. Agents en de AdGuard-lijst gebruiken altijd het lokale adres.
    - **Pad naar ping:** meestal `/bin/ping` of `/usr/bin/ping`. Controleer met `command -v ping`.
    - **memory_limit en max_execution_time:** leeg laten, tenzij je een reden hebt.
    - **display_errors:** alleen aanzetten om fouten te zoeken.

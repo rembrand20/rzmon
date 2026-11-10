@@ -2607,6 +2607,16 @@ ok((bool) Nis2::incidents()[0]['warn'] && str_contains(Nis2::html(), 'geen jurid
 q('DELETE FROM incidents WHERE id = ?', [$iid]);
 q('DELETE FROM hosts WHERE id = ?', [$hcis]);
 save_setting('nis2_notes', '');
+// 1.232.2: links in rapporten en meldingen met de externe URL
+$cfgOld = $GLOBALS['sm_config'];
+$GLOBALS['sm_config']['base_url'] = 'http://192.168.2.207';
+$GLOBALS['sm_config']['external_url'] = 'https://rzsense.voorbeeld.nl/';
+$pg = Reports::page('CI', []);
+ok(public_url() === 'https://rzsense.voorbeeld.nl' && str_contains($pg, 'href="https://rzsense.voorbeeld.nl/"') && !str_contains($pg, '192.168.2.207'),
+    'Externe URL: rapport en meldingen linken naar het externe adres, niet het lokale');
+$GLOBALS['sm_config']['external_url'] = '';
+ok(public_url() === (Https::adminUrl() ?: 'http://192.168.2.207'), 'Externe URL: zonder externe URL het beheeradres of de basis-URL');
+$GLOBALS['sm_config'] = $cfgOld;
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

@@ -55,6 +55,25 @@ function config(string $key, $default = null)
     return $GLOBALS['sm_config'][$key] ?? $default;
 }
 
+/**
+ * 1.232.2: het adres voor links naar RzSense in rapporten en meldingen (e-mail, Pushover, ntfy, webhooks, MQTT,
+ * wachtwoordherstel): de externe URL, anders het beheeradres (https), anders de basis-URL. Verbindingen van
+ * agents en de AdGuard-lijst (alleen LAN) gebruiken die niet: die blijven op de basis-URL.
+ */
+function public_url(): string
+{
+    $ext = rtrim(trim((string) config('external_url', '')), '/');
+    if (preg_match('#^https?://#i', $ext)) {
+        return $ext;
+    }
+    try {
+        $admin = is_configured() ? Https::adminUrl() : '';
+    } catch (Throwable) {
+        $admin = '';   // database nog niet klaar
+    }
+    return $admin !== '' ? $admin : rtrim((string) config('base_url', ''), '/');
+}
+
 function is_configured(): bool
 {
     return !empty($GLOBALS['sm_config']['db']['name']);

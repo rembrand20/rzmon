@@ -1379,7 +1379,7 @@ final class Ids
         $sent = null;
         $err = '';
         if (Push::enabled()) {
-            $base = rtrim((string) config('base_url', ''), '/');
+            $base = public_url();
             $prio = $status === STATUS_CRIT ? min(1, (int) setting('pushover_priority_crit', 1)) : min(1, (int) setting('pushover_priority_warn', 0));
             $r = Push::send("🛡️ IDS: $title", $detail . "\n" . date('d-m-Y H:i:s'), $prio,
                 $base !== '' ? ['url' => "$base/#ids", 'url_title' => 'Open IDS'] : []);
@@ -1587,7 +1587,7 @@ final class Ids
                 $lines[] = '  • ' . ((int) $o['severity'] === 2 ? '🔴' : '🟠') . " {$o['name']}: {$o['title']}";
             }
         }
-        $base = rtrim((string) config('base_url', ''), '/');
+        $base = public_url();
         if ($base !== '') {
             $lines[] = '';
             $lines[] = "RzSense: $base/#ids";

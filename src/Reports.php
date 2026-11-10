@@ -479,7 +479,7 @@ final class Reports
     public static function page(string $title, array $secs): string
     {
         $e = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES);
-        $base = rtrim((string) config('base_url', ''), '/');
+        $base = public_url();
         $body = '';
         foreach ($secs as $s) {
             $body .= '<section><h2>' . $e($s['title']) . '</h2>' . $s['html'] . '</section>';

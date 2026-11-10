@@ -146,7 +146,7 @@ switch ($action) {
     // ---------- 1.231.0: AdGuard-blokkadelijst ----------
     case 'dnsbl_status':
         $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $base = rtrim((string) setting('base_url', ''), '/') ?: $proto . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/api.php')), '/');
+        $base = rtrim((string) config('base_url', ''), '/') ?: $proto . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/api.php')), '/');
         out(DnsList::status() + ['url' => $base . '/dnsbl.php?t=' . DnsList::token()]);
 
     case 'dnsbl_token_new':

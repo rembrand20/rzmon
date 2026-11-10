@@ -19,7 +19,7 @@ final class PasswordReset
         if (trim((string) setting('smtp_host', '')) === '') {
             return t('Er is geen SMTP-server ingesteld (Instellingen → E-mail)');
         }
-        if (!preg_match('#^https?://#i', (string) config('base_url', ''))) {
+        if (!preg_match('#^https?://#i', public_url())) {
             return t('Er is geen Basis-URL ingesteld (Setup); die is nodig voor de link in de mail');
         }
         return null;
@@ -66,7 +66,7 @@ final class PasswordReset
             $u['id'], hash('sha256', $token), date('Y-m-d H:i:s', time() + self::VALID_MINUTES * 60), $ip,
         ]);
         self::log((int) $u['id'], $ident, 'link verstuurd');
-        $link = rtrim((string) config('base_url'), '/') . '/?reset=' . $token;
+        $link = public_url() . '/?reset=' . $token;
         // In de taal van het account, niet die van de browser waarmee de aanvraag gedaan is
         [$subject, $body] = I18n::forUser((int) $u['id'], fn() => ['RzSense: ' . t('wachtwoord opnieuw instellen'),
             t('Hallo {user},', ['user' => $u['username']]) . "\n\n"

@@ -59,7 +59,7 @@ final class DnsList
             $out[$d] = 'own';
         }
         // Nooit je eigen domeinen of die van RzSense blokkeren
-        foreach (array_merge(parse_list((string) setting('dnsbl_allow', '')), [(string) parse_url((string) setting('base_url', ''), PHP_URL_HOST)]) as $a) {
+        foreach (array_merge(parse_list((string) setting('dnsbl_allow', '')), [(string) parse_url((string) config('base_url', ''), PHP_URL_HOST)]) as $a) {
             unset($out[strtolower(trim((string) $a))]);
         }
         return $out;

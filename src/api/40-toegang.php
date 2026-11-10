@@ -391,7 +391,7 @@ switch ($action) {
             'can_trust' => $uid > 0 && !is_lan_session() && (!Stealth::outside() || Stealth::viaDoor($uid)),
             'internal' => !Stealth::outside(), 'ui_locked' => Stealth::uiLocked(), 'door' => setting('stealth_door', '1') === '1',
             'passkey_possible' => Passkey::possible(), 'passkeys_enabled' => Passkey::enabled(), 'rp_id' => Passkey::rpId(),
-            'door_url' => $uid ? (Https::adminUrl() ?: rtrim((string) config('base_url', ''), '/')) . '/?nood=' . rawurlencode((string) $user['username']) : null,
+            'door_url' => $uid ? public_url() . '/?nood=' . rawurlencode((string) $user['username']) : null,
         ]);
 
     case 'device_trust':

@@ -924,7 +924,7 @@ final class Monitor
 
         $pushover = null;
         if (Push::enabled() && $channels['pushover']) {
-            $base = rtrim((string) config('base_url', ''), '/');
+            $base = public_url();
             $r = Push::send($title, $body . "\n" . date('d-m-Y H:i:s'), $prio, $base !== '' ? ['url' => "$base/", 'url_title' => 'Open RzSense'] : []);
             $pushover = $r['ok'];
             if ($r['error']) {
@@ -940,7 +940,7 @@ final class Monitor
         }
         $email = null;
         if (setting('email_enabled', '0') === '1' && $channels['email'] && (setting('email_mode', 'always') !== 'fallback' || $pushover !== true)) {
-            $base = rtrim((string) config('base_url', ''), '/');
+            $base = public_url();
             $r = Mailer::send($title, $body . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s')
                 . ($acks ? "\n\n" . t('Bevestigen (geen meldingen meer voor die storing):') . "\n" . implode("\n", $acks) : '')
                 . ($base !== '' ? "\n\nRzSense: $base/" : ''));
@@ -1020,7 +1020,7 @@ final class Monitor
         // E-mail: altijd, of alleen als reserve wanneer Pushover uit staat of mislukt
         $email = null;
         if (setting('email_enabled', '0') === '1' && ($channels === null || $channels['email']) && (setting('email_mode', 'always') !== 'fallback' || $pushover !== true)) {
-            $base = rtrim((string) config('base_url', ''), '/');
+            $base = public_url();
             $body = $message . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s')
                 . ($ackUrl ? "\n\n✔ " . t('Bevestigen (geen meldingen meer voor deze storing):') . "\n$ackUrl" : '')
                 . ($base !== '' ? "\n\nRzSense: $base/" : '');
@@ -1074,7 +1074,7 @@ final class Monitor
         }
         $email = null;
         if (setting('email_enabled', '0') === '1' && (setting('email_mode', 'always') !== 'fallback' || !$sent)) {
-            $base = rtrim((string) config('base_url', ''), '/');
+            $base = public_url();
             $r = Mailer::send($title, $message . "\n\nTijd: " . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzSense: $base/" : ''));
             $email = $r['ok'];
             if (!$r['ok']) {
@@ -1084,7 +1084,7 @@ final class Monitor
         $webhook = null;
         if (self::webhookWanted($status, $event)) {
             $r = Webhook::send(['source' => 'rzmon', 'event' => $event, 'status' => $status, 'status_text' => STATUS_LABELS[$status],
-                'host' => null, 'check' => null, 'title' => $title, 'message' => $message, 'time' => date('c'), 'url' => config('base_url', '') ?: null]);
+                'host' => null, 'check' => null, 'title' => $title, 'message' => $message, 'time' => date('c'), 'url' => public_url() ?: null]);
             $webhook = $r['ok'];
             if (!$r['ok']) {
                 $errors[] = 'Webhook: ' . $r['error'];
@@ -1182,7 +1182,7 @@ final class Monitor
                 }
             }
             if (setting('email_enabled', '0') === '1' && $channels['email'] && (setting('email_mode', 'always') !== 'fallback' || $pushover !== true)) {
-                $base = rtrim((string) config('base_url', ''), '/');
+                $base = public_url();
                 $r = Mailer::send($title, $message . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzSense: $base/" : ''));
                 $email = $r['ok'];
                 if (!$r['ok']) {
@@ -1192,7 +1192,7 @@ final class Monitor
             if (setting('ha_webhook_enabled', '0') === '1' && $channels['webhook']) {
                 $payload = $check ? self::webhookPayload($check, ['value' => $check['last_value'] ?? null], STATUS_OK, $title, $message, 'info', (int) $check['status'])
                     : ['source' => 'rzmon', 'event' => 'info', 'status' => STATUS_OK, 'status_text' => STATUS_LABELS[STATUS_OK], 'host' => $hostName, 'host_id' => $hostId,
-                        'check' => null, 'title' => $title, 'message' => $message, 'time' => date('c'), 'url' => config('base_url', '') ?: null];
+                        'check' => null, 'title' => $title, 'message' => $message, 'time' => date('c'), 'url' => public_url() ?: null];
                 $r = Webhook::send($payload);
                 $webhook = $r['ok'];
                 if (!$r['ok']) {
@@ -1234,7 +1234,7 @@ final class Monitor
             'title' => $title,
             'message' => $message,
             'time' => date('c'),
-            'url' => config('base_url', '') ?: null,
+            'url' => public_url() ?: null,
             'ack_url' => $status !== STATUS_OK && $event !== 'test' ? self::ackUrl($check) : null,
         ];
     }
@@ -1266,7 +1266,7 @@ final class Monitor
 
     public static function ackUrl(array $check): ?string
     {
-        $base = rtrim((string) config('base_url', ''), '/');
+        $base = public_url();
         $token = self::ackToken((int) $check['id'], $check['problem_since'] ?? null);
         return $base !== '' && $token ? "$base/ack.php?c={$check['id']}&t=$token" : null;
     }

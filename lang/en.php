@@ -5729,6 +5729,7 @@ return [
     'Tip: vul bij Instellingen → Server en PHP het adres van RzSense in (Basis-URL). ' => 'Tip: fill in the address of RzSense under Settings → Server and PHP (Base URL). ',
     'Externe URL' => 'External URL',
     '(adres van buiten, voor de statuspagina)' => '(address from outside, for the status page)',
+    '(adres van buiten, voor links in rapporten en meldingen en voor de statuspagina)' => '(address from outside, for links in reports and notifications and for the status page)',
     'Onderdelen van een agentrapport' => 'Parts of an agent report',
     'agents mogen alleen via https: daarom {url}' => 'agents may only connect via https: hence {url}',
     'Geheugen van de database' => 'Database memory',

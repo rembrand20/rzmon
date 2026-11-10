@@ -260,7 +260,7 @@ final class Security
                 $sent = null;
                 $mail = $hook = null;
                 $err = [];
-                $base = rtrim((string) config('base_url', ''), '/');
+                $base = public_url();
                 if ($c['pushover'] && Push::enabled()) {
                     $r = Push::send($title, $msg . "\n" . date('d-m-Y H:i:s'), (int) $c['prio'],
                         $base !== '' ? ['url' => "$base/#alerts", 'url_title' => t('Open RzSense')] : []);

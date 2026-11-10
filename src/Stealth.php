@@ -398,7 +398,7 @@ final class Stealth
             return;
         }
         // 1.224.1: de link altijd naar het ingestelde adres van RzSense, nooit naar de Host van het verzoek (die kiest de aanvrager)
-        $base = Https::adminUrl() ?: rtrim((string) config('base_url', ''), '/');
+        $base = public_url();
         if (!preg_match('#^https?://[^/?\#]+#i', $base)) {
             Monitor::sysInfo('stealth_door', null, null, '🚪 ' . t('Noodlink aangevraagd: {user}', ['user' => $u['username']]),
                 fn() => t('Noodlink voor {user} aangevraagd vanaf {ip}', ['user' => $u['username'], 'ip' => $ip]) . ' · '

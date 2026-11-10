@@ -190,7 +190,7 @@ final class Mqtt
         $base = $cfg['mqtt_base_topic'];
         $prefix = $cfg['mqtt_prefix'];
         $node = preg_replace('/[^A-Za-z0-9_-]/', '_', $base);
-        $url = rtrim((string) config('base_url', ''), '/');
+        $url = public_url();
         $iso = static fn(?string $dt) => $dt ? date('c', strtotime($dt)) : null;
 
         $hub = ['identifiers' => ["{$node}_hub"], 'name' => 'RzSense', 'manufacturer' => 'RzSense', 'model' => 'Monitoring',

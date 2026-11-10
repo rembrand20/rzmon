@@ -475,7 +475,7 @@ final class LogWatch
                 }
             }
             if (setting('email_enabled', '0') === '1' && (setting('email_mode', 'always') !== 'fallback' || !$pushover)) {
-                $base = rtrim((string) config('base_url', ''), '/');
+                $base = public_url();
                 $r = Mailer::send($title, $message . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzSense: $base/#logs" : ''));
                 $email = $r['ok'];
                 if (!$r['ok']) {
@@ -485,7 +485,7 @@ final class LogWatch
             if (setting('ha_webhook_enabled', '0') === '1' && (setting('ha_webhook_events', 'all') !== 'crit' || $status === STATUS_CRIT || $event === 'recovery')) {
                 $r = Webhook::send(['source' => 'rzmon', 'event' => $status === STATUS_OK && $event !== 'recovery' ? 'info' : $event, 'status' => $status,
                     'status_text' => STATUS_LABELS[$status], 'host' => $hostId ? $hostName : null, 'host_id' => $hostId, 'check' => null, 'log_search' => $detail['name'] ?? null,
-                    'title' => $title, 'message' => $message, 'time' => date('c'), 'url' => config('base_url', '') ?: null]);
+                    'title' => $title, 'message' => $message, 'time' => date('c'), 'url' => public_url() ?: null]);
                 $webhook = $r['ok'];
                 if (!$r['ok']) {
                     $errors[] = 'Webhook: ' . $r['error'];

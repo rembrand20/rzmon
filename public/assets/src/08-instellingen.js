@@ -3063,7 +3063,7 @@ async function loadSetupInfo() {
   $('#server-body').innerHTML = `<form id="server-form">
       <div class="row2"><label>${L('Tijdzone')}<select name="timezone">${d.timezones.map((t) => `<option ${t === d.timezone ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
         <label>${L('Basis-URL')} <span class="hint">${L('(voor agent-instructies)')}</span><input name="base_url" type="url" value="${esc(d.base_url || '')}" placeholder="http://rzmon.lan"></label></div>
-      <label>${L('Externe URL')} <span class="hint">${L('(adres van buiten, voor de statuspagina)')}</span><input name="external_url" type="url" value="${esc(d.external_url || '')}" placeholder="https://status.voorbeeld.nl"></label>
+      <label>${L('Externe URL')} <span class="hint">${L('(adres van buiten, voor links in rapporten en meldingen en voor de statuspagina)')}</span><input name="external_url" type="url" value="${esc(d.external_url || '')}" placeholder="https://status.voorbeeld.nl"></label>
       <label>${L('Pad naar ping')}<input name="ping_bin" value="${esc(d.ping_bin || '')}" class="mono"></label>
       <div class="row2"><label>memory_limit <span class="hint">${L('nu')} ${esc(d.php_now.memory_limit)}</span><input name="memory_limit" value="${esc(d.php.memory_limit || '')}" placeholder="${esc(L('bv. 256M'))}"></label>
         <label>max_execution_time <span class="hint">${L('sec')}</span><input name="max_execution_time" value="${esc(d.php.max_execution_time || '')}" placeholder="${esc(L('bv. 120'))}"></label></div>

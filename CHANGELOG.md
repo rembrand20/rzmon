@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.229.0**: **onbekende programma's** herkennen (toestaan, blokkeren, stoppen) en **jagen op sporen** uit een waarschuwing, ook op de servers zelf.
 - **1.228.0**: **ransomware herkennen** in je shares, met lokaasbestanden, een snapshot bij alarm en eventueel stoppen.
 
+## 1.232.2 – 2026-11-10
+### Opgelost
+- **Links met het externe adres**: rapporten (de voettekst), meldingen (Pushover, ntfy, e-mail, webhooks), de bevestig-link, IDS- en beveiligingsmeldingen, logmeldingen, MQTT (*configuratie-URL* in Home Assistant), de link voor wachtwoordherstel en de noodlink gebruiken nu de **externe URL** (*Instellingen → Database en server → Server en PHP*). Is die leeg, dan het beheeradres (https), en anders de basis-URL zoals voorheen. Agents en de AdGuard-blokkadelijst (alleen in je eigen netwerk) blijven het lokale adres gebruiken.
+- De link naar de AdGuard-blokkadelijst gebruikte de basis-URL niet (alleen het adres in de browser).
+
 ## 1.232.1 – 2026-11-10
 ### Opgelost
 - Een controle in de code van de hardening-score opgeschoond (geen verandering in wat je ziet).
