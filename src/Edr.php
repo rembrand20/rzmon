@@ -62,6 +62,24 @@ final class Edr
     }
 
     /** Opdracht van RzSense zelf: met het kenmerk, of de cron van deze RzSense (crond → sh -c php …/cron/run.php) */
+    /**
+     * 1.222.2: is dit de agent die zijn rapport naar RzSense stuurt? curl met X-Agent-Key = het kenmerk van de eigen
+     * sleutel van deze server, of X-Agent-Token = het token van deze server. Een nagemaakt commando zonder dat
+     * kenmerk of token telt niet.
+     */
+    public static function isAgentCurl(array $host, string $cmd): bool
+    {
+        if (!str_contains($cmd, 'curl') || !preg_match('~X-Agent-(Key|Token)\s*:\s*([A-Za-z0-9._-]{8,})~i', $cmd, $m)) {
+            return false;
+        }
+        if (strcasecmp($m[1], 'Key') === 0) {
+            $kid = (string) ($host['agent_key_id'] ?? '');
+            return $kid !== '' && hash_equals($kid, substr($m[2], 0, strlen($kid)));
+        }
+        $tok = (string) ($host['agent_token'] ?? q('SELECT agent_token FROM hosts WHERE id = ?', [(int) ($host['id'] ?? 0)])->fetchColumn());
+        return $tok !== '' && hash_equals($tok, $m[2]);
+    }
+
     public static function isSelfCmd(string $cmd): bool
     {
         $m = self::selfMark();
@@ -153,7 +171,12 @@ final class Edr
                 if ($kind === null) {
                     continue;
                 }
+                // 1.222.2: de agent zelf (curl met het kenmerk van zijn eigen sleutel naar RzSense), vóór het weglakken herkennen
+                $agentSelf = $kind === 'exec' && empty($ev['own']) && self::isAgentCurl($host, (string) ($ev['cmd'] ?? ''));
                 $ev = self::clean($ev);
+                if ($agentSelf) {
+                    $ev['own'] = 'agent';
+                }
                 if ($kind === 'exec' && empty($ev['own']) && self::isSelfCmd((string) ($ev['cmd'] ?? ''))) {
                     $ev['own'] = 'rzmon';   // 1.132.0: ook als de agent het (nog) niet herkende
                 }
@@ -281,8 +304,16 @@ final class Edr
                 $out[$k] = mb_substr((string) preg_replace('/[\x00-\x1f\x7f]/u', ' ', (string) $v), 0, $k === 'cmd' || $k === 'pcmd' ? 1000 : 300);
             }
         }
-        if (isset($out['cmd'])) {
-            $out['cmd'] = Inspect::redact($out['cmd']);
+        // 1.222.2: ook headers (X-Agent-Token, Authorization …) en -u gebruiker:wachtwoord, in cmd, pcmd en de losse argumenten
+        foreach (['cmd', 'pcmd'] as $k) {
+            if (isset($out[$k]) && is_string($out[$k])) {
+                $out[$k] = Inspect::redactCmd($out[$k]);
+            }
+        }
+        if (isset($out['argv']) && is_array($out['argv'])) {
+            $joined = Inspect::redactCmd(implode("\x1f", $out['argv']));   // samen, zodat "-H" "X-Agent-Token: …" en "-u" "a:b" ook gevonden worden
+            $out['argv'] = explode("\x1f", (string) preg_replace('~(?<=\x1f|^)((?:X-Agent-(?:Token|Key|Auth)|Authorization|Cookie|X-Api-Key)\s*:\s*)[^\x1f]*~i', '$1***',
+                (string) preg_replace('~((?:^|\x1f)(?:-u|--user)\x1f[^:\x1f]+:)[^\x1f]*~', '$1***', $joined)));
         }
         return $out;
     }

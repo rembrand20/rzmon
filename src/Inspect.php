@@ -78,6 +78,20 @@ final class Inspect
         return (string) preg_replace('~((?:^|[?&;])(?:' . self::SECRET_PARAMS . ')=)[^&;#\s]*~i', '$1***', $s);
     }
 
+    /**
+     * 1.222.2: geheimen in een commando weglakken: alles van redact(), plus headers (X-Agent-Token, X-Agent-Key,
+     * Authorization, Cookie, X-Api-Key …), curl/wget -u gebruiker:wachtwoord en --password=…
+     */
+    public static function redactCmd(string $s): string
+    {
+        $s = self::redact($s);
+        $s = (string) preg_replace('~((?:X-Agent-(?:Token|Key|Auth)|X-Api-Key|X-Auth-Token|Api-Key|Private-Token|X-Token|X-Access-Token)\s*:\s*)[^\s\'"]+~i', '$1***', $s);
+        $s = (string) preg_replace('~(Authorization\s*:\s*(?:Bearer|Basic|Token|Digest)?\s*)[^\s\'"]+~i', '$1***', $s);
+        $s = (string) preg_replace('~((?:^|[\s\'"])Cookie\s*:\s*)[^\'"]+~i', '$1***', $s);
+        $s = (string) preg_replace('~((?:^|\s)(?:-u|--user|--http-user|--proxy-user)[\s=]+[\'"]?[^:\s\'"]+:)[^\s\'"]+~', '$1***', $s);
+        return (string) preg_replace('~((?:^|\s)--(?:password|passwd|pass|http-password|token|api-key)[\s=]+[\'"]?)[^\s\'"]+~i', '$1***', $s);
+    }
+
     /** Meerdere keren decoderen (dubbel gecodeerde aanvallen) */
     private static function decode(string $s): string
     {

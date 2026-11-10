@@ -1256,6 +1256,7 @@ final class Ai
     /** Geheimen eruit: wachtwoorden, tokens, sleutels (ook in logregels en de diagnose) */
     public static function scrub(string $s): string
     {
+        $s = Inspect::redactCmd($s);   // 1.222.2: ook headers (X-Agent-Token, Authorization, Cookie …) en -u gebruiker:wachtwoord
         $s = preg_replace('/-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----/s', '[privésleutel verwijderd]', $s) ?? $s;
         $s = preg_replace('/\b(Bearer|Basic)\s+[A-Za-z0-9._~+\/=-]{8,}/i', '$1 ••••', $s) ?? $s;
         $s = preg_replace('/((?:pass(?:word|wd)?|pwd|secret|token|api[_-]?key|apikey|auth|credential)s?["\']?\s*[:=]\s*["\']?)[^\s"\',;&]+/i', '$1••••', $s) ?? $s;

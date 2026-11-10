@@ -363,6 +363,8 @@ final class Installer
         self::moveAccessLog($pdo);
         self::swagToWeb($pdo);
         self::redactWebPaths($pdo);
+        self::closeAgentSelf($pdo);
+        self::redactCmdSecrets($pdo);
         AgentAudit::migrateServiceChecks($pdo);
     }
 
@@ -393,6 +395,38 @@ final class Installer
         $up = $pdo->prepare('UPDATE web_sites SET top = ? WHERE host_id = ? AND hour = ? AND site = ? AND ip = ?');
         foreach ($st->fetchAll() as $r) {
             $up->execute([Inspect::redact((string) $r['top']), $r['host_id'], $r['hour'], $r['site'], $r['ip']]);
+        }
+    }
+
+    /**
+     * 1.222.2: geheimen in bewaarde commando's weglakken (headers zoals X-Agent-Token en Authorization, -u gebruiker:wachtwoord):
+     * gebeurtenissen van de endpoint-bewaking, incidenten en AI-verzoeken. Alleen rijen waar nog iets onbedekt staat.
+     */
+    /** 1.222.2: open incidenten over de agent zelf (zijn curl naar RzSense, met het eigen kenmerk) afhandelen; vóór het weglakken */
+    private static function closeAgentSelf(PDO $pdo): void
+    {
+        $rows = $pdo->query("SELECT i.id, i.title, i.detail, h.id AS hid, h.agent_key_id, h.agent_token FROM ids_incidents i JOIN hosts h ON h.id = i.host_id
+                             WHERE i.status = 'open' AND i.detail LIKE '%X-Agent-%' LIMIT 2000")->fetchAll();
+        $up = $pdo->prepare("UPDATE ids_incidents SET status = 'done', handled_by = 'RzSense', handled_at = NOW() WHERE id = ?");
+        foreach ($rows as $r) {
+            if (Edr::isAgentCurl(['id' => $r['hid'], 'agent_key_id' => $r['agent_key_id'], 'agent_token' => $r['agent_token']], $r['title'] . ' ' . $r['detail'])) {
+                $up->execute([$r['id']]);
+            }
+        }
+    }
+
+    private static function redactCmdSecrets(PDO $pdo): void
+    {
+        $re = '(X-Agent-(Token|Key|Auth)|Authorization|X-Api-Key|X-Auth-Token|Cookie)[[:space:]]*:[[:space:]]*(Bearer[[:space:]]+|Basic[[:space:]]+)?[^*[:space:]]'
+            . '|(-u|--user)[[:space:]]+[^:[:space:]]+:[^*[:space:]]';
+        foreach ([['edr_events', ['data']], ['ids_incidents', ['title', 'detail']], ['ai_advice', ['answer', 'diag']]] as [$t, $cols]) {
+            $cond = implode(' OR ', array_map(static fn($c) => "`$c` REGEXP ?", $cols));
+            $st = $pdo->prepare("SELECT id, `" . implode('`, `', $cols) . "` FROM `$t` WHERE $cond LIMIT 20000");
+            $st->execute(array_fill(0, count($cols), $re));
+            $up = $pdo->prepare("UPDATE `$t` SET " . implode(', ', array_map(static fn($c) => "`$c` = ?", $cols)) . ' WHERE id = ?');
+            foreach ($st->fetchAll() as $r) {
+                $up->execute([...array_map(static fn($c) => $r[$c] === null ? null : Inspect::redactCmd((string) $r[$c]), $cols), $r['id']]);
+            }
         }
     }
 

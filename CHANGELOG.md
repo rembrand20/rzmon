@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.219.0**: de **RzSense-kern** (futuristische meters voor de eigen server) en een **begrijpelijke IDS Live-pagina**.
 - **1.218.0**: een **vernieuwde meldingskaart**: leesbaar, met advies als een check flapt, en op de telefoon een blad van onderaf.
 
+## 1.222.2 – 2026-11-10
+### Opgelost
+- **Geheimen in commando's worden weggelakt** (endpoint-bewaking): headers zoals `X-Agent-Token`, `X-Agent-Key`, `Authorization`, `Cookie` en `X-Api-Key`, en `-u gebruiker:wachtwoord` of `--password=…`. Dat gebeurt vóór iets wordt bewaard, getoond, gemeld of naar de AI gaat. Ook de AI-filter lakt ze nu weg. Wat al bewaard was (gebeurtenissen, incidenten, AI-verzoeken), is bij de update opgeschoond.
+- **De agent zelf is geen incident meer**: zijn `curl` naar RzSense (met het kenmerk van de eigen sleutel van die server, of zijn token) herkent RzSense nu als eigen proces, ook als de agent dat zelf niet doorhad (zoals op Proxmox). Open incidenten daarover zijn bij de update afgehandeld. Een nagemaakt commando met een ander kenmerk telt niet als eigen proces.
+
 ## 1.222.1 – 2026-11-10
 ### Opgelost
 - **Tokens en wachtwoorden in adressen uit de weblogs worden weggelakt** (`?token=***`) vóór ze in een incident, een melding (Pushover, e-mail) of *Aanvallen per site* komen. Wat al bewaard was (incidenten, blokkades, meldingen, aanvallen per site), wordt bij de update schoongemaakt. Nieuwe agent 1.86.1: die lakt ze al weg vóór iets de server verlaat.
