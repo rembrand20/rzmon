@@ -166,6 +166,10 @@ try {
     if ($msg = DnsWatch::cron()) {
         echo date('c') . " $msg\n";
     }
+    if ($n = DnsWatch::nrdCron()) {   // 1.231.0: nieuw geregistreerde domeinen (RDAP, standaard uit)
+        echo date('c') . " DNS: $n nieuw geregistreerde domeinen\n";
+    }
+    Sudo::cron();   // 1.231.0: verlopen tijdelijk sudo afsluiten
     Perf::lap('dns');
     if ($msg = Ioc::cron()) {   // 1.229.0: bewaakte sporen (elke 10 minuten)
         echo date('c') . " $msg\n";

@@ -2524,5 +2524,51 @@ ok(!q('SELECT patch_ha_req FROM hosts WHERE id = ?', [$hh])->fetchColumn() && (i
 q('DELETE FROM hosts WHERE id IN (?, ?, ?)', [$hp, $hh, $hs]);
 q("DELETE FROM maint_windows WHERE reason IN ('ci', 'leeg')");
 
+section('Tijdelijk sudo, AdGuard-lijst en nieuwe domeinen (1.231.0)');
+q("INSERT INTO hosts (name, address, mode, agent_version) VALUES ('ci-sudo', '10.0.0.101', 'agent', '1.93.0')");
+$hsd = (int) db()->lastInsertId();
+$rowS = q('SELECT * FROM hosts WHERE id = ?', [$hsd])->fetch();
+$err = '';
+try { Sudo::grant($rowS, 'root', 30, 'test', 'ci'); } catch (InvalidArgumentException $e) { $err = $e->getMessage(); }
+$err2 = '';
+try { Sudo::grant($rowS, 'alice', 30, '', 'ci'); } catch (InvalidArgumentException $e) { $err2 = $e->getMessage(); }
+ok($err !== '' && $err2 !== '', 'sudo: root kan niet, en een reden is verplicht');
+$gid = Sudo::grant($rowS, 'Alice', 9999, 'storing nginx', 'ci');
+$lines = Sudo::agentLines($hsd);
+$mins = (int) q('SELECT TIMESTAMPDIFF(MINUTE, NOW(), until) FROM sudo_grants WHERE id = ?', [$gid])->fetchColumn();
+ok(count($lines) === 1 && str_starts_with($lines[0], "0\tsudo\t$gid\talice\t") && $mins >= 238 && $mins <= 240, 'sudo: naar de agent, kleine letters, hooguit 4 uur');
+Sudo::fromAgent($rowS, ['sudo' => [['id' => $gid, 'st' => 'active']]]);
+ok((string) q('SELECT state FROM sudo_grants WHERE id = ?', [$gid])->fetchColumn() === 'active', 'sudo: de agent meldt actief');
+Sudo::revoke($gid, 'ci');
+Sudo::fromAgent($rowS, ['sudo' => [['id' => $gid, 'st' => 'removed']]]);
+ok(Sudo::agentLines($hsd) === [] && (string) q('SELECT state FROM sudo_grants WHERE id = ?', [$gid])->fetchColumn() === 'revoked'
+    && (int) q("SELECT COUNT(*) FROM host_actions WHERE host_id = ? AND module = 'sudo'", [$hsd])->fetchColumn() === 2, 'sudo: ingetrokken = niet meer naar de agent, en gevraagd/ingetrokken in het logboek');
+q("INSERT INTO sudo_grants (host_id, username, until, reason, by_user, created_at, state) VALUES (?, 'bob', NOW() - INTERVAL 1 MINUTE, 'x', 'ci', NOW() - INTERVAL 31 MINUTE, 'active')", [$hsd]);
+Sudo::cron();
+ok((string) q("SELECT state FROM sudo_grants WHERE host_id = ? AND username = 'bob'", [$hsd])->fetchColumn() === 'expired', 'sudo: verlopen wordt afgesloten');
+save_setting('dnsbl_on', '1');
+save_setting('dnsbl_own', "eigen-slecht.example\nniet geldig");
+save_setting('dnsbl_allow', 'goed.example');
+q("INSERT IGNORE INTO ti_list (kind, value, src, info) VALUES ('d', 'malware-ci.example', 'urlhaus', ''), ('d', 'goed.example', 'threatfox', '')");
+Ioc::watchAdd('bewaakt-ci.example', 'ci', 'ci');
+$txt = DnsList::render();
+ok(str_contains($txt, '||malware-ci.example^') && str_contains($txt, '||bewaakt-ci.example^') && str_contains($txt, '||eigen-slecht.example^')
+    && !str_contains($txt, 'goed.example^') && !str_contains($txt, 'niet geldig') && preg_match('/^[0-9a-f]{40}$/', DnsList::token()) === 1,
+    'AdGuard-lijst: malware, bewaakt en eigen domeinen, nooit-blokkeren eruit, geheim token');
+save_setting('ids_enabled', '1');
+save_setting('dns_on', '1');
+save_setting('adguard_urls', 'http://127.0.0.1:9');
+save_setting('dns_nrd', '1');
+$ent = static fn(string $c, string $d) => ['client' => $c, 'client_info' => ['name' => 'laptop'], 'question' => ['name' => $d, 'type' => 'A'], 'reason' => 'NotFilteredNotFound', 'status' => 'NOERROR', 'time' => date('c')];
+DnsWatch::check([$ent('192.168.1.91', 'www.gloednieuw-ci.nl'), $ent('192.168.1.91', 'cdn.oud-ci.nl'), $ent('192.168.1.92', 'mail.gloednieuw-ci.nl')]);
+$nrdN = DnsWatch::nrdCron(static fn(string $d) => ['created' => $d === 'gloednieuw-ci.nl' ? time() - 3 * 86400 : time() - 800 * 86400]);
+ok($nrdN === 1 && (int) q("SELECT COUNT(*) FROM dns_seen WHERE domain IN ('gloednieuw-ci.nl', 'oud-ci.nl') AND checked_at IS NOT NULL")->fetchColumn() === 2
+    && (int) q("SELECT severity FROM ids_incidents WHERE type = 'dns_nrd' AND dkey = '192.168.1.91|gloednieuw-ci.nl'")->fetchColumn() === 1,
+    'nieuwe domeinen: hoofddomein één keer opgezocht, jonger dan 30 dagen = warning, oud niet');
+ok(DnsWatch::nrdCron(static fn(string $d) => throw new RuntimeException('mag niet')) === 0, 'nieuwe domeinen: niet twee keer opgezocht');
+save_setting('dns_nrd', '0');
+save_setting('dnsbl_on', '0');
+q('DELETE FROM hosts WHERE id = ?', [$hsd]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

@@ -1357,6 +1357,8 @@ final class Monitor
         ChangeLog::purge();   // wijzigingslogboek: bewaartermijn instelbaar (1.97.0)
         ActionLog::purge();   // 1.226.0: logboek per server (actlog_days)
         AppControl::purge();   // 1.229.0
+        Sudo::purge();   // 1.231.0
+        DnsWatch::nrdPurge();
         Ioc::purge();
         Security::purge();
         Ids::purge();

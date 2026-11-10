@@ -507,6 +507,7 @@ if ($action === 'agent') {
     AppControl::fromAgent($host, $in, $st, $now);   // 1.229.0: programma's (agent 1.91.0)
     Ioc::fromAgent($host, $in);   // 1.229.0: jagen op sporen
     Patch::fromAgent($host, $in, $st, $now);   // 1.230.0: updates (agent 1.92.0)
+    Sudo::fromAgent($host, $in);   // 1.231.0: tijdelijk sudo (agent 1.93.0)
     ActionLog::fromAgent($host, $in);   // 1.226.0: wat de agent zelf op de server deed (agent 1.89.0)
     // Vorige stand van de verbindingscontrole (1.100.0), vóór de oude regels verdwijnen
     $prevSec = q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'sec_state'", [$host['id']])->fetchColumn();

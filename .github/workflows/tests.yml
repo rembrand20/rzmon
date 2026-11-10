@@ -65,6 +65,13 @@ jobs:
           bash tests/agent-patch.sh 2>&1 | tee /tmp/patch.out
           rc=${PIPESTATUS[0]}
           [ "$rc" = 0 ] || { echo "::error title=Updates op ${{ matrix.image }}::$(tail -n 15 /tmp/patch.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
+      - name: Tijdelijk sudo (visudo, intrekken, nooit root)
+        shell: bash
+        run: |
+          set +e +o pipefail
+          bash tests/agent-sudo.sh 2>&1 | tee /tmp/sudo.out
+          rc=${PIPESTATUS[0]}
+          [ "$rc" = 0 ] || { echo "::error title=Tijdelijk sudo op ${{ matrix.image }}::$(tail -n 15 /tmp/sudo.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
       - name: Endpoint-bewaking (auditd-, SWAG- en Suricata-parser)
         shell: bash
         run: |

@@ -130,13 +130,24 @@ final class NetChecks
         return ['missing' => true];
     }
 
+    /** 1.231.0: RDAP opzoeken voor een domein (voor nieuw geregistreerde domeinen in DnsWatch). Gooit bij een fout. */
+    public static function rdapLookup(string $name): array
+    {
+        return self::rdap($name);
+    }
+
     /** @param array<string, mixed> $j */
     public static function rdapParse(array $j): array
     {
         $exp = null;
+        $created = null;   // 1.231.0: wanneer het domein geregistreerd werd (nieuw geregistreerde domeinen)
         foreach ((array) ($j['events'] ?? []) as $e) {
-            if (in_array(strtolower((string) ($e['eventAction'] ?? '')), ['expiration', 'registrar expiration'], true) && ($t = strtotime((string) ($e['eventDate'] ?? '')))) {
+            $act = strtolower((string) ($e['eventAction'] ?? ''));
+            if (in_array($act, ['expiration', 'registrar expiration'], true) && ($t = strtotime((string) ($e['eventDate'] ?? '')))) {
                 $exp = $exp === null ? $t : min($exp, $t);
+            }
+            if ($act === 'registration' && ($t = strtotime((string) ($e['eventDate'] ?? '')))) {
+                $created = $created === null ? $t : min($created, $t);
             }
         }
         $registrar = '';
@@ -149,7 +160,7 @@ final class NetChecks
                 }
             }
         }
-        return ['exp' => $exp, 'status' => array_slice(array_map('strval', (array) ($j['status'] ?? [])), 0, 10), 'registrar' => $registrar];
+        return ['exp' => $exp, 'created' => $created, 'status' => array_slice(array_map('strval', (array) ($j['status'] ?? [])), 0, 10), 'registrar' => $registrar];
     }
 
     /** Welke RDAP-server hoort bij een extensie (lijst van IANA, 7 dagen bewaard) */

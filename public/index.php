@@ -1131,12 +1131,25 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <h3 class="set-sub"><?= th('🧭 Netwerk: AdGuard, Suricata en YARA') ?></h3>
           <label class="switch"><input type="checkbox" name="dns_on"><span></span> <?= t('<b>DNS-controle via AdGuard</b> (elk apparaat: domeinen van malware of phishing, DNS-tunnels, verzonnen domeinen)') ?></label>
           <p class="muted small" id="dns-status" style="margin-top:-.4rem"></p>
+          <label class="switch"><input type="checkbox" name="dns_nrd"><span></span> <?= t('<b>Nieuw geregistreerde domeinen</b> herkennen (jonger dan <i>N</i> dagen; de domeinnaam gaat dan naar de RDAP-server van de registry)') ?></label>
+          <label><?= th('Nieuw = jonger dan') ?> <span class="hint"><?= th('(dagen)') ?></span> <input type="number" name="dns_nrd_days" min="1" max="365" class="num-in"></label>
           <label class="switch"><input type="checkbox" name="suricata_on"><span></span> <?= t('<b>Suricata</b> (alerts van de agents gebruiken, als Suricata op een server draait; agent 1.64.0)') ?></label>
           <label class="switch"><input type="checkbox" name="suricata_block"><span></span> <?= t('<b>Blokkeren</b> bij een ernstig Suricata-alert (ernst 1, aanvaller van buiten, modus Blokkeren)') ?></label>
           <label class="switch"><input type="checkbox" name="edr_yara"><span></span> <?= t('<b>YARA</b> (regels van RzSense naar de agents sturen: nieuwe bestanden op webshells, miners, botnets en rootkits controleren; YARA moet op de server staan)') ?></label>
           <p class="muted small" id="ti-status"></p>
           <p class="small"><button type="button" class="btn small-btn" id="ti-lists"><?= th('Lijsten nu bijwerken') ?></button></p>
           <?= xp(t('Welke bronnen RzSense gebruikt en hoe vaak hij opzoekt.'), t('<b>Bronnen:</b> AbuseIPDB, GreyNoise Community, Shodan InternetDB, CIRCL hashlookup, abuse.ch (Feodo Tracker, URLhaus, ThreatFox, MalwareBazaar) en het Tor Project. <b>Hoe:</b> opzoeken gebeurt op de achtergrond (cron), met een cache van een dag en een limiet per dag, zodat je binnen de gratis grenzen blijft.')) ?>
+        </div>
+
+        <div data-sk="dnsbl" class="card" id="dnsbl-card">
+          <h2>🚫 <?= th('AdGuard-blokkadelijst') ?></h2>
+          <?= xp(t('Een lijst voor AdGuard Home, zodat bekende malwaredomeinen in je hele netwerk geblokkeerd worden.'), t('<b>Hoe het werkt:</b> RzSense maakt een filterlijst met de <b>malwaredomeinen</b> uit de dreigingsinformatie (URLhaus, ThreatFox, dagelijks bijgewerkt), je <b>bewaakte domeinen</b> (IDS → Jagen) en domeinen die je hieronder zelf invult. AdGuard haalt de lijst op via een <b>geheime URL</b>, alleen vanaf je lokale netwerk. Met <b>Toevoegen aan AdGuard</b> zet RzSense hem er zelf in (Koppelingen → AdGuard); anders plak je de URL bij <i>Filters → DNS-blokkadelijsten → Blokkadelijst toevoegen → Eigen lijst</i>. Domeinen bij <i>Nooit blokkeren</i> en het adres van RzSense komen er nooit in.')) ?>
+          <label class="switch"><input type="checkbox" name="dnsbl_on"><span></span> <?= t('<b>AdGuard-blokkadelijst</b> aanbieden') ?></label>
+          <label class="switch"><input type="checkbox" name="dnsbl_ti"><span></span> <?= th('Malwaredomeinen uit de dreigingsinformatie (URLhaus, ThreatFox)') ?></label>
+          <label class="switch"><input type="checkbox" name="dnsbl_ioc"><span></span> <?= th('Bewaakte domeinen (IDS → Jagen)') ?></label>
+          <label><?= th('Eigen domeinen') ?> <span class="hint"><?= th('(één per regel)') ?></span><textarea name="dnsbl_own" rows="3" class="mono" placeholder="slecht-voorbeeld.nl"></textarea></label>
+          <label><?= th('Nooit blokkeren') ?> <span class="hint"><?= th('(één per regel)') ?></span><textarea name="dnsbl_allow" rows="2" class="mono"></textarea></label>
+          <div id="dnsbl-box"><p class="muted"><?= th('Laden…') ?></p></div>
         </div>
 
         <div data-sk="ids_attack" class="card" id="ids-attack-card">
@@ -1208,6 +1221,15 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <div class="vuln-exclude"><span class="muted small"><?= th('Niet scannen:') ?></span> <span id="vuln-exclude-list"></span></div>
           <?= xp(t('Wat er nodig is, wanneer je een melding krijgt en hoe bijwerken werkt.'), t('<b>Nodig:</b> uitgaand HTTPS naar <code>api.osv.dev</code>, <code>www.cisa.gov</code>, <code>api.first.org</code> en <code>services.nvd.nist.gov</code>. <b>Meldingen:</b> een ℹ️ info-melding bij een nieuwe critical of actief misbruikte kwetsbaarheid volgt de rij <i>Info</i> bij Meldingen. <b>Bijwerken:</b> via de agent kan dat als commando\'s als root aan staan voor die server; anders krijg je het commando om zelf uit te voeren.')) ?>
           <div class="btn-row"><button type="button" class="btn" id="vuln-scan-now">🔍 <?= th('Nu scannen') ?></button> <span class="muted small" id="vuln-scan-info"></span></div>
+        </div>
+
+        <div data-sk="sudo" class="card" id="sudo-card">
+          <h2>🔑 <?= th('Tijdelijk sudo') ?></h2>
+          <?= xp(t('Geef een gebruiker op één server voor korte tijd sudo, in plaats van altijd.'), t('<b>Hoe het werkt:</b> in de <b>Agent Manager</b> (kaart <i>Tijdelijk sudo</i>) kies je een gebruiker, hoe lang (standaard 30 minuten) en waarom; je bevestigt met je <b>wachtwoord</b> en, als je die hebt, je <b>2FA-code</b>. De agent (1.93.0) zet een eigen bestand in <i>/etc/sudoers.d</i>, gecontroleerd met visudo, en haalt het op tijd weer weg; een systemd-timer is het vangnet als de agent stopt. <b>Intrekken</b> kan altijd. Root kan niet, en andere sudo-regels raakt de agent nooit aan. Alles staat in het logboek van de server.')) ?>
+          <label class="switch"><input type="checkbox" name="sudo_on"><span></span> <?= t('<b>Tijdelijk sudo</b> via de agent') ?></label>
+          <label><?= th('Hooguit') ?> <span class="hint"><?= th('(minuten, 5 tot 240)') ?></span> <input type="number" name="sudo_max" min="5" max="240" class="num-in"></label>
+          <h3 class="set-sub"><?= th('Laatste aanvragen') ?></h3>
+          <div id="sudo-list"><p class="muted"><?= th('Laden…') ?></p></div>
         </div>
 
         <div data-sk="patch" class="card" id="patch-card">

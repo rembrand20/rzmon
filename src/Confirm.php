@@ -12,7 +12,7 @@ final class Confirm
     /** Wat de browser stuurt als het vinkje aan staat */
     public const SURE = '__sure__';
     /** Altijd met wachtwoord: passkey, sleutels, back-up/certificaat downloaden, databasewachtwoord en -gegevens, iedereen uitloggen */
-    public const ALWAYS = ['PASSKEY', 'SLEUTEL', 'DOWNLOADEN', 'VERNIEUWEN', 'UITLOGGEN', 'DATABASE', 'ACCOUNT'];   // 1.224.1: ACCOUNT = e-mailadres en 2FA
+    public const ALWAYS = ['PASSKEY', 'SLEUTEL', 'DOWNLOADEN', 'VERNIEUWEN', 'UITLOGGEN', 'DATABASE', 'ACCOUNT', 'SUDO'];   // 1.231.0: SUDO = tijdelijk sudo geven   // 1.224.1: ACCOUNT = e-mailadres en 2FA
     public const ROLES = ['admin' => '1', 'user' => '0', 'readonly' => '0'];   // standaard: alleen beheerders
 
     public static function graceMin(): int

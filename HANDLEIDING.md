@@ -3167,6 +3167,28 @@ Krijg je een waarschuwing met **sporen** (IOC's: IP-adressen, domeinen, vingeraf
 
 **Eerdere jachten** blijven 180 dagen staan (rechts). Alles staat in het logboek. **Aan/uit:** *Instellingen → IDS → Jagen op sporen* of *Overzicht → Functies*. Er gaat niets naar buiten: alles wordt vergeleken met wat RzSense al heeft.
 
+### 8.12e Tijdelijk sudo 🔑 (vanaf 1.231.0, agent 1.93.0)
+Iemand moet even iets als root doen (een dienst herstarten, een update)? Geef die gebruiker dan **tijdelijk** sudo, in plaats van altijd. Minder accounts met blijvende rechten betekent minder kans dat een aanvaller ze misbruikt.
+
+**Geven:** *Agent Manager → 🔑 Tijdelijk sudo → Tijdelijk sudo geven*:
+- **Gebruiker**: de naam op de server (RzSense stelt de gebruikers voor die eerder via SSH inlogden). Root kan niet.
+- **Hoe lang**: 15 minuten tot 4 uur (standaard 30; het maximum stel je in bij *Instellingen → Beveiliging → Tijdelijk sudo*).
+- **Waarom**: verplicht, komt in het logboek.
+- **Bevestigen** met je wachtwoord (altijd, ook als het vinkje *Ik weet het zeker* aan staat) en, als je tweestapsverificatie hebt, je **2FA-code**.
+
+**Wat de agent doet:** hij zet een eigen bestand `/etc/sudoers.d/rzsense-jit-<gebruiker>` neer (eerst gecontroleerd met `visudo`, daarna de hele sudo-configuratie nog eens) en zet een **systemd-timer** die het op tijd weghaalt, ook als de agent stopt. Is de tijd voorbij of trek je het in, dan haalt de agent het zelf weg. Andere sudo-regels raakt hij nooit aan.
+
+**Intrekken:** de knop *Intrekken* bij de aanvraag (Agent Manager of Instellingen). **Overzicht:** alle aanvragen, met wie, waarom en de stand, bij *Instellingen → Beveiliging → Tijdelijk sudo*, en in het logboek van de server. **Uitzetten:** daar, of op de server `SUDO_JIT=0` in `/etc/default/rzmon-agent`. Nodig: agent **1.93.0** als root, met `visudo` (pakket sudo).
+
+### 8.12f AdGuard-blokkadelijst en nieuwe domeinen 🚫 (vanaf 1.231.0)
+**AdGuard-blokkadelijst:** RzSense maakt een filterlijst voor AdGuard Home, zodat bekende malwaredomeinen in je **hele netwerk** geblokkeerd worden (ook voor tv's, camera's en telefoons):
+- de malwaredomeinen uit de dreigingsinformatie (URLhaus, ThreatFox; dagelijks bijgewerkt), je **bewaakte domeinen** (IDS → Jagen) en **eigen domeinen**;
+- *Nooit blokkeren* en het adres van RzSense zelf komen er nooit in.
+
+Aanzetten bij *Instellingen → IDS → Dreigingsinformatie → AdGuard-blokkadelijst*. Daar staat de **geheime URL** (alleen bereikbaar vanaf je lokale netwerk). Met **Toevoegen aan AdGuard** zet RzSense hem zelf in je AdGuard-instanties (als AdGuard gekoppeld is bij *Koppelingen*); anders plak je de URL in AdGuard bij *Filters → DNS-blokkadelijsten → Blokkadelijst toevoegen → Eigen lijst*. Met **Nieuwe geheime URL** maak je de oude onbruikbaar.
+
+**Nieuw geregistreerde domeinen:** vraagt een apparaat (via AdGuard) een domein op dat **jonger is dan 30 dagen**, dan krijg je een warning *… vroeg een nieuw geregistreerd domein op*. Phishing en malware gebruiken vaak gloednieuwe domeinen. RzSense zoekt elk hoofddomein **één keer** op via RDAP (hooguit 15 per minuut). Dit staat **standaard uit**, omdat de domeinnaam dan naar de RDAP-server van de registry gaat; aanzetten en de grens in dagen bij *Instellingen → IDS → Dreigingsinformatie*.
+
 ### 8.13 Kwetsbaarheden 🐞
 Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) horen daarbij? Standaard uit; aanzetten bij *Instellingen → 🐞 Kwetsbaarheden*. Daarna staat er een tabblad **🐞 Kwetsbaarheden** in de bovenbalk (voor beheerders en gebruikers, niet voor *alleen lezen*).
 

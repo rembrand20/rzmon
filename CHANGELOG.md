@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.231.0**: **tijdelijk sudo** met wachtwoord en 2FA dat vanzelf weer weggaat, een **AdGuard-blokkadelijst** uit RzSense, en **nieuw geregistreerde domeinen** herkennen.
 - **1.230.0**: **updates installeren**: beveiligingsupdates met één klik of automatisch in het onderhoudsvenster, eerst een snapshot, Home Assistant met een back-up.
 - **1.229.0**: **onbekende programma's** herkennen (toestaan, blokkeren, stoppen) en **jagen op sporen** uit een waarschuwing, ook op de servers zelf.
 - **1.228.0**: **ransomware herkennen** in je shares, met lokaasbestanden, een snapshot bij alarm en eventueel stoppen.
 - **1.227.0**: **e-mailbeveiliging van je domein** (SPF, DKIM, DMARC, met het record om te plakken) en **end-of-life** van besturingssysteem en software.
-- **1.226.0**: **logboek per server**: wat de agent, RzSense en beheerders deden en veranderden, met uitkomst, filters en CSV.
+
+## 1.231.0 – 2026-11-10
+### Nieuw
+- **Tijdelijk sudo** (**nieuwe agent 1.93.0**): geef een gebruiker op één server voor korte tijd sudo, in plaats van altijd.
+  - In de **Agent Manager** (kaart 🔑 *Tijdelijk sudo*): gebruiker (met de gebruikers die eerder via SSH inlogden als voorstel), hoe lang (15 minuten tot 4 uur, standaard 30) en waarom. Bevestigen met je **wachtwoord** en, als je die hebt, je **2FA-code**;
+  - de agent zet een eigen, door visudo gecontroleerd bestand in /etc/sudoers.d en haalt het vanzelf weer weg; **intrekken** kan altijd. Root kan niet;
+  - overzicht van alle aanvragen bij **Instellingen → Beveiliging → Tijdelijk sudo** (daar ook aan/uit en de maximale duur). Alles in het logboek.
+- **AdGuard-blokkadelijst**: RzSense maakt een filterlijst voor AdGuard Home met de malwaredomeinen uit de dreigingsinformatie (URLhaus, ThreatFox), je bewaakte domeinen en eigen domeinen, via een geheime URL (alleen vanaf het lokale netwerk). Met één knop toegevoegd aan je AdGuard. *Instellingen → IDS → Dreigingsinformatie → AdGuard-blokkadelijst* (standaard uit).
+- **Nieuw geregistreerde domeinen**: vraagt een apparaat een domein op dat jonger is dan 30 dagen (via RDAP), dan krijg je een warning: phishing en malware gebruiken vaak gloednieuwe domeinen. Elk hoofddomein wordt één keer opgezocht. Standaard uit, omdat de domeinnaam dan naar de registry gaat (*Instellingen → IDS → Dreigingsinformatie*).
+- Alle drie aan/uit bij *Overzicht → Functies*. Nieuwe agent 1.93.0.
 
 ## 1.230.0 – 2026-11-10
 ### Nieuw

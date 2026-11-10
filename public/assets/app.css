@@ -4868,7 +4868,7 @@ body.no-anim .al2-badge .al2-shape { animation: none !important; }
 .lg-kv dt { color: var(--muted); } .lg-kv dd { margin: 0; font-variant-numeric: tabular-nums; }
 .lg-in { min-width: 0; }
 .lg-in h3 { margin: 0 0 .4rem; }
-.am-grid > [data-pk="logs"], .am-grid > [data-pk="actlog"], .am-grid > [data-pk="ransom"], .am-grid > [data-pk="apps"], .am-grid > [data-pk="patch"] { grid-column: 1 / -1; }   /* 1.210.0: de tabel met bronnen over de hele breedte; 1.226.0: ook het logboek */
+.am-grid > [data-pk="logs"], .am-grid > [data-pk="actlog"], .am-grid > [data-pk="ransom"], .am-grid > [data-pk="apps"], .am-grid > [data-pk="patch"], .am-grid > [data-pk="sudo"] { grid-column: 1 / -1; }   /* 1.210.0: de tabel met bronnen over de hele breedte; 1.226.0: ook het logboek */
 
 /* ---------------------------------------------------------------- 1.211.0: pagina Logs (zoeken) */
 .logs-page { display: grid; gap: .8rem; }

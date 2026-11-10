@@ -104,6 +104,7 @@ final class DnsWatch
         $long = [];
         $nx = [];
         $names = [];
+        $nrd = self::nrdOn() ? [] : null;   // 1.231.0: hoofddomeinen om op registratiedatum te controleren
         foreach ($entries as $q) {
             $client = (string) ($q['client'] ?? '');
             $domain = strtolower(rtrim((string) ($q['question']['name'] ?? ''), '.'));
@@ -140,6 +141,9 @@ final class DnsWatch
             // Statistiek voor tunnel en verzonnen domeinen
             $labels = explode('.', $domain);
             $base = self::base($domain);
+            if ($nrd !== null && !$why && count($nrd) < 500 && ($q['status'] ?? 'NOERROR') === 'NOERROR' && !preg_match(self::LONG_OK, $domain) && str_contains($base, '.')) {
+                $nrd[$base] ??= [$client, $names[$client]];
+            }
             if (!preg_match(self::LONG_OK, $domain) && count($labels) > 2 && strlen($labels[0]) >= 25) {
                 $long[$client][$base][$labels[0]] = true;
             }
@@ -157,6 +161,9 @@ final class DnsWatch
                 }
             }
         }
+        foreach ($nrd ?? [] as $base => [$client, $cname]) {
+            q('INSERT IGNORE INTO dns_seen (domain, first_seen, client, client_name) VALUES (?, ?, ?, ?)', [mb_substr($base, 0, 253), now(), $client, mb_substr($cname, 0, 100)]);
+        }
         foreach ($nx as $client => $doms) {
             if (count($doms) >= self::DGA_MIN) {
                 $n += self::raise($client, $names[$client] ?? '', 'dns_odd', "$client|dga", 1,
@@ -166,6 +173,49 @@ final class DnsWatch
             }
         }
         return $n;
+    }
+
+    // ------------------------------------------------------------------ 1.231.0: nieuw geregistreerde domeinen
+
+    /** Aan? Standaard uit: de domeinnaam gaat dan naar de RDAP-server van de registry (dat is buiten je netwerk) */
+    public static function nrdOn(): bool
+    {
+        return self::on() && setting('dns_nrd', '0') === '1';
+    }
+
+    /** Elke minuut: hooguit 15 nieuwe hoofddomeinen opzoeken (RDAP); jonger dan dns_nrd_days = een warning */
+    public static function nrdCron(?Closure $lookup = null): int
+    {
+        if (!self::nrdOn()) {
+            return 0;
+        }
+        $days = max(1, min(365, (int) setting('dns_nrd_days', '30')));
+        $lookup ??= static fn(string $d) => NetChecks::rdapLookup($d);
+        $n = 0;
+        foreach (q('SELECT * FROM dns_seen WHERE checked_at IS NULL ORDER BY first_seen DESC LIMIT 15')->fetchAll() as $r) {
+            $d = (string) $r['domain'];
+            try {
+                $info = $lookup($d);
+                $created = is_int($info['created'] ?? null) ? $info['created'] : null;
+                q('UPDATE dns_seen SET checked_at = NOW(), created = ? WHERE domain = ?', [$created ? date('Y-m-d', $created) : null, $d]);
+            } catch (Throwable $e) {
+                q("UPDATE dns_seen SET checked_at = NOW(), created = NULL, note = ? WHERE domain = ?", [mb_substr($e->getMessage(), 0, 100), $d]);
+                continue;
+            }
+            if ($created && $created > time() - $days * 86400) {
+                $age = max(0, (int) floor((time() - $created) / 86400));
+                $n += self::raise((string) $r['client'], (string) $r['client_name'], 'dns_nrd', $r['client'] . '|' . $d, 1,
+                    t('{who} vroeg een nieuw geregistreerd domein op: {domain}', ['who' => self::who((string) $r['client'], (string) $r['client_name']), 'domain' => $d]),
+                    t('Geregistreerd op {date} ({n} dagen geleden). Phishing en malware gebruiken vaak gloednieuwe domeinen. Ken je het niet, kijk dan wat dit apparaat deed.',
+                        ['date' => date('Y-m-d', $created), 'n' => $age]), 30, ['T1583.001']);
+            }
+        }
+        return $n;
+    }
+
+    public static function nrdPurge(): void
+    {
+        q('DELETE FROM dns_seen WHERE first_seen < NOW() - INTERVAL 90 DAY');
     }
 
     /** Hoofddomein, ongeveer (voorbeeld.nl, voorbeeld.co.uk) */

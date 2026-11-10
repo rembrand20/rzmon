@@ -108,6 +108,60 @@ switch ($action) {
             out(['error' => $e->getMessage()], 422);
         }
 
+    // ---------- 1.231.0: tijdelijk sudo (agent 1.93.0) ----------
+    case 'sudo_list':
+        $hid = (int) ($_GET['host_id'] ?? 0);
+        if ($hid) {
+            $h = q('SELECT * FROM hosts WHERE id = ?', [$hid])->fetch();
+            out($h ? Sudo::info($h) : ['error' => t('Server niet gevonden')], $h ? 200 : 404);
+        }
+        out(['on' => Sudo::enabled(), 'max' => Sudo::maxMinutes(), 'grants' => Sudo::list()]);
+
+    case 'sudo_grant':
+        $in = input();
+        $h = q("SELECT * FROM hosts WHERE id = ? AND mode = 'agent'", [(int) ($in['host_id'] ?? 0)])->fetch();
+        if (!$h) {
+            out(['error' => t('Server niet gevonden')], 404);
+        }
+        $confirm('SUDO');   // altijd je wachtwoord (of thuis het woord), en daarna je 2FA-code als je die hebt
+        $me = q('SELECT totp_secret, totp_last_step FROM users WHERE id = ?', [$user['id']])->fetch();
+        if ($me && $me['totp_secret']) {
+            $step = Totp::verify((string) $me['totp_secret'], preg_replace('/\D/', '', (string) ($in['totp'] ?? '')) ?? '', $me['totp_last_step'] !== null ? (int) $me['totp_last_step'] : null);
+            if ($step === null) {
+                usleep(500000);
+                out(['error' => t('De 2FA-code klopt niet'), 'need_totp' => true], 422);
+            }
+            q('UPDATE users SET totp_last_step = ? WHERE id = ?', [$step, $user['id']]);
+        }
+        try {
+            out(['ok' => true, 'id' => Sudo::grant($h, (string) ($in['user'] ?? ''), (int) ($in['minutes'] ?? 30), (string) ($in['reason'] ?? ''), (string) $user['username'])]);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    case 'sudo_revoke':
+        Sudo::revoke((int) (input()['id'] ?? 0), (string) $user['username']);
+        out(['ok' => true]);
+
+    // ---------- 1.231.0: AdGuard-blokkadelijst ----------
+    case 'dnsbl_status':
+        $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $base = rtrim((string) setting('base_url', ''), '/') ?: $proto . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/api.php')), '/');
+        out(DnsList::status() + ['url' => $base . '/dnsbl.php?t=' . DnsList::token()]);
+
+    case 'dnsbl_token_new':
+        $confirm('VERNIEUWEN');
+        DnsList::newToken((string) $user['username']);
+        out(['ok' => true]);
+
+    case 'dnsbl_adguard_add':
+        $in = input();
+        $url = (string) ($in['url'] ?? '');
+        if (!preg_match('#^https?://[^\s]+/dnsbl\.php\?t=[0-9a-f]{40}$#', $url) || !str_ends_with($url, DnsList::token())) {
+            out(['error' => t('Ongeldige URL')], 422);
+        }
+        out(['results' => DnsList::addToAdguard($url, (string) $user['username'])]);
+
     // ---------- 1.230.0: updates installeren (patchbeheer, agent 1.92.0) ----------
     case 'patch':
         out(Patch::overview());

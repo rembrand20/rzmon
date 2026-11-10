@@ -1578,3 +1578,34 @@ CREATE TABLE IF NOT EXISTS ioc_hunts (
 INSERT IGNORE INTO settings (name, value) VALUES ('appctl_on', '1'), ('appctl_learn', '7'), ('ioc_on', '1');
 -- 1.230.0: updates installeren (patchbeheer, per server in te stellen; standaard met de hand)
 INSERT IGNORE INTO settings (name, value) VALUES ('patch_on', '1');
+
+-- 1.231.0: tijdelijk sudo (agent 1.93.0): per server een gebruiker voor korte tijd sudo, met wie, waarom en de stand.
+-- state: pending (wacht op de agent), active, expired (tijd voorbij), revoked (ingetrokken), replaced, failed
+CREATE TABLE IF NOT EXISTS sudo_grants (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id    INT UNSIGNED NOT NULL,
+    username   VARCHAR(32)  NOT NULL,
+    until      DATETIME     NOT NULL,
+    reason     VARCHAR(200) NOT NULL DEFAULT '',
+    by_user    VARCHAR(100) NULL,
+    created_at DATETIME     NOT NULL,
+    state      VARCHAR(8)   NOT NULL DEFAULT 'pending',
+    detail     VARCHAR(200) NULL,
+    ended_at   DATETIME     NULL,
+    ended_by   VARCHAR(100) NULL,
+    INDEX idx_sudo_host (host_id, ended_at),
+    CONSTRAINT fk_sudo_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- 1.231.0: nieuw geregistreerde domeinen (DnsWatch): welke hoofddomeinen al gezien zijn, en hun registratiedatum (RDAP)
+CREATE TABLE IF NOT EXISTS dns_seen (
+    domain      VARCHAR(253) NOT NULL PRIMARY KEY,
+    first_seen  DATETIME     NOT NULL,
+    client      VARCHAR(45)  NOT NULL DEFAULT '',
+    client_name VARCHAR(100) NOT NULL DEFAULT '',
+    checked_at  DATETIME     NULL,
+    created     DATE         NULL,
+    note        VARCHAR(100) NULL,
+    INDEX idx_dnsseen_check (checked_at, first_seen)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('sudo_on', '1'), ('sudo_max', '240'), ('dnsbl_on', '0'), ('dnsbl_ti', '1'), ('dnsbl_ioc', '1'),
+    ('dnsbl_own', ''), ('dnsbl_allow', ''), ('dns_nrd', '0'), ('dns_nrd_days', '30');

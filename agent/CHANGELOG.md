@@ -5,6 +5,11 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.93.0 – 2026-11-10
+- **Tijdelijk sudo** (gevraagd in RzSense: *Agent Manager → Tijdelijk sudo*): de agent zet een eigen bestand `/etc/sudoers.d/rzsense-jit-<gebruiker>` neer, eerst als verborgen bestand door `visudo` gecontroleerd en daarna de hele sudo-configuratie nog eens. Een systemd-timer haalt het op tijd weg, ook als de agent stopt; de agent haalt het zelf weg als de tijd voorbij is of het is ingetrokken.
+  - Alleen de eigen `rzsense-jit`-bestanden worden ooit aangeraakt, nooit `/etc/sudoers` of andere bestanden; nooit voor root of een onbekende gebruiker. Een mislukte aanvraag wordt niet elke minuut opnieuw geprobeerd.
+  - Alles in het logboek. Uitzetten op de server: `SUDO_JIT=0`.
+
 ## 1.92.0 – 2026-11-10
 - **Updates (patchbeheer)**, aan per server in RzSense:
   - eens per uur welke updates er klaarstaan en welke daarvan **beveiligingsupdates** zijn (dnf `check-update --security`, of apt: wat uit een security-bron komt; de apt-lijsten worden hooguit eens per 6 uur ververst), en of een **herstart** nodig is;
