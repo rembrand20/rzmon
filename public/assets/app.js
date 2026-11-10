@@ -1255,7 +1255,8 @@ function init() {
     catch (ex) { toast(ex.message, 'err'); }
     e.target.disabled = false;
   };
-  $('#filter').addEventListener('input', render);
+  let filterT = null;   // 1.224.4: pas na 200 ms stil typen (niet de hele pagina bij elke toets)
+  $('#filter').addEventListener('input', () => { clearTimeout(filterT); filterT = setTimeout(render, 200); });
   const setDashFilter = (k) => { dashFilter = k; render(); };   // 1.171.4: alleen zolang je op de pagina blijft
   $('#dash-chips').addEventListener('click', (e) => {
     const b = e.target.closest('[data-dfilter]');
@@ -1801,7 +1802,7 @@ function showTab(name) {
   if (name === 'settings' && !isAdmin() && !isUser()) name = $('#tab-account') ? 'account' : 'dashboard';   // 1.181.0: beheerders, en gebruikers alleen bekijken
   if (!$('#tab-' + name)) name = 'home';
   if (name === 'mds' && !MDS_MQ.matches) name = 'home';   // 1.194.0: mDS alleen op een telefoon
-  $$('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+  $$('.tab').forEach((t) => { const on = t.dataset.tab === name; t.classList.toggle('active', on); if (t.getAttribute('role') === 'tab') t.setAttribute('aria-selected', on ? 'true' : 'false'); });   // 1.224.4: ook voor schermlezers
   { const m = $('#tab-more'); if (m) m.classList.toggle('active', MORE_TABS.includes(name)); }   // 1.196.0
   moveTabIndicator();
   $$('.tab-panel').forEach((p) => (p.hidden = p.id !== 'tab-' + name));
@@ -1926,12 +1927,16 @@ function liveToasts(prev) {
 }
 
 let statsAt = 0;
+let refreshSeq = 0;
 async function refresh(live = false, what = null) {
+  const seq = ++refreshSeq;   // 1.224.4: een trager, ouder antwoord mag een nieuwer niet overschrijven
   try {
     // Openstaande tab (Dashboard of Meldingen) telt als gezien, maar alleen als je echt kijkt
     const seen = document.hidden ? '' : ['dashboard', 'alerts'].find((t) => !$('#tab-' + t).hidden) || '';
     const prev = live && state && state.hosts ? new Map(state.hosts.flatMap((h) => h.checks.map((c) => [+c.id, +c.notified_status]))) : null;
-    state = await api('state', null, seen ? { seen } : {});
+    const st = await api('state', null, seen ? { seen } : {});
+    if (seq !== refreshSeq) return;
+    state = st;
     syncClock(state.now_ts);
     if (state.confirm) CONFIRM = { ...state.confirm, until: Date.now() / 1000 + (+state.confirm.left || 0) };   // 1.206.0
     // Info-check: telt nooit als storing. Voor tellers, filters en "Problemen" is hij OK; de echte status staat in info_status
@@ -2099,13 +2104,6 @@ function hostMax(h, type) {
   const v = h.checks.filter((c) => c.type === type && +c.enabled && !c.maintenance && c.last_value !== null && c.last_value !== undefined).map((c) => +c.last_value);
   return v.length ? Math.max(...v) : null;
 }
-/** Dagen tot de disk vol is, uit de trend die RzSense al bijhoudt (zelfde regel als Stats::diskForecast) */
-function diskDays(c) {
-  const t = c.trend_per_day !== null && c.trend_per_day !== undefined ? +c.trend_per_day : null;
-  if (t === null || t <= 0.05 || +c.last_value >= 100) return null;
-  const d = (100 - +c.last_value) / t;
-  return d <= 365 ? d : null;
-}
 // ---------------------------------------------------------------- 1.219.0: de RzSense-kern
 // Reactor-meters voor de server waar RzSense zelf op draait (CPU, RAM, disk, cron) en een paneel met de rest.
 // Vervangt de meters van "de zwaarste server" (1.199.0). Gegevens: api self_status, elke 30 s zolang Monitoring open is.
@@ -2172,7 +2170,8 @@ function miniRes() {
     <div class="rzk-gs">${g('cpu', 'CPU', p.cpu, '%', L('CPU van de RzSense-server'))}${g('mem', 'RAM', p.mem, '%', L('Geheugen van de RzSense-server'))}${g('disk', 'DISK', p.disk, '%', L('Disk waar de database staat'))}${g('cron', 'CRON', p.cron, 's', L('Hoe lang de laatste cron-ronde duurde'))}</div></div>`;
   el.innerHTML = html;
   const m = $('#rz-core-m');
-  if (m) m.innerHTML = html.replace('id="rzk-btn"', 'id="rzk-btn-m"');
+  // 1.224.4: ook de verloop-id's een eigen naam (anders tekent de telefoon het verloop van de verborgen kopie: lege meters)
+  if (m) m.innerHTML = html.replace('id="rzk-btn"', 'id="rzk-btn-m"').replace(/(id="|url\(#)rzk-([a-z]+)/g, '$1rzkm-$2');
   if ($('#rzk-pop')) rzPopFill();
 }
 /** Het paneel met de hele gezondheid (klik op de kern) */
@@ -3734,7 +3733,7 @@ function sbStatus() {
   const n = openCounts(), tot = n.crit + n.warn;
   el.hidden = false;
   el.className = 'sb-status ' + (n.crit ? 's2' : n.warn ? 's1' : 's0');
-  $('.sb-t', el).textContent = tot ? L('{n} problemen', { n: tot }) : L('Alles in orde');
+  $('.sb-t', el).textContent = tot ? (tot === 1 ? L('1 probleem') : L('{n} problemen', { n: tot })) : L('Alles in orde');
   el.dataset.n = tot || '';
   $('.sb-t', el).dataset.n = tot || '';
   el.title = tot ? L('{c} critical, {w} warning, nog niet bevestigd: klik voor Monitoring', { c: n.crit, w: n.warn }) : L('Alle checks zijn in orde');
@@ -4906,15 +4905,6 @@ function ccAllOkToggle(id) {
 }
 
 // L1nes: een balk over de volle breedte per server, als een tabel (Small of Large)
-/** Eén meter (CPU, RAM of de volste disk) als tabelcel, of een streepje. */
-function meterCell(h, type) {
-  const c = h.checks.filter((x) => x.type === type && +x.enabled && x.last_value !== null).sort((a, b) => b.last_value - a.last_value)[0];
-  if (!c) return '<span class="muted">–</span>';
-  const v = Math.min(100, Math.round(+c.last_value));
-  return `<span class="meter s${c.maintenance ? 4 : c.status}" title="${esc(c.name)}: ${esc(c.last_message || '')}">
-    <span class="meter-bar"><i style="width:${v}%"></i></span><b data-flash>${v}%</b></span>`;
-}
-
 function hostLine(h, large) {
   const p = hostParts(h);
   const keys = keyChecks(h);
@@ -5732,9 +5722,22 @@ function initCmdk() {
 }
 
 // ---------------------------------------------------------------- Modal helper
+/**
+ * 1.224.4: elk venster heeft een eigen "generatie" (modalGen) en een AbortController (modalSignal()). Een nieuw venster
+ * haalt de klik- en wijzigingsafhandelingen van het vorige weg, en polls van het vorige venster stoppen. Daarvoor stapelden
+ * ze op: na een paar keer openen deed één klik het twee keer, of voor een andere server.
+ */
+let modalGen = 0, modalAC = null, pairTok = 0;
+const modalSignal = () => (modalAC || (modalAC = new AbortController())).signal;
 function modal({ title, body, buttons = [], wide = false, page = false, onSubmit }) {
   const dlg = $('#modal');
   const form = $('#modal-form');
+  if (modalAC) modalAC.abort();
+  modalAC = new AbortController();
+  modalGen++;
+  form.onclick = form.oninput = form.onchange = null;
+  const mb = $('#modal-body');
+  mb.onclick = mb.oninput = mb.onchange = null;
   dlg.dataset.live = '';   // een ander venster: niet meer live bijwerken als check (checkInfo zet het weer)
   dlg.classList.toggle('wide', wide);
   dlg.classList.remove('upd-modal');   // 1.204.0: alleen de bijwerk-vensters
@@ -7982,14 +7985,6 @@ function blockDialog(ip) {
 // ---------------------------------------------------------------- Versleuteling van de agents
 const ENC_MODES = [['off', L('Uit')], ['on', L('Aan (oude agents mogen nog onversleuteld)')], ['required', L('Verplicht')]];
 const ENC_HOST_MODES = [['', L('algemene instelling')], ['on', L('aan')], ['required', L('verplicht')], ['off', L('uit')]];
-/** Verbindingscontrole in de agenttabel (1.100.0): ✅ alles goed of ⚠️ met het aantal punten; de punten als uitleg */
-function auditBadge(id) {
-  const a = secInfo && secInfo.audit ? secInfo.audit[id] : null;
-  if (!a) return '<span class="muted">–</span>';
-  return a.bad ? `<button type="button" class="link-btn audit-badge warn-txt" data-am="${id}" title="${esc(a.issues.join(', '))}">⚠️ ${a.bad}</button>`
-    : `<span class="audit-badge good" title="${esc(L('{n} punten in orde', { n: a.good }))}">✅ ${a.good}</span>`;
-}
-
 /** 🧹 Alle agents opruimen (1.100.0), met wachtwoord en het woord OPRUIMEN */
 function agentsCleanupDialog(after) {
   modal({
@@ -8143,13 +8138,6 @@ async function agentUrlDialog(h = null) {
   show('fallback');
 }
 
-/** Keuzelijst per server voor 📌 vastzetten of 🌐 vast IP-adres: algemene instelling (nu aan/uit), aan of uit */
-function connSelect(kind, h, globalOn, short = false) {
-  const cur = ({ pin: h.pin_mode, ip: h.ip_lock, https: h.agent_https })[kind] || '';
-  return `<select data-host-conn="${kind}" data-host="${h.id}" title="${esc(({ pin: L('Certificaat van RzSense vastzetten'), ip: L('Alleen vanaf het bekende IP-adres'), https: L('Alleen via https') })[kind])}">`
-    + [['', `${short ? L('algemeen') : L('algemene instelling')} (${globalOn ? L('aan') : L('uit')})`], ['on', L('aan')], ['off', L('uit')]]
-      .map(([k, l]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${l}</option>`).join('') + '</select>';
-}
 /** Wijziging per server opslaan; uitzetten waar het nu geldt vraagt om je wachtwoord */
 async function saveHostConn(sel, done) {
   const send = (extra = {}) => api('host_conn', { host_id: +sel.dataset.host, [({ ip: 'ip_lock', pin: 'pin', https: 'https' })[sel.dataset.hostConn]]: sel.value, ...extra });
@@ -9054,12 +9042,13 @@ async function agentTestDialog(h) {
     body: `<div class="at-body" id="at-body">${render(r)}</div>`,
     buttons: [{ label: L('Opnieuw testen'), onClick: () => agentTestDialog(findHost(h.id)) }, { label: L('Sluiten'), cls: 'primary', submit: true }],
   });
+  const gen = modalGen;   // 1.224.4: na "Opnieuw testen" alleen de nieuwe test
   const poll = async () => {
     const box = $('#at-body');
-    if (!box || !$('#modal').open) return;
+    if (gen !== modalGen || !box || !$('#modal').open) return;
     let x;
     try { x = await api('agent_selftest_get', null, { id: h.id, test: testId }); } catch (ex) { return; }
-    if (!$('#at-body')) return;
+    if (gen !== modalGen || !$('#at-body')) return;
     box.innerHTML = render(x);
     const left = $('#at-left');
     if (left) left.textContent = ' · ' + L('{s} s bezig', { s: Math.round((Date.now() - started) / 1000) });
@@ -9254,7 +9243,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   const makePair = async () => {
     let r;
     try { r = await api('agent_pair_code', { id: h.id }); } catch (ex) { toast(ex.message, 'err'); return; }
-    const copyLine = (txt) => `<div class="copy-line"><pre class="code">${esc(txt)}</pre><button type="button" class="btn" data-copy="${esc(txt)}">${L('Kopieer')}</button></div>`;
+    const copyLine = (txt) => `<div class="copy-line"><pre class="code">${esc(txt)}</pre><button type="button" class="btn" data-copy-text="${esc(txt)}">${L('Kopieer')}</button></div>`;
     const head = `<div class="pair-code"><span class="muted small">${L('Koppelcode')}</span> <b class="mono">${esc(r.code)}</b> <span class="pair-status muted small"></span></div>`;
     const ha = `monitor_url: ${base}\npair_code: ${r.code}${r.pin && base.startsWith('https') ? `\npin: ${r.pin}` : ''}`;
     $$('[data-pair-pane]', body).forEach((p) => {
@@ -9264,8 +9253,9 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
           : L('Het commando controleert eerst het installatiescript en de agent (SHA-256)')}${r.pin && base.startsWith('https') ? ' · 📌 ' + L('alleen het certificaat van deze RzSense') : ''}${base.startsWith('https') && !String(state.base_url || '').startsWith('https') ? ' · 🔒 ' + L('agents mogen alleen via https: daarom {url}', { url: `<code>${esc(base)}</code>` }) : ''}</p>`;
     });
     const until = Date.now() + r.minutes * 60000;
+    const gen = modalGen, tok = ++pairTok;   // 1.224.4: alleen dit venster en de laatste koppelcode
     const tick = async () => {
-      if (!$('#modal').open || !$('.pair-status', body)) return;
+      if (gen !== modalGen || tok !== pairTok || !$('#modal').open || !$('.pair-status', body)) return;
       const left = Math.max(0, Math.round((until - Date.now()) / 1000));
       let done = false;
       try { const me = (await api('security')).hosts.find((x) => +x.id === +h.id); done = me && !+me.pairing && +me.agent_key_seen === 1; } catch (ex) { /* volgende keer */ }
@@ -9277,7 +9267,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
     };
     tick();
   };
-  body.addEventListener('click', async (e) => {
+  body.addEventListener('click', async (e) => {   // 1.224.4: alleen voor dit venster (signal)
     if (e.target.closest('[data-make-pair]')) return makePair();
     if (e.target.closest('[data-am-pair]')) { const det = $('.am-install', body); det.open = true; det.scrollIntoView({ behavior: 'smooth', block: 'start' }); return makePair(); }
     if (e.target.closest('[data-am-test]')) return agentTestDialog(findHost(h.id));
@@ -9286,11 +9276,11 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
       if (!confirm(L('Nieuw token genereren? De oude agent werkt dan niet meer.'))) return;
       await api('host_token', { id: h.id }); await refresh(); agentInstructions(findHost(h.id)); return;
     }
-    const c = e.target.closest('[data-copy]');
+    const c = e.target.closest('[data-copy-text]');   // 1.224.4: de tekst zelf (data-copy is elders een element-id)
     if (!c) return;
-    try { await navigator.clipboard.writeText(c.dataset.copy); toast(L('Gekopieerd')); }
+    try { await navigator.clipboard.writeText(c.dataset.copyText); toast(L('Gekopieerd')); }
     catch (ex) { getSelection().selectAllChildren(c.previousElementSibling); toast(L('Geselecteerd — druk Ctrl+C'), 'err'); }
-  });
+  }, { signal: modalSignal() });   // 1.224.4: weg zodra er een ander venster komt
   const amUrl = $('[data-am-url]', body);
   if (amUrl) amUrl.onclick = () => agentUrlDialog(findHost(h.id));
   if (pairNow && isAdmin()) makePair();
@@ -9399,7 +9389,7 @@ async function tnOverview(h) {
     : u.av ? `<b class="warn-txt">⬆ ${L('update beschikbaar: {v}', { v: esc(u.v || '?') })}</b>` : `<span class="good-txt">✔ ${L('bijgewerkt')}</span>`;
   const sec = (title, metric, body, label) => `<div class="tn-sec"><div class="tn-sec-h"><h3 class="set-sub">${title}</h3>${addBtn(metric, '', label)}</div>${body}</div>`;
   const { form } = modal({
-    title: `🗄️ TrueNAS · ${esc(h.name)}`, wide: true,
+    title: `🗄️ TrueNAS · ${h.name}`, wide: true,
     body: `<p class="muted small" style="margin-top:0">${esc(o.v || 'TrueNAS')} · ${L('bijgewerkt {t}', { t: when(o.at) })}${o.fresh ? '' : ` · <b class="warn-txt">${L('niet vers')}</b>`} · ${L('update')}: ${upd}</p>
       ${sec('🔔 ' + L('Meldingen van TrueNAS'), 'alerts', alerts, L('Meldingen bewaken'))}
       ${sec('🔁 ' + L('Taken'), 'tasks', tasks, L('Alle taken bewaken'))}
@@ -9422,7 +9412,7 @@ async function tnOverview(h) {
       await refresh();
       tnOverview(findHost(h.id));
     } catch (ex) { b.disabled = false; toast(ex.message, 'err'); }
-  });
+  }, { signal: modalSignal() });   // 1.224.4: weg zodra er een ander venster komt
 }
 
 async function pveOverview(h) {
@@ -9614,11 +9604,12 @@ function agentVer(h) {
 /** Endpoint-bewaking in de Agent Manager: welke sensoren werken, wat ontbreekt (met installeren), en de voortgang */
 const EDR_AUDIT = { ok: ['✔', () => L('processen en bewaakte paden (auditd)')], missing: ['✘', () => L('auditd ontbreekt')], stopped: ['⚠️', () => L('auditd is geïnstalleerd maar draait niet')],
   locked: ['⚠️', () => L('auditd staat op slot (-e 2): regels pas na een herstart')], noroot: ['✘', () => L('de agent draait niet als root')], off: ['·', () => L('uit')] };
-async function loadEdrHost(h, poll = false) {
+async function loadEdrHost(h, poll = false, gen = modalGen) {
   const box = $('#host-edr-info');
-  if (!box || !$('#modal').open) return;
+  if (gen !== modalGen || !box || !$('#modal').open) return;   // 1.224.4: niet in het venster van een andere server
   let d;
   try { d = await api('edr_host', null, { id: h.id }); } catch (ex) { box.innerHTML = `<span class="small bad">${esc(ex.message)}</span>`; return; }
+  if (gen !== modalGen) return;
   const i = d.info || {};
   const lines = [];
   if (!d.ids) lines.push(`<span class="warn-txt">⚠️ ${L('Werkt pas als het IDS aan staat (Instellingen → IDS).')}</span>`);
@@ -9690,7 +9681,7 @@ async function loadEdrHost(h, poll = false) {
       } catch (ex) { toast(ex.message, 'err'); }
     };
   });
-  if (busy || poll) setTimeout(() => loadEdrHost(h, busy), 4000);
+  if (busy || poll) setTimeout(() => loadEdrHost(h, busy, gen), 4000);
 }
 
 /** Live-status van de agent in het venster, elke 5 s zolang het open is. */
@@ -9792,18 +9783,18 @@ function splitSent(msg) {
 }
 
 function channelIcons(a) {
-  const tip = (title, icon) => `<span class="chi" title="${L(title)}">${icon}</span>`;
+  const tip = (title, icon) => `<span class="chi" title="${esc(title)}">${icon}</span>`;   // 1.224.4: de tekst al vertaald (L met een vaste tekst)
   const why = splitSent(a.message)[1];
-  const bad = (title, icon) => `<span class="chi bad" title="${esc(L(title) + (why ? ': ' + why : ''))}">${icon}</span>`;
+  const bad = (title, icon) => `<span class="chi bad" title="${esc(title + (why ? ': ' + why : ''))}">${icon}</span>`;
   if (a.kind === 'auth' || a.kind === 'authfail') return `<span class="muted" title="${L('Alleen op deze pagina, niet verstuurd')}">–</span>`;
-  if (a.kind === 'ack') return tip('Bevestiging', '✔');
+  if (a.kind === 'ack') return tip(L('Bevestiging'), '✔');
   const out = [];
-  if (+a.sent_ok) out.push(tip('Verstuurd via push (Pushover/ntfy)', '📲'));
-  else if (/Pushover|ntfy/.test(why)) out.push(bad('Push mislukt', '📲'));
-  if (a.email_ok !== null && a.email_ok !== undefined) out.push(+a.email_ok ? tip('Verstuurd per e-mail', '📧') : bad('E-mail mislukt', '📧'));
-  if (a.webhook_ok !== null) out.push(+a.webhook_ok ? tip('Verstuurd naar Home Assistant', '🏠') : bad('Webhook mislukt', '🏠'));
+  if (+a.sent_ok) out.push(tip(L('Verstuurd via push (Pushover/ntfy)'), '📲'));
+  else if (/Pushover|ntfy/.test(why)) out.push(bad(L('Push mislukt'), '📲'));
+  if (a.email_ok !== null && a.email_ok !== undefined) out.push(+a.email_ok ? tip(L('Verstuurd per e-mail'), '📧') : bad(L('E-mail mislukt'), '📧'));
+  if (a.webhook_ok !== null) out.push(+a.webhook_ok ? tip(L('Verstuurd naar Home Assistant'), '🏠') : bad(L('Webhook mislukt'), '🏠'));
   // Nergens heen verstuurd (kanaal of regel staat uit): alleen op deze pagina. Geen ✉️, dat leek op een mislukte e-mail.
-  if (!out.length) out.push(tip('Niet verstuurd: alleen op deze pagina (zie de meldregels)', '🔕'));
+  if (!out.length) out.push(tip(L('Niet verstuurd: alleen op deze pagina (zie de meldregels)'), '🔕'));
   return out.join(' ');
 }
 
@@ -10571,7 +10562,7 @@ async function mitreSignals(tech, tactic) {
   try { d = await api('ids_mitre', null, { days: mitreDays, tech, tactic, ...(host ? { host } : {}) }); } catch (ex) { return toast(ex.message, 'err'); }
   const info = mitreData.tactics.find((t) => t.slug === tactic)?.techs.find((x) => x.id === tech) || {};
   modal({
-    title: `🧭 ${esc(tech || L('overig'))} ${esc(info.name || '')}`,
+    title: `🧭 ${tech || L('overig')} ${info.name || ''}`,
     wide: true,
     body: `<p class="small" style="margin-top:0">${L('Stap: {t}', { t: esc(tacticName(tactic)) })}${tech ? ` · <a href="https://attack.mitre.org/techniques/${esc(tech.replace('.', '/'))}/" target="_blank" rel="noopener">${L('uitleg bij MITRE')}</a>` : ''}</p>
       ${d.signals.length ? `<div class="edr-list">${d.signals.map((s) => `<div class="edr-row"><span class="m-t">${esc(s.at.slice(5, 16).replace(' ', ' · '))}</span>${scoreTag(s.score)}<span class="m-sv">${esc(s.host)}</span>
@@ -11237,7 +11228,7 @@ async function hostSecDialog(hostId) {
   const iso = d.iso && d.iso.isolate_until && new Date(d.iso.isolate_until.replace(' ', 'T')) > new Date();
   const locks = d.userlocks.filter((u) => u.action === 'lock');
   modal({
-    title: `🛡️ ${esc(h.name)}`,
+    title: `🛡️ ${h.name}`,
     wide: true,
     body: `<h3 class="set-sub" style="margin-top:0">${L('Hardening')} ${d.score !== null ? `<span class="hard-chip ${d.score >= 85 ? 'good' : d.score >= 60 ? 'warn' : 'bad'}">${d.score}/100</span>` : ''}</h3>
       ${d.items.length ? `<p class="muted small" style="margin-top:-.3rem">${L('Klik op een punt voor uitleg, hoe je het controleert en hoe je het dichtzet.')}</p>
@@ -11292,7 +11283,7 @@ async function hostSecDialog(hostId) {
       tn.checked = on;
       toast(on ? L('Aangezet; de agent neemt het over bij zijn volgende ronde') : L('Uitgezet: alleen detecteren'));
     } catch (ex) { toast(ex.message, 'err'); }
-  });
+  }, { signal: modalSignal() });   // 1.224.4: weg zodra er een ander venster komt
   body.onclick = async (e) => {
     const isoB = e.target.closest('[data-isolate]'), un = e.target.closest('[data-unisolate]'), ul = e.target.closest('[data-ulock]'), uu = e.target.closest('[data-uunlock]');
     if (!isoB && !un && !ul && !uu) return;
@@ -11414,10 +11405,11 @@ async function amLoadWorld() {
   return amWorld;
 }
 
-let afTimer = null, afBusy = false, afLoadedAt = 0;
+let afTimer = null, afBusy = false, afAgain = false, afLoadedAt = 0;
 async function loadAttackMap() {
   const box = $('#am-body');
-  if (!box || afBusy) return;
+  if (!box) return;
+  if (afBusy) { afAgain = true; return; }   // 1.224.4: een wijziging tijdens het laden niet kwijtraken: straks nog een keer
   if (!amData) box.innerHTML = `<p class="muted">${L('Laden…')}</p>`;
   const w = AM_WIN[amOpt.win] || AM_WIN['15m'];
   amOpt.days = w.days;
@@ -11431,6 +11423,7 @@ async function loadAttackMap() {
     afLoadedAt = Date.now();
   } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; afBusy = false; afSchedule(); return; }
   afBusy = false;
+  if (afAgain) { afAgain = false; return loadAttackMap(); }
   amFilters();
   renderAttackMap();
   afSchedule();
@@ -12464,7 +12457,7 @@ async function incidentDialog(id, nav = null) {
   const agentHost = i.host_mode === 'agent';
   const sevTxt = +i.severity === 2 ? '🔴 Critical' : '🟠 Warning';
   modal({
-    title: `${+i.severity === 2 ? '🔴' : '🟠'} ${esc(i.title)}`,
+    title: `${+i.severity === 2 ? '🔴' : '🟠'} ${i.title}`,
     wide: true,
     body: `<p class="small" style="margin-top:0">${sevTxt} · <b>${esc(i.host_name)}</b> · ${esc(fmtDateTime(i.created_at))}${+i.hits > 1 ? ` · ${L('{n}× gezien, laatst {t}', { n: i.hits, t: esc(fmtDateTime(i.last_seen || i.created_at)) })}` : ''}
         · ${open ? `<b class="warn-txt">${L('open')}</b>` : `✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}${i.handled_at ? ' (' + esc(fmtDateTime(i.handled_at)) + ')' : ''}`}${d.ignored ? ` · <span class="muted">${L('wordt niet meer gemeld (normaal)')}</span>` : ''}</p>
@@ -15179,7 +15172,7 @@ async function loadQuiet() {
       <span class="qp-ic">${esc(p.icon)}</span>
       <div class="qp-t"><b>${esc(p.name)}</b>${+d.global === +p.id ? ` <span class="badge">★ ${L('algemeen')}</span>` : ''}${p.active ? ` <span class="badge on">${L('nu actief')}</span>` : ''}${p.crit ? ` <span class="badge crit">🔴 ${L('critical komt door')}</span>` : ''}
         <small>${esc(when)}</small>${used.length ? `<small class="qp-used">${L('gebruikt door')}: ${used.slice(0, 8).join(' · ')}${used.length > 8 ? ' ' + L('en nog {n}', { n: used.length - 8 }) : ''}</small>` : ''}</div>
-      ${admin ? `<div class="qp-acts"><button type="button" class="btn small-btn" data-qp-edit="${p.id}">✎</button><button type="button" class="icon-btn" data-qp-del="${p.id}" title="${esc(L('Verwijderen'))}">🗑</button></div>` : ''}
+      ${admin ? `<div class="qp-acts"><button type="button" class="btn small-btn" data-qp-edit="${p.id}" title="${esc(L('Bewerken'))}" aria-label="${esc(L('Bewerken'))}">✎</button><button type="button" class="icon-btn" data-qp-del="${p.id}" title="${esc(L('Verwijderen'))}" aria-label="${esc(L('Verwijderen'))}">🗑</button></div>` : ''}
     </div>`;
   };
   const grpRow = (g) => `<tr><td>${g.type === 'grp' ? '👥 ' + esc(g.label) : (GROUP_INFO[g.label] || ['🏷️'])[0] + ' ' + esc((GROUP_INFO[g.label] || [0, () => g.label])[1]())}</td>
@@ -15725,7 +15718,7 @@ function renderTemplates() {
       ${t.items.length ? `<div class="table-scroll"><table class="vuln-table"><thead><tr><th>${L('Check')}</th><th>${L('Type')}</th><th>${L('Doel')}</th><th>${L('Drempels')}</th><th>${L('Interval')}</th><th></th></tr></thead><tbody>
         ${t.items.map((c) => `<tr><td>${esc(c.name)}${+c.enabled ? '' : ` <span class="muted small">(${L('uit')})</span>`}</td><td class="small">${typeLabel(c)}</td>
           <td class="mono small">${esc(c.target || '–')}</td><td class="small nowrap">${thrText(c)}</td><td class="small nowrap">${esc(fmtInterval(c.interval_sec))}</td>
-          <td class="nowrap"><button type="button" class="btn small-btn" data-ti-edit="${c.id}">✎</button> <button type="button" class="btn small-btn" data-ti-del="${c.id}">🗑</button></td></tr>`).join('')}
+          <td class="nowrap"><button type="button" class="btn small-btn" data-ti-edit="${c.id}" title="${esc(L('Bewerken'))}" aria-label="${esc(L('Bewerken'))}">✎</button> <button type="button" class="btn small-btn" data-ti-del="${c.id}" title="${esc(L('Verwijderen'))}" aria-label="${esc(L('Verwijderen'))}">🗑</button></td></tr>`).join('')}
         </tbody></table></div>` : `<p class="muted small">${L('Nog geen checks in dit sjabloon.')}</p>`}
       <div class="btn-row"><button type="button" class="btn small-btn" data-ti-add="${t.id}">＋ ${L('Check toevoegen')}</button></div>
       <div class="tpl-hosts"><b class="small">${L('Servers')}:</b>

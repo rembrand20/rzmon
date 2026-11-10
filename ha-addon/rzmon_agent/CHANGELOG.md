@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.87.1 – 2026-11-10
+- **Home Assistant-add-on op Alpine 3.22**: Alpine 3.20 krijgt sinds april 2026 geen beveiligingsupdates meer. De agent zelf is niet veranderd.
+
 ## 1.87.0 – 2026-11-10
 - **Bijwerken alleen met een geldige handtekening**:
   - ook het installatiescript (`rzmon-agent-setup`) wordt pas vervangen als zijn handtekening klopt; daarvoor kon een overgenomen RzSense via dat script toch eigen code laten draaien;

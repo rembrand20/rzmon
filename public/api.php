@@ -1284,7 +1284,7 @@ if ($method === 'GET' && in_array($action, ['insights', 'insight_analyses', 'tre
     session_write_close();
 }
 // Wijzigingslogboek (1.97.0): instellingen vóór en na elke wijziging van een beheerder vergelijken
-if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && !in_array($action, ['prefs_save', 'check_try', 'changelog_undo', 'state'], true)) {
+if ($isAdmin && $method === 'POST' && !in_array($action, ['prefs_save', 'check_try', 'changelog_undo', 'state'], true)) {
     $settingsBefore = ChangeLog::settingsSnapshot();
     register_shutdown_function(static function () use ($settingsBefore, $action): void {
         try {
@@ -1293,7 +1293,6 @@ if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && !in_array($action, ['pr
         }
     });
 }
-/** 1.162.0: weergave-keuzes per account (eerst alleen in de browser): grootte per soort scherm, sortering en periode */
 /**
  * 1.166.0: de meest actieve aanvallers van de laatste 24 uur: pogingen (SSH) plus treffers in incidenten, per IP-adres,
  * met het land, of het een bekende aanvaller is en de server die het vaakst werd aangevallen. Nooit je eigen netwerk.
@@ -1329,6 +1328,7 @@ function ids_top_attackers(array $hosts, int $limit = 5): array
     }
     return $out;
 }
+/** 1.162.0: weergave-keuzes per account (eerst alleen in de browser): grootte per soort scherm, sortering en periode */
 function clean_ui_prefs(array $in): array
 {
     $size = '/^(small|large)$/';
@@ -5327,12 +5327,13 @@ switch ($action) {
         out(['ok' => true, 'n' => $n]);
 
     case 'totp_reset':
-        $ownOnly((int) (input()['id'] ?? 0));
-        if ((int) (input()['id'] ?? 0) === (int) $user['id'] && Https::mfaRequired()) {
+        $tid = (int) (input()['id'] ?? 0);
+        $ownOnly($tid);
+        if ($tid === (int) $user['id'] && Https::mfaRequired()) {
             out(['error' => t('Van buiten je interne netwerken kun je je eigen 2FA niet uitzetten')], 403);
         }
         $confirm('ACCOUNT');   // 1.224.1: 2FA uitzetten alleen met je wachtwoord
-        q('UPDATE users SET totp_secret = NULL, totp_last_step = NULL WHERE id = ?', [(int) (input()['id'] ?? 0)]);
+        q('UPDATE users SET totp_secret = NULL, totp_last_step = NULL WHERE id = ?', [$tid]);
         out(['ok' => true]);
 
     // ---------- Databasewachtwoord vernieuwen (alleen beheerders) ----------

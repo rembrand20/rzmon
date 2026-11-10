@@ -9168,4 +9168,6 @@ return [
     'Het e-mailadres van {user} in RzSense is gewijzigd door {by}. Was dit niet de bedoeling? Kijk dan meteen bij Instellingen → Gebruikers.' => 'The e-mail address of {user} in RzSense was changed by {by}. Was this not intended? Check Settings → Users right away.',
     'De database van RzSense is niet bereikbaar. Setup is daarom uit: het kan een storing zijn. Herstel de database, of pas config.php aan op de server zelf.' => 'The RzSense database cannot be reached. Setup is therefore off: it may be an outage. Repair the database, or edit config.php on the server itself.',
     'niet verstuurd: stel eerst het beheeradres van RzSense in (Instellingen → Beheer via https)' => 'not sent: first set the admin address of RzSense (Settings → Admin via https)',
+    'Verstuurd via push (Pushover/ntfy)' => 'Sent via push (Pushover/ntfy)',
+    'Push mislukt' => 'Push failed',
 ];

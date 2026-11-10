@@ -14,6 +14,19 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.221.0**: **bijwerken veel sneller**: snelle back-up en alleen doen wat nodig is (van minuten naar seconden).
 - **1.220.0**: **mDS per soort** met netwerk en ping, en een **veel snellere IDS-pagina**.
 
+## 1.224.4 – 2026-11-10
+### Opgelost
+- **Klikken in vensters deden het soms dubbel, of voor een andere server**: open je de Agent Manager, het TrueNAS-overzicht of de beveiliging van een server een paar keer, dan stapelden de klikafhandelingen zich op. Eén klik op "Nieuw token" of "Bewaken" ging dan twee keer, of ook voor een server die je eerder had geopend. Nu ruimt elk nieuw venster de afhandelingen en de lopende controles van het vorige op.
+- **Gegevens van een vorig venster** (koppelcode, EDR-status, testresultaat) komen niet meer in een ander venster terecht; na "Opnieuw testen" lopen de oude en de nieuwe test niet meer door elkaar.
+- **Geen oudere gegevens over nieuwere**: kwam een trager antwoord van de server later binnen dan een nieuwer, dan liet het overzicht soms weer de oude stand zien (bv. een bevestigde check weer onbevestigd).
+- **Aanvalskaart**: een filter dat je wijzigt terwijl de kaart nog laadt, gaat niet meer verloren.
+- **RzSense-kern op de telefoon**: de meters bleven leeg (dubbele namen in de tekening); nu gevuld.
+- **Zoeken op Monitoring** rekent pas na 200 ms stil typen opnieuw, niet bij elke toets.
+- Toegankelijkheid: de tabbladen vertellen schermlezers welk tabblad actief is, het venster heeft een naam, en het sluitkruisje en de knoppen met alleen een pictogram (✎, 🗑) hebben een label.
+- Schoonheidsfoutjes: namen met `&` of `<` stonden als `&amp;` in sommige venstertitels; "1 problemen" heet nu "1 probleem"; twee teksten bij de kanalen van een melding werden niet vertaald; vier ongebruikte functies weg; netjes commentaar bij de juiste functies.
+- **CI controleert meer**: ook shellcheck en de JavaScript-syntax, vaste versies van Fedora (42) en Alpine (3.22) bij het testen van de agent, alleen-lezen-rechten voor de workflows, en de browser voor de tests uit de cache.
+- **Nieuwe agent 1.87.1**: de Home Assistant-add-on draait nu op Alpine 3.22 (3.20 krijgt geen beveiligingsupdates meer).
+
 ## 1.224.3 – 2026-11-10
 ### Opgelost
 - **Sneller en minder sloten bij veel metingen**: de tabellen met metingen en statuswissels krijgen een index op tijd, en oude rijen gaan in stukjes van 20.000 weg. Eerder liep RzSense elk uur de hele tabel door en zette die zolang op slot, zodat binnenkomende metingen moesten wachten. (Bij een grote database kan het bijwerken naar deze versie daarom even duren.)

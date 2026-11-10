@@ -216,8 +216,8 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
     <div class="iso-banner" id="iso-banner" role="alert" hidden></div><!-- 1.172.0: server in isolatie -->
     <header class="crumbs ph" id="crumbs" hidden></header><!-- 1.199.0 kruimelpad; 1.216.0: paginakop met titel, samenvatting en een altijd klikbaar pad -->
     <!-- 1.194.0: mDS, alleen op een telefoon -->
-    <section id="tab-mds" class="tab-panel" aria-label="<?= th('Mobile device summary') ?>" hidden><div id="mds" class="mds"></div></section>
-    <section id="tab-home" class="tab-panel" aria-label="<?= th('Dashboard') ?>">
+    <section id="tab-mds" class="tab-panel" role="tabpanel" aria-label="<?= th('Mobile device summary') ?>" hidden><div id="mds" class="mds"></div></section>
+    <section id="tab-home" class="tab-panel" role="tabpanel" aria-label="<?= th('Dashboard') ?>">
       <div class="hm-head">
         <div class="hm-live" id="hm-live"></div>
         <div><h1 class="hm-title"><?= th('Zo staat het ervoor') ?></h1><p class="muted small" id="hm-sub"></p></div>
@@ -225,7 +225,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       </div>
       <div id="home"><p class="muted"><?= th('Laden…') ?></p></div>
     </section>
-    <section id="tab-dashboard" class="tab-panel" hidden>
+    <section id="tab-dashboard" class="tab-panel" role="tabpanel" hidden>
 <?php if ($schemaError): ?>
       <div class="schema-banner">⚠ <?= htmlspecialchars($schemaError) ?> — <?= t('controleer de databaserechten of voer {cmd} uit.', ['cmd' => '<code>php install/install.php</code>']) ?></div>
 <?php endif; ?>
@@ -278,7 +278,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <div id="netpaths" class="netpaths"></div>
     </section>
 
-    <section id="tab-alerts" class="tab-panel" hidden>
+    <section id="tab-alerts" class="tab-panel" role="tabpanel" hidden>
       <!-- 1.67.0: zelfde opbouw als het dashboard -->
       <div class="dash-counters"><div class="dash-in">
         <span class="dash-lbl muted small"><?= th('Vandaag') ?></span>
@@ -318,7 +318,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       </div>
     </section>
 
-    <section id="tab-ids" class="tab-panel" hidden>
+    <section id="tab-ids" class="tab-panel" role="tabpanel" hidden>
       <!-- 1.67.0: zelfde opbouw als het dashboard -->
       <div class="dash-counters"><div class="dash-in">
         <div class="health-counts" id="ids-counts"></div>
@@ -461,7 +461,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
     </section>
 
     <?php if ($showVulns || $showLeaks): ?>
-    <section id="tab-vulns" class="tab-panel" hidden>
+    <section id="tab-vulns" class="tab-panel" role="tabpanel" hidden>
       <?php if ($showVulns && $showLeaks): ?>
       <div class="subtabs vuln-tabs" role="tablist" aria-label="<?= th('Kwetsbaarheden') ?>" id="vuln-tabs">
         <button type="button" class="seg-btn active" data-vt="cve">🐞 <?= th('Kwetsbaarheden') ?> <span class="it-n" id="vt-n-cve"></span></button>
@@ -534,7 +534,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
     <?php if ($showStats): ?>
     <?php if ($role !== 'readonly'): ?>
-    <section id="tab-incidents" class="tab-panel" hidden>
+    <section id="tab-incidents" class="tab-panel" role="tabpanel" hidden>
       <!-- 1.142.0: één lijst uit monitoring, IDS en kwetsbaarheden -->
       <div class="pg-tools" data-pgtools="inc"></div>
       <div class="pgrid" data-pgrid="inc">
@@ -557,11 +557,11 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
     </section>
     <?php endif; ?>
 
-    <section id="tab-logs" class="tab-panel" hidden>
+    <section id="tab-logs" class="tab-panel" role="tabpanel" hidden>
       <!-- 1.211.0: zoeken in de logs van je servers (beheerder en gebruiker) -->
       <div id="logs-page" class="logs-page"><p class="muted"><?= th('Laden…') ?></p></div>
     </section>
-    <section id="tab-analytics" class="tab-panel" hidden>
+    <section id="tab-analytics" class="tab-panel" role="tabpanel" hidden>
       <!-- 1.106.0: trends door de tijd -->
       <div class="pg-tools" data-pgtools="an"></div>
       <div class="pgrid" data-pgrid="an">
@@ -581,7 +581,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
     <?php endif; ?>
 
     <?php if ($showNet): ?>
-    <section id="tab-net" class="tab-panel" hidden>
+    <section id="tab-net" class="tab-panel" role="tabpanel" hidden>
       <!-- 1.183.0: Apparaten (de lijst) en Ontdekken (wat er verandert, voorstellen, aanwezigheid) -->
       <div class="subtabs mon-tabs" role="tablist" aria-label="<?= th('Netwerk') ?>" id="net-tabs">
         <button type="button" class="seg-btn" data-nsub="map" role="tab" aria-selected="false">🗺️ <?= th('Overzicht') ?></button>
@@ -621,7 +621,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
     </section>
     <?php endif; ?>
 
-    <section id="tab-settings" class="tab-panel" hidden>
+    <section id="tab-settings" class="tab-panel" role="tabpanel" hidden>
       <div class="set-layout">
       <nav class="set-side" id="set-side" aria-label="<?= th('Instellingen') ?>">
         <div class="set-search"><input type="search" id="set-search" placeholder="<?= th('🔍 Zoek een instelling…') ?>" autocomplete="off" spellcheck="false" aria-label="<?= th('Zoek een instelling') ?>"></div>
@@ -1713,7 +1713,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
     </section>
 
 <?php if (!is_lan_session()): ?>
-    <section id="tab-account" class="tab-panel" hidden>
+    <section id="tab-account" class="tab-panel" role="tabpanel" hidden>
       <div class="acct-page" data-pgrid="acct">
       <div class="pg-tools" data-pgtools="acct"></div>
       <h1 class="set-title">👤 <?= th('Mijn account') ?></h1>
@@ -1775,9 +1775,9 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 <?php endif; ?>
   </main>
 
-  <dialog id="modal">
+  <dialog id="modal" aria-labelledby="modal-title">
     <form method="dialog" class="modal-inner" id="modal-form">
-      <header><h3 id="modal-title"></h3><button class="icon-btn" value="cancel" formnovalidate>✕</button></header>
+      <header><h3 id="modal-title"></h3><button class="icon-btn" value="cancel" formnovalidate aria-label="<?= th('Sluiten') ?>" title="<?= th('Sluiten') ?>">✕</button></header>
       <div id="modal-body"></div>
       <p class="form-error" hidden></p>
       <footer id="modal-footer"></footer>

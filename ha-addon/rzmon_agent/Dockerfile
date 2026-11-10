@@ -1,5 +1,5 @@
 # Officieel multi-arch Alpine image (aarch64, amd64, armv7)
-FROM alpine:3.20
+FROM alpine:3.22
 
 RUN apk add --no-cache bash curl jq iproute2 coreutils tzdata openssl gawk sed
 
