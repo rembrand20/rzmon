@@ -15269,7 +15269,7 @@ const SYSINFO_ROWS = [
   ['IDS', [['isolate', '🧱 ' + L('Server geïsoleerd of opgeheven')]]],
   [L('Netwerk'), [['net_new', '🆕 ' + L('Nieuw apparaat op het netwerk')], ['net_traffic', '📈 ' + L('Ongewoon netwerkverkeer (veel of \'s nachts)')], ['net_cap', '📶 ' + L('Datalimiet internet bijna of helemaal op')], ['path_change', '🛣️ ' + L('Pad naar een doel gewijzigd (pad-check, als die dat mag)')]]],
   [L('Checks'), [['smart_drift', '🧠 ' + L('Normaalwaarde stijgt sluipend (slimme drempels)')], ['smart_auto', '🧠 ' + L('Drempels zelf aangepast (naar slim)')], ['alert_auto', '🔔 ' + L('Melden na N zelf aangepast')], ['heal', '🩹 ' + L('Zelf hersteld (of herstel mislukt)')],
-    ['watchdog', '🐕 ' + L('Waakhond: RzSense was onbereikbaar of de checks stonden stil')]]],
+    ['watchdog', '🐕 ' + L('Waakhond: RzSense was onbereikbaar of de checks stonden stil')], ['trend', '📉 ' + L('Trend: een grens wordt binnenkort bereikt (Analyse → Trends)')]]],
   ['RzSense', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],
   [L('Logs'), [['logs_limit', '📜 ' + L('Daglimiet van een server bereikt')], ['logs_full', '📜 ' + L('Maximum bereikt: oudste dag weggegooid')], ['logs_watch_off', '📜 ' + L('Vaste zoekactie te traag, uitgezet')]]],   // 1.210.0
   [L('AI-advies'), [['ai_advice', '🤖 ' + L('Samenvatting van een automatisch advies')], ['ai_week', '📅 ' + L('Weekoverzicht')], ['ai_credit', '💳 ' + L('Tegoed of budget bijna op of op')]]],   // 1.173.0
@@ -17021,7 +17021,7 @@ const AN_PERIODS = [['1d', () => L('24 uur')], ['7d', () => L('7 dagen')], ['30d
 // Slimme analyses (Insights): elk advies combineert gegevens uit agent, CVE-scan, IDS, netwerkscan en checks, met het
 // bewijs, de stappen en (voor beheerders) een knop om het meteen te regelen. Daaronder de analyses in tabbladen.
 let iaData = null, iaAn = null, iaFilter = 'open';
-let iaTab = (() => { try { return localStorage.getItem('rzmon-an-tab') || 'attacks'; } catch (e) { return 'attacks'; } })();
+let iaTab = (() => { try { return localStorage.getItem('rzmon-an-tab') || 'trends'; } catch (e) { return 'trends'; } })();   // 1.224.0: Trends eerst
 const iaOpen = new Set();
 const IA_DOM = { access: ['🔑', () => L('Toegang en SSH')], exposure: ['🌐', () => L('Blootstelling van buiten')], vulns: ['🐞', () => L('Kwetsbaarheden en updates')],
   detect: ['🛡️', () => L('Detectie en reactie')], network: ['📡', () => L('Netwerk en apparaten')], recovery: ['💾', () => L('Herstel en monitoring')] };
@@ -17156,9 +17156,10 @@ function iaSurface() {
 /** De hele pagina: score, adviezen, en de analyses als tabbladen (de bestaande onderdelen van Analyse blijven) */
 function iaRender(p) {
   if (!iaData || iaData.error) return `${iaData && iaData.error ? `<p class="form-error">${esc(iaData.error)}</p>` : ''}${p.kpis}${p.qual}${p.rel}${p.cap}${p.sec}${p.net}${p.bk}${p.noise}`;
-  const tabs = [['attacks', '⚔️ ' + L('Aanvallen'), iaAttacks(p.sec)], ['surface', '🎯 ' + L('Blootstelling'), iaSurface()], ['rel', '🟢 ' + L('Betrouwbaarheid'), p.kpis + p.rel],
+  if (iaTab === 'trends' && !tnData) tnLoad();   // 1.224.0: pas laden als je het tabblad opent
+  const tabs = [['trends', '📉 ' + L('Trends'), tnRender()], ['attacks', '⚔️ ' + L('Aanvallen'), iaAttacks(p.sec)], ['surface', '🎯 ' + L('Blootstelling'), iaSurface()], ['rel', '🟢 ' + L('Betrouwbaarheid'), p.kpis + p.rel],
     ['cap', '📈 ' + L('Capaciteit'), p.cap], ['net', '🌐 ' + L('Netwerk'), p.net], ['bk', '💾 ' + L('Back-ups'), p.bk], ['noise', '🔔 ' + L('Meldingen en ruis'), p.noise + p.qual]];
-  if (!tabs.some((t) => t[0] === iaTab)) iaTab = 'attacks';
+  if (!tabs.some((t) => t[0] === iaTab)) iaTab = 'trends';
   return `${iaTop()}${iaList()}
     <section class="ia-sec"><div class="ia-sec-h"><div><h2>${esc(L('Analyses'))}</h2><span class="muted small">${esc(L('de patronen achter de adviezen'))}</span></div>
       <div class="seg ia-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" class="seg-btn ${k === iaTab ? 'active' : ''}" role="tab" aria-selected="${k === iaTab}" data-ia-tab="${k}">${esc(l)}</button>`).join('')}</div></div>
@@ -17219,6 +17220,8 @@ function initAnalytics() {
   $('#an-period').onclick = (e) => { const b = e.target.closest('[data-anp]'); if (b) { anPeriod = b.dataset.anp; uiSet('an_period', 'rzmon-an-period', anPeriod); loadAnalytics(); } };
   $('#an-go').onclick = () => { const f = $('#an-from').value, t = $('#an-to').value; if (f && t && f <= t) { anPeriod = `${f}..${t}`; loadAnalytics(); } };
   $('#an-body').onclick = (e) => {
+    const tf = e.target.closest('[data-tr-f]');   // 1.224.0: filter van Trends
+    if (tf) { tnFilter = tf.dataset.trF; renderAnalytics(); return; }
     if (iaClick(e)) return;   // 1.155.0: adviezen en tabbladen
     const g = e.target.closest('[data-an-go]');
     if (!g) return;
@@ -17452,6 +17455,115 @@ function renderAnalytics() {
   }
   void todo;   // 1.155.0: "Wat nu aanpakken" is vervangen door de adviezen
   $('#an-body').innerHTML = iaRender({ kpis, qual, rel, cap, sec, net, bk, noise });
+}
+
+// ---------------------------------------------------------------- 1.224.0: Trends (Analyse → Trends)
+// Langzame veranderingen over 90 dagen: een robuuste lijn (Theil-Sen) door de dagwaarden, alleen "beweegt" als de
+// verandering groot genoeg en consequent is, en een verwachting wanneer een grens geraakt wordt.
+let tnData = null, tnFilter = 'moving';
+const TN_GRP = { hw: ['🔋', () => L('Hardware veroudert')], slow: ['🐢', () => L('Langzaam trager')], cap: ['📦', () => L('Capaciteit')],
+  rel: ['🟢', () => L('Betrouwbaarheid')], sec: ['🛡️', () => L('Beveiliging en onderhoud')] };
+
+let tnBusy = false;
+async function tnLoad() {
+  if (tnBusy) return;
+  tnBusy = true;
+  try { tnData = await api('trends'); } catch (ex) { tnData = { error: ex.message }; }
+  tnBusy = false;
+  if (iaTab === 'trends') renderAnalytics();
+}
+
+const tnFmt = (v, x) => (v === null || v === undefined ? '–' : x.bytes ? fmtBytes(v) : anNum(v, x.d || 0) + (x.unit || ''));
+const tnDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString(LOCALE, { day: 'numeric', month: 'long', year: 'numeric' });
+
+/** Pijl en percentage; rood als de richting slecht is, groen als goed, grijs als het niet beweegt */
+function tnChip(x) {
+  if (!x.sig) return `<span class="tn-chg flat">→ ${L('stabiel')}</span>`;
+  const up = x.chg > 0, cls = x.bad ? 'bad' : 'good';
+  const val = `${up ? '+' : '−'}${x.chg_abs === null || x.chg_abs === undefined ? anNum(Math.abs(x.chg)) + '%' : x.unit === '%' ? anNum(Math.abs(x.chg_abs), 1) + ' ' + L('pt') : tnFmt(Math.abs(x.chg_abs), { ...x, d: Math.max(x.d || 0, Math.abs(x.chg_abs) < 10 ? 1 : 0) })}`;
+  return `<span class="tn-chg ${cls}" title="${esc(L('verandering over {n} dagen volgens de trendlijn', { n: x.per || 30 }))}">${up ? '↗' : '↘'} ${val}<small>/${x.per === 7 ? L('week') : L('maand')}</small></span>`;
+}
+
+/** Lijn per dag (of staafjes per week), de trendlijn en de verwachting tot de grens */
+function tnSpark(x, H = 74) {
+  const ks = Object.keys(x.series || {});
+  if (ks.length < 2) return `<p class="muted small">${L('Nog te weinig gegevens.')}</p>`;
+  const vals = ks.map((k) => x.series[k]);
+  const n = ks.length, ahead = x.sig && x.fit ? Math.min(x.ahead || 0, Math.round(n * 0.5)) : 0, tot = n - 1 + ahead;
+  const fitAt = (i) => (x.fit ? x.fit[1] + x.fit[0] * i : null);
+  const nums = vals.filter((v) => v !== null);
+  let lo = Math.min(...nums), hi = Math.max(...nums);
+  if (ahead) { lo = Math.min(lo, fitAt(tot)); hi = Math.max(hi, fitAt(tot)); }
+  if (x.limit !== null && x.limit !== undefined && x.eta_days !== null && x.eta_days !== undefined && x.eta_days <= ahead) { lo = Math.min(lo, x.limit); hi = Math.max(hi, x.limit); }
+  if (x.bars) lo = Math.min(0, lo);
+  if (hi === lo) { hi += 1; lo -= 1; }
+  const pad = (hi - lo) * 0.08;
+  hi += pad; if (!x.bars) lo -= pad;
+  const W = 300, top = 4, bot = H - 4;
+  const X = (i) => (i / tot) * W, Y = (v) => bot - ((v - lo) / (hi - lo)) * (bot - top);
+  let body = '';
+  if (x.bars) {
+    const bw = W / (tot + 1);
+    body = vals.map((v, i) => (v === null ? '' : `<rect class="tn-bar" x="${(X(i) - bw / 2 + 1).toFixed(1)}" y="${Y(v).toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${Math.max(1, bot - Y(v)).toFixed(1)}" rx="1.5"><title>${esc(L('week van {d}', { d: anDay(ks[i]) }))}: ${esc(tnFmt(v, x))}</title></rect>`)).join('');
+  } else {
+    let p = '';
+    vals.forEach((v, i) => { if (v === null) return; p += `${p && vals[i - 1] !== null ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`; });
+    const hits = ks.map((k, i) => (vals[i] === null ? '' : `<rect x="${(X(i) - W / tot / 2).toFixed(1)}" y="0" width="${(W / tot).toFixed(1)}" height="${H}" fill="transparent"><title>${esc(anDay(k))}: ${esc(tnFmt(vals[i], x))}</title></rect>`)).join('');
+    body = `<path class="tn-ln" d="${p}" vector-effect="non-scaling-stroke"/>${hits}`;
+  }
+  let fit = '';
+  if (x.fit && x.sig) {
+    fit = `<line class="tn-fit ${x.bad ? 'bad' : 'good'}" x1="0" y1="${Y(fitAt(0)).toFixed(1)}" x2="${X(n - 1).toFixed(1)}" y2="${Y(fitAt(n - 1)).toFixed(1)}" vector-effect="non-scaling-stroke"/>`;
+    if (ahead) fit += `<rect class="tn-ahead" x="${X(n - 1).toFixed(1)}" y="0" width="${(W - X(n - 1)).toFixed(1)}" height="${H}"/><line class="tn-fit ${x.bad ? 'bad' : 'good'} dash" x1="${X(n - 1).toFixed(1)}" y1="${Y(fitAt(n - 1)).toFixed(1)}" x2="${W}" y2="${Y(fitAt(tot)).toFixed(1)}" vector-effect="non-scaling-stroke"/>`;
+  }
+  const lim = x.limit !== null && x.limit !== undefined && x.limit >= lo && x.limit <= hi
+    ? `<line class="tn-lim" x1="0" x2="${W}" y1="${Y(x.limit).toFixed(1)}" y2="${Y(x.limit).toFixed(1)}" vector-effect="non-scaling-stroke"/>` : '';
+  const limLbl = lim ? `<span class="tn-liml" style="top:${(Y(x.limit) / H * 100).toFixed(1)}%">${esc(x.limit_lbl || L('grens'))} ${esc(tnFmt(x.limit, x))}</span>` : '';
+  return `<div class="tn-spark"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(x.title)}">${lim}${fit}${body}</svg>${limLbl}
+    <div class="tn-xl"><span>${esc(anDay(ks[0]))}</span>${ahead ? `<span class="tn-xa">${esc(L('verwachting'))} →</span>` : `<span>${esc(L('vandaag'))}</span>`}</div></div>`;
+}
+
+function tnCard(x) {
+  const cls = !x.sig ? 'flat' : x.bad ? 'bad' : 'good';
+  const eta = x.eta && x.sig && x.bad
+    ? `<span class="tn-eta ${x.eta_days <= 30 ? 'crit' : x.eta_days <= 90 ? 'warn' : ''}">⏳ ${esc(x.eta_lbl || L('grens'))}: ${esc(tnDate(x.eta))} <small>(${esc(L('over ~{n} dagen', { n: x.eta_days }))})</small></span>` : '';
+  return `<article class="tn-card ${cls}${tnData.moving && tnData.moving.includes(x.id) ? ' top' : ''}">
+    <header class="tn-h"><span class="tn-ic">${x.icon}</span><div class="tn-t"><b>${esc(x.title)}</b><span>${esc(x.sub || '')}</span></div>${tnChip(x)}</header>
+    <div class="tn-now"><b>${esc(tnFmt(x.now, x))}</b> <span class="muted small">${x.was !== null && x.was !== undefined ? esc(L('was {v} op {d}', { v: tnFmt(x.was, x), d: anDay(Object.keys(x.series)[0]) })) : ''}</span></div>
+    ${tnSpark(x)}
+    <p class="tn-txt">${esc(x.text)}</p>
+    <footer class="tn-f">${eta}${x.go ? `<button type="button" class="link-btn small" data-an-go="${esc(x.go)}">${L('bekijken')} →</button>` : ''}</footer>
+  </article>`;
+}
+
+function tnRender() {
+  const d = tnData;
+  if (!d) return `<p class="muted">⏳ ${L('Trends laden…')}</p>`;
+  if (d.error) return `<p class="form-error">${esc(d.error)}</p>`;
+  const items = d.items || [];
+  if (!items.length) return `<p class="muted">${esc(L('Nog geen trends: RzSense heeft minstens 14 dagen aan dagwaarden nodig. Die worden vanzelf elke dag bewaard.'))}</p>`;
+  const mov = items.filter((x) => x.sig), bad = mov.filter((x) => x.bad), good = mov.filter((x) => !x.bad), flat = items.filter((x) => !x.sig);
+  const top = (d.moving || []).map((id) => items.find((x) => x.id === id)).filter(Boolean);
+  const head = `<div class="tn-top">
+    <div class="tn-sum"><div class="tn-k bad"><b>${bad.length}</b><span>${esc(L('gaan de verkeerde kant op'))}</span></div>
+      <div class="tn-k good"><b>${good.length}</b><span>${esc(L('verbeteren'))}</span></div>
+      <div class="tn-k"><b>${flat.length}</b><span>${esc(L('stabiel'))}</span></div></div>
+    <div class="tn-moves"><h3>${esc(L('Wat beweegt er'))}</h3>${top.length ? `<ol>${top.map((x) => `<li><span class="tn-ic">${x.icon}</span><span><b>${esc(x.title)}</b> <span class="muted small">${esc(x.sub || '')}</span><br><span class="small">${esc(x.short || x.text)}</span></span>${tnChip(x)}</li>`).join('')}</ol>`
+      : `<p class="good-txt small">✔ ${esc(L('Niets dat langzaam de verkeerde kant op gaat. Alles stabiel.'))}</p>`}</div></div>`;
+  const chips = [['moving', L('Wat beweegt ({n})', { n: mov.length })], ['all', L('Alles ({n})', { n: items.length })],
+    ...Object.keys(TN_GRP).filter((g) => items.some((x) => x.grp === g)).map((g) => [g, `${TN_GRP[g][0]} ${TN_GRP[g][1]()}`])];
+  const bar = `<div class="dash-chips tn-chips" role="group">${chips.map(([k, l]) => `<button type="button" class="dchip ${tnFilter === k ? 'on' : ''}" data-tr-f="${k}">${esc(l)}</button>`).join('')}</div>`;
+  const groups = Object.keys(TN_GRP).map((g) => {
+    if (!['moving', 'all', g].includes(tnFilter)) return '';
+    const list = items.filter((x) => x.grp === g), show = tnFilter === 'moving' ? list.filter((x) => x.sig) : list, rest = list.filter((x) => !x.sig);
+    if (!list.length) return '';
+    show.sort((a, b) => (b.sig - a.sig) || (b.bad - a.bad) || ((a.eta_days ?? 1e9) - (b.eta_days ?? 1e9)) || (Math.abs(b.chg) - Math.abs(a.chg)));
+    return `<section class="tn-grp"><h3>${TN_GRP[g][0]} ${esc(TN_GRP[g][1]())}</h3>
+      ${show.length ? `<div class="tn-grid">${show.map(tnCard).join('')}</div>` : ''}
+      ${tnFilter === 'moving' && rest.length ? `<p class="tn-flat"><span class="muted small">→ ${esc(L('stabiel'))}:</span> ${rest.slice(0, 12).map((x) => `<span class="tn-pill" title="${esc(x.text)}">${x.icon} ${esc(x.title)}${x.sub ? ` <span class="muted">${esc(x.sub)}</span>` : ''}</span>`).join('')}${rest.length > 12 ? ` <button type="button" class="link-btn small" data-tr-f="${g}">${esc(L('+{n} meer', { n: rest.length - 12 }))}</button>` : ''}</p>` : ''}
+    </section>`;
+  }).join('');
+  return `${head}${bar}${groups}<p class="muted small tn-foot">${esc(L('Uit de dagwaarden van de laatste {n} dagen. Dag- en weekritme (zoals nachtelijke back-ups) tellen niet mee: RzSense gebruikt een robuuste lijn (Theil-Sen) en noemt iets pas een trend als de verandering groot genoeg én consequent is. Bijgewerkt: {t}.', { n: d.days, t: fmtDateTime(d.at) }))}</p>`;
 }
 
 // ---------------------------------------------------------------- Netwerk (1.103.0)

@@ -93,6 +93,15 @@ final class Report
         $h[] = '<h2>' . $e(t('Wat nu aanpakken')) . '</h2>' . ($r['todo']
             ? '<ul class="todo">' . implode('', array_map(fn($t) => '<li class="s' . (int) $t['sev'] . '">' . $e($t['text']) . '</li>', array_slice($r['todo'], 0, 15))) . '</ul>'
             : '<p>✔ ' . $e(t('niets dringends')) . '</p>');
+        // 1.224.0: wat langzaam de verkeerde kant op gaat (Analyse → Trends)
+        try {
+            $tr = Trends::top(3);
+            $h[] = '<h2>' . $e(t('Wat beweegt er')) . '</h2>' . ($tr
+                ? '<ul class="todo">' . implode('', array_map(fn($x) => '<li class="s' . ($x['eta_days'] !== null && $x['eta_days'] <= 30 ? 2 : 1) . '"><b>' . $e($x['icon'] . ' ' . $x['title'])
+                    . '</b>' . ($x['sub'] ? ' <span class="muted">(' . $e($x['sub']) . ')</span>' : '') . ': ' . $e($x['text']) . '</li>', $tr)) . '</ul>'
+                : '<p>✔ ' . $e(t('Niets dat langzaam de verkeerde kant op gaat. Alles stabiel.')) . '</p>');
+        } catch (Throwable) {
+        }
 
         if ($bodyOnly) {
             return implode("\n", $h);

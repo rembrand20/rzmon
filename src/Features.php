@@ -191,6 +191,7 @@ final class Features
 
         // Analyse, advies en AI
         ['ai', ['Analyse en advies', 'Analysis and advice'], ['Score, adviezen en analyses over langere tijd.', 'Score, advice and analyses over a longer period.'], '1.155.0', '', '#analytics'],
+        ['ai', ['Trends', 'Trends'], ['Wat langzaam verandert over 90 dagen (accu, SSD, responstijd, geheugen, aanvallen), met een datum waarop het misgaat.', 'What slowly changes over 90 days (battery, SSD, response time, memory, attacks), with a date when it goes wrong.'], '1.224.0', '', '#analytics'],
         ['ai', ['Advies voor checks', 'Check advice'], ['Voorstellen voor melden na N, onderhoudsvensters en afhankelijkheden.', 'Suggestions for notify after N, maintenance windows and dependencies.'], '1.108.0', '', 'advice'],
         ['ai', ['Slimme oordelen bij IDS', 'Smart IDS verdicts'], ['Per soort, regels en jouw keuze eerst; de AI alleen als het nog onzeker is.', 'Per kind, rules and your choice first; the AI only when still uncertain.'], '1.223.0', 'ai_triage', 'ai'],
         ['ai', ['AI-advies', 'AI advice'], ['Uitleg en een oplossing met Claude, ChatGPT, Gemini, Grok of Ollama.', 'Explanation and a fix with Claude, ChatGPT, Gemini, Grok or Ollama.'], '1.171.0', 'ai_on|ai_provider', 'ai'],

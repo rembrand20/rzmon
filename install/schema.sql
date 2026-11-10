@@ -908,6 +908,7 @@ CREATE TABLE IF NOT EXISTS stats_daily (
     KEY idx_sd_metric (metric, ref, day)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('report_monthly', '0');
+INSERT IGNORE INTO settings (name, value) VALUES ('trend_alert_days', '30'), ('trend_ups_min', '10');   -- 1.224.0: Trends
 
 -- 1.107.0: slimme drempels: wat RzSense per check geleerd heeft (per uur van de week)
 CREATE TABLE IF NOT EXISTS check_smart (

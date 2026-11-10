@@ -462,11 +462,31 @@ Vanaf 1.155.0 draait de pagina **Analyse** om advies: wat kun je veranderen om j
 **Melding**: een advies over een kwetsbaarheid die **wereldwijd bekend en kritiek** is, krijg je ook via je kanalen (Pushover, e-mail …). Dat geldt voor een CVE die actief misbruikt wordt (CISA KEV), of een CVE met CVSS 9 of hoger en een kans op misbruik (EPSS) van 50% of meer, alleen als er een update is en als die een server van jou raakt. Je krijgt de melding één keer per advies. Aan of uit bij *Meldingen → Systeemmeldingen → Kritiek advies*.
 
 **Analyses**, als tabbladen onder de adviezen:
+- **📉 Trends** (vanaf 1.224.0): zie hieronder.
 - **⚔️ Aanvallen**: wanneer er wordt aangevallen (per weekdag en uur), welke gebruikersnamen ze proberen en of die bij jou bestaan, of de blokkades werken (pogingen in het uur voor en na een blokkade, tijd tot de blokkade, terugkomers), de poorten onder vuur, en de cijfers van vroeger (mislukte logins, IDS en blokkades per dag, landen, IP's, logins, kwetsbaarheden, hardening).
 - **🎯 Blootstelling**: per server de open poorten (● = van buiten aangevallen), de ergste kwetsbaarheid, de aanvallen, de hardening-score, het risico en het aantal adviezen.
 - **🟢 Betrouwbaarheid**, **📈 Capaciteit**, **🌐 Netwerk**, **💾 Back-ups** en **🔔 Meldingen en ruis**: zoals hieronder beschreven.
 
 De **netwerkscan** leest vanaf 1.155.0 ook de eerste regel die SSH, FTP, SMTP en POP3/IMAP over zichzelf sturen (alleen lezen, nooit inloggen), voor de analyse van apparaten zonder agent.
+
+### Trends 📉 (vanaf 1.224.0)
+Op **Analyse → Trends** zie je wat over de laatste **90 dagen langzaam verandert**: dingen die je dag tot dag niet opvallen, maar over een paar maanden wel misgaan.
+
+| Groep | Wat | Grens (verwachting) |
+|---|---|---|
+| 🔋 Hardware veroudert | UPS-looptijd bij dezelfde belasting, UPS-lading, SSD-slijtage, vervangen sectoren, schijftemperatuur | looptijd onder 10 min (instelbaar), 90% versleten, te warm |
+| 🐢 Langzaam trager | responstijd van HTTP/TCP/ping/DNS-checks, internetsnelheid en -vertraging | de waarschuwingsgrens van de check of van de internetcheck |
+| 📦 Capaciteit | disks, geheugen, database en logs van RzSense | vol (de critical-grens of 95%), schijf vol |
+| 🟢 Betrouwbaarheid | storingen en wisselingen per week, duur van een controleronde | langer dan een minuut |
+| 🛡️ Beveiliging en onderhoud | aanvallen en mislukte logins per week, openstaande kwetsbaarheden, hardening-score | – |
+
+**Hoe RzSense rekent**: door de dagwaarden gaat een **robuuste lijn** (Theil-Sen: de middelste van alle hellingen tussen twee dagen). Een nachtelijke back-up, een rustig weekend of één rare dag trekt die lijn niet scheef. Iets is pas een **trend** als de verandering per maand groot genoeg is (bv. 10% trager, 1 procentpunt voller, 1 °C warmer) én **consequent** (de meeste dagen gaan dezelfde kant op). Anders staat het onder *stabiel*. De UPS-looptijd wordt omgerekend naar de gewone belasting, zodat een drukke dag de accu niet slechter laat lijken.
+
+**Per kaartje**: de waarde nu en 90 dagen geleden, de verandering per maand (rood = de verkeerde kant op, groen = beter), de lijn met de trendlijn en de verwachting (gestippeld), wat je eraan kunt doen, en ⏳ **wanneer de grens geraakt wordt**. Bovenaan **Wat beweegt er**: de drie belangrijkste (eerst wat het snelst een grens raakt). Met de knoppen filter je op *Wat beweegt*, *Alles* of een groep.
+
+**Melding**: raakt een trend binnen **30 dagen** een grens, dan krijg je een melding (*Instellingen → Meldingen → Systeemmeldingen → Trend*), hooguit één keer per 14 dagen per trend. Het aantal dagen (0 = uit) en de kortste UPS-looptijd die nog goed is, stel je in bij *Instellingen → Alarmgedrag*. Het **maandrapport** heeft een blok *Wat beweegt er*.
+
+**Gegevens**: de meeste trends komen uit de dagtotalen van Analyse (die er al zijn). Een paar waarden bewaart RzSense vanaf 1.224.0 zelf elke dag: UPS-looptijd en -belasting, SSD-slijtage en sectoren (agent met NUT en smartctl), de grootte van de database en de logs, de duur van een ronde en de hardening-score. Daarvan zie je na **14 dagen** een trend.
 
 ### Analyse 📊 (vanaf 1.106.0)
 Het tabblad **📊 Analyse** laat zien hoe het over langere tijd gaat, en wat je het best als eerste aanpakt. Alleen **beheerders en gebruikers** zien het; een account met de rol *alleen lezen* niet.

@@ -1243,7 +1243,7 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'home', 'mds', 'self_status', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'web_sites', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'home', 'mds', 'self_status', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'web_sites', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'trends', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save' => 'readonly',
     'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'alert_seen', 'log_sources', 'log_source_lines', 'log_search', 'log_context', 'log_export', 'log_facets', 'log_overview', 'log_watches', 'log_watch_save', 'log_watch_toggle', 'log_watch_delete', 'log_watch_test', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi', 'quiet_now' => 'user',
@@ -1256,7 +1256,7 @@ $isAdmin = has_role($user, 'admin');
 I18n::init($user);
 // 1.119.0: alleen lezen? Dan de sessie meteen vrijgeven. PHP laat andere verzoeken van dezelfde browser anders wachten
 // tot dit verzoek klaar is; één trage pagina maakte zo alles traag.
-if ($method === 'GET' && in_array($action, ['insights', 'insight_analyses', 'home', 'self_status', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'web_sites', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
+if ($method === 'GET' && in_array($action, ['insights', 'insight_analyses', 'trends', 'home', 'self_status', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'web_sites', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
     'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'analytics', 'vulns', 'vuln_packages', 'vuln_detail', 'net_devices', 'pve_overview', 'truenas_overview', 'incidents', 'incident_info', 'report',
     'smart_proposals', 'setup_info', 'settings', 'edr_rules', 'ti_status'], true)) {
     session_write_close();
@@ -3730,7 +3730,8 @@ switch ($action) {
             'ai_budget_month', 'ai_memory', 'ai_cache', 'ai_cache_hours', 'ai_fallback', 'ai_notify', 'ai_weekly', 'ai_weekly_day', 'ai_triage', 'ai_triage_max', 'ai_report',   // 1.173.0
             'confirm_fails', 'confirm_ok', 'confirm_types', 'confirm_fast',   // 1.185.0, 1.193.0
             'net_traffic', 'net_traffic_swap', 'net_wan_cap_gb',   // 1.186.0, 1.187.0
-            'logs_on', 'logs_interval', 'logs_days', 'logs_max_gb', 'logs_day_mb', 'logs_mask', 'logs_mask_extra'];   // 1.210.0
+            'logs_on', 'logs_interval', 'logs_days', 'logs_max_gb', 'logs_day_mb', 'logs_mask', 'logs_mask_extra',
+            'trend_alert_days', 'trend_ups_min'];   // 1.224.0   // 1.210.0
         // 1.179.0: Mastodon alleen via https naar een gewone hostnaam
         if (isset($in['cve_mastodon_url']) && trim((string) $in['cve_mastodon_url']) !== '' && !CveBuzz::safeUrl(rtrim(trim((string) $in['cve_mastodon_url']), '/'))) {
             out(['error' => t('Mastodon: vul een https-adres in, bv. https://infosec.exchange')], 422);
@@ -3744,6 +3745,11 @@ switch ($action) {
         }
         if (isset($in['ai_budget_month'])) {   // 1.173.0: maandbudget in euro (0 = geen)
             $in['ai_budget_month'] = (string) round(max(0, min(100000, (float) str_replace(',', '.', (string) $in['ai_budget_month']))), 2);
+        }
+        foreach (['trend_alert_days' => [0, 365], 'trend_ups_min' => [1, 240]] as $k => [$lo, $hi]) {   // 1.224.0
+            if (isset($in[$k])) {
+                $in[$k] = (string) max($lo, min($hi, (int) $in[$k]));
+            }
         }
         foreach (['ai_daily' => [0, 10000], 'ai_timeout' => [10, 600], 'ai_max_tokens' => [200, 8000], 'ai_cache_hours' => [1, 72], 'ai_weekly_day' => [1, 7]] as $k => [$lo, $hi]) {
             if (isset($in[$k])) {
@@ -4855,6 +4861,9 @@ switch ($action) {
 
     case 'insight_analyses':
         out(Insights::analyses((int) ($_GET['days'] ?? 30)));
+
+    case 'trends':   // 1.224.0: Analyse → Trends
+        out(Trends::page(null, $isAdmin && !empty($_GET['fresh'])));
 
     case 'insight_set':
         $in = input();

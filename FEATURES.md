@@ -163,6 +163,7 @@ Dezelfde tabel staat in RzSense bij *Instellingen → Overzicht → Functies*, m
 | 🌐 Netwerk | **Aanvalspad en impact** | Wat een aanvaller via een server kan bereiken. | 1.146.0 |
 | 🌐 Netwerk | **Netwerkpaden** | Alle pad-checks als netwerkkaart. | 1.177.0 |
 | 🤖 Analyse, advies en AI | **Analyse en advies** | Score, adviezen en analyses over langere tijd. | 1.155.0 |
+| 🤖 Analyse, advies en AI | **Trends** | Wat langzaam verandert over 90 dagen (accu, SSD, responstijd, geheugen, aanvallen), met een datum waarop het misgaat. | 1.224.0 |
 | 🤖 Analyse, advies en AI | **Advies voor checks** | Voorstellen voor melden na N, onderhoudsvensters en afhankelijkheden. | 1.108.0 |
 | 🤖 Analyse, advies en AI | **Slimme oordelen bij IDS** | Per soort, regels en jouw keuze eerst; de AI alleen als het nog onzeker is. | 1.223.0 |
 | 🤖 Analyse, advies en AI | **AI-advies** | Uitleg en een oplossing met Claude, ChatGPT, Gemini, Grok of Ollama. | 1.171.0 |

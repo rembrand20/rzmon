@@ -8,11 +8,25 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.224.0**: **Trends**: wat langzaam de verkeerde kant op gaat (accu, SSD, responstijd, geheugen, aanvallen), met een datum waarop het misgaat.
 - **1.223.0**: **slimme oordelen bij IDS-incidenten**: per soort, regels en jouw keuze eerst, de AI alleen als het nog onzeker is.
 - **1.222.0**: **het hele pad van een webaanval**: aanvaller → reverse proxy → site → dienst, met een oordeel, en aanvallen per site.
 - **1.221.0**: **bijwerken veel sneller**: snelle back-up en alleen doen wat nodig is (van minuten naar seconden).
 - **1.220.0**: **mDS per soort** met netwerk en ping, en een **veel snellere IDS-pagina**.
-- **1.219.0**: de **RzSense-kern** (futuristische meters voor de eigen server) en een **begrijpelijke IDS Live-pagina**.
+
+## 1.224.0 – 2026-11-10
+### Nieuw
+- **Analyse → Trends** (het eerste tabblad onder de adviezen): wat er over de laatste 90 dagen **langzaam verandert**, in vijf groepen:
+  - **Hardware veroudert**: de looptijd van je UPS-accu bij dezelfde belasting (met een vervangdatum), de lading, SSD-slijtage, vervangen sectoren en de schijftemperatuur;
+  - **Langzaam trager**: responstijden van HTTP-, TCP-, ping- en DNS-checks, en de internetsnelheid en -vertraging uit de snelheidstest;
+  - **Capaciteit**: disks, geheugen (een geheugenlek), de database en de logs van RzSense zelf;
+  - **Betrouwbaarheid**: storingen en wisselingen per week, de duur van een controleronde;
+  - **Beveiliging en onderhoud**: aanvallen en mislukte logins per week, openstaande kwetsbaarheden en de hardening-score.
+- Per trend een kaartje met de lijn, de trendlijn en de verwachting, de verandering per maand, een zin in gewone taal met wat je eraan doet, en **wanneer een grens geraakt wordt** (vol, versleten, te traag, onder 10 minuten looptijd). Bovenaan **Wat beweegt er**: de drie belangrijkste, en tellers voor *verkeerde kant op*, *verbeteren* en *stabiel*. Wat niet beweegt staat klein onderaan per groep.
+- **Slim, geen ruis**: RzSense gebruikt een robuuste lijn (Theil-Sen), zodat nachtelijke back-ups, rustige weekenden en losse uitschieters niet meetellen. Iets heet pas een trend als de verandering groot genoeg is (per soort, bv. 10% trager of 1 °C per maand) én consequent.
+- **Melding** (*Systeemmeldingen → Trend*) als een trend binnen 30 dagen een grens raakt, hooguit één keer per 14 dagen per trend. In te stellen bij *Instellingen → Alarmgedrag* (ook de kortste UPS-looptijd die nog goed is).
+- **Maandrapport**: een blok *Wat beweegt er* met de drie belangrijkste trends.
+- RzSense bewaart daarvoor elke dag een paar extra waarden (UPS-looptijd en -belasting, SSD-slijtage, grootte van database en logs, duur van een ronde, hardening-score). Trends van die waarden zie je na 14 dagen; de rest staat er meteen.
 
 ## 1.223.3 – 2026-11-10
 ### Opgelost

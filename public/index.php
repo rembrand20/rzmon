@@ -749,6 +749,8 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <div data-sk="alarm" class="card">
           <h2><?= th('Alarmgedrag') ?></h2>
           <label><?= th('Waarschuwen als een disk binnen … dagen vol raakt') ?> <span class="muted small"><?= th('(0 = uit)') ?></span><input type="number" name="disk_forecast_days" min="0" max="365"></label>
+          <label><?= th('Melden als een trend binnen … dagen een grens bereikt') ?> <span class="muted small"><?= th('(Analyse → Trends; 0 = uit)') ?></span><input type="number" name="trend_alert_days" min="0" max="365"></label>
+          <label><?= th('UPS: kortste looptijd die nog goed is (minuten)') ?> <span class="muted small"><?= th('(voor de trend van de accu)') ?></span><input type="number" name="trend_ups_min" min="1" max="240"></label>
           <details class="adv"><summary><?= th('Geavanceerd') ?></summary>
           <label><?= th('Logbestanden: treffers tellen over de laatste … minuten') ?> <span class="muted small">(5–1440)</span><input type="number" name="log_window" min="5" max="1440"></label>
           <label class="switch"><input type="checkbox" name="auto_maint_enabled"><span></span> <?= th('Automatisch onderhoud na herhaalde meldingen') ?></label>

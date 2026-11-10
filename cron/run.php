@@ -199,6 +199,14 @@ try {
     if ($msg = Analytics::cron()) {
         echo date('c') . " $msg\n";
     }
+    // 1.224.0: Trends (dagwaarden elk uur, de analyse en meldingen één keer per dag)
+    try {
+        if ($msg = Trends::cron()) {
+            echo date('c') . " $msg\n";
+        }
+    } catch (Throwable $e) {
+        fwrite(STDERR, 'Trends: ' . $e->getMessage() . "\n");
+    }
 } catch (Throwable $e) {
     fwrite(STDERR, 'Analyse: ' . $e->getMessage() . "\n");
 }

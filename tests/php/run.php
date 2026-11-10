@@ -2282,5 +2282,26 @@ ok((Triage::map()[(int) $a1['id']][2] ?? '') === 'u', 'oordeel: in de lijst met 
 q('DELETE FROM ids_triage WHERE fp IN (?, ?)', [Triage::fp($a1), Triage::fp($d1)]);
 q('DELETE FROM hosts WHERE id = ?', [$ht]);
 
+// 1.224.0: Trends: robuuste lijn, alleen een trend als het consequent beweegt, en wanneer een grens geraakt wordt
+$f = Trends::fit([0 => 1.0, 1 => 2.0, 2 => 3.0, 3 => 100.0, 4 => 5.0]);
+ok(abs($f[0] - 1.0) < 1e-9 && abs($f[1] - 1.0) < 1e-9, 'trends: Theil-Sen trekt zich niets aan van één uitschieter');
+$mk = static function (callable $fn): array {
+    $o = [];
+    for ($i = 59; $i >= 0; $i--) {
+        $o[date('Y-m-d', strtotime("-$i day"))] = $fn(59 - $i);
+    }
+    return $o;
+};
+$base = ['id' => 'x', 'grp' => 'cap', 'icon' => '💽', 'title' => 'Disk', 'unit' => '%', 'eff' => [null, 1], 'limit' => 95.0];
+$up = Trends::judge($mk(fn($x) => 70 + $x * 0.1 + (($x % 7) === 0 ? 3 : 0)), $base);
+ok($up && $up['sig'] && $up['bad'] && $up['eta_days'] !== null && $up['eta_days'] > 100 && $up['eta_days'] < 260, 'trends: disk die gestaag voller wordt geeft een trend en een datum waarop hij vol is');
+$flat = Trends::judge($mk(fn($x) => 70 + (($x * 7) % 5) - 2), $base);
+ok($flat && !$flat['sig'] && $flat['eta'] === null, 'trends: alleen ruis is stabiel (geen trend, geen datum)');
+$tiny = Trends::judge($mk(fn($x) => 70 + $x * 0.01), $base);
+ok($tiny && !$tiny['sig'], 'trends: een heel kleine verandering (0,3 punt per maand) telt niet');
+$down = Trends::judge($mk(fn($x) => 23 - $x * 0.06), ['hb' => false, 'eff' => [5, 0.5], 'limit' => 10.0, 'unit' => ' min'] + $base);
+ok($down && $down['bad'] && $down['eta'] !== null, 'trends: dalende UPS-looptijd (lager is slechter) met een vervangdatum');
+ok(Trends::judge(array_slice($mk(fn($x) => $x), -10, null, true), $base) === null, 'trends: te weinig dagen = geen oordeel');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

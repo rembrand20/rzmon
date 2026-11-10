@@ -45,7 +45,7 @@ final class Analytics
     {
         $a = $from . ' 00:00:00';
         $b = date('Y-m-d', strtotime($to . ' +1 day')) . ' 00:00:00';
-        q('DELETE FROM stats_daily WHERE day BETWEEN ? AND ? AND metric NOT IN (' . self::snapList() . ')', [$from, $to]);
+        q('DELETE FROM stats_daily WHERE day BETWEEN ? AND ? AND metric NOT IN (' . self::snapList() . ") AND metric NOT LIKE 'tr\\_%'", [$from, $to]);   // 1.224.0: tr_* = dagwaarden van Trends
         $days = [];
         foreach (q('SELECT DATE(created_at) AS d, check_id, COUNT(*) AS n, SUM(status = 1) AS w, SUM(status = 2) AS c, AVG(value) AS av, MAX(value) AS mx
                     FROM results WHERE created_at >= ? AND created_at < ? GROUP BY d, check_id', [$a, $b]) as $r) {
@@ -673,6 +673,19 @@ final class Analytics
         }
         if (!$r['todo']) {
             $l[] = '  ✔ ' . t('niets dringends');
+        }
+        // 1.224.0: Trends
+        try {
+            $tr = Trends::top(3);
+            $l[] = '';
+            $l[] = t('Wat beweegt er:');
+            foreach ($tr as $x) {
+                $l[] = '  ' . $x['icon'] . ' ' . $x['title'] . ($x['sub'] ? ' (' . $x['sub'] . ')' : '') . ': ' . $x['text'];
+            }
+            if (!$tr) {
+                $l[] = '  ✔ ' . t('Niets dat langzaam de verkeerde kant op gaat. Alles stabiel.');
+            }
+        } catch (Throwable) {
         }
         $l[] = '';
         $l[] = t('Meer in RzSense: tabblad 📊 Analyse.');
