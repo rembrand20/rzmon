@@ -2386,5 +2386,33 @@ ok($j['state'] === 'soon' && $j['days'] === 66 && Eol::level(['kind' => 'os', 'v
 ok(Eol::level($det['php'], 'eol') === 'info' && Eol::level($det['docker-engine'], 'eol') === 'warn', 'end-of-life: software uit de distributie = ter info, van de leverancier (docker-ce) = warning');
 ok(Eol::judge(['cycle' => '8', 'kind' => 'os', 'vendor' => true], [['cycle' => '8.2', 'eol' => false]], $now)['known'], 'end-of-life: cyclus op de major gevonden (Proxmox 8 → 8.2)');
 
+section('Ransomware (1.228.0)');
+q("INSERT INTO hosts (name, address, mode, agent_version) VALUES ('ci-nas', '10.0.0.95', 'agent', '1.90.0')");
+$hr = (int) db()->lastInsertId();
+ok(Ransom::agentLines($hr) === [], 'ransomware: zonder mappen geen regels voor de agent');
+$err = '';
+try { Ransom::save($hr, ['paths' => ['/proc/self']], 'ci'); } catch (InvalidArgumentException $e) { $err = $e->getMessage(); }
+ok($err !== '', 'ransomware: /proc als map geweigerd');
+$info = Ransom::save($hr, ['paths' => ['/mnt/tank/data/', '/mnt/tank/data'], 'snap' => 1, 'canary' => 1, 'kill' => 0], 'ci');
+$lines = Ransom::agentLines($hr);
+ok(count($info['paths']) === 1 && $info['paths'][0]['p'] === '/mnt/tank/data' && count($lines) === 2 && str_starts_with($lines[0], "0\transom\t1\t0\t1")
+    && str_contains($lines[1], base64_encode('/mnt/tank/data')) && str_ends_with($lines[1], "\t300"), 'ransomware: map opgeslagen (dubbel en slash weg) en naar de agent met de ondergrens als drempel');
+ok((int) q("SELECT COUNT(*) FROM host_actions WHERE host_id = ? AND module = 'ransom'", [$hr])->fetchColumn() === 1, 'ransomware: instellen staat in het logboek van de server');
+$k = Ransom::key('/mnt/tank/data');
+$st = db()->prepare('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)');
+$hostRow = q('SELECT * FROM hosts WHERE id = ?', [$hr])->fetch();
+Ransom::fromAgent($hostRow, ['ransom' => ['on' => 1, 'cand' => [['smb', '/mnt/tank/data']], 'paths' => [['k' => $k, 'p' => '/mnt/tank/data', 'n' => 12, 'ext' => 0, 'notes' => 0, 'enc' => 0, 'canary' => 'ok', 'chit' => '', 'hit' => 0]]]], $st, now());
+ok(!q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ?", [$hr])->fetchColumn(), 'ransomware: rustige ronde = geen incident');
+Ransom::fromAgent($hostRow, ['ransom' => ['on' => 1, 'paths' => [['k' => $k, 'p' => '/mnt/tank/data', 'n' => 900, 'ext' => 0, 'notes' => 0, 'enc' => 0, 'canary' => 'ok', 'chit' => '', 'hit' => 0]]]], $st, now());
+ok((int) q("SELECT severity FROM ids_incidents WHERE host_id = ? AND type = 'ransom_mass'", [$hr])->fetchColumn() === 1, 'ransomware: heel veel tegelijk zonder kenmerken = warning (back-up?)');
+Ransom::fromAgent($hostRow, ['ransom' => ['on' => 1, 'paths' => [['k' => $k, 'p' => '/mnt/tank/data', 'n' => 40, 'ext' => 12, 'notes' => 1, 'enc' => 5, 'canary' => 'alarm',
+    'chit' => '!0-RzSense-lokaas-niet-aanraken.txt is gewijzigd; ', 'hit' => 1, 'snap' => 'tank/data@rzsense-ransom-1', 'ex' => ['a.doc.lockbit'], 'killed' => [['pid' => 4321, 'comm' => 'smbd', 'ip' => '192.168.1.66']]]]]], $st, now());
+$inc = q("SELECT severity, detail, ip FROM ids_incidents WHERE host_id = ? AND type = 'ransom'", [$hr])->fetch();
+ok($inc && (int) $inc['severity'] === 2 && str_contains($inc['detail'], 'tank/data@rzsense-ransom-1') && str_contains($inc['detail'], 'lokaas') && $inc['ip'] === '192.168.1.66',
+    'ransomware: sterk signaal = critical incident, met de snapshot, het lokaas en het IP van de pc');
+$b = ['hist' => array_merge(array_fill(0, 150, 10), array_fill(0, 18, 200))];
+ok(Ransom::threshold(['hist' => [5, 6]]) === 300 && Ransom::threshold($b) === 800, 'ransomware: drempel = ondergrens tot 3 dagen geleerd, daarna 4 × het 95e percentiel');
+q('DELETE FROM hosts WHERE id = ?', [$hr]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

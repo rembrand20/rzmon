@@ -762,6 +762,7 @@ const SET_NAV = [
     ['ids_edr', L('Endpoint-bewaking'), ['ids_edr', 'ids_rules'], L('Processen, bestanden en netwerk op je servers; afwijkingen en aanvalsketens.'),
       [['bewaking', L('Bewaking'), ['ids_edr']], ['regels', L('Regels en uitzonderingen'), ['ids_rules']]]],
     ['ids_ti', L('Dreigingsinformatie'), ['ids_ti'], L('Bekende aanvallers en malware opzoeken, en DNS en Suricata.')],
+    ['ids_ransom', L('Ransomware'), ['ransom'], L('Mappen bewaken op versleutelen, met lokaasbestanden, snapshot en stoppen.')],
     ['ids_attack', L('Netwerk en aanvallers'), ['ids_attack', 'whitelist'], L('Blocklists, landen, uitgaand verkeer, de logs van webdiensten en de whitelist.'),
       [['aanvallers', L('Aanvallers en verkeer'), ['ids_attack']], ['whitelist', L('Whitelist'), ['whitelist']]]],
     ['ids_servers', L('Per server'), ['ids_servers'], L('Welke servers het IDS gebruiken, en wat ze bewaken.')]]],
@@ -884,6 +885,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
   if (setSection === 'changelog') loadChangeLog();
   if (setSection === 'actlog') loadActLog();   // 1.226.0
+  if (setSection === 'ids_ransom') loadRansomSet();   // 1.228.0
   if (setSection === 'ids_edr' && cards.includes('ids_rules')) { ruleWhere = 'set'; loadEdrRules(); }   // 1.162.0
   if (setSection === 'ids_attack' && cards.includes('whitelist')) loadBlocks();
   if (setSection === 'db' || setSection === 'perf') loadSyscheck();   // 1.151.0: systeemcheck, cron, database, prestaties
@@ -3304,3 +3306,18 @@ function showNewDbPassword(r) {
   loadDbInfo();
 }
 
+// ---------------------------------------------------------------- 🧬 Instellingen → IDS → Ransomware (1.228.0)
+async function loadRansomSet() {
+  const box = $('#ransom-hosts');
+  if (!box) return;
+  let d;
+  try { d = await api('ransom_overview'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  box.innerHTML = d.hosts.length ? `<div class="table-scroll"><table class="vuln-table small"><thead><tr><th>${L('Server')}</th><th>${L('Bewaakt')}</th><th>${L('Bij alarm')}</th><th>${L('Laatste ronde')}</th><th></th></tr></thead><tbody>${d.hosts.map((h) => `<tr>
+    <td><b>${esc(h.name)}</b>${!h.agent_ok ? `<br><span class="muted small">${L('agent 1.90.0 nodig')}</span>` : ''}</td>
+    <td>${h.paths.length ? h.paths.map((p) => `<code>${esc(p)}</code>`).join('<br>') : `<span class="muted">${L('niets')}${h.cand ? ' · ' + L('{n} mappen voorgesteld', { n: h.cand }) : ''}</span>`}</td>
+    <td class="small">${h.paths.length ? [h.canary ? '🪤 ' + L('lokaas') : '', h.snap ? '📸 ' + L('snapshot') : '', h.kill ? '⛔ ' + L('stoppen') : ''].filter(Boolean).join(' · ') || L('alleen melden') : ''}</td>
+    <td class="small">${h.alarm ? `<b class="bad">🚨 ${L('alarm')}</b>` : h.at ? esc(new Date(h.at * 1000).toLocaleString(LOCALE, { dateStyle: 'short', timeStyle: 'short' })) : '–'}</td>
+    <td><button type="button" class="btn small-btn" data-rs-am="${h.id}">${L('Instellen')} →</button></td></tr>`).join('')}</tbody></table></div>`
+    : `<p class="muted">${L('Nog geen servers met de agent.')}</p>`;
+  box.onclick = (e) => { const b = e.target.closest('[data-rs-am]'); if (b) agentInstructions(findHost(+b.dataset.rsAm)); };
+}

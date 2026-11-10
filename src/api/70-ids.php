@@ -86,6 +86,28 @@ switch ($action) {
 
     // Toegang: logins, sudo en su (zonder wat inmiddels op de lijst Negeren staat)
     // ---------- Kwetsbaarheden (beheerders en gebruikers; bijwerken en scannen alleen beheerders) ----------
+    case 'ransom_info':   // 1.228.0: ransomware per server (Agent Manager)
+        out(Ransom::info((int) ($_GET['host_id'] ?? 0)));
+
+    case 'ransom_overview':
+        out(['on' => Ransom::enabled(), 'min' => (int) setting('ransom_min', '300'), 'hosts' => Ransom::overview()]);
+
+    case 'ransom_save':
+        $in = input();
+        $hid = (int) ($in['host_id'] ?? 0);
+        $hr = q("SELECT id, ransom_kill FROM hosts WHERE id = ? AND mode = 'agent'", [$hid])->fetch();
+        if (!$hr) {
+            out(['error' => t('Server niet gevonden')], 404);
+        }
+        if (!empty($in['kill']) && !(int) $hr['ransom_kill']) {
+            $confirm('STOPPEN');   // processen laten stoppen door de agent: met je wachtwoord
+        }
+        try {
+            out(Ransom::save($hid, $in, (string) $user['username']));
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
     case 'eol':   // 1.227.0: end-of-life per server
         out(Eol::overview());
 

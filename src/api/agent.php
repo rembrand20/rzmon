@@ -503,6 +503,7 @@ if ($action === 'agent') {
     }
     // 1.107.0: zelf herstellen (uitkomsten, herstelcommando's op de server) en de waakhond
     Heal::fromAgent($host, $in, $st, $now);
+    Ransom::fromAgent($host, $in, $st, $now);   // 1.228.0: ransomware (agent 1.90.0)
     ActionLog::fromAgent($host, $in);   // 1.226.0: wat de agent zelf op de server deed (agent 1.89.0)
     // Vorige stand van de verbindingscontrole (1.100.0), vóór de oude regels verdwijnen
     $prevSec = q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'sec_state'", [$host['id']])->fetchColumn();

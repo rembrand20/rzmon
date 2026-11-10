@@ -1500,6 +1500,10 @@ function agentInstructions(h, pairNow = false) {
         <p class="am-lead">${L('Welke logs deze server naar RzSense stuurt: gecomprimeerd en versleuteld, elke paar minuten')}</p>
         <div id="am-logs"><p class="muted">${L('Laden…')}</p></div>
       </section>` : ''}
+      ${h.mode === 'agent' ? `<section class="am-sec am-card need-admin" data-pk="ransom" data-pw="12" style="--c: var(--crit)"><h3 class="am-h"><i aria-hidden="true">🧬</i>${L('Ransomware')}</h3>
+        <p class="am-lead">${L('Mappen bewaken op versleutelen: lokaasbestanden, heel veel wijzigingen tegelijk en kenmerken van ransomware')}</p>
+        <div id="am-ransom"><p class="muted">${L('Laden…')}</p></div>
+      </section>` : ''}
       <section class="am-sec am-card" data-pk="actlog" data-pw="12" style="--c: var(--info, #2563eb)"><h3 class="am-h"><i aria-hidden="true">📒</i>${L('Logboek')}</h3>
         <p class="am-lead">${L('Wat er op deze server gebeurde (30 dagen): wat de agent veranderde, wat RzSense deed en wat een beheerder aanpaste')}</p>
         <div class="ac-bar"><select id="am-al-module" aria-label="${esc(L('Onderdeel'))}"><option value="">${L('Alle onderdelen')}</option></select>
@@ -1601,6 +1605,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   if (isAdmin()) amInit(h, body);
   if (isAdmin() && h.mode === 'agent') amLogs(h);   // 1.210.0
   amActLog(h, body);   // 1.226.0: logboek van deze server
+  if (isAdmin() && h.mode === 'agent') amRansom(h, body);   // 1.228.0
   // Koppelcode: één code voor alle drie de manieren; daarna wachten tot de agent gekoppeld is
   const makePair = async () => {
     let r;
@@ -2137,3 +2142,53 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
   setTimeout(() => pollAgentStatus(hostId, gen), 5000);
 }
 
+// ---------------------------------------------------------------- 🧬 Ransomware per server (1.228.0)
+const RS_KIND = { smb: 'Samba', nfs: 'NFS', home: L('thuismappen') };
+const RS_CANARY = { ok: '🪤 ' + L('lokaas in orde'), alarm: '🚨 ' + L('lokaas geraakt'), uit: L('geen lokaas'), fout: '⚠ ' + L('lokaas plaatsen mislukt') };
+async function amRansom(h, body) {
+  const box = $('#am-ransom', body);
+  if (!box) return;
+  let d;
+  try { d = await api('ransom_info', null, { host_id: h.id }); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const chosen = new Set(d.paths.map((p) => p.p));
+  const all = [...new Map([...d.paths.map((p) => [p.p, null]), ...d.cand.map(([k, p]) => [p, k])]).entries()];
+  const st = Object.fromEntries(d.paths.map((p) => [p.p, p]));
+  const row = ([p, kind]) => {
+    const s = st[p], last = s && s.last;
+    const info = !s ? `<span class="muted small">${kind ? esc(RS_KIND[kind] || kind) + ' · ' : ''}${L('niet bewaakt')}</span>`
+      : !last ? `<span class="muted small">${L('wacht op het eerste rapport')}</span>`
+        : `<span class="small">${esc(RS_CANARY[last.canary] || last.canary)} · ${L('{n} gewijzigd in de laatste ronde', { n: last.n })} · ${L('drempel {n}', { n: s.threshold })}${s.learned < 72 ? ` <span class="muted">(${L('leert nog: {h} van 72 uur', { h: s.learned })})</span>` : ''}${last.slow ? ' · ⏳ ' + L('map te groot voor één ronde: kies een kleinere map') : ''}</span>
+          ${+last.hit ? `<div class="bad small">🚨 ${L('Alarm in de laatste ronde')}${last.snap ? ' · 📸 ' + esc(last.snap) : ''}</div>` : ''}`;
+    return `<label class="rs-row${last && (+last.hit || last.canary === 'alarm') ? ' rs-alarm' : ''}"><input type="checkbox" data-rs-p="${esc(p)}" ${chosen.has(p) ? 'checked' : ''}>
+      <span class="grow"><code>${esc(p)}</code><br>${info}</span></label>`;
+  };
+  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Ransomware herkennen staat uit voor alle servers (Instellingen → IDS → Ransomware).')}</div>` : ''}
+    ${!d.agent_ok ? `<div class="callout small">${L('Agent 1.90.0 of nieuwer nodig (en als root); werk de agent bij.')}</div>` : ''}
+    <div class="rs-list">${all.length ? all.map(row).join('') : `<p class="muted small">${L('Nog geen mappen gevonden. Vul hieronder zelf een map in (bv. de map van je Samba-share).')}</p>`}</div>
+    <div class="rs-add"><input id="rs-new" class="mono" placeholder="/mnt/tank/gedeeld" aria-label="${esc(L('Map toevoegen'))}"><button type="button" class="btn small-btn" id="rs-add">＋ ${L('Map')}</button></div>
+    ${amRow('🪤 ' + L('Lokaasbestanden'), L('twee bestanden per map die niemand aanraakt; wordt er een gewijzigd of weggehaald, dan meteen alarm'), amSw('rs-canary', d.canary))}
+    ${amRow('📸 ' + L('Snapshot bij alarm'), L('meteen een ZFS-snapshot (of btrfs, alleen-lezen) van die map, hooguit één per half uur'), amSw('rs-snap', d.snap))}
+    ${amRow('⛔ ' + L('Processen stoppen bij alarm'), L('stopt wat er in die map schrijft (bij Samba de sessie van die pc, en dat IP wordt geblokkeerd). Aanzetten vraagt je wachtwoord.'), amSw('rs-kill', d.kill))}
+    <div class="btn-row"><button type="button" class="btn primary small-btn" id="rs-save">${L('Opslaan')}</button></div>`;
+  $('#rs-add', box).onclick = () => {
+    const v = $('#rs-new', box).value.trim();
+    if (!v.startsWith('/')) return toast(L('Een map begint met /'), 'err');
+    $('.rs-list', box).insertAdjacentHTML('beforeend', row([v, null]).replace('type="checkbox"', 'type="checkbox" checked'));
+    $('#rs-new', box).value = '';
+  };
+  const send = async (data, reopen) => {
+    await api('ransom_save', data);
+    toast(data.paths.length ? L('Opgeslagen; de agent pakt het binnen een minuut op') : L('Ransomware-bewaking uit voor deze server'));
+    if (reopen) agentInstructions(findHost(h.id)); else amRansom(h, body);
+  };
+  const save = () => {
+    const data = { host_id: h.id, paths: $$('[data-rs-p]', box).filter((x) => x.checked).map((x) => x.dataset.rsP),
+      canary: $('#rs-canary', box).checked, snap: $('#rs-snap', box).checked, kill: $('#rs-kill', box).checked };
+    if (data.kill && !d.kill) {   // processen laten stoppen: eerst bevestigen (wachtwoord), daarna terug naar de Agent Manager
+      return modal({ title: L('Processen laten stoppen'), body: `<p>${L('Bij een alarm stopt de agent de processen die in de map schrijven (bij Samba de sessie van die pc, en dat IP wordt geblokkeerd). Bevestig met je wachtwoord.')}</p>${confirmField('STOPPEN')}`,
+        buttons: [{ label: L('Bevestigen'), cls: 'primary', submit: true }], onSubmit: (f) => send({ ...data, confirm: f.confirm }, true) });
+    }
+    send(data, false).catch((ex) => toast(ex.message, 'err'));
+  };
+  $('#rs-save', box).onclick = save;
+}

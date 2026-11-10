@@ -5,6 +5,14 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.90.0 – 2026-11-10
+- **Ransomware herkennen** (aan per server in RzSense: *Agent Manager → Ransomware*, met de mappen die je kiest):
+  - **lokaasbestanden** in elke map (vooraan en achteraan): gewijzigd, hernoemd of weg = meteen alarm;
+  - per ronde hoeveel bestanden er veranderden of hernoemd werden (met lage voorrang, hooguit 15 s per map), **ransomware-extensies**, **losgeldbriefjes** en tekstbestanden die ineens **versleuteld** zijn;
+  - bij een sterk signaal, als je dat aanzette: meteen een **snapshot** (ZFS, ook op TrueNAS, of btrfs alleen-lezen) en/of de schrijvende processen **stoppen** (bij Samba de sessie van die pc, en dat IP in de firewall-blokkade);
+  - stelt de mappen voor (Samba-shares, NFS-exports, TrueNAS-shares, /home), en ruimt zijn lokaasbestanden op als je een map uitzet (alleen als ze nog ongewijzigd zijn);
+  - alles in het logboek van de server. Uitzetten op de server: `RANSOM=0`.
+
 ## 1.89.0 – 2026-11-10
 - **Logboek: de agent meldt wat hij zelf op de server verandert.** Bijvoorbeeld de firewall (hoeveel IP's geblokkeerd, bekende aanvallers, de lokaas-poort) en de EDR-regels in auditd, ook als dat mislukt. RzSense toont het in de Agent Manager (kaart *Logboek*) en bij *Instellingen → Agents → Logboek*.
   - Elke regel heeft een eigen kenmerk en blijft op de server bewaard tot RzSense hem heeft (hooguit 2000 regels), dus ook als RzSense even onbereikbaar is gaat er niets verloren en komt niets dubbel binnen.

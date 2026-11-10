@@ -44,6 +44,13 @@ jobs:
           printf '<?php %s(%s($_POST["x"])); ?>' "$f1$f2" "$d1$d2" >/tmp/ws.php
           yara -w rules/yara/rzmon.yar /tmp/ws.php | grep -q rz_php_webshell_eval || { echo "::error title=YARA::regels compileren niet of vinden de test-webshell niet"; exit 1; }
           echo "✔ YARA-regels compileren en vinden de test-webshell"
+      - name: Ransomware herkennen (lokaas, extensies, versleuteld, opruimen)
+        shell: bash
+        run: |
+          set +e +o pipefail
+          bash tests/agent-ransom.sh 2>&1 | tee /tmp/ransom.out
+          rc=${PIPESTATUS[0]}
+          [ "$rc" = 0 ] || { echo "::error title=Ransomware op ${{ matrix.image }}::$(tail -n 15 /tmp/ransom.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
       - name: Endpoint-bewaking (auditd-, SWAG- en Suricata-parser)
         shell: bash
         run: |

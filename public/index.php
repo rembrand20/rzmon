@@ -1176,6 +1176,16 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <div class="btn-row"><button type="button" class="btn" id="vuln-scan-now">🔍 <?= th('Nu scannen') ?></button> <span class="muted small" id="vuln-scan-info"></span></div>
         </div>
 
+        <div data-sk="ransom" class="card" id="ransom-card">
+          <h2>🧬 <?= th('Ransomware herkennen') ?></h2>
+          <?= xp(t('Ziet het als iemand je bestanden aan het versleutelen is, en grijpt in als je dat wilt.'), t('<b>Hoe het werkt:</b> per server kies je in de <b>Agent Manager</b> welke mappen de agent bewaakt (hij stelt je Samba-shares, NFS-exports, de shares van TrueNAS en /home voor). Elke ronde kijkt de agent naar twee <b>lokaasbestanden</b> per map (gewijzigd, hernoemd of weg = meteen alarm), naar hoeveel bestanden er tegelijk veranderen, naar bekende <b>ransomware-extensies</b> en <b>losgeldbriefjes</b>, en naar tekstbestanden die ineens <b>versleuteld</b> zijn. RzSense leert per map wat normaal is (7 dagen). <b>Bij alarm:</b> een critical incident met een pushbericht, en (per server in te stellen) meteen een <b>snapshot</b> (ZFS of btrfs) en eventueel de schrijvende processen <b>stoppen</b>. Alles staat in het logboek van de server. <b>Agent 1.90.0</b> of nieuwer, als root.')) ?>
+          <label class="switch"><input type="checkbox" name="ransom_on"><span></span> <?= t('<b>Ransomware herkennen</b> (op de servers waar je mappen kiest)') ?></label>
+          <label><?= th('Heel veel tegelijk vanaf') ?> <span class="hint"><?= th('(bestanden per ronde; RzSense gebruikt het hoogste van dit getal en 4× wat normaal is)') ?></span>
+            <input type="number" name="ransom_min" min="20" max="100000" class="num-in"></label>
+          <h3 class="set-sub"><?= th('Per server') ?></h3>
+          <div id="ransom-hosts"><p class="muted"><?= th('Laden…') ?></p></div>
+        </div>
+
         <div data-sk="eol" class="card" id="eol-card">
           <h2>⏳ <?= th('End-of-life') ?></h2>
           <?= xp(t('Besturingssysteem en software die geen updates meer krijgen, of binnenkort niet.'), t('<b>Wat het doet:</b> uit dezelfde softwarelijst als de kwetsbaarheden (dit werkt ook als Kwetsbaarheden uit staat) kijkt RzSense eens per dag bij <b>endoflife.date</b> tot wanneer een versie updates krijgt. Het overzicht staat bij 🐞 Kwetsbaarheden → ⏳ Verouderd. <b>Privacy:</b> naar endoflife.date gaan alleen productnamen (zoals debian of php), geen versies, servernamen of IP-adressen. <b>Meldingen:</b> 90 en 30 dagen vooraf en op de dag zelf, bij Systeemmeldingen → End-of-life.')) ?>

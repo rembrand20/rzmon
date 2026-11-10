@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.228.0**: **ransomware herkennen** in je shares, met lokaasbestanden, een snapshot bij alarm en eventueel stoppen.
 - **1.227.0**: **e-mailbeveiliging van je domein** (SPF, DKIM, DMARC, met het record om te plakken) en **end-of-life** van besturingssysteem en software.
 - **1.226.0**: **logboek per server**: wat de agent, RzSense en beheerders deden en veranderden, met uitkomst, filters en CSV.
 - **1.225.0**: **de code is opgesplitst in overzichtelijke onderdelen** (interface en API), met controles die fouten eerder vangen.
 - **1.224.0**: **Trends**: wat langzaam de verkeerde kant op gaat (accu, SSD, responstijd, geheugen, aanvallen), met een datum waarop het misgaat.
-- **1.223.0**: **slimme oordelen bij IDS-incidenten**: per soort, regels en jouw keuze eerst, de AI alleen als het nog onzeker is.
+
+## 1.228.0 – 2026-11-10
+### Nieuw
+- **Ransomware herkennen** (**nieuwe agent 1.90.0**): RzSense ziet het als iemand bestanden in je shares aan het versleutelen is.
+  - Per server in de **Agent Manager** (kaart 🧬 *Ransomware*): kies de mappen (de agent stelt je Samba-shares, NFS-exports, TrueNAS-shares en /home voor), en zet **lokaasbestanden**, **snapshot bij alarm** (standaard aan) en **processen stoppen** (standaard uit, met je wachtwoord) aan of uit;
+  - de agent let op het lokaas, op heel veel wijzigingen tegelijk, op ransomware-extensies, losgeldbriefjes en versleutelde tekstbestanden; RzSense leert per map wat normaal is (7 dagen);
+  - een sterk signaal wordt een **critical incident** met een pushbericht, met de snapshot en wat er gestopt werd; alleen heel veel wijzigingen (back-up?) een warning;
+  - nieuwe pagina **Instellingen → IDS → Ransomware**: aan/uit voor alles, de ondergrens en een overzicht per server. Ook aan/uit bij *Overzicht → Functies*.
 
 ## 1.227.0 – 2026-11-10
 ### Nieuw

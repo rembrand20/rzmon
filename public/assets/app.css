@@ -4868,7 +4868,7 @@ body.no-anim .al2-badge .al2-shape { animation: none !important; }
 .lg-kv dt { color: var(--muted); } .lg-kv dd { margin: 0; font-variant-numeric: tabular-nums; }
 .lg-in { min-width: 0; }
 .lg-in h3 { margin: 0 0 .4rem; }
-.am-grid > [data-pk="logs"], .am-grid > [data-pk="actlog"] { grid-column: 1 / -1; }   /* 1.210.0: de tabel met bronnen over de hele breedte; 1.226.0: ook het logboek */
+.am-grid > [data-pk="logs"], .am-grid > [data-pk="actlog"], .am-grid > [data-pk="ransom"] { grid-column: 1 / -1; }   /* 1.210.0: de tabel met bronnen over de hele breedte; 1.226.0: ook het logboek */
 
 /* ---------------------------------------------------------------- 1.211.0: pagina Logs (zoeken) */
 .logs-page { display: grid; gap: .8rem; }
@@ -5591,6 +5591,15 @@ body.lg .mds-sheet-p { background: var(--bg-2, var(--bg)); -webkit-backdrop-filt
 .al-mod { font-size: .78rem; padding: .05rem .4rem; border-radius: .6rem; background: color-mix(in srgb, var(--primary) 12%, transparent); white-space: nowrap; }
 .al-detail { overflow-wrap: anywhere; }
 
+/* 1.228.0: ransomware in de Agent Manager */
+.rs-list { display: grid; gap: .35rem; margin: .4rem 0 .6rem; }
+label.rs-row { display: flex; flex-direction: row; gap: .6rem; align-items: flex-start; padding: .35rem .5rem; border: 1px solid var(--border); border-radius: .5rem; margin: 0; }
+label.rs-row > input[type=checkbox] { width: auto; flex: none; margin-top: .2rem; }
+.rs-list { grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); }
+.rs-row .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.rs-row.rs-alarm { border-color: var(--crit); background: color-mix(in srgb, var(--crit) 8%, transparent); }
+.rs-add { display: flex; gap: .4rem; }
+.rs-add input { flex: 1; }
 /* 1.227.0: e-mailbeveiliging in de check-popup */
 .mail-fix { display: flex; gap: .4rem; align-items: center; margin-top: .25rem; }
 .mail-fix code { overflow-wrap: anywhere; font-size: .78rem; }

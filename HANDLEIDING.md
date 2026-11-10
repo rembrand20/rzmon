@@ -3115,6 +3115,28 @@ Wat in een bepaalde situatie **normaal** is, zet je bij *Instellingen → IDS �
 - Incidenten worden net zo lang bewaard als de meldingen (*Meldingen bewaren (dagen)*).
 - Een IDS ziet veel, maar niet alles. Houd je servers bijgewerkt, gebruik SSH-sleutels en zet `PermitRootLogin no`.
 
+### 8.12b Ransomware herkennen 🧬 (vanaf 1.228.0, agent 1.90.0)
+Ransomware versleutelt je bestanden en vraagt losgeld. Hoe eerder je het ziet, hoe minder er kwijt is. RzSense let er per server op, in de mappen die jij kiest (vooral je **shares**: daar komt ransomware van een besmette pc het eerst).
+
+**Aanzetten:** *Agent Manager → 🧬 Ransomware*. De agent stelt je **Samba-shares**, **NFS-exports**, de shares van **TrueNAS** en `/home` voor; vink aan welke je wilt bewaken, of vul zelf een map in. Agent **1.90.0** of nieuwer, als root (niet in de Home Assistant-add-on).
+
+**Wat de agent elke ronde doet** (elke minuut, of het ritme van de agent):
+- **🪤 Lokaasbestanden:** in elke map twee bestanden (`!0-RzSense-lokaas-niet-aanraken.txt` vooraan en `zz-…` achteraan, want ransomware werkt vaak op alfabet), met de eigenaar van de map. Niemand hoort ze te openen; gewijzigd, hernoemd of weg = **meteen alarm**. Een gebruiker die ze per ongeluk weggooit, geeft dus ook een alarm: vertel het je huisgenoten of collega's.
+- **Hoeveel er tegelijk verandert** (ook hernoemen), met lage voorrang en hooguit 15 seconden per map. RzSense leert per map wat normaal is (het hoogste aantal per uur, 7 dagen) en geeft de agent een drempel: het hoogste van *Heel veel tegelijk vanaf* (standaard 300) en 4× wat normaal is.
+- **Kenmerken:** bekende **ransomware-extensies** (`.lockbit`, `.encrypted`, `.akira` …), **losgeldbriefjes** (`HOW_TO_DECRYPT` …) en **tekstbestanden die ineens niet meer te comprimeren zijn** (versleuteld).
+
+**Oordeel:**
+- **Sterk signaal** (lokaas geraakt, of meerdere kenmerken, of heel veel tegelijk mét een kenmerk) = **critical incident** *Mogelijke ransomware* met een pushbericht, en wat je per server aanzette:
+  - **📸 Snapshot** (standaard aan): meteen een ZFS-snapshot (`dataset@rzsense-ransom-…`, ook op TrueNAS) of een btrfs-snapshot (alleen-lezen), hooguit één per half uur. Daarmee zet je de bestanden van vlak vóór de aanval terug.
+  - **⛔ Processen stoppen** (standaard uit; aanzetten vraagt je wachtwoord): de processen die in de map schrijven worden gestopt. Bij Samba is dat de sessie van die pc, en het IP van die pc komt meteen in de blokkade van de firewall.
+- **Alleen heel veel tegelijk**, zonder kenmerken = **warning** *Heel veel bestanden tegelijk gewijzigd* (vaak een back-up, synchronisatie of terugzetten).
+
+**Logboek:** plaatsen en weghalen van het lokaas, elk alarm, de snapshot en wat er gestopt werd, staan in het logboek van de server (*Agent Manager → Logboek*).
+
+**Uitzetten:** per server de mappen uitvinken (de agent haalt zijn lokaasbestanden dan weer weg, alleen als ze nog ongewijzigd zijn), of voor alles: *Instellingen → IDS → Ransomware* of *Overzicht → Functies*. Op de server zelf: `RANSOM=0` in `/etc/default/rzmon-agent`.
+
+**Goed om te weten:** dit is een vangnet, geen vervanging van **back-ups**. Een snapshot staat op dezelfde schijf; zorg ook voor een back-up op een andere plek.
+
 ### 8.13 Kwetsbaarheden 🐞
 Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) horen daarbij? Standaard uit; aanzetten bij *Instellingen → 🐞 Kwetsbaarheden*. Daarna staat er een tabblad **🐞 Kwetsbaarheden** in de bovenbalk (voor beheerders en gebruikers, niet voor *alleen lezen*).
 

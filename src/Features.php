@@ -35,7 +35,7 @@ final class Features
      * Wat meer vraagt (een sleutel, je wachtwoord, een keuze) zet je aan op zijn eigen pagina.
      */
     public const TOGGLE = ['edr_on', 'ti_on', 'dns_on', 'suricata_on', 'logs_on', 'cve_buzz_on', 'anomaly_on', 'context_on', 'esc_on', 'perf_on',
-        'smart_auto', 'net_traffic', 'ids_block_shared', 'ids_geo', 'ids_blocklists', 'mailsec_on', 'eol_on'];
+        'smart_auto', 'net_traffic', 'ids_block_shared', 'ids_geo', 'ids_blocklists', 'mailsec_on', 'eol_on', 'ransom_on'];
 
     public const LIST = [
         // Checks en monitoring
@@ -219,6 +219,7 @@ final class Features
         ['admin', ['RzSense bijwerken', 'Update RzSense'], ['Vanuit de webinterface, ook automatisch en naar een gekozen versie.', 'From the web interface, also automatically and to a chosen version.'], '1.29.0', 'update_auto', 'update'],
         ['admin', ['Back-up en herstel', 'Backup and restore'], ['Automatisch of met de hand, met terugzetten.', 'Automatic or manual, with restore.'], '1.18.0', 'backup_freq', 'backup'],
         ['admin', ['Wijzigingslogboek', 'Change log'], ['Wie veranderde wat en wanneer, met terugdraaien.', 'Who changed what and when, with undo.'], '1.97.0', '', 'changelog'],
+        ['ids', ['Ransomware herkennen', 'Ransomware detection'], ['Lokaasbestanden, massale wijzigingen en versleutelde bestanden in je mappen; meteen een snapshot en eventueel stoppen.', 'Decoy files, mass changes and encrypted files in your folders; an instant snapshot and optionally stopping.'], '1.228.0', 'ransom_on', 'ids_ransom'],
         ['vuln', ['E-mailbeveiliging van je domein', 'E-mail security of your domain'], ['SPF, DKIM, DMARC en MTA-STS: kan iemand mailen namens jouw domein? Met het record om te plakken.', 'SPF, DKIM, DMARC and MTA-STS: can someone send mail as your domain? With the record to paste.'], '1.227.0', 'mailsec_on', 'mailsec'],
         ['vuln', ['End-of-life', 'End of life'], ['Besturingssysteem en software die geen updates meer krijgen, of binnenkort niet (endoflife.date).', 'Operating systems and software that no longer get updates, or soon will not (endoflife.date).'], '1.227.0', 'eol_on', 'vulns'],
         ['servers', ['Logboek per server', 'Log per server'], ['Wat de agent, RzSense en beheerders op een server deden, en wat er veranderde.', 'What the agent, RzSense and administrators did on a server, and what changed.'], '1.226.0', '', 'actlog'],
