@@ -35,7 +35,10 @@ jobs:
         shell: bash
         run: |
           DEBIAN_FRONTEND=noninteractive apt-get install -y -qq yara >/dev/null
-          printf '<?php eval(base64_decode($_POST["x"])); ?>' >/tmp/ws.php
+          # De test-webshell wordt hier pas in elkaar gezet: als letterlijke tekst in de repo zien virusscanners
+          # (Microsoft Defender: Backdoor:JS/Chopper) dit bestand zelf als webshell.
+          f1=ev; f2=al; d1=base64; d2=_decode
+          printf '<?php %s(%s($_POST["x"])); ?>' "$f1$f2" "$d1$d2" >/tmp/ws.php
           yara -w rules/yara/rzmon.yar /tmp/ws.php | grep -q rz_php_webshell_eval || { echo "::error title=YARA::regels compileren niet of vinden de test-webshell niet"; exit 1; }
           echo "✔ YARA-regels compileren en vinden de test-webshell"
       - name: Endpoint-bewaking (auditd-, SWAG- en Suricata-parser)
