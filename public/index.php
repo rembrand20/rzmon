@@ -334,6 +334,8 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       </div>
       <div class="pcard" data-pk="chart" data-pw="6" data-pt="<?= th('Aanvallen per dag') ?>"><div id="ids-chart" hidden></div>
       </div>
+      <div class="pcard" data-pk="sites" data-pw="12" data-pt="<?= th('Aanvallen per site') ?>" id="ids-sites-card" hidden><div class="card" id="ids-sites"></div>
+      </div>
       <div class="pcard" data-pk="tabs" data-pw="12" data-pt="<?= th('Tabbladen') ?>"><div class="subtabs ids-tabs" role="tablist" aria-label="IDS" id="ids-tabs">
         <button type="button" class="seg-btn active" data-it="inc"><?= th('⚠️ Incidenten') ?> <span class="it-n" id="it-n-inc"></span></button>
         <button type="button" class="seg-btn" data-it="map"><?= th('🗺️ Aanvalskaart') ?></button>

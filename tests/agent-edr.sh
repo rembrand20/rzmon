@@ -11,7 +11,9 @@ echo 9999 >"$work/own.pids"   # agent 1.67.0: een run van de agent met PID 9999
 CACHE_DIRECTORY="$work" EDR_ROOT=/opt/rzmon EDR_USER=www-data EDR_MARK=0123456789abcdef01234567 bash agent/rzmon-agent.sh --edr-parse audit <tests/data/audit.log >"$work/audit.out" 2>"$work/err" || { echo "✘ audit-parser faalde"; cat "$work/err"; exit 1; }
 CACHE_DIRECTORY="$work" bash agent/rzmon-agent.sh --edr-parse swag <tests/data/swag.log >"$work/swag.out" 2>>"$work/err" || { echo "✘ swag-parser faalde"; cat "$work/err"; exit 1; }
 CACHE_DIRECTORY="$work" bash agent/rzmon-agent.sh --edr-parse eve <tests/data/eve.json >"$work/eve.out" 2>>"$work/err" || { echo "✘ Suricata-parser faalde"; cat "$work/err"; exit 1; }
-python3 - "$work/audit.out" "$work/swag.out" "$work/eve.out" <<'PY'
+# Agent 1.86.0: Nginx Proxy Manager omzetten naar de nginx-log met site en dienst, en daaruit de verdachte verzoeken
+CACHE_DIRECTORY="$work" bash agent/rzmon-agent.sh --edr-parse npm <tests/data/npm.log | CACHE_DIRECTORY="$work" bash agent/rzmon-agent.sh --edr-parse swag >"$work/npm.out" 2>>"$work/err" || { echo "✘ npm-parser faalde"; cat "$work/err"; exit 1; }
+python3 - "$work/audit.out" "$work/swag.out" "$work/eve.out" "$work/npm.out" <<'PY'
 import json, sys
 ev = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
 bad = []
@@ -38,9 +40,13 @@ eve = json.loads('[' + open(sys.argv[3]).read().strip() + ']')
 if len(eve) != 2 or eve[0][:7] != ['2026-10-28T10:00:01.123456+0100', '203.0.113.5', 51234, '192.168.1.10', 22, 'TCP', 2001219] \
         or eve[1][7] != 'ET MALWARE Cobalt Strike "Beacon" C2 \\ test' or eve[1][9] != 1 or eve[1][10] != 'blocked':
     bad.append('Suricata-alerts niet goed gelezen: %r' % eve)
+npm = json.loads('[' + open(sys.argv[4]).read().strip() + ']')
+if len(npm) != 3 or npm[0][:4] != ['185.220.101.47', '10/Nov/2026:10:42:07 +0100', 'GET', '/.env'] or npm[0][4] != 404 or npm[0][8:] != ['vault.jouwdomein.nl', 'vaultwarden'] \
+        or npm[1][2] != 'POST' or npm[2][4] != 444 or npm[2][9] != '-':
+    bad.append('Nginx Proxy Manager niet goed gelezen (site en dienst): %r' % npm)
 if bad:
     print('✘ ' + '\n✘ '.join(bad)); sys.exit(1)
-print('✔ auditd: %d gebeurtenissen (proces met hex-argument, bewaakt pad, dubbel overgeslagen, eigen processen herkend) · SWAG: %d verdachte verzoeken · Suricata: %d alerts' % (len(ev), len(req), len(eve)))
+print('✔ auditd: %d gebeurtenissen (proces met hex-argument, bewaakt pad, dubbel overgeslagen, eigen processen herkend) · SWAG: %d verdachte verzoeken · Suricata: %d alerts · Nginx Proxy Manager: %d met site en dienst' % (len(ev), len(req), len(eve), len(npm)))
 PY
 rc=$?
 [ "$rc" = 0 ] || exit "$rc"

@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.85.0"
+AGENT_VERSION="1.86.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -286,8 +286,8 @@ edr_audit_awk() {
     END { flush() }'
 }
 
-# SWAG/nginx-log (stdin) → verdachte verzoeken als JSON (zonder haakjes), hooguit 100:
-# [ip, tijd, methode, pad+query, status, bytes, user-agent, verwijzer]; RzSense beoordeelt ze precies
+# nginx-log van de reverse proxy (stdin) → verdachte verzoeken als JSON (zonder haakjes), hooguit 100:
+# [ip, tijd, methode, pad+query, status, bytes, user-agent, verwijzer, site, dienst]; RzSense beoordeelt ze precies
 edr_swag_req() {
     awk -F'"' '
     function esc(s) { gsub(/\\/, "&&", s); gsub(/"/, "\\\"", s); gsub(/[\001-\037\177]/, " ", s); return s }
@@ -302,9 +302,19 @@ edr_swag_req() {
         if (l !~ /(%27|%22|%3c|%3e|%24%7b|%2e%2e|\.\.\/|\$\{|\$\(|`|;|\||<|>|'"'"'|\\x22|union|select|sleep\(|\/etc\/|cmd=|exec|eval|system\(|base64|php:\/\/|jndi|\.env|\.git\/|wp-login|xmlrpc|phpunit|cgi-bin|boaform|hnap1|actuator|\/shell\?|\(\) *\{|sqlmap|nikto|nuclei|masscan|zgrab|wpscan)/ \
             && m ~ /^(GET|POST|HEAD|OPTIONS|-)$/) next
         if (++n > 100) exit
-        printf "%s[\"%s\",\"%s\",\"%s\",\"%s\",%d,%d,\"%s\",\"%s\"]", (n > 1 ? "," : ""), ip, esc(tm), esc(substr(m, 1, 20)), esc(substr(uri, 1, 512)),
-            st, by, esc(substr(ua, 1, 200)), esc(substr(ref, 1, 200))
+        # Agent 1.86.0: met de site en de dienst erachter als de log die heeft (rzsense.log, Nginx Proxy Manager)
+        printf "%s[\"%s\",\"%s\",\"%s\",\"%s\",%d,%d,\"%s\",\"%s\",\"%s\",\"%s\"]", (n > 1 ? "," : ""), ip, esc(tm), esc(substr(m, 1, 20)), esc(substr(uri, 1, 512)),
+            st, by, esc(substr(ua, 1, 200)), esc(substr(ref, 1, 200)), esc(substr($8, 1, 120)), esc(substr($10, 1, 80))
     }'
+}
+
+edr_npm_norm() {  # Nginx Proxy Manager (stdin) → combined met "site" "dienst" erachter (agent 1.86.0)
+    # [tijd zone] cache upstream-status status - METHODE schema site "pad" [Client IP] [Length n] [Gzip x] [Sent-to dienst] "agent" "verwijzer"
+    awk -F'"' 'NF >= 6 { split($1, a, " "); tm = a[1] " " a[2]; gsub(/[][]/, "", tm)
+        ip = $3; sub(/.*\[Client /, "", ip); sub(/\].*/, "", ip)
+        by = $3; if (by ~ /\[Length /) { sub(/.*\[Length /, "", by); sub(/\].*/, "", by) } else by = 0
+        up = $3; if (up ~ /\[Sent-to / && a[4] != "-") { sub(/.*\[Sent-to /, "", up); sub(/\].*/, "", up) } else up = "-"
+        printf "%s - - [%s] \"%s %s HTTP/1.1\" %s %d \"%s\" \"%s\" \"%s\" \"%s\"\n", ip, tm, a[7], $2, a[5], by + 0, $6, $4, a[9], up }'
 }
 
 # Van RzSense zelf? (agent 1.65.0) edr_own <pid> <programma> <gebruiker> [<ip>]: agent, rzmon, net (verkeer met RzSense) of leeg
@@ -479,13 +489,14 @@ edr_eve_awk() {
     }'
 }
 
-# Testen zonder RzSense (tests/agent-edr.sh): rzmon-agent.sh --edr-parse audit|swag|eve < bestand
+# Testen zonder RzSense (tests/agent-edr.sh): rzmon-agent.sh --edr-parse audit|swag|npm|eve < bestand
 if [ "${1-}" = "--edr-parse" ]; then
     case "${2-}" in
         audit) edr_audit_awk ;;
         swag) edr_swag_req; echo ;;
+        npm) edr_npm_norm ;;
         eve) edr_eve_awk; echo ;;
-        *) echo "Gebruik: $0 --edr-parse audit|swag|eve < bestand" >&2; exit 2 ;;
+        *) echo "Gebruik: $0 --edr-parse audit|swag|npm|eve < bestand" >&2; exit 2 ;;
     esac
     exit 0
 fi
@@ -2714,47 +2725,98 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
             "$c" inspect -f '{{range .Mounts}}{{.Destination}} {{.Source}}{{"\n"}}{{end}}' "$1" 2>/dev/null | awk -v d="$2" '$1 == d { print $2; exit }' && return 0
         done
     }
+    wl_ctr_ips() {  # "IP=naam IP=naam …" van de draaiende containers: welke dienst zit achter de proxy (agent 1.86.0)
+        local c
+        for c in docker podman; do
+            command -v "$c" >/dev/null 2>&1 || continue
+            "$c" ps -q 2>/dev/null | head -n 200 | xargs -r "$c" inspect -f '{{.Name}}{{range .NetworkSettings.Networks}} {{.IPAddress}}{{end}}' 2>/dev/null \
+                | awk '{ n = $1; sub(/^\//, "", n); for (i = 2; i <= NF; i++) if ($i != "") printf "%s=%s ", $i, n }'
+            return 0
+        done
+    }
     wl_ip_count() {  # per IP tellen: "IP aantal" → {"ip":n,…}
         sort | uniq -c | sort -rn | head -n 200 | awk '$2 ~ /^[0-9a-fA-F:.]+$/ { printf "\"%s\":%d,", $2, $1 }' | sed 's/,$//'
     }
     while IFS=$'\t' read -r z t w_src w_arg; do
         [ "$z" = 0 ] && [ "$t" = weblog ] || continue
-        w_path=""; w_err=""; w_body=""; w_req=""
+        w_path=""; w_err=""; w_body=""; w_req=""; w_kind=""; w_ctr=""; w_full=""
         case "$w_src" in
             swag)
-                w_path=$w_arg
+                # Agent 1.86.0: de reverse proxy herkennen (SWAG, Nginx Proxy Manager of een gewone nginx). Met het extra
+                # logbestand rzsense.log (SWAG/nginx, zie RzSense) of de logs van Nginx Proxy Manager ook de site en de dienst erachter.
+                w_path=$w_arg; w_kind=nginx; w_ctr=""; w_full=0; w_lines=""
                 if [ -z "$w_path" ] || [ "$w_path" = auto ]; then
-                    # Zelf zoeken (één keer per dag): de container van SWAG, gangbare mappen, dan nginx zelf
-                    if [ -f "$w_dir/swag.path" ] && [ $(( $(date +%s) - $(stat -c %Y "$w_dir/swag.path") )) -lt 86400 ]; then w_path=$(cat "$w_dir/swag.path")
+                    # Zelf zoeken (één keer per dag): "soort container map"
+                    if [ -f "$w_dir/proxy.find" ] && [ $(( $(date +%s) - $(stat -c %Y "$w_dir/proxy.find") )) -lt 86400 ]; then
+                        read -r w_kind w_ctr w_path <"$w_dir/proxy.find"
                     else
-                        w_path=""
-                        c=$(wl_docker 'swag|letsencrypt'); [ -n "$c" ] && m=$(wl_mount "$c" /config) && [ -f "$m/log/nginx/access.log" ] && w_path="$m/log/nginx/access.log"
+                        w_kind=""; w_ctr=""; w_path=""
+                        c=$(wl_docker 'swag|letsencrypt')
+                        if [ -n "$c" ] && m=$(wl_mount "$c" /config) && [ -d "$m/log/nginx" ]; then w_kind=swag; w_ctr=$c; w_path="$m/log/nginx"; fi
                         if [ -z "$w_path" ]; then
-                            for f in /opt/swag/config/log/nginx/access.log /srv/swag/config/log/nginx/access.log /docker/swag/config/log/nginx/access.log \
-                                /home/*/swag/config/log/nginx/access.log /home/*/docker/swag/config/log/nginx/access.log /var/log/nginx/access.log; do
-                                [ -f "$f" ] && w_path=$f && break
+                            c=$(wl_docker 'nginx-proxy-manager|jc21/')
+                            if [ -n "$c" ] && m=$(wl_mount "$c" /data) && [ -d "$m/logs" ]; then w_kind=npm; w_ctr=$c; w_path="$m/logs"; fi
+                        fi
+                        if [ -z "$w_path" ]; then
+                            for f in /opt/swag/config/log/nginx /srv/swag/config/log/nginx /docker/swag/config/log/nginx \
+                                /home/*/swag/config/log/nginx /home/*/docker/swag/config/log/nginx; do
+                                [ -f "$f/access.log" ] && w_kind=swag && w_path=$f && break
                             done
                         fi
-                        printf '%s\n' "$w_path" >"$w_dir/swag.path"
+                        if [ -z "$w_path" ] && [ -f /var/log/nginx/access.log ]; then w_kind=nginx; w_path=/var/log/nginx; fi
+                        printf '%s %s %s\n' "${w_kind:--}" "${w_ctr:--}" "$w_path" >"$w_dir/proxy.find"
                     fi
+                    [ "$w_kind" = - ] && w_kind=""
+                    [ "$w_ctr" = - ] && w_ctr=""
+                    # Een map: de logs van Nginx Proxy Manager, het extra logbestand van RzSense, of anders de gewone access-log
+                    if [ -n "$w_path" ] && [ -d "$w_path" ]; then
+                        if [ "$w_kind" = npm ]; then w_path="$w_path/proxy-host-*_access.log"
+                        elif [ -f "$w_path/rzsense.log" ]; then w_path="$w_path/rzsense.log"
+                        else w_path="$w_path/access.log"; fi
+                    fi
+                elif [[ "$w_path" == *swag* ]]; then w_kind=swag
+                elif [[ "$w_path" == *proxy-host-* ]]; then w_kind=npm
                 fi
-                if [ -n "$w_path" ] && [ -r "$w_path" ]; then
+                if [ "$w_kind" = npm ] && [[ "$w_path" == *'*'* ]]; then
+                    # Nginx Proxy Manager: een log per site, met de site en de dienst erin
+                    if compgen -G "$w_path" >/dev/null; then
+                        w_full=1
+                        for f in $w_path; do
+                            [ -f "$f" ] && [ -r "$f" ] || continue
+                            w_lines+=$(wl_file_new "npm-$(basename "$f" .log)" "$f" | edr_npm_norm)$'\n'
+                        done
+                    else w_err="niet gevonden"; fi
+                elif [ -n "$w_path" ] && [ -r "$w_path" ]; then
+                    if [[ "$w_path" == */rzsense.log ]]; then w_full=1; w_lines=$(wl_file_new swagx "$w_path")
+                    else w_lines=$(wl_file_new swag "$w_path"); fi
+                elif [ -n "$w_path" ]; then w_err="niet leesbaar: $w_path"
+                else w_err="niet gevonden"; fi
+                if [ -z "$w_err" ]; then
                     # nginx "combined": IP - - [tijd] "GET /pad HTTP/1.1" status bytes "referer" "user-agent"; 444 = zonder (bekende) hostnaam
+                    # Met de site en de dienst: daarachter nog "site" "dienst" (rzsense.log, of omgezet uit Nginx Proxy Manager)
                     # Agent 1.63.0: ook de verdachte verzoeken zelf, voor de payload-inspectie in RzSense (w_req)
-                    w_lines=$(wl_file_new swag "$w_path")
+                    w_cmap=""
+                    [ "$w_full" = 1 ] && [ -n "$w_lines" ] && w_cmap=$(wl_ctr_ips)
                     w_req=$(printf '%s\n' "$w_lines" | edr_swag_req)
-                    w_body=$(printf '%s\n' "$w_lines" | awk -F'"' '
+                    w_body=$(printf '%s\n' "$w_lines" | awk -F'"' -v cmap="$w_cmap" '
                         function js(s) { gsub(/[\\"]/, "", s); gsub(/[^ -~]/, "?", s); return substr(s, 1, 120) }
                         { split($1, a, " "); ip = a[1]; split($3, b, " "); st = b[1] + 0; split($2, r, " "); p = r[2]; ua = tolower($6)
                           if (ip !~ /^[0-9a-fA-F:.]+$/) next
                           n[ip]++; if (st == 404) c404[ip]++; if (st == 401 || st == 403) c40x[ip]++; if (st == 444) c444[ip]++
                           if (match(ua, /(sqlmap|nikto|nmap|masscan|zgrab|nuclei|wpscan|dirbuster|gobuster|ffuf|feroxbuster|l9explore|censysinspect)/)) u[ip] = substr(ua, RSTART, RLENGTH)
-                          if (st >= 400 && np[ip] < 8 && !((ip, p) in seen)) { seen[ip, p] = 1; np[ip]++; ps[ip] = ps[ip] (ps[ip] == "" ? "" : ",") "\"" js(p) "\"" } }
-                        END { k = 0; for (ip in n) { if (!(ip in c404) && !(ip in c40x) && !(ip in c444) && !(ip in u)) continue
+                          if (st >= 400 && np[ip] < 8 && !((ip, p) in seen)) { seen[ip, p] = 1; np[ip]++; ps[ip] = ps[ip] (ps[ip] == "" ? "" : ",") "\"" js(p) "\"" }
+                          # Agent 1.86.0: per site (hooguit 4 per IP) het aantal, hoeveel een gewoon antwoord kregen (2xx/3xx) en de dienst
+                          if (NF >= 10) { h = $8; up = $10; if (h == "" || h == "-" || h == "_") h = "-"; if (st == 444 || up == "") up = "-"
+                            k = ip SUBSEP h
+                            if (!(k in sc)) { if (ns[ip] >= 4) h = ""; else { ns[ip]++; sl[ip, ns[ip]] = h } }
+                            if (h != "") { sc[k]++; if (st >= 200 && st < 400) so[k]++; if (up != "-") su[k] = up } } }
+                        END { nm = split(cmap, cm, " "); for (i = 1; i <= nm; i++) { e = index(cm[i], "="); if (e) cn[substr(cm[i], 1, e - 1)] = substr(cm[i], e + 1) }
+                              k = 0; for (ip in n) { if (!(ip in c404) && !(ip in c40x) && !(ip in c444) && !(ip in u)) continue
                                 if (++k > 300) break
-                                printf "\"%s\":[%d,%d,%d,%d,\"%s\",[%s]],", ip, n[ip], c404[ip], c40x[ip], c444[ip], u[ip], ps[ip] } }' | sed 's/,$//')
-                elif [ -n "$w_path" ]; then w_err="niet leesbaar: $w_path"
-                else w_err="niet gevonden"; fi ;;
+                                s = ""; for (i = 1; i <= ns[ip]; i++) { h = sl[ip, i]; x = ip SUBSEP h; up = su[x]; uh = up; sub(/:[0-9]+$/, "", uh)
+                                    s = s (s == "" ? "" : ",") "[\"" js(h) "\",\"" js(up) "\",\"" js(cn[uh]) "\"," sc[x] + 0 "," so[x] + 0 "]" }
+                                printf "\"%s\":[%d,%d,%d,%d,\"%s\",[%s]%s],", ip, n[ip], c404[ip], c40x[ip], c444[ip], u[ip], ps[ip], (ns[ip] ? ",[" s "]" : "") } }' | sed 's/,$//')
+                fi ;;
             ha)
                 if [ "$HA_MODE" = 1 ]; then
                     w_path="core"
@@ -2790,7 +2852,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
                 w_body=$(printf '%s\n' "$vw_lines" | grep -i 'username or password is incorrect' | sed -n 's/.*IP: \([0-9a-fA-F:.]*\).*/\1/p' | wl_ip_count) ;;
             *) continue ;;
         esac
-        weblog_json+="\"$w_src\":{\"path\":\"$(json_escape "$w_path")\"${w_err:+,\"err\":\"$(json_escape "$w_err")\"},\"ips\":{$w_body}${w_req:+,\"req\":[$w_req]}},"
+        weblog_json+="\"$w_src\":{\"path\":\"$(json_escape "$w_path")\"${w_err:+,\"err\":\"$(json_escape "$w_err")\"}${w_kind:+,\"kind\":\"$w_kind\"}${w_ctr:+,\"ctr\":\"$(json_escape "$w_ctr")\"}${w_full:+,\"full\":$w_full},\"ips\":{$w_body}${w_req:+,\"req\":[$w_req]}},"
     done <"$t_cache"
     [ -n "$weblog_json" ] && weblog_json="\"weblog\":{${weblog_json%,}},"
 fi

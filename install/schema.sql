@@ -1464,3 +1464,20 @@ CREATE TABLE IF NOT EXISTS log_watch_state (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('logs_on', '1'), ('logs_interval', '5'), ('logs_days', '14'), ('logs_max_gb', '5'),
     ('logs_day_mb', '200'), ('logs_mask', '1'), ('logs_mask_extra', '');
+
+-- 1.222.0: aanvallen per site, uit de nginx-log van de reverse proxy met de site en de dienst erachter (agent 1.86.0).
+-- Per uur, site en aanvaller (alleen verdachte IP-adressen van buiten); site '' = zonder site (je IP-adres, 444).
+CREATE TABLE IF NOT EXISTS web_sites (
+    host_id INT UNSIGNED NOT NULL,
+    hour    DATETIME     NOT NULL,
+    site    VARCHAR(190) NOT NULL,
+    ip      VARCHAR(45)  NOT NULL,
+    n       INT UNSIGNED NOT NULL DEFAULT 0,
+    ok      INT UNSIGNED NOT NULL DEFAULT 0,
+    up      VARCHAR(80)  NOT NULL DEFAULT '',
+    ctr     VARCHAR(64)  NOT NULL DEFAULT '',
+    top     VARCHAR(255) NOT NULL DEFAULT '',
+    PRIMARY KEY (host_id, hour, site, ip),
+    INDEX idx_ws_hour (hour),
+    CONSTRAINT fk_ws_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

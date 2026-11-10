@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.222.0**: **het hele pad van een webaanval**: aanvaller → reverse proxy → site → dienst, met een oordeel, en aanvallen per site.
 - **1.221.0**: **bijwerken veel sneller**: snelle back-up en alleen doen wat nodig is (van minuten naar seconden).
 - **1.220.0**: **mDS per soort** met netwerk en ping, en een **veel snellere IDS-pagina**.
 - **1.219.0**: de **RzSense-kern** (futuristische meters voor de eigen server) en een **begrijpelijke IDS Live-pagina**.
 - **1.218.0**: een **vernieuwde meldingskaart**: leesbaar, met advies als een check flapt, en op de telefoon een blad van onderaf.
-- **1.217.0**: **IDS-incidenten veel sneller**: afhandelen reageert meteen, bundels en een keuze in één keer, en voorstellen voor wat vaak terugkomt.
+
+## 1.222.0 – 2026-11-10
+### Nieuw
+- **Het hele pad van een webaanval** (*agent 1.86.0 nodig*). Nieuwe agent 1.86.0.
+  - In een incident *Web: …* staat een extra blok **🛤️ Pad van de aanval**: **aanvaller → reverse proxy (bv. SWAG op RL01) → website → dienst erachter** (de container of een van je servers). Alle informatie die er al stond, blijft gewoon staan.
+  - Met een **oordeel in gewone taal**: *Niet gelukt* (de proxy weigerde zelf), *Waarschijnlijk niet gelukt* (alleen foutcodes), of ⚠️ *Let op* als een verzoek een gewoon antwoord (2xx/3xx) kreeg.
+  - **IDS → Overzicht: Aanvallen per site** (24 uur): per site de dienst erachter, het aantal verdachte verzoeken en IP's, wat het meest gevraagd werd, en het resultaat. Scans op je kale IP-adres staan apart.
+  - **Instellingen → IDS → Netwerk en aanvallers**: per server welke proxy gevonden is (SWAG, Nginx Proxy Manager of nginx), welke log gelezen wordt en of de site erin staat. Voor SWAG en nginx staat de **uitleg om het extra logbestand aan te zetten** erbij (twee regels in `nginx.conf`, met een knop Kopiëren). Je bestaande log blijft zoals hij is, dus fail2ban blijft gewoon werken.
+  - **Nginx Proxy Manager** werkt nu ook (met de site en de dienst, zonder iets in te stellen).
+  - Zonder het extra logbestand (of met een oudere agent) zie je alleen *aanvaller → proxy*, met een tip hoe je het hele pad zichtbaar maakt.
 
 ## 1.221.3 – 2026-11-10
 ### Opgelost

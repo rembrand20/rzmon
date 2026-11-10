@@ -846,11 +846,27 @@ final class Ids
      * Aanval in de log van een webdienst (1.89.0): incident, en in de modus blokkeren (met "blokkeren" aan bij de logs)
      * een automatische blokkade. Via "automatische blokkades op alle servers" komt die ook op de server met SWAG.
      */
-    public static function webAttack(array $host, string $src, string $ip, string $title, string $detail, string $reason): void
+    public static function webAttack(array $host, string $src, string $ip, string $title, string $detail, string $reason, ?array $wpath = null): void
     {
         $ctx = ['host' => $host, 'learning' => false, 'users' => []];
         $blocked = self::blocking() && setting('weblog_block', '0') === '1' ? self::autoBlock($host, $ip, $reason) : null;
         self::incident($ctx, 1, 'web_attack', "$src|$ip", $title, $detail . ($blocked ? " · ⛔ $blocked" : ''), $ip);
+        if ($wpath) {
+            // 1.222.0: het pad (sites en diensten) bij het incident; bij een herhaling de aantallen per site optellen
+            $row = q('SELECT id, wpath FROM ids_incidents WHERE host_id = ? AND type = ? AND dkey = ? ORDER BY id DESC LIMIT 1', [$host['id'], 'web_attack', mb_substr("$src|$ip", 0, 255)])->fetch();
+            if ($row) {
+                $old = json_decode((string) ($row['wpath'] ?? ''), true) ?: [];
+                $by = [];
+                foreach (array_merge((array) ($old['sites'] ?? []), $wpath['sites'] ?? []) as $x) {
+                    $k = $x[0] . '|' . $x[1];
+                    $by[$k] = isset($by[$k]) ? [$x[0], $x[1], $x[2] ?: $by[$k][2], $by[$k][3] + $x[3], $by[$k][4] + $x[4]] : $x;
+                }
+                $j = json_encode(['ua' => $wpath['ua'] ?: ($old['ua'] ?? ''), 'sites' => array_slice(array_values($by), 0, 6)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                if (strlen((string) $j) <= 1500) {
+                    q('UPDATE ids_incidents SET wpath = ? WHERE id = ?', [$j, $row['id']]);
+                }
+            }
+        }
     }
 
     /** Regels voor de agent: processen die gestopt moeten worden (hooguit 10 minuten geldig) */

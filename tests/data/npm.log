@@ -1,0 +1,4 @@
+[10/Nov/2026:10:42:07 +0100] - 404 404 - GET https vault.jouwdomein.nl "/.env" [Client 185.220.101.47] [Length 150] [Gzip -] [Sent-to vaultwarden] "sqlmap/1.8" "-"
+[10/Nov/2026:10:42:08 +0100] - 401 401 - POST https vault.jouwdomein.nl "/identity/connect/token" [Client 185.220.101.47] [Length 50] [Gzip -] [Sent-to vaultwarden] "sqlmap/1.8" "-"
+[10/Nov/2026:10:42:09 +0100] - - 444 - GET http 1.2.3.4 "/" [Client 45.1.1.1] [Length 0] [Gzip -] [Sent-to -] "zgrab/0.x" "-"
+[10/Nov/2026:10:42:10 +0100] - 200 200 - GET https ha.jouwdomein.nl "/" [Client 192.168.1.5] [Length 900] [Gzip -] [Sent-to 172.18.0.9] "Mozilla" "-"

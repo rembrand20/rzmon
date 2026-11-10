@@ -9998,6 +9998,7 @@ async function loadIds() {
   const t1 = performance.now();
   keepOpen(tab, () => renderIds());
   if (!had) showIdsTab();   // Live en Regels worden daar (opnieuw) geladen
+  loadWebSites();   // 1.222.0: los, zodat het de pagina niet ophoudt
   const t2 = performance.now();
   await accP;
   if (accData) keepOpen(tab, () => { renderIds(); renderAccess(); });
@@ -12369,6 +12370,63 @@ function incidentPager(nav, id) {
     <span class="small muted">${L('{p} van {n} · ✔ {d} afgehandeld · {o} open', { p: pos + 1, n: nav.length, d: done, o: nav.length - done })}</span></div>`;
 }
 
+/** Vlag bij een landcode (bv. NL) */
+const ccFlagOf = (cc) => (cc && /^[A-Z]{2}$/.test(cc) ? String.fromCodePoint(...[...cc].map((c) => 0x1F1E6 + c.charCodeAt(0) - 65)) : '');
+
+/**
+ * 1.222.0: het pad van een webaanval in het incidentvenster (extra blok; de rest van het venster blijft gewoon staan):
+ * aanvaller → reverse proxy → site → dienst, met een oordeel. Zonder site in de log alleen aanvaller → proxy en een tip.
+ */
+function webPathHtml(w) {
+  const arrow = (top, bottom, stop) => `<div class="wp-a${stop ? ' stop' : ''}"><span>${top || '&nbsp;'}</span><i></i><span>${bottom || '&nbsp;'}</span></div>`;
+  const att = `<div class="wp-n att"><span class="k">${L('Aanvaller')}</span><span class="t mono">${esc(w.ip)}</span>
+    <span class="s">${w.cc ? `${ccFlagOf(w.cc)} ${esc(w.cc)}` : ''}${w.ua ? `${w.cc ? '<br>' : ''}${L('scanner')} <code>${esc(w.ua)}</code>` : ''}</span>
+    ${w.blocked ? `<span class="bdg red">⛔ ${L('geblokkeerd')}</span>` : ''}</div>`;
+  const px = `<div class="wp-n px"><span class="k">${L('Reverse proxy')}</span><span class="t">${esc(w.proxy.label)}</span>
+    <span class="s">${L('op {host}', { host: `<b>${esc(w.proxy.host)}</b>` })}${w.proxy.ctr ? ` · ${L('container')} <code>${esc(w.proxy.ctr)}</code>` : ''}</span></div>`;
+  const total = w.sites.reduce((n, x) => n + x.n, 0) || w.hits;
+  let rows = '';
+  if (!w.sites.length) {
+    rows = `<div class="wp-row wp-row2">${att}${arrow('HTTPS', L('{n} verzoeken', { n: total }))}${px}</div>`;
+  } else {
+    rows = w.sites.map((x, i) => {
+      const fwd = x.site !== '' && x.up !== '';
+      const site = `<div class="wp-n"><span class="k">${L('Website')}</span><span class="t">${x.site ? esc(x.site) : L('(geen bekende site)')}</span>
+        <span class="s">${x.site ? L('{n} verzoeken', { n: x.n }) : L('vroeg naar je IP-adres')}</span></div>`;
+      const svc = `<div class="wp-n ${fwd ? 'end' : ''}"><span class="k">${L('Dienst')}</span><span class="t">${fwd && x.svc ? esc(x.svc) : '—'}</span>
+        <span class="s">${fwd ? (x.svc_where ? (x.svc_where === w.proxy.host ? L('container op {host}', { host: `<b>${esc(x.svc_where)}</b>` }) : `<code>${esc(x.svc_where)}</code>`) : '') : L('niets bereikt')}</span>
+        ${fwd ? `<span class="bdg ${x.ok ? 'warn' : 'ok'}">${x.ok ? L('{n}× gewoon antwoord', { n: x.ok }) : L('alleen foutcodes')}</span>` : ''}</div>`;
+      return `<div class="wp-row">${i ? '<div></div><div></div><div></div>' : att + arrow('HTTPS', L('{n} verzoeken', { n: total })) + px}${arrow(fwd ? L('site') : L('niet doorgestuurd'), '', !fwd)}${site}${arrow(fwd && x.up ? '→ ' + esc(x.up) : '', '', !fwd)}${svc}</div>`;
+    }).join('');
+  }
+  const v = w.verdict;
+  return `<h3 class="set-sub">🛤️ ${L('Pad van de aanval')}</h3><div class="wp">${rows}
+    ${v ? `<div class="wp-v ${v.lvl}">${v.lvl === 'warn' ? '⚠️' : '✅'} <span>${esc(v.text)}</span></div>` : ''}
+    ${!w.full ? `<p class="small muted wp-tip">💡 ${L('Wil je ook zien welke site en welke dienst erachter werd aangevallen? Zet bij Instellingen → IDS → Netwerk en aanvallers het extra logbestand voor je reverse proxy aan.')}</p>` : ''}</div>`;
+}
+
+/** 1.222.0: IDS → Overzicht: aanvallen per site (24 uur), alleen als de log van de proxy de site heeft */
+async function loadWebSites() {
+  const card = $('#ids-sites-card'), box = $('#ids-sites');
+  if (!card) return;
+  let d;
+  try { d = await api('web_sites', null, { hours: 24 }); } catch (ex) { return; }
+  const list = d.sites || [];
+  card.hidden = !list.length;
+  if (!list.length) return;
+  const max = Math.max(...list.filter((x) => x.site).map((x) => x.n), 1);
+  const proxies = [...new Set(list.map((x) => (x.kind ? x.kind + ' ' : '') + L('op {host}', { host: x.proxy })))].join(', ');
+  box.innerHTML = `<h3 class="set-sub" style="margin-top:0">🌍 ${L('Aanvallen per site')} <span class="muted small">(${L('24 uur, via {p}', { p: esc(proxies) })})</span></h3>
+    <table class="ws-t"><thead><tr><th>${L('Site')}</th><th class="hide-m">${L('Dienst erachter')}</th><th class="num">${L('Verzoeken')}</th><th class="num hide-m">${L("IP's")}</th><th class="hide-m">${L('Meest gevraagd')}</th><th>${L('Resultaat')}</th><th class="hide-m"></th></tr></thead><tbody>
+    ${list.map((x) => `<tr class="${x.site ? '' : 'dim'}"><td class="site"><b>${x.site ? esc(x.site) : L('(je IP-adres, geen site)')}</b><span class="show-m">${esc(x.svc || '')}</span></td>
+      <td class="hide-m">${x.site ? esc(x.svc || '–') + (x.svc_where && x.svc_where !== x.proxy ? ` <span class="muted small">${esc(x.svc_where)}</span>` : '') : esc(L('{p} weigert zelf', { p: x.kind || L('de proxy') }))}</td>
+      <td class="n">${x.n.toLocaleString(LOCALE)}</td><td class="n hide-m">${x.ips}</td><td class="hide-m"><code>${esc(x.top || '–')}</code></td>
+      <td><span class="ws-res ${x.ok ? 'w' : 'ok'}">${!x.site ? '✔ ' + L('niet doorgestuurd') : x.ok ? '⚠ ' + L('{n}× gewoon antwoord', { n: x.ok }) : '✔ ' + L('alleen foutcodes')}</span></td>
+      <td class="hide-m" style="width:110px">${x.site ? `<div class="ws-bar"><i style="width:${Math.max(3, Math.round(x.n / max * 100))}%"></i></div>` : ''}</td></tr>`).join('')}
+    </tbody></table>
+    <div class="ws-foot">${L('Alleen verdachte verzoeken van buiten (aanvalspaden, scanners, veel 404/401/403, 444). "Gewoon antwoord" = 2xx of 3xx: kijk dan of er iets gevonden is.')}</div>`;
+}
+
 async function incidentDialog(id, nav = null) {
   let d;
   try { d = await api('ids_incident_info', null, { id }); } catch (ex) { toast(ex.message, 'err'); return; }
@@ -12385,6 +12443,7 @@ async function incidentDialog(id, nav = null) {
       ${i.ip ? '<div class="af-incsum" id="af-incsum"><p class="muted small">' + L('Laden…') + '</p></div>' : ''}
       ${d.explain ? explainHtml(d.explain) : i.detail ? `<p class="small inc-detail">${esc(i.detail)}</p>` : ''}
       ${inspectHtml(d.evidence || [])}
+      ${d.wpath ? webPathHtml(d.wpath) : ''}
       <h3 class="set-sub">💡 ${L('Wat is dit?')}</h3><p>${esc(a.what)}</p>
       ${a.risk ? `<h3 class="set-sub">⚖️ ${L('Hoe erg is het?')}</h3><p>${esc(a.risk)}</p>` : ''}
       ${a.ask && open ? `<div class="callout inc-ask need-admin"><b>❓ ${L('Was jij dit (of ken je het)?')}</b>
@@ -14782,7 +14841,7 @@ function deviceRequestDialog(r, users) {
   fillIpInfo($('#req-ipinfo'), r.last_ip);
 }
 
-/** Waar de agents de logs van de reverse proxy (nginx), Home Assistant en Vaultwarden vonden (1.89.0) */
+/** Waar de agents de logs van de reverse proxy (nginx), Home Assistant en Vaultwarden vonden (1.89.0); 1.222.0 met de soort proxy en het hele pad */
 async function loadWeblogStatus() {
   const box = $('#weblog-status');
   if (!box) return;
@@ -14790,10 +14849,35 @@ async function loadWeblogStatus() {
   try { rows = await api('weblog_status'); } catch (ex) { return; }
   const names = { swag: L('Reverse proxy (nginx)'), ha: 'Home Assistant', vw: 'Vaultwarden' };
   const found = rows.filter((r) => !r.err && r.path);
-  box.innerHTML = (found.length ? found.map((r) => `✔ <b>${names[r.src] || esc(r.src)}</b> ${L('op {host}', { host: esc(r.host) })}: <code>${esc(r.path)}</code>`
-      + (r.hint ? `<br><span class="warn-txt">⚠️ ${esc(r.hint)}</span>` : '')).join('<br>')
-    : `<span class="muted">${L('Nog nergens gevonden (agent 1.58.0 nodig; het zoeken gebeurt bij het volgende rapport).')}</span>`)
+  const px = found.filter((r) => r.src === 'swag');
+  const other = found.filter((r) => r.src !== 'swag');
+  const ic = { SWAG: '🛡️', 'Nginx Proxy Manager': '🧭', nginx: '🌐' };
+  const pxHtml = px.length ? `<div class="rp"><b>${L('Reverse proxy: gevonden op je servers')}</b>${px.map((r) => `<div class="rp-srv"><b>${esc(r.host)}</b>
+      <span class="p">${r.label ? `${ic[r.label] || ''} <b>${esc(r.label)}</b>${r.ctr ? ` (${L('container')} <code>${esc(r.ctr)}</code>)` : ''} · ` : ''}<code>${esc(r.path)}</code>${r.sites ? `<br>${L('{n} sites, {r} verdachte verzoeken in 24 uur', { n: r.sites, r: (+r.req).toLocaleString(LOCALE) })}` : ''}</span>
+      <span class="rp-st ${r.full ? 'ok' : 'w'}">${r.full ? '✔ ' + L('met site en dienst') : r.label ? '⚠ ' + L('zonder sitenaam') : L('agent 1.86.0 nodig voor het hele pad')}</span></div>`).join('')}
+    ${px.filter((r) => !r.full && r.label && r.label !== 'Nginx Proxy Manager').map((r) => weblogFullHow(r)).join('')}</div>` : '';
+  box.innerHTML = pxHtml + (other.length ? other.map((r) => `✔ <b>${names[r.src] || esc(r.src)}</b> ${L('op {host}', { host: esc(r.host) })}: <code>${esc(r.path)}</code>`
+      + (r.hint ? `<br><span class="warn-txt">⚠️ ${esc(r.hint)}</span>` : '')).join('<br>') : '')
+    + (!found.length ? `<span class="muted">${L('Nog nergens gevonden (agent 1.58.0 nodig; het zoeken gebeurt bij het volgende rapport).')}</span>` : '')
     + ['swag', 'ha', 'vw'].filter((s) => !found.some((r) => r.src === s) && rows.some((r) => r.src === s)).map((s) => `<br><span class="muted">– ${names[s]}: ${L('op geen enkele server gevonden')}</span>`).join('');
+  wireCopy(box);
+}
+
+/** Uitleg: het extra logbestand voor het hele pad (site en dienst) aanzetten, voor SWAG of een gewone nginx */
+function weblogFullHow(r) {
+  const swag = r.label === 'SWAG';
+  const dir = String(r.path).replace(/\/[^/]*$/, '');
+  const inDir = swag ? '/config/log/nginx' : dir;
+  const conf = swag ? '/config/nginx/nginx.conf' : '/etc/nginx/nginx.conf';
+  const pid = 'wlf-' + String(r.host).replace(/[^A-Za-z0-9_-]/g, '_');
+  const lines = `log_format rzsense '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" "$host" "$upstream_addr" $request_time';\naccess_log ${inDir}/rzsense.log rzsense;`;
+  return `<div class="rp-snip"><b>🛤️ ${L('Het hele pad zien voor {p} op {host}', { p: esc(r.label), host: esc(r.host) })}</b> <span class="muted small">(${L('één keer, ± 1 minuut')})</span>
+    <p class="small" style="margin:.3rem 0">${L('Nu weet RzSense wie en wat, maar niet welke site en welke dienst. Met een extra logbestand wel. Je bestaande log blijft zoals hij is, dus fail2ban blijft gewoon werken.')}</p>
+    <ol><li>${L('Open {f}', { f: `<code>${conf}</code>` })}${swag ? ` (${L('op de server: {f}', { f: `<code>${esc(dir.replace(/\/log\/nginx$/, '/nginx/nginx.conf'))}</code>` })})` : ''}.</li>
+    <li>${L('Zet deze twee regels in het blok {b}, onder de regel met {a}:', { b: '<code>http { … }</code>', a: '<code>access_log</code>' })}</li></ol>
+    <div class="rp-pre"><pre class="mono" id="${pid}">${esc(lines)}</pre><button type="button" class="btn" data-copy="${pid}">📋 ${L('Kopiëren')}</button></div>
+    <ol start="3"><li>${swag ? L('Herstart SWAG: {c}', { c: `<code>docker restart ${esc(r.ctr || 'swag')}</code>` }) : L('Laad nginx opnieuw: {c}', { c: '<code>nginx -t && systemctl reload nginx</code>' })}.</li>
+    <li>${L('Bij het volgende rapport van de agent staat hier {s}.', { s: `<span class="rp-st ok">✔ ${L('met site en dienst')}</span>` })}</li></ol></div>`;
 }
 
 async function loadSettings() {

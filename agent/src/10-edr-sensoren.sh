@@ -168,8 +168,8 @@ edr_audit_awk() {
     END { flush() }'
 }
 
-# SWAG/nginx-log (stdin) → verdachte verzoeken als JSON (zonder haakjes), hooguit 100:
-# [ip, tijd, methode, pad+query, status, bytes, user-agent, verwijzer]; RzSense beoordeelt ze precies
+# nginx-log van de reverse proxy (stdin) → verdachte verzoeken als JSON (zonder haakjes), hooguit 100:
+# [ip, tijd, methode, pad+query, status, bytes, user-agent, verwijzer, site, dienst]; RzSense beoordeelt ze precies
 edr_swag_req() {
     awk -F'"' '
     function esc(s) { gsub(/\\/, "&&", s); gsub(/"/, "\\\"", s); gsub(/[\001-\037\177]/, " ", s); return s }
@@ -184,9 +184,19 @@ edr_swag_req() {
         if (l !~ /(%27|%22|%3c|%3e|%24%7b|%2e%2e|\.\.\/|\$\{|\$\(|`|;|\||<|>|'"'"'|\\x22|union|select|sleep\(|\/etc\/|cmd=|exec|eval|system\(|base64|php:\/\/|jndi|\.env|\.git\/|wp-login|xmlrpc|phpunit|cgi-bin|boaform|hnap1|actuator|\/shell\?|\(\) *\{|sqlmap|nikto|nuclei|masscan|zgrab|wpscan)/ \
             && m ~ /^(GET|POST|HEAD|OPTIONS|-)$/) next
         if (++n > 100) exit
-        printf "%s[\"%s\",\"%s\",\"%s\",\"%s\",%d,%d,\"%s\",\"%s\"]", (n > 1 ? "," : ""), ip, esc(tm), esc(substr(m, 1, 20)), esc(substr(uri, 1, 512)),
-            st, by, esc(substr(ua, 1, 200)), esc(substr(ref, 1, 200))
+        # Agent 1.86.0: met de site en de dienst erachter als de log die heeft (rzsense.log, Nginx Proxy Manager)
+        printf "%s[\"%s\",\"%s\",\"%s\",\"%s\",%d,%d,\"%s\",\"%s\",\"%s\",\"%s\"]", (n > 1 ? "," : ""), ip, esc(tm), esc(substr(m, 1, 20)), esc(substr(uri, 1, 512)),
+            st, by, esc(substr(ua, 1, 200)), esc(substr(ref, 1, 200)), esc(substr($8, 1, 120)), esc(substr($10, 1, 80))
     }'
+}
+
+edr_npm_norm() {  # Nginx Proxy Manager (stdin) → combined met "site" "dienst" erachter (agent 1.86.0)
+    # [tijd zone] cache upstream-status status - METHODE schema site "pad" [Client IP] [Length n] [Gzip x] [Sent-to dienst] "agent" "verwijzer"
+    awk -F'"' 'NF >= 6 { split($1, a, " "); tm = a[1] " " a[2]; gsub(/[][]/, "", tm)
+        ip = $3; sub(/.*\[Client /, "", ip); sub(/\].*/, "", ip)
+        by = $3; if (by ~ /\[Length /) { sub(/.*\[Length /, "", by); sub(/\].*/, "", by) } else by = 0
+        up = $3; if (up ~ /\[Sent-to / && a[4] != "-") { sub(/.*\[Sent-to /, "", up); sub(/\].*/, "", up) } else up = "-"
+        printf "%s - - [%s] \"%s %s HTTP/1.1\" %s %d \"%s\" \"%s\" \"%s\" \"%s\"\n", ip, tm, a[7], $2, a[5], by + 0, $6, $4, a[9], up }'
 }
 
 # Van RzSense zelf? (agent 1.65.0) edr_own <pid> <programma> <gebruiker> [<ip>]: agent, rzmon, net (verkeer met RzSense) of leeg
@@ -361,13 +371,14 @@ edr_eve_awk() {
     }'
 }
 
-# Testen zonder RzSense (tests/agent-edr.sh): rzmon-agent.sh --edr-parse audit|swag|eve < bestand
+# Testen zonder RzSense (tests/agent-edr.sh): rzmon-agent.sh --edr-parse audit|swag|npm|eve < bestand
 if [ "${1-}" = "--edr-parse" ]; then
     case "${2-}" in
         audit) edr_audit_awk ;;
         swag) edr_swag_req; echo ;;
+        npm) edr_npm_norm ;;
         eve) edr_eve_awk; echo ;;
-        *) echo "Gebruik: $0 --edr-parse audit|swag|eve < bestand" >&2; exit 2 ;;
+        *) echo "Gebruik: $0 --edr-parse audit|swag|npm|eve < bestand" >&2; exit 2 ;;
     esac
     exit 0
 fi

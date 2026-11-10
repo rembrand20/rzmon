@@ -122,6 +122,7 @@ Dezelfde tabel staat in RzSense bij *Instellingen → Overzicht → Functies*, m
 | 🛡️ IDS en endpoint-bewaking | **Webshell en persistentie** | Een webserver die een shell start, nieuwe cronjobs en services. | 1.87.0 |
 | 🛡️ IDS en endpoint-bewaking | **Hardening-score en isoleren** | Score per server met advies, en een server van het netwerk halen. | 1.88.0 |
 | 🛡️ IDS en endpoint-bewaking | **Logs van webdiensten** | Reverse proxy (nginx), Home Assistant en Vaultwarden. | 1.89.0 |
+| 🛡️ IDS en endpoint-bewaking | **Pad van een webaanval** | Aanvaller → reverse proxy → site → dienst, met een oordeel; aanvallen per site. | 1.222.0 |
 | 🛡️ IDS en endpoint-bewaking | **Endpoint-bewaking (EDR)** | Processen, verbindingen en bestanden via auditd, met Sigma-regels. | 1.110.0 |
 | 🛡️ IDS en endpoint-bewaking | **Afwijkingen en aanvalsketens** | 14 dagen leren wat normaal is; ketens met MITRE ATT&CK. | 1.111.0 |
 | 🛡️ IDS en endpoint-bewaking | **Dreigingsinformatie** | AbuseIPDB, GreyNoise, Shodan, abuse.ch, Tor en CIRCL. | 1.112.0 |

@@ -2195,5 +2195,34 @@ $nc->errorInfo = ['42S22', 1054, 'Unknown column'];
 ok(db_retryable($dl) && !db_retryable($nc) && !db_retryable(new RuntimeException('x')), 'deadlock en lock-timeout: opnieuw proberen; andere fouten niet');
 ok(Installer::ensureSchema() === null, 'database bijwerken: al bij, met de lock niets te doen');
 
+// 1.222.0: het hele pad van een webaanval (reverse proxy → site → dienst; agent 1.86.0)
+save_setting('ids_enabled', '1');
+q("INSERT INTO hosts (name, address, mode) VALUES ('ci-proxy', '10.0.0.95', 'agent'), ('ci-vault', '10.0.0.96', 'agent')");
+$hp = (int) db()->lastInsertId();   // bij meer rijen tegelijk: het id van de eerste
+$hpx = q('SELECT * FROM hosts WHERE id = ?', [$hp])->fetch();
+WebLog::process($hpx, ['swag' => ['path' => '/opt/swag/config/log/nginx/rzsense.log', 'kind' => 'swag', 'ctr' => 'swag', 'full' => 1, 'ips' => [
+    '198.51.100.7' => [14, 12, 2, 0, 'sqlmap', ['/.env', '/admin'], [['vault.ci.example', '172.18.0.7:80', 'vaultwarden', 14, 0], ['ha.ci.example', '10.0.0.96:8123', '', 3, 1]]],
+    '198.51.100.8' => [9, 0, 0, 9, 'zgrab', ['/'], [['_', '-', '', 9, 0]]],
+]]]);
+$st = q("SELECT kind, ctr, full FROM weblog_state WHERE host_id = ? AND src = 'swag'", [$hp])->fetch();
+$inc = q("SELECT i.*, h.name AS host_name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.host_id = ? AND i.dkey = 'swag|198.51.100.7'", [$hp])->fetch();
+$wp = $inc ? WebLog::path($inc) : null;
+ok($st && $st['kind'] === 'swag' && $st['ctr'] === 'swag' && (int) $st['full'] === 1, 'webaanval: soort proxy, container en "met site" bewaard');
+ok($wp && $wp['proxy']['label'] === 'SWAG' && $wp['sites'][0]['site'] === 'vault.ci.example' && $wp['sites'][0]['svc'] === 'vaultwarden'
+    && $wp['sites'][1]['svc'] === 'ci-vault' && $wp['verdict']['lvl'] === 'warn' && $wp['ua'] === 'sqlmap',
+    'webaanval: pad (SWAG → site → container of eigen server) met een waarschuwing bij een gewoon antwoord');
+$ws = WebLog::sites(24)['sites'];
+$bySite = array_column($ws, null, 'site');
+ok(isset($bySite['vault.ci.example'], $bySite['']) && $bySite['vault.ci.example']['n'] === 14 && $bySite['vault.ci.example']['ips'] === 1 && $bySite['']['n'] === 9
+    && $ws[count($ws) - 1]['site'] === '', 'aanvallen per site: per site geteld, scans op je IP-adres apart en onderaan');
+$i2 = q("SELECT i.*, h.name AS host_name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.host_id = ? AND i.dkey = 'swag|198.51.100.8'", [$hp])->fetch();
+$w2 = $i2 ? WebLog::path($i2) : null;
+ok($w2 === null || ($w2['verdict']['lvl'] ?? '') === 'ok', 'webaanval: proxy weigerde zelf (444) = niet gelukt');
+WebLog::process($hpx, ['swag' => ['path' => '/var/log/nginx/access.log', 'ips' => ['198.51.100.9' => [3, 3, 0, 0, '', ['/.git/config']]]]]);
+$i3 = q("SELECT i.*, h.name AS host_name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.host_id = ? AND i.dkey = 'swag|198.51.100.9'", [$hp])->fetch();
+$w3 = $i3 ? WebLog::path($i3) : null;
+ok($w3 && $w3['sites'] === [] && $w3['verdict'] === null, 'webaanval: oude agent of log zonder site: alleen aanvaller → proxy, zonder oordeel');
+q('DELETE FROM hosts WHERE id IN (?, ?)', [$hp, $hp + 1]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

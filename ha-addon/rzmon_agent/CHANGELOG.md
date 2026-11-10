@@ -5,6 +5,12 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.86.0 – 2026-11-10
+- **Reverse proxy herkennen** (logs van webdiensten): de agent ziet nu of er **SWAG**, **Nginx Proxy Manager** of een gewone **nginx** draait, en stuurt dat mee.
+- **Het hele pad van een webaanval**: staat er een extra logbestand `rzsense.log` naast de access-log (de regel staat in RzSense bij *Instellingen → IDS → Netwerk en aanvallers*), dan leest de agent dat. Daarin staan ook de **site** en de **dienst** erachter. Per aanvaller gaan de sites mee, hoeveel verzoeken een gewoon antwoord kregen, en welke container de dienst is.
+- **Nginx Proxy Manager**: de logs per site (`proxy-host-*_access.log`) worden nu goed gelezen, meteen met de site en de dienst.
+- Je bestaande access-log blijft zoals hij is, dus fail2ban in SWAG blijft gewoon werken.
+
 ## 1.85.0 – 2026-11-07
 - RzMon heet nu **RzSense**: de agent, de verbindingstest, de statusweergave en het installatiescript gebruiken de nieuwe naam. De technische naam blijft `rzmon-agent` (service, `/etc/default/rzmon-agent`, add-on): je hoeft niets aan te passen.
 - Bijwerken herkent het installatiescript en de agent met de oude én de nieuwe naam.

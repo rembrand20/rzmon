@@ -2739,7 +2739,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 **📜 Logs van webdiensten** (vanaf 1.89.0, agent 1.58.0; *Instellingen → IDS → Netwerk en aanvallers*)
 - **Hoe het werkt:** de agent leest elke minuut de nieuwe regels uit de logs en vat ze per IP samen. RzSense past de scenario's toe en meldt een incident. In de modus blokkeren (en met *blokkeren* aan) wordt het IP ook geblokkeerd, via *Automatische blokkades op alle servers* op al je servers.
 - **Bronnen** (elk aan of uit):
-  - **SWAG**: de access-log van nginx;
+  - **Reverse proxy / webserver**: de access-log van nginx (SWAG, Nginx Proxy Manager of een gewone nginx; agent 1.86.0 herkent welke het is);
   - **Home Assistant**: mislukte logins in het Core-log;
   - **Vaultwarden**: *Username or password is incorrect*.
 - **Waar staan de logs?** Laat het veld leeg of op `auto`, dan zoekt de agent zelf:
@@ -2756,6 +2756,16 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 - **Home Assistant achter SWAG** ziet zonder `use_x_forwarded_for: true` en `trusted_proxies` alleen het IP van SWAG. RzSense herkent dat en zet een ⚠️ bij de gevonden log.
 - **SWAG in Docker:** vanaf agent 1.58.0 blokkeert de agent vóór Docker (prerouting). Daarvoor ging verkeer naar een container (SWAG) langs de blokkade heen.
 - **Voorbeeld:** om 03:12 vraagt `45.148.10.12` op SWAG `/.env` op (404). RzSense meldt *Web: aanvalspad /.env* en blokkeert het IP op al je servers. Je Home Assistant, Nextcloud en RzSense achter SWAG zijn meteen beschermd.
+
+**🛤️ Het hele pad van een webaanval** (vanaf 1.222.0, agent 1.86.0)
+- **Wat je ziet:** in een incident *Web: …* een extra blok **Pad van de aanval**: aanvaller → reverse proxy → website → dienst erachter. De rest van het incident (uitleg, noodstappen, knoppen) blijft zoals het was.
+- **Oordeel:** *Niet gelukt* als de proxy de verzoeken zelf weigerde (444), *Waarschijnlijk niet gelukt* als de dienst alleen foutcodes gaf (404, 401 …), en ⚠️ *Let op* als een verzoek een gewoon antwoord kreeg (2xx of 3xx): kijk dan of er iets gevonden is.
+- **Aanvallen per site** (*IDS → Overzicht*, 24 uur): per site de dienst, het aantal verdachte verzoeken en IP-adressen, het meest gevraagde pad en het resultaat. Scans op je kale IP-adres (zonder site) staan apart, onderaan.
+- **Wat nodig is:** de gewone access-log van nginx heeft de site en de dienst niet. Daarom:
+  - **SWAG** of **nginx**: zet één keer een **extra logbestand** aan. De twee regels staan kant-en-klaar bij *Instellingen → IDS → Netwerk en aanvallers* (met Kopiëren): een `log_format rzsense` en een `access_log …/rzsense.log rzsense;` in het blok `http { … }` van `nginx.conf`. Daarna SWAG herstarten (`docker restart swag`) of nginx herladen. Je bestaande `access.log` blijft precies zoals hij is, dus **fail2ban blijft gewoon werken**.
+  - **Nginx Proxy Manager**: niets te doen, de logs per site hebben de site en de dienst al.
+- **Dienst erachter:** de container (de agent zoekt het IP-adres op bij Docker of Podman), of een van je servers in RzSense (op IP-adres), of anders het adres zoals de proxy het noemt.
+- Bij *Gevonden op je servers* zie je per server: welke proxy, welke log, *✔ met site en dienst* of *⚠ zonder sitenaam*.
 
 **🧱 Isoleren** (vanaf 1.88.0, agent 1.57.0; via de score bij een server)
 - Bij een hack zet je de server met één klik in quarantaine: alleen RzSense, je lokale netwerken (*Toegang*) en jouw IP-adres kunnen er nog bij. Al het andere verkeer stopt: inkomend, uitgaand en van containers. Een aanvaller verliest zijn verbinding, en malware kan niets meer naar buiten sturen.
