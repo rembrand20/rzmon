@@ -599,9 +599,13 @@ save_setting('ids_mode', 'learn');
 
 section('Moderne IDS-pagina (1.117.0)');
 ok(setting('ids_modern') === '1', 'moderne weergave staat standaard aan');
+q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, detail, ip) VALUES (?, 1, 'web_attack', 'swag|203.0.113.9', 'SWAG: aanvalspad /.env vanaf 203.0.113.9', '', '203.0.113.9')", [$hd['id']]);
+$swagId = (int) db()->lastInsertId();
 save_setting('ids_modern', '0');
 Installer::runSchema();
 ok(setting('ids_modern') === '0', 'een update zet de keuze voor de compacte weergave niet terug');
+ok(q('SELECT title FROM ids_incidents WHERE id = ?', [$swagId])->fetchColumn() === 'Web: aanvalspad /.env vanaf 203.0.113.9'
+    && Ids::reasonText('SWAG: scanner sqlmap') === 'Web: scanner sqlmap', 'webaanval: "SWAG:" heet na een update "Web:" (incidenten en blokkades)');
 save_setting('ids_modern', '1');
 
 section('Snelheid (1.119.0)');

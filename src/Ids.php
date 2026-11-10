@@ -254,9 +254,13 @@ final class Ids
     /** Redenen van blokkades: zo bewaard (Nederlands), voor de lezer in zijn taal via I18n::stored (1.84.1) */
     public const REASONS = ['Honeypot-gebruiker: {user}', 'Honeypot-poort {port}', 'Brute force: {n} mislukte SSH-logins in {win} min', 'met de hand',
         'automatisch: {n} mislukte logins ({user})', '{n} mislukte logins binnen {m} minuten', 'Nooit blokkeren (IDS)', '{by}, via de whitelist', 'automatisch',
-        'SWAG: aanvalspad {path}', 'SWAG: scanner {ua}', '{src}: {n} mislukte logins', 'SWAG: veel 404 (zoekt naar lekken)', 'SWAG: veel 401/403 (raadt wachtwoorden)',
-        'SWAG: verzoeken zonder bekende hostnaam (scant je IP-adres)'];
-    public const REASONS_OLD = ['Lokaas-gebruiker: {user}' => 'Honeypot-gebruiker: {user}', 'Lokaas-poort {port}' => 'Honeypot-poort {port}'];
+        'Web: aanvalspad {path}', 'Web: scanner {ua}', '{src}: {n} mislukte logins', 'Web: veel 404 (zoekt naar lekken)', 'Web: veel 401/403 (raadt wachtwoorden)',
+        'Web: verzoeken zonder bekende hostnaam (scant je IP-adres)'];
+    public const REASONS_OLD = ['Lokaas-gebruiker: {user}' => 'Honeypot-gebruiker: {user}', 'Lokaas-poort {port}' => 'Honeypot-poort {port}',
+        // 1.221.3: "SWAG:" heet nu "Web:" (het gaat om de nginx-log van elke reverse proxy, niet alleen SWAG)
+        'SWAG: aanvalspad {path}' => 'Web: aanvalspad {path}', 'SWAG: scanner {ua}' => 'Web: scanner {ua}',
+        'SWAG: veel 404 (zoekt naar lekken)' => 'Web: veel 404 (zoekt naar lekken)', 'SWAG: veel 401/403 (raadt wachtwoorden)' => 'Web: veel 401/403 (raadt wachtwoorden)',
+        'SWAG: verzoeken zonder bekende hostnaam (scant je IP-adres)' => 'Web: verzoeken zonder bekende hostnaam (scant je IP-adres)'];
 
     public static function reasonText(?string $r): ?string
     {

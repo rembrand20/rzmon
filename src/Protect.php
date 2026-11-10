@@ -75,9 +75,9 @@ final class Protect
             // 🌐 Web
             ['id' => 'web_cve', 'g' => 'web', 'title' => 'Aanval op een lek dat de server heeft', 'what' => 'Een webaanval met een CVE die volgens de kwetsbaarheden-scan op deze server openstaat.',
                 'sev' => 2, 'acts' => ['block'], 'toggle' => ['ti_cve', '1', 'critical maken'], 'm' => $in(['web_cve'])],
-            ['id' => 'web_payload', 'g' => 'web', 'title' => 'Webaanval met een payload', 'what' => 'Een verzoek via SWAG met een aanval erin: SQL-injectie, XSS, Log4Shell, path traversal, bekende exploits …',
+            ['id' => 'web_payload', 'g' => 'web', 'title' => 'Webaanval met een payload', 'what' => 'Een verzoek via je reverse proxy met een aanval erin: SQL-injectie, XSS, Log4Shell, path traversal, bekende exploits …',
                 'sev' => 1, 'acts' => ['block'], 'toggle' => ['edr_block', '1', 'IP blokkeren'], 'm' => $in(['web_payload'])],
-            ['id' => 'web_attack', 'g' => 'web', 'title' => 'Verdachte webverzoeken in de logs', 'what' => 'Aanvalspaden, scanners, veel 404\'s of mislukte logins in de logs van SWAG, Home Assistant en Vaultwarden.',
+            ['id' => 'web_attack', 'g' => 'web', 'title' => 'Verdachte webverzoeken in de logs', 'what' => 'Aanvalspaden, scanners, veel 404\'s of mislukte logins in de logs van je reverse proxy (nginx), Home Assistant en Vaultwarden.',
                 'sev' => 1, 'acts' => ['block'], 'toggle' => ['weblog_block', '0', 'IP blokkeren'], 'm' => $in(['web_attack'])],
             ['id' => 'scanner', 'g' => 'web', 'title' => 'Onschuldige scanner', 'what' => 'Een webaanval van een bekende, onschuldige scanner (GreyNoise: Shodan, Censys …).',
                 'sev' => 1, 'acts' => ['close'], 'toggle' => ['ti_close_benign', '1', 'vanzelf afhandelen'],

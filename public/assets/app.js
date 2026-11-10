@@ -14782,13 +14782,13 @@ function deviceRequestDialog(r, users) {
   fillIpInfo($('#req-ipinfo'), r.last_ip);
 }
 
-/** Waar de agents de logs van SWAG, Home Assistant en Vaultwarden vonden (1.89.0) */
+/** Waar de agents de logs van de reverse proxy (nginx), Home Assistant en Vaultwarden vonden (1.89.0) */
 async function loadWeblogStatus() {
   const box = $('#weblog-status');
   if (!box) return;
   let rows;
   try { rows = await api('weblog_status'); } catch (ex) { return; }
-  const names = { swag: 'SWAG', ha: 'Home Assistant', vw: 'Vaultwarden' };
+  const names = { swag: L('Reverse proxy (nginx)'), ha: 'Home Assistant', vw: 'Vaultwarden' };
   const found = rows.filter((r) => !r.err && r.path);
   box.innerHTML = (found.length ? found.map((r) => `✔ <b>${names[r.src] || esc(r.src)}</b> ${L('op {host}', { host: esc(r.host) })}: <code>${esc(r.path)}</code>`
       + (r.hint ? `<br><span class="warn-txt">⚠️ ${esc(r.hint)}</span>` : '')).join('<br>')

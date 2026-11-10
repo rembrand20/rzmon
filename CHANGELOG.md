@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.218.0**: een **vernieuwde meldingskaart**: leesbaar, met advies als een check flapt, en op de telefoon een blad van onderaf.
 - **1.217.0**: **IDS-incidenten veel sneller**: afhandelen reageert meteen, bundels en een keuze in één keer, en voorstellen voor wat vaak terugkomt.
 
+## 1.221.3 – 2026-11-10
+### Opgelost
+- **"Web:" in plaats van "SWAG:"** bij het IDS: de aanvallen komen uit de **nginx-log van je reverse proxy** (SWAG, Nginx Proxy Manager of een gewone nginx), niet uit SWAG zelf. Incidenten en blokkades heten nu bijvoorbeeld *Web: aanvalspad /.env vanaf …* en *Web: scanner sqlmap*; de instelling heet *Reverse proxy / webserver (nginx-log)*. Bestaande incidenten en blokkades worden bij de update omgezet. Er verandert niets aan wat er herkend wordt, en alle instellingen blijven zoals ze waren.
+
 ## 1.221.2 – 2026-11-08
 ### Opgelost
 - **Icoon bij bladwijzers en op het beginscherm** (Chrome, Android): een bladwijzer of snelkoppeling kreeg soms een leeg wereldbolletje of een grijze letter in plaats van het RzSense-logo.

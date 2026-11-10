@@ -357,7 +357,20 @@ final class Installer
         Whitelist::migrate($pdo);
         NotifyRules::migrate($pdo);
         self::moveAccessLog($pdo);
+        self::swagToWeb($pdo);
         AgentAudit::migrateServiceChecks($pdo);
+    }
+
+    /**
+     * 1.221.3: incidenten en blokkades uit de nginx-log heten "Web:" in plaats van "SWAG:" (het is de log van elke reverse
+     * proxy, niet alleen SWAG). Bestaande titels en redenen omzetten; doet daarna niets meer.
+     */
+    private static function swagToWeb(PDO $pdo): void
+    {
+        $pdo->exec("UPDATE ids_incidents SET title = CONCAT('Web: ', SUBSTRING(title, 7)) WHERE type = 'web_attack' AND title LIKE 'SWAG: %'");
+        foreach (['ids_blocks', 'rz_blocks', 'block_log'] as $t) {
+            $pdo->exec("UPDATE `$t` SET reason = CONCAT('Web: ', SUBSTRING(reason, 7)) WHERE reason LIKE 'SWAG: %'");
+        }
     }
 
     /** 1.38.0: logins en sudo van de pagina Meldingen (alerts) naar IDS → Toegang (access_log). Eenmalig; daarna leeg. */

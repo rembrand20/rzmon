@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Logs van webdiensten (1.89.0, agent 1.58.0): SWAG (nginx), Home Assistant en Vaultwarden. De agent stuurt per minuut
+ * Logs van webdiensten (1.89.0, agent 1.58.0): de reverse proxy (nginx-log, bv. SWAG), Home Assistant en Vaultwarden. De agent stuurt per minuut
  * per IP een samenvatting; hier staan de scenario's (elk aan of uit bij Instellingen → IDS):
  * - bekend aanvalspad met een foutcode (/.env, /.git/, wp-login.php, phpmyadmin …): meteen;
  * - scanner (sqlmap, nikto, nuclei …): meteen;
@@ -13,7 +13,7 @@ declare(strict_types=1);
  */
 final class WebLog
 {
-    public const SOURCES = ['swag' => 'SWAG', 'ha' => 'Home Assistant', 'vw' => 'Vaultwarden'];
+    public const SOURCES = ['swag' => 'Reverse proxy (nginx)', 'ha' => 'Home Assistant', 'vw' => 'Vaultwarden'];
     /** Paden die alleen aanvallers proberen (alleen geteld met een foutcode: een site die het echt heeft, geeft 200) */
     private const ATTACK = '#(/\.env|/\.git/|/\.aws/|/\.ssh/|/\.htpasswd|wp-login\.php|/wp-admin|xmlrpc\.php|phpmyadmin|/pma/|/cgi-bin/|/boaform|/vendor/phpunit|eval-stdin|/actuator|/hnap1|setup\.cgi|/solr/|/owa/|/autodiscover/|/remote/login|/etc/passwd|\.\./|/manager/html|/wls-wsat|/\.vscode/|/server-status|/geoserver|/telescope)#i';
 
@@ -104,13 +104,13 @@ final class WebLog
         $paths = array_map(static fn($p) => mb_substr((string) $p, 0, 120), array_slice($paths, 0, 8));
         $shown = implode(' · ', array_slice($paths, 0, 5));
         if (setting('wl_paths', '1') === '1' && ($hit = current(array_filter($paths, static fn($p) => (bool) preg_match(self::ATTACK, $p))))) {
-            Ids::webAttack($host, 'swag', $ip, t('SWAG: aanvalspad {path} vanaf {ip}', ['path' => $hit, 'ip' => $ip]),
-                t('Alleen aanvallers vragen dit op. Paden: {paths}', ['paths' => $shown]), t('SWAG: aanvalspad {path}', ['path' => $hit]));
+            Ids::webAttack($host, 'swag', $ip, t('Web: aanvalspad {path} vanaf {ip}', ['path' => $hit, 'ip' => $ip]),
+                t('Alleen aanvallers vragen dit op. Paden: {paths}', ['paths' => $shown]), t('Web: aanvalspad {path}', ['path' => $hit]));
             return;
         }
         if (setting('wl_ua', '1') === '1' && $ua !== '') {
-            Ids::webAttack($host, 'swag', $ip, t('SWAG: scanner {ua} vanaf {ip}', ['ua' => $ua, 'ip' => $ip]),
-                t('{n} verzoeken met de scanner {ua}. Paden: {paths}', ['n' => $total, 'ua' => $ua, 'paths' => $shown ?: '–']), t('SWAG: scanner {ua}', ['ua' => $ua]));
+            Ids::webAttack($host, 'swag', $ip, t('Web: scanner {ua} vanaf {ip}', ['ua' => $ua, 'ip' => $ip]),
+                t('{n} verzoeken met de scanner {ua}. Paden: {paths}', ['n' => $total, 'ua' => $ua, 'paths' => $shown ?: '–']), t('Web: scanner {ua}', ['ua' => $ua]));
             return;
         }
         $m = self::n('wl_minutes', 10);
@@ -122,8 +122,8 @@ final class WebLog
             $sum = self::count($hid, 'swag', $kind, $ip, $n);
             $limit = self::n("{$key}_n", $def);
             if ($n > 0 && $sum >= $limit) {
-                Ids::webAttack($host, 'swag', $ip, t('SWAG: {what} vanaf {ip}', ['what' => $what, 'ip' => $ip]),
-                    t('{n} in {m} minuten (grens {limit}). Paden: {paths}', ['n' => $sum, 'm' => $m, 'limit' => $limit, 'paths' => $shown ?: '–']), t('SWAG: {what}', ['what' => $what]));
+                Ids::webAttack($host, 'swag', $ip, t('Web: {what} vanaf {ip}', ['what' => $what, 'ip' => $ip]),
+                    t('{n} in {m} minuten (grens {limit}). Paden: {paths}', ['n' => $sum, 'm' => $m, 'limit' => $limit, 'paths' => $shown ?: '–']), t('Web: {what}', ['what' => $what]));
                 return;
             }
         }

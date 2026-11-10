@@ -282,7 +282,7 @@ final class IdsAdvice
                 $a['what'] = t('Vanaf {ip} kwamen verzoeken met een aanval erin (zie het bewijs hieronder: de techniek, het verdachte stuk en, als het bekend is, de CVE).', ['ip' => $ip ?? '?']);
                 $a['risk'] = t('Meestal een geautomatiseerde scanner die het hele internet afgaat. Ernstig als een verzoek een gewoon antwoord (2xx) kreeg en jouw software kwetsbaar is voor die CVE.');
                 $a['steps'] = [t('Blokkeer het IP-adres (gebeurt vanzelf in de modus Blokkeren).'), t('Staat er een CVE bij: controleer of je die software gebruikt en bijgewerkt hebt (tabblad Kwetsbaarheden).')];
-                $a['prevent'] = t('Houd websites en diensten achter SWAG bijgewerkt; zet alleen open wat echt van buiten bereikbaar moet zijn.');
+                $a['prevent'] = t('Houd websites en diensten achter je reverse proxy bijgewerkt; zet alleen open wat echt van buiten bereikbaar moet zijn.');
                 break;
 
             case 'ti_ip':   // 1.112.0: verbinding met een adres dat als aanvaller of botnet-server bekend is

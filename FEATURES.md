@@ -121,7 +121,7 @@ Dezelfde tabel staat in RzSense bij *Instellingen → Overzicht → Functies*, m
 | 🛡️ IDS en endpoint-bewaking | **Bestanden bewaken** | Wijzigingen in gevoelige paden. | 1.40.0 |
 | 🛡️ IDS en endpoint-bewaking | **Webshell en persistentie** | Een webserver die een shell start, nieuwe cronjobs en services. | 1.87.0 |
 | 🛡️ IDS en endpoint-bewaking | **Hardening-score en isoleren** | Score per server met advies, en een server van het netwerk halen. | 1.88.0 |
-| 🛡️ IDS en endpoint-bewaking | **Logs van webdiensten** | SWAG, Home Assistant en Vaultwarden. | 1.89.0 |
+| 🛡️ IDS en endpoint-bewaking | **Logs van webdiensten** | Reverse proxy (nginx), Home Assistant en Vaultwarden. | 1.89.0 |
 | 🛡️ IDS en endpoint-bewaking | **Endpoint-bewaking (EDR)** | Processen, verbindingen en bestanden via auditd, met Sigma-regels. | 1.110.0 |
 | 🛡️ IDS en endpoint-bewaking | **Afwijkingen en aanvalsketens** | 14 dagen leren wat normaal is; ketens met MITRE ATT&CK. | 1.111.0 |
 | 🛡️ IDS en endpoint-bewaking | **Dreigingsinformatie** | AbuseIPDB, GreyNoise, Shodan, abuse.ch, Tor en CIRCL. | 1.112.0 |
@@ -461,7 +461,7 @@ Elke check heeft eigen drempels voor warning en critical, een eigen interval en 
   - **SSH-sessies** (1.152.0, agent 1.74.0): elke geslaagde SSH-login met duur, methode en bronpoort, en elke losse mislukte poging (IDS → Toegang → SSH);
   - **🗺️ Aanvalskaart** (1.149.0): wie valt wat aan, via welke dienst of poort, en is het geblokkeerd. Stromen van bron naar doelwit met bewegende bolletjes in de richting van het verkeer (uitgaand paars en andersom), een wereldkaart (Natural Earth, zonder kaartdienst), filters op periode, server, land, soort en richting, een popup met details en de tijdlijn van het IP, en een kaartje op het dashboard;
   - **🧭 MITRE ATT&CK-overzicht** (1.111.0): alle meldingen per tactiek en techniek over 7, 30 of 90 dagen, met de dekking van de regels;
-  - **payload-inspectie** van webverzoeken via SWAG: SQL-injectie, XSS, command injection, path traversal, Log4Shell, SSRF, SSTI en meer, bekende exploits met hun CVE en scanners; het verdachte stuk gedecodeerd en gemarkeerd in het incident (**Inspectie**, met MITRE ATT&CK);
+  - **payload-inspectie** van webverzoeken via je reverse proxy (bv. SWAG): SQL-injectie, XSS, command injection, path traversal, Log4Shell, SSRF, SSTI en meer, bekende exploits met hun CVE en scanners; het verdachte stuk gedecodeerd en gemarkeerd in het incident (**Inspectie**, met MITRE ATT&CK);
   - drie tabbladen: **Incidenten**, **🔑 Toegang** (logins, sudo en su per dag, met filters, sorteren, 🙈 negeren en ⛔ blokkeren; los aan/uit te zetten) en **Blokkades**, plus een knop **⛔ IP blokkeren** voor een IP-adres naar keuze.
 - **🐞 Kwetsbaarheden**, pagina *Kwetsbaarheden* (standaard **uit**):
   - de agents (1.47.0+) sturen hun pakketlijst mee (dpkg of rpm), RzSense leest die van zichzelf; RzSense zoekt de CVE's op bij **OSV.dev** met de adviezen van de distributie (geen vals alarm door backports; alleen pakketnaam, versie en distributie gaan naar OSV);
