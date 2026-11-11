@@ -19,7 +19,7 @@ final class AuthEvents
     /** Gebruikers en IP-adressen (of netwerken) die niet getoond worden. */
     public static function ignored(array $users, string $ip): bool
     {
-        $list = parse_list((string) setting('auth_ignore', ''));
+        $list = expand_list_tokens(parse_list((string) setting('auth_ignore', '')));   // 1.239.0: ook @lan
         if (!$list) {
             return false;
         }

@@ -8,11 +8,24 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.239.0**: **slimme invulvelden**: kies netwerken, whitelist-adressen, gebruikers, e-mailadressen en domeinen in plaats van ze opnieuw te typen; *Lokale netwerken* blijft gekoppeld.
 - **1.238.0**: **updates voor meerdere servers in één keer instellen**, gespreid zodat ze nooit allemaal tegelijk herstarten.
 - **1.237.0**: **onder de motorkap opgeruimd**: één definitie van RzSense zelf en privé-adressen, één manier voor "al gemeld" en limieten, en een zuiniger agent (1.95.0).
 - **1.236.0**: **opgeruimd**: beschermingen, regels, whitelist, status en functies, en bewaartermijnen staan elk op één plek.
 - **1.235.0**: **één Logboek** (met het Wijzigingslogboek en terugzetten op de regel) en **één verzendroute** voor alle meldingen.
-- **1.234.0**: het **NIS2-rapport automatisch versturen**, standaard elk kwartaal, en **elk kwartaal** als keuze bij alle rapporten.
+
+## 1.239.0 – 2026-11-11
+### Nieuw
+- **Slimme invulvelden**: lijsten met IP-adressen, accounts, e-mailadressen of domeinen kies je nu uit wat RzSense al weet, of je typt zelf. Na elke waarde komt er weer een leeg veld, en een ongeldige waarde wordt meteen rood.
+  - **REST API → Alleen vanaf**: kies *🏠 Lokale netwerken (gekoppeld)*, een adres van de whitelist of je huidige IP. "Gekoppeld" betekent: pas je je netwerken aan bij *Toegang*, dan verandert dit vanzelf mee.
+  - **IDS → Logins negeren**: dezelfde keuze, plus accounts van de whitelist en gebruikers.
+  - **E-mail → Ontvanger(s)**, **ontvangers per rapport** en **Datalekken → e-mailadressen**: kiezen uit de e-mailadressen van gebruikers.
+  - **Datalekken → domein** en **AdGuard → Nooit blokkeren**: kiezen uit je eigen domeinen (van de adressen van RzSense en de afzender).
+  - **Whitelist → zelf invullen**: een keuzelijst per soort (gebruikers van RzSense, honeypot-namen, apparaten en servers).
+  - **Blokkeren**: een waarschuwing als het adres in je eigen netwerk of op de whitelist staat.
+- **AdGuard-blokkadelijst**: nooit blokkeren geldt nu voor alle adressen van RzSense (ook de externe URL en het beheeradres), niet alleen de basis-URL.
+### Opgelost
+- Ongeldige waarden worden bij het opslaan gemeld in plaats van stil opgeslagen of weggegooid: *Alleen vanaf* van de REST API, *Logins negeren*, het UniFi-adres, de AdGuard-adressen en de domeinlijsten van AdGuard.
 
 ## 1.238.1 – 2026-11-11
 ### Opgelost

@@ -933,7 +933,7 @@ async function loadReports() {
   };
   box.innerHTML = `${!r.smtp ? `<div class="callout">⚠️ ${L('E-mail is nog niet ingesteld (Instellingen → Meldingen → Kanalen). Zonder e-mail gaan rapporten alleen als push.')}</div>` : ''}
     <div class="rep-list">${r.meta.filter((m) => m.key === 'all').map(card).join('')}${r.meta.filter((m) => m.key !== 'all').map(card).join('')}</div>`;
-  $$('.rep-card', box).forEach((el) => repWire(el));
+  $$('.rep-card', box).forEach((el) => { repWire(el); const t = $('[data-rep-f=to]', el); if (t) smartList(t, { kind: 'email', sep: ', ', sources: SL_SRC.emails, max: 20 }); });   // 1.239.0
 }
 /** Wat er in één rapportkaart staat */
 function repRead(el) {

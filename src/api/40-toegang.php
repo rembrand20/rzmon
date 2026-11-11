@@ -225,8 +225,12 @@ switch ($action) {
         if (!$rights) {
             out(['error' => t('Kies minstens één recht')], 422);
         }
-        $from = implode(' ', array_slice(array_filter(parse_list(mb_substr((string) ($in['allow_from'] ?? ''), 0, 500)),
-            fn($x) => @inet_pton(explode('/', $x)[0]) !== false), 0, 20));
+        // 1.239.0: "@lan" = de lokale netwerken (blijft gekoppeld); een ongeldig adres geeft een melding in plaats van stil te verdwijnen
+        $fromList = parse_list(mb_substr((string) ($in['allow_from'] ?? ''), 0, 500));
+        if ($bad = array_values(array_filter($fromList, static fn($x) => $x !== '@lan' && !valid_ip_or_net($x)))) {
+            out(['error' => t('Geen geldig IP-adres of netwerk: {v}', ['v' => implode(', ', array_slice($bad, 0, 3))])], 422);
+        }
+        $from = implode(' ', array_slice($fromList, 0, 20));
         $months = (int) ($in['months'] ?? 0);
         if ($months && !in_array($months, [6, 12, 24], true)) {
             out(['error' => t('Kies 6, 12 of 24 maanden')], 422);
@@ -459,6 +463,9 @@ switch ($action) {
             'links' => ['unifi' => NetLinks::unifiOn(), 'unifi_block' => NetLinks::unifiCanBlock(), 'adguard' => NetLinks::adguardOn()], 'my_ip' => client_ip()]);
 
     // 1.106.0: 📊 Analyse – alles voor één periode (5 minuten bewaard per periode), en het maandrapport
+    case 'pick_sources':   // 1.239.0: waar slimme invulvelden uit kunnen kiezen (alleen lezen)
+        out(Pick::sources());
+
     case 'advice_list':   // 1.108.0: slimme voorstellen en vaste onderhoudsvensters
         out(['list' => Advice::list(), 'windows' => Advice::windows(), 'last' => (string) setting('advice_day', ''), 'auto' => setting('alert_auto', '1') === '1']);
 

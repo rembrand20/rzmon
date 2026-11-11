@@ -80,7 +80,7 @@ if ($apiKey['expires_at'] !== null && strtotime($apiKey['expires_at']) <= time()
     Security::unauthorized('api', t('verlopen API-sleutel'), [t('sleutel') => $apiKey['name']]);
     respond(['error' => t('Deze API-sleutel is verlopen op {date}; verleng hem in RzSense (Instellingen → Koppelingen → API-sleutels)', ['date' => date('d-m-Y', strtotime($apiKey['expires_at']))])], 401);
 }
-if ((string) $apiKey['allow_from'] !== '' && !ip_in_list(client_ip(), parse_list($apiKey['allow_from']))) {
+if ((string) $apiKey['allow_from'] !== '' && !ip_in_list(client_ip(), expand_list_tokens(parse_list($apiKey['allow_from'])))) {
     Security::unauthorized('api', t('API-sleutel gebruikt vanaf een adres dat niet mag'), [t('sleutel') => $apiKey['name']]);
     respond(['error' => t('Deze API-sleutel mag niet gebruikt worden vanaf {ip}', ['ip' => client_ip()])], 403);
 }

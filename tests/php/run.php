@@ -2614,6 +2614,15 @@ ok(SettingsMeta::skipTransfer('rz_own_ips') && SettingsMeta::skipTransfer('smtp_
 $el = email_list('A@Voorbeeld.nl; b@voorbeeld.nl a@voorbeeld.nl,geen-adres');
 ok($el['ok'] === ['a@voorbeeld.nl', 'b@voorbeeld.nl'] && $el['bad'] === ['geen-adres'] && !valid_email(str_repeat('a', 190) . '@x.nl'), 'E-mailadressen: één controle (kleine letters, dubbele eruit, ongeldige apart, max. 190)');
 ok(Analytics::reportOn() === (Reports::cfg()['month']['on'] || (Reports::cfg()['all']['on'] && in_array('month', Reports::cfg()['all']['parts'], true))) && !method_exists('Ids', 'sendWeekly') && !method_exists('Analytics', 'sendMonthly'), 'Oude rapportfuncties weg; maandrapport aan of uit volgt Rapporten');
+// 1.239.0: slimme velden: gekoppelde lijsten, controle, bronnen
+$tnOld = (string) setting('trusted_networks', '');
+save_setting('trusted_networks', '192.168.50.0/24');
+ok(expand_list_tokens(['@lan', '10.0.0.5']) === ['192.168.50.0/24', '10.0.0.5'] && ip_in_list('192.168.50.7', expand_list_tokens(['@lan'])), 'Slimme velden: @lan volgt de lokale netwerken');
+ok(valid_ip_or_net('10.0.0.0/8') && valid_ip_or_net('fe80::1') && !valid_ip_or_net('999.1.1.1') && !valid_ip_or_net('10.0.0.0/33') && valid_domain('voorbeeld.nl') && !valid_domain('http://x'),
+    'Slimme velden: adressen en domeinen gecontroleerd');
+$ps = Pick::sources();
+ok($ps['lan'] === ['192.168.50.0/24'] && isset($ps['users'], $ps['emails'], $ps['domains'], $ps['devices'], $ps['hosts'], $ps['wl_ips']), 'Slimme velden: bronnen (netwerken, gebruikers, e-mail, domeinen, apparaten)');
+save_setting('trusted_networks', $tnOld);
 // 1.238.0: updates voor meerdere servers tegelijk, gespreid
 $pb = [];
 foreach (['ci-pb-b' => '10.9.9.2', 'ci-pb-a' => '10.9.9.1', 'ci-pb-ha' => '10.9.9.3', 'ci-pb-self' => '127.0.0.1'] as $nm => $ad) {

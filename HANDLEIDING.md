@@ -1733,6 +1733,12 @@ AGENT_DIR=/mnt/<pool>/rzmon-agent bash /mnt/<pool>/rzmon-agent/rzmon-agent.sh --
 
 Klik op een naam om de check te bewerken. Met 🙈 (*dit is normaal*) komt het punt niet meer terug.
 
+### 7.11b Slimme invulvelden 🧩 (vanaf 1.239.0)
+Velden met een lijst (IP-adressen, netwerken, accounts, e-mailadressen, domeinen) werken overal hetzelfde: je **kiest** uit wat RzSense al weet of je **typt** zelf, en na elke waarde komt er een nieuw leeg veld. Elke waarde staat als een chipje met ✕ om hem weg te halen; een ongeldige waarde wordt rood en wordt niet opgeslagen.
+- **Waar het uit kiest:** je lokale netwerken (*Toegang*), de whitelist, je huidige IP-adres, de gebruikers van RzSense (en hun e-mailadres), je eigen domeinen (van de adressen van RzSense en de afzender), en de apparaten en servers die RzSense kent.
+- **Gekoppeld:** *🏠 Lokale netwerken (gekoppeld)* is geen kopie maar een verwijzing. Pas je je netwerken aan bij *Instellingen → Toegang*, dan klopt bijvoorbeeld *Alleen vanaf* van de REST API vanzelf mee.
+- **Waar:** REST API (*Alleen vanaf*), IDS (*Logins negeren*), e-mail (*Ontvanger(s)*), Rapporten (eigen ontvangers), Datalekken (e-mailadressen en domein), AdGuard (*Nooit blokkeren* en *Eigen domeinen*), de whitelist (keuzelijst per soort) en blokkeren (waarschuwing bij je eigen netwerk of de whitelist).
+
 ### 7.12 Wijzigingslogboek 📜, exporteren en importeren 📦, meldketen testen 🧪
 
 **📜 Wijzigingslogboek** (vanaf 1.97.0; **vanaf 1.235.0 onderdeel van het 📒 Logboek**, *Instellingen → Systeem → Logboek*, onderdeel *🛠️ RzSense-instellingen* of alles): wie veranderde wat en wanneer, met de oude en de nieuwe waarde. Het gaat om instellingen, servers, checks (ook als je er meerdere tegelijk aanpaste) en sjablonen.

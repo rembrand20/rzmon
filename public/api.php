@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /** 1.224.1: acties die met GET mogen (alleen lezen of downloaden). Al het andere moet een POST met CSRF-token zijn. */
 const API_GET = [
-    'access_info', 'actlog', 'actlog_csv', 'advice_list', 'eol', 'ransom_info', 'ransom_overview', 'apps', 'apps_info', 'ioc_get', 'ioc_hunts', 'patch', 'sudo_list', 'dnsbl_status', 'nis2', 'nis2_report', 'agent_cert', 'agent_cert_renew_status', 'agent_certs', 'agent_commands', 'agent_procs', 'agent_selftest_get',
+    'access_info', 'actlog', 'actlog_csv', 'advice_list', 'eol', 'ransom_info', 'ransom_overview', 'apps', 'apps_info', 'ioc_get', 'ioc_hunts', 'patch', 'sudo_list', 'dnsbl_status', 'nis2', 'nis2_report', 'pick_sources', 'agent_cert', 'agent_cert_renew_status', 'agent_certs', 'agent_commands', 'agent_procs', 'agent_selftest_get',
     'agent_services', 'agent_status', 'agent_url_options', 'ai_get', 'ai_info', 'alerts', 'analytics', 'api_keys', 'availability', 'backup_download',
     'backup_info', 'blocks_overview', 'changelog', 'check_info', 'checks_all', 'cleanup', 'connections', 'contacts', 'containers', 'db_info',
     'db_rotate_status', 'discover', 'edr_feed', 'edr_host', 'edr_rules', 'exc_export', 'exc_list', 'exc_proposals', 'export', 'features',

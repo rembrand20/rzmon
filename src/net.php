@@ -9,6 +9,40 @@ function is_private_ip(string $ip): bool
     return ip_in_list($ip, PRIVATE_NETWORKS);
 }
 
+/**
+ * 1.239.0: gekoppelde waarden in een lijst vervangen. "@lan" = de lokale netwerken (Instellingen → Toegang), zodat een
+ * lijst als "Alleen vanaf" van de REST API meeverandert als je je netwerken aanpast, in plaats van een kopie te zijn.
+ */
+function expand_list_tokens(array $list): array
+{
+    $out = [];
+    foreach ($list as $x) {
+        if ($x === '@lan') {
+            array_push($out, ...(trusted_networks() ?: PRIVATE_NETWORKS));
+        } else {
+            $out[] = $x;
+        }
+    }
+    return $out;
+}
+
+/** 1.239.0: is dit een IP-adres of netwerk (CIDR)? */
+function valid_ip_or_net(string $x): bool
+{
+    [$ip, $bits] = array_pad(explode('/', $x, 2), 2, null);
+    $bin = @inet_pton($ip);
+    if ($bin === false) {
+        return false;
+    }
+    return $bits === null || (ctype_digit($bits) && (int) $bits <= (strlen($bin) === 4 ? 32 : 128));
+}
+
+/** 1.239.0: een domeinnaam (zonder schema of pad) */
+function valid_domain(string $d): bool
+{
+    return strlen($d) <= 253 && (bool) preg_match('/^(?:\*\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i', $d);
+}
+
 /** Controleert of $ip binnen $cidr valt (IPv4 en IPv6). Een los IP-adres mag ook. */
 function ip_in_cidr(string $ip, string $cidr): bool
 {

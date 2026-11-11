@@ -450,7 +450,36 @@ switch ($action) {
             $in['smart_sens'] = 'normal';
         }
         if (isset($in['auth_ignore'])) {
-            $in['auth_ignore'] = implode(' ', array_slice(parse_list(mb_substr((string) $in['auth_ignore'], 0, 2000)), 0, 100));
+            // 1.239.0: gebruikersnamen, IP-adressen/netwerken of @lan; wat op een adres lijkt maar het niet is, geeft een melding
+            $ai = array_slice(parse_list(mb_substr((string) $in['auth_ignore'], 0, 2000)), 0, 100);
+            $bad = array_filter($ai, static fn($x) => $x !== '@lan' && (preg_match('/^[0-9.:\/]+$/', $x) || str_contains($x, ':')) && !valid_ip_or_net($x));
+            if (!$bad && ($bad = array_filter($ai, static fn($x) => $x !== '@lan' && !valid_ip_or_net($x) && !preg_match('/^[A-Za-z0-9_][A-Za-z0-9_.@-]{0,63}$/', $x)))) {
+                $bad = array_values($bad);
+            }
+            if ($bad) {
+                out(['error' => t('Logins negeren: geen geldige naam of geldig adres: {v}', ['v' => implode(', ', array_slice(array_values($bad), 0, 3))])], 422);
+            }
+            $in['auth_ignore'] = implode(' ', $ai);
+        }
+        // 1.239.0: adressen en domeinlijsten controleren bij opslaan (eerst werd alles als tekst opgeslagen)
+        if (isset($in['unifi_url']) && trim((string) $in['unifi_url']) !== '' && !preg_match('#^https?://[^\s/]+(:\d+)?(/\S*)?$#i', trim((string) $in['unifi_url']))) {
+            out(['error' => t('UniFi: het adres moet beginnen met http:// of https://')], 422);
+        }
+        if (isset($in['adguard_urls'])) {
+            $au = parse_list((string) $in['adguard_urls']);
+            if ($bad = array_filter($au, static fn($u) => !preg_match('#^https?://[^\s/]+(:\d+)?(/\S*)?$#i', $u))) {
+                out(['error' => t('AdGuard: geen geldig adres (begin met http:// of https://): {v}', ['v' => implode(', ', array_slice(array_values($bad), 0, 3))])], 422);
+            }
+            $in['adguard_urls'] = implode("\n", array_slice($au, 0, 10));
+        }
+        foreach (['dnsbl_own' => 2000, 'dnsbl_allow' => 500] as $k => $max) {
+            if (isset($in[$k])) {
+                $dl = array_map(static fn($d) => strtolower(rtrim($d, '.')), parse_list((string) $in[$k]));
+                if ($bad = array_filter($dl, static fn($d) => !valid_domain($d))) {
+                    out(['error' => t('Geen geldige domeinnaam: {v}', ['v' => implode(', ', array_slice(array_values($bad), 0, 3))])], 422);
+                }
+                $in[$k] = implode("\n", array_slice(array_values(array_unique($dl)), 0, $max));
+            }
         }
         foreach (['net_sweep_minutes' => [15, 1440], 'net_deep_per_day' => [1, 24], 'ids_baseline_hours' => [0, 720], 'ids_fail_count' => [2, 1000], 'ids_fail_minutes' => [1, 1440], 'ids_block_hours' => [1, 8760], 'ids_repeat_days' => [1, 365]] as $k => [$lo, $hi]) {
             if (isset($in[$k])) {

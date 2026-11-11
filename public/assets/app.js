@@ -6069,7 +6069,7 @@ async function loadReports() {
   };
   box.innerHTML = `${!r.smtp ? `<div class="callout">⚠️ ${L('E-mail is nog niet ingesteld (Instellingen → Meldingen → Kanalen). Zonder e-mail gaan rapporten alleen als push.')}</div>` : ''}
     <div class="rep-list">${r.meta.filter((m) => m.key === 'all').map(card).join('')}${r.meta.filter((m) => m.key !== 'all').map(card).join('')}</div>`;
-  $$('.rep-card', box).forEach((el) => repWire(el));
+  $$('.rep-card', box).forEach((el) => { repWire(el); const t = $('[data-rep-f=to]', el); if (t) smartList(t, { kind: 'email', sep: ', ', sources: SL_SRC.emails, max: 20 }); });   // 1.239.0
 }
 /** Wat er in één rapportkaart staat */
 function repRead(el) {
@@ -7864,6 +7864,10 @@ function initSecurity() {
     catch (ex) { toast(ex.message, 'err'); loadSecurity(); }
   });
   $('#block-add').onclick = async () => {
+    // 1.239.0: je eigen netwerk of een adres van de whitelist blokkeer je niet zomaar
+    const net = $('#block-net').value.trim(), src = await pickSources();
+    const own = (src.lan || []).find((n) => slInNet(net.split('/')[0], n)), wl = (src.wl_ips || []).find((w) => slInNet(net.split('/')[0], w.v));
+    if ((own || wl) && !confirm(own ? L('{ip} hoort bij je eigen netwerk ({n}). Toch blokkeren?', { ip: net, n: own }) : L('{ip} staat op de whitelist ({n}). Toch blokkeren?', { ip: net, n: wl.v }))) return;
     try {
       await api('block_add', { net: $('#block-net').value, reason: $('#block-reason').value });
       toast(L('{n} geblokkeerd', { n: $('#block-net').value.trim() }));
@@ -7949,6 +7953,20 @@ function wlDialog(x = null) {
       loadBlocks();
     },
   });
+  // 1.239.0: zelf invullen: een keuzelijst bij de soort (accounts van RzSense, honeypot-namen, IP's van je netwerk en apparaten)
+  const kindSel = $('#modal [name=kind]'), valIn = $('#modal [name=value]');
+  if (kindSel && valIn) {
+    valIn.setAttribute('list', 'wl-pick');
+    valIn.insertAdjacentHTML('afterend', '<datalist id="wl-pick"></datalist>');
+    const fill = async () => {
+      const d = await pickSources(), k = kindSel.value;
+      const opts = k === 'user' ? (d.users || []).map((u) => [u.u, L('gebruiker van RzSense')]) : k === 'decoy' ? (d.decoys || []).map((u) => [u, L('honeypot-naam')])
+        : [...(d.devices || []).map((x) => [x.v, x.l]), ...(d.hosts || []).map((x) => [x.v, x.l])];
+      $('#wl-pick').innerHTML = opts.map(([v, l]) => `<option value="${esc(v)}" label="${esc(l || '')}"></option>`).join('');
+    };
+    kindSel.addEventListener('change', fill, { signal: modalSignal() });
+    fill();
+  }
   // Een IP standaard 30 dagen, een account of honeypot-naam standaard altijd
   $$('#modal [name=choice]').forEach((r) => (r.onchange = () => { const v = r.value.startsWith('ip|') ? '30' : '0'; $(`#modal [name=days][value="${v}"]`).checked = true; }));
 }
@@ -13587,6 +13605,8 @@ async function loadHibp() {
   set('#hibp-threshold', h.threshold);
   set('#hibp-emails', h.emails);
   set('#hibp-domain', h.domain);
+  smartList($('#hibp-emails'), { kind: 'email', sep: '\n', sources: SL_SRC.emails });   // 1.239.0
+  smartList($('#hibp-domain'), { kind: 'domain', single: true, sources: SL_SRC.domains });
   $('#hibp-key').value = '';
   $('#hibp-key').placeholder = h.has_key ? L('ingevuld (laat leeg om te houden)') : L('nog geen sleutel');
   $('#hibp-key-state').innerHTML = h.has_key ? `<span class="good-txt">✔ ${L('ingevuld')}</span> <a href="#" id="hibp-key-del">${L('verwijderen')}</a>` : '';
@@ -13788,7 +13808,7 @@ function apiKeyFields(k) {
   return `<div class="api-rights">${Object.entries(API_RIGHTS).map(([r, [label, hint]]) => `
       <label><input type="checkbox" name="rights" value="${r}" ${has.includes(r) ? 'checked' : ''}><span>${label}<small>${hint}</small></span></label>`).join('')}</div>
     <div class="row2">
-      <label>${L('Alleen vanaf')} <span class="hint">${L('(optioneel; IP\'s of netwerken, bv. 192.168.1.10 10.0.0.0/24)')}</span>
+      <label>${L('Alleen vanaf')} <span class="hint">${L('(optioneel; kies je lokale netwerken, een adres van de whitelist of je eigen IP, of typ zelf)')}</span>
         <input name="allow_from" maxlength="500" spellcheck="false" value="${esc(k?.allow_from || '')}" placeholder="${L('overal vandaan')}"></label>
       <label>${k ? L('Verlengen') : L('Geldig')}
         <select name="months">${k ? '<option value="0">' + L('niet verlengen') + '</option>' : ''}
@@ -13816,6 +13836,7 @@ async function loadApiKeys() {
   $('#api-base').textContent = apiBase();
   haCardInfo();   // 1.197.0
   if (!$('#api-key-fields').innerHTML) $('#api-key-fields').innerHTML = apiKeyFields();
+  slApiKey($('#api-key-fields'));   // 1.239.0
   apiKeys = await api('api_keys');
   $('#api-keys').innerHTML = apiKeys.length ? apiKeys.map((k) => `
     <div class="key-row">
@@ -13848,11 +13869,18 @@ async function createApiKey(e) {
     const r = await api('api_key_create', d);
     form.reset();
     $('#api-key-fields').innerHTML = apiKeyFields();
+    slApiKey($('#api-key-fields'));
     loadApiKeys();
     setTimeout(() => newApiKeyDialog(r.key, d.rights), 0);
   };
   if (data.rights.includes('ids_block')) return apiKeyConfirm(L('⛔ Sleutel met blokkeerrecht'), data, save);
   try { await save(data); } catch (ex) { toast(ex.message, 'err'); }
+}
+
+/** 1.239.0: "Alleen vanaf" als slim veld (lokale netwerken gekoppeld, whitelist, mijn IP) */
+function slApiKey(root) {
+  const el = root && $('[name=allow_from]', root);
+  if (el) smartList(el, { kind: 'ip', tokens: true, sources: SL_SRC.ips, max: 20 });
 }
 
 function apiKeyEdit(k) {
@@ -13872,6 +13900,7 @@ function apiKeyEdit(k) {
       await save(data);
     },
   });
+  slApiKey($('#modal-form'));
 }
 
 function newApiKeyDialog(key, rights) {
@@ -15070,12 +15099,22 @@ async function loadSettings() {
   confTypes(parse(s.confirm_types));   // 1.193.0
   idsModeInfo();
   backupFormToggle();
+  initSmartFields(f);   // 1.239.0
   markSettingsDirty(false);
   applySettingsLayout();
   loadBackups();
   loadUpdate(false);
   loadAgentCommands();
   refresh();   // verse agentversies voor de kaart "Agents bijwerken"
+}
+
+/** 1.239.0: lijsten in het instellingenformulier als slimme velden (één keer; daarna tekenen ze mee met el.value) */
+function initSmartFields(f) {
+  const el = (n) => f.elements[n];
+  smartList(el('auth_ignore'), { kind: 'ipuser', tokens: true, sources: (d) => [...SL_SRC.ips(d), ...SL_SRC.accounts(d)] });
+  smartList(el('mail_to'), { kind: 'email', sep: ', ', sources: SL_SRC.emails });
+  smartList(el('dnsbl_allow'), { kind: 'domain', sep: '\n', sources: SL_SRC.domains });
+  smartList(el('dnsbl_own'), { kind: 'domain', sep: '\n', sources: () => [], max: 2000 });
 }
 
 /** Kaart "Agents": hoeveel agents verouderd zijn, en de knop om ze allemaal bij te werken. */
@@ -20565,3 +20604,129 @@ async function loadNis2() {
     try { await api('nis2_sent', { id: +c.dataset.id, which: c.dataset.nis2Sent, on: c.checked }); loadNis2(); } catch (ex) { toast(ex.message, 'err'); }
   };
 }
+// ---------------------------------------------------------------- 🧩 Slimme velden (1.239.0)
+// Eén bouwsteen voor lijsten (IP-adressen, netwerken, accounts, e-mailadressen, domeinen): kiezen uit wat RzSense al
+// weet (je netwerken, de whitelist, gebruikers, eigen domeinen, apparaten) of zelf typen. Na elke waarde komt er weer een
+// leeg veld. "Gekoppelde" waarden (zoals @lan = de lokale netwerken uit Toegang) blijven gekoppeld: pas je je netwerken
+// aan, dan klopt de lijst vanzelf mee. Het oorspronkelijke veld blijft bestaan (verborgen) en krijgt de waarde, dus opslaan
+// werkt zoals altijd; zet de code het veld zelf (el.value = …), dan tekent het slimme veld mee.
+
+let pickCache = null;
+let pickAt = 0;
+let pickBusy = null;
+/** De bronnen (api pick_sources), hooguit één keer per minuut opgehaald */
+async function pickSources(fresh = false) {
+  if (!isAdmin()) return {};
+  if (pickCache && !fresh && Date.now() - pickAt < 60000) return pickCache;
+  if (!pickBusy) pickBusy = api('pick_sources').then((d) => { pickCache = d; pickAt = Date.now(); return d; }).finally(() => { pickBusy = null; });
+  try { return await pickBusy; } catch (e) { return pickCache || {}; }
+}
+
+const SL_IP = (v) => {
+  const [ip, bits] = String(v).split('/');
+  const v4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/.test(ip);
+  const v6 = !v4 && ip.includes(':') && /^[0-9a-f:.]+$/i.test(ip);
+  if (!v4 && !v6) return false;
+  return bits === undefined || (/^\d{1,3}$/.test(bits) && +bits <= (v4 ? 32 : 128));
+};
+/** Controle per soort: wat mag er in het veld */
+const SL_CHECK = {
+  ip: SL_IP,
+  email: (v) => /^[^\s@,;]+@[^\s@,;]+\.[a-z]{2,}$/i.test(v),
+  domain: (v) => /^(\*\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(v),
+  ipuser: (v) => SL_IP(v) || (!/^[\d.:/]+$/.test(v) && /^[A-Za-z0-9_][A-Za-z0-9_.@-]{0,63}$/.test(v)),
+  url: (v) => /^https?:\/\/[^\s/]+(:\d+)?(\/\S*)?$/i.test(v),
+};
+/** Gekoppelde waarden: wat er op het chipje staat */
+const SL_TOKENS = () => ({ '@lan': '🏠 ' + L('Lokale netwerken (gekoppeld)') });
+
+/**
+ * Een bestaand invoerveld of tekstvak slim maken.
+ * opts: kind (ip | email | domain | ipuser | url), sources(bronnen) → [{v, l, g}] (waarde, uitleg, groep),
+ *   sep (tussen waarden bij opslaan: ' ', ', ' of '\n'), tokens (true = @lan mag), max (aantal waarden), single (één waarde)
+ */
+function smartList(el, opts) {
+  if (!el || el.dataset.sl) return;
+  el.dataset.sl = '1';
+  const { kind = 'ip', sources = () => [], sep = ' ', tokens = false, max = 100, single = false } = opts;
+  const proto = Object.getPrototypeOf(el);
+  const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+  const tok = tokens ? SL_TOKENS() : {};
+  const box = document.createElement('div');
+  box.className = 'sl' + (single ? ' sl-single' : '');
+  const listId = 'sl-dl-' + Math.random().toString(36).slice(2, 9);
+  box.innerHTML = `<span class="sl-chips"></span><input class="sl-in mono" list="${listId}" autocomplete="off" spellcheck="false" placeholder="${esc(el.getAttribute('placeholder') || (single ? L('kies of typ…') : L('+ kies of typ…')))}"><datalist id="${listId}"></datalist><span class="sl-err small bad" hidden></span>`;
+  el.after(box);
+  el.hidden = true;
+  const chips = $('.sl-chips', box), inp = $('.sl-in', box), dl = $('datalist', box), err = $('.sl-err', box);
+  const read = () => String(desc.get.call(el) || '').split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+  const write = (vals, notify = true) => {
+    desc.set.call(el, vals.join(sep));
+    draw();
+    if (notify) { el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }
+  };
+  const ok = (v) => (tok[v] !== undefined) || (SL_CHECK[kind] ? SL_CHECK[kind](v) : true);
+  let srcList = [];
+  const draw = () => {
+    const vals = read();
+    chips.innerHTML = vals.map((v, i) => {
+      const src = srcList.find((s) => s.v === v);
+      return `<span class="sl-chip${ok(v) ? '' : ' bad'}${tok[v] ? ' linked' : ''}" title="${esc(tok[v] ? L('Gekoppeld: verandert vanzelf mee') : src && src.l ? src.l : ok(v) ? '' : L('Geen geldige waarde'))}">${esc(tok[v] || v)}${src && src.l && !tok[v] ? ` <small class="muted">${esc(src.l)}</small>` : ''}<button type="button" class="sl-x" data-i="${i}" aria-label="${esc(L('Weghalen'))}">✕</button></span>`;
+    }).join('');
+    inp.hidden = single && vals.length > 0;
+    const used = new Set(vals);
+    dl.innerHTML = srcList.filter((s) => !used.has(s.v)).map((s) => `<option value="${esc(s.v)}" label="${esc([s.g, s.l].filter(Boolean).join(' · '))}"></option>`).join('');
+  };
+  const add = (raw) => {
+    const parts = String(raw).split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+    if (!parts.length) return;
+    const bad = parts.filter((p) => !ok(p));
+    if (bad.length) { err.hidden = false; err.textContent = L('Geen geldige waarde: {v}', { v: bad.join(', ') }); inp.classList.add('bad'); return; }
+    err.hidden = true; inp.classList.remove('bad');
+    const vals = read();
+    for (const p of parts) if (!vals.includes(p) && vals.length < (single ? 1 : max)) vals.push(p);
+    inp.value = '';
+    write(vals);
+    if (!single) inp.focus();   // meteen het volgende lege veld
+  };
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ',' || (e.key === ' ' && kind !== 'url')) { e.preventDefault(); add(inp.value); }
+    else if (e.key === 'Backspace' && !inp.value) { const v = read(); if (v.length) { v.pop(); write(v); } }
+  });
+  inp.addEventListener('change', () => add(inp.value));   // gekozen uit de lijst
+  inp.addEventListener('blur', () => { if (inp.value.trim()) add(inp.value); });
+  box.addEventListener('click', (e) => {
+    const x = e.target.closest('.sl-x');
+    if (x) { const v = read(); v.splice(+x.dataset.i, 1); write(v); inp.hidden = false; inp.focus(); return; }
+    if (e.target === box || e.target === chips) inp.focus();
+  });
+  // Zet de code het oorspronkelijke veld (laden van de instellingen), dan tekenen we mee
+  Object.defineProperty(el, 'value', { configurable: true, get: () => desc.get.call(el), set: (v) => { desc.set.call(el, v); draw(); } });
+  draw();
+  pickSources().then((d) => { srcList = (sources(d || {}) || []).filter((s) => s && s.v); draw(); });
+}
+
+/** Valt een IPv4-adres binnen een netwerk (CIDR) of is het hetzelfde adres? (IPv6: alleen gelijk) */
+function slInNet(ip, net) {
+  const [n, bits] = String(net).split('/');
+  if (!ip.includes('.') || !n.includes('.')) return ip === n;
+  const num = (a) => a.split('.').reduce((s, o) => (s * 256) + (+o || 0), 0);
+  const b = bits === undefined ? 32 : +bits;
+  const mask = b === 0 ? 0 : (2 ** 32) - (2 ** (32 - b));
+  return Math.floor(num(ip) / 2 ** (32 - b)) === Math.floor(num(n) / 2 ** (32 - b)) && mask >= 0;
+}
+
+/** Veelgebruikte bronnen */
+const SL_SRC = {
+  /** Lokale netwerken (gekoppeld), whitelist, mijn IP */
+  ips: (d) => [
+    { v: '@lan', l: (d.lan || []).join(' '), g: '🏠 ' + L('Lokale netwerken (gekoppeld)') },
+    ...(d.lan || []).map((n) => ({ v: n, l: '', g: '🏠 ' + L('Lokaal netwerk') })),
+    ...(d.wl_ips || []).map((w) => ({ v: w.v, l: w.l, g: '✅ ' + L('Whitelist') })),
+    d.my_ip ? { v: d.my_ip, l: '', g: '💻 ' + L('Mijn huidige IP') } : null,
+  ],
+  /** Accounts: whitelist, honeypot-namen (voor "logins negeren" ook IP's) */
+  accounts: (d) => [...(d.wl_users || []).map((u) => ({ v: u, l: '', g: '✅ ' + L('Whitelist') })), ...(d.users || []).map((u) => ({ v: u.u, l: '', g: '👤 ' + L('Gebruiker van RzSense') }))],
+  emails: (d) => (d.emails || []).map((e) => ({ v: e.v, l: e.l, g: '👤 ' + L('Bekend in RzSense') })),
+  domains: (d) => (d.domains || []).map((v) => ({ v, l: '', g: '🌐 ' + L('Eigen domein') })),
+};

@@ -5652,3 +5652,17 @@ span.app-sum-b { cursor: default; }
 @media (max-width: 700px) { .nis2-steps { grid-template-columns: minmax(0, 1fr); } }
 .nis2-step { border: 1px dashed var(--border); border-radius: 8px; padding: 6px 8px; font-size: .9em; }
 .nis2-step.done { border-style: solid; border-color: color-mix(in srgb, var(--ok) 50%, var(--border)); }
+
+/* 1.239.0: slimme velden (kiezen of typen, chips) */
+.sl { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px 6px; min-height: 2.4rem; border: 1px solid var(--border); border-radius: 8px; background: var(--card); cursor: text; }
+.sl:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); }
+.sl-chips { display: contents; }
+.sl-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 8px; border-radius: 999px; background: var(--card-2); border: 1px solid var(--border); font-size: .85rem; max-width: 100%; overflow-wrap: anywhere; }
+.sl-chip.linked { background: color-mix(in srgb, var(--primary) 12%, var(--card)); border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); }
+.sl-chip.bad { border-color: var(--crit); color: var(--crit); }
+.sl-chip small { font-size: .75rem; }
+.sl-x { border: 0; background: none; cursor: pointer; color: var(--muted); padding: 0 4px; font-size: .8rem; line-height: 1; }
+.sl-x:hover { color: var(--crit); }
+.sl-in { flex: 1 1 10rem; min-width: 8rem; border: 0 !important; background: transparent !important; box-shadow: none !important; padding: 4px !important; outline: none; }
+.sl-in.bad { color: var(--crit); }
+.sl-err { flex-basis: 100%; }

@@ -165,6 +165,8 @@ async function loadHibp() {
   set('#hibp-threshold', h.threshold);
   set('#hibp-emails', h.emails);
   set('#hibp-domain', h.domain);
+  smartList($('#hibp-emails'), { kind: 'email', sep: '\n', sources: SL_SRC.emails });   // 1.239.0
+  smartList($('#hibp-domain'), { kind: 'domain', single: true, sources: SL_SRC.domains });
   $('#hibp-key').value = '';
   $('#hibp-key').placeholder = h.has_key ? L('ingevuld (laat leeg om te houden)') : L('nog geen sleutel');
   $('#hibp-key-state').innerHTML = h.has_key ? `<span class="good-txt">✔ ${L('ingevuld')}</span> <a href="#" id="hibp-key-del">${L('verwijderen')}</a>` : '';
@@ -366,7 +368,7 @@ function apiKeyFields(k) {
   return `<div class="api-rights">${Object.entries(API_RIGHTS).map(([r, [label, hint]]) => `
       <label><input type="checkbox" name="rights" value="${r}" ${has.includes(r) ? 'checked' : ''}><span>${label}<small>${hint}</small></span></label>`).join('')}</div>
     <div class="row2">
-      <label>${L('Alleen vanaf')} <span class="hint">${L('(optioneel; IP\'s of netwerken, bv. 192.168.1.10 10.0.0.0/24)')}</span>
+      <label>${L('Alleen vanaf')} <span class="hint">${L('(optioneel; kies je lokale netwerken, een adres van de whitelist of je eigen IP, of typ zelf)')}</span>
         <input name="allow_from" maxlength="500" spellcheck="false" value="${esc(k?.allow_from || '')}" placeholder="${L('overal vandaan')}"></label>
       <label>${k ? L('Verlengen') : L('Geldig')}
         <select name="months">${k ? '<option value="0">' + L('niet verlengen') + '</option>' : ''}
@@ -394,6 +396,7 @@ async function loadApiKeys() {
   $('#api-base').textContent = apiBase();
   haCardInfo();   // 1.197.0
   if (!$('#api-key-fields').innerHTML) $('#api-key-fields').innerHTML = apiKeyFields();
+  slApiKey($('#api-key-fields'));   // 1.239.0
   apiKeys = await api('api_keys');
   $('#api-keys').innerHTML = apiKeys.length ? apiKeys.map((k) => `
     <div class="key-row">
@@ -426,11 +429,18 @@ async function createApiKey(e) {
     const r = await api('api_key_create', d);
     form.reset();
     $('#api-key-fields').innerHTML = apiKeyFields();
+    slApiKey($('#api-key-fields'));
     loadApiKeys();
     setTimeout(() => newApiKeyDialog(r.key, d.rights), 0);
   };
   if (data.rights.includes('ids_block')) return apiKeyConfirm(L('⛔ Sleutel met blokkeerrecht'), data, save);
   try { await save(data); } catch (ex) { toast(ex.message, 'err'); }
+}
+
+/** 1.239.0: "Alleen vanaf" als slim veld (lokale netwerken gekoppeld, whitelist, mijn IP) */
+function slApiKey(root) {
+  const el = root && $('[name=allow_from]', root);
+  if (el) smartList(el, { kind: 'ip', tokens: true, sources: SL_SRC.ips, max: 20 });
 }
 
 function apiKeyEdit(k) {
@@ -450,6 +460,7 @@ function apiKeyEdit(k) {
       await save(data);
     },
   });
+  slApiKey($('#modal-form'));
 }
 
 function newApiKeyDialog(key, rights) {
@@ -1648,12 +1659,22 @@ async function loadSettings() {
   confTypes(parse(s.confirm_types));   // 1.193.0
   idsModeInfo();
   backupFormToggle();
+  initSmartFields(f);   // 1.239.0
   markSettingsDirty(false);
   applySettingsLayout();
   loadBackups();
   loadUpdate(false);
   loadAgentCommands();
   refresh();   // verse agentversies voor de kaart "Agents bijwerken"
+}
+
+/** 1.239.0: lijsten in het instellingenformulier als slimme velden (één keer; daarna tekenen ze mee met el.value) */
+function initSmartFields(f) {
+  const el = (n) => f.elements[n];
+  smartList(el('auth_ignore'), { kind: 'ipuser', tokens: true, sources: (d) => [...SL_SRC.ips(d), ...SL_SRC.accounts(d)] });
+  smartList(el('mail_to'), { kind: 'email', sep: ', ', sources: SL_SRC.emails });
+  smartList(el('dnsbl_allow'), { kind: 'domain', sep: '\n', sources: SL_SRC.domains });
+  smartList(el('dnsbl_own'), { kind: 'domain', sep: '\n', sources: () => [], max: 2000 });
 }
 
 /** Kaart "Agents": hoeveel agents verouderd zijn, en de knop om ze allemaal bij te werken. */

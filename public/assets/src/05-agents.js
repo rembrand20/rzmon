@@ -195,6 +195,10 @@ function initSecurity() {
     catch (ex) { toast(ex.message, 'err'); loadSecurity(); }
   });
   $('#block-add').onclick = async () => {
+    // 1.239.0: je eigen netwerk of een adres van de whitelist blokkeer je niet zomaar
+    const net = $('#block-net').value.trim(), src = await pickSources();
+    const own = (src.lan || []).find((n) => slInNet(net.split('/')[0], n)), wl = (src.wl_ips || []).find((w) => slInNet(net.split('/')[0], w.v));
+    if ((own || wl) && !confirm(own ? L('{ip} hoort bij je eigen netwerk ({n}). Toch blokkeren?', { ip: net, n: own }) : L('{ip} staat op de whitelist ({n}). Toch blokkeren?', { ip: net, n: wl.v }))) return;
     try {
       await api('block_add', { net: $('#block-net').value, reason: $('#block-reason').value });
       toast(L('{n} geblokkeerd', { n: $('#block-net').value.trim() }));
@@ -280,6 +284,20 @@ function wlDialog(x = null) {
       loadBlocks();
     },
   });
+  // 1.239.0: zelf invullen: een keuzelijst bij de soort (accounts van RzSense, honeypot-namen, IP's van je netwerk en apparaten)
+  const kindSel = $('#modal [name=kind]'), valIn = $('#modal [name=value]');
+  if (kindSel && valIn) {
+    valIn.setAttribute('list', 'wl-pick');
+    valIn.insertAdjacentHTML('afterend', '<datalist id="wl-pick"></datalist>');
+    const fill = async () => {
+      const d = await pickSources(), k = kindSel.value;
+      const opts = k === 'user' ? (d.users || []).map((u) => [u.u, L('gebruiker van RzSense')]) : k === 'decoy' ? (d.decoys || []).map((u) => [u, L('honeypot-naam')])
+        : [...(d.devices || []).map((x) => [x.v, x.l]), ...(d.hosts || []).map((x) => [x.v, x.l])];
+      $('#wl-pick').innerHTML = opts.map(([v, l]) => `<option value="${esc(v)}" label="${esc(l || '')}"></option>`).join('');
+    };
+    kindSel.addEventListener('change', fill, { signal: modalSignal() });
+    fill();
+  }
   // Een IP standaard 30 dagen, een account of honeypot-naam standaard altijd
   $$('#modal [name=choice]').forEach((r) => (r.onchange = () => { const v = r.value.startsWith('ip|') ? '30' : '0'; $(`#modal [name=days][value="${v}"]`).checked = true; }));
 }
