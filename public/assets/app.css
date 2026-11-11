@@ -3389,7 +3389,7 @@ body.lay-cc #tab-settings .set-off { display: none !important; }
 .iso-ic { position: relative; display: grid; place-items: center; flex: none; width: 46px; height: 46px; border-radius: 50%; font-size: 22px;
   background: color-mix(in srgb, var(--ib-cr) 18%, transparent); border: 1px solid color-mix(in srgb, var(--ib-cr) 65%, transparent); }
 .iso-ic i { position: absolute; inset: -1px; border-radius: 50%; border: 2px solid var(--ib-cr); animation: af-pulse 1.8s ease-out infinite; }
-.iso-kick { display: flex; align-items: center; gap: 8px; font-weight: 800; letter-spacing: .14em; font-size: 1.05rem; color: var(--ib-cr); text-shadow: 0 0 12px color-mix(in srgb, var(--ib-cr) 45%, transparent); }
+.iso-kick { display: flex; align-items: center; gap: 8px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; font-size: 1.05rem; color: var(--ib-cr); text-shadow: 0 0 12px color-mix(in srgb, var(--ib-cr) 45%, transparent); }
 .iso-kick .af-blink { --af-ok: var(--ib-cr); background: var(--ib-cr); box-shadow: 0 0 8px var(--ib-cr); }
 .iso-mut { color: var(--fx-mu); }
 .iso-rows { display: flex; flex-direction: column; gap: 8px; padding: 8px 20px 16px 22px; }
@@ -5777,3 +5777,40 @@ body.sk-s .modal-inner > footer { border-top: 0; background: none; }
 /* Menu's en meldingen */
 body.sk-s :is(.acct-menu, .dash-menu, .cmdk-box, .toast) { border: 0; border-radius: 12px; box-shadow: 0 10px 40px rgba(0, 0, 0, .18), 0 0 0 .5px var(--s-hair);
   -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%); }
+
+/* 1.243.1: @S ook voor het isolatie-blok, de RzSense-kern en het beheermenu */
+body.sk-s .iso-banner { --fx-tx: var(--text); --fx-mu: var(--muted); --fx-cy: var(--primary); --fx-cr: var(--crit); --fx-ok: var(--ok); --fx-wa: var(--warn);
+  --fx-bd: var(--s-hair); --fx-node: var(--card); --ib-cr: var(--crit);
+  background: color-mix(in srgb, var(--crit) 7%, var(--card)); border: 0; box-shadow: var(--s-shadow), inset 0 0 0 1px color-mix(in srgb, var(--crit) 22%, transparent); animation: none; }
+body.sk-s .iso-banner::before, body.sk-s .iso-banner .iso-grid, body.sk-s .iso-banner .iso-scan, body.sk-s .iso-ic i { display: none; }
+body.sk-s .iso-ic { border: 0; background: color-mix(in srgb, var(--crit) 14%, transparent); }
+body.sk-s .iso-kick { text-transform: none; letter-spacing: -.01em; font-weight: 700; font-size: 1.15rem; color: var(--crit); text-shadow: none; }
+body.sk-s .iso-kick .af-blink { box-shadow: none; }
+body.sk-s .iso-row { background: var(--card); border: 0; box-shadow: 0 1px 2px rgba(0, 0, 0, .04); }
+body.sk-s .iso-cd b { color: var(--crit); text-shadow: none; font-family: inherit; font-weight: 700; }
+body.sk-s .iso-cd small { text-transform: none; letter-spacing: 0; font-size: .75rem; }
+body.sk-s .iso-btn { background: var(--crit); border: 0; box-shadow: none; font-weight: 600; }
+body.sk-s .iso-btn:hover, body.sk-s .iso-btn:focus-visible { background: color-mix(in srgb, var(--crit) 85%, #000); }
+body.sk-s .iso-btn.ghost { background: var(--s-fill); color: var(--text); }
+body.sk-s .iso-btn.ghost:hover { background: color-mix(in srgb, var(--s-fill) 100%, var(--text) 6%); }
+
+/* RzSense-kern: ronde meters zoals de activiteitsringen, zonder gloed en techletter */
+body.sk-s { --rzk-c: var(--primary); --rzk-c2: var(--primary); --rzk-o: var(--warn); --rzk-r: var(--crit); --rzk-glow: none; }
+body.sk-s .rzk, body.sk-s .rzk.s1, body.sk-s .rzk.s2 { background: var(--card); border: 0; border-radius: 16px; box-shadow: var(--s-shadow); }
+body.sk-s .rzk.s1 { box-shadow: var(--s-shadow), inset 0 0 0 1px color-mix(in srgb, var(--warn) 30%, transparent); }
+body.sk-s .rzk.s2 { box-shadow: var(--s-shadow), inset 0 0 0 1px color-mix(in srgb, var(--crit) 30%, transparent); }
+body.sk-s .rzk-core { border-right-color: var(--s-hair); }
+body.sk-s .rzk-m .rzk-core { border-bottom-color: var(--s-hair); }
+body.sk-s :is(.rzk-core .t b, .rzk-g .v, .rzk-g .k) { font-family: inherit; letter-spacing: 0; }
+body.sk-s .rzk-core .t b { font-size: .72rem; font-weight: 600; color: var(--muted); }
+body.sk-s .rzk-g .k { font-size: .62rem; font-weight: 600; color: var(--muted); }
+body.sk-s .rzk-g .v { font-weight: 700; }
+body.sk-s .rzk-g .tk, body.sk-s .rzk-g .tip { display: none; }
+body.sk-s .rzk-g .bg { stroke: var(--s-fill); stroke-width: 6; }
+body.sk-s .rzk-g .arc { stroke-width: 6; }
+body.sk-s .rzk-core-ic .spin, body.sk-s .rzk-core-ic .spin2 { animation: none; }
+
+/* Beheermenu (Instellingen, Mijn account): dezelfde rustige keuze als de zijbalk */
+body.sk-s .set-nav-subs button.active { background: var(--s-sel); color: var(--text); font-weight: 600; }
+body.sk-s .set-nav-head { font-weight: 600; }
+body.sk-s :is(.set-nav-head, .set-nav-subs button):hover { background: var(--s-fill-2); }

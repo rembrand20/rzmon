@@ -1812,7 +1812,7 @@ function renderIsoBanner(tab) {
   el.className = 'iso-banner ' + size;
   el.innerHTML = `<div class="iso-scan" aria-hidden="true"></div><div class="iso-grid" aria-hidden="true"></div>
     <div class="iso-head"><span class="iso-ic" aria-hidden="true"><i></i>🧱</span>
-      <div><div class="iso-kick"><i class="af-blink"></i>${esc(list.length === 1 ? L('SERVER IN ISOLATIE') : L('{n} SERVERS IN ISOLATIE', { n: list.length }))}</div>
+      <div><div class="iso-kick"><i class="af-blink"></i>${esc(list.length === 1 ? L('Server in isolatie') : L('{n} servers in isolatie', { n: list.length }))}</div>
       ${size === 'big' ? `<div class="iso-mut small">${L('Al het verkeer van en naar deze server is geblokkeerd. Alleen RzSense, je lokale netwerken en het IP-adres van wie isoleerde kunnen er nog bij.')}</div>` : ''}</div></div>
     <div class="iso-rows">${rows}</div>`;
   isoTick();

@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.240.0**: **keuzelijsten uit je netwerk**: kies apparaten en servers bij adressen, check-doelen, DNS-server, UniFi, Ollama en AdGuard.
 - **1.239.0**: **slimme invulvelden**: kies netwerken, whitelist-adressen, gebruikers, e-mailadressen en domeinen in plaats van ze opnieuw te typen; *Lokale netwerken* blijft gekoppeld.
 
+## 1.243.1 – 2026-11-11
+### Opgelost
+- **Thema @S overal**: ook het blok *Servers in isolatie* (rood getinte kaart zonder gloed, gewone letters, aftellen in het rood), de **RzSense-kern** (ronde meters zonder gloed en techletter) en het actieve item in het **beheermenu** van Instellingen en Mijn account (rustig grijs, zoals de zijbalk) volgen nu de Apple-stijl. In de standaardstijl verandert niets.
+
 ## 1.243.0 – 2026-11-11
 ### Nieuw
 - **Thema @S**: een nieuwe stijl in de stijl van Apple. Rustig en licht: de systeemletter (SF op een Mac of iPhone), een grijze achtergrond met witte kaarten zonder randen, zachte schaduw en één accentkleur. Segmenten, schakelaars (groen als ze aan staan), velden, vensters en menu's zoals op macOS en iOS; de zijbalk wordt een doorschijnend paneel.
