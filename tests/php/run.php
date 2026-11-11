@@ -1234,6 +1234,7 @@ $bn = array_values(array_filter($ins, fn($x) => str_starts_with($x['key'], 'bann
 ok($vs && $vs['sev'] === 2 && $vs['crit'] && str_contains(implode(' ', $vs['why']), '1:9.2p1-2+deb12u3') && str_contains(implode(' ', $vs['why']), 'poort 22')
     && !isset($byKey['vuln_important|CVE-2099-0001']) && isset($byKey["eol|$fa"]) && count($bn) === 2,
     'analyse: kwetsbare dienst (poort → pakket → CVE met KEV, opgelost-in), niet nog eens als losse CVE; Debian 10 zonder ondersteuning; verouderde OpenSSH en Boa op een apparaat zonder agent');
+Insights::forget();   // geen adviezen van een eerdere run (cache van 5 minuten)
 $ins1 = Insights::page();
 Insights::setStatus("eol|$fa", 'na', 'ci');
 $ins2 = Insights::page();

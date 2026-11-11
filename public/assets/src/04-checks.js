@@ -618,6 +618,7 @@ function modal({ title, body, buttons = [], wide = false, page = false, onSubmit
   dlg.classList.toggle('page', page);   // 1.121.0: als pagina (bijna het hele scherm), bv. de Agent Manager
   $('#modal-title').textContent = title;
   $('#modal-body').innerHTML = body;
+  setTimeout(() => fieldHelp(mb), 0);   // 1.241.0: ⓘ bij de velden
   const err = $('.form-error', form);
   err.hidden = true;
   const footer = $('#modal-footer');

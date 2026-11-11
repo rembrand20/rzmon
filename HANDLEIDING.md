@@ -1740,6 +1740,15 @@ Velden met een lijst (IP-adressen, netwerken, accounts, e-mailadressen, domeinen
 - **Waar:** REST API (*Alleen vanaf*), IDS (*Logins negeren*), e-mail (*Ontvanger(s)*), Rapporten (eigen ontvangers), Datalekken (e-mailadressen en domein), AdGuard (*Nooit blokkeren* en *Eigen domeinen*), de whitelist (keuzelijst per soort) en blokkeren (waarschuwing bij je eigen netwerk of de whitelist).
 - **Keuzelijsten uit je netwerk** (vanaf 1.240.0): velden voor één adres krijgen een lijst met de apparaten uit de netwerkscan en je servers, met hun naam erbij: het **adres** van een server, het **doel** van een ping- of TCP-check, de **DNS-server** van een DNS-check (ook je AdGuard Home), de **UniFi-controller**, **Ollama** (ook *deze server*) en **AdGuard Home** (slim lijstveld). Zelf typen blijft altijd kunnen.
 
+### 7.11c Uitleg bij een veld ⓘ (vanaf 1.241.0)
+Naast veel velden staat een **ⓘ**. Tik erop (ook op een telefoon) en eronder klapt uit:
+- **wat het veld doet** en wanneer je het aanpast;
+- de **eenheid** (seconden, minuten, uren, dagen, %, MB …) en het **bereik** (kleinste en grootste waarde);
+- wat **leeg of 0** betekent (bv. *0 = nooit* of *leeg = meteen*);
+- de **aanbevolen waarde**, met de knop **Gebruiken** om hem in te vullen (opslaan doe je zelf).
+
+Naast een groot getal zie je wat het betekent: *1440 minuten ≈ 1 dag*, *730 dagen ≈ 2 jaar*. Leerperiodes staan overal in **dagen** (de basismeting van het IDS stond in uren; je instelling is gewoon omgerekend).
+
 ### 7.12 Wijzigingslogboek 📜, exporteren en importeren 📦, meldketen testen 🧪
 
 **📜 Wijzigingslogboek** (vanaf 1.97.0; **vanaf 1.235.0 onderdeel van het 📒 Logboek**, *Instellingen → Systeem → Logboek*, onderdeel *🛠️ RzSense-instellingen* of alles): wie veranderde wat en wanneer, met de oude en de nieuwe waarde. Het gaat om instellingen, servers, checks (ook als je er meerdere tegelijk aanpaste) en sjablonen.

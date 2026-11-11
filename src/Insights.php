@@ -83,9 +83,20 @@ final class Insights
     }
 
     /** Berekend in de taal van de gebruiker, hooguit eens per 5 minuten */
+    private static function cacheFile(): string
+    {
+        return sys_get_temp_dir() . '/rzmon-insights-' . md5(SM_ROOT . '|' . I18n::lang() . '|' . (string) q('SELECT DATABASE()')->fetchColumn()) . '.json';
+    }
+
+    /** 1.241.0: de bewaarde adviezen vergeten (de volgende keer opnieuw berekenen) */
+    public static function forget(): void
+    {
+        @unlink(self::cacheFile());
+    }
+
     private static function cached(bool $fresh = false): array
     {
-        $cf = sys_get_temp_dir() . '/rzmon-insights-' . md5(SM_ROOT . '|' . I18n::lang() . '|' . (string) q('SELECT DATABASE()')->fetchColumn()) . '.json';
+        $cf = self::cacheFile();
         if (!$fresh && is_file($cf) && filemtime($cf) > time() - 300 && is_array($c = json_decode((string) file_get_contents($cf), true))) {
             return $c;
         }

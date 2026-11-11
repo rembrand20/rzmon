@@ -9,7 +9,7 @@ async function loadAccess() {
   f.trusted_networks.value = a.trusted_networks;
   f.trusted_proxies.value = a.trusted_proxies;
   if (a.lock) {
-    f.login_lock_fails.value = a.lock.fails; f.login_lock_window.value = a.lock.window; f.login_lock_minutes.value = a.lock.minutes;
+    f.login_lock_fails.value = a.lock.fails; f.login_lock_window.value = a.lock.window; f.login_lock_minutes.value = a.lock.minutes; fieldHelpRefresh(f);
     f.login_lock_account.checked = a.lock.account; f.login_lock_ip.checked = a.lock.ip;
     accessLock = a.lock;
   }
@@ -1300,23 +1300,8 @@ function initSettingsTips() {
   polishSettings(tab);
   let t = null;
   new MutationObserver(() => { clearTimeout(t); t = setTimeout(() => polishSettings(tab), 30); }).observe(tab, { childList: true, subtree: true });
-  $$('#tab-settings [data-sk] label > span.hint, #tab-settings [data-sk] label > span.muted.small').forEach((s) => {
-    const txt = s.textContent.trim().replace(/^\((.*)\)$/, '$1');
-    if (txt.length < 40 || s.querySelector('a')) return;
-    const t = document.createElement('span');
-    t.className = 'tip';
-    t.tabIndex = 0;
-    t.dataset.tip = txt;
-    t.setAttribute('aria-label', txt);
-    t.textContent = 'ⓘ';
-    // Het label is een kolom: de tekst ervoor en de ⓘ samen op één regel
-    const line = document.createElement('span');
-    line.className = 'lbl-line';
-    const label = s.parentElement;
-    while (label.firstChild && label.firstChild !== s) line.append(label.firstChild);
-    line.append(t);
-    s.replaceWith(line);
-  });
+  // 1.241.0: lange toelichtingen, title-uitleg en de veldhulp worden één ⓘ (tikken, ook op een telefoon)
+  fieldHelp(tab);
 }
 
 // Alleen "meer uitleg" tonen als de alinea echt is ingekort (dat hangt af van de breedte)
@@ -1660,6 +1645,8 @@ async function loadSettings() {
   idsModeInfo();
   backupFormToggle();
   initSmartFields(f);   // 1.239.0
+  fieldHelp(f);   // 1.241.0: ⓘ bij de velden
+  fieldHelpRefresh($('#tab-settings'));
   markSettingsDirty(false);
   applySettingsLayout();
   loadBackups();

@@ -5666,3 +5666,14 @@ span.app-sum-b { cursor: default; }
 .sl-in { flex: 1 1 10rem; min-width: 8rem; border: 0 !important; background: transparent !important; box-shadow: none !important; padding: 4px !important; outline: none; }
 .sl-in.bad { color: var(--crit); }
 .sl-err { flex-basis: 100%; }
+/* 1.241.0: ⓘ-veldhulp: uitleg, eenheid, bereik en aanbevolen waarde bij een veld */
+.fh-i { display: inline-flex; align-items: center; justify-content: center; width: 1.25rem; height: 1.25rem; margin: 0 .3rem; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--primary); font-size: .95rem; line-height: 1; cursor: pointer; vertical-align: middle; }
+.fh-i:hover, .fh-i:focus-visible, .fh-i[aria-expanded="true"] { background: color-mix(in srgb, var(--primary) 14%, transparent); outline: none; }
+.fh-eq { display: inline-block; margin-left: .45rem; color: var(--muted); font-size: .8rem; font-weight: 400; }
+.fh-eq:empty { display: none; }
+.fh-pop { display: block; flex-basis: 100%; margin: .4rem 0 .2rem; padding: .6rem .8rem; border-left: 3px solid var(--primary); border-radius: 0 10px 10px 0; background: color-mix(in srgb, var(--primary) 7%, transparent); color: var(--text); font-size: .84rem; font-weight: 400; line-height: 1.5; cursor: default; }
+.fh-h { display: block; }
+.fh-rows { display: grid; grid-template-columns: max-content 1fr; gap: .15rem .8rem; margin-top: .45rem; }
+.fh-k { color: var(--muted); }
+.fh-v { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.fh-use { padding: .1rem .55rem; font-size: .78rem; }

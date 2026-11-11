@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.241.0**: **ⓘ bij de velden**: uitleg, eenheid, bereik en aanbevolen waarde (met één tik te gebruiken), ook op je telefoon.
 - **1.240.0**: **keuzelijsten uit je netwerk**: kies apparaten en servers bij adressen, check-doelen, DNS-server, UniFi, Ollama en AdGuard.
 - **1.239.0**: **slimme invulvelden**: kies netwerken, whitelist-adressen, gebruikers, e-mailadressen en domeinen in plaats van ze opnieuw te typen; *Lokale netwerken* blijft gekoppeld.
 - **1.238.0**: **updates voor meerdere servers in één keer instellen**, gespreid zodat ze nooit allemaal tegelijk herstarten.
 - **1.237.0**: **onder de motorkap opgeruimd**: één definitie van RzSense zelf en privé-adressen, één manier voor "al gemeld" en limieten, en een zuiniger agent (1.95.0).
-- **1.236.0**: **opgeruimd**: beschermingen, regels, whitelist, status en functies, en bewaartermijnen staan elk op één plek.
+
+## 1.241.0 – 2026-11-11
+### Nieuw
+- **ⓘ bij de velden**: tik op ⓘ naast een veld en je ziet wat het doet, in welke eenheid, het bereik, wat 0 of leeg betekent en de **aanbevolen waarde**, met een knop **Gebruiken**. Werkt ook op een telefoon (tikken in plaats van met de muis erboven hangen).
+  - Voor ruim 50 instellingen met getallen (alarmgedrag, AI, IDS, inlogbeveiliging, logs, internet, bewaren) en in vensters (heartbeat, commando-checks, databasecheck).
+  - Naast grote getallen staat wat ze betekenen, bv. *1440 minuten ≈ 1 dag* of *730 dagen ≈ 2 jaar*.
+  - Lange toelichtingen boven een veld en uitleg die alleen met de muis zichtbaar was, staan nu achter dezelfde ⓘ; de oude ⓘ (alleen met de muis) is vervangen.
+- **Zelfde eenheid voor leerperiodes**: de basismeting van het IDS staat nu in **dagen**, net als de leerperiode van afwijkingen en onbekende programma's. Je instelling blijft gelijk (24 uur = 1 dag).
+
+### Opgelost
+- Test: de Analyse-adviezen worden niet meer uit een cache van een eerdere testrun gehaald.
 
 ## 1.240.0 – 2026-11-11
 ### Nieuw
