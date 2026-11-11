@@ -3056,39 +3056,7 @@ body.lay-cc .pcard > .kpis, body.lay-cc .pcard > .attn-sec, body.lay-cc .pcard >
 .pg-hbar b { text-align: right; font-variant-numeric: tabular-nums; }
 body.lay-cc .pcard > .cc-card { height: 100%; }
 
-/* ---------------- De CC-stijl op alle pagina's (volgt licht en donker) */
-body.lay-cc {
-  --bg: var(--fx-bg); --bg-2: var(--fx-bg2); --card: var(--fx-bg2); --card-2: color-mix(in srgb, var(--fx-cy) 5%, var(--fx-bg));
-  --border: var(--fx-bd); --text: var(--fx-tx); --muted: var(--fx-mu); --primary: var(--fx-cy); --ok: var(--fx-ok); --warn: var(--fx-wa); --crit: var(--fx-cr);
-  --shadow: var(--fx-shadow);
-  /* 1.163.1: zonder zichtbaar raster; alleen de zachte gloed */
-  background: radial-gradient(1100px 520px at 75% 0%, var(--fx-glow1), transparent 60%), radial-gradient(800px 500px at 0% 100%, var(--fx-glow2), transparent 60%), var(--fx-bg);
-  background-attachment: fixed;
-}
-/* 1.163.1: geen backdrop-filter: die maakte van de zijbalk het kader voor het zwevende accountmenu, dat daardoor werd afgeknipt */
-body.lay-cc .app-top, body.lay-cc .side { background: var(--fx-bg); border-color: var(--fx-bd); }
-body.lay-cc .tab.active, body.lay-cc .tab[aria-selected="true"] { box-shadow: inset 3px 0 0 var(--fx-cy); }
-/* Kaarten: glas, dunne gloeiende bovenrand */
-body.lay-cc .card, body.lay-cc .kpi, body.lay-cc .host, body.lay-cc .alert-day, body.lay-cc .attn, body.lay-cc .ok-item, body.lay-cc .hm-row, body.lay-cc .cc-card {
-  background: linear-gradient(160deg, var(--fx-bg2), var(--fx-bg)); border-color: var(--fx-bd); box-shadow: var(--fx-shadow); border-radius: 16px; }
-body.lay-cc .card, body.lay-cc .kpi, body.lay-cc .attn, body.lay-cc .cc-card { position: relative; overflow: hidden; }
-body.lay-cc .card::after, body.lay-cc .kpi::after, body.lay-cc .attn::after, body.lay-cc .cc-card::after {
-  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; pointer-events: none;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--fx-cy) 65%, transparent), transparent); }
-body.lay-cc .kpi-lbl, body.lay-cc .card > h2:first-child, body.lay-cc .sec-h h2 { letter-spacing: .12em; text-transform: uppercase; font-size: .74rem; color: var(--fx-cy); }
-body.lay-cc .kpi-val, body.lay-cc .hc b, body.lay-cc .km-v, body.lay-cc .dchip b { font-family: var(--mono, ui-monospace, "JetBrains Mono", monospace); }
-/* Chips, knoppen en velden */
-body.lay-cc .hc, body.lay-cc .dchip, body.lay-cc .seg, body.lay-cc .btn:not(.primary), body.lay-cc .icon-btn {
-  background: color-mix(in srgb, var(--fx-cy) 6%, transparent); border-color: var(--fx-bd); }
-body.lay-cc .hc.on, body.lay-cc .dchip.on, body.lay-cc .seg-btn.active { border-color: var(--fx-cy); color: var(--fx-cy); box-shadow: 0 0 0 1px color-mix(in srgb, var(--fx-cy) 25%, transparent) inset; }
-body.lay-cc .seg-btn.active { background: color-mix(in srgb, var(--fx-cy) 16%, transparent); }
-body.lay-cc .btn.primary { background: var(--fx-cy); border-color: var(--fx-cy); color: var(--fx-bg); }
-body.lay-cc input:not([type=checkbox]):not([type=radio]):not([type=range]), body.lay-cc select, body.lay-cc textarea {
-  background: color-mix(in srgb, var(--fx-bg) 70%, transparent); border-color: var(--fx-bd); color: var(--fx-tx); }
-body.lay-cc input:focus, body.lay-cc select:focus, body.lay-cc textarea:focus { border-color: var(--fx-cy); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fx-cy) 20%, transparent); outline: none; }
-body.lay-cc .switch input:checked + span { background: var(--fx-cy); box-shadow: 0 0 10px color-mix(in srgb, var(--fx-cy) 45%, transparent); }
-body.lay-cc table th { color: var(--fx-cy); letter-spacing: .06em; }
-body.lay-cc dialog .modal-inner { background: linear-gradient(160deg, var(--fx-bg2), var(--fx-bg)); border: 1px solid var(--fx-bd); }
+/* 1.244.0: de lay-out CC bepaalt alleen de opbouw (raster van versleepbare kaarten); het uiterlijk komt van het thema */
 /* 1.159.0: donut en tweekoloms balken */
 .pg-donut { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 .pg-dn { font: 800 18px var(--mono, ui-monospace, monospace); fill: var(--fx-tx); }

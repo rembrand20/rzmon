@@ -1995,7 +1995,9 @@ function renderAlertCharts() {
 /** Rode gloed en live-animaties (Mijn account → Weergave, per account; standaard aan) */
 const monGlow = () => PREFS.mon_glow !== 'off';
 // 1.201.0: Liquid Glass (standaard uit) en de laadanimatie (standaard aan), per account
-const monGlass = () => PREFS.mon_glass === 'on';
+/** 1.244.0: het thema (Standaard, @S, Liquid Glass); een oude Liquid Glass-schakelaar telt als het thema Liquid Glass */
+const skinCur = () => (['std', 's', 'glass'].includes(PREFS.skin) ? PREFS.skin : PREFS.mon_glass === 'on' ? 'glass' : 'std');
+const monGlass = () => skinCur() === 'glass';
 const monLoader = () => PREFS.mon_loader !== 'off';
 const monVivid = () => PREFS.mon_vivid === 'on';   // 1.216.0: Liquid Glass levendig (anders rustig)
 const MON_PREF_KEY = { glow: 'mon_glow', anim: 'mon_anim', glass: 'mon_glass', loader: 'mon_loader', vivid: 'mon_vivid' };
@@ -2013,9 +2015,11 @@ function applyMonPrefs() {
   document.body.classList.toggle('no-anim', !monAnim());
   document.body.classList.toggle('lg', monGlass());
   document.body.classList.toggle('no-loader', !monLoader());
-  document.body.classList.toggle('lg-vivid', monVivid());
+  document.body.classList.toggle('lg-vivid', monGlass() && monVivid());
+  document.body.classList.toggle('sk-s', skinCur() === 's');
+  if ($('#vivid-row')) $('#vivid-row').hidden = !monGlass();   // levendige kleuren alleen bij Liquid Glass
   if (window.RzPulse) RzPulse.refreshColors();
-  $$('[data-mon-pref]').forEach((c) => { c.checked = { glow: monGlow, anim: monAnim, glass: monGlass, loader: monLoader, vivid: monVivid }[c.dataset.monPref](); });
+  $$('[data-mon-pref]').forEach((c) => { c.checked = ({ glow: monGlow, anim: monAnim, glass: monGlass, loader: monLoader, vivid: monVivid }[c.dataset.monPref] || (() => false))(); });
   // 1.162.0: IDS-weergave en beweging, per account (standaard: wat de beheerder instelde)
   const vc = $('.view-card');
   if (vc) {

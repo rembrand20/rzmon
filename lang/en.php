@@ -10102,4 +10102,13 @@ return [
     'Stijl' => 'Style',
     'De gewone stijl van RzSense' => 'The regular RzSense style',
     'Rustig en licht, in de stijl van Apple: witte kaarten, zachte schaduw, één accentkleur' => 'Calm and light, in Apple\'s style: white cards, soft shadows, one accent colour',
+    'Glas' => 'Glass',
+    'Licht/donker' => 'Light/dark',
+    '(hoe de pagina\'s zijn opgebouwd)' => '(how the pages are laid out)',
+    '(hoe het eruitziet)' => '(how it looks)',
+    'Kaarten, menu\'s en vensters als glas, met licht dat er zacht achter beweegt' => 'Cards, menus and windows as glass, with light moving softly behind them',
+    'Volgt je computer of telefoon' => 'Follows your computer or phone',
+    'Auto' => 'Auto',
+    'Licht' => 'Light',
+    'Donker' => 'Dark',
 ];

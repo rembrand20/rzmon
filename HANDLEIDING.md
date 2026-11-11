@@ -255,7 +255,7 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
 - **Rode gloed**: een server met een onbevestigde critical pulseert zacht.
 - Beide zet je uit bij **Mijn account → Weergave** (*Rode gloed bij critical* en *Live animaties*, per account). Staat je systeem op *minder beweging*, dan beweegt er niets.
 
-**Liquid Glass** (vanaf 1.201.0, **Mijn account → Weergave**, per account, standaard uit): kaarten, menu's, de tabbalk en vensters worden doorschijnend glas met blur, een lichte rand aan de bovenkant en een glans die je muis volgt. Achter het glas beweegt heel traag een zacht licht in de kleuren van RzSense. De indeling, de statuskleuren en licht/donker/automatisch blijven precies hetzelfde. Kan je browser geen blur, dan zie je het gewone uiterlijk; met *minder beweging* staat het licht stil.
+**Liquid Glass** (vanaf 1.201.0; sinds 1.244.0 een **thema**, te kiezen bij **Mijn account → Weergave → Thema**, per account): kaarten, menu's, de tabbalk en vensters worden doorschijnend glas met blur, een lichte rand aan de bovenkant en een glans die je muis volgt. Achter het glas beweegt heel traag een zacht licht in de kleuren van RzSense. De indeling, de statuskleuren en licht/donker/automatisch blijven precies hetzelfde. Kan je browser geen blur, dan zie je het gewone uiterlijk; met *minder beweging* staat het licht stil.
 
 **Laadanimatie** (vanaf 1.201.0, **Mijn account → Weergave**, per account, standaard aan):
 - **Bij het openen** van RzSense: RzSense in het midden en je servers eromheen; een radar veegt rond. Zodra de status binnen is, lichten je eigen servers (de ergste eerst, hooguit 12) een voor een op in hun statuskleur en sturen ze een pakketje naar het midden. Onderaan loopt een hartslag. Na ongeveer een seconde verdwijnt het scherm vanzelf; het houdt het laden niet op.
@@ -267,6 +267,8 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
 - na **1,5 s** de pols-animatie over de pagina (niet over het hele scherm), met per onderdeel ✓ of … (bijvoorbeeld *Incidenten ✓ · Toegang …*). Staat de *Laadanimatie* uit, dan blijft het bij het balkje en de teller;
 - na **8 s** *Dit duurt langer dan normaal (meestal X s)* met **↻ Opnieuw**. RzSense onthoudt in je browser hoe lang elke pagina meestal duurt.
 - Gaat het sneller dan 0,4 s, dan zie je niets. Verversen op de achtergrond (live) toont de teller nooit.
+
+**Lay-out en thema** (vanaf 1.244.0, **Mijn account → Weergave** of het accountmenu): twee losse keuzes. De **lay-out** is hoe de pagina's zijn opgebouwd: *Blox* (een tegel per server), *L1nes* (servers onder elkaar), *Compact* (een blokje per check) of *CC* (versleepbare kaarten in een raster). Het **thema** is hoe het eruitziet: *Standaard*, *@S* of *Liquid Glass*, elk in licht, donker of automatisch (*Licht/donker*). Elke lay-out werkt met elk thema. De lay-out CC heeft sinds 1.244.0 geen eigen uiterlijk meer.
 
 **Thema @S** (vanaf 1.243.0, **Mijn account → Weergave → Stijl**, of het accountmenu ✦ *Stijl*; per account, standaard uit): RzSense in de stijl van Apple. De systeemletter (op een Mac of iPhone is dat SF), een grijze achtergrond met witte kaarten zonder randen en met een zachte schaduw, grote paginatitels, één blauwe accentkleur, segmenten en schakelaars zoals op macOS en iOS (groen als ze aan staan), en een doorschijnende zijbalk. In donker wordt de achtergrond zwart met donkergrijze kaarten. Licht/donker/automatisch, de lay-outs en Liquid Glass werken er gewoon mee samen; *Standaard* zet de gewone stijl terug.
 

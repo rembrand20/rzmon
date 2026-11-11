@@ -66,8 +66,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <?php if ($userTheme === null): ?><script nonce="<?= csp_nonce() ?>">try{const t=localStorage.getItem('rzmon-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script><?php endif; ?>
 </head>
 <?php $sidePrefs = json_decode((string) ($prefsJson ?? ''), true) ?: []; $sideW = (int) ($sidePrefs['side_w'] ?? 0);
+$skin = in_array($sidePrefs['skin'] ?? '', ['std', 's', 'glass'], true) ? $sidePrefs['skin'] : (($sidePrefs['mon_glass'] ?? '') === 'on' ? 'glass' : 'std');   // 1.244.0: oude Liquid Glass-schakelaar = thema Liquid Glass
 // 1.201.0: Liquid Glass en de laadanimatie, per account (meteen goed bij het laden, zonder flits)
-$bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '', ($sidePrefs['mon_glass'] ?? '') === 'on' ? 'lg' : '', ($sidePrefs['mon_loader'] ?? '') === 'off' ? 'no-loader' : '', ($sidePrefs['mon_vivid'] ?? '') === 'on' ? 'lg-vivid' : '', ($sidePrefs['skin'] ?? '') === 's' ? 'sk-s' : '']);   // 1.243.0: thema @S ?>
+$bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '', $skin === 'glass' ? 'lg' : '', ($sidePrefs['mon_loader'] ?? '') === 'off' ? 'no-loader' : '', $skin === 'glass' && ($sidePrefs['mon_vivid'] ?? '') === 'on' ? 'lg-vivid' : '', $skin === 's' ? 'sk-s' : '']);   // 1.244.0: thema (Standaard, @S, Liquid Glass) ?>
 <body<?= $bodyCls ? ' class="' . implode(' ', $bodyCls) . '"' : '' ?><?= $sideW >= 180 && $sideW <= 380 ? ' style="--side-w:' . $sideW . 'px"' : '' ?> data-role="<?= htmlspecialchars($role) ?>"<?php if ($user && !$mustChange && !$resetToken): ?> data-prefs="<?= htmlspecialchars($prefsJson ?? 'local') ?>"<?php endif; ?>>
 <?php if ($resetToken): ?>
   <main class="login-wrap"><?= Brand::hudBg() ?>
@@ -204,9 +205,9 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <?php if ($role === 'admin' || $role === 'user'): ?><button type="button" role="menuitem" data-acct="settings">⚙️ <?= th('Instellingen') ?></button><?php endif; ?>
           <?php if (!$hasAccount): ?><a role="menuitem" class="acct-item" href="index.php?login=1">🔑 <?= th('Inloggen met je account') ?></a><?php endif; ?>
           <div class="acct-sep"></div>
-          <div class="acct-row">🌓 <?= th('Thema') ?> <span class="seg" id="theme-seg"><button type="button" data-theme-set="auto">auto</button><button type="button" data-theme-set="light"><?= th('licht') ?></button><button type="button" data-theme-set="dark"><?= th('donker') ?></button></span></div>
-          <div class="acct-row">✦ <?= th('Stijl') ?> <span class="seg" id="skin-seg"><button type="button" data-skin-set="std"><?= th('Standaard') ?></button><button type="button" data-skin-set="s">@S</button></span></div>
           <div class="acct-row">◈ <?= th('Lay-out') ?> <span class="seg" id="dash-seg"><button type="button" data-view-layout="blox">Blox</button><button type="button" data-view-layout="l1nes">L1nes</button><button type="button" data-view-layout="compact">Compact</button><button type="button" data-view-layout="cc">CC</button></span></div>
+          <div class="acct-row">✦ <?= th('Thema') ?> <span class="seg" id="skin-seg"><button type="button" data-skin-set="std"><?= th('Standaard') ?></button><button type="button" data-skin-set="s">@S</button><button type="button" data-skin-set="glass"><?= th('Glas') ?></button></span></div>
+          <div class="acct-row">🌓 <?= th('Licht/donker') ?> <span class="seg" id="theme-seg"><button type="button" data-theme-set="auto">auto</button><button type="button" data-theme-set="light"><?= th('licht') ?></button><button type="button" data-theme-set="dark"><?= th('donker') ?></button></span></div>
           <div class="acct-row">🌐 <?= th('Taal') ?> <span class="seg" id="lang-seg"><button type="button" data-lang-set="nl" class="<?= I18n::lang() === 'nl' ? 'active' : '' ?>">NL</button><button type="button" data-lang-set="en" class="<?= I18n::lang() === 'en' ? 'active' : '' ?>">EN</button></span></div>
           <?php if ($hasAccount): ?><div class="acct-sep"></div><button type="button" role="menuitem" id="logout" class="danger-txt">⏻ <?= th('Uitloggen') ?></button><?php endif; ?>
         </div>
@@ -1900,19 +1901,28 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           </div>
         </div>
         <div class="view-row">
-          <span class="view-label"><?= th('Stijl') ?></span>
-          <div class="seg" role="group" aria-label="<?= th('Stijl') ?>">
-            <button type="button" class="seg-btn" data-skin-set="std" title="<?= th('De gewone stijl van RzSense') ?>"><?= th('Standaard') ?></button>
-            <button type="button" class="seg-btn" data-skin-set="s" title="<?= th('Rustig en licht, in de stijl van Apple: witte kaarten, zachte schaduw, één accentkleur') ?>">@S</button>
-          </div>
-        </div>
-        <div class="view-row">
-          <span class="view-label"><?= th('Lay-out') ?></span>
+          <span class="view-label"><?= th('Lay-out') ?> <span class="hint"><?= th('(hoe de pagina\'s zijn opgebouwd)') ?></span></span>
           <div class="seg" role="group" aria-label="<?= th('Lay-out') ?>">
             <button type="button" class="seg-btn" data-view-layout="blox" title="<?= th('Een tegel per server') ?>">▦ Blox</button>
             <button type="button" class="seg-btn" data-view-layout="l1nes" title="<?= th('Servers onder elkaar, als een tabel') ?>">☰ L1nes</button>
             <button type="button" class="seg-btn" data-view-layout="compact" title="<?= th('Eén blokje per check: veel checks tegelijk, of voor een TV-scherm') ?>">▪ Compact</button>
             <button type="button" class="seg-btn" data-view-layout="cc" title="<?= th('Alles in de stijl van het Command center, met versleepbare kaarten') ?>">◈ CC</button>
+          </div>
+        </div>
+        <div class="view-row">
+          <span class="view-label"><?= th('Thema') ?> <span class="hint"><?= th('(hoe het eruitziet)') ?></span></span>
+          <div class="seg" role="group" aria-label="<?= th('Thema') ?>">
+            <button type="button" class="seg-btn" data-skin-set="std" title="<?= th('De gewone stijl van RzSense') ?>"><?= th('Standaard') ?></button>
+            <button type="button" class="seg-btn" data-skin-set="s" title="<?= th('Rustig en licht, in de stijl van Apple: witte kaarten, zachte schaduw, één accentkleur') ?>">@S</button>
+            <button type="button" class="seg-btn" data-skin-set="glass" title="<?= th('Kaarten, menu\'s en vensters als glas, met licht dat er zacht achter beweegt') ?>">Liquid Glass</button>
+          </div>
+        </div>
+        <div class="view-row">
+          <span class="view-label"><?= th('Licht/donker') ?></span>
+          <div class="seg" role="group" aria-label="<?= th('Licht/donker') ?>">
+            <button type="button" class="seg-btn" data-theme-set="auto" title="<?= th('Volgt je computer of telefoon') ?>"><?= th('Auto') ?></button>
+            <button type="button" class="seg-btn" data-theme-set="light"><?= th('Licht') ?></button>
+            <button type="button" class="seg-btn" data-theme-set="dark"><?= th('Donker') ?></button>
           </div>
         </div>
         <div class="view-row">
@@ -1923,8 +1933,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           </div>
         </div>
         <label class="switch"><input type="checkbox" data-mon-pref="glow"><span></span> <span><?= t('<b>Rode gloed bij critical</b>: een server met een critical check pulseert zacht') ?> <span class="hint"><?= th('(voor je account)') ?></span></span></label>
-        <label class="switch"><input type="checkbox" data-mon-pref="glass"><span></span> <span><?= t('<b>Liquid Glass</b>: kaarten, menu\'s en vensters als glas, met licht dat er zacht achter beweegt') ?> <span class="hint"><?= th('(voor je account; licht en donker blijven werken)') ?></span></span></label>
-        <label class="switch"><input type="checkbox" data-mon-pref="vivid"><span></span> <span><?= t('<b>Levendige kleuren</b> bij Liquid Glass: blauw, turquoise en paars licht en sterkere glans (uit = rustig, alleen blauw)') ?> <span class="hint"><?= th('(voor je account)') ?></span></span></label>
+        <label class="switch" id="vivid-row"><input type="checkbox" data-mon-pref="vivid"><span></span> <span><?= t('<b>Levendige kleuren</b> bij Liquid Glass: blauw, turquoise en paars licht en sterkere glans (uit = rustig, alleen blauw)') ?> <span class="hint"><?= th('(voor je account)') ?></span></span></label>
         <label class="switch"><input type="checkbox" data-mon-pref="loader"><span></span> <span><?= t('<b>Laadanimatie</b>: bij het openen lichten je servers een voor een op, en overal waar je moet wachten loopt een hartslag') ?> <span class="hint"><?= th('(voor je account; met "minder beweging" stilstaand)') ?></span></span></label>
         <label class="switch"><input type="checkbox" data-mon-pref="anim"><span></span> <span><?= t('<b>Live animaties</b>: getallen lopen naar de nieuwe waarde en een statuswissel licht even op') ?> <span class="hint"><?= th('(voor je account; staat je systeem op "minder beweging", dan altijd uit)') ?></span></span></label>
         <h3 class="set-sub">🛡️ <?= th('IDS') ?></h3>

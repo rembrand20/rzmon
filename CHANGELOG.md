@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.244.0**: **lay-out en thema los van elkaar**: kies een opbouw (Blox, L1nes, Compact, CC) en daarbovenop een thema (Standaard, @S, Liquid Glass), licht of donker.
 - **1.243.0**: **thema @S**: RzSense in de stijl van Apple, rustig en licht, te kiezen per account (licht en donker).
 - **1.242.0**: **uitleg overal**: elke kaart, elk tabblad en de belangrijke vensters zeggen wat ze doen, hoe je ze instelt en wat goed is om te weten.
 - **1.241.0**: **ⓘ bij de velden**: uitleg, eenheid, bereik en aanbevolen waarde (met één tik te gebruiken), ook op je telefoon.
 - **1.240.0**: **keuzelijsten uit je netwerk**: kies apparaten en servers bij adressen, check-doelen, DNS-server, UniFi, Ollama en AdGuard.
-- **1.239.0**: **slimme invulvelden**: kies netwerken, whitelist-adressen, gebruikers, e-mailadressen en domeinen in plaats van ze opnieuw te typen; *Lokale netwerken* blijft gekoppeld.
+
+## 1.244.0 – 2026-11-11
+### Nieuw
+- **Lay-out en thema los van elkaar**: de **lay-out** bepaalt hoe de pagina's zijn opgebouwd (Blox, L1nes, Compact of CC), het **thema** hoe ze eruitzien (**Standaard**, **@S** of **Liquid Glass**). Elke lay-out werkt met elk thema, en elk thema in licht, donker of automatisch.
+  - Kiezen bij **Mijn account → Weergave** (Lay-out, Thema, Licht/donker) of in het **accountmenu**.
+  - **Liquid Glass** is nu een thema in plaats van een schakelaar. Had je hem aan staan, dan is dat vanzelf je thema geworden. *Levendige kleuren* staat er alleen bij als Liquid Glass gekozen is.
+  - **Licht/donker** kies je nu ook in Mijn account (eerder alleen in het accountmenu).
+
+### Veranderd
+- De lay-out **CC** bepaalt alleen nog de opbouw (raster van versleepbare kaarten). De eigen neon-look van CC (cyaan, techletter, gloeiende randen) is weg; het uiterlijk komt van het gekozen thema.
 
 ## 1.243.1 – 2026-11-11
 ### Opgelost

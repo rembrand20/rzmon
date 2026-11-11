@@ -480,6 +480,8 @@ function init() {
   document.addEventListener('click', (e) => { const b = e.target.closest('[data-view-layout]'); if (b) setLayout(b.dataset.viewLayout); });
   // 1.243.0: thema @S (Apple-stijl), per account; licht en donker blijven werken
   document.addEventListener('click', (e) => { const b = e.target.closest('[data-skin-set]'); if (b) setSkin(b.dataset.skinSet); });
+  // 1.244.0: licht/donker ook in Mijn account (het accountmenu heeft zijn eigen afhandeling)
+  document.addEventListener('click', (e) => { const b = e.target.closest('[data-theme-set]'); if (b && !b.closest('#acct')) setTheme(b.dataset.themeSet); });
   markSkin();
   // 1.157.0: rode gloed en live-animaties (per account)
   $$('[data-mon-pref]').forEach((c) => (c.onchange = () => { savePref(MON_PREF_KEY[c.dataset.monPref], c.checked ? 'on' : 'off'); applyMonPrefs(); }));
@@ -895,15 +897,16 @@ function hostMax(h, type) {
   return v.length ? Math.max(...v) : null;
 }
 
-// ---------------------------------------------------------------- 1.243.0: thema @S (Apple-stijl)
+// ---------------------------------------------------------------- 1.243.0 / 1.244.0: thema (Standaard, @S, Liquid Glass)
 function markSkin() {
-  const cur = document.body.classList.contains('sk-s') ? 's' : 'std';
+  const cur = skinCur();
   $$('[data-skin-set]').forEach((b) => { b.classList.toggle('active', b.dataset.skinSet === cur); b.setAttribute('aria-pressed', b.dataset.skinSet === cur ? 'true' : 'false'); });
 }
 function setSkin(v) {
-  const on = v === 's';
-  document.body.classList.toggle('sk-s', on);
-  savePref('skin', on ? 's' : 'std');
+  v = ['s', 'glass'].includes(v) ? v : 'std';
+  savePref('skin', v);
+  savePref('mon_glass', v === 'glass' ? 'on' : 'off');   // de oude schakelaar gelijk houden
+  applyMonPrefs();
   markSkin();
   if (window.RzPulse) RzPulse.refreshColors();   // grafieken en meters lezen de kleuren opnieuw
   requestAnimationFrame(() => moveTabIndicator(false));

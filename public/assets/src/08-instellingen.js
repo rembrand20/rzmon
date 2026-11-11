@@ -527,13 +527,7 @@ function initAccountMenu() {
     const ds = e.target.closest('[data-dash-set]');   // 1.154.0: welk dashboard
     if (ds) { open(false); showTab('home'); return ccSetDash(ds.dataset.dashSet); }
     const th = e.target.closest('[data-theme-set]');
-    if (th) {
-      const v = th.dataset.themeSet;
-      if (v === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = v;
-      try { v === 'auto' ? localStorage.removeItem('rzmon-theme') : localStorage.setItem('rzmon-theme', v); } catch (ex) {}
-      if (!prefsLocal) savePref('theme', v);   // 1.135.0: per gebruiker, op elk apparaat
-      return markTheme();
-    }
+    if (th) return setTheme(th.dataset.themeSet);
     const lg = e.target.closest('[data-lang-set]');
     if (lg && !lg.classList.contains('active')) {
       try { await api('lang_set', { lang: lg.dataset.langSet }); location.reload(); } catch (ex) { toast(ex.message, 'err'); }
@@ -682,6 +676,14 @@ function initSideToggle() {
   draw();
   b.onclick = () => sideSetMini(!document.body.classList.contains('side-mini'), true);
   if (SIDE_AUTO.addEventListener) SIDE_AUTO.addEventListener('change', () => { sideAutoOff = false; draw(); });
+}
+/** Licht, donker of automatisch (1.135.0: per gebruiker, op elk apparaat) */
+function setTheme(v) {
+  if (v === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = v;
+  try { v === 'auto' ? localStorage.removeItem('rzmon-theme') : localStorage.setItem('rzmon-theme', v); } catch (ex) {}
+  if (!prefsLocal) savePref('theme', v);
+  if (window.RzPulse) RzPulse.refreshColors();
+  markTheme();
 }
 function markTheme() {
   const cur = document.documentElement.dataset.theme || 'auto';
