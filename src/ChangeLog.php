@@ -11,12 +11,7 @@ declare(strict_types=1);
  */
 final class ChangeLog
 {
-    /** Instellingen die RzSense zelf bijhoudt (geen wijziging van een mens) */
-    private const VOLATILE = '/^(cron_|update_cache|update_auto_day|update_pinned_at|.*_state$|.*_seen$|.*_check_at$|.*_domain_at$|ipintel_|hibp_wait|hibp_last_error|hibp_domain_error|hibp_rpm|'
-        . 'vuln_daily|vuln_last|vuln_kev|vuln_cache|selfcheck_|db_size_hist|task_watch|mqtt_last|mqtt_discovery|backup_last|backup_retry|backup_fail|templates_seeded|https_since|https_check|'
-        . 'own_cert_|proxy_unknown|hsts_sent|cleanup_ignore|maintenance_|ids_weekly_last|agent_fb|enc_old|sec_|stealth_last|wl_last|tests_rev|.*_notified$)/';
-    /** Geheimen: niet tonen, niet terugzetten */
-    private const SECRET = '/(pass|token|secret|_key$|^enc_key|community|api_key|hibp_key|smtp_pass|mqtt_pass)/i';
+    // 1.234.2: welke instellingen geheim of zelf bijgehouden zijn: SettingsMeta
 
     public static function settingsSnapshot(): array
     {
@@ -28,10 +23,10 @@ final class ChangeLog
     {
         $b = $a = [];
         foreach (array_unique([...array_keys($before), ...array_keys($after)]) as $k) {
-            if (preg_match(self::VOLATILE, (string) $k) || ($before[$k] ?? null) === ($after[$k] ?? null)) {
+            if (SettingsMeta::isBookkeeping((string) $k) || ($before[$k] ?? null) === ($after[$k] ?? null)) {
                 continue;
             }
-            $secret = (bool) preg_match(self::SECRET, (string) $k);
+            $secret = SettingsMeta::isSecret((string) $k);
             $b[$k] = $secret ? '••••••••' : ($before[$k] ?? null);
             $a[$k] = $secret ? '••••••••' : ($after[$k] ?? null);
         }
@@ -150,7 +145,7 @@ final class ChangeLog
     {
         $n = 0;
         foreach ($b as $k => $v) {
-            if ($v === '••••••••' || preg_match(self::SECRET, (string) $k)) {
+            if ($v === '••••••••' || SettingsMeta::isSecret((string) $k)) {
                 continue;
             }
             if ($v === null) {

@@ -1413,15 +1413,6 @@ function init() {
     try { const r = await api('ipintel_update', { geo: true }); toast(r.result); ipintelShow(r); } catch (ex) { toast(ex.message, 'err'); }
     e.target.disabled = false;
   };
-  if ($('#ids-weekly-test')) $('#ids-weekly-test').onclick = async (e) => {   // 1.180.0: staat nu bij Rapporten
-    e.target.disabled = true;
-    try {
-      const r = await api('ids_weekly_test', {});
-      toast(r.result);
-      modal({ title: '📬 ' + L('Wekelijks overzicht'), body: `<pre class="code" style="white-space:pre-wrap">${esc(r.text)}</pre>`, buttons: [{ label: L('Sluiten'), cls: 'primary', submit: true }] });
-    } catch (ex) { toast(ex.message, 'err'); }
-    e.target.disabled = false;
-  };
   $('#ids-enabled').onchange = async (e) => {
     try { await api('ids_set', { enabled: e.target.checked }); toast(e.target.checked ? L('IDS aangezet') : L('IDS uitgezet')); }
     catch (ex) { toast(ex.message, 'err'); e.target.checked = !e.target.checked; }

@@ -99,20 +99,13 @@ final class Reports
     /** E-mailadressen uit een lijst (komma, puntkomma, spatie of regeleinde ertussen): geldig, zonder dubbele, in kleine letters */
     public static function addrs(string $s): array
     {
-        $out = [];
-        foreach (preg_split('/[,;\s]+/', $s) ?: [] as $a) {
-            $a = strtolower(trim($a));
-            if ($a !== '' && filter_var($a, FILTER_VALIDATE_EMAIL)) {
-                $out[$a] = true;
-            }
-        }
-        return array_slice(array_keys($out), 0, self::MAX_TO);
+        return array_slice(email_list($s)['ok'], 0, self::MAX_TO);
     }
 
     /** Ongeldige adressen in een lijst (voor een duidelijke foutmelding bij opslaan) */
     public static function badAddrs(string $s): array
     {
-        return array_values(array_filter(array_map('trim', preg_split('/[,;\s]+/', $s) ?: []), static fn($a) => $a !== '' && !filter_var($a, FILTER_VALIDATE_EMAIL)));
+        return email_list($s)['bad'];
     }
 
     /**

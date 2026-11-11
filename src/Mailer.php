@@ -18,17 +18,16 @@ final class Mailer
     {
         $cfg ??= self::config();
         $to ??= (string) $cfg['mail_to'];
-        $recipients = array_values(array_filter(array_map('trim', preg_split('/[,;\s]+/', $to))));
+        $list = email_list($to);   // 1.234.2: dezelfde controle als overal
+        $recipients = $list['ok'];
         if ($cfg['smtp_host'] === '') {
             return ['ok' => false, 'error' => t('Geen SMTP-server ingesteld')];
         }
+        if ($list['bad']) {
+            return ['ok' => false, 'error' => t('Ongeldig e-mailadres') . ': ' . $list['bad'][0]];
+        }
         if (!$recipients) {
             return ['ok' => false, 'error' => t('Geen ontvanger ingesteld')];
-        }
-        foreach ($recipients as $r) {
-            if (!filter_var($r, FILTER_VALIDATE_EMAIL)) {
-                return ['ok' => false, 'error' => t('Ongeldig e-mailadres') . ": $r"];
-            }
         }
         $from = $cfg['mail_from'];
         if ($from === '') {

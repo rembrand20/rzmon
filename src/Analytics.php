@@ -606,35 +606,11 @@ final class Analytics
 
     // ------------------------------------------------------------------ maandrapport
 
+    /** Gaat er elke maand een rapport uit? (1.234.2: uit Rapporten: het Maandrapport, of het Maandoverzicht met het maandrapport erin) */
     public static function reportOn(): bool
     {
-        return setting('report_monthly', '0') === '1';
-    }
-
-    /** Vanuit cron: op de 1e van de maand (na 07:00) het rapport van de vorige maand versturen */
-    public static function monthlyCron(): ?string
-    {
-        if (!self::reportOn() || (int) date('j') !== 1 || (int) date('G') < 7) {
-            return null;
-        }
-        $month = date('Y-m', strtotime('first day of last month'));
-        if (setting('report_last', '') === $month) {
-            return null;
-        }
-        save_setting('report_last', $month);
-        $r = self::sendMonthly($month);
-        return 'Maandrapport ' . $month . ': ' . ($r['ok'] ? 'verstuurd' : 'mislukt (' . ($r['error'] ?? '?') . ')');
-    }
-
-    /** Het rapport van een maand (YYYY-MM) als tekst, per e-mail. @return array{ok: bool, error?: string} */
-    public static function sendMonthly(string $month): array
-    {
-        $from = "$month-01";
-        $to = date('Y-m-t', strtotime($from));
-        $r = I18n::forNotify(fn() => self::report("$from..$to"));
-        $body = I18n::forNotify(fn() => self::monthlyText($r, $month));
-        $subject = I18n::forNotify(fn() => t('RzSense-maandrapport {m}', ['m' => strftime_month($month)]));
-        return Mailer::send($subject, $body);
+        $c = Reports::cfg();
+        return $c['month']['on'] || ($c['all']['on'] && in_array('month', $c['all']['parts'], true));
     }
 
     private static function pctDelta(?float $now, ?float $prev, bool $lowerIsBetter = false): string

@@ -497,7 +497,8 @@ final class LogWatch
             $hostId, $status, mb_substr($title, 0, 250),
             mb_substr($message . ($errors ? ' [' . t('niet verzonden') . ': ' . implode('; ', $errors) . ']' : ''), 0, 1000),
             $pushover ? 1 : 0, $webhook === null ? null : ($webhook ? 1 : 0), $email === null ? null : ($email ? 1 : 0), $kind,
-            $ip, json_encode($detail, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), $key,
+            $ip !== null && @inet_pton((string) $ip) !== false ? mb_substr((string) $ip, 0, 45) : null,   // 1.234.2: alleen een echt IP-adres (zoals 1.223.3)
+            json_encode($detail, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), $key,
         ]);
         return (int) db()->lastInsertId();
     }

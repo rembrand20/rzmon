@@ -14,6 +14,17 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.231.0**: **tijdelijk sudo** met wachtwoord en 2FA dat vanzelf weer weggaat, een **AdGuard-blokkadelijst** uit RzSense, en **nieuw geregistreerde domeinen** herkennen.
 - **1.230.0**: **updates installeren**: beveiligingsupdates met één klik of automatisch in het onderhoudsvenster, eerst een snapshot, Home Assistant met een back-up.
 
+## 1.234.2 – 2026-11-11
+### Opgelost
+Fouten die ontstonden doordat dezelfde code op meerdere plekken stond:
+- **"Nu versturen" van het IDS-weekoverzicht en het maandrapport** gaat nu via *Rapporten*: met de eigen ontvangers, push en een regel in het logboek. De oude, niet meer gebruikte verstuurroutines zijn weg.
+- **E-mail alleen als Pushover mislukt** (*Meldingen → Kanalen*) gold niet voor beveiligingsmeldingen (niet-geautoriseerde verbinding); nu wel.
+- In de e-mail van een systeemmelding stond "Tijd:" altijd in het Nederlands.
+- **Export/import** nam de IP-adressen van de oude RzSense mee; de nieuwe server zag verkeer van die adressen dan als "RzSense zelf". Welke instellingen geheim zijn, door RzSense zelf worden bijgehouden of bij deze installatie horen, staat nu op één plek.
+- Bij logmeldingen komt alleen nog een echt IP-adres in de melding (zoals sinds 1.223.3 bij de rest).
+- **E-mailadressen** worden overal op dezelfde manier gecontroleerd. *Ontvanger(s)* bij *Instellingen → E-mail* wordt nu bij opslaan gecontroleerd (een typfout bleek eerst pas bij de eerste melding).
+- Het oude losse instellingsveld voor het maandrapport is weg; *Rapporten* is de enige plek.
+
 ## 1.234.1 – 2026-11-11
 ### Opgelost
 - **IDS-tabbladen zonder schuifbalk** en in een logische volgorde: eerst waar je iets doet, van belangrijk naar minder belangrijk (*Incidenten · Blokkades · Programma's · Jagen · Regels*), dan wat je bekijkt (*Afwijkingen · Bescherming · Toegang · Live · Aanvalskaart · MITRE*), met een scheiding ertussen. Op een breed scherm staat alles op één regel; past dat niet, dan acties op de eerste en informatie op de tweede regel. Op de telefoon veeg je door de tabbladen (zonder balk, de rand vervaagt). Ook de andere tabbalken tonen geen schuifbalk meer.

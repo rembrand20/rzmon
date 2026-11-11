@@ -74,6 +74,32 @@ function public_url(): string
     return $admin !== '' ? $admin : rtrim((string) config('base_url', ''), '/');
 }
 
+/**
+ * 1.234.2: een lijst e-mailadressen (komma, puntkomma, spatie of regeleinde ertussen) in één keer gecontroleerd:
+ * geldig (max. 190 tekens), kleine letters, zonder dubbele. @return array{ok: list<string>, bad: list<string>}
+ */
+function email_list(string $s): array
+{
+    $ok = $bad = [];
+    foreach (preg_split('/[,;\s]+/', $s) ?: [] as $a) {
+        $a = trim($a);
+        if ($a === '') {
+            continue;
+        }
+        if (valid_email($a)) {
+            $ok[strtolower($a)] = true;
+        } else {
+            $bad[] = $a;
+        }
+    }
+    return ['ok' => array_keys($ok), 'bad' => $bad];
+}
+
+function valid_email(string $a): bool
+{
+    return strlen($a) <= 190 && filter_var($a, FILTER_VALIDATE_EMAIL) !== false;
+}
+
 function is_configured(): bool
 {
     return !empty($GLOBALS['sm_config']['db']['name']);

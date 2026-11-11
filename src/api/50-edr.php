@@ -414,12 +414,9 @@ switch ($action) {
         echo isset(Reports::LIST[$k]) ? I18n::forNotify(fn() => Reports::build($k))['html'] : htmlspecialchars(t('Onbekend rapport'));
         exit;
 
-    case 'analytics_report_send':
-        $m = (string) (input()['month'] ?? date('Y-m', strtotime('first day of last month')));
-        if (!preg_match('/^\d{4}-\d{2}$/', $m)) {
-            out(['error' => t('Ongeldige maand')], 422);
-        }
-        $r = Analytics::sendMonthly($m);
+    case 'analytics_report_send':   // 1.234.2: via Rapporten (eigen ontvangers, push, logboek)
+        $r = Reports::send('month');
+        Reports::log('month', $r, (string) $user['username']);
         $r['ok'] ? out(['ok' => true]) : out(['error' => $r['error'] ?? t('Versturen mislukt')], 422);
 
     // 1.105.0: Proxmox VE – overzicht van een node (of de cluster) en losse nodes als cluster aanmerken

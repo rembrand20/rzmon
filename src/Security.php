@@ -267,7 +267,7 @@ final class Security
                     $sent = $r['ok'];
                     $r['error'] && $err[] = $r['error'];
                 }
-                if ($c['email'] && setting('email_enabled', '0') === '1') {
+                if ($c['email'] && setting('email_enabled', '0') === '1' && (setting('email_mode', 'always') !== 'fallback' || $sent !== true)) {   // 1.234.2: ook hier 'alleen als push mislukt'
                     $r = Mailer::send($title, $msg . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzSense: $base/" : ''));
                     $mail = $r['ok'];
                     $r['ok'] || $err[] = 'E-mail: ' . $r['error'];

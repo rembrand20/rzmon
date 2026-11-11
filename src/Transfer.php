@@ -11,10 +11,6 @@ declare(strict_types=1);
 final class Transfer
 {
     private const HOST_COLS = ['name', 'address', 'mode', 'kind', 'enabled', 'ids_fim', 'agent_tick', 'realtime', 'info_agent'];
-    private const SECRET = '/(pass|token|secret|_key$|^enc_key|community|api_key|hibp_key)/i';
-    /** Instellingen die RzSense zelf bijhoudt, of die bij deze installatie horen */
-    private const SKIP_SETTINGS = '/^(cron_|update_|.*_state$|.*_seen$|.*_at$|.*_day$|ipintel_|hibp_(wait|last|domain_error|rpm)|vuln_(daily|last|kev|cache)|selfcheck_|db_size_hist|task_watch|'
-        . 'mqtt_last|mqtt_discovery|backup_last|backup_retry|backup_fail|templates_seeded|own_cert|proxy_|hsts_|cleanup_ignore|maintenance_|agent_fb|enc_|stealth_|https_|base_url|edr_self_mark|tests_rev|.*_notified$)/';
 
     private static function cleanSnmp(?string $json): ?string
     {
@@ -56,7 +52,7 @@ final class Transfer
         if ($withSettings) {
             $out['settings'] = [];
             foreach (q('SELECT name, value FROM settings ORDER BY name')->fetchAll(PDO::FETCH_KEY_PAIR) as $k => $v) {
-                if (!preg_match(self::SECRET, (string) $k) && !preg_match(self::SKIP_SETTINGS, (string) $k)) {
+                if (!SettingsMeta::skipTransfer((string) $k)) {
                     $out['settings'][$k] = $v;
                 }
             }
@@ -154,7 +150,7 @@ final class Transfer
         }
         if ($withSettings) {
             foreach ((array) ($d['settings'] ?? []) as $k => $v) {
-                if (!preg_match('/^[a-z0-9_]{1,64}$/', (string) $k) || preg_match(self::SECRET, (string) $k) || preg_match(self::SKIP_SETTINGS, (string) $k) || !is_scalar($v)) {
+                if (!preg_match('/^[a-z0-9_]{1,64}$/', (string) $k) || SettingsMeta::skipTransfer((string) $k) || !is_scalar($v)) {
                     continue;
                 }
                 $n['settings']++;

@@ -1502,38 +1502,6 @@ final class Ids
 
     // ------------------------------------------------------------------ wekelijks overzicht (1.81.0)
 
-    /** Elke minuut (cron): op de gekozen dag en tijd het overzicht van de afgelopen 7 dagen versturen */
-    public static function weeklyCron(): ?string
-    {
-        $via = (string) setting('ids_weekly', 'email');
-        if (!self::enabled() || !in_array($via, ['email', 'pushover', 'both'], true)) {
-            return null;
-        }
-        $day = max(1, min(7, (int) setting('ids_weekly_day', '1')));
-        $at = preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) setting('ids_weekly_time', '08:00')) ? (string) setting('ids_weekly_time', '08:00') : '08:00';
-        if ((int) date('N') !== $day || date('H:i') < $at || setting('ids_weekly_last', '') === date('Y-m-d')) {
-            return null;
-        }
-        save_setting('ids_weekly_last', date('Y-m-d'));
-        return self::sendWeekly($via);
-    }
-
-    /** Overzicht maken en versturen. @return string wat er gebeurde (voor het cron-log) */
-    public static function sendWeekly(string $via): string
-    {
-        [$subject, $body, $short] = self::weeklyText();
-        $out = [];
-        if (in_array($via, ['email', 'both'], true) && setting('email_enabled', '0') === '1') {
-            $r = Mailer::send($subject, $body);
-            $out[] = 'e-mail ' . ($r['ok'] ? 'ok' : $r['error']);
-        }
-        if (in_array($via, ['pushover', 'both'], true) && Push::enabled()) {
-            $r = Push::send($subject, $short, -1);
-            $out[] = 'push ' . ($r['ok'] ? 'ok' : $r['error']);
-        }
-        return 'IDS-weekoverzicht: ' . (implode(', ', $out) ?: 'geen kanaal aan');
-    }
-
     /** @return array{0:string,1:string,2:string} onderwerp, tekst (e-mail) en korte tekst (Pushover) */
     public static function weeklyText(): array
     {

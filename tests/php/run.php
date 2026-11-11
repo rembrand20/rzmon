@@ -2607,6 +2607,13 @@ ok((bool) Nis2::incidents()[0]['warn'] && str_contains(Nis2::html(), 'geen jurid
 q('DELETE FROM incidents WHERE id = ?', [$iid]);
 q('DELETE FROM hosts WHERE id = ?', [$hcis]);
 save_setting('nis2_notes', '');
+// 1.234.2: één definitie voor geheime en zelf bijgehouden instellingen, één e-mailcontrole
+ok(SettingsMeta::skipTransfer('rz_own_ips') && SettingsMeta::skipTransfer('smtp_pass') && SettingsMeta::isSecret('ai_claude_key') && !SettingsMeta::skipTransfer('mail_to')
+    && SettingsMeta::isBookkeeping('reports_last') && !SettingsMeta::isBookkeeping('ids_on') && SettingsMeta::skipTransfer('base_url') && !SettingsMeta::isBookkeeping('base_url'),
+    'Instellingen: eigen IP-adressen van RzSense gaan niet mee bij export; geheim en bijgehouden op één plek');
+$el = email_list('A@Voorbeeld.nl; b@voorbeeld.nl a@voorbeeld.nl,geen-adres');
+ok($el['ok'] === ['a@voorbeeld.nl', 'b@voorbeeld.nl'] && $el['bad'] === ['geen-adres'] && !valid_email(str_repeat('a', 190) . '@x.nl'), 'E-mailadressen: één controle (kleine letters, dubbele eruit, ongeldige apart, max. 190)');
+ok(Analytics::reportOn() === (Reports::cfg()['month']['on'] || (Reports::cfg()['all']['on'] && in_array('month', Reports::cfg()['all']['parts'], true))) && !method_exists('Ids', 'sendWeekly') && !method_exists('Analytics', 'sendMonthly'), 'Oude rapportfuncties weg; maandrapport aan of uit volgt Rapporten');
 // 1.233.0: ontvangers per rapport
 save_setting('mail_to', 'algemeen@voorbeeld.nl');
 $rc = Reports::save(['month' => ['to' => 'Directie@Voorbeeld.nl; adviseur@voorbeeld.nl, directie@voorbeeld.nl']])['month'];

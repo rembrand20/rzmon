@@ -1075,7 +1075,7 @@ final class Monitor
         $email = null;
         if (setting('email_enabled', '0') === '1' && (setting('email_mode', 'always') !== 'fallback' || !$sent)) {
             $base = public_url();
-            $r = Mailer::send($title, $message . "\n\nTijd: " . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzSense: $base/" : ''));
+            $r = Mailer::send($title, $message . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzSense: $base/" : ''));
             $email = $r['ok'];
             if (!$r['ok']) {
                 $errors[] = 'E-mail: ' . $r['error'];

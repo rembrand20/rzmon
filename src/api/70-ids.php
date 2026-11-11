@@ -399,10 +399,11 @@ switch ($action) {
         }
         out(['ok' => true, 'result' => implode(' · ', $msg)] + IpIntel::status());
 
-    // Wekelijks IDS-overzicht nu versturen (1.81.0), om te zien hoe het eruitziet
+    // Wekelijks IDS-overzicht nu versturen (1.81.0). 1.234.2: via Rapporten (eigen ontvangers, push, logboek)
     case 'ids_weekly_test':
-        $via = (string) setting('ids_weekly', 'email');
-        out(['ok' => true, 'result' => Ids::sendWeekly($via === 'off' ? 'both' : $via), 'text' => Ids::weeklyText()[1]]);
+        $r = Reports::send('ids_week');
+        Reports::log('ids_week', $r, (string) $user['username']);
+        out(['ok' => $r['ok'], 'result' => $r['ok'] ? t('Verstuurd via {c}', ['c' => implode(' + ', $r['sent'])]) : ($r['error'] ?? t('Versturen mislukt')), 'text' => Ids::weeklyText()[1]]);
 
     case 'ids_incident':
         $in = input();
