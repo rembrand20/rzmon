@@ -7140,6 +7140,14 @@ function checkForm(c, h, preset = {}, tpl = null) {
     }
     $('[name=pattern]', form).required = typeSel.value === 'log';
     $('#target-list').innerHTML = list.map((v) => `<option value="${esc(v)}">`).join('');
+    // 1.240.0: bij netwerkchecks ook de apparaten uit de netwerkscan en je servers als keuze
+    if (['ping', 'tcp'].includes(typeSel.value)) {
+      const tSel = typeSel.value;
+      pickSources().then((d) => {
+        if (typeSel.value !== tSel || !$('#target-list')) return;
+        $('#target-list').insertAdjacentHTML('beforeend', PL_DEV(d || {}).filter(([v]) => !list.includes(v)).map(([v, l]) => `<option value="${esc(v)}" label="${esc(l || '')}">`).join(''));
+      });
+    }
     $('#svc-pick-wrap').hidden = !(typeSel.value === 'service' && h.mode === 'agent' && svcList);
     if (typeSel.value === 'service' && h.mode === 'agent') renderSvcPick();
     if (setDefaults && setDefaults !== 'smart') {
@@ -15115,6 +15123,8 @@ function initSmartFields(f) {
   smartList(el('mail_to'), { kind: 'email', sep: ', ', sources: SL_SRC.emails });
   smartList(el('dnsbl_allow'), { kind: 'domain', sep: '\n', sources: SL_SRC.domains });
   smartList(el('dnsbl_own'), { kind: 'domain', sep: '\n', sources: () => [], max: 2000 });
+  // 1.240.0: AdGuard-adressen kiezen uit de apparaten die RzSense kent (poort 3000 is de standaard van AdGuard Home)
+  smartList(el('adguard_urls'), { kind: 'url', sep: '\n', max: 10, sources: (d) => PL_DEV(d).map(([v, l]) => ({ v: 'http://' + v + ':3000', l, g: '🖧 ' + L('Apparaat') })) });
 }
 
 /** Kaart "Agents": hoeveel agents verouderd zijn, en de knop om ze allemaal bij te werken. */
@@ -20705,6 +20715,37 @@ function smartList(el, opts) {
   draw();
   pickSources().then((d) => { srcList = (sources(d || {}) || []).filter((s) => s && s.v); draw(); });
 }
+
+// ---------------------------------------------------------------- 1.240.0: keuzelijsten uit netwerkscan en servers
+// Gewone velden (zelf typen blijft kunnen) krijgen een keuzelijst met wat RzSense al kent: apparaten uit de netwerkscan
+// en je servers. Eén luisteraar voor de hele pagina: zodra je in zo'n veld klikt, komt de lijst eronder.
+const PL_DEV = (d) => {
+  const seen = new Set(), out = [];
+  for (const x of [...(d.hosts || []), ...(d.devices || [])]) if (x.v && !seen.has(x.v)) { seen.add(x.v); out.push([x.v, x.l]); }
+  return out;
+};
+const PL_HOST = (u) => { try { return new URL(u).hostname; } catch (e) { return ''; } };
+/** Velden en wat er in hun lijst komt ([waarde, uitleg]) */
+const PL_FIELDS = [
+  ['#modal-form [name=address]', (d) => PL_DEV(d)],
+  ['#modal-form [name=dns_server]', (d) => [...(d.adguard || []).map((u) => [PL_HOST(u), 'AdGuard Home']).filter((x) => x[0]), ...PL_DEV(d)]],
+  ['[name=unifi_url]', (d) => PL_DEV(d).map(([v, l]) => ['https://' + v, l])],
+  ['[name=ai_ollama_url]', (d) => [['http://127.0.0.1:11434', L('deze server')], ...PL_DEV(d).map(([v, l]) => ['http://' + v + ':11434', l])]],
+];
+async function pickList(el, fn) {
+  if (!el || el.dataset.pl) return;
+  el.dataset.pl = '1';
+  let id = el.getAttribute('list');
+  if (!id) { id = 'pl-' + Math.random().toString(36).slice(2, 9); el.setAttribute('list', id); el.insertAdjacentHTML('afterend', `<datalist id="${id}"></datalist>`); }
+  const dl = document.getElementById(id);
+  const d = await pickSources();
+  const have = new Set([...dl.options].map((o) => o.value));
+  dl.insertAdjacentHTML('beforeend', fn(d || {}).filter(([v]) => v && !have.has(v)).map(([v, l]) => `<option value="${esc(v)}" label="${esc(l || '')}"></option>`).join(''));
+}
+document.addEventListener('focusin', (e) => {
+  if (!e.target.matches || !e.target.matches('input')) return;
+  for (const [sel, fn] of PL_FIELDS) if (e.target.matches(sel)) { pickList(e.target, fn); break; }
+});
 
 /** Valt een IPv4-adres binnen een netwerk (CIDR) of is het hetzelfde adres? (IPv6: alleen gelijk) */
 function slInNet(ip, net) {

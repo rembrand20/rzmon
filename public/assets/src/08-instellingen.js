@@ -1675,6 +1675,8 @@ function initSmartFields(f) {
   smartList(el('mail_to'), { kind: 'email', sep: ', ', sources: SL_SRC.emails });
   smartList(el('dnsbl_allow'), { kind: 'domain', sep: '\n', sources: SL_SRC.domains });
   smartList(el('dnsbl_own'), { kind: 'domain', sep: '\n', sources: () => [], max: 2000 });
+  // 1.240.0: AdGuard-adressen kiezen uit de apparaten die RzSense kent (poort 3000 is de standaard van AdGuard Home)
+  smartList(el('adguard_urls'), { kind: 'url', sep: '\n', max: 10, sources: (d) => PL_DEV(d).map(([v, l]) => ({ v: 'http://' + v + ':3000', l, g: '🖧 ' + L('Apparaat') })) });
 }
 
 /** Kaart "Agents": hoeveel agents verouderd zijn, en de knop om ze allemaal bij te werken. */

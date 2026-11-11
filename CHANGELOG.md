@@ -8,11 +8,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.240.0**: **keuzelijsten uit je netwerk**: kies apparaten en servers bij adressen, check-doelen, DNS-server, UniFi, Ollama en AdGuard.
 - **1.239.0**: **slimme invulvelden**: kies netwerken, whitelist-adressen, gebruikers, e-mailadressen en domeinen in plaats van ze opnieuw te typen; *Lokale netwerken* blijft gekoppeld.
 - **1.238.0**: **updates voor meerdere servers in één keer instellen**, gespreid zodat ze nooit allemaal tegelijk herstarten.
 - **1.237.0**: **onder de motorkap opgeruimd**: één definitie van RzSense zelf en privé-adressen, één manier voor "al gemeld" en limieten, en een zuiniger agent (1.95.0).
 - **1.236.0**: **opgeruimd**: beschermingen, regels, whitelist, status en functies, en bewaartermijnen staan elk op één plek.
-- **1.235.0**: **één Logboek** (met het Wijzigingslogboek en terugzetten op de regel) en **één verzendroute** voor alle meldingen.
+
+## 1.240.0 – 2026-11-11
+### Nieuw
+- **Keuzelijsten uit je netwerk**: velden voor een adres bieden nu een lijst met wat RzSense al kent: de apparaten uit de netwerkscan en je servers (met hun naam). Zelf typen blijft gewoon kunnen.
+  - **Server toevoegen → adres**, **check → doel** (bij ping en TCP) en **check → DNS-server** (ook je AdGuard Home).
+  - **UniFi-controller** (`https://…`), **Ollama** (`http://…:11434`, ook *deze server*) en **AdGuard Home** (`http://…:3000`, als slim lijstveld met chipjes).
 
 ## 1.239.0 – 2026-11-11
 ### Nieuw

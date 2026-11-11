@@ -1738,6 +1738,7 @@ Velden met een lijst (IP-adressen, netwerken, accounts, e-mailadressen, domeinen
 - **Waar het uit kiest:** je lokale netwerken (*Toegang*), de whitelist, je huidige IP-adres, de gebruikers van RzSense (en hun e-mailadres), je eigen domeinen (van de adressen van RzSense en de afzender), en de apparaten en servers die RzSense kent.
 - **Gekoppeld:** *🏠 Lokale netwerken (gekoppeld)* is geen kopie maar een verwijzing. Pas je je netwerken aan bij *Instellingen → Toegang*, dan klopt bijvoorbeeld *Alleen vanaf* van de REST API vanzelf mee.
 - **Waar:** REST API (*Alleen vanaf*), IDS (*Logins negeren*), e-mail (*Ontvanger(s)*), Rapporten (eigen ontvangers), Datalekken (e-mailadressen en domein), AdGuard (*Nooit blokkeren* en *Eigen domeinen*), de whitelist (keuzelijst per soort) en blokkeren (waarschuwing bij je eigen netwerk of de whitelist).
+- **Keuzelijsten uit je netwerk** (vanaf 1.240.0): velden voor één adres krijgen een lijst met de apparaten uit de netwerkscan en je servers, met hun naam erbij: het **adres** van een server, het **doel** van een ping- of TCP-check, de **DNS-server** van een DNS-check (ook je AdGuard Home), de **UniFi-controller**, **Ollama** (ook *deze server*) en **AdGuard Home** (slim lijstveld). Zelf typen blijft altijd kunnen.
 
 ### 7.12 Wijzigingslogboek 📜, exporteren en importeren 📦, meldketen testen 🧪
 

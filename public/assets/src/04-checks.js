@@ -2004,6 +2004,14 @@ function checkForm(c, h, preset = {}, tpl = null) {
     }
     $('[name=pattern]', form).required = typeSel.value === 'log';
     $('#target-list').innerHTML = list.map((v) => `<option value="${esc(v)}">`).join('');
+    // 1.240.0: bij netwerkchecks ook de apparaten uit de netwerkscan en je servers als keuze
+    if (['ping', 'tcp'].includes(typeSel.value)) {
+      const tSel = typeSel.value;
+      pickSources().then((d) => {
+        if (typeSel.value !== tSel || !$('#target-list')) return;
+        $('#target-list').insertAdjacentHTML('beforeend', PL_DEV(d || {}).filter(([v]) => !list.includes(v)).map(([v, l]) => `<option value="${esc(v)}" label="${esc(l || '')}">`).join(''));
+      });
+    }
     $('#svc-pick-wrap').hidden = !(typeSel.value === 'service' && h.mode === 'agent' && svcList);
     if (typeSel.value === 'service' && h.mode === 'agent') renderSvcPick();
     if (setDefaults && setDefaults !== 'smart') {
