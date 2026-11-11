@@ -339,17 +339,19 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <div class="pcard" data-pk="sites" data-pw="12" data-pt="<?= th('Aanvallen per site') ?>" id="ids-sites-card" hidden><div class="card" id="ids-sites"></div>
       </div>
       <div class="pcard" data-pk="tabs" data-pw="12" data-pt="<?= th('Tabbladen') ?>"><div class="subtabs ids-tabs" role="tablist" aria-label="IDS" id="ids-tabs">
+        <!-- 1.234.1: eerst waar je iets doet (belangrijkste eerst), dan wat je bekijkt -->
         <button type="button" class="seg-btn active" data-it="inc"><?= th('⚠️ Incidenten') ?> <span class="it-n" id="it-n-inc"></span></button>
-        <button type="button" class="seg-btn" data-it="map"><?= th('🗺️ Aanvalskaart') ?></button>
-        <button type="button" class="seg-btn" data-it="acc"><?= th('🔑 Toegang') ?> <span class="it-n" id="it-n-acc"></span></button>
         <button type="button" class="seg-btn" data-it="blk"><?= th('⛔ Blokkades') ?> <span class="it-n" id="it-n-blk"></span></button>
-        <button type="button" class="seg-btn" data-it="prot"><?= th('🛡️ Bescherming') ?> <span class="it-n" id="it-n-prot"></span></button>
-        <button type="button" class="seg-btn" data-it="live"><?= th('🛰️ Live') ?></button>
-        <button type="button" class="seg-btn" data-it="rules"><?= th('🔏 Regels') ?></button>
-        <button type="button" class="seg-btn" data-it="anom"><?= th('🧬 Afwijkingen') ?> <span class="it-n" id="it-n-anom"></span></button>
-        <button type="button" class="seg-btn" data-it="mitre"><?= th('🧭 MITRE') ?></button>
         <button type="button" class="seg-btn" data-it="apps"><?= th('🧩 Programma\'s') ?> <span class="it-n" id="it-n-apps"></span></button>
         <button type="button" class="seg-btn" data-it="hunt"><?= th('🔎 Jagen') ?></button>
+        <button type="button" class="seg-btn" data-it="rules"><?= th('🔏 Regels') ?></button>
+        <span class="it-sep" role="separator" aria-hidden="true"></span>
+        <button type="button" class="seg-btn" data-it="anom"><?= th('🧬 Afwijkingen') ?> <span class="it-n" id="it-n-anom"></span></button>
+        <button type="button" class="seg-btn" data-it="prot"><?= th('🛡️ Bescherming') ?> <span class="it-n" id="it-n-prot"></span></button>
+        <button type="button" class="seg-btn" data-it="acc"><?= th('🔑 Toegang') ?> <span class="it-n" id="it-n-acc"></span></button>
+        <button type="button" class="seg-btn" data-it="live"><?= th('🛰️ Live') ?></button>
+        <button type="button" class="seg-btn" data-it="map"><?= th('🗺️ Aanvalskaart') ?></button>
+        <button type="button" class="seg-btn" data-it="mitre"><?= th('🧭 MITRE') ?></button>
       </div>
       <!-- 1.149.0: aanvalskaart -->
       <div class="ids-pane" data-pane="map" hidden>

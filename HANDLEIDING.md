@@ -212,7 +212,7 @@ In de **Instellingen** heeft elk onderdeel (bv. *Meldingen → Kanalen* of *IDS 
 **Nu aandacht nodig in CC** (vanaf 1.176.0): bovenaan Monitoring staat in CC een compacte lijst met vaste kolommen: status, server, check, melding, hoe lang al, de laatste 24 uur en de knoppen ✓ (bevestigen), AI en → (openen). Bovenaan het aantal open problemen, een balk met de verdeling en filters op *Critical*, *Warning* en *Onbekend*. Een server met veel problemen of een stille agent is één regel; klap hem open voor de checks eronder. Wat al bevestigd is staat ingeklapt onderaan. Na 8 regels: *Alle … tonen*. In Blox, L1nes en Compact blijft het zoals het was.
 
 **Extra kaarten in CC** (vanaf 1.159.0), naast alles wat er al stond:
-- **IDS**: *Aanvallen per dag* staat altijd open (in de andere lay-outs blijft het een regel die je uitklapt). De tabbladen (Incidenten, Aanvalskaart …) zijn samen één kaart.
+- **IDS**: *Aanvallen per dag* staat altijd open (in de andere lay-outs blijft het een regel die je uitklapt). De tabbladen zijn samen één kaart. Vanaf 1.234.1 staan ze in twee groepen: eerst waar je iets doet (*Incidenten · Blokkades · Programma's · Jagen · Regels*), dan wat je bekijkt (*Afwijkingen · Bescherming · Toegang · Live · Aanvalskaart · MITRE*); past het niet op één regel, dan elke groep op een eigen regel.
 - **Incidenten**: *Geopend en opgelost* (per dag, 30 dagen) en *Nog bezig, per bron* (monitoring, IDS, kwetsbaarheden).
 - **Kwetsbaarheden**: *Per ernst* (met hoeveel er actief misbruikt worden) en *Servers met de meeste kwetsbaarheden*.
 - **Netwerk**: *Apparaten*: online, nieuw, riskante poort, in RzSense, bekend en genegeerd.

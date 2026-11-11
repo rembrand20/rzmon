@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.231.0**: **tijdelijk sudo** met wachtwoord en 2FA dat vanzelf weer weggaat, een **AdGuard-blokkadelijst** uit RzSense, en **nieuw geregistreerde domeinen** herkennen.
 - **1.230.0**: **updates installeren**: beveiligingsupdates met één klik of automatisch in het onderhoudsvenster, eerst een snapshot, Home Assistant met een back-up.
 
+## 1.234.1 – 2026-11-11
+### Opgelost
+- **IDS-tabbladen zonder schuifbalk** en in een logische volgorde: eerst waar je iets doet, van belangrijk naar minder belangrijk (*Incidenten · Blokkades · Programma's · Jagen · Regels*), dan wat je bekijkt (*Afwijkingen · Bescherming · Toegang · Live · Aanvalskaart · MITRE*), met een scheiding ertussen. Op een breed scherm staat alles op één regel; past dat niet, dan acties op de eerste en informatie op de tweede regel. Op de telefoon veeg je door de tabbladen (zonder balk, de rand vervaagt). Ook de andere tabbalken tonen geen schuifbalk meer.
+
 ## 1.234.0 – 2026-11-10
 ### Nieuw
 - **NIS2-rapport automatisch versturen** (*Instellingen → Rapporten → 🇪🇺 NIS2-overzicht*): de tien maatregelen met wat RzSense ziet en je notities, de meldtermijnen van significante incidenten en de disclaimer, als HTML-mail (push: een korte samenvatting). Standaard **elk kwartaal**; met eigen ontvangers, bijvoorbeeld je directie of adviseur. Ook als onderdeel van het Maandoverzicht te kiezen. Staat het NIS2-overzicht uit, dan wordt het niet verstuurd.

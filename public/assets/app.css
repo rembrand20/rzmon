@@ -918,6 +918,12 @@ textarea.mono, #cmd-wrap textarea { font-family: ui-monospace, SFMono-Regular, M
 
 /* IDS: tabbladen en Toegang */
 .ids-tabs { margin: 0 0 1rem; display: inline-flex; flex-wrap: wrap; }
+/* 1.234.1: tabbladen zonder schuifbalk. Breed scherm: op meerdere regels; smal: vegen (balk verborgen, rand vervaagt) */
+.subtabs { scrollbar-width: none; } .subtabs::-webkit-scrollbar { display: none; }
+.subtabs.ids-tabs { flex-wrap: wrap; overflow: visible; row-gap: 2px; }
+.ids-tabs .it-sep { align-self: stretch; width: 1px; margin: .3rem .35rem; background: var(--border); flex: none; }
+/* Past het niet op één regel: acties op de eerste, informatie op de tweede regel (de scheiding wordt een regeleinde) */
+@media (max-width: 1699px) and (min-width: 721px) { .ids-tabs .it-sep { flex-basis: 100%; width: auto; height: 1px; margin: 3px 4px; } }
 .ids-tabs .it-n { color: var(--muted); font-weight: 400; }
 .acc-table .acc-actions { white-space: nowrap; text-align: right; }
 .acc-table .acc-actions .linkbtn + .linkbtn { margin-left: .6rem; }
@@ -1408,6 +1414,7 @@ details.adv[open] { padding-bottom: .6rem; }
   .irow { grid-template-columns: 10px minmax(0, 1fr) auto; grid-template-areas: "d tt t" "d sv sv" "d a a"; gap: .1rem .6rem; padding: .55rem .8rem; }
   .irow .adot { grid-area: d; align-self: start; margin-top: .42rem; } .irow .m-tt { grid-area: tt; } .irow .m-t { grid-area: t; } .irow .m-sv { grid-area: sv; display: block; } .irow .ids-actions { grid-area: a; justify-content: flex-start; margin-top: .3rem; }
   .subtabs { display: flex; }
+  .subtabs.ids-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
 }
 /* Kwetsbaarheden */
 .hc.vsev4 { --c: var(--crit); } .hc.vsev3 { --c: #f97316; } .hc.vsev2 { --c: #eab308; } .hc.vsev1 { --c: #3b82f6; } .hc.vsev0 { --c: var(--unknown); } .hc.vkev { --c: var(--crit); }
