@@ -1757,7 +1757,7 @@ Klik op een naam om de check te bewerken. Met 🙈 (*dit is normaal*) komt het p
 - **Bewaren:** standaard **1 jaar** (30 dagen tot 10 jaar), voor het hele logboek, ook de wijzigingen.
 - **Goed om te weten:** wachtwoorden, tokens en sleutels staan er nooit in. Het logboek staat altijd aan: het is je bewijs van wat er gebeurde (ook voor NIS2).
 
-**🔀 Functies aan en uit** (vanaf 1.226.0, *Instellingen → Overzicht → Functies*): bij een functie met een gewone aan/uit-instelling staat een **schakelaar** in de kolom Status; je zet hem daar meteen aan of uit (in het wijzigingslogboek). Wat meer vraagt (een sleutel, je wachtwoord, een keuze) stel je in via **⚙️ Instellen**.
+**🔀 Functies aan en uit** (vanaf 1.226.0, *Instellingen → Overzicht → Status en functies → Functies*): bij een functie met een gewone aan/uit-instelling staat een **schakelaar** in de kolom Status; je zet hem daar meteen aan of uit (in het wijzigingslogboek). Wat meer vraagt (een sleutel, je wachtwoord, een keuze) stel je in via **⚙️ Instellen**.
 
 ### 7.13 Slimme drempels 🧠 (vanaf 1.107.0)
 Vaste drempels passen niet altijd: een CPU die elke nacht om 3:00 op 100% staat door de back-up, geeft elke nacht een warning, en een website die normaal in 120 ms antwoordt maar nu in 900 ms, merk je met een drempel van 1000 ms niet. Daarom kan RzSense per check **leren wat normaal is**, per uur van de week (maandag 3:00 is anders dan dinsdag 14:00), en daar de drempels op zetten.
@@ -2794,7 +2794,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
   - **Scanner** (sqlmap, nikto, nuclei, zgrab …): meteen.
   - **Veel 404** (standaard 20), **veel 401/403** (10), **zonder hostnaam** (444, standaard 5) binnen de tijd (standaard 10 minuten).
   - **Mislukte logins** in Home Assistant of Vaultwarden (standaard 5).
-- **Nooit:** je eigen netwerk (privé-adressen en je lokale netwerken) en de ✅ whitelist. Deblokkeren kan bij *IDS → Blokkades*; de whitelist staat bij *Instellingen → IDS → Netwerk en aanvallers → Whitelist*.
+- **Nooit:** je eigen netwerk (privé-adressen en je lokale netwerken) en de ✅ whitelist. Deblokkeren kan bij *IDS → Blokkades*; de whitelist staat daar ook, onder de blokkades (vanaf 1.236.0).
 - **Home Assistant achter SWAG** ziet zonder `use_x_forwarded_for: true` en `trusted_proxies` alleen het IP van SWAG. RzSense herkent dat en zet een ⚠️ bij de gevonden log.
 - **SWAG in Docker:** vanaf agent 1.58.0 blokkeert de agent vóór Docker (prerouting). Daarvoor ging verkeer naar een container (SWAG) langs de blokkade heen.
 - **Voorbeeld:** om 03:12 vraagt `45.148.10.12` op SWAG `/.env` op (404). RzSense meldt *Web: aanvalspad /.env* en blokkeert het IP op al je servers. Je Home Assistant, Nextcloud en RzSense achter SWAG zijn meteen beschermd.
@@ -2914,7 +2914,7 @@ De agent kijkt nu op het moment zelf mee op de server, en niet pas bij het volge
 - **Regels:**
   - de **eigen regels van RzSense**, met uitleg: webshell (een webserver die een shell start), reverse shell, *download en uitvoeren* (`curl … | sh`), programma's uit `/dev/shm` of een verborgen map, cryptominers, history wissen, SUID zetten, SSH-sleutels, uitbreken uit een container, kernelmodules, `ld.so.preload`, nieuwe cron/systemd/ssh-bestanden, een shell met een netwerkverbinding en meer;
   - de **Linux-regels van [SigmaHQ](https://github.com/SigmaHQ/sigma)** (121 regels, *medium* en hoger; licentie DRL 1.1, de maker staat bij elke treffer). *medium* wordt 🟠 warning, *high* 🔴 critical, *critical* ook 🔴 en het proces stoppen.
-  - Op *🛡️ IDS → 🔏 Regels* staan ze allemaal, met wat ze doen en hoe vaak ze de laatste 3 dagen raak waren. Een regel zet je daar uit **voor alle servers**; *Dit is normaal* bij een incident geldt voor **één server**.
+  - Bij *Instellingen → IDS → Endpoint-bewaking → Regels en uitzonderingen* staan ze allemaal (vanaf 1.236.0 alleen daar; het tabblad *IDS → 🔏 Regels* is weg), met wat ze doen en hoe vaak ze de laatste 3 dagen raak waren. Een regel zet je daar uit **voor alle servers**; *Dit is normaal* bij een incident geldt voor **één server**.
 - **Een treffer** wordt een IDS-incident, met het bewijs erbij (hooguit 20 per incident) in het blok **Inspectie**: het programma, de opdracht, de ouder, de gebruiker, de verbinding of het bestand, de MITRE ATT&CK-technieken (klikbaar) en wat RzSense deed.
 - **Zelf ingrijpen** (alleen in de modus ⛔ *Blokkeren*; in 🎓 *Leren* wordt het alleen gemeld, met *modus Leren: RzSense greep niet in*):
   - **proces stoppen** bij een regel die dat zegt (webshell, reverse shell, cryptominer, *download en uitvoeren* …). RzSense stuurt dat versleuteld in het antwoord op het rapport; de agent controleert eerst dat het nog hetzelfde proces is (pid en starttijd) en meldt bij het volgende rapport of het lukte;
@@ -3065,7 +3065,7 @@ Wat RzSense zelf doet of veroorzaakt, houdt het IDS nooit tegen. Het wordt wel g
 
 ### Uitzonderingen 🛡️ (vanaf 1.132.0)
 
-Wat in een bepaalde situatie **normaal** is, zet je bij *Instellingen → IDS → Endpoint-bewaking → Regels en uitzonderingen → 🛡️ Uitzonderingen* (vanaf 1.162.0; daarvoor op *IDS → 🔏 Regels*). Op *IDS → 🔏 Regels* zie je de regels en hun treffers; met **⚙️ Regels en uitzonderingen beheren** ga je naar de instellingen. Wat op een uitzondering past: **geen melding**, **niet ingrijpen** (geen proces stoppen, niets blokkeren), en het telt **niet mee** voor afwijkingen en ketens. Je ziet het wel als groene regel *✔ toegestaan · uitzondering: naam* in *Live*.
+Wat in een bepaalde situatie **normaal** is, zet je bij *Instellingen → IDS → Endpoint-bewaking → Regels en uitzonderingen → 🛡️ Uitzonderingen* (vanaf 1.162.0; vanaf 1.236.0 staan ook de regels zelf, met hun treffers, alleen daar). Wat op een uitzondering past: **geen melding**, **niet ingrijpen** (geen proces stoppen, niets blokkeren), en het telt **niet mee** voor afwijkingen en ketens. Je ziet het wel als groene regel *✔ toegestaan · uitzondering: naam* in *Live*.
 
 - **Een uitzondering** heeft:
   - **Soort**: *endpoint-bewaking* (processen, bestanden, netwerk, containers) of *IDS* (logins, uitgaand verkeer, webshell, bewaakte bestanden);
@@ -3087,7 +3087,7 @@ Wat in een bepaalde situatie **normaal** is, zet je bij *Instellingen → IDS �
 - **🛡️ IDS → Bescherming**: alles wat het IDS doet, als kaarten in groepen (Inloggen, Web, Processen en bestanden, Netwerk en DNS, Afwijkingen en ketens, Dreigingsinformatie). Per kaart:
   - wat het ziet (kort) en, waar dat speelt, de drempel (*meer dan 10 mislukte SSH-logins binnen 10 minuten*);
   - de ernst (🟠/🔴) en de actie: 🔔 alleen melden, 🚫 IP blokkeren, ⛔ proces stoppen, 🧱 server isoleren, ✔ vanzelf afhandelen, 🚫 vooraf blokkeren. In de modus Leren zijn de acties doorgestreept: dan wordt alles alleen gemeld;
-  - of het onderdeel **aan** of **uit** staat, met **⚙️ Instellen** (beheerders) naar *Instellingen → IDS → Beschermingen* (vanaf 1.181.0; daarvoor stond hier een schakelaar);
+  - of het onderdeel **aan** of **uit** staat, met (beheerders, vanaf 1.236.0) een **schakelaar** en **⚙️ Drempels** op de kaart zelf: dit is de enige plek om beschermingen aan of uit te zetten (de aparte pagina *Instellingen → IDS → Beschermingen* is weg);
   - hoe vaak het de laatste 7 dagen raak was, met **Toon incidenten** (de lijst gefilterd op die kaart);
   - een ⚠️ aandachtspunt als het ergens niet werkt (auditd ontbreekt op een server, geen AbuseIPDB-sleutel, AdGuard niet gekoppeld).
   - Bovenaan staat de modus (Leren of Blokkeren) met een knop om te wisselen, en hoeveel onderdelen aan staan.
@@ -3136,7 +3136,7 @@ Ransomware versleutelt je bestanden en vraagt losgeld. Hoe eerder je het ziet, h
 
 **Logboek:** plaatsen en weghalen van het lokaas, elk alarm, de snapshot en wat er gestopt werd, staan in het logboek van de server (*Agent Manager → Logboek*).
 
-**Uitzetten:** per server de mappen uitvinken (de agent haalt zijn lokaasbestanden dan weer weg, alleen als ze nog ongewijzigd zijn), of voor alles: *Instellingen → IDS → Ransomware* of *Overzicht → Functies*. Op de server zelf: `RANSOM=0` in `/etc/default/rzmon-agent`.
+**Uitzetten:** per server de mappen uitvinken (de agent haalt zijn lokaasbestanden dan weer weg, alleen als ze nog ongewijzigd zijn), of voor alles: *Instellingen → IDS → Ransomware* of *Overzicht → Status en functies → Functies*. Op de server zelf: `RANSOM=0` in `/etc/default/rzmon-agent`.
 
 **Goed om te weten:** dit is een vangnet, geen vervanging van **back-ups**. Een snapshot staat op dezelfde schijf; zorg ook voor een back-up op een andere plek.
 
@@ -3155,7 +3155,7 @@ Een aanvaller zet vaak een eigen programma op je server: een cryptominer, een ac
 
 **Blokkeren:** draait een geblokkeerd programma, dan krijg je een **critical** incident. Zet je per server **Geblokkeerde programma's stoppen** aan (*Agent Manager → 🧩 Programma's*, met je wachtwoord), dan stopt de agent het meteen (alleen dat proces; systeemprocessen nooit). Een hele systeemmap (`/usr/`, `/bin/` …) blokkeren kan niet.
 
-**Aan/uit:** voor alles bij *Instellingen → IDS → Programma's* (daar ook de leerperiode) of *Overzicht → Functies*; per server in de Agent Manager. Op de server zelf: `APPCTL=0` in `/etc/default/rzmon-agent`. Agent **1.91.0** of nieuwer, als root.
+**Aan/uit:** voor alles bij *Instellingen → IDS → Programma's* (daar ook de leerperiode) of *Overzicht → Status en functies → Functies*; per server in de Agent Manager. Op de server zelf: `APPCTL=0` in `/etc/default/rzmon-agent`. Agent **1.91.0** of nieuwer, als root.
 
 **Goed om te weten:** scripts (Python, bash) zie je als hun interpreter (`python3`, `bash`), die uit een pakket komt. Dit is dus een lichte vorm van *application control*: het vangt vreemde programma's, niet elk script.
 
@@ -3168,7 +3168,7 @@ Krijg je een waarschuwing met **sporen** (IOC's: IP-adressen, domeinen, vingeraf
 
 **👁 Bewaken:** zet de sporen op een lijst (met een notitie). Elke 10 minuten vergelijkt RzSense wat er nieuw binnenkwam met de lijst; een treffer = **critical** incident *Bewaakt spoor gezien*.
 
-**Eerdere jachten** blijven 180 dagen staan (rechts). Alles staat in het logboek. **Aan/uit:** *Instellingen → IDS → Jagen op sporen* of *Overzicht → Functies*. Er gaat niets naar buiten: alles wordt vergeleken met wat RzSense al heeft.
+**Eerdere jachten** blijven 180 dagen staan (rechts). Alles staat in het logboek. **Aan/uit:** *Instellingen → IDS → Jagen op sporen* of *Overzicht → Status en functies → Functies*. Er gaat niets naar buiten: alles wordt vergeleken met wat RzSense al heeft.
 
 ### 8.12e Tijdelijk sudo 🔑 (vanaf 1.231.0, agent 1.93.0)
 Iemand moet even iets als root doen (een dienst herstarten, een update)? Geef die gebruiker dan **tijdelijk** sudo, in plaats van altijd. Minder accounts met blijvende rechten betekent minder kans dat een aanvaller ze misbruikt.
@@ -3210,7 +3210,7 @@ Vink per stap *verstuurd* aan. Komt een termijn binnen 6 uur (eindverslag: 3 dag
 **Rapport:** *NIS2-rapport (afdrukken als PDF)* geeft alles op één pagina: maatregelen, bewijs, notities en de meldingen.
 **Automatisch versturen** (vanaf 1.234.0): bij *Instellingen → Rapporten → 🇪🇺 NIS2-overzicht*. Standaard elk kwartaal; je kunt ook elke week of maand kiezen, en eigen ontvangers opgeven (bijvoorbeeld je directie of adviseur). Het rapport laat de stand van het moment van versturen zien. Je kunt het ook aanvinken als onderdeel van het Maandoverzicht.
 
-**Let op:** dit is geen juridisch advies en geen certificering. Het laat zien wat RzSense technisch ziet; of je onder NIS2 valt en wat significant is, bepaal je zelf (of met je adviseur). **Aan/uit:** daar, of *Overzicht → Functies*.
+**Let op:** dit is geen juridisch advies en geen certificering. Het laat zien wat RzSense technisch ziet; of je onder NIS2 valt en wat significant is, bepaal je zelf (of met je adviseur). **Aan/uit:** daar, of *Overzicht → Status en functies → Functies*.
 
 ### 8.13 Kwetsbaarheden 🐞
 Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) horen daarbij? Standaard uit; aanzetten bij *Instellingen → 🐞 Kwetsbaarheden*. Daarna staat er een tabblad **🐞 Kwetsbaarheden** in de bovenbalk (voor beheerders en gebruikers, niet voor *alleen lezen*).
@@ -3308,7 +3308,7 @@ Kan iemand anders mail versturen die van jouw domein lijkt te komen (phishing ui
 - **Met het record om te plakken:** in de popup van de check staat per punt wat er mis is, met het DNS-record dat je bij je DNS-provider kunt plakken (📋 kopieert het).
 - **Domein zonder mail** (bv. een domein dat je alleen voor een website gebruikt): vink *Dit domein verstuurt geen e-mail* aan, of RzSense ziet het zelf (geen MX). Dan hoort er `v=spf1 -all` en DMARC `p=reject` te staan: de beste bescherming tegen misbruik van je naam.
 - **DNS werkt niet?** Dan wordt de check *onbekend*, niet *critical*: RzSense oordeelt alleen als het domein zelf te vinden is.
-- **Uitzetten:** *Instellingen → Overzicht → Functies* of *Beveiliging → E-mailbeveiliging*.
+- **Uitzetten:** *Instellingen → Overzicht → Status en functies → Functies* of *Beveiliging → E-mailbeveiliging*.
 
 ### 8.13c End-of-life ⏳ (vanaf 1.227.0)
 Een besturingssysteem of programma dat geen updates meer krijgt, krijgt ook geen beveiligingsupdates meer. Dat zie je niet aan een CVE-lijst: er komen gewoon geen meldingen meer. Daarom kijkt RzSense ook **tot wanneer** iets ondersteund wordt.
@@ -3323,7 +3323,7 @@ Een besturingssysteem of programma dat geen updates meer krijgt, krijgt ook geen
   - ℹ️ software **uit de pakketbron van je distributie** (zoals PHP op Debian) = ter info: de distributie levert vaak nog jaren beveiligingsupdates, ook als de maker zelf stopt.
 - **Opvolger:** bij elke regel de nieuwste versie die nog ondersteund wordt.
 - **Meldingen:** een ℹ️-melding 90 en 30 dagen vooraf en op de dag zelf (*Instellingen → Meldingen → Systeemmeldingen → End-of-life*), één keer per stap, en een regel in het logboek van de server.
-- **Uitzetten:** *Instellingen → Overzicht → Functies* of *Beveiliging → Kwetsbaarheden → End-of-life*.
+- **Uitzetten:** *Instellingen → Overzicht → Status en functies → Functies* of *Beveiliging → Kwetsbaarheden → End-of-life*.
 
 ### 8.13d Updates installeren 🩹 (vanaf 1.230.0, agent 1.92.0)
 De meeste aanvallen gebruiken lekken waarvoor al lang een update is. RzSense laat zien welke updates er per server klaarstaan, en de agent kan ze installeren.
@@ -3345,7 +3345,7 @@ De meeste aanvallen gebruiken lekken waarvoor al lang een update is. RzSense laa
 - **automatisch** de server bijwerken waar **RzSense zelf** op draait (gaat er iets mis, dan ziet niemand het): alleen met de hand;
 - **herstarten**: zie je ↻, kies dan zelf een moment.
 
-**Logboek:** gevraagd (door wie, of automatisch), de snapshot, de uitkomst en wat er werd overgeslagen staan in het logboek van de server. **Aan/uit:** *Instellingen → Beveiliging → Updates* of *Overzicht → Functies*. Nodig: agent **1.92.0** of nieuwer, en *commando's als root* aan voor die server (zoals bij pakketten bijwerken).
+**Logboek:** gevraagd (door wie, of automatisch), de snapshot, de uitkomst en wat er werd overgeslagen staan in het logboek van de server. **Aan/uit:** *Instellingen → Beveiliging → Updates* of *Overzicht → Status en functies → Functies*. Nodig: agent **1.92.0** of nieuwer, en *commando's als root* aan voor die server (zoals bij pakketten bijwerken).
 
 ### 8.14 Netwerkscan: wat zit er op je netwerk? 🔎 (vanaf 1.103.0)
 RzSense zoekt zelf welke apparaten er op je **lokale netwerken** zitten: telefoons, laptops, camera's, printers, slimme stekkers, je NAS. Je ziet ze op het tabblad **Netwerk**.
@@ -3696,8 +3696,8 @@ Onder *Instellingen → Gebruikers* beheer je wie er mag inloggen, en met welke 
   - **altijd met je wachtwoord**: passkeys, sleutels, back-ups en certificaten downloaden, het databasewachtwoord en -gegevens, en iedereen uitloggen;
   - op het lokale netwerk (automatisch ingelogd, zonder wachtwoord) vervangt het vinkje het woord dat je typt;
   - ben je ingelogd met *onthoud mij*, dan vraagt RzSense de eerste keer je wachtwoord, daarna geldt het vinkje.
-- **👁 Beheerportal voor gebruikers** (vanaf 1.181.0): een gebruiker ziet in *Instellingen* alleen *Overzicht → Status*, *Monitoring → Advies*, *Rapporten* en *Systeem → Logboek*. Bovenaan staat *👁 Alleen bekijken*. Velden staan uit, en knoppen om iets te wijzigen, toe te passen, op te ruimen of terug te draaien zijn weg. Een link naar een ander onderdeel brengt hem naar *Status*. *Alleen lezen* ziet de beheerportal niet.
-- **📋 Functies** (vanaf 1.182.0): op *Instellingen → Overzicht → Functies* staan alle functies van RzSense in één tabel: onderdeel, functie, sinds welke versie en de status van nu (✅ aan, ⚪ uit, ⚠️ niet ingesteld, ✔ altijd). Zoek, filter op onderdeel of status, of klik op een teller. De knop **Instellen** (of **Openen** voor een pagina) brengt je naar de juiste plek. Gebruikers zien de tabel ook, alleen om te bekijken.
+- **👁 Beheerportal voor gebruikers** (vanaf 1.181.0): een gebruiker ziet in *Instellingen* alleen *Overzicht → Status en functies*, *Monitoring → Advies*, *Rapporten* en *Systeem → Logboek*. Bovenaan staat *👁 Alleen bekijken*. Velden staan uit, en knoppen om iets te wijzigen, toe te passen, op te ruimen of terug te draaien zijn weg. Een link naar een ander onderdeel brengt hem naar *Status*. *Alleen lezen* ziet de beheerportal niet.
+- **📋 Functies** (vanaf 1.182.0): op *Instellingen → Overzicht → Status en functies → Functies* staan alle functies van RzSense in één tabel: onderdeel, functie, sinds welke versie en de status van nu (✅ aan, ⚪ uit, ⚠️ niet ingesteld, ✔ altijd). Zoek, filter op onderdeel of status, of klik op een teller. De knop **Instellen** (of **Openen** voor een pagina) brengt je naar de juiste plek. Gebruikers zien de tabel ook, alleen om te bekijken.
 - **🎨 Weergave voor nieuwe accounts** (vanaf 1.181.0): op *Instellingen → Systeem → Weergave* kies je de standaard voor accounts die bij *Mijn account → Weergave* nog niets kozen. Je kiest de moderne of compacte IDS-weergave, en de beweging in de Attack Flow en het Command center (stil, rustig of vol). Die standaard geldt ook voor het lokale netwerk zonder account.
 
 - **Gebruiker toevoegen:** vul een naam en wachtwoord in. Wil je meteen 2FA, zet dan *Direct tweestapsverificatie instellen* aan. Zonder 2FA is alleen het wachtwoord nodig.
@@ -3755,7 +3755,7 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
 - **Nieuwe sleutel:** de vorige blijft nog **24 uur** geldig. Elke agent krijgt de nieuwe bij zijn volgende rapport (versleuteld met de oude). Is een agent langer offline, dan gooit hij na 3 geweigerde rapporten zijn oude sleutel weg en haalt hij de nieuwe op (bij *Aan*); bij *Verplicht* geef je hem met `--key` opnieuw mee.
 - Zet *Verplicht* pas aan als 🔒 bij alle servers staat. Versleuteling komt **bovenop** HTTPS: het helpt vooral als agents via HTTP of een proxy verbinden, en het bewijst dat een rapport echt van een agent met de sleutel komt.
 
-**⛔ Blokkades** (tabblad *IDS → ⛔ Blokkades*, vanaf 1.92.0; of ⛔ *blokkeren* bij een melding) en de **✅ whitelist** (vanaf 1.162.0 bij *Instellingen → IDS → Netwerk en aanvallers → Whitelist*)
+**⛔ Blokkades** (tabblad *IDS → ⛔ Blokkades*, vanaf 1.92.0; of ⛔ *blokkeren* bij een melding) en de **✅ whitelist** (vanaf 1.236.0 op hetzelfde tabblad, onder de blokkades)
 - Een geblokkeerd **IP-adres** (`203.0.113.7`) of **netwerk** (`203.0.113.0/24`, ook IPv6) krijgt nergens meer toegang tot RzSense: niet de webpagina, niet het inloggen, niet de REST API en geen agents (HTTP 403). Per blokkade zie je hoe vaak hij iets tegenhield.
 - Jezelf (je huidige IP) en de RzSense-server kun je niet blokkeren. Toch buitengesloten? Op de server: `sudo php install/install.php --unblock-all`.
 - Dit is iets anders dan blokkeren door het IDS: dat gebeurt op de aangevallen server zelf.
@@ -3770,7 +3770,7 @@ sudo -u apache php /var/www/rzmon/install/install.php --reset-2fa admin        #
   - **Account:** wordt nooit vergrendeld na mislukte logins. Het IP-adres van degene die het probeert wordt wél geblokkeerd. Zo kan niemand jou buitensluiten, en een aanvaller blijft buiten.
   - **Geen honeypot-naam:** de naam valt af van de honeypot-namen (op alle servers), bv. als *admin* bij jou een echte gebruiker is. Blokkades om die naam worden opgeheven.
   - **Voorbeeld:** je collega logt in vanaf een hotel (`198.51.100.23`) en tikt drie keer zijn wachtwoord fout. Zijn account en het IP-adres zijn geblokkeerd. Je klikt bij het account op **🔓 Deblokkeren** en bij het IP op **✅ Whitelist → 1 dag**. Morgen geldt het hotel-IP vanzelf weer als gewoon adres.
-  - De whitelist zelf staat vanaf 1.162.0 bij *Instellingen → IDS → Netwerk en aanvallers → Whitelist* (onder de blokkades staat hoeveel erop staan, met **✅ Whitelist beheren**). Met ✕ haal je een regel eraf. Je oude lijst *Nooit blokkeren* van het IDS is bij de update naar 1.83.0 overgenomen.
+  - De whitelist zelf staat vanaf 1.236.0 op *IDS → Blokkades*, onder de blokkades (daarvoor bij *Instellingen → IDS → Netwerk en aanvallers*). Met ✕ haal je een regel eraf. Je oude lijst *Nooit blokkeren* van het IDS is bij de update naar 1.83.0 overgenomen.
 
 **🔐 Inlogbeveiliging** (*Instellingen → Toegang*, vanaf 1.58.0; standaard aan)
 - **Na [3] mislukte pogingen binnen [10] minuten** wordt het **account** geblokkeerd en/of het **IP-adres**, elk met een eigen schakelaar. Een verkeerde 2FA-code telt ook.

@@ -209,12 +209,9 @@ async function loadAppsSet() {
   if (!box) return;
   let d;
   try { d = await api('apps', null, { status: 'new' }); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  box.innerHTML = d.hosts.length ? `<div class="table-scroll"><table class="vuln-table small"><thead><tr><th>${L('Server')}</th><th>${L('Bijhouden')}</th><th>${L('Stoppen')}</th><th>${L('Leerperiode')}</th><th></th></tr></thead><tbody>${d.hosts.map((h) => `<tr>
-    <td><b>${esc(h.name)}</b>${!h.agent_ok ? `<br><span class="muted small">${L('agent 1.91.0 nodig')}</span>` : ''}</td>
-    <td>${h.on ? '✔' : `<span class="muted">${L('uit')}</span>`}</td><td>${h.kill ? '⛔ ' + L('aan') : `<span class="muted">${L('uit')}</span>`}</td>
-    <td class="small">${!h.until ? '–' : h.learning ? '🎓 ' + L('tot {d}', { d: new Date(h.until.replace(' ', 'T')).toLocaleDateString(LOCALE) }) : '✔ ' + L('voorbij')}</td>
-    <td><button type="button" class="btn small-btn" data-ap-am="${h.id}">${L('Instellen')} →</button></td></tr>`).join('')}</tbody></table></div>
-    <p class="small"><a href="#ids/apps" data-goto="ids/apps">${L('Naar IDS → Programma\'s ({n} onbekend)', { n: d.counts.new })}</a></p>`
+  // 1.236.0: alleen een samenvatting; per server staat het op IDS → Programma's en in de Agent Manager
+  const on = d.hosts.filter((h) => h.on).length, learn = d.hosts.filter((h) => h.on && h.learning).length;
+  box.innerHTML = d.hosts.length ? `<p class="small">${L('Bijgehouden op {a} van {n} servers', { a: on, n: d.hosts.length })}${learn ? ' · 🎓 ' + L('{n} nog aan het leren', { n: learn }) : ''}
+    · ${L('{n} onbekend', { n: d.counts.new })} <a class="btn small-btn" href="#ids/apps" data-goto="ids/apps">${L('Per server bekijken en instellen')} →</a></p>`
     : `<p class="muted">${L('Nog geen servers met de agent.')}</p>`;
-  box.onclick = (e) => { const b = e.target.closest('[data-ap-am]'); if (b) agentInstructions(findHost(+b.dataset.apAm)); };
 }

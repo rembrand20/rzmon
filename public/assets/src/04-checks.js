@@ -861,39 +861,6 @@ function featRender() {
   $$('[data-feat-st]').forEach((b) => b.classList.toggle('on', b.dataset.featSt === featF.st));
 }
 
-// ---------------------------------------------------------------- 1.181.0: Instellingen → IDS → Beschermingen
-let protFocus = null;
-async function loadProtSettings() {
-  const box = $('#protset');
-  if (!box) return;
-  let d;
-  try { d = await api('ids_protect'); } catch (ex) { box.innerHTML = `<p class="bad small">${esc(ex.message)}</p>`; return; }
-  protData = d;
-  box.innerHTML = `${!d.enabled ? `<div class="callout">⚠️ ${L('Het IDS staat uit: deze beschermingen doen pas iets als het IDS aan staat (IDS → Algemeen).')}</div>`
-      : d.mode !== 'block' ? `<div class="callout">🎓 ${L('Modus Leren: alles wordt alleen gemeld; blokkeren, stoppen en isoleren gebeuren pas in de modus Blokkeren (IDS → Algemeen).')}</div>` : ''}
-    ${Object.entries(d.groups).map(([g, [icon, name]]) => `<h3 class="set-sub">${icon} ${esc(name)}</h3><div class="ps-list">
-      ${d.cards.filter((c) => c.g === g).map((c) => `<div class="ps-row" id="protset-${esc(c.id)}">
-        <div class="ps-t"><b>${esc(c.title)}</b><small>${esc(c.what)}</small>
-          <span class="ps-acts">${c.sev === 2 ? '<span class="sev-chip s2">🔴 critical</span>' : c.sev === 1 ? '<span class="sev-chip s1">🟠 warning</span>' : ''} → ${c.acts.map(([ic, text]) => `<span class="act-chip">${ic} ${esc(text)}</span>`).join(' ')}</span>
-          ${c.attention ? `<span class="warn-txt small">⚠️ ${esc(c.attention)}</span>` : ''}</div>
-        <div class="ps-r">${PROT_CFG[c.id] ? `<button type="button" class="btn small-btn" data-ps-cfg="${esc(c.id)}">⚙️ ${L('Drempels')}</button>` : ''}
-          ${c.toggle ? `<label class="am-sw" title="${esc(c.toggle.label)}"><input type="checkbox" data-ps-toggle="${esc(c.toggle.key)}" ${c.toggle.on ? 'checked' : ''}><span aria-hidden="true"></span></label>`
-            : `<span class="muted small">${L('altijd aan')}</span>`}</div>
-      </div>`).join('')}</div>`).join('')}`;
-  box.onchange = async (e) => {
-    const t = e.target.closest('[data-ps-toggle]');
-    if (!t) return;
-    try { await api('settings_save', { [t.dataset.psToggle]: t.checked ? '1' : '0' }); savedFlag(t.closest('.ps-r'), true); }
-    catch (ex) { toast(ex.message, 'err'); t.checked = !t.checked; }
-  };
-  box.onclick = (e) => { const c = e.target.closest('[data-ps-cfg]'); if (c) protCfgDialog(c.dataset.psCfg); };
-  if (protFocus) {
-    const row = $('#protset-' + protFocus);
-    protFocus = null;
-    if (row) { row.scrollIntoView({ behavior: 'smooth', block: 'center' }); row.classList.add('ps-hl'); setTimeout(() => row.classList.remove('ps-hl'), 2200); }
-  }
-}
-
 // ---------------------------------------------------------------- 1.180.0: Instellingen → Rapporten
 const REP_DAYS = () => [[1, L('ma')], [2, L('di')], [3, L('wo')], [4, L('do')], [5, L('vr')], [6, L('za')], [7, L('zo')]];
 const REP_INFO = {

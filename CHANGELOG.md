@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.236.0**: **opgeruimd**: beschermingen, regels, whitelist, status en functies, en bewaartermijnen staan elk op één plek.
 - **1.235.0**: **één Logboek** (met het Wijzigingslogboek en terugzetten op de regel) en **één verzendroute** voor alle meldingen.
 - **1.234.0**: het **NIS2-rapport automatisch versturen**, standaard elk kwartaal, en **elk kwartaal** als keuze bij alle rapporten.
 - **1.233.0**: **eigen ontvangers per rapport** (alleen in te stellen door een beheerder) en **Verstuur naar mij** voor iedereen met een account.
 - **1.232.0**: **NIS2-overzicht** met de tien maatregelen, je notities, de meldtermijnen (24 uur, 72 uur, een maand) en een rapport, en **25 extra CIS-controles** in de hardening-score.
-- **1.231.0**: **tijdelijk sudo** met wachtwoord en 2FA dat vanzelf weer weggaat, een **AdGuard-blokkadelijst** uit RzSense, en **nieuw geregistreerde domeinen** herkennen.
+
+## 1.236.0 – 2026-11-11
+### Nieuw
+Opgeruimd: wat op twee plekken stond, staat nu op één.
+- **Beschermingen**: aan/uit en ⚙️ Drempels staan op de kaarten van *IDS → 🛡️ Bescherming* zelf; de aparte pagina *Instellingen → IDS → Beschermingen* is weg (oude links komen op IDS → Bescherming).
+- **Regels**: alleen nog bij *Instellingen → IDS → Endpoint-bewaking → Regels en uitzonderingen* (met de treffers); het tabblad *IDS → 🔏 Regels* is weg. Eén tabblad minder in de IDS-balk.
+- **Whitelist** staat op *IDS → ⛔ Blokkades*, onder de blokkades (was *Instellingen → IDS → Netwerk en aanvallers → Whitelist*).
+- **Status en functies** zijn één pagina met twee tabbladen (*Instellingen → Overzicht*).
+- **Updates** en **Programma's** in de beheerportal tonen alleen nog een samenvatting met een link naar de pagina waar je per server kijkt en instelt (de tabellen waren dubbel).
+- **Bewaren**: hoe lang logs van je servers bewaard blijven, staat nu bij *Database → Opslag*, naast de andere bewaartermijnen.
+- Op *IDS → Incidenten* staat een knop naar **Alle incidenten** (ook monitoring en kwetsbaarheden).
 
 ## 1.235.0 – 2026-11-11
 ### Nieuw

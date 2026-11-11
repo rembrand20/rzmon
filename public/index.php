@@ -344,7 +344,6 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <button type="button" class="seg-btn" data-it="blk"><?= th('⛔ Blokkades') ?> <span class="it-n" id="it-n-blk"></span></button>
         <button type="button" class="seg-btn" data-it="apps"><?= th('🧩 Programma\'s') ?> <span class="it-n" id="it-n-apps"></span></button>
         <button type="button" class="seg-btn" data-it="hunt"><?= th('🔎 Jagen') ?></button>
-        <button type="button" class="seg-btn" data-it="rules"><?= th('🔏 Regels') ?></button>
         <span class="it-sep" role="separator" aria-hidden="true"></span>
         <button type="button" class="seg-btn" data-it="anom"><?= th('🧬 Afwijkingen') ?> <span class="it-n" id="it-n-anom"></span></button>
         <button type="button" class="seg-btn" data-it="prot"><?= th('🛡️ Bescherming') ?> <span class="it-n" id="it-n-prot"></span></button>
@@ -421,18 +420,13 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         </div>
         <div id="edr-feed"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
-      <div class="ids-pane" data-pane="rules" hidden>
-        <div class="dash-bar"><div class="seg" id="rule-src"><button type="button" class="seg-btn active" data-rs=""><?= th('Alle') ?></button><button type="button" class="seg-btn" data-rs="rzmon">RzSense</button><button type="button" class="seg-btn" data-rs="sigma">Sigma</button></div>
-          <input id="rule-q" type="search" placeholder="<?= th('Zoeken: naam, techniek (T1059) …') ?>" autocomplete="off">
-          <a class="btn small-btn need-admin" href="#settings/ids_rules" data-goto="settings/ids_rules">⚙️ <?= th('Regels en uitzonderingen beheren') ?></a></div>
-        <div class="card rule-view" id="edr-rules"><p class="muted"><?= th('Laden…') ?></p></div>
-      </div>
       <div class="ids-pane" data-pane="inc">
         <div class="dash-bar">
           <input type="search" id="ids-search" placeholder="<?= th('🔍 Zoek incident, IP of server…') ?>">
           <div class="dash-chips" id="ids-filter" role="group" aria-label="Filter"></div>
           <span class="dash-sp"></span>
           <span class="muted small" id="ids-info"></span>
+          <a class="btn small-btn" href="#incidents" data-goto="incidents" title="<?= th('Eén lijst met de incidenten uit monitoring, het IDS en kwetsbaarheden') ?>">🧾 <?= th('Alle incidenten') ?> →</a>
           <button type="button" class="btn need-admin" id="ids-block-add"><?= th('⛔ IP blokkeren') ?></button>
           <div class="dash-more">
             <button class="btn" type="button" data-menu-btn aria-haspopup="menu" aria-expanded="false" title="<?= th('Meer') ?>">⋯</button>
@@ -481,8 +475,14 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <select id="bl-src"><option value=""><?= th('Alles') ?></option><option value="rz"><?= th('IP in RzSense') ?></option><option value="user"><?= th('Accounts') ?></option><option value="ids"><?= th('IDS (servers)') ?></option></select>
           <input id="bl-q" type="search" placeholder="<?= th('Zoeken: IP, naam, server, reden…') ?>" autocomplete="off"></div>
         <div id="blocks-list"></div>
-        <p class="small wl-link"><span id="wl-count" class="muted"></span> <a class="btn small-btn" href="#settings/whitelist" data-goto="settings/whitelist">✅ <?= th('Whitelist beheren') ?></a></p>
+        <p class="small wl-link"><span id="wl-count" class="muted"></span></p>
       </div>
+      <div class="card need-admin" id="wl-card">   <!-- 1.236.0: de whitelist staat bij de blokkades -->
+          <h2>✅ <?= th('Whitelist (nooit blokkeren)') ?></h2>
+          <?= xp(t('IP-adressen, netwerken en accounts die nooit geblokkeerd worden.'), t('<b>Wat het doet:</b> een IP-adres of netwerk op de whitelist wordt nergens geblokkeerd: niet in RzSense en niet door het IDS op welke server dan ook, ook niet via de lijsten met bekende aanvallers. Een account op de whitelist wordt nooit vergrendeld (het IP van de aanvaller wel). <b>Hoe lang:</b> je kiest 1, 7 of 30 dagen of altijd. <b>Goed om te weten:</b> je eigen netwerk en RzSense zelf worden al nooit automatisch geblokkeerd. Bij een blokkade of incident zet je een adres ook met één klik op de whitelist.')) ?>
+          <div class="btn-row"><button type="button" class="btn" id="wl-add">✅ <?= th('Op de whitelist zetten…') ?></button></div>
+          <div id="wl-list"><p class="muted"><?= th('Laden…') ?></p></div>
+        </div>
 
       </div>
       </div>
@@ -870,12 +870,6 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <label class="switch"><input type="checkbox" name="ids_modern"><span></span> <?= t('<b>Moderne IDS-weergave</b> (anders compact)') ?></label>
           <label><?= th('Beweging in de Attack Flow en het Command center') ?>
             <select name="af_motion"><option value="0"><?= th('stil') ?></option><option value="1"><?= th('rustig') ?></option><option value="2"><?= th('vol') ?></option></select></label>
-        </div>
-
-        <div data-sk="ids_prot" class="card" id="idsprot-card" data-nodirty>
-          <h2>🛡️ <?= th('Beschermingen') ?></h2>
-          <?= xp(t('Per bescherming aan of uit, met de drempels.'), t('<b>Wat het doet:</b> hier zet je elke bescherming van het IDS aan of uit en stel je met <b>⚙️ Drempels</b> in wanneer hij ingrijpt. Op <i>IDS → Bescherming</i> zie je wat elke bescherming de laatste 7 dagen deed; met <b>Instellen</b> kom je hier. <b>Modus:</b> in de modus <i>Leren</i> wordt alles alleen gemeld; blokkeren, stoppen en isoleren gebeuren pas in de modus <i>Blokkeren</i> (IDS → Algemeen).')) ?>
-          <div id="protset"><p class="muted small"><?= th('laden…') ?></p></div>
         </div>
 
         <div data-sk="reports" class="card" id="reports-card" data-nodirty>
@@ -1335,7 +1329,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <label class="switch"><input type="checkbox" name="logs_on"><span></span> <?= t('<b>Logs verzamelen</b> (hoofdschakelaar; de bronnen stel je per server in)') ?></label>
           <div class="row2">
             <label><?= th('Versturen elke (minuten)') ?> <span class="muted small"><?= th('(1–60; per server aan te passen)') ?></span><input type="number" name="logs_interval" min="1" max="60" step="1"></label>
-            <label><?= th('Bewaren (dagen)') ?><input type="number" name="logs_days" min="1" max="365" step="1"></label>
+            <p class="small muted"><?= th('Hoe lang logs bewaard blijven, stel je in bij Database → Opslag.') ?> <a href="#settings/db" data-goto="settings/db"><?= th('Naar Opslag') ?></a></p>
           </div>
           <div class="row2">
             <label><?= th('Maximaal in totaal (GB)') ?> <span class="muted small"><?= th('(daarboven gaat de oudste dag weg)') ?></span><input type="number" name="logs_max_gb" min="0.1" max="10000" step="0.1"></label>
@@ -1507,6 +1501,8 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <label><?= th('Daggegevens bewaren (dagen)') ?> <span class="hint"><?= th('(Analyse en Dashboard)') ?></span><input type="number" name="daily_days" min="30" max="3650"></label>
           <p class="muted small" id="storage-growth"></p>
           <label><?= th('Meldingen bewaren (dagen)') ?> <span class="muted small"><?= th('(de pagina Meldingen toont ze per dag)') ?></span><input type="number" name="alerts_days" min="1" max="3650"></label>
+          <label><?= th('Logs van je servers bewaren (dagen)') ?> <span class="muted small"><?= th('(Logs)') ?></span><input type="number" name="logs_days" min="1" max="365" step="1"></label>
+          <p class="small muted"><?= th('Het Logboek (acties en wijzigingen) heeft een eigen termijn, omdat het je bewijs is van wat er gebeurde:') ?> <a href="#settings/actlog" data-goto="settings/actlog"><?= th('Logboek') ?> →</a></p>
         </div>
 
       </form>
@@ -1518,12 +1514,6 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <div class="dash-bar"><div class="seg" id="rule-src-set"><button type="button" class="seg-btn active" data-rs=""><?= th('Alle') ?></button><button type="button" class="seg-btn" data-rs="rzmon">RzSense</button><button type="button" class="seg-btn" data-rs="sigma">Sigma</button><button type="button" class="seg-btn" data-rs="exc">🛡️ <?= th('Uitzonderingen') ?></button></div>
             <input id="rule-q-set" type="search" placeholder="<?= th('Zoeken: naam, techniek (T1059) …') ?>" autocomplete="off"></div>
           <div id="edr-rules-set"><p class="muted"><?= th('Laden…') ?></p></div>
-        </div>
-        <div data-sk="whitelist" class="card">
-          <h2>✅ <?= th('Whitelist (nooit blokkeren)') ?></h2>
-          <?= xp(t('IP-adressen, netwerken en accounts die nooit geblokkeerd worden.'), t('<b>Wat het doet:</b> een IP-adres of netwerk op de whitelist wordt nergens geblokkeerd: niet in RzSense en niet door het IDS op welke server dan ook, ook niet via de lijsten met bekende aanvallers. Een account op de whitelist wordt nooit vergrendeld (het IP van de aanvaller wel). <b>Hoe lang:</b> je kiest 1, 7 of 30 dagen of altijd. <b>Goed om te weten:</b> je eigen netwerk en RzSense zelf worden al nooit automatisch geblokkeerd. Wat nu geblokkeerd is en deblokkeren staan op <i>IDS → Blokkades</i>; bij een blokkade of incident zet je een adres ook met één klik op de whitelist.')) ?>
-          <div class="btn-row"><button type="button" class="btn" id="wl-add">✅ <?= th('Op de whitelist zetten…') ?></button></div>
-          <div id="wl-list"><p class="muted"><?= th('Laden…') ?></p></div>
         </div>
       <form data-sk="access" class="card need-admin" id="access-form">
         <h2><?= th('Toegang') ?></h2>

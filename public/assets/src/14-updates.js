@@ -123,11 +123,9 @@ async function loadPatchSet() {
   if (!box) return;
   let d;
   try { d = await api('patch'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  box.innerHTML = d.hosts.length ? `<div class="table-scroll"><table class="vuln-table small"><thead><tr><th>${L('Server')}</th><th>${L('Hoe')}</th><th>${L('Klaar')}</th><th></th></tr></thead><tbody>${d.hosts.map((h) => `<tr>
-    <td><b>${esc(h.name)}</b><br><span class="muted small">${(PATCH_KIND[h.kind] || (() => h.kind))()}${h.self ? ' · ' + L('RzSense zelf') : ''}</span></td>
-    <td class="small">${h.kind === 'truenas' ? L('via TrueNAS zelf') : esc(patchModeTxt(h))}</td><td class="small">${patchBadge(h)}</td>
-    <td>${h.kind !== 'truenas' ? `<button type="button" class="btn small-btn" data-pt-am="${h.id}">${L('Instellen')} →</button>` : ''}</td></tr>`).join('')}</tbody></table></div>
-    <p class="small"><a href="#vulns/patch" data-goto="vulns/patch">${L('Naar Kwetsbaarheden → Updates')} →</a></p>`
+  // 1.236.0: alleen een samenvatting; de lijst per server (met instellen) staat op Kwetsbaarheden → Updates
+  const auto = d.hosts.filter((h) => h.kind !== 'truenas' && h.mode && h.mode !== 'off').length;
+  box.innerHTML = d.hosts.length ? `<p class="small">${L('{a} van {n} servers werken zichzelf automatisch bij.', { a: auto, n: d.hosts.length })}
+    <a class="btn small-btn" href="#vulns/patch" data-goto="vulns/patch">${L('Per server bekijken en instellen')} →</a></p>`
     : `<p class="muted">${L('Nog geen servers met de agent.')}</p>`;
-  box.onclick = (e) => { const b = e.target.closest('[data-pt-am]'); if (b) agentInstructions(findHost(+b.dataset.ptAm)); };
 }

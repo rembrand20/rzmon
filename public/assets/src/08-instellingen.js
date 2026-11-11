@@ -741,8 +741,8 @@ function initMainTabs() {
 const SET_IC = (d) => `<svg class="tab-ic set-ic" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 const SET_NAV = [
   ['overzicht', SET_IC('<path d="M3 12h4l3 8 4-16 3 8h4"/>'), L('Overzicht'), [
-    ['overview', L('Status'), ['overview'], L('Wat er nog aandacht nodig heeft, met een knop om het te regelen.')],
-    ['features', L('Functies'), ['features'], L('Alle functies van RzSense, met wat er aan staat en waar je het instelt.')],
+    ['overview', L('Status en functies'), ['overview', 'features'], L('Wat er nog aandacht nodig heeft, en alle functies met wat er aan staat en waar je het instelt.'),
+      [['status', L('Status'), ['overview']], ['functies', L('Functies'), ['features']]]],   // 1.236.0: samen
     ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzSense elke minuut uitvoert.')],
     ['nis2', L('NIS2'), ['nis2'], L('De tien maatregelen uit de NIS2-richtlijn met wat RzSense ziet, je notities en de meldtermijnen.')]]],
   ['checks', SET_IC('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>'), L('Monitoring'), [
@@ -759,15 +759,13 @@ const SET_NAV = [
     ['sysinfo', L('Systeemmeldingen'), ['sysinfo'], L('Meldingen over RzSense zelf, zoals updates en certificaten.')]]],
   ['ids', SET_IC('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'), L('IDS'), [
     ['ids', L('Algemeen'), ['ids'], L('Aan of uit, leren of blokkeren, brute force en honeypot.')],
-    ['ids_prot', L('Beschermingen'), ['ids_prot'], L('Wat het IDS doet bij een aanval: per bescherming aan of uit, met de drempels.')],
     ['ids_edr', L('Endpoint-bewaking'), ['ids_edr', 'ids_rules'], L('Processen, bestanden en netwerk op je servers; afwijkingen en aanvalsketens.'),
       [['bewaking', L('Bewaking'), ['ids_edr']], ['regels', L('Regels en uitzonderingen'), ['ids_rules']]]],
     ['ids_ti', L('Dreigingsinformatie'), ['ids_ti', 'dnsbl'], L('Bekende aanvallers en malware opzoeken, en DNS en Suricata.')],
     ['ids_ransom', L('Ransomware'), ['ransom'], L('Mappen bewaken op versleutelen, met lokaasbestanden, snapshot en stoppen.')],
     ['ids_apps', L('Programma\'s'), ['apps'], L('Welke programma\'s er draaien; onbekende vallen op na een leerperiode. Toestaan, blokkeren en stoppen.')],
     ['ids_hunt', L('Jagen op sporen'), ['hunt'], L('IP-adressen, domeinen, vingerafdrukken en paden zoeken, ook op de servers, en bewaken.')],
-    ['ids_attack', L('Netwerk en aanvallers'), ['ids_attack', 'whitelist'], L('Blocklists, landen, uitgaand verkeer, de logs van webdiensten en de whitelist.'),
-      [['aanvallers', L('Aanvallers en verkeer'), ['ids_attack']], ['whitelist', L('Whitelist'), ['whitelist']]]],
+    ['ids_attack', L('Netwerk en aanvallers'), ['ids_attack'], L('Blocklists, landen, uitgaand verkeer en de logs van webdiensten.')],
     ['ids_servers', L('Per server'), ['ids_servers'], L('Welke servers het IDS gebruiken, en wat ze bewaken.')]]],
   ['beveiliging', SET_IC('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'), L('Beveiliging'), [
     ['access', L('Inloggen'), ['access'], L('Lokaal netwerk, uitloggen en blokkeren na mislukte pogingen.')],
@@ -804,7 +802,7 @@ const SET_NAV = [
     ['transfer', L('Exporteren en importeren'), ['transfer'], L('Servers, checks en instellingen overzetten.')]]],
 ];
 /* 1.181.0: de rol gebruiker ziet alleen deze onderdelen, om te bekijken (de rest is voor beheerders) */
-const SET_USER = { overview: null, features: null, reports: null, advice: ['smart', 'advice'], actlog: null };
+const SET_USER = { overview: null, reports: null, advice: ['smart', 'advice'], actlog: null };
 if (document.body.dataset.role === 'user') {
   for (let gi = SET_NAV.length - 1; gi >= 0; gi--) {
     const subs = SET_NAV[gi][3];
@@ -820,8 +818,8 @@ if (document.body.dataset.role === 'user') {
   }
 }
 /** Oude adressen (vóór 1.92.0) → nieuwe plek */
-const SET_ALIAS = { netlinks: 'unifi', ids_rules: 'ids_edr', whitelist: 'ids_attack', enc: 'agentdef', https: 'outside', setup: 'db', syscheck: 'db', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db', changelog: 'actlog' };   // 1.120.0: samengevoegde onderdelen
-const SET_TAB_OF = { ids_rules: 'regels', whitelist: 'whitelist', smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server' };   // oude adressen → tabblad op de pagina Advies
+const SET_ALIAS = { netlinks: 'unifi', ids_rules: 'ids_edr', enc: 'agentdef', https: 'outside', setup: 'db', syscheck: 'db', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db', changelog: 'actlog', features: 'overview' };   // 1.120.0: samengevoegde onderdelen
+const SET_TAB_OF = { features: 'functies', ids_rules: 'regels', smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server' };   // oude adressen → tabblad op de pagina Advies
 let setTab = {};   // per onderdeel met tabbladen: het gekozen tabblad
 let setSection = (() => { try { return localStorage.getItem('rzmon-set-section') || 'overview'; } catch (e) { return 'overview'; } })();
 let setHealthAt = 0;
@@ -836,6 +834,8 @@ function setFind(id) {
 
 function showSettingsSection(id, focusEl) {
   xpClose();
+  if (id === 'ids_prot') { showTab('ids/prot'); return; }   // 1.236.0: Beschermingen staan op één plek: IDS → Bescherming
+  if (id === 'whitelist') { showTab('ids/blk'); setTimeout(() => { const c = $('#wl-card'); if (c) c.scrollIntoView({ behavior: 'smooth' }); }, 300); return; }   // 1.236.0: whitelist bij de blokkades
   if (SET_TAB_OF[id]) setTab[SET_ALIAS[id]] = SET_TAB_OF[id];
   // Gevonden via zoeken in een kaart op een ander tabblad: dat tabblad kiezen
   const fk = focusEl && focusEl.closest('[data-sk]') && focusEl.closest('[data-sk]').dataset.sk;
@@ -883,8 +883,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'ai') loadAiSettings();   // 1.171.0
   if (setSection === 'snmp') loadSnmpGlobal();   // 1.178.0
   if (setSection === 'reports') loadReports();   // 1.180.0
-  if (setSection === 'ids_prot') loadProtSettings();   // 1.181.0
-  if (setSection === 'features') loadFeatures();   // 1.182.0
+  if (setSection === 'overview' && cards.includes('features')) loadFeatures();   // 1.182.0; 1.236.0 tabblad van Status en functies
   if (setSection === 'quiet') loadQuiet();   // 1.189.0
   if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
   if (setSection === 'actlog') loadActLog();   // 1.226.0
@@ -894,8 +893,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'sudo') loadSudoSet();   // 1.231.0
   if (setSection === 'nis2') loadNis2();   // 1.232.0
   if (setSection === 'ids_ti') loadDnsbl();
-  if (setSection === 'ids_edr' && cards.includes('ids_rules')) { ruleWhere = 'set'; loadEdrRules(); }   // 1.162.0
-  if (setSection === 'ids_attack' && cards.includes('whitelist')) loadBlocks();
+  if (setSection === 'ids_edr' && cards.includes('ids_rules')) { loadEdrRules(); }   // 1.162.0
   if (setSection === 'db' || setSection === 'perf') loadSyscheck();   // 1.151.0: systeemcheck, cron, database, prestaties
   if (setSection === 'db') loadSetupInfo();
   if (focusEl) {
@@ -1278,7 +1276,7 @@ function polishSettings(root) {
   });
   $$('[data-sk^="ids"]:not([data-sk="ids_servers"]):not([data-sk="ids_rules"]):not([data-sk="ids_prot"]) > h2', root).forEach((h) => {
     if (h.nextElementSibling && h.nextElementSibling.classList.contains('prot-hint')) return;
-    h.insertAdjacentHTML('afterend', `<div class="prot-hint">${L('Onderdelen aan- of uitzetten, en de drempels per onderdeel (⚙️), doe je bij <a href="#settings/ids_prot" data-goto="settings/ids_prot">IDS → Beschermingen</a>. Hier staan de algemene instellingen.')}</div>`);
+    h.insertAdjacentHTML('afterend', `<div class="prot-hint">${L('Onderdelen aan- of uitzetten, en de drempels per onderdeel (⚙️), doe je op <a href="#ids/prot" data-goto="ids/prot">IDS → Bescherming</a>. Hier staan de algemene instellingen.')}</div>`);
   });
   $$('[data-sk] h2:not([data-pol]), [data-sk] h3.set-sub:not([data-pol])', root).forEach((h) => {
     h.dataset.pol = '1';

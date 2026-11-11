@@ -277,8 +277,8 @@ function init() {
     try { await api('settings_save', { [c.dataset.protToggle]: c.checked ? '1' : '0' }); toast(c.checked ? L('Aangezet') : L('Uitgezet')); loadProt(); } catch (ex) { toast(ex.message, 'err'); c.checked = !c.checked; }
   };
   $('#prot-cards').onclick = (e) => {
-    const set = e.target.closest('[data-prot-set]');   // 1.181.0: instellen gebeurt in de beheerportal
-    if (set) { protFocus = set.dataset.protSet; showTab('settings/ids_prot'); return; }
+    const cfg = e.target.closest('[data-ps-cfg]');   // 1.236.0: aan/uit en drempels hier (was ook Instellingen → IDS → Beschermingen)
+    if (cfg) { protCfgDialog(cfg.dataset.psCfg); return; }
     const b = e.target.closest('[data-prot-show]');
     if (!b) return;
     idsCard = b.dataset.protShow; idsFilter = 'all'; idsCat = '';
@@ -299,8 +299,8 @@ function init() {
   };
   $('#edr-host').onchange = () => loadEdrFeed();
   initLive();   // 1.219.0
-  ['#rule-q', '#rule-q-set'].forEach((id) => { if ($(id)) $(id).oninput = () => renderEdrRules(); });
-  ['#rule-src', '#rule-src-set'].forEach((id) => {
+  ['#rule-q-set'].forEach((id) => { if ($(id)) $(id).oninput = () => renderEdrRules(); });
+  ['#rule-src-set'].forEach((id) => {
     if (!$(id)) return;
     $(id).onclick = (e) => {
       const b = e.target.closest('[data-rs]');
@@ -577,7 +577,8 @@ function showTab(name) {
   if (/^(ids|vulns)\//.test(name)) {
     const [tab, s] = name.split('/');
     name = tab;
-    if (tab === 'ids' && ['inc', 'map', 'acc', 'blk', 'prot', 'live', 'rules', 'anom', 'mitre', 'apps', 'hunt'].includes(s)) idsTab = s;
+    if (tab === 'ids' && ['inc', 'map', 'acc', 'blk', 'prot', 'live', 'anom', 'mitre', 'apps', 'hunt'].includes(s)) idsTab = s;
+    if (tab === 'ids' && s === 'rules') { showTab('settings/ids_rules'); return; }   // 1.236.0: regels staan in de beheerportal
     if (tab === 'vulns' && ['cve', 'leak', 'eol', 'patch'].includes(s)) vulnTab = s;
   }
   if (qs) {

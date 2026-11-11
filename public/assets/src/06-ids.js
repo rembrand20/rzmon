@@ -254,7 +254,7 @@ async function loadIds() {
 }
 
 function showIdsTab() {
-  if (!['inc', 'map', 'acc', 'blk', 'prot', 'live', 'rules', 'anom', 'mitre', 'apps', 'hunt'].includes(idsTab)) idsTab = 'inc';
+  if (!['inc', 'map', 'acc', 'blk', 'prot', 'live', 'anom', 'mitre', 'apps', 'hunt'].includes(idsTab)) idsTab = 'inc';
   $$('#ids-tabs .seg-btn').forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab));
   $$('#tab-ids .ids-pane').forEach((x) => { x.hidden = x.dataset.pane !== idsTab; });
   const nAnom = ((idsData && idsData.incidents) || []).filter((i) => (i.type === 'chain' || i.type === 'anomaly') && i.status === 'open').length;
@@ -262,7 +262,6 @@ function showIdsTab() {
   withPageWait('ids', () => {   // 1.202.0
     if (idsTab === 'blk' && isAdmin()) loadBlocks();
     if (idsTab === 'live') loadEdrFeed();
-    if (idsTab === 'rules') { ruleWhere = 'ids'; if (ruleSrc === 'exc') ruleSrc = ''; loadEdrRules(); }
     if (idsTab === 'anom') loadAnom();
     if (idsTab === 'mitre') loadMitre();
     if (idsTab === 'apps') { initApps(); loadApps(); }   // 1.229.0
@@ -275,11 +274,9 @@ function showIdsTab() {
 
 // ---------------------------------------------------------------- IDS: 🛰️ Live en 🔏 Regels (endpoint-bewaking, 1.110.0)
 let edrFeed = null, edrRules = null, ruleSrc = '';
-/* 1.162.0: de regels staan op twee plekken: IDS → Regels (bekijken, met treffers) en Instellingen → IDS → Endpoint-bewaking
-   → Regels en uitzonderingen (aan/uit en uitzonderingen). ruleWhere zegt welke nu getekend wordt. */
-let ruleWhere = 'ids';
-const ruleBox = () => $(ruleWhere === 'set' ? '#edr-rules-set' : '#edr-rules');
-const ruleQ = () => $(ruleWhere === 'set' ? '#rule-q-set' : '#rule-q');
+/* 1.236.0: de regels staan op één plek: Instellingen → IDS → Endpoint-bewaking → Regels en uitzonderingen */
+const ruleBox = () => $('#edr-rules-set');
+const ruleQ = () => $('#rule-q-set');
 const EDR_KIND_IC = { exec: '⚙️', net: '🌐', file: '📄', audit: '🔐', ctr: '📦', sur: '🦉' };
 const EDR_AUDIT_KEY = { rzmon_id: () => L('accounts/sudo'), rzmon_persist: () => L('cron/systemd/ssh'), rzmon_mod: () => L('kernelmodule') };
 const edrBase = (p) => String(p || '').split('/').pop();
@@ -829,7 +826,7 @@ function renderProt() {
         <br><span class="small muted">${L('{on} van {n} onderdelen aan', { on: d.on, n: d.total })}${d.attention ? ` · <span class="warn-txt">${L('{n} aandachtspunt(en)', { n: d.attention })}</span>` : ''}</span></div>`;
     $('#prot-cards').innerHTML = Object.entries(d.groups).map(([g, [icon, name]]) => `<h3 class="set-sub">${icon} ${esc(name)}</h3><div class="prot-grid">
       ${d.cards.filter((c) => c.g === g).map((c) => `<div class="prot-card ${c.toggle && !c.toggle.on ? 'off' : ''}" data-key="${esc(c.id)}" id="prot-${esc(c.id)}">
-        <div class="prot-head"><b>${esc(c.title)}</b>${c.toggle ? `<span class="prot-st ${c.toggle.on ? 'on' : 'off'}">${c.toggle.on ? L('aan') : L('uit')}</span>` : ''}${c.toggle || PROT_CFG[c.id] ? `<button type="button" class="btn small-btn need-admin prot-set" data-prot-set="${esc(c.id)}" title="${esc(L('Instellen in de beheerportal'))}">⚙️ ${L('Instellen')}</button>` : ''}</div>
+        <div class="prot-head"><b>${esc(c.title)}</b>${c.toggle ? `<span class="prot-st ${c.toggle.on ? 'on' : 'off'}">${c.toggle.on ? L('aan') : L('uit')}</span>` : ''}<span class="prot-ctl need-admin">${PROT_CFG[c.id] ? `<button type="button" class="btn small-btn" data-ps-cfg="${esc(c.id)}">⚙️ ${L('Drempels')}</button>` : ''}${c.toggle ? `<label class="am-sw" title="${esc(c.toggle.label)}"><input type="checkbox" data-prot-toggle="${esc(c.toggle.key)}" ${c.toggle.on ? 'checked' : ''}><span aria-hidden="true"></span></label>` : ''}</span></div>
         <p class="small muted">${esc(c.what)}</p>
         <div class="prot-acts">${c.sev === 2 ? '<span class="sev-chip s2">🔴 critical</span>' : c.sev === 1 ? '<span class="sev-chip s1">🟠 warning</span>' : ''} →
           ${c.acts.map(([icon, text, a]) => `<span class="act-chip t-${a} ${!block && ['block', 'kill', 'isolate', 'preblock'].includes(a) ? 'learn' : ''}" title="${esc(!block && ['block', 'kill', 'isolate', 'preblock'].includes(a) ? L('in de modus Leren alleen melden') : text)}">${icon} ${esc(text)}</span>`).join(' ')}

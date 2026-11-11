@@ -1489,8 +1489,8 @@ function init() {
     try { await api('settings_save', { [c.dataset.protToggle]: c.checked ? '1' : '0' }); toast(c.checked ? L('Aangezet') : L('Uitgezet')); loadProt(); } catch (ex) { toast(ex.message, 'err'); c.checked = !c.checked; }
   };
   $('#prot-cards').onclick = (e) => {
-    const set = e.target.closest('[data-prot-set]');   // 1.181.0: instellen gebeurt in de beheerportal
-    if (set) { protFocus = set.dataset.protSet; showTab('settings/ids_prot'); return; }
+    const cfg = e.target.closest('[data-ps-cfg]');   // 1.236.0: aan/uit en drempels hier (was ook Instellingen → IDS → Beschermingen)
+    if (cfg) { protCfgDialog(cfg.dataset.psCfg); return; }
     const b = e.target.closest('[data-prot-show]');
     if (!b) return;
     idsCard = b.dataset.protShow; idsFilter = 'all'; idsCat = '';
@@ -1511,8 +1511,8 @@ function init() {
   };
   $('#edr-host').onchange = () => loadEdrFeed();
   initLive();   // 1.219.0
-  ['#rule-q', '#rule-q-set'].forEach((id) => { if ($(id)) $(id).oninput = () => renderEdrRules(); });
-  ['#rule-src', '#rule-src-set'].forEach((id) => {
+  ['#rule-q-set'].forEach((id) => { if ($(id)) $(id).oninput = () => renderEdrRules(); });
+  ['#rule-src-set'].forEach((id) => {
     if (!$(id)) return;
     $(id).onclick = (e) => {
       const b = e.target.closest('[data-rs]');
@@ -1789,7 +1789,8 @@ function showTab(name) {
   if (/^(ids|vulns)\//.test(name)) {
     const [tab, s] = name.split('/');
     name = tab;
-    if (tab === 'ids' && ['inc', 'map', 'acc', 'blk', 'prot', 'live', 'rules', 'anom', 'mitre', 'apps', 'hunt'].includes(s)) idsTab = s;
+    if (tab === 'ids' && ['inc', 'map', 'acc', 'blk', 'prot', 'live', 'anom', 'mitre', 'apps', 'hunt'].includes(s)) idsTab = s;
+    if (tab === 'ids' && s === 'rules') { showTab('settings/ids_rules'); return; }   // 1.236.0: regels staan in de beheerportal
     if (tab === 'vulns' && ['cve', 'leak', 'eol', 'patch'].includes(s)) vulnTab = s;
   }
   if (qs) {
@@ -5996,39 +5997,6 @@ function featRender() {
   $$('[data-feat-st]').forEach((b) => b.classList.toggle('on', b.dataset.featSt === featF.st));
 }
 
-// ---------------------------------------------------------------- 1.181.0: Instellingen → IDS → Beschermingen
-let protFocus = null;
-async function loadProtSettings() {
-  const box = $('#protset');
-  if (!box) return;
-  let d;
-  try { d = await api('ids_protect'); } catch (ex) { box.innerHTML = `<p class="bad small">${esc(ex.message)}</p>`; return; }
-  protData = d;
-  box.innerHTML = `${!d.enabled ? `<div class="callout">⚠️ ${L('Het IDS staat uit: deze beschermingen doen pas iets als het IDS aan staat (IDS → Algemeen).')}</div>`
-      : d.mode !== 'block' ? `<div class="callout">🎓 ${L('Modus Leren: alles wordt alleen gemeld; blokkeren, stoppen en isoleren gebeuren pas in de modus Blokkeren (IDS → Algemeen).')}</div>` : ''}
-    ${Object.entries(d.groups).map(([g, [icon, name]]) => `<h3 class="set-sub">${icon} ${esc(name)}</h3><div class="ps-list">
-      ${d.cards.filter((c) => c.g === g).map((c) => `<div class="ps-row" id="protset-${esc(c.id)}">
-        <div class="ps-t"><b>${esc(c.title)}</b><small>${esc(c.what)}</small>
-          <span class="ps-acts">${c.sev === 2 ? '<span class="sev-chip s2">🔴 critical</span>' : c.sev === 1 ? '<span class="sev-chip s1">🟠 warning</span>' : ''} → ${c.acts.map(([ic, text]) => `<span class="act-chip">${ic} ${esc(text)}</span>`).join(' ')}</span>
-          ${c.attention ? `<span class="warn-txt small">⚠️ ${esc(c.attention)}</span>` : ''}</div>
-        <div class="ps-r">${PROT_CFG[c.id] ? `<button type="button" class="btn small-btn" data-ps-cfg="${esc(c.id)}">⚙️ ${L('Drempels')}</button>` : ''}
-          ${c.toggle ? `<label class="am-sw" title="${esc(c.toggle.label)}"><input type="checkbox" data-ps-toggle="${esc(c.toggle.key)}" ${c.toggle.on ? 'checked' : ''}><span aria-hidden="true"></span></label>`
-            : `<span class="muted small">${L('altijd aan')}</span>`}</div>
-      </div>`).join('')}</div>`).join('')}`;
-  box.onchange = async (e) => {
-    const t = e.target.closest('[data-ps-toggle]');
-    if (!t) return;
-    try { await api('settings_save', { [t.dataset.psToggle]: t.checked ? '1' : '0' }); savedFlag(t.closest('.ps-r'), true); }
-    catch (ex) { toast(ex.message, 'err'); t.checked = !t.checked; }
-  };
-  box.onclick = (e) => { const c = e.target.closest('[data-ps-cfg]'); if (c) protCfgDialog(c.dataset.psCfg); };
-  if (protFocus) {
-    const row = $('#protset-' + protFocus);
-    protFocus = null;
-    if (row) { row.scrollIntoView({ behavior: 'smooth', block: 'center' }); row.classList.add('ps-hl'); setTimeout(() => row.classList.remove('ps-hl'), 2200); }
-  }
-}
-
 // ---------------------------------------------------------------- 1.180.0: Instellingen → Rapporten
 const REP_DAYS = () => [[1, L('ma')], [2, L('di')], [3, L('wo')], [4, L('do')], [5, L('vr')], [6, L('za')], [7, L('zo')]];
 const REP_INFO = {
@@ -10164,7 +10132,7 @@ async function loadIds() {
 }
 
 function showIdsTab() {
-  if (!['inc', 'map', 'acc', 'blk', 'prot', 'live', 'rules', 'anom', 'mitre', 'apps', 'hunt'].includes(idsTab)) idsTab = 'inc';
+  if (!['inc', 'map', 'acc', 'blk', 'prot', 'live', 'anom', 'mitre', 'apps', 'hunt'].includes(idsTab)) idsTab = 'inc';
   $$('#ids-tabs .seg-btn').forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab));
   $$('#tab-ids .ids-pane').forEach((x) => { x.hidden = x.dataset.pane !== idsTab; });
   const nAnom = ((idsData && idsData.incidents) || []).filter((i) => (i.type === 'chain' || i.type === 'anomaly') && i.status === 'open').length;
@@ -10172,7 +10140,6 @@ function showIdsTab() {
   withPageWait('ids', () => {   // 1.202.0
     if (idsTab === 'blk' && isAdmin()) loadBlocks();
     if (idsTab === 'live') loadEdrFeed();
-    if (idsTab === 'rules') { ruleWhere = 'ids'; if (ruleSrc === 'exc') ruleSrc = ''; loadEdrRules(); }
     if (idsTab === 'anom') loadAnom();
     if (idsTab === 'mitre') loadMitre();
     if (idsTab === 'apps') { initApps(); loadApps(); }   // 1.229.0
@@ -10185,11 +10152,9 @@ function showIdsTab() {
 
 // ---------------------------------------------------------------- IDS: 🛰️ Live en 🔏 Regels (endpoint-bewaking, 1.110.0)
 let edrFeed = null, edrRules = null, ruleSrc = '';
-/* 1.162.0: de regels staan op twee plekken: IDS → Regels (bekijken, met treffers) en Instellingen → IDS → Endpoint-bewaking
-   → Regels en uitzonderingen (aan/uit en uitzonderingen). ruleWhere zegt welke nu getekend wordt. */
-let ruleWhere = 'ids';
-const ruleBox = () => $(ruleWhere === 'set' ? '#edr-rules-set' : '#edr-rules');
-const ruleQ = () => $(ruleWhere === 'set' ? '#rule-q-set' : '#rule-q');
+/* 1.236.0: de regels staan op één plek: Instellingen → IDS → Endpoint-bewaking → Regels en uitzonderingen */
+const ruleBox = () => $('#edr-rules-set');
+const ruleQ = () => $('#rule-q-set');
 const EDR_KIND_IC = { exec: '⚙️', net: '🌐', file: '📄', audit: '🔐', ctr: '📦', sur: '🦉' };
 const EDR_AUDIT_KEY = { rzmon_id: () => L('accounts/sudo'), rzmon_persist: () => L('cron/systemd/ssh'), rzmon_mod: () => L('kernelmodule') };
 const edrBase = (p) => String(p || '').split('/').pop();
@@ -10739,7 +10704,7 @@ function renderProt() {
         <br><span class="small muted">${L('{on} van {n} onderdelen aan', { on: d.on, n: d.total })}${d.attention ? ` · <span class="warn-txt">${L('{n} aandachtspunt(en)', { n: d.attention })}</span>` : ''}</span></div>`;
     $('#prot-cards').innerHTML = Object.entries(d.groups).map(([g, [icon, name]]) => `<h3 class="set-sub">${icon} ${esc(name)}</h3><div class="prot-grid">
       ${d.cards.filter((c) => c.g === g).map((c) => `<div class="prot-card ${c.toggle && !c.toggle.on ? 'off' : ''}" data-key="${esc(c.id)}" id="prot-${esc(c.id)}">
-        <div class="prot-head"><b>${esc(c.title)}</b>${c.toggle ? `<span class="prot-st ${c.toggle.on ? 'on' : 'off'}">${c.toggle.on ? L('aan') : L('uit')}</span>` : ''}${c.toggle || PROT_CFG[c.id] ? `<button type="button" class="btn small-btn need-admin prot-set" data-prot-set="${esc(c.id)}" title="${esc(L('Instellen in de beheerportal'))}">⚙️ ${L('Instellen')}</button>` : ''}</div>
+        <div class="prot-head"><b>${esc(c.title)}</b>${c.toggle ? `<span class="prot-st ${c.toggle.on ? 'on' : 'off'}">${c.toggle.on ? L('aan') : L('uit')}</span>` : ''}<span class="prot-ctl need-admin">${PROT_CFG[c.id] ? `<button type="button" class="btn small-btn" data-ps-cfg="${esc(c.id)}">⚙️ ${L('Drempels')}</button>` : ''}${c.toggle ? `<label class="am-sw" title="${esc(c.toggle.label)}"><input type="checkbox" data-prot-toggle="${esc(c.toggle.key)}" ${c.toggle.on ? 'checked' : ''}><span aria-hidden="true"></span></label>` : ''}</span></div>
         <p class="small muted">${esc(c.what)}</p>
         <div class="prot-acts">${c.sev === 2 ? '<span class="sev-chip s2">🔴 critical</span>' : c.sev === 1 ? '<span class="sev-chip s1">🟠 warning</span>' : ''} →
           ${c.acts.map(([icon, text, a]) => `<span class="act-chip t-${a} ${!block && ['block', 'kill', 'isolate', 'preblock'].includes(a) ? 'learn' : ''}" title="${esc(!block && ['block', 'kill', 'isolate', 'preblock'].includes(a) ? L('in de modus Leren alleen melden') : text)}">${icon} ${esc(text)}</span>`).join(' ')}
@@ -14198,8 +14163,8 @@ function initMainTabs() {
 const SET_IC = (d) => `<svg class="tab-ic set-ic" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 const SET_NAV = [
   ['overzicht', SET_IC('<path d="M3 12h4l3 8 4-16 3 8h4"/>'), L('Overzicht'), [
-    ['overview', L('Status'), ['overview'], L('Wat er nog aandacht nodig heeft, met een knop om het te regelen.')],
-    ['features', L('Functies'), ['features'], L('Alle functies van RzSense, met wat er aan staat en waar je het instelt.')],
+    ['overview', L('Status en functies'), ['overview', 'features'], L('Wat er nog aandacht nodig heeft, en alle functies met wat er aan staat en waar je het instelt.'),
+      [['status', L('Status'), ['overview']], ['functies', L('Functies'), ['features']]]],   // 1.236.0: samen
     ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzSense elke minuut uitvoert.')],
     ['nis2', L('NIS2'), ['nis2'], L('De tien maatregelen uit de NIS2-richtlijn met wat RzSense ziet, je notities en de meldtermijnen.')]]],
   ['checks', SET_IC('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>'), L('Monitoring'), [
@@ -14216,15 +14181,13 @@ const SET_NAV = [
     ['sysinfo', L('Systeemmeldingen'), ['sysinfo'], L('Meldingen over RzSense zelf, zoals updates en certificaten.')]]],
   ['ids', SET_IC('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'), L('IDS'), [
     ['ids', L('Algemeen'), ['ids'], L('Aan of uit, leren of blokkeren, brute force en honeypot.')],
-    ['ids_prot', L('Beschermingen'), ['ids_prot'], L('Wat het IDS doet bij een aanval: per bescherming aan of uit, met de drempels.')],
     ['ids_edr', L('Endpoint-bewaking'), ['ids_edr', 'ids_rules'], L('Processen, bestanden en netwerk op je servers; afwijkingen en aanvalsketens.'),
       [['bewaking', L('Bewaking'), ['ids_edr']], ['regels', L('Regels en uitzonderingen'), ['ids_rules']]]],
     ['ids_ti', L('Dreigingsinformatie'), ['ids_ti', 'dnsbl'], L('Bekende aanvallers en malware opzoeken, en DNS en Suricata.')],
     ['ids_ransom', L('Ransomware'), ['ransom'], L('Mappen bewaken op versleutelen, met lokaasbestanden, snapshot en stoppen.')],
     ['ids_apps', L('Programma\'s'), ['apps'], L('Welke programma\'s er draaien; onbekende vallen op na een leerperiode. Toestaan, blokkeren en stoppen.')],
     ['ids_hunt', L('Jagen op sporen'), ['hunt'], L('IP-adressen, domeinen, vingerafdrukken en paden zoeken, ook op de servers, en bewaken.')],
-    ['ids_attack', L('Netwerk en aanvallers'), ['ids_attack', 'whitelist'], L('Blocklists, landen, uitgaand verkeer, de logs van webdiensten en de whitelist.'),
-      [['aanvallers', L('Aanvallers en verkeer'), ['ids_attack']], ['whitelist', L('Whitelist'), ['whitelist']]]],
+    ['ids_attack', L('Netwerk en aanvallers'), ['ids_attack'], L('Blocklists, landen, uitgaand verkeer en de logs van webdiensten.')],
     ['ids_servers', L('Per server'), ['ids_servers'], L('Welke servers het IDS gebruiken, en wat ze bewaken.')]]],
   ['beveiliging', SET_IC('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'), L('Beveiliging'), [
     ['access', L('Inloggen'), ['access'], L('Lokaal netwerk, uitloggen en blokkeren na mislukte pogingen.')],
@@ -14261,7 +14224,7 @@ const SET_NAV = [
     ['transfer', L('Exporteren en importeren'), ['transfer'], L('Servers, checks en instellingen overzetten.')]]],
 ];
 /* 1.181.0: de rol gebruiker ziet alleen deze onderdelen, om te bekijken (de rest is voor beheerders) */
-const SET_USER = { overview: null, features: null, reports: null, advice: ['smart', 'advice'], actlog: null };
+const SET_USER = { overview: null, reports: null, advice: ['smart', 'advice'], actlog: null };
 if (document.body.dataset.role === 'user') {
   for (let gi = SET_NAV.length - 1; gi >= 0; gi--) {
     const subs = SET_NAV[gi][3];
@@ -14277,8 +14240,8 @@ if (document.body.dataset.role === 'user') {
   }
 }
 /** Oude adressen (vóór 1.92.0) → nieuwe plek */
-const SET_ALIAS = { netlinks: 'unifi', ids_rules: 'ids_edr', whitelist: 'ids_attack', enc: 'agentdef', https: 'outside', setup: 'db', syscheck: 'db', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db', changelog: 'actlog' };   // 1.120.0: samengevoegde onderdelen
-const SET_TAB_OF = { ids_rules: 'regels', whitelist: 'whitelist', smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server' };   // oude adressen → tabblad op de pagina Advies
+const SET_ALIAS = { netlinks: 'unifi', ids_rules: 'ids_edr', enc: 'agentdef', https: 'outside', setup: 'db', syscheck: 'db', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db', changelog: 'actlog', features: 'overview' };   // 1.120.0: samengevoegde onderdelen
+const SET_TAB_OF = { features: 'functies', ids_rules: 'regels', smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server' };   // oude adressen → tabblad op de pagina Advies
 let setTab = {};   // per onderdeel met tabbladen: het gekozen tabblad
 let setSection = (() => { try { return localStorage.getItem('rzmon-set-section') || 'overview'; } catch (e) { return 'overview'; } })();
 let setHealthAt = 0;
@@ -14293,6 +14256,8 @@ function setFind(id) {
 
 function showSettingsSection(id, focusEl) {
   xpClose();
+  if (id === 'ids_prot') { showTab('ids/prot'); return; }   // 1.236.0: Beschermingen staan op één plek: IDS → Bescherming
+  if (id === 'whitelist') { showTab('ids/blk'); setTimeout(() => { const c = $('#wl-card'); if (c) c.scrollIntoView({ behavior: 'smooth' }); }, 300); return; }   // 1.236.0: whitelist bij de blokkades
   if (SET_TAB_OF[id]) setTab[SET_ALIAS[id]] = SET_TAB_OF[id];
   // Gevonden via zoeken in een kaart op een ander tabblad: dat tabblad kiezen
   const fk = focusEl && focusEl.closest('[data-sk]') && focusEl.closest('[data-sk]').dataset.sk;
@@ -14340,8 +14305,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'ai') loadAiSettings();   // 1.171.0
   if (setSection === 'snmp') loadSnmpGlobal();   // 1.178.0
   if (setSection === 'reports') loadReports();   // 1.180.0
-  if (setSection === 'ids_prot') loadProtSettings();   // 1.181.0
-  if (setSection === 'features') loadFeatures();   // 1.182.0
+  if (setSection === 'overview' && cards.includes('features')) loadFeatures();   // 1.182.0; 1.236.0 tabblad van Status en functies
   if (setSection === 'quiet') loadQuiet();   // 1.189.0
   if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
   if (setSection === 'actlog') loadActLog();   // 1.226.0
@@ -14351,8 +14315,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'sudo') loadSudoSet();   // 1.231.0
   if (setSection === 'nis2') loadNis2();   // 1.232.0
   if (setSection === 'ids_ti') loadDnsbl();
-  if (setSection === 'ids_edr' && cards.includes('ids_rules')) { ruleWhere = 'set'; loadEdrRules(); }   // 1.162.0
-  if (setSection === 'ids_attack' && cards.includes('whitelist')) loadBlocks();
+  if (setSection === 'ids_edr' && cards.includes('ids_rules')) { loadEdrRules(); }   // 1.162.0
   if (setSection === 'db' || setSection === 'perf') loadSyscheck();   // 1.151.0: systeemcheck, cron, database, prestaties
   if (setSection === 'db') loadSetupInfo();
   if (focusEl) {
@@ -14735,7 +14698,7 @@ function polishSettings(root) {
   });
   $$('[data-sk^="ids"]:not([data-sk="ids_servers"]):not([data-sk="ids_rules"]):not([data-sk="ids_prot"]) > h2', root).forEach((h) => {
     if (h.nextElementSibling && h.nextElementSibling.classList.contains('prot-hint')) return;
-    h.insertAdjacentHTML('afterend', `<div class="prot-hint">${L('Onderdelen aan- of uitzetten, en de drempels per onderdeel (⚙️), doe je bij <a href="#settings/ids_prot" data-goto="settings/ids_prot">IDS → Beschermingen</a>. Hier staan de algemene instellingen.')}</div>`);
+    h.insertAdjacentHTML('afterend', `<div class="prot-hint">${L('Onderdelen aan- of uitzetten, en de drempels per onderdeel (⚙️), doe je op <a href="#ids/prot" data-goto="ids/prot">IDS → Bescherming</a>. Hier staan de algemene instellingen.')}</div>`);
   });
   $$('[data-sk] h2:not([data-pol]), [data-sk] h3.set-sub:not([data-pol])', root).forEach((h) => {
     h.dataset.pol = '1';
@@ -20277,14 +20240,11 @@ async function loadAppsSet() {
   if (!box) return;
   let d;
   try { d = await api('apps', null, { status: 'new' }); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  box.innerHTML = d.hosts.length ? `<div class="table-scroll"><table class="vuln-table small"><thead><tr><th>${L('Server')}</th><th>${L('Bijhouden')}</th><th>${L('Stoppen')}</th><th>${L('Leerperiode')}</th><th></th></tr></thead><tbody>${d.hosts.map((h) => `<tr>
-    <td><b>${esc(h.name)}</b>${!h.agent_ok ? `<br><span class="muted small">${L('agent 1.91.0 nodig')}</span>` : ''}</td>
-    <td>${h.on ? '✔' : `<span class="muted">${L('uit')}</span>`}</td><td>${h.kill ? '⛔ ' + L('aan') : `<span class="muted">${L('uit')}</span>`}</td>
-    <td class="small">${!h.until ? '–' : h.learning ? '🎓 ' + L('tot {d}', { d: new Date(h.until.replace(' ', 'T')).toLocaleDateString(LOCALE) }) : '✔ ' + L('voorbij')}</td>
-    <td><button type="button" class="btn small-btn" data-ap-am="${h.id}">${L('Instellen')} →</button></td></tr>`).join('')}</tbody></table></div>
-    <p class="small"><a href="#ids/apps" data-goto="ids/apps">${L('Naar IDS → Programma\'s ({n} onbekend)', { n: d.counts.new })}</a></p>`
+  // 1.236.0: alleen een samenvatting; per server staat het op IDS → Programma's en in de Agent Manager
+  const on = d.hosts.filter((h) => h.on).length, learn = d.hosts.filter((h) => h.on && h.learning).length;
+  box.innerHTML = d.hosts.length ? `<p class="small">${L('Bijgehouden op {a} van {n} servers', { a: on, n: d.hosts.length })}${learn ? ' · 🎓 ' + L('{n} nog aan het leren', { n: learn }) : ''}
+    · ${L('{n} onbekend', { n: d.counts.new })} <a class="btn small-btn" href="#ids/apps" data-goto="ids/apps">${L('Per server bekijken en instellen')} →</a></p>`
     : `<p class="muted">${L('Nog geen servers met de agent.')}</p>`;
-  box.onclick = (e) => { const b = e.target.closest('[data-ap-am]'); if (b) agentInstructions(findHost(+b.dataset.apAm)); };
 }
 // ---------------------------------------------------------------- 🩹 Updates installeren (patchbeheer, 1.230.0, agent 1.92.0)
 // Kwetsbaarheden → Updates (overzicht en nu installeren), de kaart in de Agent Manager (keuze per server) en
@@ -20411,13 +20371,11 @@ async function loadPatchSet() {
   if (!box) return;
   let d;
   try { d = await api('patch'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  box.innerHTML = d.hosts.length ? `<div class="table-scroll"><table class="vuln-table small"><thead><tr><th>${L('Server')}</th><th>${L('Hoe')}</th><th>${L('Klaar')}</th><th></th></tr></thead><tbody>${d.hosts.map((h) => `<tr>
-    <td><b>${esc(h.name)}</b><br><span class="muted small">${(PATCH_KIND[h.kind] || (() => h.kind))()}${h.self ? ' · ' + L('RzSense zelf') : ''}</span></td>
-    <td class="small">${h.kind === 'truenas' ? L('via TrueNAS zelf') : esc(patchModeTxt(h))}</td><td class="small">${patchBadge(h)}</td>
-    <td>${h.kind !== 'truenas' ? `<button type="button" class="btn small-btn" data-pt-am="${h.id}">${L('Instellen')} →</button>` : ''}</td></tr>`).join('')}</tbody></table></div>
-    <p class="small"><a href="#vulns/patch" data-goto="vulns/patch">${L('Naar Kwetsbaarheden → Updates')} →</a></p>`
+  // 1.236.0: alleen een samenvatting; de lijst per server (met instellen) staat op Kwetsbaarheden → Updates
+  const auto = d.hosts.filter((h) => h.kind !== 'truenas' && h.mode && h.mode !== 'off').length;
+  box.innerHTML = d.hosts.length ? `<p class="small">${L('{a} van {n} servers werken zichzelf automatisch bij.', { a: auto, n: d.hosts.length })}
+    <a class="btn small-btn" href="#vulns/patch" data-goto="vulns/patch">${L('Per server bekijken en instellen')} →</a></p>`
     : `<p class="muted">${L('Nog geen servers met de agent.')}</p>`;
-  box.onclick = (e) => { const b = e.target.closest('[data-pt-am]'); if (b) agentInstructions(findHost(+b.dataset.ptAm)); };
 }
 // ---------------------------------------------------------------- 🔑 Tijdelijk sudo en 🚫 AdGuard-blokkadelijst (1.231.0, agent 1.93.0)
 const SUDO_ST = { pending: () => '⏳ ' + L('wacht op de agent'), active: () => '🔑 ' + L('actief'), expired: () => L('verlopen'), revoked: () => L('ingetrokken'),
