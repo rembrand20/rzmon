@@ -323,7 +323,7 @@ final class Https
 
     private static function isPrivate(string $ip): bool
     {
-        return ip_in_list($ip, PRIVATE_NETWORKS);
+        return is_private_ip($ip);
     }
 
     /**

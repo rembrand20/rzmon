@@ -3,6 +3,12 @@ declare(strict_types=1);
 
 const PRIVATE_NETWORKS = ['127.0.0.0/8', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '::1/128', 'fc00::/7', 'fe80::/10'];
 
+/** 1.237.0: één definitie van een privé-adres (LAN, loopback, link-local) */
+function is_private_ip(string $ip): bool
+{
+    return ip_in_list($ip, PRIVATE_NETWORKS);
+}
+
 /** Controleert of $ip binnen $cidr valt (IPv4 en IPv6). Een los IP-adres mag ook. */
 function ip_in_cidr(string $ip, string $cidr): bool
 {

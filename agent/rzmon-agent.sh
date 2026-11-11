@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.94.0"
+AGENT_VERSION="1.95.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -116,6 +116,19 @@ REALTIME="${REALTIME-}"
 HA_MODE=0
 [ -n "${SUPERVISOR_TOKEN:-}" ] && HA_MODE=1
 
+# 1.95.0: luisterende poorten één keer per ronde lezen en voor alle onderdelen gebruiken (eerst las de agent `ss`
+# tot negen keer per ronde). $1: t = tcp (ss -Htlnp), tu = tcp en udp (ss -Htulnp, met de soort als eerste kolom).
+# Bewaard in de cachemap (20 seconden), zodat het ook werkt binnen $(…); zonder cachemap gewoon direct.
+ss_listen() {
+    local o="-Htlnp" f
+    [ "$1" = tu ] && o="-Htulnp"
+    if [ -z "${t_dir:-}" ] || [ ! -d "$t_dir" ] || [ ! -w "$t_dir" ]; then ss "$o" 2>/dev/null; return 0; fi
+    f="$t_dir/ss_$1"
+    if [ ! -s "$f" ] || [ $(( $(date +%s) - $(stat -c %Y "$f" 2>/dev/null || echo 0) )) -ge 20 ]; then
+        if ss "$o" > "$f.$$" 2>/dev/null; then mv -f "$f.$$" "$f"; else rm -f "$f.$$"; fi
+    fi
+    cat "$f" 2>/dev/null
+}
 # ---------------------------------------------------------------- Endpoint-bewaking (agent 1.63.0)
 # Aan per server in RzSense (regel "0 <tab> edr <tab> 1"); EDR=0 zet het op deze server altijd uit. De realtime-watcher
 # start dan sensoren die elke gebeurtenis meteen in een wachtrij zetten (edr.spool) en een run starten. RzSense toetst
@@ -349,7 +362,7 @@ edr_proc() {  # edr_proc <pid>: "starttijd<tab>programma<tab>gebruiker" (leeg al
 edr_net_once() {  # edr_net_once <1 = eerste keer>
     local lp out pid comm rip rp lport st exe u now ow
     now=$(date +%s)
-    lp=$(ss -ltnH 2>/dev/null | awk '{ n = split($4, a, ":"); print a[n] }' | sort -u | tr '\n' ' ')
+    lp=$(ss_listen t | awk '{ n = split($4, a, ":"); print a[n] }' | sort -u | tr '\n' ' ')
     out=$(ss -tnpH state established 2>/dev/null | awk -v lp=" $lp" -v sf="$edr_dir/net.state" -v now="$now" '
         BEGIN { FS = "[ \t]+"; while ((getline l < sf) > 0) { split(l, a, "\t"); if (now - a[2] < 3600) seen[a[1]] = a[2] }; close(sf) }
         {
@@ -375,7 +388,7 @@ edr_net_once() {  # edr_net_once <1 = eerste keer>
         done <<<"$out"
     fi
     # Luisterpoorten: programma + poort
-    out=$(ss -ltnpH 2>/dev/null | awk -v sf="$edr_dir/listen.state" -v first="$1" '
+    out=$(ss_listen t | awk -v sf="$edr_dir/listen.state" -v first="$1" '
         BEGIN { while ((getline l < sf) > 0) seen[l] = 1; close(sf) }
         { n = split($4, a, ":"); port = a[n]; comm = ""; pid = 0
           if (match($0, /users:\(\("[^"]*",pid=[0-9]+/)) { u = substr($0, RSTART + 9, RLENGTH - 9); comm = u; sub(/".*/, "", comm); pid = u; sub(/.*pid=/, "", pid) }
@@ -1589,7 +1602,7 @@ lap ports
 # Luisterende TCP-poorten (procesnamen alleen zichtbaar als root, niet in de HA-add-on)
 ports=""
 if command -v ss >/dev/null 2>&1; then
-    ports=$(ss -Htlnp 2>/dev/null | awk '{
+    ports=$(ss_listen t | awk '{
         local = $4; port = local; sub(/.*:/, "", port); addr = local; sub(/:[^:]*$/, "", addr)
         gsub(/[\[\]"]/, "", addr); proc = ""
         if (match($0, /users:\(\("[^"]+"/)) { proc = substr($0, RSTART + 9, RLENGTH - 10) }
@@ -2030,7 +2043,7 @@ sock_open() {  # sock_open pad → 0 = neemt verbindingen aan, 1 = niet, 2 = gee
 if [ "$HA_MODE" = 0 ] && [ "$SERVICE_DEEP" != 0 ] && [ -n "${svc_all// /}" ] && command -v systemctl >/dev/null 2>&1; then
     # Alle luisterende TCP-poorten met de bijbehorende PID's: "poort|adres|pid pid …"
     listen_map=""
-    command -v ss >/dev/null 2>&1 && listen_map=$(ss -Htlnp 2>/dev/null | awk '{
+    command -v ss >/dev/null 2>&1 && listen_map=$(ss_listen t | awk '{
         local = $4; port = local; sub(/.*:/, "", port); addr = local; sub(/:[^:]*$/, "", addr); gsub(/[\[\]]/, "", addr); sub(/%.*/, "", addr)
         pids = ""; s = $0
         while (match(s, /pid=[0-9]+/)) { pids = pids " " substr(s, RSTART + 4, RLENGTH - 4); s = substr(s, RSTART + RLENGTH) }
@@ -2554,11 +2567,11 @@ if [ -n "$ids_mode" ]; then
             done
             [ "$h_au" = unattended-upgrades.service ] && ! grep -qsE 'Unattended-Upgrade "1"' /etc/apt/apt.conf.d/20auto-upgrades && h_au=none
             printf 'autoupdate=%s\n' "$h_au"
-            printf 'open_db=%s\n' "$(ss -Htln 2>/dev/null | awk '{ a = $4; p = a; sub(/.*:/, "", p); h = a; sub(/:[0-9]+$/, "", h)
+            printf 'open_db=%s\n' "$(ss_listen t | awk '{ a = $4; p = a; sub(/.*:/, "", p); h = a; sub(/:[0-9]+$/, "", h)
                 if (p ~ /^(3306|5432|6379|27017|9200|11211|5984|8086)$/ && h ~ /^(0\.0\.0\.0|\*|\[::\]|::)$/) print p }' | sort -un | paste -sd, -)"
             h_dk=ok
             [ -S /var/run/docker.sock ] && [[ "$(stat -c %A /var/run/docker.sock 2>/dev/null)" == ????????w? ]] && h_dk=world
-            ss -Htln 2>/dev/null | awk '{ print $4 }' | grep -qE ':2375$' && h_dk=tcp
+            ss_listen t | awk '{ print $4 }' | grep -qE ':2375$' && h_dk=tcp
             printf 'docker_sock=%s\n' "$h_dk"
             if findmnt -no OPTIONS /tmp 2>/dev/null | grep -q noexec; then printf 'tmp_noexec=yes\n'; else printf 'tmp_noexec=no\n'; fi
             printf 'empty_pw=%s\n' "$(awk -F: '$2 == "" { print $1 }' /etc/shadow 2>/dev/null | paste -sd, -)"
@@ -2576,7 +2589,7 @@ if [ -n "$ids_mode" ]; then
             for u in chronyd chrony systemd-timesyncd ntpd ntp ntpsec; do systemctl is-active -q "$u" 2>/dev/null && h_ts=$u && break; done
             printf 'time_sync=%s\n' "$h_ts"
             printf 'ww_files=%s\n' "$(timeout 20 find /etc /usr/bin /usr/sbin /usr/local/bin /usr/local/sbin -xdev -type f -perm -0002 2>/dev/null | head -n 5 | paste -sd, -)"
-            printf 'legacy_svc=%s\n' "$(ss -Htuln 2>/dev/null | awk '{ p = $5; sub(/.*:/, "", p); if (p ~ /^(21|23|69|512|513|514)$/) print p }' | sort -un | paste -sd, -)"
+            printf 'legacy_svc=%s\n' "$(ss_listen tu | awk '{ p = $5; sub(/.*:/, "", p); if (p ~ /^(21|23|69|512|513|514)$/) print p }' | sort -un | paste -sd, -)"
             if grep -qsE '^[^#]*(pam_faillock|pam_tally2)' /etc/pam.d/* 2>/dev/null; then printf 'faillock=yes\n'; else printf 'faillock=no\n'; fi
             printf 'pw_minlen=%s\n' "$(cat /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf 2>/dev/null | awk -F= '$1 ~ /^[ \t]*minlen[ \t]*$/ { v = $2; gsub(/[ \t]/, "", v) } END { print v }')"
             for h_g in /boot/grub2/grub.cfg /boot/grub/grub.cfg; do [ -f "$h_g" ] && { printf 'grub_perm=%s\n' "$(stat -c '%a' "$h_g")"; break; }; done
@@ -2587,7 +2600,7 @@ if [ -n "$ids_mode" ]; then
     # 7. Verbindingen: een shell (of nc/socat) met een verbinding naar buiten, of uitgaand naar een verdachte poort
     conns_json=""; out_json=""; out_seen=""; n_out=0
     if command -v ss >/dev/null 2>&1; then
-        listen=" $(ss -Htln 2>/dev/null | awk '{ p = $4; sub(/.*:/, "", p); printf "%s ", p }')"
+        listen=" $(ss_listen t | awk '{ p = $4; sub(/.*:/, "", p); printf "%s ", p }')"
         while IFS=$'\t' read -r c_procs c_pid c_local c_peer; do
             c_proc=${c_procs%%,*}
             peer_ip=${c_peer%:*}; peer_ip=${peer_ip#[}; peer_ip=${peer_ip%]}; peer_port=${c_peer##*:}; local_port=${c_local##*:}
@@ -3344,6 +3357,36 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${RANSOM:-1}" != 0 ]; then
     done
 fi
 # ---------------------------------------------------------------- Onbekende programma's en jagen op sporen (agent 1.91.0)
+# 1.95.0: van welk pakket zijn deze bestanden? $1 = bestand met paden (één per regel). Uitvoer: pad<TAB>pakket.
+# In één keer: rpm via xargs, dpkg door alle .list-bestanden één keer te lezen (ook /bin ↔ /usr/bin), apk en pacman per bestand.
+# Gebruikt door Programma's (64) en de pakketten die via het netwerk bereikbaar zijn (75).
+pkg_owners() {
+    local list=$1 f g
+    [ -s "$list" ] || return 0
+    if command -v rpm >/dev/null 2>&1 && { [ -d /var/lib/rpm ] || [ -d /usr/lib/sysimage/rpm ]; }; then
+        tr '\n' '\0' <"$list" | xargs -0 -r timeout 60 rpm -qf --qf '%{NAME}\n' -- 2>/dev/null | paste "$list" - 2>/dev/null \
+            | awk -F'\t' '$2 != "" && $2 !~ / / { print $1 "\t" $2 }'
+    fi
+    if [ -d /var/lib/dpkg/info ]; then
+        timeout 60 awk 'NR == FNR { w[$0] = $0; if ($0 ~ /^\/usr\//) w[substr($0, 5)] = $0; else w["/usr" $0] = $0; next }
+            ($0 in w) { n = FILENAME; sub(/^.*\//, "", n); sub(/\.list$/, "", n); sub(/:.*/, "", n); print w[$0] "\t" n }' \
+            "$list" /var/lib/dpkg/info/*.list 2>/dev/null
+    fi
+    if command -v apk >/dev/null 2>&1; then
+        while IFS= read -r f; do
+            g=$(timeout 5 apk info -W -- "$f" 2>/dev/null | awk '/ is owned by / { print $NF; exit }')
+            [ -n "$g" ] && printf '%s\t%s\n' "$f" "${g%-r[0-9]*}"
+        done <"$list"
+    fi
+    if command -v pacman >/dev/null 2>&1; then
+        while IFS= read -r f; do
+            g=$(timeout 5 pacman -Qoq -- "$f" 2>/dev/null | head -n 1)
+            [ -n "$g" ] && printf '%s\t%s\n' "$f" "$g"
+        done <"$list"
+    fi
+    return 0
+}
+
 lap apps
 # 1. Programma's (aan per server in RzSense: regel "0 <tab> apps <tab> stoppen 0|1"): elke ronde de programma's die nu
 #    draaien (/proc/*/exe, niet in containers). Een nieuw of veranderd programma krijgt een vingerafdruk (sha256) en het
@@ -3389,28 +3432,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ -r "${t_cache-}" ]; then
         ap_new=""
         if [ -s "$ap_dir/todo.1" ]; then
             # Pakketten in één keer opzoeken (dpkg: alle .list-bestanden in één keer lezen; ook /bin ↔ /usr/bin)
-            : >"$ap_dir/pkg"
-            if command -v rpm >/dev/null 2>&1 && { [ -d /var/lib/rpm ] || [ -d /usr/lib/sysimage/rpm ]; }; then
-                tr '\n' '\0' <"$ap_dir/todo.1" | xargs -0 -r timeout 60 rpm -qf --qf '%{NAME}\n' -- 2>/dev/null | paste "$ap_dir/todo.1" - 2>/dev/null \
-                    | awk -F'\t' '$2 != "" && $2 !~ / / { print $1 "\t" $2 }' >>"$ap_dir/pkg"
-            fi
-            if [ -d /var/lib/dpkg/info ]; then
-                timeout 60 awk 'NR == FNR { w[$0] = $0; if ($0 ~ /^\/usr\//) w[substr($0, 5)] = $0; else w["/usr" $0] = $0; next }
-                    ($0 in w) { n = FILENAME; sub(/^.*\//, "", n); sub(/\.list$/, "", n); sub(/:.*/, "", n); print w[$0] "\t" n }' \
-                    "$ap_dir/todo.1" /var/lib/dpkg/info/*.list 2>/dev/null >>"$ap_dir/pkg"
-            fi
-            if command -v apk >/dev/null 2>&1; then
-                while IFS= read -r ap_f; do
-                    ap_g=$(timeout 5 apk info -W -- "$ap_f" 2>/dev/null | awk '/ is owned by / { print $NF; exit }')
-                    [ -n "$ap_g" ] && printf '%s\t%s\n' "$ap_f" "${ap_g%-r[0-9]*}" >>"$ap_dir/pkg"
-                done <"$ap_dir/todo.1"
-            fi
-            if command -v pacman >/dev/null 2>&1; then
-                while IFS= read -r ap_f; do
-                    ap_g=$(timeout 5 pacman -Qoq -- "$ap_f" 2>/dev/null | head -n 1)
-                    [ -n "$ap_g" ] && printf '%s\t%s\n' "$ap_f" "$ap_g" >>"$ap_dir/pkg"
-                done <"$ap_dir/todo.1"
-            fi
+            pkg_owners "$ap_dir/todo.1" >"$ap_dir/pkg"   # 1.95.0: gedeeld met de lijst "bereikbaar via het netwerk"
             declare -A ap_npkg=()
             while IFS=$'\t' read -r ap_f ap_g; do [ -z "${ap_npkg[$ap_f]-}" ] && ap_npkg[$ap_f]=$ap_g; done <"$ap_dir/pkg"
             while IFS= read -r ap_l; do
@@ -4242,30 +4264,29 @@ if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ] && mkdir -p "$pk_dir" 2>/dev/null && [
         # Bereikbaar via het netwerk: pakketten van programma's die op een poort luisteren (niet alleen op localhost)
         pk_exp=""
         if command -v ss >/dev/null 2>&1 && [ "$(id -u)" = 0 ]; then
+            # 1.95.0: eerst alle programma's verzamelen en dan in één keer opzoeken (pkg_owners, ook gebruikt door Programma's)
             declare -A pk_owner=()
+            pk_lines=() ; : >"$pk_dir/exes"
             while read -r proto local pids; do
                 for pid in $pids; do
                     exe=$(readlink -f "/proc/$pid/exe" 2>/dev/null) || continue
                     [ -n "$exe" ] || continue
-                    if [ -z "${pk_owner[$exe]+x}" ]; then
-                        if [ "$pk_mgr" = dpkg ]; then
-                            o=$(dpkg -S "$exe" 2>/dev/null | head -1 | cut -d: -f1)
-                            [ -z "$o" ] && o=$(dpkg -S "${exe#/usr}" 2>/dev/null | head -1 | cut -d: -f1)   # /usr-merge
-                        else
-                            o=$(rpm -qf --qf '%{NAME}\n' "$exe" 2>/dev/null | head -1)
-                            [[ "$o" == *" "* ]] && o=""
-                        fi
-                        pk_owner[$exe]=$o
-                    fi
-                    [ -n "${pk_owner[$exe]}" ] && pk_exp+="[\"${pk_owner[$exe]}\",${local##*:},\"$proto\"],"
+                    pk_lines+=("$exe"$'\t'"$proto"$'\t'"${local##*:}")
+                    [ -z "${pk_owner[$exe]+x}" ] && pk_owner[$exe]="" && printf '%s\n' "$exe" >>"$pk_dir/exes"
                 done
-            done < <(ss -Htulnp 2>/dev/null | awk '{
+            done < <(ss_listen tu | awk '{
                     local = $5; if (local !~ /:[0-9]+$/) next
                     addr = local; sub(/:[0-9]+$/, "", addr); gsub(/[\[\]]/, "", addr); sub(/%.*/, "", addr)
                     if (addr ~ /^127\./ || addr == "::1" || addr == "localhost") next
                     pids = ""; s = $0
                     while (match(s, /pid=[0-9]+/)) { pids = pids " " substr(s, RSTART + 4, RLENGTH - 4); s = substr(s, RSTART + RLENGTH) }
                     if (pids != "") print $1, local, pids }' | sort -u)
+            while IFS=$'\t' read -r exe o; do [ -z "${pk_owner[$exe]}" ] && pk_owner[$exe]=$o; done < <(pkg_owners "$pk_dir/exes")
+            for l in "${pk_lines[@]}"; do
+                IFS=$'\t' read -r exe proto port <<<"$l"
+                [ -n "${pk_owner[$exe]-}" ] && pk_exp+="[\"${pk_owner[$exe]}\",$port,\"$proto\"],"
+            done
+            rm -f "$pk_dir/exes"
         fi
         # Herstart nodig: nieuwere kernel geïnstalleerd dan er draait; services met oude bibliotheken (als de hulpmiddelen er zijn)
         pk_kern=$(find /boot -maxdepth 1 -name 'vmlinuz-*' -printf '%f\n' 2>/dev/null | sed 's/^vmlinuz-//' | grep -v rescue | sort -V | tail -1)

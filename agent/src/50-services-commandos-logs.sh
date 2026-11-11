@@ -94,7 +94,7 @@ sock_open() {  # sock_open pad → 0 = neemt verbindingen aan, 1 = niet, 2 = gee
 if [ "$HA_MODE" = 0 ] && [ "$SERVICE_DEEP" != 0 ] && [ -n "${svc_all// /}" ] && command -v systemctl >/dev/null 2>&1; then
     # Alle luisterende TCP-poorten met de bijbehorende PID's: "poort|adres|pid pid …"
     listen_map=""
-    command -v ss >/dev/null 2>&1 && listen_map=$(ss -Htlnp 2>/dev/null | awk '{
+    command -v ss >/dev/null 2>&1 && listen_map=$(ss_listen t | awk '{
         local = $4; port = local; sub(/.*:/, "", port); addr = local; sub(/:[^:]*$/, "", addr); gsub(/[\[\]]/, "", addr); sub(/%.*/, "", addr)
         pids = ""; s = $0
         while (match(s, /pid=[0-9]+/)) { pids = pids " " substr(s, RSTART + 4, RLENGTH - 4); s = substr(s, RSTART + RLENGTH) }

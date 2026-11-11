@@ -2614,6 +2614,15 @@ ok(SettingsMeta::skipTransfer('rz_own_ips') && SettingsMeta::skipTransfer('smtp_
 $el = email_list('A@Voorbeeld.nl; b@voorbeeld.nl a@voorbeeld.nl,geen-adres');
 ok($el['ok'] === ['a@voorbeeld.nl', 'b@voorbeeld.nl'] && $el['bad'] === ['geen-adres'] && !valid_email(str_repeat('a', 190) . '@x.nl'), 'E-mailadressen: één controle (kleine letters, dubbele eruit, ongeldige apart, max. 190)');
 ok(Analytics::reportOn() === (Reports::cfg()['month']['on'] || (Reports::cfg()['all']['on'] && in_array('month', Reports::cfg()['all']['parts'], true))) && !method_exists('Ids', 'sendWeekly') && !method_exists('Analytics', 'sendMonthly'), 'Oude rapportfuncties weg; maandrapport aan of uit volgt Rapporten');
+// 1.237.0: Once, RateLimit, eigen IP-adressen op één plek
+ok(Once::claim('ci_once', 'a', '2026-11') && !Once::claim('ci_once', 'a', '2026-11') && Once::claim('ci_once', 'a', '2026-12')
+    && Once::claimFor('ci_once_t', 'x', 3600) && !Once::claimFor('ci_once_t', 'x', 3600), 'Once: één keer per stempel, één keer per tijdvak');
+$rlOk = 0;
+for ($i = 0; $i < 4; $i++) {
+    $rlOk += RateLimit::hit('ci', 'u1', 3, 3600) ? 1 : 0;
+}
+ok($rlOk === 3 && RateLimit::hit('ci', 'u2', 3, 3600), 'RateLimit: hooguit 3 per uur, per sleutel apart');
+ok(is_private_ip('192.168.2.207') && !is_private_ip('8.8.8.8') && Ids::protectedIp('10.1.2.3') && NetScan::isOwnIp('127.0.0.1'), 'Eigen en privé-adressen: één definitie');
 // 1.235.0: één verzendroute en één logboek
 $nz = Notify::send('CI', 'test', ['channels' => ['pushover' => false, 'email' => false, 'webhook' => false]]);
 ok($nz['push'] === null && $nz['email'] === null && $nz['webhook'] === null && Notify::errText(['x']) !== '' && Notify::ip('[::1]') === '::1' && Notify::ip('10.0.0.1:22') === null,

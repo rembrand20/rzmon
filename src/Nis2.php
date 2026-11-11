@@ -217,8 +217,7 @@ final class Nis2
         if (!self::enabled()) {
             return null;
         }
-        $done = (array) json_decode((string) setting('nis2_notified', '{}'), true);
-        $n = 0;
+        $n = 0;   // 1.237.0: "al gemeld" via Once
         foreach (q('SELECT * FROM incidents WHERE nis2 = 1 AND nis2_final IS NULL AND nis2_at > NOW() - INTERVAL 70 DAY')->fetchAll() as $i) {
             $d = self::deadlines($i);
             foreach (['warn' => 6 * 3600, 'notify' => 6 * 3600, 'final' => 3 * 86400] as $w => $before) {
@@ -226,11 +225,9 @@ final class Nis2
                     continue;
                 }
                 $stage = time() > $d[$w] ? 'late' : 'soon';
-                $key = $i['id'] . ":$w";
-                if (($done[$key] ?? '') === $stage) {
+                if (!Once::claim('nis2_notified', $i['id'] . ":$w", $stage)) {
                     continue;
                 }
-                $done[$key] = $stage;
                 $label = ['warn' => t('vroegtijdige waarschuwing (24 uur)'), 'notify' => t('incidentmelding (72 uur)'), 'final' => t('eindverslag (een maand)')][$w];
                 Monitor::sysInfo('nis2', $i['host_id'] ? (int) $i['host_id'] : null, null, ($stage === 'late' ? '⛔ ' : '⏰ ') . t('NIS2: {w}', ['w' => $label]),
                     fn() => ($stage === 'late' ? t('De termijn voor de {w} is verlopen ({d}): {t}', ['w' => $label, 'd' => date('Y-m-d H:i', $d[$w]), 't' => $i['title']])
@@ -238,7 +235,6 @@ final class Nis2
                 $n++;
             }
         }
-        save_setting('nis2_notified', json_encode(array_slice($done, -200, null, true)));
         return $n ? "NIS2: $n termijnen" : null;
     }
 

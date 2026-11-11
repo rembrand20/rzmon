@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.94.0"
+AGENT_VERSION="1.95.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -116,3 +116,16 @@ REALTIME="${REALTIME-}"
 HA_MODE=0
 [ -n "${SUPERVISOR_TOKEN:-}" ] && HA_MODE=1
 
+# 1.95.0: luisterende poorten één keer per ronde lezen en voor alle onderdelen gebruiken (eerst las de agent `ss`
+# tot negen keer per ronde). $1: t = tcp (ss -Htlnp), tu = tcp en udp (ss -Htulnp, met de soort als eerste kolom).
+# Bewaard in de cachemap (20 seconden), zodat het ook werkt binnen $(…); zonder cachemap gewoon direct.
+ss_listen() {
+    local o="-Htlnp" f
+    [ "$1" = tu ] && o="-Htulnp"
+    if [ -z "${t_dir:-}" ] || [ ! -d "$t_dir" ] || [ ! -w "$t_dir" ]; then ss "$o" 2>/dev/null; return 0; fi
+    f="$t_dir/ss_$1"
+    if [ ! -s "$f" ] || [ $(( $(date +%s) - $(stat -c %Y "$f" 2>/dev/null || echo 0) )) -ge 20 ]; then
+        if ss "$o" > "$f.$$" 2>/dev/null; then mv -f "$f.$$" "$f"; else rm -f "$f.$$"; fi
+    fi
+    cat "$f" 2>/dev/null
+}

@@ -1385,15 +1385,8 @@ final class Ids
     /** IP's die nooit automatisch geblokkeerd worden: LAN, RzSense zelf en de eigen lijst. */
     public static function protectedIp(string $ip): bool
     {
-        if (ip_in_list($ip, PRIVATE_NETWORKS) || Whitelist::ip($ip)) {
-            return true;
-        }
-        $own = [];
-        $base = (string) parse_url((string) config('base_url', ''), PHP_URL_HOST);
-        if ($base !== '') {
-            $own = @inet_pton($base) !== false ? [$base] : (gethostbynamel($base) ?: []);
-        }
-        return in_array($ip, $own, true) || self::isRzmon($ip);
+        // 1.237.0: het adres uit base_url zit al in rzmonIps(); dat werd hier nog eens apart opgezocht
+        return is_private_ip($ip) || Whitelist::ip($ip) || self::isRzmon($ip);
     }
 
     /**
@@ -1413,7 +1406,8 @@ final class Ids
         if ($base !== '') {
             $now = @inet_pton($base) !== false ? [$base] : (@gethostbynamel($base) ?: []);
         }
-        $now = array_merge($now, @gethostbynamel((string) gethostname()) ?: [], isset($_SERVER['SERVER_ADDR']) ? [(string) $_SERVER['SERVER_ADDR']] : []);
+        // 1.237.0: ook de adressen van de netwerkkaarten van deze server (NetScan), zodat "RzSense zelf" overal hetzelfde is
+        $now = array_merge($now, @gethostbynamel((string) gethostname()) ?: [], isset($_SERVER['SERVER_ADDR']) ? [(string) $_SERVER['SERVER_ADDR']] : [], NetScan::ownIps());
         $now = array_values(array_filter(array_unique($now), static fn($ip) => @inet_pton($ip) !== false && !str_starts_with($ip, '127.') && $ip !== '::1'));
         $ips = array_values(array_unique(array_merge($saved, $now)));
         if (array_diff($ips, $saved)) {

@@ -371,14 +371,11 @@ final class NetTraffic
         }
         $used = (int) $m['rx'] + (int) $m['tx'];
         $cap = (int) $m['cap'];
-        $done = json_decode((string) setting('net_wan_cap_alert', ''), true) ?: [];
-        foreach ([100, 80] as $pct) {
-            if ($used >= $cap * $pct / 100 && ($done[$pct] ?? '') !== $m['month']) {
-                $done[$pct] = $m['month'];
+        foreach ([100, 80] as $pct) {   // 1.237.0: "al gemeld" via Once (één keer per maand per drempel)
+            if ($used >= $cap * $pct / 100 && Once::claim('net_wan_cap_alert', (string) $pct, (string) $m['month'])) {
                 if ($pct === 100) {
-                    $done[80] = $m['month'];
+                    Once::mark('net_wan_cap_alert', '80', (string) $m['month']);
                 }
-                save_setting('net_wan_cap_alert', json_encode($done));
                 Monitor::sysInfo('net_cap', null, null, '📶 ' . t('Internet: {p}% van je datalimiet gebruikt', ['p' => $pct]),
                     fn() => t('Deze maand {u} van {c} (↓ {d} · ↑ {up}).', ['u' => self::human($used), 'c' => self::human($cap), 'd' => self::human($m['rx']), 'up' => self::human($m['tx'])]));
                 break;

@@ -211,11 +211,11 @@ if [ -n "$ids_mode" ]; then
             done
             [ "$h_au" = unattended-upgrades.service ] && ! grep -qsE 'Unattended-Upgrade "1"' /etc/apt/apt.conf.d/20auto-upgrades && h_au=none
             printf 'autoupdate=%s\n' "$h_au"
-            printf 'open_db=%s\n' "$(ss -Htln 2>/dev/null | awk '{ a = $4; p = a; sub(/.*:/, "", p); h = a; sub(/:[0-9]+$/, "", h)
+            printf 'open_db=%s\n' "$(ss_listen t | awk '{ a = $4; p = a; sub(/.*:/, "", p); h = a; sub(/:[0-9]+$/, "", h)
                 if (p ~ /^(3306|5432|6379|27017|9200|11211|5984|8086)$/ && h ~ /^(0\.0\.0\.0|\*|\[::\]|::)$/) print p }' | sort -un | paste -sd, -)"
             h_dk=ok
             [ -S /var/run/docker.sock ] && [[ "$(stat -c %A /var/run/docker.sock 2>/dev/null)" == ????????w? ]] && h_dk=world
-            ss -Htln 2>/dev/null | awk '{ print $4 }' | grep -qE ':2375$' && h_dk=tcp
+            ss_listen t | awk '{ print $4 }' | grep -qE ':2375$' && h_dk=tcp
             printf 'docker_sock=%s\n' "$h_dk"
             if findmnt -no OPTIONS /tmp 2>/dev/null | grep -q noexec; then printf 'tmp_noexec=yes\n'; else printf 'tmp_noexec=no\n'; fi
             printf 'empty_pw=%s\n' "$(awk -F: '$2 == "" { print $1 }' /etc/shadow 2>/dev/null | paste -sd, -)"
@@ -233,7 +233,7 @@ if [ -n "$ids_mode" ]; then
             for u in chronyd chrony systemd-timesyncd ntpd ntp ntpsec; do systemctl is-active -q "$u" 2>/dev/null && h_ts=$u && break; done
             printf 'time_sync=%s\n' "$h_ts"
             printf 'ww_files=%s\n' "$(timeout 20 find /etc /usr/bin /usr/sbin /usr/local/bin /usr/local/sbin -xdev -type f -perm -0002 2>/dev/null | head -n 5 | paste -sd, -)"
-            printf 'legacy_svc=%s\n' "$(ss -Htuln 2>/dev/null | awk '{ p = $5; sub(/.*:/, "", p); if (p ~ /^(21|23|69|512|513|514)$/) print p }' | sort -un | paste -sd, -)"
+            printf 'legacy_svc=%s\n' "$(ss_listen tu | awk '{ p = $5; sub(/.*:/, "", p); if (p ~ /^(21|23|69|512|513|514)$/) print p }' | sort -un | paste -sd, -)"
             if grep -qsE '^[^#]*(pam_faillock|pam_tally2)' /etc/pam.d/* 2>/dev/null; then printf 'faillock=yes\n'; else printf 'faillock=no\n'; fi
             printf 'pw_minlen=%s\n' "$(cat /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf 2>/dev/null | awk -F= '$1 ~ /^[ \t]*minlen[ \t]*$/ { v = $2; gsub(/[ \t]/, "", v) } END { print v }')"
             for h_g in /boot/grub2/grub.cfg /boot/grub/grub.cfg; do [ -f "$h_g" ] && { printf 'grub_perm=%s\n' "$(stat -c '%a' "$h_g")"; break; }; done
@@ -244,7 +244,7 @@ if [ -n "$ids_mode" ]; then
     # 7. Verbindingen: een shell (of nc/socat) met een verbinding naar buiten, of uitgaand naar een verdachte poort
     conns_json=""; out_json=""; out_seen=""; n_out=0
     if command -v ss >/dev/null 2>&1; then
-        listen=" $(ss -Htln 2>/dev/null | awk '{ p = $4; sub(/.*:/, "", p); printf "%s ", p }')"
+        listen=" $(ss_listen t | awk '{ p = $4; sub(/.*:/, "", p); printf "%s ", p }')"
         while IFS=$'\t' read -r c_procs c_pid c_local c_peer; do
             c_proc=${c_procs%%,*}
             peer_ip=${c_peer%:*}; peer_ip=${peer_ip#[}; peer_ip=${peer_ip%]}; peer_port=${c_peer##*:}; local_port=${c_local##*:}

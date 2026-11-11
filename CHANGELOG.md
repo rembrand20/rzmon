@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.237.0**: **onder de motorkap opgeruimd**: één definitie van RzSense zelf en privé-adressen, één manier voor "al gemeld" en limieten, en een zuiniger agent (1.95.0).
 - **1.236.0**: **opgeruimd**: beschermingen, regels, whitelist, status en functies, en bewaartermijnen staan elk op één plek.
 - **1.235.0**: **één Logboek** (met het Wijzigingslogboek en terugzetten op de regel) en **één verzendroute** voor alle meldingen.
 - **1.234.0**: het **NIS2-rapport automatisch versturen**, standaard elk kwartaal, en **elk kwartaal** als keuze bij alle rapporten.
 - **1.233.0**: **eigen ontvangers per rapport** (alleen in te stellen door een beheerder) en **Verstuur naar mij** voor iedereen met een account.
-- **1.232.0**: **NIS2-overzicht** met de tien maatregelen, je notities, de meldtermijnen (24 uur, 72 uur, een maand) en een rapport, en **25 extra CIS-controles** in de hardening-score.
+
+## 1.237.0 – 2026-11-11
+### Nieuw
+Opgeruimd onder de motorkap (geen nieuwe knoppen):
+- **"RzSense zelf"** is overal hetzelfde: het IDS, de netwerkscan en de DNS-controle gebruiken één lijst met de adressen van RzSense (basis-URL, de naam van de server, het adres van de webserver én nu ook de netwerkkaarten). Zo blokkeert het IDS RzSense nooit, ook niet via een tweede netwerkkaart. Wat een privé-adres is, staat op één plek.
+- **"Al gemeld"** (trends, datalimiet van internet, AI-budget en tegoed, NIS2-termijnen) gaat op één manier en wordt opgeslagen vóór het versturen: geen dubbele meldingen meer als er halverwege iets misgaat.
+- **Limieten** ("hooguit 10 keer per uur", nu bij *Verstuur naar mij*) op één manier, in één tabel.
+- Nieuwe agent 1.95.0: zuiniger met `ss` en het opzoeken van pakketten.
 
 ## 1.236.0 – 2026-11-11
 ### Nieuw

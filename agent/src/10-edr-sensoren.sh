@@ -231,7 +231,7 @@ edr_proc() {  # edr_proc <pid>: "starttijd<tab>programma<tab>gebruiker" (leeg al
 edr_net_once() {  # edr_net_once <1 = eerste keer>
     local lp out pid comm rip rp lport st exe u now ow
     now=$(date +%s)
-    lp=$(ss -ltnH 2>/dev/null | awk '{ n = split($4, a, ":"); print a[n] }' | sort -u | tr '\n' ' ')
+    lp=$(ss_listen t | awk '{ n = split($4, a, ":"); print a[n] }' | sort -u | tr '\n' ' ')
     out=$(ss -tnpH state established 2>/dev/null | awk -v lp=" $lp" -v sf="$edr_dir/net.state" -v now="$now" '
         BEGIN { FS = "[ \t]+"; while ((getline l < sf) > 0) { split(l, a, "\t"); if (now - a[2] < 3600) seen[a[1]] = a[2] }; close(sf) }
         {
@@ -257,7 +257,7 @@ edr_net_once() {  # edr_net_once <1 = eerste keer>
         done <<<"$out"
     fi
     # Luisterpoorten: programma + poort
-    out=$(ss -ltnpH 2>/dev/null | awk -v sf="$edr_dir/listen.state" -v first="$1" '
+    out=$(ss_listen t | awk -v sf="$edr_dir/listen.state" -v first="$1" '
         BEGIN { while ((getline l < sf) > 0) seen[l] = 1; close(sf) }
         { n = split($4, a, ":"); port = a[n]; comm = ""; pid = 0
           if (match($0, /users:\(\("[^"]*",pid=[0-9]+/)) { u = substr($0, RSTART + 9, RLENGTH - 9); comm = u; sub(/".*/, "", comm); pid = u; sub(/.*pid=/, "", pid) }

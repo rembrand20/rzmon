@@ -216,30 +216,29 @@ if [ "$HA_MODE" = 0 ] && [ "$TEST" != 1 ] && mkdir -p "$pk_dir" 2>/dev/null && [
         # Bereikbaar via het netwerk: pakketten van programma's die op een poort luisteren (niet alleen op localhost)
         pk_exp=""
         if command -v ss >/dev/null 2>&1 && [ "$(id -u)" = 0 ]; then
+            # 1.95.0: eerst alle programma's verzamelen en dan in één keer opzoeken (pkg_owners, ook gebruikt door Programma's)
             declare -A pk_owner=()
+            pk_lines=() ; : >"$pk_dir/exes"
             while read -r proto local pids; do
                 for pid in $pids; do
                     exe=$(readlink -f "/proc/$pid/exe" 2>/dev/null) || continue
                     [ -n "$exe" ] || continue
-                    if [ -z "${pk_owner[$exe]+x}" ]; then
-                        if [ "$pk_mgr" = dpkg ]; then
-                            o=$(dpkg -S "$exe" 2>/dev/null | head -1 | cut -d: -f1)
-                            [ -z "$o" ] && o=$(dpkg -S "${exe#/usr}" 2>/dev/null | head -1 | cut -d: -f1)   # /usr-merge
-                        else
-                            o=$(rpm -qf --qf '%{NAME}\n' "$exe" 2>/dev/null | head -1)
-                            [[ "$o" == *" "* ]] && o=""
-                        fi
-                        pk_owner[$exe]=$o
-                    fi
-                    [ -n "${pk_owner[$exe]}" ] && pk_exp+="[\"${pk_owner[$exe]}\",${local##*:},\"$proto\"],"
+                    pk_lines+=("$exe"$'\t'"$proto"$'\t'"${local##*:}")
+                    [ -z "${pk_owner[$exe]+x}" ] && pk_owner[$exe]="" && printf '%s\n' "$exe" >>"$pk_dir/exes"
                 done
-            done < <(ss -Htulnp 2>/dev/null | awk '{
+            done < <(ss_listen tu | awk '{
                     local = $5; if (local !~ /:[0-9]+$/) next
                     addr = local; sub(/:[0-9]+$/, "", addr); gsub(/[\[\]]/, "", addr); sub(/%.*/, "", addr)
                     if (addr ~ /^127\./ || addr == "::1" || addr == "localhost") next
                     pids = ""; s = $0
                     while (match(s, /pid=[0-9]+/)) { pids = pids " " substr(s, RSTART + 4, RLENGTH - 4); s = substr(s, RSTART + RLENGTH) }
                     if (pids != "") print $1, local, pids }' | sort -u)
+            while IFS=$'\t' read -r exe o; do [ -z "${pk_owner[$exe]}" ] && pk_owner[$exe]=$o; done < <(pkg_owners "$pk_dir/exes")
+            for l in "${pk_lines[@]}"; do
+                IFS=$'\t' read -r exe proto port <<<"$l"
+                [ -n "${pk_owner[$exe]-}" ] && pk_exp+="[\"${pk_owner[$exe]}\",$port,\"$proto\"],"
+            done
+            rm -f "$pk_dir/exes"
         fi
         # Herstart nodig: nieuwere kernel geïnstalleerd dan er draait; services met oude bibliotheken (als de hulpmiddelen er zijn)
         pk_kern=$(find /boot -maxdepth 1 -name 'vmlinuz-*' -printf '%f\n' 2>/dev/null | sed 's/^vmlinuz-//' | grep -v rescue | sort -V | tail -1)

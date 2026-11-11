@@ -1602,3 +1602,12 @@ INSERT IGNORE INTO settings (name, value) VALUES ('sudo_on', '1'), ('sudo_max', 
     ('dnsbl_own', ''), ('dnsbl_allow', ''), ('dns_nrd', '0'), ('dns_nrd_days', '30');
 -- 1.232.0: NIS2-overzicht (maatregelen, notities, meldtermijnen)
 INSERT IGNORE INTO settings (name, value) VALUES ('nis2_on', '1'), ('nis2_org', ''), ('nis2_csirt', '');
+-- 1.237.0: limieten ("hooguit N keer per uur"), één tabel voor alles (RateLimit)
+CREATE TABLE IF NOT EXISTS rate_hits (
+    id    BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    scope VARCHAR(40)  NOT NULL,
+    k     VARCHAR(100) NOT NULL,
+    at    DATETIME     NOT NULL,
+    INDEX idx_rate_hits (scope, k, at),
+    INDEX idx_rate_hits_at (at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

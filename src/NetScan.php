@@ -220,14 +220,25 @@ final class NetScan
     }
 
     /** Is dit een adres van de RzSense-server zelf? (1.105.2) */
+    /** 1.237.0: dezelfde vraag als Ids::isRzmon (die ook base_url en de naam van de server kent) */
     public static function isOwnIp(string $ip): bool
     {
-        return in_array($ip, ['127.0.0.1', '::1'], true) || array_key_exists($ip, self::ownInterfaces());
+        return in_array($ip, ['127.0.0.1', '::1'], true) || array_key_exists($ip, self::ownInterfaces()) || Ids::isRzmon($ip);
     }
 
-    /** IPv4-adressen van deze server zelf, met het MAC-adres van die netwerkkaart */
+    /** IPv4-adressen van de netwerkkaarten van deze server (voor Ids::rzmonIps) */
+    public static function ownIps(): array
+    {
+        return array_keys(self::ownInterfaces());
+    }
+
+    /** IPv4-adressen van deze server zelf, met het MAC-adres van die netwerkkaart (één keer per verzoek uitgelezen) */
     private static function ownInterfaces(): array
     {
+        static $cache = null;
+        if ($cache !== null) {
+            return $cache;
+        }
         $out = [];
         exec(rz_sh('ip -o -4 addr show 2>/dev/null'), $lines);
         foreach ($lines as $l) {
@@ -235,7 +246,7 @@ final class NetScan
                 $out[$m[2]] = self::normMac((string) @file_get_contents('/sys/class/net/' . basename($m[1]) . '/address'));
             }
         }
-        return $out;
+        return $cache = $out;
     }
 
     public static function normMac(?string $mac): ?string

@@ -1241,6 +1241,7 @@ final class Monitor
         PasswordReset::purge();
         ChangeLog::purge();   // wijzigingslogboek: bewaartermijn instelbaar (1.97.0)
         ActionLog::purge();   // 1.226.0: logboek per server (actlog_days)
+        RateLimit::purge();   // 1.237.0
         AppControl::purge();   // 1.229.0
         Sudo::purge();   // 1.231.0
         DnsWatch::nrdPurge();

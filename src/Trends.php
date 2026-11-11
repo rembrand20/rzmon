@@ -494,20 +494,16 @@ final class Trends
         if ($days <= 0) {
             return 0;
         }
-        $sent = (array) (json_decode((string) setting('trends_sent', ''), true) ?: []);
-        $sent = array_filter($sent, static fn($t) => (int) $t > time() - 14 * 86400);
         $n = 0;
-        foreach ($r['items'] as $x) {
-            if (!$x['bad'] || $x['eta_days'] === null || $x['eta_days'] > $days || isset($sent[$x['id']])) {
+        foreach ($r['items'] as $x) {   // 1.237.0: "al gemeld" via Once (14 dagen per trend)
+            if (!$x['bad'] || $x['eta_days'] === null || $x['eta_days'] > $days || !Once::claimFor('trends_sent', (string) $x['id'], 14 * 86400)) {
                 continue;
             }
-            $sent[$x['id']] = time();
             $n++;
             $host = $x['host_id'] ? (string) (q('SELECT name FROM hosts WHERE id = ?', [$x['host_id']])->fetchColumn() ?: '') : null;
             Monitor::sysInfo('trend', $x['host_id'], $host, '📉 ' . t('TREND') . ': ' . $x['title'] . ($x['sub'] ? ' (' . $x['sub'] . ')' : ''),
                 static fn() => $x['text'] . "\n" . t('Meer in RzSense: Analyse → Trends.'));
         }
-        save_setting('trends_sent', json_encode($sent));
         return $n;
     }
 }

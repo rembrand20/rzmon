@@ -692,23 +692,20 @@ final class Ai
     /** Melden als het maandbudget of het bijgehouden tegoed voor 80% op is (één keer per maand, per tegoed) */
     private static function budgetWarn(string $p): void
     {
-        $w = json_decode((string) setting('ai_warned', '{}'), true) ?: [];
+        // 1.237.0: "al gemeld" via Once
         $b = (float) setting('ai_budget_month', '0');
         $spent = self::spent(date('Y-m-01 00:00:00'));
-        if ($b > 0 && $spent >= 0.8 * $b && ($w['budget'] ?? '') !== date('Y-m')) {
-            $w['budget'] = date('Y-m');
+        if ($b > 0 && $spent >= 0.8 * $b && Once::claim('ai_warned', 'budget', date('Y-m'))) {
             Monitor::sysInfo('ai_credit', null, null, '💶 ' . t('AI-budget bijna op'), static fn() => t('Deze maand is {s} van het budget van {b} gebruikt.', ['s' => self::money($spent), 'b' => self::money($b)])
                 . ' ' . (self::fallbackCfg() ? t('Is het op, dan gaan de vragen naar Ollama.') : t('Is het op, dan stopt AI-advies via de cloud tot volgende maand.')));
         }
         $c = self::credits()[$p] ?? null;
         $key = $c ? $c['amount'] . '|' . $c['since'] : '';
-        if ($c && $c['pct'] <= 20 && ($w["credit_$p"] ?? '') !== $key) {
-            $w["credit_$p"] = $key;
+        if ($c && $c['pct'] <= 20 && Once::claim('ai_warned', "credit_$p", $key)) {
             $label = self::PROVIDERS[$p]['label'] ?? $p;
             Monitor::sysInfo('ai_credit', null, null, '💳 ' . t('Tegoed bij {p} bijna op', ['p' => $label]),
                 static fn() => t('Nog ongeveer {l} van {a} (geschat door RzSense). Waardeer op via {url}', ['l' => self::money(max(0, $c['left'])), 'a' => self::money($c['amount']), 'url' => self::BILLING[$p] ?? '']));
         }
-        save_setting('ai_warned', json_encode($w ?: (object) []));
     }
 
     // ------------------------------------------------------------------ 1.173.0: de extra's

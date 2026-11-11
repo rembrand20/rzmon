@@ -173,7 +173,7 @@ lap ports
 # Luisterende TCP-poorten (procesnamen alleen zichtbaar als root, niet in de HA-add-on)
 ports=""
 if command -v ss >/dev/null 2>&1; then
-    ports=$(ss -Htlnp 2>/dev/null | awk '{
+    ports=$(ss_listen t | awk '{
         local = $4; port = local; sub(/.*:/, "", port); addr = local; sub(/:[^:]*$/, "", addr)
         gsub(/[\[\]"]/, "", addr); proc = ""
         if (match($0, /users:\(\("[^"]+"/)) { proc = substr($0, RSTART + 9, RLENGTH - 10) }

@@ -391,19 +391,12 @@ switch ($action) {
         if ($to === '') {
             out(['error' => t('Vul eerst je e-mailadres in bij Mijn account')], 422);
         }
-        // 1.233.0: hooguit 10 keer per uur per account (geen mailbom vanuit een gebruikersaccount)
-        $rl = array_filter(json_decode((string) setting('report_me_state', ''), true) ?: [], static fn($ts) => is_array($ts));
-        $uid = (string) (int) $user['id'];
-        $rl[$uid] = array_values(array_filter($rl[$uid] ?? [], static fn($ts) => (int) $ts > time() - 3600));
-        if (count($rl[$uid]) >= 10) {
+        // 1.233.0: hooguit 10 keer per uur per account (geen mailbom vanuit een gebruikersaccount); 1.237.0 via RateLimit
+        if (!RateLimit::hit('report_me', (string) (int) $user['id'], 10, 3600)) {
             out(['error' => t('Je hebt dit uur al 10 rapporten naar jezelf gestuurd. Probeer het later opnieuw.')], 429);
         }
         $rk = (string) (input()['key'] ?? '');
         $r = Reports::send($rk, $to);
-        if ($r['ok']) {
-            $rl[$uid][] = time();
-            save_setting('report_me_state', json_encode($rl));
-        }
         Reports::log($rk, $r, (string) $user['username'], $to);
         $r['ok'] ? out(['ok' => true, 'to' => $to]) : out(['error' => $r['error'] ?? t('Versturen mislukt')], 422);
 

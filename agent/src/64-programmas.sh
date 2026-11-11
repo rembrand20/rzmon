@@ -1,4 +1,34 @@
 # ---------------------------------------------------------------- Onbekende programma's en jagen op sporen (agent 1.91.0)
+# 1.95.0: van welk pakket zijn deze bestanden? $1 = bestand met paden (één per regel). Uitvoer: pad<TAB>pakket.
+# In één keer: rpm via xargs, dpkg door alle .list-bestanden één keer te lezen (ook /bin ↔ /usr/bin), apk en pacman per bestand.
+# Gebruikt door Programma's (64) en de pakketten die via het netwerk bereikbaar zijn (75).
+pkg_owners() {
+    local list=$1 f g
+    [ -s "$list" ] || return 0
+    if command -v rpm >/dev/null 2>&1 && { [ -d /var/lib/rpm ] || [ -d /usr/lib/sysimage/rpm ]; }; then
+        tr '\n' '\0' <"$list" | xargs -0 -r timeout 60 rpm -qf --qf '%{NAME}\n' -- 2>/dev/null | paste "$list" - 2>/dev/null \
+            | awk -F'\t' '$2 != "" && $2 !~ / / { print $1 "\t" $2 }'
+    fi
+    if [ -d /var/lib/dpkg/info ]; then
+        timeout 60 awk 'NR == FNR { w[$0] = $0; if ($0 ~ /^\/usr\//) w[substr($0, 5)] = $0; else w["/usr" $0] = $0; next }
+            ($0 in w) { n = FILENAME; sub(/^.*\//, "", n); sub(/\.list$/, "", n); sub(/:.*/, "", n); print w[$0] "\t" n }' \
+            "$list" /var/lib/dpkg/info/*.list 2>/dev/null
+    fi
+    if command -v apk >/dev/null 2>&1; then
+        while IFS= read -r f; do
+            g=$(timeout 5 apk info -W -- "$f" 2>/dev/null | awk '/ is owned by / { print $NF; exit }')
+            [ -n "$g" ] && printf '%s\t%s\n' "$f" "${g%-r[0-9]*}"
+        done <"$list"
+    fi
+    if command -v pacman >/dev/null 2>&1; then
+        while IFS= read -r f; do
+            g=$(timeout 5 pacman -Qoq -- "$f" 2>/dev/null | head -n 1)
+            [ -n "$g" ] && printf '%s\t%s\n' "$f" "$g"
+        done <"$list"
+    fi
+    return 0
+}
+
 lap apps
 # 1. Programma's (aan per server in RzSense: regel "0 <tab> apps <tab> stoppen 0|1"): elke ronde de programma's die nu
 #    draaien (/proc/*/exe, niet in containers). Een nieuw of veranderd programma krijgt een vingerafdruk (sha256) en het
@@ -44,28 +74,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ -r "${t_cache-}" ]; then
         ap_new=""
         if [ -s "$ap_dir/todo.1" ]; then
             # Pakketten in één keer opzoeken (dpkg: alle .list-bestanden in één keer lezen; ook /bin ↔ /usr/bin)
-            : >"$ap_dir/pkg"
-            if command -v rpm >/dev/null 2>&1 && { [ -d /var/lib/rpm ] || [ -d /usr/lib/sysimage/rpm ]; }; then
-                tr '\n' '\0' <"$ap_dir/todo.1" | xargs -0 -r timeout 60 rpm -qf --qf '%{NAME}\n' -- 2>/dev/null | paste "$ap_dir/todo.1" - 2>/dev/null \
-                    | awk -F'\t' '$2 != "" && $2 !~ / / { print $1 "\t" $2 }' >>"$ap_dir/pkg"
-            fi
-            if [ -d /var/lib/dpkg/info ]; then
-                timeout 60 awk 'NR == FNR { w[$0] = $0; if ($0 ~ /^\/usr\//) w[substr($0, 5)] = $0; else w["/usr" $0] = $0; next }
-                    ($0 in w) { n = FILENAME; sub(/^.*\//, "", n); sub(/\.list$/, "", n); sub(/:.*/, "", n); print w[$0] "\t" n }' \
-                    "$ap_dir/todo.1" /var/lib/dpkg/info/*.list 2>/dev/null >>"$ap_dir/pkg"
-            fi
-            if command -v apk >/dev/null 2>&1; then
-                while IFS= read -r ap_f; do
-                    ap_g=$(timeout 5 apk info -W -- "$ap_f" 2>/dev/null | awk '/ is owned by / { print $NF; exit }')
-                    [ -n "$ap_g" ] && printf '%s\t%s\n' "$ap_f" "${ap_g%-r[0-9]*}" >>"$ap_dir/pkg"
-                done <"$ap_dir/todo.1"
-            fi
-            if command -v pacman >/dev/null 2>&1; then
-                while IFS= read -r ap_f; do
-                    ap_g=$(timeout 5 pacman -Qoq -- "$ap_f" 2>/dev/null | head -n 1)
-                    [ -n "$ap_g" ] && printf '%s\t%s\n' "$ap_f" "$ap_g" >>"$ap_dir/pkg"
-                done <"$ap_dir/todo.1"
-            fi
+            pkg_owners "$ap_dir/todo.1" >"$ap_dir/pkg"   # 1.95.0: gedeeld met de lijst "bereikbaar via het netwerk"
             declare -A ap_npkg=()
             while IFS=$'\t' read -r ap_f ap_g; do [ -z "${ap_npkg[$ap_f]-}" ] && ap_npkg[$ap_f]=$ap_g; done <"$ap_dir/pkg"
             while IFS= read -r ap_l; do
