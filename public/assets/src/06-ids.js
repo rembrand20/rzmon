@@ -2837,7 +2837,7 @@ function idsBlockDialog(ip = '', hostId = '', reason = '') {
   const hosts = ((idsData && idsData.hosts) || []).filter((h) => !h.ha);
   modal({
     title: L('⛔ IP blokkeren'),
-    body: `<label>${L('IP-adres')}<input name="ip" class="mono" value="${esc(ip)}" required placeholder="${L('bv. {x}', { x: '203.0.113.9' })}"></label>
+    body: `${xpHtml(L('De agent zet het adres in de firewall van de server, voor de tijd die je kiest.'), L('<b>Wat het doet:</b> het IP-adres kan de gekozen server niet meer bereiken. Staat het IDS nog op leren, dan wordt de blokkade pas actief als je overschakelt naar blokkeren. <b>Zo stel je het in:</b> 24 uur is genoeg voor een scan of een poging; kies langer bij een aanvaller die terugkomt. <b>Goed om te weten:</b> je eigen netwerken, de whitelist en RzSense zelf worden nooit geblokkeerd. Een blokkade hef je op bij IDS → Blokkades.'))}<label>${L('IP-adres')}<input name="ip" class="mono" value="${esc(ip)}" required placeholder="${L('bv. {x}', { x: '203.0.113.9' })}"></label>
       <div class="row2">
         <label>${L('Op server')}<select name="host_id">${hosts.map((h) => `<option value="${h.id}" ${+h.id === +hostId ? 'selected' : ''}>${esc(h.name)}${h.fw_state === 'unsupported' ? ' ' + L('(alleen detecteren)') : ''}</option>`).join('')}</select></label>
         <label>${L('Hoe lang')}<select name="hours"><option value="24">${L('24 uur')}</option><option value="168">${L('7 dagen')}</option><option value="720">${L('30 dagen')}</option><option value="0">${L('Permanent')}</option></select></label>

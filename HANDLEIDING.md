@@ -1749,6 +1749,8 @@ Naast veel velden staat een **ⓘ**. Tik erop (ook op een telefoon) en eronder k
 
 Naast een groot getal zie je wat het betekent: *1440 minuten ≈ 1 dag*, *730 dagen ≈ 2 jaar*. Leerperiodes staan overal in **dagen** (de basismeting van het IDS stond in uren; je instelling is gewoon omgerekend).
 
+**Uitleg bij kaarten, tabbladen en vensters** (vanaf 1.242.0): bovenaan staat één regel over wat je ziet; met **Meer info** klapt uit *wat het doet*, *zo stel je het in* (of *zo gebruik je het*) en *goed om te weten*. Dat geldt nu voor alle kaarten in de Instellingen en Mijn account, alle pagina's en tabbladen, en de vensters waarin je iets beslist (blokkeren, whitelist, updates, meerdere checks tegelijk, programma's, tijdelijk sudo).
+
 ### 7.12 Wijzigingslogboek 📜, exporteren en importeren 📦, meldketen testen 🧪
 
 **📜 Wijzigingslogboek** (vanaf 1.97.0; **vanaf 1.235.0 onderdeel van het 📒 Logboek**, *Instellingen → Systeem → Logboek*, onderdeel *🛠️ RzSense-instellingen* of alles): wie veranderde wat en wanneer, met de oude en de nieuwe waarde. Het gaat om instellingen, servers, checks (ook als je er meerdere tegelijk aanpaste) en sjablonen.

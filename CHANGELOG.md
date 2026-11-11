@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.242.0**: **uitleg overal**: elke kaart, elk tabblad en de belangrijke vensters zeggen wat ze doen, hoe je ze instelt en wat goed is om te weten.
 - **1.241.0**: **ⓘ bij de velden**: uitleg, eenheid, bereik en aanbevolen waarde (met één tik te gebruiken), ook op je telefoon.
 - **1.240.0**: **keuzelijsten uit je netwerk**: kies apparaten en servers bij adressen, check-doelen, DNS-server, UniFi, Ollama en AdGuard.
 - **1.239.0**: **slimme invulvelden**: kies netwerken, whitelist-adressen, gebruikers, e-mailadressen en domeinen in plaats van ze opnieuw te typen; *Lokale netwerken* blijft gekoppeld.
 - **1.238.0**: **updates voor meerdere servers in één keer instellen**, gespreid zodat ze nooit allemaal tegelijk herstarten.
-- **1.237.0**: **onder de motorkap opgeruimd**: één definitie van RzSense zelf en privé-adressen, één manier voor "al gemeld" en limieten, en een zuiniger agent (1.95.0).
+
+## 1.242.0 – 2026-11-11
+### Nieuw
+- **Uitleg overal**: elke kaart, elk tabblad en de belangrijkste vensters hebben nu een korte uitleg met **Meer info** (*Wat het doet*, *Zo stel je het in*, *Goed om te weten*).
+  - **Instellingen**: Alarmgedrag, IDS: aanvallers en verkeer, IDS: servers, Slim: overige instellingen, RzSense bijwerken, Standaardinstellingen (agents), Opslag, Toegang, Server en PHP, Systeemcheck, Cron, Gebruik van de database, Prestaties en PHP-fouten.
+  - **Mijn account**: Gegevens, Wachtwoord wijzigen, Tweestapsverificatie, Van buiten en passkeys, Ingelogde apparaten en Mijn laatste logins.
+  - **Pagina's en tabbladen**: Monitoring, Meldingen, Incidenten, Analyse, Logs, Netwerk (Apparaten, Ontdekken, Overzicht), IDS (Incidenten, Toegang, Programma's, Jagen, Bescherming) en Kwetsbaarheden (Kwetsbaarheden, Updates, Datalekken).
+  - **Vensters**: IP blokkeren, Op de whitelist zetten, Updates instellen voor meerdere servers, interval/melden/onderhoud voor meerdere checks, Programma blokkeren of toestaan en Tijdelijk sudo.
 
 ## 1.241.0 – 2026-11-11
 ### Nieuw

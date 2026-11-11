@@ -7947,7 +7947,7 @@ function wlDialog(x = null) {
   const ip = !x || opts[0][0] === 'ip';
   modal({
     title: '✅ ' + L('Op de whitelist zetten'),
-    body: (x ? `${opts.map(([k, v, l, h], i) => `<label class="radio-row"><input type="radio" name="choice" value="${k}|${esc(v)}" ${i ? '' : 'checked'}><span><b>${esc(l)}</b>${k === 'user' ? '' : ` <code>${esc(v)}</code>`}<br><span class="muted small">${esc(h)}</span></span></label>`).join('')}`
+    body: `${xpHtml(L('Wat op de whitelist staat, wordt nooit geblokkeerd en geeft geen meldingen meer.'), L('<b>Wat het doet:</b> een IP-adres, netwerk of account op de whitelist telt niet meer als aanvaller: geen blokkade en geen melding, op alle servers. <b>Zo stel je het in:</b> kies zo smal mogelijk (één adres in plaats van een heel netwerk) en zo kort als het kan. Een reden helpt later om te weten waarom. <b>Goed om te weten:</b> je lokale netwerken zijn al veilig; die hoef je hier niet toe te voegen.'))}` + (x ? `${opts.map(([k, v, l, h], i) => `<label class="radio-row"><input type="radio" name="choice" value="${k}|${esc(v)}" ${i ? '' : 'checked'}><span><b>${esc(l)}</b>${k === 'user' ? '' : ` <code>${esc(v)}</code>`}<br><span class="muted small">${esc(h)}</span></span></label>`).join('')}`
       : `<label>${L('Soort')}<select name="kind">${Object.entries(WL_KIND).map(([k, l]) => `<option value="${k}">${esc(l())}</option>`).join('')}</select></label>
         <label>${L('IP-adres, netwerk of naam')}<input name="value" required class="mono" placeholder="${esc(L('bv. 203.0.113.10, 198.51.100.0/24, jan of admin'))}" autocomplete="off"></label>`)
       + `<div><span class="small"><b>${L('Hoe lang')}</b></span><div class="wl-days">${WL_DAYS.map(([v, l]) => `<label><input type="radio" name="days" value="${v}" ${v === (ip ? 30 : 0) ? 'checked' : ''}> ${esc(l)}</label>`).join(' ')}</div></div>
@@ -12742,7 +12742,7 @@ function idsBlockDialog(ip = '', hostId = '', reason = '') {
   const hosts = ((idsData && idsData.hosts) || []).filter((h) => !h.ha);
   modal({
     title: L('⛔ IP blokkeren'),
-    body: `<label>${L('IP-adres')}<input name="ip" class="mono" value="${esc(ip)}" required placeholder="${L('bv. {x}', { x: '203.0.113.9' })}"></label>
+    body: `${xpHtml(L('De agent zet het adres in de firewall van de server, voor de tijd die je kiest.'), L('<b>Wat het doet:</b> het IP-adres kan de gekozen server niet meer bereiken. Staat het IDS nog op leren, dan wordt de blokkade pas actief als je overschakelt naar blokkeren. <b>Zo stel je het in:</b> 24 uur is genoeg voor een scan of een poging; kies langer bij een aanvaller die terugkomt. <b>Goed om te weten:</b> je eigen netwerken, de whitelist en RzSense zelf worden nooit geblokkeerd. Een blokkade hef je op bij IDS → Blokkades.'))}<label>${L('IP-adres')}<input name="ip" class="mono" value="${esc(ip)}" required placeholder="${L('bv. {x}', { x: '203.0.113.9' })}"></label>
       <div class="row2">
         <label>${L('Op server')}<select name="host_id">${hosts.map((h) => `<option value="${h.id}" ${+h.id === +hostId ? 'selected' : ''}>${esc(h.name)}${h.fw_state === 'unsupported' ? ' ' + L('(alleen detecteren)') : ''}</option>`).join('')}</select></label>
         <label>${L('Hoe lang')}<select name="hours"><option value="24">${L('24 uur')}</option><option value="168">${L('7 dagen')}</option><option value="720">${L('30 dagen')}</option><option value="0">${L('Permanent')}</option></select></label>
@@ -16033,7 +16033,7 @@ async function acBulk(kind) {
   if (kind === 'none') { acSel.clear(); return renderAllChecks(); }
   if (kind === 'on' || kind === 'off') return set({ enabled: kind === 'on' }).catch((ex) => toast(ex.message, 'err'));
   if (kind === 'interval') return modal({ title: L('Interval voor {n} checks', { n: ids.length }),
-    body: `<label>${L('Interval')}<select name="interval_sec">${intervalOptions(chosen[0].interval_sec)}</select></label>`,
+    body: `${xpHtml(L('Hoe vaak deze checks draaien.'), L('<b>Wat het doet:</b> elke gekozen check krijgt hetzelfde interval. <b>Zo stel je het in:</b> 1 minuut voor wat snel moet opvallen (ping, websites), 5 tot 15 minuten voor disks en certificaten. <b>Goed om te weten:</b> met slim interval controleert RzSense een check die twijfelt vanzelf vaker.'))}<label>${L('Interval')}<select name="interval_sec">${intervalOptions(chosen[0].interval_sec)}</select></label>`,
     buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }], onSubmit: (d) => set({ interval_sec: +d.interval_sec }) });
   if (kind === 'thr') {
     const t = TYPES[chosen[0].type] || {};
@@ -16050,13 +16050,13 @@ async function acBulk(kind) {
     buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }],
     onSubmit: (d) => set({ ...(d.mode ? { thresh_mode: d.mode } : {}), ...(d.sens !== '-' ? { smart_sens: d.sens || null } : {}) }) });
   if (kind === 'notify') return modal({ title: L('Melden voor {n} checks', { n: ids.length }),
-    body: `<label>${L('Melden na zoveel mislukte checks achter elkaar')} <span class="hint">${L('(leeg = de algemene instelling)')}</span><input name="fails" type="number" min="1" max="100"></label>
+    body: `${xpHtml(L('Wanneer deze checks een melding geven.'), L('<b>Wat het doet:</b> je zet voor alle gekozen checks in één keer hoe vaak ze mis moeten gaan voor een melding, en of ze alleen info zijn. <b>Zo stel je het in:</b> leeg laten gebruikt de algemene instelling; een eigen getal gaat daarvoor. <b>Goed om te weten:</b> <i>Alleen info</i> is handig voor checks die je wilt zien maar die nooit een storing zijn.'))}<label>${L('Melden na zoveel mislukte checks achter elkaar')} <span class="hint">${L('(leeg = de algemene instelling)')}</span><input name="fails" type="number" min="1" max="100"></label>
       <label class="switch"><input type="checkbox" name="defaults"><span></span> ${L('Eigen meldregels weghalen: de algemene meldregels gebruiken')}</label>
       <label>${L('Alleen info (telt nooit als storing)')}<select name="info"><option value="">${L('ongewijzigd')}</option><option value="1">${L('aan')}</option><option value="0">${L('uit')}</option></select></label>`,
     buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }],
     onSubmit: (d) => set({ notify_fails: d.fails === '' ? null : +d.fails, ...(d.info !== '' ? { info_only: d.info === '1' } : {}), ...(d.defaults ? { notify_default: true } : {}) }) });
   if (kind === 'maint') return modal({ title: L('Onderhoud voor {n} checks', { n: ids.length }),
-    body: `<label>${L('Hoe lang')}<select name="minutes">${[[60, L('1 uur')], [240, L('4 uur')], [1440, L('1 dag')], [10080, L('1 week')], [0, L('Onderhoud beëindigen')]].map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label>
+    body: `${xpHtml(L('Tijdelijk geen meldingen voor deze checks, bijvoorbeeld tijdens werk aan een server.'), L('<b>Wat het doet:</b> de checks blijven draaien, maar geven geen melding en tellen niet mee in de beschikbaarheid. <b>Zo stel je het in:</b> kies zo kort als het kan; na de tijd gaat alles vanzelf weer gewoon. <b>Goed om te weten:</b> met <i>Onderhoud beëindigen</i> stop je het meteen.'))}<label>${L('Hoe lang')}<select name="minutes">${[[60, L('1 uur')], [240, L('4 uur')], [1440, L('1 dag')], [10080, L('1 week')], [0, L('Onderhoud beëindigen')]].map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label>
       <label>${L('Reden')} <span class="hint">${L('(optioneel)')}</span><input name="reason"></label>`,
     buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }],
     onSubmit: (d) => api('checks_bulk', { ids, action: 'maintenance', minutes: +d.minutes, reason: d.reason }).then(done) });
@@ -20122,7 +20122,7 @@ function appDecide(action, r, done) {
   const dir = r.path.replace(/[^/]+$/, '');
   modal({
     title: action === 'block' ? L('Programma blokkeren') : L('Programma toestaan'),
-    body: `<p><code>${esc(r.path)}</code><br><span class="muted small">sha256 ${esc(r.sha)}</span></p>
+    body: `${xpHtml(L('Toestaan: het programma is voortaan normaal. Blokkeren: de agent stopt het als het start.'), L('<b>Wat het doet:</b> je kiest of het geldt voor precies dit programma (vingerafdruk), voor het pad (ook na een update) of voor een hele map. <b>Zo stel je het in:</b> de vingerafdruk is het veiligst; het pad is handiger voor software die vaak bijwerkt. <b>Goed om te weten:</b> blokkeren werkt alleen als het IDS op de server mag ingrijpen.'))}<p><code>${esc(r.path)}</code><br><span class="muted small">sha256 ${esc(r.sha)}</span></p>
       <label>${L('Waarop')}<select name="on"><option value="sha">${L('Deze vingerafdruk (precies dit programma)')}</option><option value="path">${L('Dit pad (ook na een update)')}</option>
         ${action === 'allow' && dir.length > 1 ? `<option value="dir">${L('Alles in {d}', { d: esc(dir) })}</option>` : ''}</select></label>
       <label>${L('Voor')}<select name="scope"><option value="host">${L('Alleen {h}', { h: esc(r.host || L('deze server')) })}</option><option value="all">${L('Alle servers')}</option></select></label>
@@ -20344,7 +20344,7 @@ async function loadPatch() {
 function patchBulk(ids) {
   modal({
     title: '⚙️ ' + (ids.length ? L('Updates instellen voor {n} servers', { n: ids.length }) : L('Updates instellen voor alle servers')),
-    body: `<div style="padding:1rem 1.2rem">
+    body: `<div style="padding:1rem 1.2rem">${xpHtml(L('Wanneer de servers hun updates installeren, gespreid zodat ze nooit allemaal tegelijk bezig zijn.'), L('<b>Wat het doet:</b> de agents installeren de updates zelf, op het moment dat je hier kiest. <b>Zo stel je het in:</b> kies <i>Elke dag om een tijd, gespreid</i> met 20 minuten tussen de servers, en alleen beveiligingsupdates. Of laat elke server zijn eigen onderhoudsvenster volgen. <b>Goed om te weten:</b> er wordt nooit vanzelf herstart; een server die dat nodig heeft, krijgt ↻. Per server pas je het aan in de Agent Manager.'))}
       <label>${L('Wanneer')} <select name="mode"><option value="auto">${L('Elke dag om een tijd, gespreid')}</option><option value="window">${L('In het onderhoudsvenster van elke server')}</option><option value="manual">${L('Met de hand')}</option></select></label>
       <div class="row2" data-pb-auto><label>${L('Eerste server om')} <input type="time" name="time" value="03:00"></label>
         <label>${L('Daarna elke server')} <select name="step"><option value="0">${L('tegelijk (niet aangeraden)')}</option><option value="10">+10 min</option><option value="20" selected>+20 min</option><option value="30">+30 min</option><option value="60">+60 min</option></select></label></div>
@@ -20486,7 +20486,7 @@ async function amSudo(h, body) {
   const nb = $('#sudo-new', box);
   if (nb) nb.onclick = () => modal({
     title: L('Tijdelijk sudo op {name}', { name: h.name }),
-    body: `<div style="padding:1rem 1.2rem">
+    body: `<div style="padding:1rem 1.2rem">${xpHtml(L('Een gebruiker krijgt even beheerrechten; daarna haalt de agent ze vanzelf weer weg.'), L('<b>Wat het doet:</b> de agent geeft de gebruiker sudo voor de tijd die je kiest en neemt het daarna terug, ook als niemand eraan denkt. <b>Zo stel je het in:</b> kies de gebruiker en zo kort mogelijk; schrijf erbij waarvoor. <b>Goed om te weten:</b> het staat in het Logboek, met wie het gaf en wanneer het afliep.'))}
       <label>${L('Gebruiker')}<input name="user" list="sudo-users" required pattern="[a-z_][a-z0-9_-]{0,31}" autocomplete="off" class="mono"></label>
       <datalist id="sudo-users">${d.users.map((u) => `<option value="${esc(u)}">`).join('')}</datalist>
       <label>${L('Hoe lang')}<select name="minutes">${d.durations.map((m) => `<option value="${m}" ${m === 30 ? 'selected' : ''}>${m < 60 ? L('{n} minuten', { n: m }) : L('{n} uur', { n: m / 60 })}</option>`).join('')}</select></label>

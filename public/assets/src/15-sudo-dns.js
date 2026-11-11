@@ -34,7 +34,7 @@ async function amSudo(h, body) {
   const nb = $('#sudo-new', box);
   if (nb) nb.onclick = () => modal({
     title: L('Tijdelijk sudo op {name}', { name: h.name }),
-    body: `<div style="padding:1rem 1.2rem">
+    body: `<div style="padding:1rem 1.2rem">${xpHtml(L('Een gebruiker krijgt even beheerrechten; daarna haalt de agent ze vanzelf weer weg.'), L('<b>Wat het doet:</b> de agent geeft de gebruiker sudo voor de tijd die je kiest en neemt het daarna terug, ook als niemand eraan denkt. <b>Zo stel je het in:</b> kies de gebruiker en zo kort mogelijk; schrijf erbij waarvoor. <b>Goed om te weten:</b> het staat in het Logboek, met wie het gaf en wanneer het afliep.'))}
       <label>${L('Gebruiker')}<input name="user" list="sudo-users" required pattern="[a-z_][a-z0-9_-]{0,31}" autocomplete="off" class="mono"></label>
       <datalist id="sudo-users">${d.users.map((u) => `<option value="${esc(u)}">`).join('')}</datalist>
       <label>${L('Hoe lang')}<select name="minutes">${d.durations.map((m) => `<option value="${m}" ${m === 30 ? 'selected' : ''}>${m < 60 ? L('{n} minuten', { n: m }) : L('{n} uur', { n: m / 60 })}</option>`).join('')}</select></label>

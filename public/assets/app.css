@@ -5677,3 +5677,5 @@ span.app-sum-b { cursor: default; }
 .fh-k { color: var(--muted); }
 .fh-v { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .fh-use { padding: .1rem .55rem; font-size: .78rem; }
+/* 1.242.0: uitleg per tabblad van Netwerk: alleen die van het open tabblad */
+#tab-net.net-dc > .xp-net-list, #tab-net.net-mp > .xp-net-list, #tab-net:not(.net-dc) > .xp-net-disc, #tab-net:not(.net-mp) > .xp-net-map { display: none; }

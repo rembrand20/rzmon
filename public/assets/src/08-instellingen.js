@@ -2584,7 +2584,7 @@ async function acBulk(kind) {
   if (kind === 'none') { acSel.clear(); return renderAllChecks(); }
   if (kind === 'on' || kind === 'off') return set({ enabled: kind === 'on' }).catch((ex) => toast(ex.message, 'err'));
   if (kind === 'interval') return modal({ title: L('Interval voor {n} checks', { n: ids.length }),
-    body: `<label>${L('Interval')}<select name="interval_sec">${intervalOptions(chosen[0].interval_sec)}</select></label>`,
+    body: `${xpHtml(L('Hoe vaak deze checks draaien.'), L('<b>Wat het doet:</b> elke gekozen check krijgt hetzelfde interval. <b>Zo stel je het in:</b> 1 minuut voor wat snel moet opvallen (ping, websites), 5 tot 15 minuten voor disks en certificaten. <b>Goed om te weten:</b> met slim interval controleert RzSense een check die twijfelt vanzelf vaker.'))}<label>${L('Interval')}<select name="interval_sec">${intervalOptions(chosen[0].interval_sec)}</select></label>`,
     buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }], onSubmit: (d) => set({ interval_sec: +d.interval_sec }) });
   if (kind === 'thr') {
     const t = TYPES[chosen[0].type] || {};
@@ -2601,13 +2601,13 @@ async function acBulk(kind) {
     buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }],
     onSubmit: (d) => set({ ...(d.mode ? { thresh_mode: d.mode } : {}), ...(d.sens !== '-' ? { smart_sens: d.sens || null } : {}) }) });
   if (kind === 'notify') return modal({ title: L('Melden voor {n} checks', { n: ids.length }),
-    body: `<label>${L('Melden na zoveel mislukte checks achter elkaar')} <span class="hint">${L('(leeg = de algemene instelling)')}</span><input name="fails" type="number" min="1" max="100"></label>
+    body: `${xpHtml(L('Wanneer deze checks een melding geven.'), L('<b>Wat het doet:</b> je zet voor alle gekozen checks in één keer hoe vaak ze mis moeten gaan voor een melding, en of ze alleen info zijn. <b>Zo stel je het in:</b> leeg laten gebruikt de algemene instelling; een eigen getal gaat daarvoor. <b>Goed om te weten:</b> <i>Alleen info</i> is handig voor checks die je wilt zien maar die nooit een storing zijn.'))}<label>${L('Melden na zoveel mislukte checks achter elkaar')} <span class="hint">${L('(leeg = de algemene instelling)')}</span><input name="fails" type="number" min="1" max="100"></label>
       <label class="switch"><input type="checkbox" name="defaults"><span></span> ${L('Eigen meldregels weghalen: de algemene meldregels gebruiken')}</label>
       <label>${L('Alleen info (telt nooit als storing)')}<select name="info"><option value="">${L('ongewijzigd')}</option><option value="1">${L('aan')}</option><option value="0">${L('uit')}</option></select></label>`,
     buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }],
     onSubmit: (d) => set({ notify_fails: d.fails === '' ? null : +d.fails, ...(d.info !== '' ? { info_only: d.info === '1' } : {}), ...(d.defaults ? { notify_default: true } : {}) }) });
   if (kind === 'maint') return modal({ title: L('Onderhoud voor {n} checks', { n: ids.length }),
-    body: `<label>${L('Hoe lang')}<select name="minutes">${[[60, L('1 uur')], [240, L('4 uur')], [1440, L('1 dag')], [10080, L('1 week')], [0, L('Onderhoud beëindigen')]].map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label>
+    body: `${xpHtml(L('Tijdelijk geen meldingen voor deze checks, bijvoorbeeld tijdens werk aan een server.'), L('<b>Wat het doet:</b> de checks blijven draaien, maar geven geen melding en tellen niet mee in de beschikbaarheid. <b>Zo stel je het in:</b> kies zo kort als het kan; na de tijd gaat alles vanzelf weer gewoon. <b>Goed om te weten:</b> met <i>Onderhoud beëindigen</i> stop je het meteen.'))}<label>${L('Hoe lang')}<select name="minutes">${[[60, L('1 uur')], [240, L('4 uur')], [1440, L('1 dag')], [10080, L('1 week')], [0, L('Onderhoud beëindigen')]].map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label>
       <label>${L('Reden')} <span class="hint">${L('(optioneel)')}</span><input name="reason"></label>`,
     buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }],
     onSubmit: (d) => api('checks_bulk', { ids, action: 'maintenance', minutes: +d.minutes, reason: d.reason }).then(done) });

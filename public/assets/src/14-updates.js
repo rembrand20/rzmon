@@ -59,7 +59,7 @@ async function loadPatch() {
 function patchBulk(ids) {
   modal({
     title: '⚙️ ' + (ids.length ? L('Updates instellen voor {n} servers', { n: ids.length }) : L('Updates instellen voor alle servers')),
-    body: `<div style="padding:1rem 1.2rem">
+    body: `<div style="padding:1rem 1.2rem">${xpHtml(L('Wanneer de servers hun updates installeren, gespreid zodat ze nooit allemaal tegelijk bezig zijn.'), L('<b>Wat het doet:</b> de agents installeren de updates zelf, op het moment dat je hier kiest. <b>Zo stel je het in:</b> kies <i>Elke dag om een tijd, gespreid</i> met 20 minuten tussen de servers, en alleen beveiligingsupdates. Of laat elke server zijn eigen onderhoudsvenster volgen. <b>Goed om te weten:</b> er wordt nooit vanzelf herstart; een server die dat nodig heeft, krijgt ↻. Per server pas je het aan in de Agent Manager.'))}
       <label>${L('Wanneer')} <select name="mode"><option value="auto">${L('Elke dag om een tijd, gespreid')}</option><option value="window">${L('In het onderhoudsvenster van elke server')}</option><option value="manual">${L('Met de hand')}</option></select></label>
       <div class="row2" data-pb-auto><label>${L('Eerste server om')} <input type="time" name="time" value="03:00"></label>
         <label>${L('Daarna elke server')} <select name="step"><option value="0">${L('tegelijk (niet aangeraden)')}</option><option value="10">+10 min</option><option value="20" selected>+20 min</option><option value="30">+30 min</option><option value="60">+60 min</option></select></label></div>

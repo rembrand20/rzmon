@@ -231,6 +231,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 <?php if ($schemaError): ?>
       <div class="schema-banner">⚠ <?= htmlspecialchars($schemaError) ?> — <?= t('controleer de databaserechten of voer {cmd} uit.', ['cmd' => '<code>php install/install.php</code>']) ?></div>
 <?php endif; ?>
+      <?= xp(t('Al je servers en checks: wat goed gaat, wat aandacht nodig heeft en wat er speelt.'), t('<b>Wat het doet:</b> elke check (ping, poort, disk, dienst, certificaat …) controleert iets op een server en is OK, warning, critical of onbekend. <b>Zo gebruik je het:</b> begin bovenaan bij <i>Nu aandacht nodig</i>; klik op een server of check voor de details, de grafiek en wat je kunt doen. Met + voeg je een server of check toe. <b>Goed om te weten:</b> wanneer een check rood wordt en wanneer je een melding krijgt, stel je in bij Instellingen → Alarmgedrag en Meldingen.')) ?>
       <div class="maint-banner" id="maint-banner" hidden></div>
       <!-- 1.66.0: tellers onder de header (blijven staan), kerncijfers, "Nu aandacht nodig", werkbalk -->
       <div class="dash-counters" id="dash-counters">
@@ -281,6 +282,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
     </section>
 
     <section id="tab-alerts" class="tab-panel" role="tabpanel" hidden>
+      <?= xp(t('Alles wat RzSense meldde, per dag: storingen, herstel en ℹ️-gebeurtenissen.'), t('<b>Wat het doet:</b> hier staat elke melding, ook die niet via Pushover of e-mail ging (bijvoorbeeld tijdens de stille uren). <b>Zo gebruik je het:</b> bevestig een storing, dan weet iedereen dat je ermee bezig bent en escaleert hij niet. Filter op status of server. <b>Goed om te weten:</b> hoe lang meldingen blijven staan, stel je in bij Instellingen → Opslag.')) ?>
       <!-- 1.67.0: zelfde opbouw als het dashboard -->
       <div class="dash-counters"><div class="dash-in">
         <span class="dash-lbl muted small"><?= th('Vandaag') ?></span>
@@ -365,6 +367,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <div id="am-body"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
       <div class="ids-pane" data-pane="prot" hidden>
+        <?= xp(t('Welke beschermingen aan staan, per onderdeel, met hun drempels.'), t('<b>Wat het doet:</b> één overzicht van alle onderdelen van het IDS (brute force, lokaas, webaanvallen, ransomware …) en hoe ze staan. <b>Zo gebruik je het:</b> zet een onderdeel aan of uit en stel met ⚙️ de drempels in. Of de agents echt blokkeren of alleen melden, bepaalt de modus bovenaan. <b>Goed om te weten:</b> je eigen netwerken en de whitelist worden nooit geblokkeerd, en RzSense zelf ook niet.')) ?>
         <div id="prot-mode"></div>
         <div class="card" id="prot-cards"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
@@ -378,12 +381,14 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       </div>
       <!-- 1.229.0: onbekende programma's en jagen op sporen -->
       <div class="ids-pane" data-pane="apps" hidden>
+        <?= xp(t('Programma\'s op je servers die RzSense nog niet kende.'), t('<b>Wat het doet:</b> de agent leert eerst wat normaal is; daarna zie je hier elk nieuw programma met pad, pakket en vingerafdruk. <b>Zo gebruik je het:</b> keur een programma goed als het hoort; ken je het niet, onderzoek het dan of zoek het op met <i>Jagen</i>. <b>Goed om te weten:</b> een programma uit een pakket van je distributie is meestal in orde; iets in <code>/tmp</code> of een verborgen map niet.')) ?>
         <div class="dash-bar"><select id="apps-host" aria-label="<?= th('Server') ?>"><option value=""><?= th('Alle servers') ?></option></select>
           <input id="apps-q" type="search" placeholder="<?= th('Zoeken: pad, pakket, vingerafdruk …') ?>" autocomplete="off">
           <a class="btn small-btn need-admin" href="#settings/ids_apps" data-goto="settings/ids_apps">⚙️ <?= th('Instellen') ?></a></div>
         <div class="card" id="apps-body"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
       <div class="ids-pane" data-pane="hunt" hidden>
+        <?= xp(t('Zoek sporen van een bekende aanval op al je servers tegelijk.'), t('<b>Wat het doet:</b> plak IP-adressen, domeinen, vingerafdrukken of paden (bijvoorbeeld uit een waarschuwing van het NCSC); RzSense zoekt ze in alles wat het weet en desgewenst op de servers zelf. <b>Zo gebruik je het:</b> <i>Zoeken</i> doet het één keer; met <i>Bewaken</i> krijg je een melding als een spoor later opduikt. <b>Goed om te weten:</b> alleen een beheerder kan zoeken en bewaken.')) ?>
         <div class="callout small" id="hunt-off" hidden><?= th('Jagen op sporen staat uit (Instellingen → IDS → Jagen op sporen).') ?></div>
         <div class="hunt-grid">
           <div class="card">
@@ -421,6 +426,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <div id="edr-feed"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
       <div class="ids-pane" data-pane="inc">
+        <?= xp(t('Mogelijke aanvallen die het IDS zag, met wat het deed en wat jij kunt doen.'), t('<b>Wat het doet:</b> elk incident vertelt waarom het IDS iets verdacht vond, wat het deed (bijvoorbeeld blokkeren) en op welke server. <b>Zo gebruik je het:</b> open een incident en kies: afhandelen, het IP-adres blokkeren, of vrijgeven als het normaal is (dan komt het niet terug). <b>Goed om te weten:</b> op de pagina Incidenten staan deze samen met storingen en kwetsbaarheden in één lijst.')) ?>
         <div class="dash-bar">
           <input type="search" id="ids-search" placeholder="<?= th('🔍 Zoek incident, IP of server…') ?>">
           <div class="dash-chips" id="ids-filter" role="group" aria-label="Filter"></div>
@@ -436,6 +442,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <div id="ids-incidents" class="alert-list"></div>
       </div>
       <div class="ids-pane" data-pane="acc" hidden>
+        <?= xp(t('Wie er op je servers inlogde: gelukt, mislukt en vanaf waar.'), t('<b>Wat het doet:</b> elke SSH-login en -poging die de agents zagen, met gebruiker, IP-adres, land en methode. <b>Zo gebruik je het:</b> zoek op gebruiker of IP-adres; een gelukte login vanaf een onbekend adres verdient aandacht. <b>Goed om te weten:</b> veel mislukte pogingen worden een brute-force-incident en kunnen worden geblokkeerd.')) ?>
         <div class="dash-bar">
           <input type="search" id="acc-search" placeholder="<?= th('🔍 Zoek gebruiker, IP of server…') ?>">
           <div class="dash-chips" id="acc-filter" role="group" aria-label="<?= th('Soort') ?>">
@@ -501,6 +508,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <?php endif; ?>
       <?php if ($showVulns): ?>
       <div class="vuln-pane" data-vpane="cve">
+      <?= xp(t('Bekende kwetsbaarheden in de software op je servers, de belangrijkste eerst.'), t('<b>Wat het doet:</b> de agents sturen de lijst met geïnstalleerde pakketten; RzSense vergelijkt die met bekende kwetsbaarheden en weegt mee of een lek actief wordt misbruikt (KEV) en hoe waarschijnlijk dat is (EPSS). <b>Zo gebruik je het:</b> begin bij actief misbruikt en critical; vaak lost één update er veel tegelijk op. Geldt iets niet voor jou, zet het dan op niet van toepassing. <b>Goed om te weten:</b> bijwerken doe je via het tabblad Updates of je eigen pakketbeheer.')) ?>
       <!-- 1.67.0: zelfde opbouw als het dashboard -->
       <div class="dash-counters"><div class="dash-in">
         <div class="health-counts" id="vuln-counts"></div>
@@ -553,6 +561,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <?php endif; ?>
       <?php if ($showPatch): ?>
       <div class="vuln-pane" data-vpane="patch" <?= $showVulns || $showEol ? 'hidden' : '' ?>>
+        <?= xp(t('Welke updates er per server klaarstaan, en ze installeren: nu of in een onderhoudsvenster.'), t('<b>Wat het doet:</b> de agent meldt welke updates er zijn en of een herstart nodig is. <b>Zo gebruik je het:</b> installeer met de hand of laat het in een vast venster gebeuren (Agent Manager → Updates; voor meerdere servers tegelijk, gespreid). <b>Goed om te weten:</b> na de installatie zie je hier en in het Logboek wat er is bijgewerkt.')) ?>
         <div class="dash-bar"><span class="muted small"><?= th('Welke updates er per server klaarstaan, en ze installeren. Per server stel je in wanneer (Agent Manager → Updates).') ?></span>
           <a class="btn small-btn need-admin" href="#settings/patch" data-goto="settings/patch">⚙️ <?= th('Instellen') ?></a></div>
         <div class="card" id="patch-body"><p class="muted"><?= th('Laden…') ?></p></div>
@@ -560,6 +569,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <?php endif; ?>
       <?php if ($showLeaks): ?>
       <div class="vuln-pane" data-vpane="leak" <?= $showVulns || $showEol || $showPatch ? 'hidden' : '' ?>>
+        <?= xp(t('Of de e-mailadressen van je gebruikers en je domein in bekende datalekken staan.'), t('<b>Wat het doet:</b> RzSense vraagt bij Have I Been Pwned na in welke lekken een adres voorkomt, en meldt nieuwe lekken. <b>Zo gebruik je het:</b> wijzig het wachtwoord van een gelekt account, overal waar het gebruikt werd, en zet tweestapsverificatie aan. <b>Goed om te weten:</b> welke adressen en welk domein worden gecontroleerd, stel je in bij Instellingen → Datalekken.')) ?>
         <div class="dash-counters"><div class="dash-in">
           <div class="health-counts" id="leak-counts"></div>
           <span class="dash-last muted small" id="leak-info"></span>
@@ -587,6 +597,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
     <?php if ($role !== 'readonly'): ?>
     <section id="tab-incidents" class="tab-panel" role="tabpanel" hidden>
       <!-- 1.142.0: één lijst uit monitoring, IDS en kwetsbaarheden -->
+      <?= xp(t('Eén lijst met alles wat aandacht vraagt: storingen, aanvallen en kwetsbaarheden.'), t('<b>Wat het doet:</b> incidenten uit monitoring, het IDS en kwetsbaarheden staan hier samen, met status, eigenaar en tijdlijn. <b>Zo gebruik je het:</b> neem een incident op je naam, houd notities bij en sluit het als het is opgelost. <b>Goed om te weten:</b> voor NIS2 kun je een incident als significant markeren; het rapport vind je op de NIS2-pagina.')) ?>
       <div class="pg-tools" data-pgtools="inc"></div>
       <div class="pgrid" data-pgrid="inc">
       <div class="pcard" data-pk="kpis" data-pw="12" data-pt="<?= th('Kerncijfers') ?>"><div class="kpis" id="inc-kpis"></div>
@@ -610,10 +621,12 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
     <section id="tab-logs" class="tab-panel" role="tabpanel" hidden>
       <!-- 1.211.0: zoeken in de logs van je servers (beheerder en gebruiker) -->
+      <?= xp(t('Zoeken in de logs van al je servers, zien wat binnenkomt, en vaste zoekacties als melding.'), t('<b>Wat het doet:</b> de agents sturen hun logbestanden versleuteld naar RzSense; hier zoek je erin over alle servers tegelijk. <b>Zo gebruik je het:</b> zoek op een woord, server en periode. Met <i>Vaste zoekacties</i> krijg je een melding zodra een zoekopdracht iets vindt; <i>Binnenkomst</i> laat zien wat elke server stuurt. <b>Goed om te weten:</b> welke logs een server stuurt, kies je in de Agent Manager; hoe lang ze blijven bij Instellingen → Opslag.')) ?>
       <div id="logs-page" class="logs-page"><p class="muted"><?= th('Laden…') ?></p></div>
     </section>
     <section id="tab-analytics" class="tab-panel" role="tabpanel" hidden>
       <!-- 1.106.0: trends door de tijd -->
+      <?= xp(t('Hoe het gaat over een langere periode: betrouwbaarheid, capaciteit, beveiliging en advies.'), t('<b>Wat het doet:</b> RzSense vat de metingen per periode samen, geeft een score en adviezen, en laat met trends zien waar het naartoe gaat. <b>Zo gebruik je het:</b> kies een periode en een tabblad. Een advies handel je af, stel je uit of zet je op niet van toepassing. <b>Goed om te weten:</b> hoe ver je terug kunt kijken, hangt af van de bewaartermijnen (Instellingen → Opslag).')) ?>
       <div class="pg-tools" data-pgtools="an"></div>
       <div class="pgrid" data-pgrid="an">
       <div class="pcard" data-pk="bar" data-pw="12" data-pt="<?= th('Periode en tabbladen') ?>"><div class="dash-bar an-toolbar">
@@ -640,6 +653,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <button type="button" class="seg-btn" data-nsub="disc" role="tab" aria-selected="false">🔍 <?= th('Ontdekken') ?> <span class="tab-badge" id="net-disc-badge" hidden></span></button>
       </div>
       <!-- 1.103.0: netwerkscan, zelfde opbouw als het dashboard -->
+      <?= xp(t('Alle apparaten in je netwerk, met naam, soort, IP-adres en fabrikant.'), t('<b>Wat het doet:</b> RzSense scant je netwerk (en leest UniFi of SNMP uit als je die hebt) en houdt bij welke apparaten er zijn en wanneer ze online waren. <b>Zo gebruik je het:</b> geef een nieuw apparaat een naam en zet het op bekend; een apparaat dat je niet kent, onderzoek je. <b>Goed om te weten:</b> deze apparaten kun je ook kiezen bij het adres van een server of het doel van een check.'), 'xp-net-list') ?>
       <div class="dash-counters"><div class="dash-in">
         <div class="health-counts" id="net-counts"></div>
         <span class="dash-last muted small" id="net-last"></span>
@@ -667,7 +681,9 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <div class="pcard" data-pk="list" data-pw="12" data-pt="<?= th('Apparaten') ?>"><div class="card net-card"><div id="net-list"></div></div>
       </div>
       </div>
+      <?= xp(t('Wat er in je netwerk verandert: nieuwe apparaten, veranderingen en voorstellen.'), t('<b>Wat het doet:</b> je ziet nieuwe apparaten, een ander IP-adres of andere open poorten, en wie wanneer thuis is (aanwezigheid). <b>Zo gebruik je het:</b> loop de nieuwe apparaten na en neem een voorstel over, bijvoorbeeld een check toevoegen. <b>Goed om te weten:</b> de scan zelf stel je in bij Instellingen → Netwerkscan.'), 'xp-net-disc') ?>
       <div id="net-disc" class="net-disc" aria-live="polite"></div>
+      <?= xp(t('Hoe je netwerk in elkaar zit: router, switches en accesspoints, met de apparaten erachter.'), t('<b>Wat het doet:</b> RzSense tekent de kaart uit de gegevens van UniFi, SNMP en de netwerkscan. <b>Zo gebruik je het:</b> klik op een apparaat voor de details. <b>Goed om te weten:</b> zonder UniFi of SNMP weet RzSense niet achter welke switch een apparaat zit; het staat dan direct onder de router.'), 'xp-net-map') ?>
       <div id="net-map" class="net-map"></div>
     </section>
     <?php endif; ?>
@@ -809,6 +825,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
         <div data-sk="alarm" class="card">
           <h2><?= th('Alarmgedrag') ?></h2>
+          <?= xp(t('Vooruitkijken: waarschuwen voordat een disk vol is of een trend een grens haalt.'), t('<b>Wat het doet:</b> RzSense rekent uit hoe snel een disk volloopt en hoe een trend (Analyse → Trends) zich ontwikkelt, en meldt het als de grens binnen het aantal dagen hieronder valt. <b>Zo stel je het in:</b> 7 dagen voor disks geeft tijd om op te ruimen; 30 dagen voor trends is een rustige vroege waarschuwing. 0 zet het uit. Onder <i>Geavanceerd</i> staan de logchecks en automatisch onderhoud. <b>Goed om te weten:</b> dit zijn ℹ️-meldingen: geen storing, wel iets om op tijd naar te kijken.')) ?>
           <label><?= th('Waarschuwen als een disk binnen … dagen vol raakt') ?> <span class="muted small"><?= th('(0 = uit)') ?></span><input type="number" name="disk_forecast_days" min="0" max="365"></label>
           <label><?= th('Melden als een trend binnen … dagen een grens bereikt') ?> <span class="muted small"><?= th('(Analyse → Trends; 0 = uit)') ?></span><input type="number" name="trend_alert_days" min="0" max="365"></label>
           <label><?= th('UPS: kortste looptijd die nog goed is (minuten)') ?> <span class="muted small"><?= th('(voor de trend van de accu)') ?></span><input type="number" name="trend_ups_min" min="1" max="240"></label>
@@ -1160,6 +1177,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
         <div data-sk="ids_attack" class="card" id="ids-attack-card">
           <h2>🌍 <?= th('IDS: aanvallers en verkeer') ?></h2>
+          <?= xp(t('Bekende aanvallers, landen, dreigingsinformatie en verdachte DNS: wat het IDS van buiten weet.'), t('<b>Wat het doet:</b> het IDS gebruikt lijsten met bekende aanvallers, het land van een adres en informatie van diensten als AbuseIPDB om een aanval eerder en zekerder te herkennen. <b>Zo stel je het in:</b> zet de lijsten aan die je wilt; een sleutel van een dienst vul je in bij die dienst. De score bepaalt vanaf wanneer een adres als bekende aanvaller geldt. <b>Goed om te weten:</b> zonder het IDS (IDS: detectie) doet deze kaart niets. Je eigen netwerken en de whitelist worden nooit geblokkeerd.')) ?>
           <p class="muted small"><?= t('Werkt alleen als het IDS aan staat (<a href="#settings/ids" data-goto="settings/ids">IDS: detectie</a>).') ?></p>
           <h3 class="set-sub"><?= th('☠️ Bekende aanvallers en land') ?></h3>
           <label class="switch"><input type="checkbox" name="ids_blocklists"><span></span> <?= th('Bekende aanvallers (Spamhaus DROP en FireHOL level 1, dagelijks bijgewerkt)') ?></label>
@@ -1202,6 +1220,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
         <div data-sk="ids_servers" class="card" id="ids-servers-card">
           <h2>🖥️ <?= th('IDS: servers') ?></h2>
+          <?= xp(t('Wat het IDS op je servers zelf bewaakt: webshells, persistentie, ransomware, onbekende programma\'s en tijdelijk sudo.'), t('<b>Wat het doet:</b> de agent kijkt op de server naar wat een aanvaller doet nadat hij binnen is: een webserver die opdrachten start, nieuwe opstartregels, massaal versleutelde bestanden en programma\'s die er niet thuishoren. <b>Zo stel je het in:</b> zet per onderdeel aan wat je wilt. In de modus <i>Blokkeren</i> kan de agent een proces meteen stoppen; per server stel je het in de Agent Manager anders in. <b>Goed om te weten:</b> sommige onderdelen hebben een nieuwere agent nodig (staat erbij). Een vals alarm geef je vrij bij het incident.')) ?>
           <p class="muted small"><?= t('Werkt alleen als het IDS aan staat (<a href="#settings/ids" data-goto="settings/ids">IDS: detectie</a>).') ?></p>
           <h3 class="set-sub"><?= th('🕸️ Webshell en persistentie') ?> <span class="muted small"><?= th('(agent 1.56.0)') ?></span></h3>
           <label class="switch"><input type="checkbox" name="ids_webshell"><span></span> <span><?= t('<b>Webshell</b>: een webserver (nginx, apache, php-fpm …) start een shell of een programma als <code>curl</code>, <code>wget</code> of <code>python</code>') ?></span></label>
@@ -1383,6 +1402,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
         <div data-sk="smartmore" class="card" id="smartmore-card">
           <h2>🧠 <?= th('Slim: overige instellingen') ?></h2>
+          <?= xp(t('Sneller checken bij een probleem, trager als alles goed is, en een melding bij een disk die hard groeit.'), t('<b>Wat het doet:</b> met <i>slim interval</i> controleert RzSense een check die twijfelt veel vaker, en een check die al lang goed is minder vaak. Zo zie je een storing sneller en is RzSense zuiniger. <b>Zo stel je het in:</b> 20 seconden bij een probleem en hooguit 2× het interval bij rust is een goede start. <b>Goed om te weten:</b> een check wordt nooit trager dan eens per uur, en een check met een eigen interval houdt zijn ritme.')) ?>
           <h3 class="small" style="margin:.3rem 0">⏱️ <?= th('Slim interval') ?></h3>
           <label class="switch"><input type="checkbox" name="smart_interval"><span></span> <?= t('<b>Slim interval</b>: bij een probleem sneller checken, als alles al een uur goed is trager') ?></label>
           <div class="row2">
@@ -1411,6 +1431,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
         <div data-sk="update" class="card" id="update-card">
           <h2><?= th('⬆ RzSense bijwerken') ?></h2>
+          <?= xp(t('Een nieuwe versie van RzSense installeren, met een back-up vooraf.'), t('<b>Wat het doet:</b> RzSense zoekt zelf naar een nieuwe versie en laat zien wat er verandert. Met <i>Nu bijwerken</i> maakt het eerst een back-up en installeert het dan de nieuwe versie; de database wordt vanzelf bijgewerkt. <b>Zo stel je het in:</b> kies of je zelf bijwerkt of automatisch, en hoe lang agents hooguit wachten tijdens de update. <b>Goed om te weten:</b> je instellingen en <code>config.php</code> blijven gelijk. Agents krijgen hun nieuwe versie via RzSense.')) ?>
           <p class="small" id="update-status">…</p>
           <div id="update-notes"></div>
           <div id="update-progress" hidden></div>
@@ -1439,6 +1460,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
         <div data-sk="agentdef" class="card" id="agentdef-card">
           <h2><?= th('Standaardinstellingen') ?></h2>
+          <?= xp(t('Hoe agents standaard werken: bijwerken, hoe vaak ze rapporteren en wanneer ze offline zijn.'), t('<b>Wat het doet:</b> deze waarden gelden voor elke agent, tenzij je per server iets anders kiest in de Agent Manager. <b>Zo stel je het in:</b> laat agents automatisch bijwerken en rapporteren elke 60 seconden. Offline na 5 minuten zonder rapport is gebruikelijk. <b>Goed om te weten:</b> 30 seconden werkt alleen met de systemd-timer; via cron of op TrueNAS minimaal elke minuut.')) ?>
           <label class="switch"><input type="checkbox" name="agent_auto_update"><span></span> <?= th('Agents automatisch bijwerken') ?></label>
           <label style="margin-top:.9rem"><?= th('⏱ Agents rapporteren standaard elke') ?>
             <select name="agent_tick"><option value="30"><?= th('30 seconden') ?></option><option value="60"><?= th('60 seconden') ?></option><option value="120"><?= th('2 minuten') ?></option><option value="300"><?= th('5 minuten') ?></option></select>
@@ -1496,6 +1518,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
         <div data-sk="storage" class="card" id="storage-card">
           <h2>🗄️ <?= th('Opslag') ?></h2>
+          <?= xp(t('Hoe lang RzSense metingen, meldingen en logs bewaart, en hoe groot de database wordt.'), t('<b>Wat het doet:</b> elke meting wordt een tijd los bewaard, daarna als uurgemiddelde en tenslotte per dag. Zo blijven grafieken over een lange periode mogelijk zonder dat de database blijft groeien. <b>Zo stel je het in:</b> 30 dagen per meting, 180 dagen per uur en 2 jaar per dag past bij de meeste installaties. Onder de velden zie je hoe hard de database groeit. <b>Goed om te weten:</b> korter bewaren maakt de database kleiner en sneller; oude gegevens zijn daarna echt weg.')) ?>
           <label><?= th('Elke meting bewaren (dagen)') ?> <span class="hint"><?= th('(daarna per uur)') ?></span><input type="number" name="retention_days" min="1" max="3650"></label>
           <label><?= th('Uurgemiddelden bewaren (dagen)') ?> <span class="hint"><?= th('(grafieken tot een half jaar terug)') ?></span><input type="number" name="hourly_days" min="7" max="3650"></label>
           <label><?= th('Daggegevens bewaren (dagen)') ?> <span class="hint"><?= th('(Analyse en Dashboard)') ?></span><input type="number" name="daily_days" min="30" max="3650"></label>
@@ -1517,6 +1540,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         </div>
       <form data-sk="access" class="card need-admin" id="access-form">
         <h2><?= th('Toegang') ?></h2>
+        <?= xp(t('Wie er binnenkomt: je lokale netwerken, de proxy\'s die je vertrouwt en de blokkade na mislukte logins.'), t('<b>Wat het doet:</b> hier bepaal je welk netwerk als thuis telt (geen of een lichtere login), welke reverse proxy het echte IP-adres mag doorgeven, en wanneer een account of IP-adres na mislukte pogingen wordt geblokkeerd. <b>Zo stel je het in:</b> vul je thuisnetwerk(en) in, bv. <code>192.168.1.0/24</code>, en het adres van je proxy (SWAG, NPM). Laat de inlogbeveiliging aan. <b>Goed om te weten:</b> <i>Lokale netwerken</i> worden ook elders gebruikt (bv. REST API → Alleen vanaf, IDS) en veranderen daar vanzelf mee.')) ?>
         <div class="ip-status" id="ip-status">…</div>
         <label class="switch"><input type="checkbox" name="lan_no_login"><span></span> <?= th('Geen login nodig op het lokale netwerk') ?></label>
         <label class="switch"><input type="checkbox" name="lan_as_admin"><span></span> <?= t('Op het lokale netwerk als <b>beheerder</b> inloggen') ?></label>
@@ -1803,28 +1827,34 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
       <div data-sk="server" class="card need-admin" id="server-card">
         <h2>🖧 <?= th('Server en PHP') ?></h2>
+        <?= xp(t('De basisinstellingen van RzSense: tijdzone, adressen, het pad naar ping en een paar PHP-waarden.'), t('<b>Wat het doet:</b> de tijdzone bepaalt alle tijden; de basis-URL gebruiken de agents, de externe URL komt in rapporten, meldingen en de statuspagina. <b>Zo stel je het in:</b> kies je tijdzone en vul de adressen in waarop RzSense bereikbaar is. Laat de PHP-waarden leeg om die uit php.ini te gebruiken. <b>Goed om te weten:</b> dit wordt in <code>config.php</code> opgeslagen (eventueel via de hulpdienst). Zet display_errors alleen aan om te debuggen.')) ?>
         <div id="server-body"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
 
       <div data-sk="syscheck" class="card need-admin" id="syscheck-card">
         <h2>🩺 <?= th('Systeemcheck') ?> <button type="button" class="btn small-btn" id="syscheck-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
+        <?= xp(t('Klopt alles wat RzSense nodig heeft? PHP-versie, extensies, rechten, cron en de database.'), t('<b>Wat het doet:</b> een lijst met wat RzSense nodig heeft, met ✓ (goed), ! (werkt, maar kan beter) of ✕ (moet je oplossen) en wat je eraan doet. <b>Zo stel je het in:</b> los eerst de ✕ op, van boven naar beneden; met 🔄 kijk je opnieuw. <b>Goed om te weten:</b> onder <i>PHP-omgeving</i> zie je de precieze waarden, handig als je om hulp vraagt.')) ?>
         <div id="syscheck-body"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
       <!-- 1.151.0: eerst op de pagina Gezondheid -->
       <div data-sk="cron" class="card need-admin" id="cron-card">
         <h2>⏱️ Cron</h2>
+        <?= xp(t('De regel waarmee de checks elke minuut draaien.'), t('<b>Wat het doet:</b> RzSense voert de checks, meldingen, rapporten en het opruimen uit in een ronde die cron elke minuut start. <b>Zo stel je het in:</b> zet de regel hieronder in de crontab van root (<code>crontab -e</code>) of in <code>/etc/cron.d</code>. <b>Goed om te weten:</b> staat cron stil, dan ziet de waakhond van de agents dat en meldt het via Pushover.')) ?>
         <div id="cron-body"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
       <div data-sk="dbuse" class="card need-admin" id="dbuse-card">
         <h2>📊 <?= th('Gebruik van de database') ?></h2>
+        <?= xp(t('Hoe groot de database is, welke tabellen het meeste ruimte gebruiken en hoe druk de verbindingen zijn.'), t('<b>Wat het doet:</b> per tabel de grootte en het aantal rijen, en hoeveel databaseverbindingen RzSense gebruikt. <b>Zo stel je het in:</b> is een tabel opvallend groot, verkort dan de bewaartermijn bij <i>Opslag</i>. <b>Goed om te weten:</b> na het opruimen geeft de database ruimte vaak pas vrij na optimaliseren: de knop <i>🧹 Database optimaliseren</i> hieronder.')) ?>
         <div id="dbuse-body"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
       <div data-sk="perf" class="card need-admin" id="perf-card">
         <h2>🚀 <?= th('Prestaties') ?> <button type="button" class="btn small-btn" id="perf-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
+        <?= xp(t('Hoe snel RzSense is: OPcache, compressie, de traagste verzoeken en onderdelen van de cron-ronde.'), t('<b>Wat het doet:</b> RzSense meet hoe lang verzoeken en de onderdelen van de cron-ronde duren, en ziet of PHP-OPcache en compressie aan staan. <b>Zo stel je het in:</b> rood is traag: volg het advies dat erbij staat (vaak OPcache aanzetten of compressie in je webserver). <b>Goed om te weten:</b> de cijfers gaan over de laatste 24 uur; met 🔄 haal je ze opnieuw op.')) ?>
         <div id="perf-body"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
       <div data-sk="errors" class="card need-admin" id="errors-card">
         <h2>⚠️ <?= th('PHP-fouten (24 uur)') ?></h2>
+        <?= xp(t('Fouten die PHP de afgelopen 24 uur in RzSense tegenkwam.'), t('<b>Wat het doet:</b> een lijst van foutmeldingen uit RzSense zelf, met hoe vaak en wanneer het laatst. <b>Zo stel je het in:</b> niets te doen als de lijst leeg is. Staat er een fout die blijft terugkomen, meld hem dan met de tekst erbij. <b>Goed om te weten:</b> wachtwoorden en sleutels staan nooit in deze lijst.')) ?>
         <div id="errors-body"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
 
@@ -1846,17 +1876,18 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <div class="pg-tools" data-pgtools="acct"></div>
       <h1 class="set-title">👤 <?= th('Mijn account') ?></h1>
       <div class="set-crumb muted small"><?= htmlspecialchars((string) $user['username']) ?> · <?= th(ROLE_LABELS[$role] ?? $role) ?></div>
-      <div class="card" id="acct-data"><h2><?= th('Gegevens') ?></h2><div id="acct-data-body"><p class="muted"><?= th('Laden…') ?></p></div></div>
+      <div class="card" id="acct-data"><h2><?= th('Gegevens') ?></h2><?= xp(t('Je naam, e-mailadres en rol.'), t('<b>Wat het doet:</b> je e-mailadres gebruikt RzSense voor rapporten die je zelf verstuurt, voor wachtwoord vergeten en voor de controle op datalekken. <b>Zo stel je het in:</b> houd je e-mailadres actueel. <b>Goed om te weten:</b> je rol (beheerder of gebruiker) wijzigt alleen een beheerder.')) ?><div id="acct-data-body"><p class="muted"><?= th('Laden…') ?></p></div></div>
       <form id="password-form" class="card">
         <h2>🔑 <?= th('Wachtwoord wijzigen') ?></h2>
+        <?= xp(t('Een nieuw wachtwoord voor je account.'), t('<b>Wat het doet:</b> vervangt je wachtwoord; andere apparaten blijven ingelogd tot je ze uitlogt bij <i>Ingelogde apparaten</i>. <b>Zo stel je het in:</b> kies minstens 8 tekens, het liefst een wachtzin uit een wachtwoordmanager. <b>Goed om te weten:</b> RzSense controleert of een wachtwoord in een bekend datalek staat (zonder het wachtwoord zelf te versturen).')) ?>
         <label><?= th('Huidig wachtwoord') ?><input type="password" name="current" autocomplete="current-password" required></label>
         <label><?= th('Nieuw wachtwoord') ?><input type="password" name="new" minlength="8" autocomplete="new-password" required></label>
         <button class="btn"><?= th('Wijzigen') ?></button>
       </form>
-      <div class="card" id="acct-2fa"><h2>🔐 <?= th('Tweestapsverificatie') ?></h2><div id="acct-2fa-body"></div></div>
-      <div class="card" id="acct-outside"><h2>🕶️ <?= th('Van buiten en passkeys') ?></h2><div id="acct-outside-body"></div></div>
-      <div class="card" id="acct-devices"><h2>📱 <?= th('Ingelogde apparaten') ?></h2><div id="acct-devices-body"></div></div>
-      <div class="card" id="acct-logins"><h2>🕘 <?= th('Mijn laatste logins') ?></h2><div id="acct-logins-body"></div></div>
+      <div class="card" id="acct-2fa"><h2>🔐 <?= th('Tweestapsverificatie') ?></h2><?= xp(t('Naast je wachtwoord een code uit een app op je telefoon.'), t('<b>Wat het doet:</b> bij het inloggen vraagt RzSense ook een code van 6 cijfers uit een app als Google Authenticator, Aegis of je wachtwoordmanager. <b>Zo stel je het in:</b> scan de QR-code met de app en vul de code ter controle in. Kwijt je je telefoon, dan zet een beheerder 2FA voor je uit. <b>Goed om te weten:</b> van buiten (via internet) kan 2FA verplicht zijn; op je lokale netwerk kan het lichter.')) ?><div id="acct-2fa-body"></div></div>
+      <div class="card" id="acct-outside"><h2>🕶️ <?= th('Van buiten en passkeys') ?></h2><?= xp(t('Inloggen van buiten je netwerk, en met een passkey in plaats van een wachtwoord.'), t('<b>Wat het doet:</b> een passkey is een sleutel op je telefoon of laptop (vingerafdruk, gezicht of pincode); niemand kan hem raden of afluisteren. <b>Zo stel je het in:</b> voeg een passkey toe op elk apparaat waarmee je inlogt. <b>Goed om te weten:</b> een passkey werkt alleen op het adres waarop je hem maakte (bv. je externe URL).')) ?><div id="acct-outside-body"></div></div>
+      <div class="card" id="acct-devices"><h2>📱 <?= th('Ingelogde apparaten') ?></h2><?= xp(t('Waar je account nu ingelogd is, en die apparaten uitloggen.'), t('<b>Wat het doet:</b> elk apparaat en elke browser die met je account is ingelogd, met het IP-adres en wanneer het laatst actief was. <b>Zo stel je het in:</b> ken je een apparaat niet, log het dan uit en wijzig je wachtwoord. <b>Goed om te weten:</b> <i>Onthoud mij</i> houdt een apparaat langer ingelogd; uitloggen hier maakt dat ongedaan.')) ?><div id="acct-devices-body"></div></div>
+      <div class="card" id="acct-logins"><h2>🕘 <?= th('Mijn laatste logins') ?></h2><?= xp(t('Je laatste inlogpogingen, gelukt en mislukt.'), t('<b>Wat het doet:</b> wanneer, vanaf welk IP-adres en hoe (wachtwoord, passkey, lokaal netwerk) er met je account is ingelogd. <b>Zo stel je het in:</b> een mislukte poging die je niet zelf deed? Wijzig je wachtwoord en zet tweestapsverificatie aan. <b>Goed om te weten:</b> na te veel mislukte pogingen blokkeert RzSense het account of het IP-adres (Instellingen → Toegang).')) ?><div id="acct-logins-body"></div></div>
       <div class="card view-card" data-pk="view" data-ids-modern="<?= setting('ids_modern', '1') === '1' ? 'on' : 'off' ?>" data-af-motion="<?= max(0, min(2, (int) setting('af_motion', '2'))) ?>">
         <h2>🖥️ <?= th('Weergave') ?></h2>
         <?= xp(t('Hoe RzSense eruitziet voor jou; wijzigingen zie je meteen.'), t('<b>Wat het is:</b> hoe de pagina\'s eruitzien, direct toegepast. Alles hier geldt voor <b>je account</b>, dus ook op je andere apparaten. <b>Grootte:</b> apart voor je telefoon en je computer, zodat je op een klein scherm iets anders kunt kiezen. <b>◈ CC:</b> alle pagina\'s in de stijl van het Command center, met kaarten die je kunt verslepen (✎ Indeling). <b>Goed om te weten:</b> ook je sortering en de gekozen periode op het Dashboard en bij Analyse worden voor je account onthouden.')) ?>

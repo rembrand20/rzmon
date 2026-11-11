@@ -54,7 +54,7 @@ function appDecide(action, r, done) {
   const dir = r.path.replace(/[^/]+$/, '');
   modal({
     title: action === 'block' ? L('Programma blokkeren') : L('Programma toestaan'),
-    body: `<p><code>${esc(r.path)}</code><br><span class="muted small">sha256 ${esc(r.sha)}</span></p>
+    body: `${xpHtml(L('Toestaan: het programma is voortaan normaal. Blokkeren: de agent stopt het als het start.'), L('<b>Wat het doet:</b> je kiest of het geldt voor precies dit programma (vingerafdruk), voor het pad (ook na een update) of voor een hele map. <b>Zo stel je het in:</b> de vingerafdruk is het veiligst; het pad is handiger voor software die vaak bijwerkt. <b>Goed om te weten:</b> blokkeren werkt alleen als het IDS op de server mag ingrijpen.'))}<p><code>${esc(r.path)}</code><br><span class="muted small">sha256 ${esc(r.sha)}</span></p>
       <label>${L('Waarop')}<select name="on"><option value="sha">${L('Deze vingerafdruk (precies dit programma)')}</option><option value="path">${L('Dit pad (ook na een update)')}</option>
         ${action === 'allow' && dir.length > 1 ? `<option value="dir">${L('Alles in {d}', { d: esc(dir) })}</option>` : ''}</select></label>
       <label>${L('Voor')}<select name="scope"><option value="host">${L('Alleen {h}', { h: esc(r.host || L('deze server')) })}</option><option value="all">${L('Alle servers')}</option></select></label>
