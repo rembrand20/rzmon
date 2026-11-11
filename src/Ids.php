@@ -113,7 +113,6 @@ final class Ids
         q('UPDATE hosts SET isolate_until = ?, isolate_by = ?, isolate_allow = ?, isolate_state = ?, isolate_reason = ?, isolate_at = ? WHERE id = ?',
             [$until, mb_substr($by, 0, 64), @inet_pton($byIp) !== false ? $byIp : null, 'wacht op de agent', $reason !== '' ? mb_substr($reason, 0, 255) : null, now(), $hostId]);
         $name = (string) q('SELECT name FROM hosts WHERE id = ?', [$hostId])->fetchColumn();
-        AgentCommands::audit($by, 'Server geïsoleerd', "$name tot $until");
         ActionLog::by($by, $hostId, 'isolate', t('Isoleren gevraagd'), t('tot {t}', ['t' => $until]) . ($reason !== '' ? ' · ' . $reason : '') . ($byIp !== '' ? ' · ' . t('toegestaan: {ip}', ['ip' => $byIp]) : ''));
         Monitor::sysInfo('isolate', $hostId, $name, '🧱 ' . t('Server geïsoleerd: {name}', ['name' => $name]),
             fn() => t('{name} is geïsoleerd door {by}: alleen RzSense, je LAN en {ip} kunnen er nog bij, tot {t}', ['name' => $name, 'by' => $by, 'ip' => $byIp, 't' => date('d-m H:i', strtotime($until))]));
@@ -123,7 +122,6 @@ final class Ids
     {
         q('UPDATE hosts SET isolate_until = NULL, isolate_state = ? WHERE id = ?', ['wordt opgeheven', $hostId]);
         $name = (string) q('SELECT name FROM hosts WHERE id = ?', [$hostId])->fetchColumn();
-        AgentCommands::audit($by, 'Isolatie opgeheven', $name);
         ActionLog::by($by, $hostId, 'isolate', t('Isolatie opheffen gevraagd'));
         Monitor::sysInfo('isolate', $hostId, $name, '🔓 ' . t('Isolatie opgeheven: {name}', ['name' => $name]), fn() => t('{name} is weer gewoon bereikbaar (door {by})', ['name' => $name, 'by' => $by]));
     }
@@ -172,7 +170,6 @@ final class Ids
            ON DUPLICATE KEY UPDATE action = VALUES(action), created_by = VALUES(created_by), created_at = VALUES(created_at), done_at = NULL, result = NULL',
             [$hostId, $user, $lock ? 'lock' : 'unlock', mb_substr($by, 0, 64), now()]);
         $name = (string) q('SELECT name FROM hosts WHERE id = ?', [$hostId])->fetchColumn();
-        AgentCommands::audit($by, $lock ? 'Gebruiker vergrendeld' : 'Gebruiker vrijgegeven', "$user op $name");
         ActionLog::by($by, $hostId, 'userlock', $lock ? t('Gebruiker {u} vergrendelen gevraagd', ['u' => $user]) : t('Gebruiker {u} vrijgeven gevraagd', ['u' => $user]));
         return true;
     }
@@ -1376,18 +1373,11 @@ final class Ids
             return;
         }
         $done[$title] = true;
-        $sent = null;
-        $err = '';
-        if (Push::enabled()) {
-            $base = public_url();
-            $prio = $status === STATUS_CRIT ? min(1, (int) setting('pushover_priority_crit', 1)) : min(1, (int) setting('pushover_priority_warn', 0));
-            $r = Push::send("🛡️ IDS: $title", $detail . "\n" . date('d-m-Y H:i:s'), $prio,
-                $base !== '' ? ['url' => "$base/#ids", 'url_title' => 'Open IDS'] : []);
-            $sent = $r['ok'];
-            $err = $r['error'] ? ' [' . t('niet verzonden') . ': ' . $r['error'] . ']' : '';
-        }
+        // 1.235.0: via Notify; alleen push (ook tijdens stille uren), zoals altijd
+        $n = Notify::send("🛡️ IDS: $title", $detail, ['channels' => ['pushover' => true, 'email' => false, 'webhook' => false], 'status' => $status, 'event' => 'problem', 'anchor' => '#ids',
+            'prio' => $status === STATUS_CRIT ? min(1, (int) setting('pushover_priority_crit', 1)) : min(1, (int) setting('pushover_priority_warn', 0))]);
         q("INSERT INTO alerts (check_id, status, title, message, sent_ok, kind) VALUES (NULL, ?, ?, ?, ?, 'ids')",
-            [$status, mb_substr("🛡️ IDS: $title", 0, 250), mb_substr($detail . $err, 0, 1000), $sent ? 1 : 0]);
+            [$status, mb_substr("🛡️ IDS: $title", 0, 250), mb_substr($detail . Notify::errText($n['errors']), 0, 1000), $n['push'] ? 1 : 0]);
     }
 
     // ------------------------------------------------------------------ blokkeren

@@ -314,16 +314,7 @@ INSERT IGNORE INTO settings (name, value) VALUES
     ('agent_tick', '60'),
     ('ids_fim_exclude', '*.log *.tmp *.swp *.pid cache/ sessions/');
 
--- Logboek van gevoelige wijzigingen (bv. commando's op agents toestaan, commando-checks wijzigen)
-CREATE TABLE IF NOT EXISTS audit_log (
-    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    username   VARCHAR(100) NOT NULL,
-    action     VARCHAR(50) NOT NULL,
-    detail     VARCHAR(1000) NOT NULL,
-    ip         VARCHAR(45) NOT NULL DEFAULT '',
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_audit_time (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- 1.235.0: het actielogboek van beheerders (audit_log) staat nu in host_actions (onderdeel 'admin')
 
 -- IDS: wat normaal is per server (bestanden, gebruikers, poorten, SUID, modules, login-IP's, uitzonderingen)
 CREATE TABLE IF NOT EXISTS ids_baseline (

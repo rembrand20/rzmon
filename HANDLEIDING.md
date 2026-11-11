@@ -640,7 +640,7 @@ Is de zijbalk ingeklapt tot iconen, of is het scherm smaller, dan blijft het zoa
   - **🔐 Toegang**: Inloggen · Van buiten (https, onzichtbaar van buiten, apparaten en passkeys) · Gebruikers;
   - **🖥️ Agents**: Agents (één tabel met alle agents, bijwerken, ritme, laatste en volgende contact) · Beveiligde verbinding · Commando-checks;
   - **🔗 Koppelingen**: MQTT (Home Assistant) · REST API en API-sleutels;
-  - **🛠️ Systeem**: RzSense bijwerken · Back-up · Database en opslag · Server en PHP · Systeemcheck · Wijzigingslogboek · Exporteren en importeren.
+  - **🛠️ Systeem**: RzSense bijwerken · Back-up · Database en opslag · Server en PHP · Systeemcheck · Logboek · Exporteren en importeren.
 
   Je ziet één onderdeel tegelijk; elk heeft een eigen adres (bv. `#settings/backup`) en RzSense onthoudt waar je was. Op de telefoon is de zijbalk een keuzelijst bovenaan. **Blokkades en de whitelist** staan in het tabblad **IDS → ⛔ Blokkades**.
   - **✅ Hoe staat het ervoor?** (vanaf 1.62.0) is het eerste onderdeel; via het accountmenu kom je altijd hier. Een cirkel met een score (0–100%) en een lijst: ✔ groen is in orde, **!** oranje is een aandachtspunt, ✘ rood moet je regelen, grijs is optioneel (telt niet mee). RzSense kijkt naar: een **meldkanaal** (Pushover of e-mail aan en ingevuld), **automatische back-up** (en de laatste niet ouder dan een week), **2FA** voor alle beheerders (accounts die *alleen lokaal* mogen inloggen tellen niet mee), **inlogbeveiliging**, een **nieuwe RzSense-versie**, **agents** op een oudere versie of **onversleuteld**, **HTTPS** (zoals jij RzSense nu opent), en of **kwetsbaarheden** en **IDS** aan staan. Klik op een punt en je staat bij de instelling. In de zijbalk krijgt een groep met een aandachtspunt een oranje (of rood) bolletje. Open je zo'n onderdeel, dan staat bovenaan de pagina een oranje (of rode) balk **Aandacht nodig** (vanaf 1.133.0) met elk punt: wat er mis is, en waar dat kan meteen de knop of de opdracht om het op te lossen. Vanaf 1.148.0 staat er ook een 🟠/🔴 bolletje bij de **titel van de kaart** waar het punt over gaat, en brengt een klik op het punt in de balk je naar die kaart. Is het opgelost, dan verdwijnen de balk en het bolletje vanzelf.
@@ -693,7 +693,7 @@ Wat per scherm logisch is, blijft per apparaat: de TV-modus, het laatst gekozen 
 | Beveiliging | Inloggen · Beheer via https · Gebruikers · Kwetsbaarheden · Datalekken · Netwerkscan | *Toegang* is hierin opgegaan |
 | Agents | Agents · Beveiligde verbinding · Commando-checks | |
 | Koppelingen | UniFi en AdGuard · Home Assistant (MQTT) · REST API · Statuspagina | |
-| Systeem | Bijwerken · Back-up · Database en server (tabbladen *Database* en *Server*) · Prestaties en fouten · Wijzigingslogboek · Exporteren en importeren | *Server en PHP*, de systeemcheck en cron staan bij *Database en server → Server*; het gebruik van de database bij *Database en server → Database* |
+| Systeem | Bijwerken · Back-up · Database en server (tabbladen *Database* en *Server*) · Prestaties en fouten · Logboek · Exporteren en importeren | *Server en PHP*, de systeemcheck en cron staan bij *Database en server → Server*; het gebruik van de database bij *Database en server → Database* |
 
 Oude links (bv. `#settings/smart`, `#settings/server`) gaan vanzelf naar de nieuwe plek.
 
@@ -1735,10 +1735,10 @@ Klik op een naam om de check te bewerken. Met 🙈 (*dit is normaal*) komt het p
 
 ### 7.12 Wijzigingslogboek 📜, exporteren en importeren 📦, meldketen testen 🧪
 
-**📜 Wijzigingslogboek** (vanaf 1.97.0, *Instellingen → Systeem → Wijzigingslogboek*): wie veranderde wat en wanneer, met de oude en de nieuwe waarde. Het gaat om instellingen, servers, checks (ook als je er meerdere tegelijk aanpaste) en sjablonen.
-- **↩ Terugzetten:** een gewijzigde instelling, server of check gaat terug naar hoe hij was. Een verwijderde check of server komt terug met hetzelfde id; een agent werkt dan meteen weer, maar de meethistorie komt niet terug. Een nieuw aangemaakte check of server wordt weer verwijderd.
+**📜 Wijzigingslogboek** (vanaf 1.97.0; **vanaf 1.235.0 onderdeel van het 📒 Logboek**, *Instellingen → Systeem → Logboek*, onderdeel *🛠️ RzSense-instellingen* of alles): wie veranderde wat en wanneer, met de oude en de nieuwe waarde. Het gaat om instellingen, servers, checks (ook als je er meerdere tegelijk aanpaste) en sjablonen.
+- **↩ Terugzetten** (op de regel in het Logboek): een gewijzigde instelling, server of check gaat terug naar hoe hij was. Een verwijderde check of server komt terug met hetzelfde id; een agent werkt dan meteen weer, maar de meethistorie komt niet terug. Een nieuw aangemaakte check of server wordt weer verwijderd.
 - **Wachtwoorden, tokens en sleutels** staan er nooit leesbaar in (••••••••) en worden niet teruggezet.
-- **Bewaren:** 30 dagen, 90 dagen (standaard), 1 jaar of 3 jaar.
+- **Bewaren:** sinds 1.235.0 dezelfde termijn als het Logboek (één keuze).
 
 **📦 Exporteren en importeren** (vanaf 1.97.0, *Instellingen → 🛠️ Systeem*): servers, checks en sjablonen, en eventueel de instellingen, als één JSON-bestand. Handig om naar een tweede RzSense te kopiëren, of als leesbare reserve naast de back-up.
 - **Zonder geheimen:** wachtwoorden, tokens, sleutels en de SNMP-community gaan niet mee. Agents koppel je op de nieuwe RzSense opnieuw.
@@ -1746,15 +1746,15 @@ Klik op een naam om de check te bewerken. Met 🙈 (*dit is normaal*) komt het p
 
 **🧪 Meldketen testen** (vanaf 1.97.0, *Instellingen → 🔔 Meldingen → Kanalen*): één testmelding door alle kanalen die aan staan (Pushover, e-mail, Home Assistant-webhook, MQTT en de meldingenpagina), met de opgeslagen instellingen, met per kanaal ✓ of ✕ en de fout.
 
-**📒 Logboek per server** (vanaf 1.226.0, agent 1.89.0; *Instellingen → Agents → Logboek*, en per server in de **Agent Manager**, kaart *Logboek*): alles wat er op een server gebeurde, in één lijst per dag, nieuwste eerst.
+**📒 Logboek** (vanaf 1.226.0, agent 1.89.0; sinds 1.235.0 *Instellingen → Systeem → Logboek*, en per server in de **Agent Manager**, kaart *Logboek*): alles wat er gebeurde, per server of alles samen, in één lijst per dag, nieuwste eerst. **Vanaf 1.235.0 is dit het enige logboek:** het Wijzigingslogboek en het aparte actielogboek van beheerders (API-sleutels, blokkades, apparaten, passkeys, Proxmox …, onderdeel *🧑‍💼 Beheer*) staan erin; bij de update is het oude actielogboek overgezet.
 - **Wat er in staat:**
   - wat **de agent zelf** op de server veranderde: de firewall (blokkades, bekende aanvallers, lokaas-poort, met de aantallen), de EDR-regels in auditd, en de beschermingen die in de volgende versies komen (ransomware, updates, tijdelijk sudo);
   - wat **RzSense** deed of vroeg: isoleren en opheffen, gebruikers vergrendelen, processen stoppen, zelf herstellen, pakketten bijwerken of onderdelen installeren, de agent bijwerken (met de uitkomst: ✔ gelukt, ✘ mislukt);
-  - wat **een beheerder** aanpaste aan de server en zijn checks (rapporteren, realtime, EDR, verbinding, commando-checks, logs, een nieuw token …), met de oude en de nieuwe waarde. Die wijzigingen komen uit het wijzigingslogboek en zijn daar **terug te zetten**.
+  - wat **een beheerder** aanpaste aan de server en zijn checks (rapporteren, realtime, EDR, verbinding, commando-checks, logs, een nieuw token …), met de oude en de nieuwe waarde, en elke wijziging aan de **instellingen van RzSense** en sjablonen. Een wijziging zet je met **↩ Terugzetten** op de regel zelf terug.
 - **Bron:** 🧑 een beheerder (met gebruikersnaam en IP), 🤖 RzSense zelf, 🖥️ de agent.
 - **Filteren** op server, onderdeel, bron, periode en *alleen mislukt*, en **zoeken**. Met **⬇ CSV** download je de lijst (voor Excel, zonder formules).
 - **Geen regels kwijt:** de agent bewaart zijn regels tot RzSense ze heeft (ook als RzSense even onbereikbaar is), en elke regel heeft een eigen kenmerk, zodat hij nooit dubbel in het logboek komt.
-- **Bewaren:** standaard **1 jaar** (30 dagen tot 10 jaar). Wijzigingen aan servers en checks volgen de bewaartermijn van het wijzigingslogboek.
+- **Bewaren:** standaard **1 jaar** (30 dagen tot 10 jaar), voor het hele logboek, ook de wijzigingen.
 - **Goed om te weten:** wachtwoorden, tokens en sleutels staan er nooit in. Het logboek staat altijd aan: het is je bewijs van wat er gebeurde (ook voor NIS2).
 
 **🔀 Functies aan en uit** (vanaf 1.226.0, *Instellingen → Overzicht → Functies*): bij een functie met een gewone aan/uit-instelling staat een **schakelaar** in de kolom Status; je zet hem daar meteen aan of uit (in het wijzigingslogboek). Wat meer vraagt (een sleutel, je wachtwoord, een keuze) stel je in via **⚙️ Instellen**.
@@ -3681,7 +3681,7 @@ Onder *Instellingen → Gebruikers* beheer je wie er mag inloggen, en met welke 
 | Dashboard, checks, grafieken, meldingen, containers bekijken | ✅ | ✅ | ✅ |
 | Eigen wachtwoord en eigen 2FA | ✅ | ✅ | ✅ |
 | Storing bevestigen, nu checken, onderhoud, poortscan | ✅ | ✅ | ❌ |
-| Beheerportal bekijken: Status, Advies, Rapporten, Wijzigingslogboek (vanaf 1.181.0) | ✅ | 👁 | ❌ |
+| Beheerportal bekijken: Status, Advies, Rapporten, Logboek (vanaf 1.181.0) | ✅ | 👁 | ❌ |
 | Rapport naar je eigen e-mailadres sturen (*Rapporten → Verstuur naar mij*) | ✅ | ✅ | ❌ |
 | Ontvangers per rapport instellen (*Rapporten*) | ✅ | ❌ | ❌ |
 | Servers en checks inrichten, agents, instellingen wijzigen, gebruikers, API-sleutels, Setup | ✅ | ❌ | ❌ |
@@ -3696,7 +3696,7 @@ Onder *Instellingen → Gebruikers* beheer je wie er mag inloggen, en met welke 
   - **altijd met je wachtwoord**: passkeys, sleutels, back-ups en certificaten downloaden, het databasewachtwoord en -gegevens, en iedereen uitloggen;
   - op het lokale netwerk (automatisch ingelogd, zonder wachtwoord) vervangt het vinkje het woord dat je typt;
   - ben je ingelogd met *onthoud mij*, dan vraagt RzSense de eerste keer je wachtwoord, daarna geldt het vinkje.
-- **👁 Beheerportal voor gebruikers** (vanaf 1.181.0): een gebruiker ziet in *Instellingen* alleen *Overzicht → Status*, *Monitoring → Advies*, *Rapporten* en *Systeem → Wijzigingslogboek*. Bovenaan staat *👁 Alleen bekijken*. Velden staan uit, en knoppen om iets te wijzigen, toe te passen, op te ruimen of terug te draaien zijn weg. Een link naar een ander onderdeel brengt hem naar *Status*. *Alleen lezen* ziet de beheerportal niet.
+- **👁 Beheerportal voor gebruikers** (vanaf 1.181.0): een gebruiker ziet in *Instellingen* alleen *Overzicht → Status*, *Monitoring → Advies*, *Rapporten* en *Systeem → Logboek*. Bovenaan staat *👁 Alleen bekijken*. Velden staan uit, en knoppen om iets te wijzigen, toe te passen, op te ruimen of terug te draaien zijn weg. Een link naar een ander onderdeel brengt hem naar *Status*. *Alleen lezen* ziet de beheerportal niet.
 - **📋 Functies** (vanaf 1.182.0): op *Instellingen → Overzicht → Functies* staan alle functies van RzSense in één tabel: onderdeel, functie, sinds welke versie en de status van nu (✅ aan, ⚪ uit, ⚠️ niet ingesteld, ✔ altijd). Zoek, filter op onderdeel of status, of klik op een teller. De knop **Instellen** (of **Openen** voor een pagina) brengt je naar de juiste plek. Gebruikers zien de tabel ook, alleen om te bekijken.
 - **🎨 Weergave voor nieuwe accounts** (vanaf 1.181.0): op *Instellingen → Systeem → Weergave* kies je de standaard voor accounts die bij *Mijn account → Weergave* nog niets kozen. Je kiest de moderne of compacte IDS-weergave, en de beweging in de Attack Flow en het Command center (stil, rustig of vol). Die standaard geldt ook voor het lokale netwerk zonder account.
 

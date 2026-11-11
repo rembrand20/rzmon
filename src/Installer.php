@@ -402,6 +402,18 @@ final class Installer
         self::redactCmdSecrets($pdo);
         Triage::migrate($pdo);   // 1.223.0: eerdere AI-oordelen bij de incidenten
         AgentAudit::migrateServiceChecks($pdo);
+        self::auditToActionLog($pdo);
+    }
+
+    /** 1.235.0: het oude actielogboek (audit_log) in het gewone Logboek (host_actions, onderdeel "admin") en de tabel weg */
+    private static function auditToActionLog(PDO $pdo): void
+    {
+        if (!$pdo->query("SHOW TABLES LIKE 'audit_log'")->fetchColumn()) {
+            return;
+        }
+        $pdo->exec("INSERT INTO host_actions (host_id, at, source, module, action, detail, ok, username, ip)
+                    SELECT NULL, created_at, 'user', 'admin', LEFT(action, 80), LEFT(COALESCE(detail, ''), 1000), NULL, LEFT(username, 64), COALESCE(ip, '') FROM audit_log");
+        $pdo->exec('DROP TABLE audit_log');
     }
 
     /**

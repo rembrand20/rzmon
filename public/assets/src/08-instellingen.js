@@ -782,8 +782,7 @@ const SET_NAV = [
   ['agents', SET_IC('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'), L('Agents'), [
     ['agents', L('Overzicht'), ['agents'], L('Alle agents: status, versie, verbinding en wat aandacht nodig heeft.')],
     ['agentdef', L('Standaardinstellingen'), ['agentdef', 'enc'], L('Wat voor alle agents geldt: bijwerken, ritme, versleuteling en certificaat.')],
-    ['commands', L('Commando-checks'), ['commands'], L('Eigen commando\'s die agents mogen uitvoeren.')],
-    ['actlog', L('Logboek'), ['actlog'], L('Per server wat de agent, RzSense en beheerders deden, en wat er veranderde.')]]],
+    ['commands', L('Commando-checks'), ['commands'], L('Eigen commando\'s die agents mogen uitvoeren.')]]],
   ['rapporten', SET_IC('<path d="M4 4h16v16H4z"/><path d="M4 8l8 5 8-5"/>'), L('Rapporten'), [
     ['reports', L('Rapporten'), ['reports'], L('Alle overzichten die RzSense per e-mail of push verstuurt, en het Maandoverzicht.')]]],
   ['koppelingen', SET_IC('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>'), L('Koppelingen'), [
@@ -801,11 +800,11 @@ const SET_NAV = [
     ['db', L('Database en server'), ['dbconn', 'db', 'storage', 'dbuse', 'server', 'syscheck', 'cron'], L('Databaseverbinding, bewaartermijnen, tijdzone, PHP en de systeemcheck.'),
       [['database', L('Database'), ['dbconn', 'db', 'storage', 'dbuse']], ['server', L('Server'), ['server', 'syscheck', 'cron']]]],
     ['perf', L('Prestaties en fouten'), ['perf', 'errors'], L('Hoe snel RzSense is, hoe lang een cron-ronde duurt, de traagste checks en PHP-fouten.')],
-    ['changelog', L('Wijzigingslogboek'), ['changelog'], L('Wie wat wijzigde, met terugdraaien.')],
+    ['actlog', L('Logboek'), ['actlog'], L('Alles wat de agent, RzSense en beheerders deden en wat er veranderde, met terugzetten.')],   // 1.235.0: met het Wijzigingslogboek
     ['transfer', L('Exporteren en importeren'), ['transfer'], L('Servers, checks en instellingen overzetten.')]]],
 ];
 /* 1.181.0: de rol gebruiker ziet alleen deze onderdelen, om te bekijken (de rest is voor beheerders) */
-const SET_USER = { overview: null, features: null, reports: null, advice: ['smart', 'advice'], changelog: null, actlog: null };
+const SET_USER = { overview: null, features: null, reports: null, advice: ['smart', 'advice'], actlog: null };
 if (document.body.dataset.role === 'user') {
   for (let gi = SET_NAV.length - 1; gi >= 0; gi--) {
     const subs = SET_NAV[gi][3];
@@ -821,7 +820,7 @@ if (document.body.dataset.role === 'user') {
   }
 }
 /** Oude adressen (vóór 1.92.0) → nieuwe plek */
-const SET_ALIAS = { netlinks: 'unifi', ids_rules: 'ids_edr', whitelist: 'ids_attack', enc: 'agentdef', https: 'outside', setup: 'db', syscheck: 'db', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db' };   // 1.120.0: samengevoegde onderdelen
+const SET_ALIAS = { netlinks: 'unifi', ids_rules: 'ids_edr', whitelist: 'ids_attack', enc: 'agentdef', https: 'outside', setup: 'db', syscheck: 'db', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db', changelog: 'actlog' };   // 1.120.0: samengevoegde onderdelen
 const SET_TAB_OF = { ids_rules: 'regels', whitelist: 'whitelist', smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server' };   // oude adressen → tabblad op de pagina Advies
 let setTab = {};   // per onderdeel met tabbladen: het gekozen tabblad
 let setSection = (() => { try { return localStorage.getItem('rzmon-set-section') || 'overview'; } catch (e) { return 'overview'; } })();
@@ -888,7 +887,6 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'features') loadFeatures();   // 1.182.0
   if (setSection === 'quiet') loadQuiet();   // 1.189.0
   if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
-  if (setSection === 'changelog') loadChangeLog();
   if (setSection === 'actlog') loadActLog();   // 1.226.0
   if (setSection === 'ids_ransom') loadRansomSet();   // 1.228.0
   if (setSection === 'ids_apps') loadAppsSet();   // 1.229.0
@@ -2682,32 +2680,14 @@ async function loadCleanup() {
   };
 }
 
-// ---------------------------------------------------------------- 📜 Wijzigingslogboek, 📦 export/import, 🧪 meldketen (1.97.0)
-const CL_KIND = { setting: () => '⚙️ ' + L('Instelling'), host: () => '🖥️ ' + L('Server'), check: () => '✔ ' + L('Check'), template: () => '📋 ' + L('Sjabloon'), system: () => '🛠️ ' + L('Systeem') };
-const CL_ACTION = { create: () => L('aangemaakt'), update: () => L('gewijzigd'), delete: () => L('verwijderd'), undo: () => L('teruggezet'), smart: () => L('geleerd'), info: () => '' };
-async function loadChangeLog() {
-  const box = $('#cl-list');
-  if (!box) return;
-  let d;
-  try { d = await api('changelog', null, { kind: $('#cl-kind').value }); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  $('#cl-days').value = String(d.days);
-  const val = (v) => (v === null ? `<span class="muted">${L('leeg')}</span>` : `<code>${esc(v)}</code>`);
-  box.innerHTML = d.items.length ? d.items.map((i) => `<div class="cl-row${i.undone_at ? ' muted' : ''}"><div class="grow">
-      <b>${(CL_KIND[i.kind] || (() => i.kind))()}</b> ${esc(i.label)} <span class="muted small">${esc((CL_ACTION[i.action] || (() => i.action))())}</span>
-      <div class="muted small">${esc(fmtDateTime(i.at))} · ${esc(i.username)} · ${esc(i.ip)}${i.undone_at ? ' · ' + L('teruggezet op {t}', { t: esc(fmtDateTime(i.undone_at)) }) : ''}</div>
-      ${i.changes.length ? `<details class="small"><summary>${i.changes.length === 1 ? L('1 wijziging') : L('{n} wijzigingen', { n: i.changes.length })}</summary>
-        <table class="kv">${i.changes.map(([k, o, n]) => `<tr><th class="mono">${esc(k)}</th><td>${val(o)} → ${val(n)}</td></tr>`).join('')}</table></details>` : ''}</div>
-      <div class="cl-act">${i.can_undo ? `<button type="button" class="btn small-btn need-admin" data-undo="${i.id}" title="${esc(L('Terugzetten naar hoe het was'))}">↩ ${L('Terugzetten')}</button>` : ''}</div></div>`).join('')
-    : `<p class="muted">${L('Nog niets.')}</p>`;
-}
-
-// ---------------------------------------------------------------- 📒 Logboek per server (1.226.0)
+// ---------------------------------------------------------------- 📒 Logboek (1.226.0; 1.235.0 met het Wijzigingslogboek)
 const AL_MOD = {
   agent: () => '🖥️ ' + L('Agent'), settings: () => '⚙️ ' + L('Instellingen'), checks: () => '✔ ' + L('Checks'), isolate: () => '🧱 ' + L('Isoleren'),
   userlock: () => '🔒 ' + L('Gebruikers'), kill: () => '⛔ ' + L('Processen'), heal: () => '🩹 ' + L('Zelf herstellen'), update: () => '⬆️ ' + L('Agent bijwerken'),
   packages: () => '📦 ' + L('Pakketten'), edr: () => '🛡️ EDR', firewall: () => '🧯 ' + L('Firewall'), logs: () => '📜 ' + L('Logs'),
   ransom: () => '🧬 ' + L('Ransomware'), patch: () => '🩹 ' + L('Updates'), sudo: () => '🔑 ' + L('Tijdelijk sudo'), appctl: () => '🧩 ' + L('Programma\'s'),
   ioc: () => '🔎 ' + L('Sporen'), dns: () => '🌐 DNS', harden: () => '🧰 ' + L('Hardening'), nis2: () => '🇪🇺 NIS2', report: () => '📬 ' + L('Rapporten'),
+  config: () => '🛠️ ' + L('RzSense-instellingen'), admin: () => '🧑‍💼 ' + L('Beheer'),
 };
 const AL_SRC = { user: ['🧑', () => L('Beheerder')], rzsense: ['🤖', () => 'RzSense'], agent: ['🖥️', () => L('Agent')] };
 /** Rijen van het logboek; withHost: de server erbij (overzicht van alle servers) */
@@ -2724,8 +2704,16 @@ function actlogRows(items, withHost) {
       <div class="grow"><div><span class="al-mod">${esc((AL_MOD[i.module] || (() => i.module))())}</span> <b>${esc(i.action)}</b>
         ${withHost && i.host ? `<button type="button" class="linklike small" data-al-host="${i.host_id}">${esc(i.host)}</button>` : ''}</div>
         ${i.detail ? `<div class="muted small al-detail">${esc(i.detail)}</div>` : ''}
-        <div class="muted small">${src[0]} ${esc(i.username || src[1]())}${i.ip ? ' · ' + esc(i.ip) : ''}${i.kind === 'change' ? ` · <button type="button" class="linklike" data-al-cl>${L('in het wijzigingslogboek')}${i.undone ? ' (' + L('teruggezet') + ')' : ''}</button>` : ''}</div></div></div>`;
+        <div class="muted small">${src[0]} ${esc(i.username || src[1]())}${i.ip ? ' · ' + esc(i.ip) : ''}${i.undone ? ' · ' + L('teruggezet') : ''}</div></div>
+      ${i.can_undo ? `<button type="button" class="btn small-btn need-admin al-undo" data-undo="${i.id}" title="${esc(L('Terugzetten naar hoe het was'))}">↩ ${L('Terugzetten')}</button>` : ''}</div>`;
   }).join('');
+}
+/** 1.235.0: ↩ bij een wijziging in het Logboek (was het Wijzigingslogboek) */
+async function alUndo(e, reload) {
+  const b = e.target.closest('[data-undo]');
+  if (!b || !confirm(L('Deze wijziging terugzetten?'))) return;
+  b.disabled = true;
+  try { const r = await api('changelog_undo', { id: +b.dataset.undo }); toast(r.message); reload(); refresh(); } catch (ex) { toast(ex.message, 'err'); b.disabled = false; }
 }
 function actlogParams(prefix = 'al') {
   const v = (id) => ($('#' + prefix + '-' + id) || {}).value || '';
@@ -2762,7 +2750,7 @@ async function amActLog(h, body) {
   sel.onchange = load;
   fail.onchange = load;
   $('#am-al-all', body).onclick = () => { $('#modal').close(); showTab('settings/actlog'); setTimeout(() => { const hs = $('#al-host'); if (hs) { hs.value = String(h.id); loadActLog(); } }, 300); };
-  box.addEventListener('click', (e) => { if (e.target.closest('[data-al-cl]')) { $('#modal').close(); showTab('settings/changelog'); } }, { signal: modalSignal() });
+  box.addEventListener('click', (e) => alUndo(e, load), { signal: modalSignal() });
   load();
 }
 
@@ -2777,17 +2765,7 @@ function initSystemTools() {
     $('#al-list').addEventListener('click', (e) => {
       const hb = e.target.closest('[data-al-host]');
       if (hb) { $('#al-host').value = hb.dataset.alHost; loadActLog(); return; }
-      if (e.target.closest('[data-al-cl]')) showTab('settings/changelog');
-    });
-  }
-  if ($('#cl-list')) {
-    $('#cl-reload').onclick = loadChangeLog;
-    $('#cl-kind').onchange = loadChangeLog;
-    $('#cl-days').onchange = async (e) => { try { await api('changelog_days', { days: +e.target.value }); toast(L('Opgeslagen')); } catch (ex) { toast(ex.message, 'err'); } };
-    $('#cl-list').addEventListener('click', async (e) => {
-      const b = e.target.closest('[data-undo]');
-      if (!b || !confirm(L('Deze wijziging terugzetten?'))) return;
-      try { const r = await api('changelog_undo', { id: +b.dataset.undo }); toast(r.message); loadChangeLog(); refresh(); } catch (ex) { toast(ex.message, 'err'); }
+      alUndo(e, loadActLog);
     });
   }
   if ($('#tr-export')) {

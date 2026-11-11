@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.235.0**: **één Logboek** (met het Wijzigingslogboek en terugzetten op de regel) en **één verzendroute** voor alle meldingen.
 - **1.234.0**: het **NIS2-rapport automatisch versturen**, standaard elk kwartaal, en **elk kwartaal** als keuze bij alle rapporten.
 - **1.233.0**: **eigen ontvangers per rapport** (alleen in te stellen door een beheerder) en **Verstuur naar mij** voor iedereen met een account.
 - **1.232.0**: **NIS2-overzicht** met de tien maatregelen, je notities, de meldtermijnen (24 uur, 72 uur, een maand) en een rapport, en **25 extra CIS-controles** in de hardening-score.
 - **1.231.0**: **tijdelijk sudo** met wachtwoord en 2FA dat vanzelf weer weggaat, een **AdGuard-blokkadelijst** uit RzSense, en **nieuw geregistreerde domeinen** herkennen.
-- **1.230.0**: **updates installeren**: beveiligingsupdates met één klik of automatisch in het onderhoudsvenster, eerst een snapshot, Home Assistant met een back-up.
+
+## 1.235.0 – 2026-11-11
+### Nieuw
+- **Eén Logboek** (*Instellingen → Systeem → Logboek*): het **Wijzigingslogboek** en het aparte actielogboek van beheerders staan nu in het Logboek. Je ziet alles op één plek: wat de agent, RzSense en beheerders deden, en elke wijziging aan instellingen, servers, checks en sjablonen. **↩ Terugzetten** staat op de regel zelf. Nieuwe onderdelen om op te filteren: *🛠️ RzSense-instellingen* en *🧑‍💼 Beheer* (API-sleutels, blokkades, apparaten, passkeys …). Eén bewaartermijn voor alles. Bij de update gaat het oude actielogboek mee; oude links naar het Wijzigingslogboek komen hier uit.
+### Opgelost
+- **Meldingen versturen gaat via één route** (push, e-mail, Home Assistant-webhook), in plaats van negen losse kopieën die uit elkaar liepen. Daardoor nu overal hetzelfde: *e-mail alleen als push mislukt*, het filter *Home Assistant: alleen critical en herstel*, de tijd en de link naar RzSense in de e-mail, en een **link naar RzSense in elke pushmelding** (ook bij systeem-, info- en logmeldingen).
+- Isoleren en gebruikers vergrendelen kwamen twee keer in de logboeken.
 
 ## 1.234.2 – 2026-11-11
 ### Opgelost

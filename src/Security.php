@@ -257,30 +257,10 @@ final class Security
                 $title = '⚠️ ' . t('Niet-geautoriseerde verbinding') . ": $label – $ip";
                 // Kanalen en prioriteit: de rij ⚠️ bij ℹ️ Systeeminfo (standaard Pushover met geluid). Ook tijdens stille uren.
                 $c = NotifyRules::sysinfo()['sec'];
-                $sent = null;
-                $mail = $hook = null;
-                $err = [];
-                $base = public_url();
-                if ($c['pushover'] && Push::enabled()) {
-                    $r = Push::send($title, $msg . "\n" . date('d-m-Y H:i:s'), (int) $c['prio'],
-                        $base !== '' ? ['url' => "$base/#alerts", 'url_title' => t('Open RzSense')] : []);
-                    $sent = $r['ok'];
-                    $r['error'] && $err[] = $r['error'];
-                }
-                if ($c['email'] && setting('email_enabled', '0') === '1' && (setting('email_mode', 'always') !== 'fallback' || $sent !== true)) {   // 1.234.2: ook hier 'alleen als push mislukt'
-                    $r = Mailer::send($title, $msg . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzSense: $base/" : ''));
-                    $mail = $r['ok'];
-                    $r['ok'] || $err[] = 'E-mail: ' . $r['error'];
-                }
-                if ($c['webhook'] && setting('ha_webhook_enabled', '0') === '1') {
-                    $r = Webhook::send(['source' => 'rzmon', 'event' => 'unauthorized', 'status' => STATUS_WARN, 'status_text' => STATUS_LABELS[STATUS_WARN],
-                        'host' => null, 'ip' => $ip, 'title' => $title, 'message' => $msg, 'time' => date('c'), 'url' => $base ?: null]);
-                    $hook = $r['ok'];
-                    $r['ok'] || $err[] = 'Webhook: ' . $r['error'];
-                }
-                $err = $err ? ' [' . t('niet verzonden') . ': ' . implode('; ', $err) . ']' : '';
+                $n = Notify::send($title, $msg, ['channels' => $c, 'prio' => (int) $c['prio'], 'status' => STATUS_WARN, 'event' => 'unauthorized', 'anchor' => '#alerts',
+                    'webhook_extra' => ['ip' => $ip]]);   // 1.235.0: via Notify
                 q("INSERT INTO alerts (check_id, status, title, message, sent_ok, email_ok, webhook_ok, kind, ip, detail) VALUES (NULL, ?, ?, ?, ?, ?, ?, 'sec', ?, ?)", [
-                    STATUS_WARN, mb_substr($title, 0, 250), mb_substr($msg . $err, 0, 1000), $sent ? 1 : 0, $mail === null ? null : (int) $mail, $hook === null ? null : (int) $hook, (@inet_pton($ip) !== false ? mb_substr($ip, 0, 45) : null),   // 1.223.3: alleen een echt IP-adres
+                    STATUS_WARN, mb_substr($title, 0, 250), mb_substr($msg . Notify::errText($n['errors']), 0, 1000), $n['push'] ? 1 : 0, Notify::flag($n['email']), Notify::flag($n['webhook']), Notify::ip($ip),
                     json_encode(['key' => $key, 'what' => $what, 'n' => 1, 'last' => now()], JSON_UNESCAPED_UNICODE)]);
             });
         } catch (Throwable) {

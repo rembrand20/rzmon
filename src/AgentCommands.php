@@ -104,9 +104,9 @@ final class AgentCommands
         return trim(str_replace("\r\n", "\n", $s));
     }
 
+    /** Een actie van een beheerder. 1.235.0: in het gewone Logboek (host_actions, onderdeel "beheer") in plaats van een eigen tabel */
     public static function audit(string $user, string $action, string $detail): void
     {
-        q('INSERT INTO audit_log (username, action, detail, ip) VALUES (?, ?, ?, ?)',
-            [mb_substr($user, 0, 100), mb_substr($action, 0, 50), mb_substr($detail, 0, 1000), mb_substr(client_ip(), 0, 45)]);
+        ActionLog::by($user, null, 'admin', $action, $detail);
     }
 }

@@ -920,33 +920,15 @@ final class Monitor
         $title ??= array_keys($events) === ['recovery'] ? '✅ ' . t('HERSTELD') . ": $host – $n checks"
             : (array_keys($events) === ['reminder'] ? "🔁 $host: " . t('nog steeds {n} problemen', ['n' => $n]) : "{$icon[$worst]} " . STATUS_LABELS[$worst] . ": $host – " . t('{n} meldingen', ['n' => $n]));
         $body = implode("\n", $lines);
-        $errors = [];
-
-        $pushover = null;
-        if (Push::enabled() && $channels['pushover']) {
-            $base = public_url();
-            $r = Push::send($title, $body . "\n" . date('d-m-Y H:i:s'), $prio, $base !== '' ? ['url' => "$base/", 'url_title' => 'Open RzSense'] : []);
-            $pushover = $r['ok'];
-            if ($r['error']) {
-                $errors[] = $r['error'];
-            }
-            if (!empty($r['receipt'])) {
-                foreach ($items as $x) {
-                    if ((int) $x['item']['status'] === STATUS_CRIT) {
-                        q('UPDATE checks SET pushover_receipt = ? WHERE id = ?', [$r['receipt'], $x['check']['id']]);
-                    }
+        // Push en e-mail: één bericht; Home Assistant krijgt hieronder een bericht per check
+        $n = Notify::send($title, $body, ['channels' => ['pushover' => $channels['pushover'], 'email' => $channels['email'], 'webhook' => false], 'prio' => $prio,
+            'status' => $worst, 'mail_extra' => $acks ? t('Bevestigen (geen meldingen meer voor die storing):') . "\n" . implode("\n", $acks) : '']);
+        [$pushover, $email, $errors] = [$n['push'], $n['email'], $n['errors']];
+        if ($n['receipt']) {
+            foreach ($items as $x) {
+                if ((int) $x['item']['status'] === STATUS_CRIT) {
+                    q('UPDATE checks SET pushover_receipt = ? WHERE id = ?', [$n['receipt'], $x['check']['id']]);
                 }
-            }
-        }
-        $email = null;
-        if (setting('email_enabled', '0') === '1' && $channels['email'] && (setting('email_mode', 'always') !== 'fallback' || $pushover !== true)) {
-            $base = public_url();
-            $r = Mailer::send($title, $body . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s')
-                . ($acks ? "\n\n" . t('Bevestigen (geen meldingen meer voor die storing):') . "\n" . implode("\n", $acks) : '')
-                . ($base !== '' ? "\n\nRzSense: $base/" : ''));
-            $email = $r['ok'];
-            if (!$r['ok']) {
-                $errors[] = 'E-mail: ' . $r['error'];
             }
         }
         // Home Assistant krijgt wel een bericht per check (automatiseringen kijken naar de check)
@@ -960,8 +942,8 @@ final class Monitor
             }
             q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok, email_ok, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [
                 $c['id'], $st, mb_substr($it['title'], 0, 250),
-                mb_substr($it['message'] . ' (' . t('gebundeld') . ": $title)" . ($errors ? ' [' . t('niet verzonden') . ': ' . implode('; ', $errors) . ']' : ''), 0, 1000),
-                $pushover ? 1 : 0, $hook === null ? null : ($hook ? 1 : 0), $email === null ? null : ($email ? 1 : 0), 'notify',
+                mb_substr($it['message'] . ' (' . t('gebundeld') . ": $title)" . Notify::errText($errors), 0, 1000),
+                $pushover ? 1 : 0, Notify::flag($hook), Notify::flag($email), 'notify',
             ]);
             if (in_array($it['event'], ['problem', 'reminder'], true)) {
                 self::autoMaintenance($c, ['value' => $it['value']], $st, sprintf('%s – %s', $c['host_name'], $c['name']));
@@ -999,55 +981,21 @@ final class Monitor
     /** @param array|null $channels kanalen voor deze melding (null = alle ingeschakelde, zoals bij onderhoudsberichten) */
     private static function notify(array $check, array $res, int $status, string $title, string $message, int $priority, string $event, int $previous, string $kind = 'notify', ?array $channels = null): void
     {
-        $errors = [];
-
         $ackUrl = $status !== STATUS_OK ? self::ackUrl($check) : null;
-
-        $pushover = null;
-        if (Push::enabled() && ($channels === null || $channels['pushover'])) {
-            $r = Push::send($title, $message . "\n" . date('d-m-Y H:i:s'), $priority,
-                $ackUrl ? ['url' => $ackUrl, 'url_title' => '✔ Bevestigen'] : []);
-            $pushover = $r['ok'];
-            if ($r['error']) {
-                $errors[] = $r['error'];
-            }
-            if (!empty($r['receipt'])) {
-                // Emergency: later nagaan of hij in de Pushover-app bevestigd is
-                q('UPDATE checks SET pushover_receipt = ? WHERE id = ?', [$r['receipt'], $check['id']]);
-            }
+        $n = Notify::send($title, $message, ['channels' => $channels, 'prio' => $priority, 'status' => $status, 'event' => $event,
+            'push_opts' => $ackUrl ? ['url' => $ackUrl, 'url_title' => '✔ ' . t('Bevestigen')] : null,
+            'mail_extra' => $ackUrl ? '✔ ' . t('Bevestigen (geen meldingen meer voor deze storing):') . "\n$ackUrl" : '',
+            'webhook' => self::webhookPayload($check, $res, $status, $title, $message, $event, $previous)]);
+        if ($n['receipt']) {
+            q('UPDATE checks SET pushover_receipt = ? WHERE id = ?', [$n['receipt'], $check['id']]);   // Emergency: later nagaan of hij in de Pushover-app bevestigd is
         }
-
-        // E-mail: altijd, of alleen als reserve wanneer Pushover uit staat of mislukt
-        $email = null;
-        if (setting('email_enabled', '0') === '1' && ($channels === null || $channels['email']) && (setting('email_mode', 'always') !== 'fallback' || $pushover !== true)) {
-            $base = public_url();
-            $body = $message . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s')
-                . ($ackUrl ? "\n\n✔ " . t('Bevestigen (geen meldingen meer voor deze storing):') . "\n$ackUrl" : '')
-                . ($base !== '' ? "\n\nRzSense: $base/" : '');
-            $r = Mailer::send($title, $body);
-            $email = $r['ok'];
-            if (!$r['ok']) {
-                $errors[] = 'E-mail: ' . $r['error'];
-            }
-        }
-
-        $webhook = null;
-        if ($channels === null ? self::webhookWanted($status, $event) : setting('ha_webhook_enabled', '0') === '1' && $channels['webhook']) {
-            $r = Webhook::send(self::webhookPayload($check, $res, $status, $title, $message, $event, $previous));
-            $webhook = $r['ok'];
-            if (!$r['ok']) {
-                $errors[] = 'Webhook: ' . $r['error'];
-            }
-        }
-
-        if ($pushover === null && $webhook === null && $email === null) {
+        $errors = $n['errors'];
+        if ($n['push'] === null && $n['webhook'] === null && $n['email'] === null) {
             $errors[] = t('geen meldkanaal ingeschakeld');
         }
-
         q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok, email_ok, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [
-            $check['id'], $status, mb_substr($title, 0, 250),
-            mb_substr($message . ($errors ? ' [' . t('niet verzonden') . ': ' . implode('; ', $errors) . ']' : ''), 0, 1000),
-            $pushover ? 1 : 0, $webhook === null ? null : ($webhook ? 1 : 0), $email === null ? null : ($email ? 1 : 0), $kind,
+            $check['id'], $status, mb_substr($title, 0, 250), mb_substr($message . Notify::errText($errors), 0, 1000),
+            $n['push'] ? 1 : 0, Notify::flag($n['webhook']), Notify::flag($n['email']), $kind,
         ]);
     }
 
@@ -1062,48 +1010,12 @@ final class Monitor
 
     private static function notifySystemInLang(string $title, string $message, int $status, string $event): void
     {
-        $errors = [];
-        $sent = false;
-        if (Push::enabled()) {
-            $prio = $status === STATUS_OK ? 0 : min(1, (int) setting('pushover_priority_crit', 1));   // geen emergency: niets te bevestigen
-            $r = Push::send($title, $message . "\n" . date('d-m-Y H:i:s'), $prio);
-            $sent = $r['ok'];
-            if ($r['error']) {
-                $errors[] = $r['error'];
-            }
-        }
-        $email = null;
-        if (setting('email_enabled', '0') === '1' && (setting('email_mode', 'always') !== 'fallback' || !$sent)) {
-            $base = public_url();
-            $r = Mailer::send($title, $message . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzSense: $base/" : ''));
-            $email = $r['ok'];
-            if (!$r['ok']) {
-                $errors[] = 'E-mail: ' . $r['error'];
-            }
-        }
-        $webhook = null;
-        if (self::webhookWanted($status, $event)) {
-            $r = Webhook::send(['source' => 'rzmon', 'event' => $event, 'status' => $status, 'status_text' => STATUS_LABELS[$status],
-                'host' => null, 'check' => null, 'title' => $title, 'message' => $message, 'time' => date('c'), 'url' => public_url() ?: null]);
-            $webhook = $r['ok'];
-            if (!$r['ok']) {
-                $errors[] = 'Webhook: ' . $r['error'];
-            }
-        }
+        $n = Notify::send($title, $message, ['prio' => $status === STATUS_OK ? 0 : min(1, (int) setting('pushover_priority_crit', 1)),   // geen emergency: niets te bevestigen
+            'status' => $status, 'event' => $event]);
         q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok, email_ok, kind) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)', [
-            $status, mb_substr($title, 0, 250),
-            mb_substr($message . ($errors ? ' [' . t('niet verzonden') . ': ' . implode('; ', $errors) . ']' : ''), 0, 1000),
-            $sent ? 1 : 0, $webhook === null ? null : ($webhook ? 1 : 0), $email === null ? null : ($email ? 1 : 0), 'system',
+            $status, mb_substr($title, 0, 250), mb_substr($message . Notify::errText($n['errors']), 0, 1000),
+            $n['push'] ? 1 : 0, Notify::flag($n['webhook']), Notify::flag($n['email']), 'system',
         ]);
-    }
-
-    private static function webhookWanted(int $status, string $event): bool
-    {
-        if (setting('ha_webhook_enabled', '0') !== '1') {
-            return false;
-        }
-        // "crit": alleen CRITICAL-problemen en herstel na een melding
-        return setting('ha_webhook_events', 'all') !== 'crit' || $status === STATUS_CRIT || $event === 'recovery';
     }
 
     // ------------------------------------------------------------------ info
@@ -1174,43 +1086,17 @@ final class Monitor
         } elseif ($hold !== null) {
             $errors[] = $hold;
         } else {
-            if (Push::enabled() && $channels['pushover']) {
-                $r = Push::send($title, $message . "\n" . date('d-m-Y H:i:s'), $prio);   // -1 = stil (geen geluid of trilling), 0 = normaal
-                $pushover = $r['ok'];
-                if ($r['error']) {
-                    $errors[] = $r['error'];
-                }
-            }
-            if (setting('email_enabled', '0') === '1' && $channels['email'] && (setting('email_mode', 'always') !== 'fallback' || $pushover !== true)) {
-                $base = public_url();
-                $r = Mailer::send($title, $message . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzSense: $base/" : ''));
-                $email = $r['ok'];
-                if (!$r['ok']) {
-                    $errors[] = 'E-mail: ' . $r['error'];
-                }
-            }
-            if (setting('ha_webhook_enabled', '0') === '1' && $channels['webhook']) {
-                $payload = $check ? self::webhookPayload($check, ['value' => $check['last_value'] ?? null], STATUS_OK, $title, $message, 'info', (int) $check['status'])
-                    : ['source' => 'rzmon', 'event' => 'info', 'status' => STATUS_OK, 'status_text' => STATUS_LABELS[STATUS_OK], 'host' => $hostName, 'host_id' => $hostId,
-                        'check' => null, 'title' => $title, 'message' => $message, 'time' => date('c'), 'url' => public_url() ?: null];
-                $r = Webhook::send($payload);
-                $webhook = $r['ok'];
-                if (!$r['ok']) {
-                    $errors[] = 'Webhook: ' . $r['error'];
-                }
-            }
+            $n = Notify::send($title, $message, ['channels' => $channels, 'prio' => $prio, 'status' => STATUS_OK, 'event' => 'info', 'host' => $hostName, 'host_id' => $hostId,   // prio -1 = stil
+                'webhook' => $check ? self::webhookPayload($check, ['value' => $check['last_value'] ?? null], STATUS_OK, $title, $message, 'info', (int) $check['status']) : null]);
+            [$pushover, $email, $webhook, $errors] = [$n['push'], $n['email'], $n['webhook'], $n['errors']];
         }
         if (!$always && ($channels[NotifyRules::PAGE] ?? true) === false) {
             return;   // niet op de pagina Meldingen (kanaal uit)
         }
-        if ($ip !== null && @inet_pton(trim($ip, '[]')) === false) {
-            $ip = null;   // 1.223.3: alleen een echt IP-adres bij de melding (geen poortnummer of naam)
-        }
         q('INSERT INTO alerts (check_id, host_id, status, title, message, sent_ok, webhook_ok, email_ok, kind, ip, detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
-            $check['id'] ?? null, $hostId, STATUS_OK, mb_substr($title, 0, 250),
-            mb_substr($message . ($errors ? ' [' . t('niet verzonden') . ': ' . implode('; ', $errors) . ']' : ''), 0, 1000),
-            $pushover ? 1 : 0, $webhook === null ? null : ($webhook ? 1 : 0), $email === null ? null : ($email ? 1 : 0), 'info',
-            $ip !== null ? mb_substr($ip, 0, 45) : null, $detail !== null ? json_encode($detail, JSON_UNESCAPED_UNICODE) : null,
+            $check['id'] ?? null, $hostId, STATUS_OK, mb_substr($title, 0, 250), mb_substr($message . Notify::errText($errors), 0, 1000),
+            $pushover ? 1 : 0, Notify::flag($webhook), Notify::flag($email), 'info',
+            Notify::ip($ip), $detail !== null ? json_encode($detail, JSON_UNESCAPED_UNICODE) : null,
         ]);
     }
 
@@ -1348,7 +1234,6 @@ final class Monitor
             SelfCheck::log('error', 'Logs opruimen: ' . $e->getMessage(), $e->getFile(), $e->getLine());
         }
         q('DELETE FROM agent_log WHERE created_at < NOW() - INTERVAL 7 DAY');
-        q('DELETE FROM audit_log WHERE created_at < NOW() - INTERVAL 2 YEAR');   // 1.224.3: wijzigingen en acties: 2 jaar
         q('DELETE FROM remember_tokens WHERE last_used < NOW() - INTERVAL ? DAY', [REMEMBER_DAYS]);
         q('DELETE FROM user_sessions WHERE last_seen < NOW() - INTERVAL 2 DAY');   // allang verlopen sessies
         // Tot 1.92.2: elke controle zonder cookies (curl, een HTTP-check op RzSense zelf) gaf een LAN-sessie die nooit terugkwam

@@ -462,42 +462,19 @@ final class LogWatch
         $quiet = $h ? Quiet::forHost($h) : Quiet::global();
         $hold = Quiet::until($quiet) !== null && !($status === STATUS_CRIT && !empty($quiet['crit']));
         $errors = $hold ? [t('stille uren')] : [];
-        $pushover = false;
-        $email = null;
-        $webhook = null;
-        if (!$hold) {
-            if (Push::enabled()) {
-                $prio = $event === 'recovery' ? 0 : ($status === STATUS_CRIT ? min(1, (int) setting('pushover_priority_crit', 1)) : ($status === STATUS_WARN ? 0 : -1));
-                $r = Push::send($title, $message . "\n" . date('d-m-Y H:i:s'), $prio);
-                $pushover = $r['ok'];
-                if ($r['error']) {
-                    $errors[] = $r['error'];
-                }
-            }
-            if (setting('email_enabled', '0') === '1' && (setting('email_mode', 'always') !== 'fallback' || !$pushover)) {
-                $base = public_url();
-                $r = Mailer::send($title, $message . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s') . ($base !== '' ? "\n\nRzSense: $base/#logs" : ''));
-                $email = $r['ok'];
-                if (!$r['ok']) {
-                    $errors[] = 'E-mail: ' . $r['error'];
-                }
-            }
-            if (setting('ha_webhook_enabled', '0') === '1' && (setting('ha_webhook_events', 'all') !== 'crit' || $status === STATUS_CRIT || $event === 'recovery')) {
-                $r = Webhook::send(['source' => 'rzmon', 'event' => $status === STATUS_OK && $event !== 'recovery' ? 'info' : $event, 'status' => $status,
-                    'status_text' => STATUS_LABELS[$status], 'host' => $hostId ? $hostName : null, 'host_id' => $hostId, 'check' => null, 'log_search' => $detail['name'] ?? null,
-                    'title' => $title, 'message' => $message, 'time' => date('c'), 'url' => public_url() ?: null]);
-                $webhook = $r['ok'];
-                if (!$r['ok']) {
-                    $errors[] = 'Webhook: ' . $r['error'];
-                }
-            }
+        [$pushover, $email, $webhook] = [false, null, null];
+        if (!$hold) {   // 1.235.0: via Notify (alle kanalen; webhook met het filter "alleen critical")
+            $n = Notify::send($title, $message, ['prio' => $event === 'recovery' ? 0 : ($status === STATUS_CRIT ? min(1, (int) setting('pushover_priority_crit', 1)) : ($status === STATUS_WARN ? 0 : -1)),
+                'status' => $status, 'event' => $status === STATUS_OK && $event !== 'recovery' ? 'info' : $event, 'anchor' => '#logs', 'webhook_filter' => true,
+                'host' => $hostId ? $hostName : null, 'host_id' => $hostId, 'webhook_extra' => ['log_search' => $detail['name'] ?? null]]);
+            [$pushover, $email, $webhook] = [(bool) $n['push'], $n['email'], $n['webhook']];
+            $errors = array_merge($errors, $n['errors']);
         }
         $kind = $status === STATUS_OK && $event !== 'recovery' ? 'info' : 'logs';
         q('INSERT INTO alerts (check_id, host_id, status, title, message, sent_ok, webhook_ok, email_ok, kind, ip, detail, log_watch) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
             $hostId, $status, mb_substr($title, 0, 250),
-            mb_substr($message . ($errors ? ' [' . t('niet verzonden') . ': ' . implode('; ', $errors) . ']' : ''), 0, 1000),
-            $pushover ? 1 : 0, $webhook === null ? null : ($webhook ? 1 : 0), $email === null ? null : ($email ? 1 : 0), $kind,
-            $ip !== null && @inet_pton((string) $ip) !== false ? mb_substr((string) $ip, 0, 45) : null,   // 1.234.2: alleen een echt IP-adres (zoals 1.223.3)
+            mb_substr($message . Notify::errText($errors), 0, 1000),
+            $pushover ? 1 : 0, Notify::flag($webhook), Notify::flag($email), $kind, Notify::ip($ip),
             json_encode($detail, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), $key,
         ]);
         return (int) db()->lastInsertId();

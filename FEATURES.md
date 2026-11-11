@@ -177,7 +177,7 @@ Dezelfde tabel staat in RzSense bij *Instellingen → Overzicht → Functies*, m
 | 🔗 Koppelingen | **Home Assistant-netwerkkaart** | Een kaart voor je HA-dashboard met het netwerk in het kort, zoals mDS: oordeel, internet, verbruik, apparaten, paden, IDS en de servers. | 1.197.0 |
 | ⚙️ Beheer | **RzSense bijwerken** | Vanuit de webinterface, ook automatisch en naar een gekozen versie. | 1.29.0 |
 | ⚙️ Beheer | **Back-up en herstel** | Automatisch of met de hand, met terugzetten. | 1.18.0 |
-| ⚙️ Beheer | **Wijzigingslogboek** | Wie veranderde wat en wanneer, met terugdraaien. | 1.97.0 |
+| ⚙️ Beheer | **Wijzigingslogboek** | Wie veranderde wat en wanneer, met terugdraaien (sinds 1.235.0 in het Logboek). | 1.97.0 |
 | 🛡️ IDS en endpoint-bewaking | **Ransomware herkennen** | Lokaasbestanden, massale wijzigingen en versleutelde bestanden in je mappen; meteen een snapshot en eventueel stoppen. | 1.228.0 |
 | 🛡️ IDS en endpoint-bewaking | **Onbekende programma's** | Welke programma's er draaien, met vingerafdruk en pakket; na een leerperiode valt een onbekend programma op. Toestaan of blokkeren. | 1.229.0 |
 | 🛡️ IDS en endpoint-bewaking | **Jagen op sporen (IOC)** | Zoek IP-adressen, domeinen, vingerafdrukken en paden in alles wat RzSense weet, en op de servers zelf; bewaakte sporen geven een melding. | 1.229.0 |
@@ -189,7 +189,7 @@ Dezelfde tabel staat in RzSense bij *Instellingen → Overzicht → Functies*, m
 | 🐞 Kwetsbaarheden en datalekken | **E-mailbeveiliging van je domein** | SPF, DKIM, DMARC en MTA-STS: kan iemand mailen namens jouw domein? Met het record om te plakken. | 1.227.0 |
 | 🐞 Kwetsbaarheden en datalekken | **End-of-life** | Besturingssysteem en software die geen updates meer krijgen, of binnenkort niet (endoflife.date). | 1.227.0 |
 | 🐞 Kwetsbaarheden en datalekken | **Updates installeren** | Welke updates er klaarstaan, en ze installeren: met de hand, in het onderhoudsvenster of elke dag; eerst een snapshot, Home Assistant met een back-up. | 1.230.0 |
-| 🖥️ Servers en agents | **Logboek per server** | Wat de agent, RzSense en beheerders op een server deden, en wat er veranderde. | 1.226.0 |
+| 🖥️ Servers en agents | **Logboek** | Alles wat de agent, RzSense en beheerders deden en wat er veranderde, per server of alles samen, met terugzetten. | 1.226.0 |
 | ⚙️ Beheer | **Exporteren en importeren** | Checks en instellingen naar een andere RzSense. | 1.97.0 |
 | ⚙️ Beheer | **Database en server** | Systeemcheck, grootte, groei en bewaartermijnen. | 1.92.0 |
 | ⚙️ Beheer | **Prestaties en fouten** | Snelheid, cron-rondes, traagste checks en PHP-fouten. | 1.151.0 |

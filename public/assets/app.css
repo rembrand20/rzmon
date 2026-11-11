@@ -5594,6 +5594,7 @@ body.lg .mds-sheet-p { background: var(--bg-2, var(--bg)); -webkit-backdrop-filt
 .al-day { position: sticky; top: 0; background: var(--card, var(--bg)); font-weight: 600; font-size: .8rem; color: var(--muted); padding: .35rem 0 .2rem; text-transform: capitalize; z-index: 1; }
 .al-row { display: flex; gap: .6rem; align-items: flex-start; padding: .4rem 0; border-bottom: 1px solid var(--border); }
 .al-row .grow { flex: 1; min-width: 0; }
+.al-row .al-undo { flex: none; align-self: center; }   /* 1.235.0: terugzetten in het Logboek */
 .al-row.al-fail { background: color-mix(in srgb, var(--crit) 7%, transparent); }
 .al-time { font-size: .8rem; color: var(--muted); min-width: 2.8rem; padding-top: .1rem; }
 .al-ok { min-width: 1rem; text-align: center; }

@@ -752,6 +752,7 @@ switch ($action) {
     case 'actlog_days':
         $d = (int) (input()['days'] ?? 365);
         save_setting('actlog_days', (string) (in_array($d, [30, 90, 180, 365, 730, 1095, 3650], true) ? $d : 365));
+        save_setting('changelog_days', (string) ActionLog::days());   // 1.235.0: één bewaartermijn voor het hele Logboek (ook wijzigingen)
         out(['ok' => true, 'days' => ActionLog::days()]);
 
     case 'host_delete':

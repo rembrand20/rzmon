@@ -13,7 +13,7 @@ final class ActionLog
 {
     /** Onderdelen (module) die in het logboek voorkomen; de agent mag alleen deze gebruiken */
     public const MODULES = ['agent', 'settings', 'checks', 'isolate', 'userlock', 'kill', 'heal', 'update', 'packages', 'edr', 'firewall', 'logs',
-        'ransom', 'patch', 'sudo', 'appctl', 'ioc', 'dns', 'harden', 'nis2', 'report'];
+        'ransom', 'patch', 'sudo', 'appctl', 'ioc', 'dns', 'harden', 'nis2', 'report', 'admin'];   // 1.235.0: admin = acties van beheerders (was audit_log)
     public const SOURCES = ['user', 'rzsense', 'agent'];
 
     /** Eén regel vastleggen. $ok: true gelukt, false mislukt, null ter info. Mag nooit iets tegenhouden. */
@@ -80,7 +80,7 @@ final class ActionLog
         $names = q('SELECT id, name FROM hosts')->fetchAll(PDO::FETCH_KEY_PAIR);
 
         $out = [];
-        if (!in_array($mod, ['settings', 'checks'], true)) {
+        if (!in_array($mod, ['settings', 'checks', 'config'], true)) {
             $where = ['a.at >= ?'];
             $args = [$since];
             if ($hid > 0) {
@@ -109,8 +109,14 @@ final class ActionLog
             }
         }
         // Wijzigingen aan servers en checks (door een beheerder), uit het wijzigingslogboek
-        if (($mod === '' || in_array($mod, ['settings', 'checks'], true)) && ($src === '' || $src === 'user') && !$onlyFail) {
-            $kinds = $mod === 'settings' ? "('host')" : ($mod === 'checks' ? "('check')" : "('host', 'check')");
+        // 1.235.0: ook RzSense-instellingen, sjablonen en systeem (module "config"), zodat het Wijzigingslogboek hier in staat
+        if (($mod === '' || in_array($mod, ['settings', 'checks', 'config'], true)) && ($src === '' || $src === 'user') && !$onlyFail) {
+            $kinds = match ($mod) {
+                'settings' => "('host')",
+                'checks' => "('check')",
+                'config' => "('setting', 'template', 'system')",
+                default => $hid > 0 ? "('host', 'check')" : "('host', 'check', 'setting', 'template', 'system')",
+            };
             $args = [$since];
             $like = '';
             if ($qs !== '') {
@@ -125,8 +131,9 @@ final class ActionLog
                     continue;
                 }
                 $out[] = ['kind' => 'change', 'id' => (int) $r['id'], 'at' => $r['at'], 'host_id' => $h ?: null, 'host' => $h ? (string) ($names[$h] ?? ($b['name'] ?? $a['name'] ?? "#$h")) : '',
-                    'source' => 'user', 'module' => $r['kind'] === 'host' ? 'settings' : 'checks', 'action' => self::changeTitle($r), 'detail' => self::changeDetail($r['kind'], $b, $a),
-                    'ok' => null, 'username' => $r['username'], 'ip' => $r['ip'], 'undone' => $r['undone_at'] !== null];
+                    'source' => 'user', 'module' => match ($r['kind']) { 'host' => 'settings', 'check' => 'checks', default => 'config' },
+                    'action' => self::changeTitle($r), 'detail' => self::changeDetail($r['kind'], $b, $a),
+                    'ok' => null, 'username' => $r['username'], 'ip' => $r['ip'], 'undone' => $r['undone_at'] !== null, 'can_undo' => ChangeLog::canUndoRow($r)];
             }
         }
         usort($out, static fn($x, $y) => strcmp((string) $y['at'], (string) $x['at']) ?: ($y['id'] <=> $x['id']));
@@ -135,7 +142,7 @@ final class ActionLog
 
     private static function changeTitle(array $r): string
     {
-        $what = $r['kind'] === 'host' ? t('Server') : t('Check');
+        $what = match ((string) $r['kind']) { 'host' => t('Server'), 'check' => t('Check'), 'template' => t('Sjabloon'), 'system' => t('Systeem'), default => t('Instelling') };
         return match ((string) $r['action']) {
             'create' => t('{what} aangemaakt', ['what' => $what]),
             'delete' => t('{what} verwijderd', ['what' => $what]),

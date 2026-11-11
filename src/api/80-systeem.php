@@ -17,7 +17,7 @@ switch ($action) {
         out([
             'global' => (string) setting('agent_commands', 'off'),
             'hosts' => array_map(fn($h) => ['id' => (int) $h['id'], 'name' => $h['name'], 'own' => $h['commands'], 'mode' => AgentCommands::modeFor($h)], $hosts),
-            'log' => q('SELECT username, action, detail, ip, created_at FROM audit_log ORDER BY id DESC LIMIT 20')->fetchAll(),
+            'log' => q("SELECT username, action, detail, ip, at AS created_at FROM host_actions WHERE module = 'admin' AND action LIKE '%ommando%' ORDER BY id DESC LIMIT 20")->fetchAll(),   // 1.235.0: uit het Logboek
         ]);
 
     case 'agent_commands_set':

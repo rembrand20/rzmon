@@ -7,7 +7,7 @@ declare(strict_types=1);
  *   Geheimen (wachtwoorden, tokens, sleutels) staan er nooit leesbaar in en zijn niet terug te zetten.
  * - Checks en servers: de hele rij; een verwijderde check of server komt terug met hetzelfde id (de meethistorie niet).
  * - Sjablonen: alleen ter info.
- * Bewaartermijn: Instellingen → Systeem → Wijzigingslogboek (changelog_days, standaard 90 dagen).
+ * Bewaartermijn: Instellingen → Systeem → Logboek (changelog_days; 1.235.0: gelijk aan actlog_days, één keuze).
  */
 final class ChangeLog
 {
@@ -96,6 +96,12 @@ final class ChangeLog
             $out[] = [$k, $o === null ? null : mb_substr(is_scalar($o) ? (string) $o : json_encode($o), 0, 300), $n === null ? null : mb_substr(is_scalar($n) ? (string) $n : json_encode($n), 0, 300)];
         }
         return array_slice($out, 0, 40);
+    }
+
+    /** 1.235.0: voor het Logboek: kan deze regel uit change_log teruggezet worden? */
+    public static function canUndoRow(array $r): bool
+    {
+        return self::canUndo($r, json_decode((string) ($r['before_data'] ?? ''), true));
     }
 
     private static function canUndo(array $r, ?array $b): bool

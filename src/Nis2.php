@@ -90,7 +90,7 @@ final class Nis2
                 return [
                     [Analytics::reportOn(), Analytics::reportOn() ? t('Er gaat elke maand een rapport uit') : t('Geen maandrapport ingesteld'), 'settings/reports'],
                     [$days >= 365, t('Het logboek per server wordt {n} dagen bewaard', ['n' => $days]), 'settings/actlog'],
-                    [true, t('Het wijzigingslogboek houdt bij wie wat veranderde'), 'settings/changelog'],
+                    [true, t('Het wijzigingslogboek houdt bij wie wat veranderde'), 'settings/actlog'],
                 ];
             case 'g':
                 return [

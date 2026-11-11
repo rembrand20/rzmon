@@ -1774,8 +1774,8 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       </div>
 
       <div data-sk="actlog" class="card" id="actlog-card">
-        <h2>📒 <?= th('Logboek per server') ?> <button type="button" class="btn small-btn" id="al-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
-        <?= xp(t('Wat er op je servers gebeurde, wie het deed en wat er veranderde.'), t('<b>Wat het is:</b> per server alles wat er gebeurde: wat de agent zelf veranderde (firewall, EDR-regels, en de nieuwe beschermingen), wat RzSense deed (isoleren, processen stoppen, zelf herstellen, pakketten en de agent bijwerken) en wat een beheerder aanpaste aan de server en zijn checks. <b>Bron:</b> 🧑 een beheerder, 🤖 RzSense zelf, 🖥️ de agent. <b>Wijzigingen</b> komen uit het wijzigingslogboek en zijn daar terug te zetten. <b>Per server:</b> ook in de Agent Manager (kaart Logboek). <b>Goed om te weten:</b> wachtwoorden, tokens en sleutels staan er nooit in.')) ?>
+        <h2>📒 <?= th('Logboek') ?> <button type="button" class="btn small-btn" id="al-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
+        <?= xp(t('Wat er op je servers gebeurde, wie het deed en wat er veranderde.'), t('<b>Wat het is:</b> één logboek voor alles wat er gebeurde: wat de agent zelf veranderde (firewall, EDR-regels, de beschermingen), wat RzSense deed (isoleren, processen stoppen, zelf herstellen, bijwerken, rapporten), wat een beheerder deed (blokkeren, API-sleutels, apparaten …) en elke <b>wijziging</b> aan instellingen, servers, checks en sjablonen. <b>Terugzetten:</b> bij een wijziging zet ↩ hem terug; een verwijderde check of server komt terug (zonder meetgeschiedenis). <b>Bron:</b> 🧑 een beheerder, 🤖 RzSense zelf, 🖥️ de agent. <b>Per server:</b> ook in de Agent Manager (kaart Logboek). <b>Goed om te weten:</b> wachtwoorden, tokens en sleutels staan er nooit in.')) ?>
         <div class="ac-bar al-bar">
           <select id="al-host" aria-label="<?= th('Server') ?>"><option value="0"><?= th('Alle servers') ?></option></select>
           <select id="al-module" aria-label="<?= th('Onderdeel') ?>"><option value=""><?= th('Alle onderdelen') ?></option></select>
@@ -1787,16 +1787,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         </div>
         <div id="al-list" class="al-list"><p class="muted"><?= th('Laden…') ?></p></div>
         <p class="muted small need-admin"><?= th('Bewaren') ?> <select id="al-keep" aria-label="<?= th('Bewaren') ?>"><option value="30"><?= th('30 dagen') ?></option><option value="90"><?= th('90 dagen') ?></option><option value="180"><?= th('180 dagen') ?></option><option value="365"><?= th('1 jaar') ?></option><option value="730"><?= th('2 jaar') ?></option><option value="1095"><?= th('3 jaar') ?></option><option value="3650"><?= th('10 jaar') ?></option></select>
-          · <?= th('wijzigingen aan servers en checks volgen de bewaartermijn van het wijzigingslogboek') ?></p>
-      </div>
-
-      <div data-sk="changelog" class="card need-admin" id="changelog-card">
-        <h2>📜 <?= th('Wijzigingslogboek') ?> <button type="button" class="btn small-btn" id="cl-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>
-        <?= xp(t('Wie wat veranderde en wanneer, met terugdraaien.'), t('<b>Wat het is:</b> een logboek van wie wat veranderde en wanneer: instellingen, servers, checks en sjablonen, met de oude en de nieuwe waarde. <b>Terugdraaien:</b> een wijziging aan een instelling, server of check zet je terug met ↩; een verwijderde check of server komt terug (zonder meetgeschiedenis). <b>Goed om te weten:</b> wachtwoorden en sleutels staan er nooit leesbaar in.')) ?>
-        <div class="ac-bar"><select id="cl-kind"><option value=""><?= th('Alles') ?></option><option value="setting"><?= th('Instellingen') ?></option><option value="host"><?= th('Servers') ?></option>
-          <option value="check"><?= th('Checks') ?></option><option value="template"><?= th('Sjablonen') ?></option><option value="system"><?= th('Systeem') ?></option></select>
-          <span class="muted small"><?= th('Bewaren') ?></span> <select id="cl-days" aria-label="<?= th('Bewaren') ?>"><option value="30"><?= th('30 dagen') ?></option><option value="90"><?= th('90 dagen') ?></option><option value="365"><?= th('1 jaar') ?></option><option value="1095"><?= th('3 jaar') ?></option></select></div>
-        <div id="cl-list"><p class="muted"><?= th('Laden…') ?></p></div>
+          · <?= th('geldt voor het hele logboek, ook voor wijzigingen') ?></p>
       </div>
 
       <div data-sk="transfer" class="card need-admin" id="transfer-card">

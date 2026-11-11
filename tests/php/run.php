@@ -2614,6 +2614,22 @@ ok(SettingsMeta::skipTransfer('rz_own_ips') && SettingsMeta::skipTransfer('smtp_
 $el = email_list('A@Voorbeeld.nl; b@voorbeeld.nl a@voorbeeld.nl,geen-adres');
 ok($el['ok'] === ['a@voorbeeld.nl', 'b@voorbeeld.nl'] && $el['bad'] === ['geen-adres'] && !valid_email(str_repeat('a', 190) . '@x.nl'), 'E-mailadressen: één controle (kleine letters, dubbele eruit, ongeldige apart, max. 190)');
 ok(Analytics::reportOn() === (Reports::cfg()['month']['on'] || (Reports::cfg()['all']['on'] && in_array('month', Reports::cfg()['all']['parts'], true))) && !method_exists('Ids', 'sendWeekly') && !method_exists('Analytics', 'sendMonthly'), 'Oude rapportfuncties weg; maandrapport aan of uit volgt Rapporten');
+// 1.235.0: één verzendroute en één logboek
+$nz = Notify::send('CI', 'test', ['channels' => ['pushover' => false, 'email' => false, 'webhook' => false]]);
+ok($nz['push'] === null && $nz['email'] === null && $nz['webhook'] === null && Notify::errText(['x']) !== '' && Notify::ip('[::1]') === '::1' && Notify::ip('10.0.0.1:22') === null,
+    'Notify: kanalen uit = niets verstuurd; alleen een echt IP-adres');
+AgentCommands::audit('ci', 'API-sleutel gemaakt', 'ci-sleutel');
+$al = ActionLog::list(['module' => 'admin', 'days' => 1]);
+ok(($al[0]['action'] ?? '') === 'API-sleutel gemaakt' && $al[0]['source'] === 'user' && $al[0]['username'] === 'ci', 'Logboek: acties van beheerders (was audit_log) staan in het gewone Logboek');
+q('CREATE TABLE IF NOT EXISTS audit_log (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(100), action VARCHAR(50), detail VARCHAR(1000), ip VARCHAR(45), created_at DATETIME)');
+q("INSERT INTO audit_log (username, action, detail, ip, created_at) VALUES ('oud', 'Oude actie', 'van vroeger', '10.0.0.9', NOW() - INTERVAL 2 DAY)");
+(Closure::bind(static fn() => Installer::auditToActionLog(db()), null, Installer::class))();
+ok(!db()->query("SHOW TABLES LIKE 'audit_log'")->fetchColumn() && (int) q("SELECT COUNT(*) FROM host_actions WHERE module = 'admin' AND action = 'Oude actie' AND username = 'oud'")->fetchColumn() === 1,
+    'Logboek: het oude actielogboek is bij de update overgezet en de tabel is weg');
+save_setting('ci_logboek', 'a');
+ChangeLog::settingsDiff(['ci_logboek' => 'a'], ['ci_logboek' => 'b'], 'update', 'CI');
+$cfg = array_values(array_filter(ActionLog::list(['module' => 'config', 'days' => 1]), static fn($r) => $r['kind'] === 'change'));
+ok($cfg && $cfg[0]['module'] === 'config' && array_key_exists('can_undo', $cfg[0]), 'Logboek: wijzigingen aan instellingen (was het Wijzigingslogboek) staan erin, met terugzetten');
 // 1.233.0: ontvangers per rapport
 save_setting('mail_to', 'algemeen@voorbeeld.nl');
 $rc = Reports::save(['month' => ['to' => 'Directie@Voorbeeld.nl; adviseur@voorbeeld.nl, directie@voorbeeld.nl']])['month'];
