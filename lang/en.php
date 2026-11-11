@@ -10111,4 +10111,5 @@ return [
     'Auto' => 'Auto',
     'Licht' => 'Light',
     'Donker' => 'Dark',
+    'Command-center-stijl: diep blauw, cyaan accent en gloeiende randen' => 'Command center style: deep blue, cyan accent and glowing edges',
 ];

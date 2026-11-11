@@ -1996,7 +1996,7 @@ function renderAlertCharts() {
 const monGlow = () => PREFS.mon_glow !== 'off';
 // 1.201.0: Liquid Glass (standaard uit) en de laadanimatie (standaard aan), per account
 /** 1.244.0: het thema (Standaard, @S, Liquid Glass); een oude Liquid Glass-schakelaar telt als het thema Liquid Glass */
-const skinCur = () => (['std', 's', 'glass'].includes(PREFS.skin) ? PREFS.skin : PREFS.mon_glass === 'on' ? 'glass' : 'std');
+const skinCur = () => (['std', 's', 'glass', 'neo'].includes(PREFS.skin) ? PREFS.skin : PREFS.mon_glass === 'on' ? 'glass' : 'std');
 const monGlass = () => skinCur() === 'glass';
 const monLoader = () => PREFS.mon_loader !== 'off';
 const monVivid = () => PREFS.mon_vivid === 'on';   // 1.216.0: Liquid Glass levendig (anders rustig)
@@ -2017,6 +2017,7 @@ function applyMonPrefs() {
   document.body.classList.toggle('no-loader', !monLoader());
   document.body.classList.toggle('lg-vivid', monGlass() && monVivid());
   document.body.classList.toggle('sk-s', skinCur() === 's');
+  document.body.classList.toggle('sk-neo', skinCur() === 'neo');   // 1.245.0: thema Neo
   if ($('#vivid-row')) $('#vivid-row').hidden = !monGlass();   // levendige kleuren alleen bij Liquid Glass
   if (window.RzPulse) RzPulse.refreshColors();
   $$('[data-mon-pref]').forEach((c) => { c.checked = ({ glow: monGlow, anim: monAnim, glass: monGlass, loader: monLoader, vivid: monVivid }[c.dataset.monPref] || (() => false))(); });

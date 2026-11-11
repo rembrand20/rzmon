@@ -8,11 +8,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.245.0**: **thema Neo**: de Command-center-look als vierde thema, met elke lay-out.
 - **1.244.0**: **lay-out en thema los van elkaar**: kies een opbouw (Blox, L1nes, Compact, CC) en daarbovenop een thema (Standaard, @S, Liquid Glass), licht of donker.
 - **1.243.0**: **thema @S**: RzSense in de stijl van Apple, rustig en licht, te kiezen per account (licht en donker).
 - **1.242.0**: **uitleg overal**: elke kaart, elk tabblad en de belangrijke vensters zeggen wat ze doen, hoe je ze instelt en wat goed is om te weten.
 - **1.241.0**: **ⓘ bij de velden**: uitleg, eenheid, bereik en aanbevolen waarde (met één tik te gebruiken), ook op je telefoon.
-- **1.240.0**: **keuzelijsten uit je netwerk**: kies apparaten en servers bij adressen, check-doelen, DNS-server, UniFi, Ollama en AdGuard.
+
+## 1.245.0 – 2026-11-11
+### Nieuw
+- **Thema Neo**: de Command-center-look (diep blauw, cyaan accent, gloeiende bovenranden, techletter voor getallen) is terug als vierde thema, naast Standaard, @S en Liquid Glass. Te kiezen bij **Mijn account → Weergave → Thema** of in het accountmenu, met elke lay-out en in licht en donker.
 
 ## 1.244.0 – 2026-11-11
 ### Nieuw

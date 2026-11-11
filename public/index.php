@@ -66,9 +66,9 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <?php if ($userTheme === null): ?><script nonce="<?= csp_nonce() ?>">try{const t=localStorage.getItem('rzmon-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script><?php endif; ?>
 </head>
 <?php $sidePrefs = json_decode((string) ($prefsJson ?? ''), true) ?: []; $sideW = (int) ($sidePrefs['side_w'] ?? 0);
-$skin = in_array($sidePrefs['skin'] ?? '', ['std', 's', 'glass'], true) ? $sidePrefs['skin'] : (($sidePrefs['mon_glass'] ?? '') === 'on' ? 'glass' : 'std');   // 1.244.0: oude Liquid Glass-schakelaar = thema Liquid Glass
+$skin = in_array($sidePrefs['skin'] ?? '', ['std', 's', 'glass', 'neo'], true) ? $sidePrefs['skin'] : (($sidePrefs['mon_glass'] ?? '') === 'on' ? 'glass' : 'std');   // 1.244.0: oude Liquid Glass-schakelaar = thema Liquid Glass
 // 1.201.0: Liquid Glass en de laadanimatie, per account (meteen goed bij het laden, zonder flits)
-$bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '', $skin === 'glass' ? 'lg' : '', ($sidePrefs['mon_loader'] ?? '') === 'off' ? 'no-loader' : '', $skin === 'glass' && ($sidePrefs['mon_vivid'] ?? '') === 'on' ? 'lg-vivid' : '', $skin === 's' ? 'sk-s' : '']);   // 1.244.0: thema (Standaard, @S, Liquid Glass) ?>
+$bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '', $skin === 'glass' ? 'lg' : '', ($sidePrefs['mon_loader'] ?? '') === 'off' ? 'no-loader' : '', $skin === 'glass' && ($sidePrefs['mon_vivid'] ?? '') === 'on' ? 'lg-vivid' : '', $skin === 's' ? 'sk-s' : '', $skin === 'neo' ? 'sk-neo' : '']);   // 1.244.0: thema (Standaard, @S, Liquid Glass) ?>
 <body<?= $bodyCls ? ' class="' . implode(' ', $bodyCls) . '"' : '' ?><?= $sideW >= 180 && $sideW <= 380 ? ' style="--side-w:' . $sideW . 'px"' : '' ?> data-role="<?= htmlspecialchars($role) ?>"<?php if ($user && !$mustChange && !$resetToken): ?> data-prefs="<?= htmlspecialchars($prefsJson ?? 'local') ?>"<?php endif; ?>>
 <?php if ($resetToken): ?>
   <main class="login-wrap"><?= Brand::hudBg() ?>
@@ -206,7 +206,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <?php if (!$hasAccount): ?><a role="menuitem" class="acct-item" href="index.php?login=1">🔑 <?= th('Inloggen met je account') ?></a><?php endif; ?>
           <div class="acct-sep"></div>
           <div class="acct-row">◈ <?= th('Lay-out') ?> <span class="seg" id="dash-seg"><button type="button" data-view-layout="blox">Blox</button><button type="button" data-view-layout="l1nes">L1nes</button><button type="button" data-view-layout="compact">Compact</button><button type="button" data-view-layout="cc">CC</button></span></div>
-          <div class="acct-row">✦ <?= th('Thema') ?> <span class="seg" id="skin-seg"><button type="button" data-skin-set="std"><?= th('Standaard') ?></button><button type="button" data-skin-set="s">@S</button><button type="button" data-skin-set="glass"><?= th('Glas') ?></button></span></div>
+          <div class="acct-row">✦ <?= th('Thema') ?> <span class="seg" id="skin-seg"><button type="button" data-skin-set="std"><?= th('Standaard') ?></button><button type="button" data-skin-set="s">@S</button><button type="button" data-skin-set="glass"><?= th('Glas') ?></button><button type="button" data-skin-set="neo">Neo</button></span></div>
           <div class="acct-row">🌓 <?= th('Licht/donker') ?> <span class="seg" id="theme-seg"><button type="button" data-theme-set="auto">auto</button><button type="button" data-theme-set="light"><?= th('licht') ?></button><button type="button" data-theme-set="dark"><?= th('donker') ?></button></span></div>
           <div class="acct-row">🌐 <?= th('Taal') ?> <span class="seg" id="lang-seg"><button type="button" data-lang-set="nl" class="<?= I18n::lang() === 'nl' ? 'active' : '' ?>">NL</button><button type="button" data-lang-set="en" class="<?= I18n::lang() === 'en' ? 'active' : '' ?>">EN</button></span></div>
           <?php if ($hasAccount): ?><div class="acct-sep"></div><button type="button" role="menuitem" id="logout" class="danger-txt">⏻ <?= th('Uitloggen') ?></button><?php endif; ?>
@@ -1915,6 +1915,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
             <button type="button" class="seg-btn" data-skin-set="std" title="<?= th('De gewone stijl van RzSense') ?>"><?= th('Standaard') ?></button>
             <button type="button" class="seg-btn" data-skin-set="s" title="<?= th('Rustig en licht, in de stijl van Apple: witte kaarten, zachte schaduw, één accentkleur') ?>">@S</button>
             <button type="button" class="seg-btn" data-skin-set="glass" title="<?= th('Kaarten, menu\'s en vensters als glas, met licht dat er zacht achter beweegt') ?>">Liquid Glass</button>
+            <button type="button" class="seg-btn" data-skin-set="neo" title="<?= th('Command-center-stijl: diep blauw, cyaan accent en gloeiende randen') ?>">Neo</button>
           </div>
         </div>
         <div class="view-row">

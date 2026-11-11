@@ -5782,3 +5782,38 @@ body.sk-s .rzk-core-ic .spin, body.sk-s .rzk-core-ic .spin2 { animation: none; }
 body.sk-s .set-nav-subs button.active { background: var(--s-sel); color: var(--text); font-weight: 600; }
 body.sk-s .set-nav-head { font-weight: 600; }
 body.sk-s :is(.set-nav-head, .set-nav-subs button):hover { background: var(--s-fill-2); }
+
+/* ================================================================ 1.245.0: thema Neo (de vroegere CC-look), per account
+   Command-center-stijl: diep blauw, cyaan accent, gloeiende bovenranden, techletter voor getallen. Volgt licht en donker. */
+body.sk-neo {
+  --bg: var(--fx-bg); --bg-2: var(--fx-bg2); --card: var(--fx-bg2); --card-2: color-mix(in srgb, var(--fx-cy) 5%, var(--fx-bg));
+  --border: var(--fx-bd); --text: var(--fx-tx); --muted: var(--fx-mu); --primary: var(--fx-cy); --ok: var(--fx-ok); --warn: var(--fx-wa); --crit: var(--fx-cr);
+  --shadow: var(--fx-shadow);
+  /* 1.163.1: zonder zichtbaar raster; alleen de zachte gloed */
+  background: radial-gradient(1100px 520px at 75% 0%, var(--fx-glow1), transparent 60%), radial-gradient(800px 500px at 0% 100%, var(--fx-glow2), transparent 60%), var(--fx-bg);
+  background-attachment: fixed;
+}
+/* 1.163.1: geen backdrop-filter: die maakte van de zijbalk het kader voor het zwevende accountmenu, dat daardoor werd afgeknipt */
+body.sk-neo .app-top, body.sk-neo .side { background: var(--fx-bg); border-color: var(--fx-bd); }
+body.sk-neo .tab.active, body.sk-neo .tab[aria-selected="true"] { box-shadow: inset 3px 0 0 var(--fx-cy); }
+/* Kaarten: glas, dunne gloeiende bovenrand */
+body.sk-neo .card, body.sk-neo .kpi, body.sk-neo .host, body.sk-neo .alert-day, body.sk-neo .attn, body.sk-neo .ok-item, body.sk-neo .hm-row, body.sk-neo .cc-card {
+  background: linear-gradient(160deg, var(--fx-bg2), var(--fx-bg)); border-color: var(--fx-bd); box-shadow: var(--fx-shadow); border-radius: 16px; }
+body.sk-neo .card, body.sk-neo .kpi, body.sk-neo .attn, body.sk-neo .cc-card { position: relative; overflow: hidden; }
+body.sk-neo .card::after, body.sk-neo .kpi::after, body.sk-neo .attn::after, body.sk-neo .cc-card::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--fx-cy) 65%, transparent), transparent); }
+body.sk-neo .kpi-lbl, body.sk-neo .card > h2:first-child, body.sk-neo .sec-h h2 { letter-spacing: .12em; text-transform: uppercase; font-size: .74rem; color: var(--fx-cy); }
+body.sk-neo .kpi-val, body.sk-neo .hc b, body.sk-neo .km-v, body.sk-neo .dchip b { font-family: var(--mono, ui-monospace, "JetBrains Mono", monospace); }
+/* Chips, knoppen en velden */
+body.sk-neo .hc, body.sk-neo .dchip, body.sk-neo .seg, body.sk-neo .btn:not(.primary), body.sk-neo .icon-btn {
+  background: color-mix(in srgb, var(--fx-cy) 6%, transparent); border-color: var(--fx-bd); }
+body.sk-neo .hc.on, body.sk-neo .dchip.on, body.sk-neo .seg-btn.active { border-color: var(--fx-cy); color: var(--fx-cy); box-shadow: 0 0 0 1px color-mix(in srgb, var(--fx-cy) 25%, transparent) inset; }
+body.sk-neo .seg-btn.active { background: color-mix(in srgb, var(--fx-cy) 16%, transparent); }
+body.sk-neo .btn.primary { background: var(--fx-cy); border-color: var(--fx-cy); color: var(--fx-bg); }
+body.sk-neo input:not([type=checkbox]):not([type=radio]):not([type=range]), body.sk-neo select, body.sk-neo textarea {
+  background: color-mix(in srgb, var(--fx-bg) 70%, transparent); border-color: var(--fx-bd); color: var(--fx-tx); }
+body.sk-neo input:focus, body.sk-neo select:focus, body.sk-neo textarea:focus { border-color: var(--fx-cy); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fx-cy) 20%, transparent); outline: none; }
+body.sk-neo .switch input:checked + span { background: var(--fx-cy); box-shadow: 0 0 10px color-mix(in srgb, var(--fx-cy) 45%, transparent); }
+body.sk-neo table th { color: var(--fx-cy); letter-spacing: .06em; }
+body.sk-neo dialog .modal-inner { background: linear-gradient(160deg, var(--fx-bg2), var(--fx-bg)); border: 1px solid var(--fx-bd); }

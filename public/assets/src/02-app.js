@@ -903,7 +903,7 @@ function markSkin() {
   $$('[data-skin-set]').forEach((b) => { b.classList.toggle('active', b.dataset.skinSet === cur); b.setAttribute('aria-pressed', b.dataset.skinSet === cur ? 'true' : 'false'); });
 }
 function setSkin(v) {
-  v = ['s', 'glass'].includes(v) ? v : 'std';
+  v = ['s', 'glass', 'neo'].includes(v) ? v : 'std';
   savePref('skin', v);
   savePref('mon_glass', v === 'glass' ? 'on' : 'off');   // de oude schakelaar gelijk houden
   applyMonPrefs();
