@@ -174,6 +174,15 @@ switch ($action) {
             out(['error' => $e->getMessage()], 422);
         }
 
+    case 'patch_bulk':   // 1.238.0: meerdere servers tegelijk; preview = alleen het plan laten zien
+        $in = input();
+        $ids = array_values(array_filter(array_map('intval', (array) ($in['ids'] ?? []))));
+        try {
+            out(['plan' => !empty($in['preview']) ? Patch::plan($ids, $in) : Patch::saveBulk($ids, $in, (string) $user['username'])]);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
     case 'patch_now':
         $in = input();
         $h = q("SELECT * FROM hosts WHERE id = ? AND mode = 'agent'", [(int) ($in['host_id'] ?? 0)])->fetch();

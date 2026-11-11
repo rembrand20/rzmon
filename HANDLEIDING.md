@@ -3334,6 +3334,7 @@ De meeste aanvallen gebruiken lekken waarvoor al lang een update is. RzSense laa
 
 **Automatisch** (per server, *Agent Manager → 🩹 Updates*):
 - **Wanneer:** *met de hand* (standaard), *in het onderhoudsvenster* (het vaste onderhoudsvenster van die server: *Instellingen → Advies → Voorstellen → Vaste onderhoudsvensters*; dan krijg je in die tijd ook geen meldingen), of *elke dag om* een tijd (bv. 03:30).
+- **Meerdere servers tegelijk** (vanaf 1.238.0): op *Kwetsbaarheden → 🩹 Updates* vink je servers aan (of niets: dan alle servers) en klik je **⚙️ Meerdere servers instellen…**. Kies *elke dag om een tijd, gespreid* (bv. de eerste om 03:00 en daarna elke server 20 minuten later, zodat ze nooit allemaal tegelijk bijwerken en herstarten), *in het onderhoudsvenster van elke server* of *met de hand*, plus alleen beveiligingsupdates of alles en de snapshot. Je ziet eerst een **voorbeeld** met per server de tijd. Linux-servers gaan op naam, **Home Assistant als laatste en altijd met snapshot**; de RzSense-server zelf en TrueNAS blijven met de hand. Elke server komt in het Logboek en is terug te zetten.
 - **Wat:** *alleen beveiligingsupdates* (standaard, het veiligst) of *alle updates*.
 - **📸 Eerst een snapshot** (standaard aan): van / met ZFS, snapper of btrfs, zodat je terug kunt. Kan dat niet, dan gaat het gewoon door (dat staat in het logboek).
 - Er staat niets klaar? Dan gebeurt er niets (en komt er ook niets in het logboek).

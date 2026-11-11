@@ -8,11 +8,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.238.0**: **updates voor meerdere servers in één keer instellen**, gespreid zodat ze nooit allemaal tegelijk herstarten.
 - **1.237.0**: **onder de motorkap opgeruimd**: één definitie van RzSense zelf en privé-adressen, één manier voor "al gemeld" en limieten, en een zuiniger agent (1.95.0).
 - **1.236.0**: **opgeruimd**: beschermingen, regels, whitelist, status en functies, en bewaartermijnen staan elk op één plek.
 - **1.235.0**: **één Logboek** (met het Wijzigingslogboek en terugzetten op de regel) en **één verzendroute** voor alle meldingen.
 - **1.234.0**: het **NIS2-rapport automatisch versturen**, standaard elk kwartaal, en **elk kwartaal** als keuze bij alle rapporten.
-- **1.233.0**: **eigen ontvangers per rapport** (alleen in te stellen door een beheerder) en **Verstuur naar mij** voor iedereen met een account.
+
+## 1.238.0 – 2026-11-11
+### Nieuw
+- **Updates voor meerdere servers tegelijk instellen** (*Kwetsbaarheden → 🩹 Updates → ⚙️ Meerdere servers instellen…*): vink servers aan (of niets voor alle servers) en kies in één keer hoe ze bijwerken: *elke dag om een tijd, gespreid* (de eerste bv. om 03:00, daarna elke server 10, 20, 30 of 60 minuten later, zodat ze nooit allemaal tegelijk herstarten), *in het onderhoudsvenster van elke server* of *met de hand*, met alleen beveiligingsupdates of alles en een snapshot. Eerst een **voorbeeld** met per server de tijd. Home Assistant gaat als laatste en altijd met snapshot; de RzSense-server zelf en TrueNAS blijven met de hand. Elke wijziging staat in het Logboek en is terug te zetten.
 
 ## 1.237.0 – 2026-11-11
 ### Nieuw

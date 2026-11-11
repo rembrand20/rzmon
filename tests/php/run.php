@@ -2614,6 +2614,21 @@ ok(SettingsMeta::skipTransfer('rz_own_ips') && SettingsMeta::skipTransfer('smtp_
 $el = email_list('A@Voorbeeld.nl; b@voorbeeld.nl a@voorbeeld.nl,geen-adres');
 ok($el['ok'] === ['a@voorbeeld.nl', 'b@voorbeeld.nl'] && $el['bad'] === ['geen-adres'] && !valid_email(str_repeat('a', 190) . '@x.nl'), 'E-mailadressen: één controle (kleine letters, dubbele eruit, ongeldige apart, max. 190)');
 ok(Analytics::reportOn() === (Reports::cfg()['month']['on'] || (Reports::cfg()['all']['on'] && in_array('month', Reports::cfg()['all']['parts'], true))) && !method_exists('Ids', 'sendWeekly') && !method_exists('Analytics', 'sendMonthly'), 'Oude rapportfuncties weg; maandrapport aan of uit volgt Rapporten');
+// 1.238.0: updates voor meerdere servers tegelijk, gespreid
+$pb = [];
+foreach (['ci-pb-b' => '10.9.9.2', 'ci-pb-a' => '10.9.9.1', 'ci-pb-ha' => '10.9.9.3', 'ci-pb-self' => '127.0.0.1'] as $nm => $ad) {
+    q("INSERT INTO hosts (name, address, mode, enabled, agent_update_via) VALUES (?, ?, 'agent', 1, ?)", [$nm, $ad, $nm === 'ci-pb-ha' ? 'ha' : null]);
+    $pb[$nm] = (int) db()->lastInsertId();
+}
+$plan = Patch::plan(array_values($pb), ['mode' => 'auto', 'time' => '23:30', 'step' => 20, 'snap' => false]);
+$byName = array_column($plan, null, 'name');
+ok(array_column($plan, 'name') === ['ci-pb-a', 'ci-pb-b', 'ci-pb-self', 'ci-pb-ha'] && $byName['ci-pb-a']['time'] === '23:30' && $byName['ci-pb-b']['time'] === '23:50'
+    && !$byName['ci-pb-self']['ok'] && $byName['ci-pb-ha']['time'] === '00:10' && $byName['ci-pb-ha']['snap'] && !$byName['ci-pb-a']['snap'],
+    'Updates in één keer: gespreid (over middernacht), Home Assistant als laatste met snapshot, RzSense zelf blijft met de hand');
+Patch::saveBulk([$pb['ci-pb-a'], $pb['ci-pb-self']], ['mode' => 'auto', 'time' => '02:00', 'step' => 30, 'scope' => 'security'], 'ci');
+ok(q('SELECT patch_mode FROM hosts WHERE id = ?', [$pb['ci-pb-a']])->fetchColumn() === 'auto' && q('SELECT patch_time FROM hosts WHERE id = ?', [$pb['ci-pb-a']])->fetchColumn() === '02:00'
+    && q('SELECT patch_mode FROM hosts WHERE id = ?', [$pb['ci-pb-self']])->fetchColumn() !== 'auto', 'Updates in één keer: opgeslagen per server, de RzSense-server overgeslagen');
+q('DELETE FROM hosts WHERE id IN (' . implode(',', $pb) . ')');
 // 1.237.0: Once, RateLimit, eigen IP-adressen op één plek
 ok(Once::claim('ci_once', 'a', '2026-11') && !Once::claim('ci_once', 'a', '2026-11') && Once::claim('ci_once', 'a', '2026-12')
     && Once::claimFor('ci_once_t', 'x', 3600) && !Once::claimFor('ci_once_t', 'x', 3600), 'Once: één keer per stempel, één keer per tijdvak');

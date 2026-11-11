@@ -268,4 +268,57 @@ final class Patch
         }
         return self::info(q('SELECT * FROM hosts WHERE id = ?', [$hostId])->fetch());
     }
+
+    /**
+     * 1.238.0: updates voor meerdere servers tegelijk instellen. Elke dag om een tijd met spreiding per server (zodat ze
+     * nooit allemaal tegelijk bijwerken en herstarten), in hun onderhoudsvenster, of met de hand. Volgorde: Linux-servers
+     * op naam, Home Assistant als laatste en altijd met snapshot. De RzSense-server zelf en TrueNAS blijven met de hand.
+     * @param list<int> $ids leeg = alle servers met de agent
+     * @return list<array{id: int, name: string, kind: string, ok: bool, time: ?string, snap: bool, why: string}>
+     */
+    public static function plan(array $ids, array $in): array
+    {
+        $mode = in_array($in['mode'] ?? '', self::MODES, true) ? (string) $in['mode'] : 'manual';
+        $start = preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) ($in['time'] ?? '')) ? (string) $in['time'] : '03:00';
+        $step = max(0, min(120, (int) ($in['step'] ?? 20)));
+        $hosts = q("SELECT * FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll();
+        if ($ids) {
+            $hosts = array_values(array_filter($hosts, static fn($h) => in_array((int) $h['id'], $ids, true)));
+        }
+        usort($hosts, static fn($a, $b) => (self::kind($a) === 'ha') <=> (self::kind($b) === 'ha') ?: strcasecmp((string) $a['name'], (string) $b['name']));
+        [$hh, $mm] = array_map('intval', explode(':', $start));
+        $out = [];
+        $k = 0;
+        foreach ($hosts as $h) {
+            $kind = self::kind($h);
+            $row = ['id' => (int) $h['id'], 'name' => (string) $h['name'], 'kind' => $kind, 'ok' => true, 'time' => null, 'snap' => $kind === 'ha' || !empty($in['snap']), 'why' => ''];
+            if ($mode !== 'manual' && self::isSelf($h)) {
+                $row = ['ok' => false, 'why' => t('de RzSense-server zelf werk je met de hand bij')] + $row;
+            } elseif ($mode !== 'manual' && $kind === 'truenas') {
+                $row = ['ok' => false, 'why' => t('TrueNAS werk je bij met een TrueNAS-update')] + $row;
+            } elseif ($mode === 'auto') {
+                $t = ($hh * 60 + $mm + $k * $step) % 1440;
+                $row['time'] = sprintf('%02d:%02d', intdiv($t, 60), $t % 60);
+                $k++;
+            } elseif ($mode === 'window' && !array_filter(Advice::windows(), static fn($w) => $w['scope'] === 'host' && $w['ref_id'] === (int) $h['id'])) {
+                $row['why'] = t('nog geen onderhoudsvenster: stel er een in, anders wordt er niet bijgewerkt');
+            }
+            $out[] = $row;
+        }
+        return $out;
+    }
+
+    /** Het plan uitvoeren (elke server via save(), dus met logboek en terugzetten). @return list<array> het plan */
+    public static function saveBulk(array $ids, array $in, string $by): array
+    {
+        $plan = self::plan($ids, $in);
+        foreach ($plan as $p) {
+            if (!$p['ok']) {
+                continue;
+            }
+            self::save($p['id'], ['mode' => $in['mode'] ?? 'manual', 'scope' => $in['scope'] ?? 'security', 'snap' => $p['snap'],
+                'time' => $p['time'] ?? (string) (q('SELECT patch_time FROM hosts WHERE id = ?', [$p['id']])->fetchColumn() ?: '03:30')], $by);
+        }
+        return $plan;
+    }
 }
