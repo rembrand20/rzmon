@@ -33,7 +33,7 @@ async function loadPatch() {
     <div class="table-scroll"><table class="vuln-table small patch-table"><thead><tr><th class="need-admin"><input type="checkbox" id="ph-all" aria-label="${esc(L('Alles'))}"></th><th>${L('Server')}</th><th>${L('Klaar')}</th><th>${L('Hoe')}</th><th>${L('Laatst')}</th><th></th></tr></thead><tbody>
       ${hs.map((h) => `<tr data-ph="${h.id}"><td class="need-admin"><input type="checkbox" data-ph-sel="${h.id}" aria-label="${esc(h.name)}"></td><td><b>${esc(h.name)}</b><br><span class="muted">${(PATCH_KIND[h.kind] || (() => h.kind))()}${h.self ? ' · ' + L('RzSense zelf') : ''}</span></td>
         <td>${patchBadge(h)}${h.rb ? `<br><span class="warn small">↻ ${L('herstart nodig (doe dat zelf)')}</span>` : ''}${h.list.length ? `<br><button type="button" class="linkish small" data-ph-list="${h.id}">${L('lijst')}</button>` : ''}</td>
-        <td>${h.kind === 'truenas' ? '–' : esc(patchModeTxt(h)) + (h.kind === 'linux' ? `<br><span class="muted">${h.scope === 'all' ? L('alle updates') : L('alleen beveiligingsupdates')}${h.snap ? ' · 📸' : ''}</span>` : '')}
+        <td>${h.kind === 'truenas' ? '–' : esc(patchModeTxt(h)) + (h.kind === 'linux' ? `<br><span class="muted">${h.scope === 'all' ? L('alle updates') : L('alleen beveiligingsupdates')}</span>` : '')}
           ${h.mode === 'window' && !h.windows.length ? `<br><span class="warn small">${L('geen onderhoudsvenster ingesteld')}</span>` : ''}</td>
         <td>${h.status && ['queued', 'running'].includes(h.status.state) || h.ha_req ? `<b>⏳ ${L('bezig')}</b>` : h.last ? agoSpan(h.last) : '–'}</td>
         <td class="nowrap need-admin">${!h.blocked && patchCount({ ...h, scope: 'security' }) && h.kind === 'linux' ? `<button type="button" class="btn small-btn primary" data-ph-now="security">🛡 ${L('Beveiliging')}</button> ` : ''}
@@ -64,12 +64,11 @@ function patchBulk(ids) {
       <div class="row2" data-pb-auto><label>${L('Eerste server om')} <input type="time" name="time" value="03:00"></label>
         <label>${L('Daarna elke server')} <select name="step"><option value="0">${L('tegelijk (niet aangeraden)')}</option><option value="10">+10 min</option><option value="20" selected>+20 min</option><option value="30">+30 min</option><option value="60">+60 min</option></select></label></div>
       <label>${L('Wat')} <select name="scope"><option value="security">${L('Alleen beveiligingsupdates (aangeraden)')}</option><option value="all">${L('Alle updates')}</option></select></label>
-      <label class="switch small"><input type="checkbox" name="snap" checked><span></span> 📸 ${L('Eerst een snapshot (Home Assistant altijd)')}</label>
       <h4>${L('Voorbeeld')}</h4><div id="pb-plan" class="small"><p class="muted">${L('Laden…')}</p></div>
       <p class="muted small">${L('Volgorde: Linux-servers op naam, Home Assistant als laatste. De RzSense-server zelf en TrueNAS blijven met de hand. Alles komt in het Logboek en is terug te zetten.')}</p></div>`,
     buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: L('Opslaan'), cls: 'primary', submit: true }],
     onSubmit: async (v) => {
-      const r = await api('patch_bulk', { ids, mode: v.mode, time: v.time, step: +v.step, scope: v.scope, snap: !!v.snap });
+      const r = await api('patch_bulk', { ids, mode: v.mode, time: v.time, step: +v.step, scope: v.scope });
       toast(L('{n} servers ingesteld', { n: r.plan.filter((p) => p.ok).length }));
       loadPatch();
     },
@@ -79,9 +78,9 @@ function patchBulk(ids) {
     const v = Object.fromEntries(new FormData(f));
     $('[data-pb-auto]', f).hidden = v.mode !== 'auto';
     try {
-      const r = await api('patch_bulk', { ids, mode: v.mode, time: v.time, step: +v.step, scope: v.scope, snap: !!v.snap, preview: true });
+      const r = await api('patch_bulk', { ids, mode: v.mode, time: v.time, step: +v.step, scope: v.scope, preview: true });
       $('#pb-plan').innerHTML = r.plan.length ? `<table class="vuln-table small"><tbody>${r.plan.map((p) => `<tr class="${p.ok ? '' : 'muted'}"><td><b>${esc(p.name)}</b> <span class="muted">${(PATCH_KIND[p.kind] || (() => p.kind))()}</span></td>
-        <td>${!p.ok ? '✋ ' + esc(p.why) : v.mode === 'auto' ? `🕒 <b>${esc(p.time)}</b>` : v.mode === 'window' ? '🗓️ ' + L('in het venster') : L('met de hand')}${p.ok && p.snap && v.mode !== 'manual' ? ' · 📸' : ''}
+        <td>${!p.ok ? '✋ ' + esc(p.why) : v.mode === 'auto' ? `🕒 <b>${esc(p.time)}</b>` : v.mode === 'window' ? '🗓️ ' + L('in het venster') : L('met de hand')}
           ${p.ok && p.why ? `<br><span class="warn small">⚠️ ${esc(p.why)}</span>` : ''}</td></tr>`).join('')}</tbody></table>` : `<p class="muted">${L('Geen servers.')}</p>`;
     } catch (ex) { $('#pb-plan').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; }
   };
@@ -107,7 +106,6 @@ function patchNow(h, scope, done) {
     body: `<div style="padding:1rem 1.2rem">
       <p>${ha ? L('De agent werkt Core en de add-ons met een update bij via de Supervisor, met een back-up vooraf. Het besturingssysteem (OS) niet: dat herstart het hele systeem.')
     : L('De agent installeert {n} pakketten met de pakketbeheerder van de server.', { n })}</p>
-      ${!ha && h.snap ? `<p class="small">📸 ${L('Eerst een snapshot van / (ZFS, snapper of btrfs), zodat je terug kunt.')}</p>` : ''}
       <p class="small">${L('Er wordt niets herstart. Is dat daarna nodig, dan zie je ↻ bij de server.')}</p>
       ${h.self ? `<p class="warn-txt">${L('Dit is de server waar RzSense zelf op draait. Gaat er iets mis, dan zie je het hier niet meer: blijf erbij.')}</p>` : ''}
       ${confirmField('BIJWERKEN')}</div>`,
@@ -139,8 +137,7 @@ async function amPatch(h, body) {
     : `⚠ ${L('Deze server heeft nog geen vast onderhoudsvenster.')} <a href="#settings/advice" data-goto="settings/advice">${L('Instellen')} →</a>`}</p>
     ${ha ? `<p class="muted small">${L('Home Assistant: Core en add-ons, altijd met een back-up vooraf. Het OS niet (dat herstart alles).')}</p>`
     : `${amRow('🛡 ' + L('Wat'), L('alleen beveiligingsupdates is het veiligst; alles neemt ook nieuwe versies mee'),
-      `<select id="pt-scope"><option value="security" ${d.scope === 'security' ? 'selected' : ''}>${L('alleen beveiligingsupdates')}</option><option value="all" ${d.scope === 'all' ? 'selected' : ''}>${L('alle updates')}</option></select>`)}
-      ${amRow('📸 ' + L('Eerst een snapshot'), L('van / (ZFS, snapper of btrfs), zodat je terug kunt; anders gaat het gewoon door'), amSw('pt-snap', d.snap))}`}
+      `<select id="pt-scope"><option value="security" ${d.scope === 'security' ? 'selected' : ''}>${L('alleen beveiligingsupdates')}</option><option value="all" ${d.scope === 'all' ? 'selected' : ''}>${L('alle updates')}</option></select>`)}`}
     <div class="btn-row"><button type="button" class="btn primary small-btn" id="pt-save">${L('Opslaan')}</button>
       ${!d.blocked && (ha ? d.avail : d.sec) ? `<button type="button" class="btn small-btn" id="pt-now">⬆ ${ha ? L('Nu bijwerken') : L('Beveiligingsupdates nu')}</button>` : ''}
       <a class="btn small-btn" href="#vulns/patch" data-goto="vulns/patch">${L('Alle servers')} →</a></div>
@@ -148,7 +145,7 @@ async function amPatch(h, body) {
   $('#pt-mode', box).onchange = (e) => { $('#pt-time', box).hidden = e.target.value !== 'auto'; $('#pt-win', box).hidden = e.target.value !== 'window'; };
   $('#pt-save', box).onclick = async () => {
     try {
-      await api('patch_save', { host_id: h.id, mode: $('#pt-mode', box).value, time: $('#pt-time', box).value, scope: ha ? 'security' : $('#pt-scope', box).value, snap: ha ? true : $('#pt-snap', box).checked });
+      await api('patch_save', { host_id: h.id, mode: $('#pt-mode', box).value, time: $('#pt-time', box).value, scope: ha ? 'security' : $('#pt-scope', box).value });
       toast(L('Opgeslagen'));
       amPatch(h, body);
     } catch (ex) { toast(ex.message, 'err'); }

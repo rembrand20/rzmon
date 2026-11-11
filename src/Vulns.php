@@ -969,7 +969,7 @@ final class Vulns
         // 1.230.0: mode security/all (patchbeheer, agent 1.92.0): zonder namen, de agent kiest zelf wat er klaarstaat
         $mode = (string) ($req['mode'] ?? '');
         return ['id' => $req['id'], 'pkgs' => in_array($mode, ['security', 'all'], true) ? [] : $req['pkgs']]
-            + (in_array($mode, ['install', 'security', 'all'], true) ? ['mode' => $mode] : []) + (!empty($req['own']) ? ['own' => true] : []) + (!empty($req['snap']) ? ['snap' => true] : []);
+            + (in_array($mode, ['install', 'security', 'all'], true) ? ['mode' => $mode] : []) + (!empty($req['own']) ? ['own' => true] : []);
     }
 
     /** Voortgang van de agent tijdens het bijwerken (stap, procent, pakket, laatste uitvoer), of de uitkomst als hij klaar is */

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Agenttest updates (agent 1.92.0, GitHub Actions per Linux-versie): met nep-dnf en nep-apt-get in PATH (er wordt niets
 # echt bijgewerkt) controleren dat de agent ziet welke updates klaarstaan en welke daarvan beveiligingsupdates zijn,
-# en dat "alle beveiligingsupdates installeren" (mode security, met snapshot) alleen de beveiligingspakketten bijwerkt,
-# eerst een snapshot probeert, nooit herstart en de uitkomst terugmeldt. Alleen als root; anders overgeslagen.
+# en dat "alle beveiligingsupdates installeren" (mode security) alleen de beveiligingspakketten bijwerkt,
+# geen snapshot meer maakt (agent 1.95.1), nooit herstart en de uitkomst terugmeldt. Alleen als root; anders overgeslagen.
 # Gebruik: bash tests/agent-patch.sh
 set -u
 cd "$(dirname "$0")/.." || exit 1
@@ -53,7 +53,7 @@ PY
 # 2. Tweede ronde binnen het uur: niets opnieuw
 PATH="$work/bin:$PATH" bash "$work/run.sh" >"$work/rpm2.json" 2>>"$work/err"
 [ -s "$work/rpm2.json" ] && bad+="tweede ronde stuurde de lijst opnieuw | "
-# 3. Installeren: mode security met snapshot, via de echte pkg_upgrade en het script dat hij start
+# 3. Installeren: mode security, via de echte pkg_upgrade en het script dat hij start (agent 1.95.1: "snap" van een oudere RzSense wordt genegeerd)
 {
     echo "pk_dir='$work/pk'; pk_mgr=dpkg; MONITOR_URL=''; COMMANDS=root; enc_key=''; tls=(); auth=(-H 'X-Test: 1')"
     fn enc_sub; fn seal; fn pkg_upgrade
@@ -69,7 +69,7 @@ else
     [ "$r_id" = 0123456789abcdef ] && [ "$r_st" = ok ] || bad+="uitkomst: $r_id $r_st | "
     grep -q 'install' "$work/apt.calls" 2>/dev/null && grep -q 'libssl3' "$work/apt.calls" && ! grep -q 'vim' "$work/apt.calls" \
         || bad+="security werkte niet alleen libssl3 bij: $(cat "$work/apt.calls" 2>/dev/null) | "
-    printf '%s' "$log" | grep -qE 'Snapshot gemaakt|Geen snapshot mogelijk' || bad+="geen snapshot geprobeerd: $log | "
+    printf '%s' "$log" | grep -qE 'Snapshot gemaakt|Geen snapshot mogelijk' && bad+="toch een snapshot geprobeerd: $log | "
 fi
 if [ -n "$bad" ]; then echo "✘ updates: ${bad% | }"; exit 1; fi
-echo "✔ updates: klaarstaande updates en beveiligingsupdates gezien (dnf), niet elk uur opnieuw, alleen beveiligingsupdates geïnstalleerd (apt), eerst een snapshot geprobeerd, uitkomst terug"
+echo "✔ updates: klaarstaande updates en beveiligingsupdates gezien (dnf), niet elk uur opnieuw, alleen beveiligingsupdates geïnstalleerd (apt), geen snapshot meer, uitkomst terug"

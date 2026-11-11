@@ -2485,18 +2485,18 @@ $rowP = q('SELECT * FROM hosts WHERE id = ?', [$hp])->fetch();
 ok(Patch::agentLines($hp) === ["0\tpatch\t1"] && Patch::kind($rowP) === 'linux', 'updates: aan voor de agent (Linux)');
 Patch::fromAgent($rowP, ['patch' => ['mgr' => 'dpkg', 'avail' => 2, 'sec' => 1, 'rb' => 1, 'list' => [['libssl3', '3.0.13-4', 1], ['vim', '9.1.1', 0], ['; rm -rf /', '1', 1]]]], $st, now());
 $inf = Patch::info(q('SELECT * FROM hosts WHERE id = ?', [$hp])->fetch());
-ok($inf['avail'] === 2 && $inf['sec'] === 1 && $inf['rb'] && count($inf['list']) === 2 && $inf['mode'] === 'manual' && $inf['scope'] === 'security' && $inf['snap'],
-    'updates: klaarstaande updates opgeslagen (rare pakketnaam eruit), standaard met de hand, alleen beveiliging, snapshot aan');
+ok($inf['avail'] === 2 && $inf['sec'] === 1 && $inf['rb'] && count($inf['list']) === 2 && $inf['mode'] === 'manual' && $inf['scope'] === 'security' && !isset($inf['snap']),
+    'updates: klaarstaande updates opgeslagen (rare pakketnaam eruit), standaard met de hand, alleen beveiliging, geen snapshot (1.238.1)');
 ok(Patch::request($rowP, 'security', 'ci') === true, 'updates: beveiligingsupdates gevraagd');
 $req = json_decode((string) q('SELECT vuln_upgrade_req FROM hosts WHERE id = ?', [$hp])->fetchColumn(), true);
 $resp = Vulns::agentReport(q('SELECT * FROM hosts WHERE id = ?', [$hp])->fetch(), []);
-ok($req['mode'] === 'security' && $req['pkgs'] === ['libssl3'] && ($resp['pkg_upgrade']['mode'] ?? '') === 'security' && !empty($resp['pkg_upgrade']['snap']) && $resp['pkg_upgrade']['pkgs'] === [],
-    'updates: de agent krijgt mode security met snapshot, zonder namen (hij kiest zelf wat er klaarstaat)');
+ok($req['mode'] === 'security' && $req['pkgs'] === ['libssl3'] && ($resp['pkg_upgrade']['mode'] ?? '') === 'security' && !isset($resp['pkg_upgrade']['snap']) && $resp['pkg_upgrade']['pkgs'] === [],
+    'updates: de agent krijgt mode security zonder snapshot en zonder namen (hij kiest zelf wat er klaarstaat)');
 ok(is_string(Patch::request(q('SELECT * FROM hosts WHERE id = ?', [$hp])->fetch(), 'all', 'ci')), 'updates: niet twee tegelijk');
 Vulns::agentReport(q('SELECT * FROM hosts WHERE id = ?', [$hp])->fetch(), ['pkg_result' => ['id' => $req['id'], 'ok' => true, 'log_b64' => base64_encode("Snapshot gemaakt: rpool/ROOT/debian@rzsense-patch-1\nSetting up libssl3 ...\n")]]);
 $acts = q("SELECT action FROM host_actions WHERE host_id = ? AND module = 'patch' ORDER BY id", [$hp])->fetchAll(PDO::FETCH_COLUMN);
-ok(!q('SELECT vuln_upgrade_req FROM hosts WHERE id = ?', [$hp])->fetchColumn() && in_array('Snapshot gemaakt voor de updates', $acts, true) && in_array('Beveiligingsupdates geïnstalleerd', $acts, true),
-    'updates: uitkomst met de snapshot in het logboek, opdracht klaar');
+ok(!q('SELECT vuln_upgrade_req FROM hosts WHERE id = ?', [$hp])->fetchColumn() && !in_array('Snapshot gemaakt voor de updates', $acts, true) && in_array('Beveiligingsupdates geïnstalleerd', $acts, true),
+    'updates: uitkomst in het logboek, opdracht klaar');
 Patch::save($hp, ['mode' => 'auto', 'time' => '03:30', 'scope' => 'all', 'snap' => 1], 'ci');
 $rowP = q('SELECT * FROM hosts WHERE id = ?', [$hp])->fetch();
 $day = strtotime('tomorrow');
@@ -2620,11 +2620,11 @@ foreach (['ci-pb-b' => '10.9.9.2', 'ci-pb-a' => '10.9.9.1', 'ci-pb-ha' => '10.9.
     q("INSERT INTO hosts (name, address, mode, enabled, agent_update_via) VALUES (?, ?, 'agent', 1, ?)", [$nm, $ad, $nm === 'ci-pb-ha' ? 'ha' : null]);
     $pb[$nm] = (int) db()->lastInsertId();
 }
-$plan = Patch::plan(array_values($pb), ['mode' => 'auto', 'time' => '23:30', 'step' => 20, 'snap' => false]);
+$plan = Patch::plan(array_values($pb), ['mode' => 'auto', 'time' => '23:30', 'step' => 20]);
 $byName = array_column($plan, null, 'name');
 ok(array_column($plan, 'name') === ['ci-pb-a', 'ci-pb-b', 'ci-pb-self', 'ci-pb-ha'] && $byName['ci-pb-a']['time'] === '23:30' && $byName['ci-pb-b']['time'] === '23:50'
-    && !$byName['ci-pb-self']['ok'] && $byName['ci-pb-ha']['time'] === '00:10' && $byName['ci-pb-ha']['snap'] && !$byName['ci-pb-a']['snap'],
-    'Updates in één keer: gespreid (over middernacht), Home Assistant als laatste met snapshot, RzSense zelf blijft met de hand');
+    && !$byName['ci-pb-self']['ok'] && $byName['ci-pb-ha']['time'] === '00:10',
+    'Updates in één keer: gespreid (over middernacht), Home Assistant als laatste, RzSense zelf blijft met de hand');
 Patch::saveBulk([$pb['ci-pb-a'], $pb['ci-pb-self']], ['mode' => 'auto', 'time' => '02:00', 'step' => 30, 'scope' => 'security'], 'ci');
 ok(q('SELECT patch_mode FROM hosts WHERE id = ?', [$pb['ci-pb-a']])->fetchColumn() === 'auto' && q('SELECT patch_time FROM hosts WHERE id = ?', [$pb['ci-pb-a']])->fetchColumn() === '02:00'
     && q('SELECT patch_mode FROM hosts WHERE id = ?', [$pb['ci-pb-self']])->fetchColumn() !== 'auto', 'Updates in één keer: opgeslagen per server, de RzSense-server overgeslagen');

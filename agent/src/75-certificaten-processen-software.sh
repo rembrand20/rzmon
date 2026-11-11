@@ -279,15 +279,14 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzSense>: alleen dnf/yum/apt "upgra
     # Agent 1.63.0: of "install" (mode), alleen voor de onderdelen van de endpoint-bewaking (vaste lijst hieronder)
     # Agent 1.66.0: met "own" (eigen pakketnamen, door de beheerder bevestigd in RzSense) geldt die lijst niet; de namen
     # zelf moeten wel gewone pakketnamen zijn (geen opties, geen paden), en COMMANDS mag het niet blokkeren
-    # Agent 1.92.0: mode "security" (alle beveiligingsupdates) of "all" (alle updates), zonder namen; "snap" = eerst een
-    # snapshot van / (ZFS, snapper of btrfs). Nooit op TrueNAS, nooit een herstart.
-    local id names n=() out="$pk_dir/upgrade.result" why="" mode=upgrade own=0 snap=0
+    # Agent 1.92.0: mode "security" (alle beveiligingsupdates) of "all" (alle updates), zonder namen. Nooit op TrueNAS,
+    # nooit een herstart. Agent 1.95.1: geen snapshot meer vooraf ("snap" van een oudere RzSense wordt genegeerd).
+    local id names n=() out="$pk_dir/upgrade.result" why="" mode=upgrade own=0
     id=$(sed -n 's/.*"pkg_upgrade":[[:space:]]*{[^}]*"id":[[:space:]]*"\([0-9a-f]\{8,32\}\)".*/\1/p' <<<"$1")
     names=$(sed -n 's/.*"pkg_upgrade":[[:space:]]*{[^}]*"pkgs":[[:space:]]*\[\([^]]*\)\].*/\1/p' <<<"$1" | tr -d '"' | tr ',' ' ')
     [[ "$1" =~ \"pkg_upgrade\":[[:space:]]*\{[^}]*\"mode\":[[:space:]]*\"install\" ]] && mode=install
     [[ "$1" =~ \"pkg_upgrade\":[[:space:]]*\{[^}]*\"own\":[[:space:]]*true ]] && own=1
     [[ "$1" =~ \"pkg_upgrade\":[[:space:]]*\{[^}]*\"mode\":[[:space:]]*\"(security|all)\" ]] && mode=${BASH_REMATCH[1]}
-    [[ "$1" =~ \"pkg_upgrade\":[[:space:]]*\{[^}]*\"snap\":[[:space:]]*true ]] && snap=1
     [ -n "$id" ] && [ -d "$pk_dir" ] || return 0
     for p in $names; do
         [[ "$p" =~ ^[A-Za-z0-9][A-Za-z0-9.+_:~-]{0,99}$ ]] || continue
@@ -316,7 +315,6 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzSense>: alleen dnf/yum/apt "upgra
     # shellcheck disable=SC2016  # het script krijgt zijn waarden als argumenten mee, niet via de tekst
     local script='id=$1; mgr=${2%%:*}; mode=${2#*:}; dir=$3; shift 3
         [ "$mode" = "$2" ] && mode=upgrade
-        snap=0; case "$mode" in *:snap) snap=1; mode=${mode%:snap} ;; esac
         url=""; tok=""; ins=0; enc_key=""; last=0; stage=update; pct=2; detail=""; count=""
         if [ -r "$dir/upgrade.conf" ]; then { read -r url; read -r tok; read -r ins; read -r enc_key; } <"$dir/upgrade.conf"; rm -f "$dir/upgrade.conf"; fi
         log="$dir/upgrade.log"; : >"$log"
@@ -334,13 +332,6 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzSense>: alleen dnf/yum/apt "upgra
         tick() { [ "$1" != "$stage" ] && { stage=$1; post; return; }; [ $(( $(date +%s) - last )) -ge 2 ] && post; }
         export LC_ALL=C
         post
-        if [ "$snap" = 1 ]; then   # agent 1.92.0: eerst een snapshot van /, zodat je terug kunt
-            ts=$(date +%Y%m%d-%H%M%S); sn=""
-            if command -v zfs >/dev/null 2>&1 && rds=$(zfs list -H -o name / 2>/dev/null) && [ -n "$rds" ] && zfs snapshot "$rds@rzsense-patch-$ts" >>"$log" 2>&1; then sn="$rds@rzsense-patch-$ts"
-            elif command -v snapper >/dev/null 2>&1 && snapper -c root create -d "RzSense: voor updates" >>"$log" 2>&1; then sn="snapper (root)"
-            elif [ "$(stat -f -c %T / 2>/dev/null)" = btrfs ] && [ -d /.snapshots ] && btrfs subvolume snapshot -r / "/.snapshots/rzsense-patch-$ts" >>"$log" 2>&1; then sn="/.snapshots/rzsense-patch-$ts"; fi
-            if [ -n "$sn" ]; then echo "Snapshot gemaakt: $sn" >>"$log"; else echo "Geen snapshot mogelijk (geen ZFS, snapper of btrfs op /); toch doorgegaan" >>"$log"; fi
-        fi
         if [ "$mgr" = rpm ]; then
             cmd=(dnf -y upgrade "$@"); command -v dnf >/dev/null 2>&1 || cmd=(yum -y update "$@")
             if [ "$mode" = security ]; then cmd=(dnf -y upgrade --security); command -v dnf >/dev/null 2>&1 || cmd=(yum -y update --security)
@@ -391,7 +382,7 @@ pkg_upgrade() {  # pkg_upgrade <antwoord van RzSense>: alleen dnf/yum/apt "upgra
         fi
         # auditd na het installeren meteen starten (de agent zet de regels bij de volgende run)
         if [ "$mode" = install ] && [ "$rc" = 0 ] && command -v auditctl >/dev/null 2>&1; then systemctl enable --now auditd >>"$log" 2>&1 || service auditd start >>"$log" 2>&1; fi
-        printf "%s\t%s\t%s\n" "$id" "$([ "$rc" = 0 ] && echo ok || echo error)" "$( { grep -m1 -E "^(Snapshot gemaakt|Geen snapshot mogelijk)" "$log"; tail -c 1400 "$log"; } | base64 -w0)" >"$dir/upgrade.result.tmp" \
+        printf "%s\t%s\t%s\n" "$id" "$([ "$rc" = 0 ] && echo ok || echo error)" "$(tail -c 1400 "$log" | base64 -w0)" >"$dir/upgrade.result.tmp" \
             && mv -f "$dir/upgrade.result.tmp" "$dir/upgrade.result"
         stage=done; pct=100; detail=""; count=""
         post ",\"done\":true,\"ok\":$([ "$rc" = 0 ] && echo true || echo false)" 1500
@@ -403,10 +394,10 @@ $script"   # versleutelen kan het script dan zelf
     (umask 077; printf '%s\n' "$script" >"$pk_dir/upgrade.sh") \
         || { printf '%s\terror\t%s\n' "$id" "$(printf 'kan upgrade.sh niet schrijven' | base64 -w0)" >"$out"; rm -f "$pk_dir/upgrade.lock"; return 0; }
     if [ -n "${INVOCATION_ID-}" ] && command -v systemd-run >/dev/null 2>&1; then
-        systemd-run --quiet --collect --unit="rzmon-pkg-upgrade-$(date +%s)" /bin/bash "$pk_dir/upgrade.sh" "$id" "$pk_mgr:$mode$([ "$snap" = 1 ] && echo :snap)" "$pk_dir" "${n[@]}" >/dev/null 2>&1 \
+        systemd-run --quiet --collect --unit="rzmon-pkg-upgrade-$(date +%s)" /bin/bash "$pk_dir/upgrade.sh" "$id" "$pk_mgr:$mode" "$pk_dir" "${n[@]}" >/dev/null 2>&1 \
             || { printf '%s\terror\t%s\n' "$id" "$(printf 'systemd-run mislukt' | base64 -w0)" >"$out"; rm -f "$pk_dir/upgrade.lock"; }
     else
-        setsid /bin/bash "$pk_dir/upgrade.sh" "$id" "$pk_mgr:$mode$([ "$snap" = 1 ] && echo :snap)" "$pk_dir" "${n[@]}" 9>&- </dev/null >/dev/null 2>&1 &
+        setsid /bin/bash "$pk_dir/upgrade.sh" "$id" "$pk_mgr:$mode" "$pk_dir" "${n[@]}" 9>&- </dev/null >/dev/null 2>&1 &
     fi
 }
 

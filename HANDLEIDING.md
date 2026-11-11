@@ -3334,9 +3334,9 @@ De meeste aanvallen gebruiken lekken waarvoor al lang een update is. RzSense laa
 
 **Automatisch** (per server, *Agent Manager → 🩹 Updates*):
 - **Wanneer:** *met de hand* (standaard), *in het onderhoudsvenster* (het vaste onderhoudsvenster van die server: *Instellingen → Advies → Voorstellen → Vaste onderhoudsvensters*; dan krijg je in die tijd ook geen meldingen), of *elke dag om* een tijd (bv. 03:30).
-- **Meerdere servers tegelijk** (vanaf 1.238.0): op *Kwetsbaarheden → 🩹 Updates* vink je servers aan (of niets: dan alle servers) en klik je **⚙️ Meerdere servers instellen…**. Kies *elke dag om een tijd, gespreid* (bv. de eerste om 03:00 en daarna elke server 20 minuten later, zodat ze nooit allemaal tegelijk bijwerken en herstarten), *in het onderhoudsvenster van elke server* of *met de hand*, plus alleen beveiligingsupdates of alles en de snapshot. Je ziet eerst een **voorbeeld** met per server de tijd. Linux-servers gaan op naam, **Home Assistant als laatste en altijd met snapshot**; de RzSense-server zelf en TrueNAS blijven met de hand. Elke server komt in het Logboek en is terug te zetten.
+- **Meerdere servers tegelijk** (vanaf 1.238.0): op *Kwetsbaarheden → 🩹 Updates* vink je servers aan (of niets: dan alle servers) en klik je **⚙️ Meerdere servers instellen…**. Kies *elke dag om een tijd, gespreid* (bv. de eerste om 03:00 en daarna elke server 20 minuten later, zodat ze nooit allemaal tegelijk bijwerken en herstarten), *in het onderhoudsvenster van elke server* of *met de hand*, plus alleen beveiligingsupdates of alles. Je ziet eerst een **voorbeeld** met per server de tijd. Linux-servers gaan op naam, **Home Assistant als laatste** (de Supervisor maakt daar zelf een back-up); de RzSense-server zelf en TrueNAS blijven met de hand. Elke server komt in het Logboek en is terug te zetten.
 - **Wat:** *alleen beveiligingsupdates* (standaard, het veiligst) of *alle updates*.
-- **📸 Eerst een snapshot** (standaard aan): van / met ZFS, snapper of btrfs, zodat je terug kunt. Kan dat niet, dan gaat het gewoon door (dat staat in het logboek).
+- **Snapshot:** vanaf 1.238.1 (agent 1.95.1) maakt RzSense geen snapshot meer voor het bijwerken. Wil je terug kunnen, maak dan zelf een snapshot (bv. in Proxmox) of zorg voor een back-up.
 - Er staat niets klaar? Dan gebeurt er niets (en komt er ook niets in het logboek).
 
 **Home Assistant:** via de Supervisor, Core en add-ons, **altijd met een back-up** vooraf. Het besturingssysteem (OS) niet: dat herstart het hele systeem; dat doe je in Home Assistant zelf.
@@ -3346,7 +3346,7 @@ De meeste aanvallen gebruiken lekken waarvoor al lang een update is. RzSense laa
 - **automatisch** de server bijwerken waar **RzSense zelf** op draait (gaat er iets mis, dan ziet niemand het): alleen met de hand;
 - **herstarten**: zie je ↻, kies dan zelf een moment.
 
-**Logboek:** gevraagd (door wie, of automatisch), de snapshot, de uitkomst en wat er werd overgeslagen staan in het logboek van de server. **Aan/uit:** *Instellingen → Beveiliging → Updates* of *Overzicht → Status en functies → Functies*. Nodig: agent **1.92.0** of nieuwer, en *commando's als root* aan voor die server (zoals bij pakketten bijwerken).
+**Logboek:** gevraagd (door wie, of automatisch), de uitkomst en wat er werd overgeslagen staan in het logboek van de server. **Aan/uit:** *Instellingen → Beveiliging → Updates* of *Overzicht → Status en functies → Functies*. Nodig: agent **1.92.0** of nieuwer, en *commando's als root* aan voor die server (zoals bij pakketten bijwerken).
 
 ### 8.14 Netwerkscan: wat zit er op je netwerk? 🔎 (vanaf 1.103.0)
 RzSense zoekt zelf welke apparaten er op je **lokale netwerken** zitten: telefoons, laptops, camera's, printers, slimme stekkers, je NAS. Je ziet ze op het tabblad **Netwerk**.

@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.95.1 – 2026-11-11
+- **Geen snapshot meer** voor het installeren van updates (ZFS, snapper, btrfs). Stuurt een oudere RzSense nog "snapshot" mee, dan wordt dat genegeerd. De snapshot bij een ransomware-alarm blijft.
+
 ## 1.95.0 – 2026-11-11
 - **Zuiniger**: de luisterende poorten worden nog één keer per ronde gelezen (eerst tot negen keer `ss`) en door alle onderdelen gedeeld (poorten, services, hardening, EDR, bereikbare pakketten).
 - **Bij welk pakket hoort een programma** wordt op één manier opgezocht, in één keer voor alle programma's (rpm, dpkg met /usr-merge, apk en pacman). De lijst "bereikbaar via het netwerk" deed dat eerst per programma en kende alleen dpkg en rpm.

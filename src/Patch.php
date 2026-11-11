@@ -6,7 +6,7 @@ declare(strict_types=1);
  * opdracht, voortgang en uitkomst), met:
  * - per server wat er klaarstaat (alle updates en de beveiligingsupdates) en of een herstart nodig is;
  * - per server een keuze: met de hand (standaard), in het vaste onderhoudsvenster van die server, of elke dag om een
- *   tijd; alleen beveiligingsupdates (standaard) of alles; eerst een snapshot (standaard aan);
+ *   tijd; alleen beveiligingsupdates (standaard) of alles (1.238.1: geen snapshot meer);
  * - Home Assistant via de Supervisor (Core en add-ons, altijd met een back-up vooraf; het OS niet, dat herstart alles);
  * - nooit TrueNAS (apt maakt TrueNAS kapot), de RzSense-server zelf alleen met de hand, en nooit een herstart.
  * Aan/uit: patch_on (Instellingen → Beveiliging → Updates of Overzicht → Functies), en per server (Agent Manager).
@@ -136,7 +136,6 @@ final class Patch
         }
         $hid = (int) $host['id'];
         $a = self::avail($hid);
-        $snap = (bool) ($host['patch_snap'] ?? 1);
         if (self::kind($host) === 'ha') {
             if (q('SELECT patch_ha_req FROM hosts WHERE id = ?', [$hid])->fetchColumn()) {
                 return t('Er loopt al een update');
@@ -158,23 +157,18 @@ final class Patch
         if ($a && !$names) {
             return $scope === 'all' ? t('Er staan geen updates klaar') : t('Er staan geen beveiligingsupdates klaar');
         }
-        $req = ['id' => bin2hex(random_bytes(8)), 'pkgs' => array_slice($names, 0, 200), 'mode' => $scope, 'snap' => $snap, 'by' => $by, 'at' => now(), 'sent' => null];
+        $req = ['id' => bin2hex(random_bytes(8)), 'pkgs' => array_slice($names, 0, 200), 'mode' => $scope, 'by' => $by, 'at' => now(), 'sent' => null];
         q('UPDATE hosts SET vuln_upgrade_req = ?, vuln_upgrade_status = ?, patch_last = ? WHERE id = ?',
             [json_encode($req), json_encode(['state' => 'queued', 'at' => now(), 'pkgs' => $req['pkgs'], 'mode' => $scope]), now(), $hid]);
         ActionLog::add($hid, $auto ? 'rzsense' : 'user', 'patch', $scope === 'all' ? t('Alle updates installeren gevraagd') : t('Beveiligingsupdates installeren gevraagd'),
-            t('{n} pakketten', ['n' => count($names)]) . ($snap ? ' · ' . t('eerst een snapshot') : '') . ($auto ? ' · ' . t('automatisch') : ''), null, '', null, $auto ? null : $by);
+            t('{n} pakketten', ['n' => count($names)]) . ($auto ? ' · ' . t('automatisch') : ''), null, '', null, $auto ? null : $by);
         return true;
     }
 
-    /** Uitkomst van "updates installeren" (via Vulns::upgradeResult): de snapshot en het resultaat in het logboek */
+    /** Uitkomst van "updates installeren" (via Vulns::upgradeResult): het resultaat in het logboek */
     public static function result(array $host, array $req, bool $ok, string $log): void
     {
         $hid = (int) $host['id'];
-        if (preg_match('/^Snapshot gemaakt: (\S+)/m', $log, $m)) {
-            ActionLog::add($hid, 'agent', 'patch', t('Snapshot gemaakt voor de updates'), $m[1], true);
-        } elseif (str_contains($log, 'Geen snapshot mogelijk')) {
-            ActionLog::add($hid, 'agent', 'patch', t('Geen snapshot mogelijk'), t('geen ZFS, snapper of btrfs op /; toch bijgewerkt'));
-        }
         $all = ($req['mode'] ?? '') === 'all';
         ActionLog::add($hid, 'agent', 'patch', $ok ? ($all ? t('Alle updates geïnstalleerd') : t('Beveiligingsupdates geïnstalleerd')) : t('Updates installeren mislukt'),
             t('{n} pakketten', ['n' => count((array) $req['pkgs'])]) . ' · ' . t('geen herstart: doe dat zelf als het nodig is'), $ok);
@@ -230,7 +224,7 @@ final class Patch
         $st = json_decode((string) ($h['vuln_upgrade_status'] ?? ''), true) ?: null;
         $windows = array_values(array_filter(Advice::windows(), static fn($w) => $w['scope'] === 'host' && $w['ref_id'] === (int) $h['id']));
         return ['id' => (int) $h['id'], 'name' => (string) $h['name'], 'kind' => self::kind($h), 'self' => self::isSelf($h), 'agent_ok' => self::agentOk($h),
-            'mode' => (string) ($h['patch_mode'] ?? 'manual'), 'scope' => (string) ($h['patch_scope'] ?? 'security'), 'snap' => (bool) ($h['patch_snap'] ?? 1),
+            'mode' => (string) ($h['patch_mode'] ?? 'manual'), 'scope' => (string) ($h['patch_scope'] ?? 'security'),
             'time' => (string) ($h['patch_time'] ?? '03:30'), 'last' => $h['patch_last'] ?? null, 'windows' => $windows,
             'avail' => (int) ($a['avail'] ?? 0), 'sec' => (int) ($a['sec'] ?? 0), 'rb' => !empty($a['rb']), 'at' => $a['at'] ?? null, 'mgr' => (string) ($a['mgr'] ?? ''),
             'list' => array_slice((array) ($a['list'] ?? []), 0, 300), 'status' => $st, 'ha_req' => (bool) ($h['patch_ha_req'] ?? null), 'blocked' => self::blocked($h)];
@@ -257,13 +251,12 @@ final class Patch
         if ($mode !== 'manual' && self::kind($h) === 'truenas') {
             throw new InvalidArgumentException(t('TrueNAS werk je bij met een TrueNAS-update (System → Update), nooit met apt'));
         }
-        $before = ['patch_mode' => $h['patch_mode'], 'patch_scope' => $h['patch_scope'], 'patch_snap' => (int) $h['patch_snap'], 'patch_time' => $h['patch_time']];
-        $new = ['patch_mode' => $mode, 'patch_scope' => $scope, 'patch_snap' => !empty($in['snap']) ? 1 : 0, 'patch_time' => $time];
-        q('UPDATE hosts SET patch_mode = ?, patch_scope = ?, patch_snap = ?, patch_time = ? WHERE id = ?', [...array_values($new), $hostId]);
+        $before = ['patch_mode' => $h['patch_mode'], 'patch_scope' => $h['patch_scope'], 'patch_time' => $h['patch_time']];
+        $new = ['patch_mode' => $mode, 'patch_scope' => $scope, 'patch_time' => $time];
+        q('UPDATE hosts SET patch_mode = ?, patch_scope = ?, patch_time = ? WHERE id = ?', [...array_values($new), $hostId]);
         if ($before != $new) {
             $label = ['manual' => t('met de hand'), 'window' => t('in het onderhoudsvenster'), 'auto' => t('elke dag om {t}', ['t' => $time])][$mode];
-            ActionLog::by($by, $hostId, 'patch', t('Updates ingesteld'), $label . ' · ' . ($scope === 'all' ? t('alle updates') : t('alleen beveiligingsupdates'))
-                . ' · ' . t('snapshot') . ' ' . ($new['patch_snap'] ? t('aan') : t('uit')));
+            ActionLog::by($by, $hostId, 'patch', t('Updates ingesteld'), $label . ' · ' . ($scope === 'all' ? t('alle updates') : t('alleen beveiligingsupdates')));
             ChangeLog::record('host', $hostId, 'update', (string) $h['name'] . ' (🩹 ' . t('Updates') . ')', $before, $new);
         }
         return self::info(q('SELECT * FROM hosts WHERE id = ?', [$hostId])->fetch());
@@ -272,9 +265,9 @@ final class Patch
     /**
      * 1.238.0: updates voor meerdere servers tegelijk instellen. Elke dag om een tijd met spreiding per server (zodat ze
      * nooit allemaal tegelijk bijwerken en herstarten), in hun onderhoudsvenster, of met de hand. Volgorde: Linux-servers
-     * op naam, Home Assistant als laatste en altijd met snapshot. De RzSense-server zelf en TrueNAS blijven met de hand.
+     * op naam, Home Assistant als laatste. De RzSense-server zelf en TrueNAS blijven met de hand.
      * @param list<int> $ids leeg = alle servers met de agent
-     * @return list<array{id: int, name: string, kind: string, ok: bool, time: ?string, snap: bool, why: string}>
+     * @return list<array{id: int, name: string, kind: string, ok: bool, time: ?string, why: string}>
      */
     public static function plan(array $ids, array $in): array
     {
@@ -291,7 +284,7 @@ final class Patch
         $k = 0;
         foreach ($hosts as $h) {
             $kind = self::kind($h);
-            $row = ['id' => (int) $h['id'], 'name' => (string) $h['name'], 'kind' => $kind, 'ok' => true, 'time' => null, 'snap' => $kind === 'ha' || !empty($in['snap']), 'why' => ''];
+            $row = ['id' => (int) $h['id'], 'name' => (string) $h['name'], 'kind' => $kind, 'ok' => true, 'time' => null, 'why' => ''];
             if ($mode !== 'manual' && self::isSelf($h)) {
                 $row = ['ok' => false, 'why' => t('de RzSense-server zelf werk je met de hand bij')] + $row;
             } elseif ($mode !== 'manual' && $kind === 'truenas') {
@@ -316,7 +309,7 @@ final class Patch
             if (!$p['ok']) {
                 continue;
             }
-            self::save($p['id'], ['mode' => $in['mode'] ?? 'manual', 'scope' => $in['scope'] ?? 'security', 'snap' => $p['snap'],
+            self::save($p['id'], ['mode' => $in['mode'] ?? 'manual', 'scope' => $in['scope'] ?? 'security',
                 'time' => $p['time'] ?? (string) (q('SELECT patch_time FROM hosts WHERE id = ?', [$p['id']])->fetchColumn() ?: '03:30')], $by);
         }
         return $plan;

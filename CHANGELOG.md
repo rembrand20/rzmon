@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.235.0**: **één Logboek** (met het Wijzigingslogboek en terugzetten op de regel) en **één verzendroute** voor alle meldingen.
 - **1.234.0**: het **NIS2-rapport automatisch versturen**, standaard elk kwartaal, en **elk kwartaal** als keuze bij alle rapporten.
 
+## 1.238.1 – 2026-11-11
+### Opgelost
+- **Snapshot bij updates is weg** (op verzoek: hij werkte alleen met ZFS, snapper of btrfs en voegde nu niets toe). De schakelaar staat niet meer in de Agent Manager, bij *Meerdere servers instellen* en bij *Nu bijwerken*. Home Assistant maakt via de Supervisor nog wel zelf een back-up vooraf; de snapshot bij een ransomware-alarm blijft ook.
+- Nieuwe agent 1.95.1.
+
 ## 1.238.0 – 2026-11-11
 ### Nieuw
 - **Updates voor meerdere servers tegelijk instellen** (*Kwetsbaarheden → 🩹 Updates → ⚙️ Meerdere servers instellen…*): vink servers aan (of niets voor alle servers) en kies in één keer hoe ze bijwerken: *elke dag om een tijd, gespreid* (de eerste bv. om 03:00, daarna elke server 10, 20, 30 of 60 minuten later, zodat ze nooit allemaal tegelijk herstarten), *in het onderhoudsvenster van elke server* of *met de hand*, met alleen beveiligingsupdates of alles en een snapshot. Eerst een **voorbeeld** met per server de tijd. Home Assistant gaat als laatste en altijd met snapshot; de RzSense-server zelf en TrueNAS blijven met de hand. Elke wijziging staat in het Logboek en is terug te zetten.
