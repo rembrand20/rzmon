@@ -478,6 +478,9 @@ function init() {
   $('#db-rotate').onclick = dbRotateDialog;
   // 1.158.0: ook knoppen die later getekend worden (kop van het dashboard)
   document.addEventListener('click', (e) => { const b = e.target.closest('[data-view-layout]'); if (b) setLayout(b.dataset.viewLayout); });
+  // 1.243.0: thema @S (Apple-stijl), per account; licht en donker blijven werken
+  document.addEventListener('click', (e) => { const b = e.target.closest('[data-skin-set]'); if (b) setSkin(b.dataset.skinSet); });
+  markSkin();
   // 1.157.0: rode gloed en live-animaties (per account)
   $$('[data-mon-pref]').forEach((c) => (c.onchange = () => { savePref(MON_PREF_KEY[c.dataset.monPref], c.checked ? 'on' : 'off'); applyMonPrefs(); }));
   $$('[data-acct-ids-modern]').forEach((c) => (c.onchange = () => { savePref('ids_modern', c.checked ? 'on' : 'off'); savedFlag(c, true); if (typeof idsData !== 'undefined' && idsData) renderIds(); }));
@@ -890,4 +893,18 @@ const MINI_RES = [['cpu', () => 'CPU'], ['ram', () => 'RAM'], ['disk', () => L('
 function hostMax(h, type) {
   const v = h.checks.filter((c) => c.type === type && +c.enabled && !c.maintenance && c.last_value !== null && c.last_value !== undefined).map((c) => +c.last_value);
   return v.length ? Math.max(...v) : null;
+}
+
+// ---------------------------------------------------------------- 1.243.0: thema @S (Apple-stijl)
+function markSkin() {
+  const cur = document.body.classList.contains('sk-s') ? 's' : 'std';
+  $$('[data-skin-set]').forEach((b) => { b.classList.toggle('active', b.dataset.skinSet === cur); b.setAttribute('aria-pressed', b.dataset.skinSet === cur ? 'true' : 'false'); });
+}
+function setSkin(v) {
+  const on = v === 's';
+  document.body.classList.toggle('sk-s', on);
+  savePref('skin', on ? 's' : 'std');
+  markSkin();
+  if (window.RzPulse) RzPulse.refreshColors();   // grafieken en meters lezen de kleuren opnieuw
+  requestAnimationFrame(() => moveTabIndicator(false));
 }

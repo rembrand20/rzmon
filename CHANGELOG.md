@@ -8,11 +8,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.243.0**: **thema @S**: RzSense in de stijl van Apple, rustig en licht, te kiezen per account (licht en donker).
 - **1.242.0**: **uitleg overal**: elke kaart, elk tabblad en de belangrijke vensters zeggen wat ze doen, hoe je ze instelt en wat goed is om te weten.
 - **1.241.0**: **ⓘ bij de velden**: uitleg, eenheid, bereik en aanbevolen waarde (met één tik te gebruiken), ook op je telefoon.
 - **1.240.0**: **keuzelijsten uit je netwerk**: kies apparaten en servers bij adressen, check-doelen, DNS-server, UniFi, Ollama en AdGuard.
 - **1.239.0**: **slimme invulvelden**: kies netwerken, whitelist-adressen, gebruikers, e-mailadressen en domeinen in plaats van ze opnieuw te typen; *Lokale netwerken* blijft gekoppeld.
-- **1.238.0**: **updates voor meerdere servers in één keer instellen**, gespreid zodat ze nooit allemaal tegelijk herstarten.
+
+## 1.243.0 – 2026-11-11
+### Nieuw
+- **Thema @S**: een nieuwe stijl in de stijl van Apple. Rustig en licht: de systeemletter (SF op een Mac of iPhone), een grijze achtergrond met witte kaarten zonder randen, zachte schaduw en één accentkleur. Segmenten, schakelaars (groen als ze aan staan), velden, vensters en menu's zoals op macOS en iOS; de zijbalk wordt een doorschijnend paneel.
+  - Kiezen bij **Mijn account → Weergave → Stijl** (*Standaard* of *@S*) of in het **accountmenu** (✦ Stijl). Per account, dus ook op je andere apparaten.
+  - Licht, donker en automatisch blijven werken; de lay-outs (Blox, L1nes, Compact, CC) en Liquid Glass ook.
 
 ## 1.242.0 – 2026-11-11
 ### Nieuw

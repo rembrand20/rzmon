@@ -5679,3 +5679,101 @@ span.app-sum-b { cursor: default; }
 .fh-use { padding: .1rem .55rem; font-size: .78rem; }
 /* 1.242.0: uitleg per tabblad van Netwerk: alleen die van het open tabblad */
 #tab-net.net-dc > .xp-net-list, #tab-net.net-mp > .xp-net-list, #tab-net:not(.net-dc) > .xp-net-disc, #tab-net:not(.net-mp) > .xp-net-map { display: none; }
+
+/* ================================================================ 1.243.0: thema @S (Apple-stijl), per account
+   Rustig en licht: systeemletter (SF op Apple-apparaten), grijze achtergrond met witte kaarten zonder randen, zachte
+   schaduw, één accentkleur, segmenten en schakelaars zoals op macOS en iOS. Licht en donker werken allebei.
+   Aan met de klasse sk-s op <body> (Mijn account → Weergave → Stijl, of het accountmenu). */
+body.sk-s {
+  --bg: #000000; --bg-2: #1c1c1e; --card: #1c1c1e; --card-2: #2c2c2e; --border: #38383a;
+  --text: #f5f5f7; --muted: #98989d; --side: rgba(30, 30, 32, .78);
+  --primary: #0a84ff; --primary-2: #409cff; --ok: #30d158; --warn: #ff9f0a; --crit: #ff453a; --unknown: #8e8e93; --maint: #bf5af2;
+  --s-fill: rgba(118, 118, 128, .24); --s-fill-2: rgba(118, 118, 128, .16); --s-sel: rgba(255, 255, 255, .1); --s-hair: rgba(84, 84, 88, .6);
+  --s-seg-on: #636366; --s-field: #1c1c1e;
+  --shadow: none; --s-shadow: none; --radius: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter, "Segoe UI", system-ui, sans-serif;
+  letter-spacing: -.01em;
+}
+:root[data-theme="light"] body.sk-s {
+  --bg: #f5f5f7; --bg-2: #ffffff; --card: #ffffff; --card-2: #f2f2f7; --border: #e5e5ea;
+  --text: #1d1d1f; --muted: #6e6e73; --side: rgba(246, 246, 248, .8);
+  --primary: #0071e3; --primary-2: #0062c4; --ok: #248a3d; --warn: #c25e00; --crit: #d70015; --unknown: #8e8e93; --maint: #8944ab;
+  --s-fill: rgba(118, 118, 128, .12); --s-fill-2: rgba(118, 118, 128, .08); --s-sel: rgba(0, 0, 0, .06); --s-hair: rgba(60, 60, 67, .14);
+  --s-seg-on: #ffffff; --s-field: #ffffff;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 6px 20px rgba(0, 0, 0, .05); --s-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 6px 20px rgba(0, 0, 0, .05);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) body.sk-s {
+    --bg: #f5f5f7; --bg-2: #ffffff; --card: #ffffff; --card-2: #f2f2f7; --border: #e5e5ea;
+    --text: #1d1d1f; --muted: #6e6e73; --side: rgba(246, 246, 248, .8);
+    --primary: #0071e3; --primary-2: #0062c4; --ok: #248a3d; --warn: #c25e00; --crit: #d70015; --unknown: #8e8e93; --maint: #8944ab;
+    --s-fill: rgba(118, 118, 128, .12); --s-fill-2: rgba(118, 118, 128, .08); --s-sel: rgba(0, 0, 0, .06); --s-hair: rgba(60, 60, 67, .14);
+    --s-seg-on: #ffffff; --s-field: #ffffff;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 6px 20px rgba(0, 0, 0, .05); --s-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 6px 20px rgba(0, 0, 0, .05);
+  }
+}
+body.sk-s { background: var(--bg); }
+body.sk-s :is(input, select, textarea, button) { font-family: inherit; letter-spacing: inherit; }
+
+/* Pagina: geen kader om de inhoud, grote titel zoals in macOS */
+body.sk-s main.container { border: 0; box-shadow: none; background: none; }
+body.sk-s .ph-title, body.sk-s .set-title { font-size: 2.1rem; font-weight: 700; letter-spacing: -.025em; }
+body.sk-s .ph-path, body.sk-s .crumbs .crumb { font-weight: 500; }
+body.sk-s h2 { letter-spacing: -.02em; }
+
+/* Kaarten: wit op grijs, geen rand, zachte schaduw */
+body.sk-s :is(.card, .kpi, .hcard, .ccx, .attn-sec, .mds-sec) { border-color: transparent; border-radius: 16px; box-shadow: var(--s-shadow); }
+body.sk-s .pcard > .card { box-shadow: var(--s-shadow); }
+body.sk-s .kpi { background: var(--card); }
+
+/* Zijbalk: doorschijnend paneel, rustige keuze zonder streep */
+@media (min-width: 1101px) {
+  body.sk-s .topbar.app-top { background: var(--side); border: 1px solid var(--s-hair); box-shadow: var(--s-shadow);
+    -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%); }
+  body.sk-s .app-top .brand { border-bottom-color: var(--s-hair); }
+  body.sk-s .app-top .top-actions { border-top-color: var(--s-hair); }
+  body.sk-s .app-top .main-tabs .tab { padding: .45rem .7rem; border-radius: 8px; font-weight: 500; color: var(--text); }
+  body.sk-s .app-top .main-tabs .tab:hover { background: var(--s-fill-2); }
+  :root body.sk-s .app-top .main-tabs .tab.active { background: var(--s-sel); box-shadow: none; border-radius: 8px; color: var(--text); font-weight: 600; }
+  :root body.sk-s .app-top .main-tabs .tab .tab-ic { color: var(--primary); }
+  body.sk-s .app-top .main-tabs .tab-group { text-transform: none; letter-spacing: 0; font-size: .72rem; font-weight: 600; }
+  body.sk-s .app-top .cmdk-btn { background: var(--s-fill); border: 0; }
+}
+body.sk-s .tab-badge { background: #ff3b30; color: #fff; font-weight: 600; }
+
+/* Knoppen, segmenten en tabbladen */
+body.sk-s .btn { border-radius: 10px; border: 0; background: var(--s-fill); color: var(--text); font-weight: 500; }
+body.sk-s .btn:hover { background: color-mix(in srgb, var(--s-fill) 100%, var(--text) 6%); }
+body.sk-s .btn.primary { background: var(--primary); color: #fff; font-weight: 600; }
+body.sk-s .btn.primary:hover { background: var(--primary-2); }
+body.sk-s .btn.danger { background: var(--crit); color: #fff; }
+body.sk-s :is(.seg, .subtabs) { background: var(--s-fill); border: 0; border-radius: 9px; padding: 2px; gap: 0; }
+body.sk-s :is(.seg-btn, .seg > button) { border-radius: 7px; font-weight: 500; color: var(--text); }
+body.sk-s :is(.seg-btn.active, .seg > button.active) { background: var(--s-seg-on); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, .12), 0 0 0 .5px rgba(0, 0, 0, .04); }
+body.sk-s .dash-counters .hc { border: 0; border-radius: 980px; background: var(--card); box-shadow: var(--s-shadow); }
+body.sk-s main.container .dash-counters { border: 0; background: none; }
+
+/* Velden: wit met een dunne rand en een zachte blauwe ring bij focus */
+body.sk-s :is(input:not([type=checkbox]):not([type=radio]):not([type=range]), select, textarea) {
+  background: var(--s-field); border: 1px solid var(--s-hair); border-radius: 8px; }
+body.sk-s :is(input, select, textarea):focus-visible { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent); }
+
+/* Schakelaars zoals op iOS: groen als ze aan staan */
+body.sk-s .switch input + span { width: 42px; height: 26px; background: var(--s-fill); }
+body.sk-s .switch input + span::after { top: 2px; left: 2px; width: 22px; height: 22px; box-shadow: 0 2px 4px rgba(0, 0, 0, .2); }
+body.sk-s .switch input:checked + span { background: #34c759; }
+body.sk-s .switch input:checked + span::after { transform: translateX(16px); }
+
+/* Uitleg (Meer info, ⓘ): een grijs blok in plaats van een gekleurde streep */
+body.sk-s :is(.xp-d, .fh-pop) { border-left: 0; border-radius: 10px; background: var(--card-2); }
+body.sk-s .xp-btn, body.sk-s .fh-i { color: var(--primary); }
+
+/* Vensters: ronder, zonder lijnen tussen kop, inhoud en knoppen */
+body.sk-s dialog { border: 0; border-radius: 16px; box-shadow: 0 24px 80px rgba(0, 0, 0, .3), 0 0 0 .5px var(--s-hair); }
+body.sk-s dialog::backdrop { background: rgba(0, 0, 0, .3); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+body.sk-s .modal-inner > header { border-bottom: 0; }
+body.sk-s .modal-inner > footer { border-top: 0; background: none; }
+
+/* Menu's en meldingen */
+body.sk-s :is(.acct-menu, .dash-menu, .cmdk-box, .toast) { border: 0; border-radius: 12px; box-shadow: 0 10px 40px rgba(0, 0, 0, .18), 0 0 0 .5px var(--s-hair);
+  -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%); }

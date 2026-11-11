@@ -268,6 +268,8 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
 - na **8 s** *Dit duurt langer dan normaal (meestal X s)* met **↻ Opnieuw**. RzSense onthoudt in je browser hoe lang elke pagina meestal duurt.
 - Gaat het sneller dan 0,4 s, dan zie je niets. Verversen op de achtergrond (live) toont de teller nooit.
 
+**Thema @S** (vanaf 1.243.0, **Mijn account → Weergave → Stijl**, of het accountmenu ✦ *Stijl*; per account, standaard uit): RzSense in de stijl van Apple. De systeemletter (op een Mac of iPhone is dat SF), een grijze achtergrond met witte kaarten zonder randen en met een zachte schaduw, grote paginatitels, één blauwe accentkleur, segmenten en schakelaars zoals op macOS en iOS (groen als ze aan staan), en een doorschijnende zijbalk. In donker wordt de achtergrond zwart met donkergrijze kaarten. Licht/donker/automatisch, de lay-outs en Liquid Glass werken er gewoon mee samen; *Standaard* zet de gewone stijl terug.
+
 **Zijbalk** (vanaf 1.202.0): op een breed scherm is de zijbalk een zwevend paneel met dezelfde achtergrond als de pagina, afgeronde hoeken en kopjes *Overzicht*, *Beveiliging* en *Analyse en netwerk*. Het actieve item heeft een blauwe streep links. Met Liquid Glass aan wordt het paneel glas. Inklappen, breder of smaller slepen en het beheermenu werken zoals eerder.
 
 **Zijbalk vanzelf inklappen** (vanaf 1.203.0):
