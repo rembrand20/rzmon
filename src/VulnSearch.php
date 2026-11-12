@@ -224,13 +224,10 @@ final class VulnSearch
                 if (!$all && !$hf) {
                     continue;
                 }
-                $p = &$progs[$name];
-                $p['name'] = (string) $name;
-                $og = &$p['os'][$h['os']];
-                $og['mgr'] = $h['mgr'];
-                $og['hosts'][] = ['host_id' => $h['id'], 'host' => $h['name'], 'version' => $ver, 'packages' => $bins, 'exposed' => $exp[$name] ?? [],
+                $os = (string) $h['os'];
+                $progs[$name]['os'][$os]['mgr'] = (string) $h['mgr'];
+                $progs[$name]['os'][$os]['hosts'][] = ['host_id' => $h['id'], 'host' => $h['name'], 'version' => $ver, 'packages' => $bins, 'exposed' => $exp[$name] ?? [],
                     'cves' => array_map(static fn($f) => ['cve' => $f['cve'], 'severity' => $f['severity'], 'kev' => $f['kev'], 'fixed' => $f['fixed_version']], $hf)];
-                unset($p, $og);
             }
         }
         $list = [];
@@ -274,7 +271,7 @@ final class VulnSearch
             foreach ($cves as $c) {
                 $sev[$c['severity']]++;
             }
-            $list[] = ['name' => $name, 'hosts' => $hostsN, 'os' => $osOut, 'sev' => $sev, 'open' => count($cves), 'kev' => (bool) array_filter($cves, fn($c) => $c['kev']),
+            $list[] = ['name' => (string) $name, 'hosts' => $hostsN, 'os' => $osOut, 'sev' => $sev, 'open' => count($cves), 'kev' => (bool) array_filter($cves, fn($c) => $c['kev']),
                 'exposed' => $exposed, 'accepted' => count($acc[$name] ?? []),
                 'spread' => array_sum(array_map(static fn($o) => count($o['versions']) > 1 ? 1 : 0, $osOut)) > 0];
         }

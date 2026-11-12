@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.246.0**: **Agent Manager als overzichtelijke lijst**: alle onderdelen onder elkaar in groepen, met per regel hoe het staat; klik om in te stellen.
 - **1.245.0**: **thema Neo**: de Command-center-look als vierde thema, met elke lay-out.
 
+## 1.249.1 – 2026-11-12
+### Opgelost
+- **Code-controle (PHPStan)**: het software-overzicht van Kwetsbaarheden is anders opgebouwd, zodat de automatische controle het goed kan lezen. Voor jou verandert er niets.
+
 ## 1.249.0 – 2026-11-12
 ### Nieuw
 - **⬆ Alles bijwerken** (Kwetsbaarheden en 📦 Software): werkt in één keer alle servers bij waarvoor een oplossing is. Eén venster met per server wat er gebeurt, of waarom het via de agent niet kan (bijvoorbeeld een te oude agent), één bevestiging, en daarna per server de uitkomst met **Voortgang**. Lukt het bij een server niet, dan krijg je het commando om het zelf te doen.
