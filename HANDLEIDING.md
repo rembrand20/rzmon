@@ -3260,6 +3260,32 @@ Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) h
 - **↻ herstart nodig**: er is een nieuwere kernel geïnstalleerd dan er draait, of services draaien nog met oude bestanden (als `needs-restarting` of `needrestart` op de server staat).
 - **📦 Alle software**: de volledige pakketlijst van de server, met zoeken.
 
+**Zoeken** (vanaf 1.248.0): het zoekvak bovenaan *Kwetsbaarheden* zoekt in **servers**, **CVE's** en **software** tegelijk. Tijdens het typen verschijnt een lijstje in drie groepen:
+- een **server** kiezen: de lijst toont alleen die server, met de kaart open;
+- een **CVE** kiezen (of een CVE-nummer typen en op Enter drukken): het venster van die CVE opent, ook als hij op geen enkele server voorkomt;
+- een **programma** kiezen: het tabblad *📦 Software* opent bij dat programma.
+
+**Waar staat hij?** (vanaf 1.248.0): in het venster van een CVE staan al je servers in vijf groepen:
+
+| Groep | Betekenis |
+|---|---|
+| 🔴 Kwetsbaar | het pakket staat erop in een versie met deze CVE: de versie waarnaar je bijwerkt, 🌐 als het op het netwerk luistert, en ⬆ Bijwerken |
+| ✅ Niet kwetsbaar | het pakket staat erop, maar in een versie zonder deze CVE: al bijgewerkt (met de datum), of de distributie zegt dat haar versie niet geraakt wordt |
+| ⚪ Niet van toepassing | het pakket staat er niet op |
+| ❔ Onbekend | RzSense kan niets zeggen: geen softwarelijst, nog niet gescand of de scan mislukte. Tel die dus **niet** als veilig |
+| 🟦 Geaccepteerd | iemand heeft het risico bewust geaccepteerd |
+
+Met **⤓ CSV** download je deze lijst.
+
+**📦 Software** (tabblad, vanaf 1.248.0): elk programma over al je servers. Debian en Ubuntu tellen per bronpakket (zoals `openssl` voor `libssl3`), Rocky en AlmaLinux per pakket.
+- Per programma: het aantal servers, de versies, de open CVE's per ernst, ⚠️ actief misbruikt, 🌐 bereikbaar, ↕ als de versies uiteenlopen, en **veilig vanaf**.
+- Klik erop voor de verdeling **per besturingssysteem**: per versie de servers en de open CVE's, met ⬆ om een server bij te werken. *Veilig vanaf* is de versie waarin álle open CVE's van dat programma opgelost zijn.
+- Versies worden **per besturingssysteem** vergeleken: Debian 12 (`3.0.15-1~deb12u1`), Ubuntu (`3.0.2-0ubuntu1.18`) en Rocky (`3.0.7-27.el9`) zetten reparaties elk in hun eigen versienummer, dus een "lager" nummer kan net zo veilig zijn.
+- Standaard staan alleen programma's **met open CVE's** erin (geaccepteerde tellen niet mee); **Alle software** laat alles zien wat geïnstalleerd is. Filters: 🌐 Bereikbaar, ⚠️ Actief misbruikt, ↕ Versies lopen uiteen.
+- Servers die nog niet gescand zijn of waarvan de scan mislukte, staan bovenaan onder *onbekend* en tellen niet mee.
+
+**Exporteren naar Excel** (vanaf 1.248.0): **⤓ CSV** bij de werkbalk (alle open kwetsbaarheden: server, besturingssysteem, pakket, versie, CVE, ernst, CVSS, actief misbruikt, kans op misbruik, bereikbaar, opgelost in, risico, status, gevonden op), bij *📦 Software* (per programma, besturingssysteem en versie) en in het venster van een CVE. De bestanden gebruiken puntkomma's en UTF-8, zodat Excel ze meteen goed opent; een cel die met `=`, `+`, `-` of `@` begint wordt nooit een formule.
+
 **Klik op een CVE** voor meer informatie: de omschrijving, de **CVSS-score** met uitleg in gewone woorden (bv. *via het netwerk · zonder in te loggen*), of hij **actief misbruikt** wordt, de **kans op misbruik**, de publicatiedatum, en per server de geïnstalleerde en de opgeloste versie. Onder **Zo los je het op** staat het commando om te kopiëren (bv. `sudo dnf upgrade openssh` of `sudo apt update && sudo apt install --only-upgrade openssh-server`), en onder **Meer informatie** de adviezen van de distributie, OSV en NVD. Installeer de nieuwe versie uit de pakketbron van de distributie; een download bij de maker is daarvoor niet nodig.
 
 **Bijwerken via de agent** (beheerders)

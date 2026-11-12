@@ -38,6 +38,7 @@ function initVulns() {
     vulnOpenSave('h', cards.map((c) => [+c.dataset.host, !all]));
   };
   $('#vuln-hosts').addEventListener('click', vulnClick);
+  initVulnSearch();   // 1.248.0
 }
 
 async function loadVulns() {
@@ -59,6 +60,8 @@ function showVulnTab() {
   if (!have.includes(vulnTab)) vulnTab = have[0] || 'cve';
   if (vulnTab === 'eol') loadEol();   // 1.227.0
   if (vulnTab === 'patch') loadPatch();   // 1.230.0
+  if (vulnTab === 'sw') loadVulnSoftware();   // 1.248.0
+  if ($('#vs-bar')) $('#vs-bar').hidden = !['cve', 'sw'].includes(vulnTab);
   $$('#vuln-tabs .seg-btn').forEach((x) => x.classList.toggle('active', x.dataset.vt === vulnTab));
   $$('#tab-vulns .vuln-pane').forEach((x) => { x.hidden = x.dataset.vpane !== vulnTab; });
   crumbs();   // 1.199.0
@@ -508,7 +511,21 @@ function cvssWords(v) {
 
 async function vulnDetail(cve) {
   let d;
-  try { d = await api('vuln_detail', null, { cve }); } catch (ex) { return toast(ex.message, 'err'); }
+  try { d = await api('vuln_detail', null, { cve }); } catch (ex) {
+    // 1.248.0: een CVE die RzSense niet op je servers kent: toch laten zien waar hij (niet) staat
+    if (ex.status !== 404 || !CVE_RE.test(cve)) return toast(ex.message, 'err');
+    const { form } = modal({
+      title: `🔎 ${cve}`, wide: true,
+      body: `<div style="padding:1rem 1.2rem"><p>${L('Deze kwetsbaarheid staat op geen enkele server open, en RzSense heeft hem ook niet eerder gevonden.')}</p>
+        <p class="muted small">${L('Let op de servers onder <i>Onbekend</i>: daar kan RzSense niets over zeggen.')}
+        <a href="https://nvd.nist.gov/vuln/detail/${encodeURIComponent(cve)}" target="_blank" rel="noopener noreferrer">NVD</a> ·
+        <a href="https://osv.dev/vulnerability/${encodeURIComponent(cve)}" target="_blank" rel="noopener noreferrer">OSV</a></p>
+        <div class="vd-where" id="vd-where"><p class="muted">${L('Laden…')}</p></div></div>`,
+      buttons: [{ label: L('Sluiten'), cls: 'primary', submit: true }],
+    });
+    vulnWhere(cve, form);
+    return;
+  }
   const [icon, word] = VULN_SEV[d.severity] || VULN_SEV[0];
   const rows = [
     [L('Ernst'), `${icon} <b>${esc(word)}</b>${d.cvss !== null ? ` · CVSS <b>${dec(d.cvss)}</b>` : ''}${d.vector ? `<div class="muted small">${esc(cvssWords(d.vector))}</div><div class="mono small muted">${esc(d.vector)}</div>` : ''}`],
@@ -535,6 +552,7 @@ async function vulnDetail(cve) {
       ${d.details ? `<details class="vd-details" ${d.details.length < 600 ? 'open' : ''}><summary>${L('Omschrijving')}</summary><p class="small" style="white-space:pre-wrap">${esc(d.details)}</p></details>` : ''}
       <table class="kv">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>
       ${vulnBuzzHtml(d)}
+      <div class="vd-where" id="vd-where"><p class="muted">${L('Laden…')}</p></div>
       <h3>${L('Zo los je het op')}</h3>
       ${xpHtml(L('Installeer de oplossing uit de pakketbron van je distributie.'), L('Installeer de nieuwe versie uit de eigen pakketbron van de distributie (zoals hieronder); een download bij de maker is niet nodig. <b>Goed om te weten:</b> bij de kernel of een bibliotheek is daarna een herstart van de server of van de services nodig.'))}
       ${hostRows}
@@ -547,6 +565,7 @@ async function vulnDetail(cve) {
     ],
   });
   wireCopy(form);
+  vulnWhere(cve, form);   // 1.248.0: waar staat hij wel en niet
   const bn = $('[data-vbuzz-now]', form);
   if (bn) bn.onclick = async () => {
     bn.disabled = true;

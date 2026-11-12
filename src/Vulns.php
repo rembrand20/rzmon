@@ -861,6 +861,12 @@ final class Vulns
     /** Actieve acceptaties (cache per verzoek; overview() laadt hem opnieuw) */
     private static ?array $ignoreList = null;
 
+    /** De acceptaties opnieuw inlezen bij de volgende ignored() (1.248.0, bv. VulnSearch) */
+    public static function forgetIgnored(): void
+    {
+        self::$ignoreList = null;
+    }
+
     public static function ignored(string $cve, string $package, int $hostId): bool
     {
         self::$ignoreList ??= q('SELECT cve, package, host_id FROM vuln_ignore WHERE until IS NULL OR until >= CURDATE()')->fetchAll();   // 1.141.0: verlopen telt niet

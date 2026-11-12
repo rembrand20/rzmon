@@ -584,7 +584,7 @@ function showTab(name) {
     name = tab;
     if (tab === 'ids' && ['inc', 'map', 'acc', 'blk', 'prot', 'live', 'anom', 'mitre', 'apps', 'hunt'].includes(s)) idsTab = s;
     if (tab === 'ids' && s === 'rules') { showTab('settings/ids_rules'); return; }   // 1.236.0: regels staan in de beheerportal
-    if (tab === 'vulns' && ['cve', 'leak', 'eol', 'patch'].includes(s)) vulnTab = s;
+    if (tab === 'vulns' && ['cve', 'sw', 'leak', 'eol', 'patch'].includes(s)) vulnTab = s;
   }
   if (qs) {
     const page = { dashboard: 'dash', alerts: 'alerts', ids: { inc: 'ids', acc: 'acc', blk: 'blk' }[idsTab], vulns: vulnTab === 'leak' ? 'leaks' : 'vulns' }[name];

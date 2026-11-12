@@ -2707,5 +2707,52 @@ $GLOBALS['sm_config']['external_url'] = '';
 ok(public_url() === (Https::adminUrl() ?: 'http://192.168.2.207'), 'Externe URL: zonder externe URL het beheeradres of de basis-URL');
 $GLOBALS['sm_config'] = $cfgOld;
 
+section('Kwetsbaarheden doorzoeken (1.248.0)');
+save_setting('vuln_enabled', '1');
+$vh = [];
+foreach (['vs-deb-oud', 'vs-deb-nieuw', 'vs-rocky', 'vs-leeg'] as $nm) {
+    q("INSERT INTO hosts (name, address, mode) VALUES (?, '127.0.0.1', 'agent')", [$nm]);
+    $vh[$nm] = (int) db()->lastInsertId();
+}
+$vinv = static fn(int $hid, string $mgr, string $os, array $pk, array $exp = []) => q('INSERT INTO vuln_inventory (host_id, mgr, os_id, os_version, os_name, ecosystem, hash, packages, exposed, restart_svc, updated_at, scanned_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())', [$hid, $mgr, 'x', '1', $os, 'Debian:12', substr(md5((string) $hid), 0, 16), json_encode($pk), json_encode($exp), '[]']);
+$vinv($vh['vs-deb-oud'], 'dpkg', 'Debian 12', [['libssl3', '3.0.11-1~deb12u2', 'amd64', 'vsssl', '3.0.11-1~deb12u2'], ['openssh-server', '1:9.2p1-2', 'amd64', 'vsssh', '1:9.2p1-2']], [['openssh-server', 22, 'tcp']]);
+$vinv($vh['vs-deb-nieuw'], 'dpkg', 'Debian 12', [['libssl3', '3.0.15-1~deb12u1', 'amd64', 'vsssl', '3.0.15-1~deb12u1']]);
+$vinv($vh['vs-rocky'], 'rpm', 'Rocky 9', [['vsssl', '1:3.0.7-27.el9', 'x86_64', 'vsssl', '1:3.0.7-27.el9']]);
+q("INSERT INTO vuln_cve (cve, severity, cvss, kev) VALUES ('CVE-2099-9001', 4, 9.1, 1), ('CVE-2099-9002', 2, 5.0, 0) ON DUPLICATE KEY UPDATE severity = VALUES(severity)");
+$vf = static fn(int $h, string $p, string $v, string $c, ?string $fx) => q('INSERT INTO vuln_findings (host_id, package, version, source, vuln_id, cve, fixed_version, first_seen) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())', [$h, $p, $v, $p, 'T-' . $c, $c, $fx]);
+$vf($vh['vs-deb-oud'], 'vsssl', '3.0.11-1~deb12u2', 'CVE-2099-9001', '3.0.15-1~deb12u1');
+$vf($vh['vs-deb-oud'], 'vsssl', '3.0.11-1~deb12u2', 'CVE-2099-9002', '3.0.13-1~deb12u1');
+$vf($vh['vs-rocky'], 'vsssl', '1:3.0.7-27.el9', 'CVE-2099-9001', '1:3.0.7-29.el9');
+$vf($vh['vs-rocky'], 'vsssl', '1:3.0.7-27.el9', 'CVE-2099-9002', null);
+q("INSERT INTO vuln_ignore (cve, package, host_id, reason, created_by, created_at) VALUES ('CVE-2099-9002', NULL, ?, 'test', 'test', NOW())", [$vh['vs-rocky']]);
+q("INSERT INTO vuln_resolved (host_id, package, version, cve, severity, first_seen, resolved_at) VALUES (?, 'vsssl', '3.0.11-1~deb12u2', 'CVE-2099-9001', 4, NOW(), NOW())", [$vh['vs-deb-nieuw']]);
+$r = VulnSearch::search('vsss');
+ok(in_array('vsssl', array_column($r['software'], 'name'), true) && in_array('vsssh', array_column($r['software'], 'name'), true), 'zoeken: programma\'s gevonden (ook op een deel van de naam)');
+ok(array_column($r['software'], 'open', 'name')['vsssl'] === 2, 'zoeken: open CVE\'s per programma (geaccepteerd telt niet)');
+ok(VulnSearch::search('vs-rock')['servers'][0]['name'] === 'vs-rocky' && VulnSearch::search('CVE-2099-900')['cves'] !== [], 'zoeken: servers en CVE\'s');
+$w = VulnSearch::where('CVE-2099-9001');
+$names = static fn(string $g) => array_column(array_filter($w['groups'][$g], static fn($x) => str_starts_with($x['host'], 'vs-')), 'host');
+ok($names('vuln') === ['vs-deb-oud', 'vs-rocky'] || $names('vuln') === ['vs-rocky', 'vs-deb-oud'] || count($names('vuln')) === 2, 'waar: kwetsbaar op beide servers met de oude versie');
+ok($names('safe') === ['vs-deb-nieuw'] && $w['groups']['safe'][array_search('vs-deb-nieuw', array_column($w['groups']['safe'], 'host'), true)]['resolved'] !== null, 'waar: niet kwetsbaar (pakket erop, nieuwe versie), met de datum van oplossen');
+ok(in_array('vs-leeg', $names('unknown'), true), 'waar: server zonder softwarelijst = onbekend, niet veilig');
+$w = VulnSearch::where('CVE-2099-9002');
+$names = static fn(string $g) => array_column(array_filter($w['groups'][$g], static fn($x) => str_starts_with($x['host'], 'vs-')), 'host');
+ok(in_array('vs-rocky', $names('accepted'), true) && in_array('vs-deb-oud', $names('vuln'), true), 'waar: geaccepteerd apart van kwetsbaar');
+$sw = array_column(VulnSearch::software()['programs'], null, 'name');
+$deb = array_column($sw['vsssl']['os'], null, 'os')['Debian 12'];
+ok($deb['safe'] === '3.0.15-1~deb12u1', 'software: veilig vanaf = de hoogste oplossing van de open CVE\'s (per besturingssysteem)');
+ok(array_column($sw['vsssl']['os'], null, 'os')['Rocky 9']['safe'] === '1:3.0.7-29.el9' && !isset($sw['vsssh']), 'software: Rocky apart vergeleken; zonder open CVE niet in de standaardlijst');
+ok($sw['vsssl']['kev'] && $sw['vsssl']['sev'][4] === 1, 'software: actief misbruikt en ernst per programma');
+$all = array_column(VulnSearch::software(true)['programs'], null, 'name');
+ok(isset($all['vsssh']) && count(array_column($all['vsssl']['os'], null, 'os')['Debian 12']['versions']) === 2 && $all['vsssl']['spread'], 'software: alle software, met versies die uiteenlopen');
+[$hd, $rows] = VulnSearch::csvFindings();
+$csv = VulnSearch::csv($hd, [['=SOM(1)', 'x']]);
+ok(str_starts_with($csv, "\xEF\xBB\xBF") && str_contains($csv, ';') && str_contains($csv, "'=SOM(1)"), 'CSV: UTF-8 met BOM, puntkomma\'s en geen formules');
+ok(count(array_filter($rows, static fn($r) => str_starts_with($r[0], 'vs-'))) === 3, 'CSV: open kwetsbaarheden zonder de geaccepteerde');
+foreach ($vh as $id) {
+    q('DELETE FROM hosts WHERE id = ?', [$id]);
+}
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

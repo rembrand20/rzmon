@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.248.0**: **kwetsbaarheden doorzoeken**: zoek op server, CVE of programma, zie per CVE waar hij wel en niet staat, per programma de versies en vanaf welke versie het veilig is, en exporteer naar Excel.
 - **1.247.0**: **Rechten op de server**: commando-checks en tijdelijk sudo samen in de Agent Manager, met uitleg wat elk doet en een waarschuwing bij root.
 - **1.246.0**: **Agent Manager als overzichtelijke lijst**: alle onderdelen onder elkaar in groepen, met per regel hoe het staat; klik om in te stellen.
 - **1.245.0**: **thema Neo**: de Command-center-look als vierde thema, met elke lay-out.
 - **1.244.0**: **lay-out en thema los van elkaar**: kies een opbouw (Blox, L1nes, Compact, CC) en daarbovenop een thema (Standaard, @S, Liquid Glass), licht of donker.
-- **1.243.0**: **thema @S**: RzSense in de stijl van Apple, rustig en licht, te kiezen per account (licht en donker).
+
+## 1.248.0 – 2026-11-12
+### Nieuw
+- **Zoeken bij Kwetsbaarheden**: bovenaan één zoekvak voor **servers, CVE's en software**. Tijdens het typen verschijnt een lijstje in drie groepen, met per regel hoeveel open CVE's er zijn. Typ je een CVE-nummer en druk je op Enter, dan opent die CVE meteen.
+- **Waar staat een CVE?** In het venster van een CVE staan nu al je servers in vijf groepen: 🔴 **kwetsbaar** (met de versie waarnaar je bijwerkt, 🌐 als het pakket op het netwerk luistert, en ⬆ Bijwerken), ✅ **niet kwetsbaar** (het pakket staat erop in een veilige versie, met de datum waarop het opgelost werd), ⚪ **niet van toepassing** (het pakket staat er niet op), ❔ **onbekend** (geen softwarelijst, nog niet gescand of de scan mislukte) en 🟦 **geaccepteerd**. Ook een CVE die nergens voorkomt kun je zo opzoeken.
+- **Tabblad 📦 Software**: elk programma over al je servers. Per **besturingssysteem** zie je de versies, op welke servers ze staan, de open CVE's per versie en **veilig vanaf**: de versie waarin alle open CVE's van dat programma opgelost zijn. Versies worden per besturingssysteem vergeleken, omdat Debian, Ubuntu en Rocky reparaties in hun eigen versienummer zetten. Standaard alleen programma's met open CVE's; met **Alle software** zie je alles. Filters: 🌐 bereikbaar, ⚠️ actief misbruikt en ↕ versies lopen uiteen. Met ⬆ werk je een server meteen bij.
+- **⤓ CSV voor Excel**: alle open kwetsbaarheden (één regel per server, pakket en CVE, met ernst, CVSS, actief misbruikt, kans op misbruik, bereikbaar, opgelost in en risico), het software-overzicht en per CVE de lijst met servers. Met puntkomma's en UTF-8, zodat Excel het meteen goed opent; cellen die met `=`, `+`, `-` of `@` beginnen worden nooit een formule.
 
 ## 1.247.5 – 2026-11-12
 ### Opgelost

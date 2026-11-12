@@ -500,15 +500,21 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
     <?php if ($showVulns || $showLeaks || $showEol || $showPatch): ?>
     <section id="tab-vulns" class="tab-panel" role="tabpanel" hidden>
-      <?php if ((int) $showVulns + (int) $showLeaks + (int) $showEol + (int) $showPatch > 1): ?>
+      <?php if ((int) $showVulns * 2 + (int) $showLeaks + (int) $showEol + (int) $showPatch > 1): ?>
       <div class="subtabs vuln-tabs" role="tablist" aria-label="<?= th('Kwetsbaarheden') ?>" id="vuln-tabs">
         <?php if ($showVulns): ?><button type="button" class="seg-btn active" data-vt="cve">🐞 <?= th('Kwetsbaarheden') ?> <span class="it-n" id="vt-n-cve"></span></button><?php endif; ?>
+        <?php if ($showVulns): ?><button type="button" class="seg-btn" data-vt="sw">📦 <?= th('Software') ?> <span class="it-n" id="vt-n-sw"></span></button><?php endif; ?>
         <?php if ($showEol): ?><button type="button" class="seg-btn" data-vt="eol">⏳ <?= th('Verouderd') ?> <span class="it-n" id="vt-n-eol"></span></button><?php endif; ?>
         <?php if ($showPatch): ?><button type="button" class="seg-btn" data-vt="patch">🩹 <?= th('Updates') ?> <span class="it-n" id="vt-n-patch"></span></button><?php endif; ?>
         <?php if ($showLeaks): ?><button type="button" class="seg-btn" data-vt="leak">🔓 <?= th('Datalekken') ?> <span class="it-n" id="vt-n-leak"></span></button><?php endif; ?>
       </div>
       <?php endif; ?>
       <?php if ($showVulns): ?>
+      <!-- 1.248.0: één zoekvak voor servers, CVE's en software -->
+      <div class="vs-bar" id="vs-bar">
+        <input type="search" id="vs-q" placeholder="<?= th('🔎 Zoek een server, een CVE (bv. CVE-2024-6387) of een programma (bv. openssl)…') ?>" autocomplete="off" aria-label="<?= th('Zoek een server, CVE of programma') ?>" aria-controls="vs-sug" aria-expanded="false">
+        <div class="vs-sug" id="vs-sug" role="listbox" hidden></div>
+      </div>
       <div class="vuln-pane" data-vpane="cve">
       <?= xp(t('Bekende kwetsbaarheden in de software op je servers, de belangrijkste eerst.'), t('<b>Wat het doet:</b> de agents sturen de lijst met geïnstalleerde pakketten; RzSense vergelijkt die met bekende kwetsbaarheden en weegt mee of een lek actief wordt misbruikt (KEV) en hoe waarschijnlijk dat is (EPSS). <b>Zo gebruik je het:</b> begin bij actief misbruikt en critical; vaak lost één update er veel tegelijk op. Geldt iets niet voor jou, zet het dan op niet van toepassing. <b>Goed om te weten:</b> bijwerken doe je via het tabblad Updates of je eigen pakketbeheer.')) ?>
       <!-- 1.67.0: zelfde opbouw als het dashboard -->
@@ -537,6 +543,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <option value="3"><?= th('Vanaf high') ?></option><option value="4"><?= th('Alleen critical') ?></option>
         </select>
         <button type="button" class="btn need-admin" id="vuln-scan">🔍 <?= th('Nu scannen') ?></button>
+        <a class="btn" id="vuln-csv" href="api.php?action=vuln_csv&amp;kind=findings" title="<?= th('Alle open kwetsbaarheden als CSV-bestand (opent in Excel)') ?>">⤓ CSV</a>
         <div class="dash-more">
           <button class="btn" type="button" data-menu-btn aria-haspopup="menu" aria-expanded="false" title="<?= th('Meer') ?>">⋯</button>
           <div class="dash-menu" role="menu" hidden><button type="button" id="vuln-toggle" role="menuitem"><?= th('⊞ Alles openen / sluiten') ?></button></div>
@@ -546,6 +553,21 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <div class="pcard" data-pk="list" data-pw="12" data-pt="<?= th('Servers') ?>"><div id="vuln-hosts"></div>
       </div>
       </div>
+      </div>
+      <?php endif; ?>
+      <?php if ($showVulns): ?>
+      <!-- 1.248.0: software over al je servers: versies per besturingssysteem, open CVE's en vanaf welke versie het veilig is -->
+      <div class="vuln-pane" data-vpane="sw" hidden>
+      <?= xp(t('Elk programma over al je servers: welke versies waar staan, welke CVE\'s nog open staan en vanaf welke versie het veilig is.'), t('<b>Wat het doet:</b> RzSense zet de softwarelijsten van al je servers naast elkaar. Per programma zie je per besturingssysteem de versies, op welke servers ze staan, de open CVE\'s en <i>veilig vanaf</i>: de versie waarin alle open CVE\'s van dat programma opgelost zijn. <b>Zo gebruik je het:</b> standaard staan alleen programma\'s met open CVE\'s erin; met <i>Alle software</i> zie je alles wat er geïnstalleerd is. Klik op een programma voor de servers, en werk ze bij met ⬆. <b>Goed om te weten:</b> versies worden per besturingssysteem vergeleken, omdat Debian, Ubuntu en Rocky reparaties elk in hun eigen versienummer zetten. Een server die nog niet gescand is of waarvan de scan mislukte, staat onder <i>onbekend</i> en telt niet mee als veilig.')) ?>
+      <div class="dash-bar vsw-bar">
+        <input type="search" id="vsw-q" placeholder="<?= th('🔍 Zoek een programma of server…') ?>" autocomplete="off">
+        <div class="dash-chips" id="vsw-scope" role="group" aria-label="<?= th('Welke software') ?>"></div>
+        <div class="dash-chips" id="vsw-filter" role="group" aria-label="<?= th('Filter') ?>"></div>
+        <span class="dash-sp"></span>
+        <a class="btn" id="vsw-csv" href="api.php?action=vuln_csv&amp;kind=software" title="<?= th('Dit overzicht als CSV-bestand (opent in Excel)') ?>">⤓ CSV</a>
+      </div>
+      <div id="vsw-info" class="muted small"></div>
+      <div id="vsw-list" class="vsw-list"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
       <?php endif; ?>
       <?php if ($showEol): ?>

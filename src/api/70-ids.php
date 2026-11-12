@@ -266,6 +266,37 @@ switch ($action) {
     case 'vulns':
         out(Vulns::enabled() ? Vulns::overview() : ['enabled' => false]);
 
+    // 1.248.0: zoeken (servers, CVE's, software), waar staat een CVE, software-overzicht en CSV voor Excel
+    case 'vuln_search':
+        out(Vulns::enabled() ? VulnSearch::search(mb_substr((string) ($_GET['q'] ?? ''), 0, 80)) : ['servers' => [], 'cves' => [], 'software' => []]);
+
+    case 'vuln_where':
+        $cve = mb_substr(trim((string) ($_GET['cve'] ?? '')), 0, 80);
+        if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9:._-]+$/', $cve)) {
+            out(['error' => t('Ongeldige kwetsbaarheid')], 422);
+        }
+        out(VulnSearch::where($cve));
+
+    case 'vuln_software':
+        out(VulnSearch::software(!empty($_GET['all'])));
+
+    case 'vuln_csv':
+        $kind = (string) ($_GET['kind'] ?? 'findings');
+        $cve = mb_substr(trim((string) ($_GET['cve'] ?? '')), 0, 80);
+        if ($kind === 'cve' && !preg_match('/^[A-Za-z0-9][A-Za-z0-9:._-]+$/', $cve)) {
+            out(['error' => t('Ongeldige kwetsbaarheid')], 422);
+        }
+        [$head, $rows] = match ($kind) {
+            'software' => VulnSearch::csvSoftware(!empty($_GET['all'])),
+            'cve' => VulnSearch::csvWhere($cve),
+            default => VulnSearch::csvFindings(!empty($_GET['accepted'])),
+        };
+        $fn = 'rzsense-' . ($kind === 'cve' ? preg_replace('/[^A-Za-z0-9-]+/', '-', $cve) : ($kind === 'software' ? 'software' : 'kwetsbaarheden')) . '-' . date('Y-m-d') . '.csv';
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $fn . '"');
+        echo VulnSearch::csv($head, $rows);
+        exit;
+
     case 'vuln_packages':
         out(['packages' => Vulns::packages((int) ($_GET['host_id'] ?? 0))]);
 
