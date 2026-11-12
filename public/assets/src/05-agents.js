@@ -670,6 +670,8 @@ async function amLogs(h) {
       <tr class="lg-lines" data-ls-lines-for="${s.id}" hidden><td colspan="8"><pre class="code small">${L('Laden…')}</pre></td></tr>`;
   }).join('');
   const limitPct = d.day_limit ? Math.min(100, Math.round(d.used_today / d.day_limit * 100)) : 0;
+  const lsOn = d.sources.filter((s) => s.enabled), lsErr = lsOn.filter((s) => s.status === 'err');
+  amSum('logs', !d.on ? esc(L('uit voor alle servers')) : lsOn.length ? esc(L('{n} bronnen', { n: lsOn.length })) + (lsErr.length ? ` · <b class="bad">${esc(L('{n} met een fout', { n: lsErr.length }))}</b>` : '') + ` · ${esc(fmtBytes(d.used_today))} ${esc(L('vandaag'))}` : esc(L('nog geen bronnen')), lsErr.length > 0);   // 1.246.0
   box.innerHTML = `${d.on ? '' : `<div class="callout">⏸ ${L('Logs verzamelen staat uit voor alle servers: Instellingen → Monitoring → Logs.')}</div>`}
     ${d.sources.length ? amRow('🔎 ' + L('Zoeken in deze logs'), L('de pagina Logs, met deze server al gekozen'), `<button type="button" class="btn small-btn" id="ls-find">${L('Logs')} →</button>`) : ''}
     ${amRow(L('Versturen elke'), L('pakketje met de nieuwe regels, gecomprimeerd en versleuteld · algemeen: {n} min', { n: d.default_interval }),
@@ -1623,7 +1625,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   });
   const body = $('#modal-body');
   if (pgEdit === 'am') pgEdit = null;
-  pgApply('am'); pgTools('am');   // 1.160.0: Functies en Verbinding als kaarten (lay-out CC)
+  amAccordion(h, body);   // 1.246.0: de onderdelen als overzichtelijke lijst in groepen, één tegelijk open
   const show = (seg) => {
     $$('.seg-btn', body).forEach((b) => b.classList.toggle('active', b.dataset.seg === seg));
     $$('[data-pane]', body).forEach((p) => (p.hidden = p.dataset.pane !== seg));
@@ -2131,7 +2133,7 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
     if (s.mode === 'agent' && s.seen && s.audit && s.audit.length) {
       const bad = s.audit.filter((i) => i.ok === false);
       const fixable = bad.some((i) => ['config', 'token', 'integrity', 'version'].includes(i.key));
-      html += `<details class="audit-box" ${bad.length ? 'open' : ''}><summary class="small">🔐 <b>${L('Verbindingscontrole')}</b>: ${bad.length
+      html += `<details class="audit-box"><summary class="small">🔐 <b>${L('Verbindingscontrole')}</b>: ${bad.length
         ? `<span class="warn-txt">${L('{n} aandachtspunt(en)', { n: bad.length })}</span>` : `<span class="good">${L('alles in orde')}</span>`}</summary>
         <ul class="audit-list">${s.audit.map((i) => `<li class="small"><span>${i.ok === true ? '✅' : i.ok === false ? '⚠️' : '·'}</span> <b>${esc(i.label)}</b> <span class="muted">${esc(i.detail)}</span></li>`).join('')}</ul>
         ${isAdmin() ? `<div class="btn-row">${fixable ? `<button type="button" class="btn small-btn primary" data-agent-clean>🧹 ${L('Opruimen')}</button>` : ''}
@@ -2186,6 +2188,8 @@ async function amRansom(h, body) {
   const chosen = new Set(d.paths.map((p) => p.p));
   const all = [...new Map([...d.paths.map((p) => [p.p, null]), ...d.cand.map(([k, p]) => [p, k])]).entries()];
   const st = Object.fromEntries(d.paths.map((p) => [p.p, p]));
+  const rsAlarm = d.paths.some((p) => p.last && (+p.last.hit || p.last.canary === 'alarm'));
+  amSum('ransom', !d.on ? esc(L('uit')) : rsAlarm ? `<b class="bad">🚨 ${esc(L('alarm'))}</b>` : d.paths.length ? esc(L('{n} mappen bewaakt', { n: d.paths.length })) : esc(L('geen mappen bewaakt')), rsAlarm);   // 1.246.0
   const row = ([p, kind]) => {
     const s = st[p], last = s && s.last;
     const info = !s ? `<span class="muted small">${kind ? esc(RS_KIND[kind] || kind) + ' · ' : ''}${L('niet bewaakt')}</span>`

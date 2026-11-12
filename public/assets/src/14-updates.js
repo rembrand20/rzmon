@@ -127,8 +127,9 @@ async function amPatch(h, body) {
   let d;
   try { d = (await api('patch')).hosts.find((x) => x.id === h.id); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   if (!d) { box.innerHTML = ''; return; }
-  if (d.kind === 'truenas') { box.innerHTML = `<p class="muted small">${L('TrueNAS werk je bij met een TrueNAS-update (System → Update), nooit met apt. RzSense doet hier niets.')}</p>`; return; }
+  if (d.kind === 'truenas') { amSum('patch', esc(L('via TrueNAS zelf'))); box.innerHTML = `<p class="muted small">${L('TrueNAS werk je bij met een TrueNAS-update (System → Update), nooit met apt. RzSense doet hier niets.')}</p>`; return; }
   const ha = d.kind === 'ha';
+  amSum('patch', patchBadge(d) + (d.rb ? ` · <span class="warn">↻ ${L('herstart nodig')}</span>` : ''), !!(d.sec || d.rb));   // 1.246.0
   box.innerHTML = `${!d.agent_ok ? `<div class="callout small">${L('Agent 1.92.0 of nieuwer nodig; werk de agent bij.')}</div>` : ''}
     <p class="small">${patchBadge(d)}${d.rb ? ` · <span class="warn">↻ ${L('herstart nodig (doe dat zelf)')}</span>` : ''}${d.at ? ` · <span class="muted">${L('bekeken')} ${agoSpan(new Date(d.at * 1000).toISOString())}</span>` : ''}</p>
     ${amRow('🤖 ' + L('Wanneer'), d.self ? L('dit is de RzSense-server zelf: alleen met de hand') : L('met de hand, in het vaste onderhoudsvenster van deze server, of elke dag om een tijd'),

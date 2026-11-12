@@ -709,14 +709,14 @@ Oude links (bv. `#settings/smart`, `#settings/server`) gaan vanzelf naar de nieu
 - *Agents → **Standaardinstellingen***: wat voor alle agents geldt: automatisch bijwerken, het ritme, offline na … minuten, certificaatmappen, de versleuteling, het certificaat en de beveiligde verbinding (vroeger *Beveiligde verbinding*).
 - De **Agent Manager** (vanaf 1.178.0 opnieuw ingedeeld) is een pagina over bijna het hele scherm.
   - **Bovenaan** staan labels die laten zien hoe de agent ervoor staat (sleutel, versleuteld, https, EDR, waakhond, SNMP), met **🧪 Test** en **＋ Aanbevolen checks**, en daaronder de status en het contact.
-  - **Daaronder zes kaarten:**
-    - **Rapporteren:** het interval (std / 30 s / 1 m / 2 m / 5 m) en ⚡ Realtime.
-    - **Beveiliging:** endpoint-bewaking en commando-checks.
-    - **Meldingen:** 🐕 waakhond met *melden na … min* en de info bij agent-updates.
-    - **Verbinding:** versleuteling, certificaat vastzetten, IP-slot, alleen https en het adres van RzSense.
-    - **📡 SNMP:** zie §7.7.
-    - **Onderhoud:** opnieuw koppelen en een nieuw token.
-  - **Installeren of opnieuw koppelen** staat onderaan, ingeklapt (open als er nog nooit een rapport kwam).
+  - **Daaronder een lijst** (vanaf 1.246.0): alle onderdelen onder elkaar, in groepen. Per regel zie je het icoon, de naam en in één zin hoe het nu staat (bv. *elke 1 m · realtime aan*, *3 bronnen · 1 met een fout*, *2 onbekend · 0 geblokkeerd*). **Klik op een regel** om hem open te klappen en in te stellen; er is steeds **één tegelijk open**.
+    - **Verbinding en agent:** *Rapporteren* (interval en ⚡ Realtime), *Verbinding* (versleuteling, certificaat vastzetten, IP-slot, alleen https, adres) en *Koppelen en installeren* (opnieuw koppelen, nieuw token en de installatie-instructies samen in één onderdeel).
+    - **Bescherming:** *Beveiliging* (EDR, commando-checks), *Ransomware*, *Onbekende programma's* en *Tijdelijk sudo*.
+    - **Updates:** *Updates installeren*. **Meldingen:** 🐕 waakhond en info bij agent-updates. **Logs:** de logbronnen en het actielogboek. **📡 SNMP:** zie §7.7.
+    - **Eigen instelling:** heeft deze server iets anders dan de algemene instelling, dan staat er *eigen* achter de regel; openklappen toont **↺ Terug naar algemeen**.
+    - **Aandacht eerst:** een onderdeel dat aandacht vraagt (nog geen eigen sleutel, een logbron met een fout, een ransomware-alarm, onbekende programma's, updates met beveiliging of herstart nodig) krijgt een oranje stip en staat bovenaan zijn groep.
+    - **Alleen wat past:** wat niet bij de server past (SNMP zonder SNMP, ransomware en sudo op Home Assistant, agentonderdelen bij een apparaat zonder agent) staat onder **Meer tonen**.
+    - De **Verbindingscontrole** bovenaan is standaard ingeklapt; de regel met het aantal aandachtspunten blijft zichtbaar.
   - **Schakelaars:** alles is een schakelaar, geen keuzelijst. Heeft een instelling een algemene waarde (versleuteling, vastzetten, IP-slot, https, commando-checks), dan betekent de schakelaar *eigen keuze*: uit = de algemene instelling (die staat eronder), aan = je kiest voor deze server.
 - **🧪 Test** (vanaf 1.178.0) opent een popup met de uitslag in twee delen:
   - **Vanuit RzSense (meteen):** het laatste rapport, de punten van de verbindingscontrole, geweigerde rapporten in de laatste 24 uur, de duur van een ronde, en met SNMP aan een echte vraag aan het apparaat.

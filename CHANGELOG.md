@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.246.0**: **Agent Manager als overzichtelijke lijst**: alle onderdelen onder elkaar in groepen, met per regel hoe het staat; klik om in te stellen.
 - **1.245.0**: **thema Neo**: de Command-center-look als vierde thema, met elke lay-out.
 - **1.244.0**: **lay-out en thema los van elkaar**: kies een opbouw (Blox, L1nes, Compact, CC) en daarbovenop een thema (Standaard, @S, Liquid Glass), licht of donker.
 - **1.243.0**: **thema @S**: RzSense in de stijl van Apple, rustig en licht, te kiezen per account (licht en donker).
 - **1.242.0**: **uitleg overal**: elke kaart, elk tabblad en de belangrijke vensters zeggen wat ze doen, hoe je ze instelt en wat goed is om te weten.
-- **1.241.0**: **ⓘ bij de velden**: uitleg, eenheid, bereik en aanbevolen waarde (met één tik te gebruiken), ook op je telefoon.
+
+## 1.246.0 – 2026-11-12
+### Nieuw
+- **Agent Manager overzichtelijker**: de kaarten zijn vervangen door een **lijst in groepen** (Verbinding en agent, Bescherming, Updates, Meldingen, Logs, SNMP). Elke regel heeft een icoon, de naam en in één zin hoe het nu staat. Klik op een regel om hem open te klappen en in te stellen; er is steeds één tegelijk open. Alle schakelaars en knoppen zijn dezelfde gebleven.
+- **Eigen instelling zichtbaar**: wijkt deze server af van de algemene instelling (interval, versleuteling, vastzetten, IP-slot, https, SNMP), dan staat er *eigen* achter de regel, met **↺ Terug naar algemeen**.
+- **Aandacht eerst**: een onderdeel dat aandacht vraagt (geen eigen sleutel, logbron met een fout, ransomware-alarm, onbekende programma's, beveiligingsupdates of herstart nodig, actief tijdelijk sudo) krijgt een oranje stip en staat bovenaan zijn groep.
+- **Alleen wat past**: onderdelen die niet bij de server passen (SNMP zonder SNMP, ransomware en sudo op Home Assistant, agentonderdelen bij een apparaat zonder agent) staan onder **Meer tonen**.
+- **Samengevoegd**: *Onderhoud* en *Installeren of opnieuw koppelen* zijn één onderdeel: **Koppelen en installeren**. De **Verbindingscontrole** is standaard ingeklapt (het aantal aandachtspunten blijft zichtbaar), omdat de punten nu ook in de lijst terugkomen.
 
 ## 1.245.2 – 2026-11-12
 ### Opgelost

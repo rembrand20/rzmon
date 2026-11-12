@@ -174,6 +174,7 @@ async function amApps(h, body) {
   try { d = await api('apps_info', null, { host_id: h.id }); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const c = d.counts;
   const until = d.since ? new Date(new Date(d.since.replace(' ', 'T')).getTime() + d.learn * 86400000) : null;
+  amSum('apps', !d.on || !d.host_on ? esc(L('uit')) : c.new ? `<b class="warn-txt">${esc(L('{n} onbekend', { n: c.new }))}</b> · ${esc(L('{n} geblokkeerd', { n: c.block || 0 }))}` : d.learning ? esc(L('leert nog wat normaal is')) : '✔ ' + esc(L('niets onbekends')), !!(d.on && d.host_on && c.new));   // 1.246.0
   box.innerHTML = `${!d.on ? `<div class="callout small">${L('Onbekende programma\'s staat uit voor alle servers (Instellingen → IDS → Programma\'s).')}</div>` : ''}
     ${!d.agent_ok ? `<div class="callout small">${L('Agent 1.91.0 of nieuwer nodig (en als root); werk de agent bij.')}</div>` : ''}
     ${amRow('🧩 ' + L('Programma\'s bijhouden'), L('wat er draait, met vingerafdruk en pakket; na de leerperiode valt een onbekend programma op'), amSw('ap-on', d.host_on))}

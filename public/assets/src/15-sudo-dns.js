@@ -22,6 +22,7 @@ async function amSudo(h, body) {
   let d;
   try { d = await api('sudo_list', null, { host_id: h.id }); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const active = d.grants.filter((g) => ['pending', 'active'].includes(g.state) && g.left);
+  amSum('sudo', !d.on ? esc(L('uit')) : active.length ? `<b class="warn-txt">${esc(L('{n} nu actief', { n: active.length }))}</b>` : esc(L('niemand heeft nu tijdelijk sudo')), active.length > 0);   // 1.246.0
   box.innerHTML = `${!d.on ? `<div class="callout small">${L('Tijdelijk sudo staat uit (Instellingen → Beveiliging → Tijdelijk sudo).')}</div>` : ''}
     ${!d.agent_ok ? `<div class="callout small">${L('Agent 1.93.0 of nieuwer nodig (op Linux, als root, met visudo).')}</div>` : ''}
     ${active.length ? `<p class="small"><b>${L('Nu actief')}</b></p>${sudoRows(active, false)}` : `<p class="muted small">${L('Nu heeft niemand tijdelijk sudo op deze server.')}</p>`}
