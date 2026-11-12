@@ -3284,6 +3284,13 @@ Met **⤓ CSV** download je deze lijst.
 - Standaard staan alleen programma's **met open CVE's** erin (geaccepteerde tellen niet mee); **Alle software** laat alles zien wat geïnstalleerd is. Filters: 🌐 Bereikbaar, ⚠️ Actief misbruikt, ↕ Versies lopen uiteen.
 - Servers die nog niet gescand zijn of waarvan de scan mislukte, staan bovenaan onder *onbekend* en tellen niet mee.
 
+**Bijwerken: per server of alles tegelijk** (vanaf 1.249.0, beheerders):
+- **⬆ Bijwerken** bij een server (in het CVE-venster en in 📦 Software) werkt dat pakket op die server bij, zoals hieronder bij *Bijwerken via de agent*.
+- **⬆ Alle N kwetsbare servers bijwerken** in het venster van een CVE: overal waar die CVE open staat en een oplossing heeft.
+- **⬆ … bijwerken op alle N servers** bij een programma in 📦 Software.
+- **⬆ Alles bijwerken** in de werkbalk (Kwetsbaarheden en 📦 Software): elke server met minstens één open kwetsbaarheid waarvoor een oplossing is, met alle pakketten die een oplossing hebben.
+- Je ziet eerst per server wat er gebeurt, of waarom het via de agent niet kan (bijvoorbeeld *agent 1.47.0 of nieuwer nodig* of *commando's niet als root*). Je bevestigt **één keer** (wachtwoord, of op het LAN het woord BIJWERKEN). Daarna staat per server *in de wachtrij* met **Voortgang**, of de reden met het commando om het zelf te doen. Elke server komt apart in het logboek.
+
 **Exporteren naar Excel** (vanaf 1.248.0): **⤓ CSV** bij de werkbalk (alle open kwetsbaarheden: server, besturingssysteem, pakket, versie, CVE, ernst, CVSS, actief misbruikt, kans op misbruik, bereikbaar, opgelost in, risico, status, gevonden op), bij *📦 Software* (per programma, besturingssysteem en versie) en in het venster van een CVE. De bestanden gebruiken puntkomma's en UTF-8, zodat Excel ze meteen goed opent; een cel die met `=`, `+`, `-` of `@` begint wordt nooit een formule.
 
 **Klik op een CVE** voor meer informatie: de omschrijving, de **CVSS-score** met uitleg in gewone woorden (bv. *via het netwerk · zonder in te loggen*), of hij **actief misbruikt** wordt, de **kans op misbruik**, de publicatiedatum, en per server de geïnstalleerde en de opgeloste versie. Onder **Zo los je het op** staat het commando om te kopiëren (bv. `sudo dnf upgrade openssh` of `sudo apt update && sudo apt install --only-upgrade openssh-server`), en onder **Meer informatie** de adviezen van de distributie, OSV en NVD. Installeer de nieuwe versie uit de pakketbron van de distributie; een download bij de maker is daarvoor niet nodig.

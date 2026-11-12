@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.249.0**: **alles in één keer bijwerken**: per CVE, per programma of alles tegelijk, met één bevestiging en per server de uitkomst.
 - **1.248.0**: **kwetsbaarheden doorzoeken**: zoek op server, CVE of programma, zie per CVE waar hij wel en niet staat, per programma de versies en vanaf welke versie het veilig is, en exporteer naar Excel.
 - **1.247.0**: **Rechten op de server**: commando-checks en tijdelijk sudo samen in de Agent Manager, met uitleg wat elk doet en een waarschuwing bij root.
 - **1.246.0**: **Agent Manager als overzichtelijke lijst**: alle onderdelen onder elkaar in groepen, met per regel hoe het staat; klik om in te stellen.
 - **1.245.0**: **thema Neo**: de Command-center-look als vierde thema, met elke lay-out.
-- **1.244.0**: **lay-out en thema los van elkaar**: kies een opbouw (Blox, L1nes, Compact, CC) en daarbovenop een thema (Standaard, @S, Liquid Glass), licht of donker.
+
+## 1.249.0 – 2026-11-12
+### Nieuw
+- **⬆ Alles bijwerken** (Kwetsbaarheden en 📦 Software): werkt in één keer alle servers bij waarvoor een oplossing is. Eén venster met per server wat er gebeurt, of waarom het via de agent niet kan (bijvoorbeeld een te oude agent), één bevestiging, en daarna per server de uitkomst met **Voortgang**. Lukt het bij een server niet, dan krijg je het commando om het zelf te doen.
+- **Per CVE**: in het venster van een CVE staat **⬆ Alle N kwetsbare servers bijwerken**.
+- **Per programma** (📦 Software): **⬆ openssl bijwerken op alle N servers**.
+- **Per server een duidelijke knop**: bij elke server staat nu **⬆ Bijwerken** (in het CVE-venster en in 📦 Software), in plaats van alleen een pijltje.
 
 ## 1.248.0 – 2026-11-12
 ### Nieuw

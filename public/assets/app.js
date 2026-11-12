@@ -21249,6 +21249,7 @@ function initVulnSearch() {
   const q = $('#vs-q');
   if (!q || q.dataset.init) return;
   q.dataset.init = '1';
+  if ($('#vuln-up-all')) $('#vuln-up-all').onclick = () => vulnUpgradeEverything();   // 1.249.0
   const sug = $('#vs-sug');
   const close = () => { sug.hidden = true; q.setAttribute('aria-expanded', 'false'); };
   q.addEventListener('input', () => {
@@ -21348,7 +21349,11 @@ async function vulnWhere(cve, root) {
   const vuln = g.vuln.map((x) => `<div class="vw-row">${host(x)} · <span class="mono small">${esc(x.package)} ${esc(x.version)}</span>
       → ${x.fixed ? `<span class="mono small good-txt">${esc(x.fixed)}</span>` : `<span class="muted">${L('nog geen oplossing')}</span>`}
       ${x.exposed.length ? ` <span class="vw-exp" title="${esc(L('Luistert op het netwerk'))}">🌐 ${esc(x.exposed.join(', '))}</span>` : ''}
-      ${x.fixed ? `<button type="button" class="btn small-btn need-admin" data-vw-up="${x.host_id}" data-pkg="${esc(x.package)}">⬆ ${L('Bijwerken')}</button>` : ''}</div>`);
+      ${x.fixed ? `<button type="button" class="btn small-btn primary need-admin" data-vw-up="${x.host_id}" data-pkg="${esc(x.package)}" title="${esc(L('{p} bijwerken op {h}, via de agent', { p: x.package, h: x.host }))}">⬆ ${L('Bijwerken')}</button>` : ''}</div>`);
+  // 1.249.0: alle kwetsbare servers in één keer (per server de pakketten met een oplossing)
+  const fix = {};
+  g.vuln.filter((x) => x.fixed).forEach((x) => { (fix[x.host_id] ??= { host_id: x.host_id, host: x.host, packages: [] }).packages.push(x.package); });
+  const fixList = Object.values(fix);
   const acc = g.accepted.map((x) => `<div class="vw-row">${host(x)} · <span class="mono small">${esc(x.package)} ${esc(x.version)}</span></div>`);
   const safe = g.safe.map((x) => `<div class="vw-row">${host(x)} · <span class="mono small">${esc(x.package)} ${esc(x.version)}</span>
       ${x.resolved ? ` · <span class="good-txt small">${L('opgelost op {d}', { d: esc(fmtDateTime(x.resolved).slice(0, 10)) })}</span>` : ''}</div>`);
@@ -21359,12 +21364,14 @@ async function vulnWhere(cve, root) {
     ${xpHtml(L('Al je servers, verdeeld in: kwetsbaar, niet kwetsbaar, niet van toepassing, onbekend en geaccepteerd.'), L('<b>Kwetsbaar:</b> het pakket staat erop in een versie met deze CVE; met ⬆ werk je hem bij. <b>Niet kwetsbaar:</b> het pakket staat erop, maar in een versie zonder deze CVE (al bijgewerkt, of de distributie zegt dat haar versie niet geraakt wordt). <b>Niet van toepassing:</b> het pakket staat er niet op. <b>Onbekend:</b> RzSense kan niets zeggen: geen softwarelijst, nog niet gescand of de scan mislukte. Tel die dus niet als veilig. <b>Geaccepteerd:</b> iemand heeft het risico bewust geaccepteerd.'))}
     <div class="vw-sum">${[['vuln', '🔴', g.vuln.length], ['safe', '✅', g.safe.length], ['na', '⚪', g.na.length], ['unknown', '❔', g.unknown.length], ['accepted', '🟦', g.accepted.length]]
       .map(([k, i, n]) => `<span class="vw-pill vw-${k}">${i} ${n}</span>`).join('')}</div>
+    ${fixList.length > 1 ? `<div class="vw-bulk"><button type="button" class="btn primary need-admin" data-vw-allup>⬆ ${L('Alle {n} kwetsbare servers bijwerken', { n: fixList.length })}</button></div>` : ''}
     ${sec('vuln', '🔴', L('Kwetsbaar'), L('bijwerken'), vuln, true)}
     ${sec('safe', '✅', L('Niet kwetsbaar'), L('pakket staat erop, in een veilige versie'), safe, false)}
     ${sec('na', '⚪', L('Niet van toepassing'), L('pakket staat er niet op'), na, false)}
     ${sec('unknown', '❔', L('Onbekend'), L('RzSense weet het niet'), unk, g.unknown.length > 0 && !g.vuln.length)}
     ${sec('accepted', '🟦', L('Geaccepteerd'), L('risico bewust geaccepteerd'), acc, false)}`;
   box.onclick = async (e) => {
+    if (e.target.closest('[data-vw-allup]')) { vulnBulkUpgrade(fixList, L('{c} oplossen op {n} servers', { c: cve, n: fixList.length })); return; }
     const b = e.target.closest('[data-vw-up]');
     if (!b) return;
     const data = vulnData || await api('vulns').catch(() => null);
@@ -21378,6 +21385,7 @@ async function vulnWhere(cve, root) {
 function initVulnSoftware() {
   if (!$('#vsw-list') || $('#vsw-list').dataset.init) return;
   $('#vsw-list').dataset.init = '1';
+  if ($('#vsw-up-all')) $('#vsw-up-all').onclick = () => vulnUpgradeEverything();   // 1.249.0
   $('#vsw-q').addEventListener('input', () => renderVulnSoftware());
   $('#vsw-scope').addEventListener('click', (e) => {
     const b = e.target.closest('[data-vsw-all]');
@@ -21394,6 +21402,12 @@ function initVulnSoftware() {
   $('#vsw-list').addEventListener('click', async (e) => {
     const c = e.target.closest('[data-vcve]');
     if (c) { vulnDetail(c.dataset.vcve); return; }
+    const all = e.target.closest('[data-vsw-allup]');
+    if (all) {
+      const p = vswData.programs.find((x) => x.name === all.dataset.vswAllup);
+      if (p) vulnBulkUpgrade(vswFixHosts(p).map((h) => ({ host_id: h.host_id, host: h.host, packages: [p.name] })), L('{p} bijwerken op {n} servers', { p: p.name, n: vswFixHosts(p).length }));
+      return;
+    }
     const up = e.target.closest('[data-vsw-up]');
     if (up) {
       const data = vulnData || await api('vulns').catch(() => null);
@@ -21401,6 +21415,11 @@ function initVulnSoftware() {
       vulnUpgrade(h, [up.dataset.pkg]);
     }
   });
+}
+
+/** Servers waar dit programma een open CVE met een oplossing heeft (die kun je bijwerken) */
+function vswFixHosts(p) {
+  return p.os.flatMap((o) => o.versions.filter((v) => v.cves.some((c) => c.fixed)).flatMap((v) => v.hosts));
 }
 
 async function loadVulnSoftware() {
@@ -21443,14 +21462,81 @@ function renderVulnSoftware() {
         <span class="vsw-tags">${vsSevPills(p.sev)}${p.kev ? '<span class="vsw-tag bad">⚠️</span>' : ''}${p.exposed ? '<span class="vsw-tag" title="' + esc(L('Luistert op het netwerk')) + '">🌐</span>' : ''}${p.spread ? '<span class="vsw-tag" title="' + esc(L('Versies lopen uiteen')) + '">↕</span>' : ''}${p.accepted ? `<span class="vsw-tag" title="${esc(L('Geaccepteerd'))}">🟦 ${p.accepted}</span>` : ''}</span>
         <span class="vsw-safe small ${p.open ? 'warn-txt' : 'good-txt'}">${esc(safeTxt)}</span>
       </summary>
-      <div class="vsw-body">${p.os.map((o) => `<div class="vsw-os">
+      <div class="vsw-body">${vswFixHosts(p).length > 1 ? `<div class="vsw-bulk"><button type="button" class="btn primary need-admin" data-vsw-allup="${esc(p.name)}">⬆ ${L('{p} bijwerken op alle {n} servers', { p: p.name, n: vswFixHosts(p).length })}</button></div>` : ''}${p.os.map((o) => `<div class="vsw-os">
         <div class="vsw-os-h"><b>${esc(o.os)}</b>${o.safe ? ` <span class="small">→ ${L('veilig vanaf')} <span class="mono good-txt">${esc(o.safe)}</span></span>` : ''}${o.nofix ? ` <span class="muted small">· ${L('voor een deel nog geen oplossing')}</span>` : ''}</div>
         <table class="vsw-t"><thead><tr><th>${L('Versie')}</th><th>${L('Servers')}</th><th>${L('Open CVE\'s')}</th></tr></thead><tbody>
         ${o.versions.map((v) => `<tr class="${v.cves.length ? 'vsw-bad' : 'vsw-ok'}">
           <td class="mono">${esc(v.version)}${v.cves.length ? '' : ' <span class="good-txt">✔</span>'}</td>
-          <td>${v.hosts.map((h) => `<span class="vsw-host">${esc(h.host)}${h.exposed.length ? ` <span title="${esc(L('Luistert op het netwerk'))}: ${esc(h.exposed.join(', '))}">🌐</span>` : ''}${v.cves.some((c) => c.fixed) ? ` <button type="button" class="btn small-btn need-admin" data-vsw-up="${h.host_id}" data-name="${esc(h.host)}" data-pkg="${esc(p.name)}" title="${esc(L('Bijwerken via de agent'))}">⬆</button>` : ''}</span>`).join('')}</td>
+          <td>${v.hosts.map((h) => `<span class="vsw-host">${esc(h.host)}${h.exposed.length ? ` <span title="${esc(L('Luistert op het netwerk'))}: ${esc(h.exposed.join(', '))}">🌐</span>` : ''}${v.cves.some((c) => c.fixed) ? ` <button type="button" class="btn small-btn primary need-admin vsw-upbtn" data-vsw-up="${h.host_id}" data-name="${esc(h.host)}" data-pkg="${esc(p.name)}" title="${esc(L('{p} bijwerken op {h}, via de agent', { p: p.name, h: h.host }))}">⬆ ${L('Bijwerken')}</button>` : ''}</span>`).join('')}</td>
           <td>${v.cves.length ? v.cves.sort((a, b) => b.severity - a.severity).map(vsChip).join(' ') : '<span class="muted">–</span>'}</td>
         </tr>`).join('')}</tbody></table></div>`).join('')}</div>
     </details>`;
   }).join('') + (list.length > shown.length ? `<p class="muted small">${L('Nog {n} programma\'s: zoek om ze te vinden.', { n: list.length - shown.length })}</p>` : '');
+}
+
+// ---------------------------------------------------------------- 1.249.0: meerdere servers tegelijk bijwerken
+/**
+ * Eén venster voor meerdere servers: per server wat er bijgewerkt wordt (of waarom het niet kan), één bevestiging,
+ * daarna per server de uitkomst met "Voortgang".
+ * items: [{ host_id, host, packages: [...] | null (= alles waarvoor een oplossing is) }]
+ */
+async function vulnBulkUpgrade(items, title) {
+  const data = vulnData || await api('vulns').catch(() => null);
+  const hostOf = (id) => (data && data.hosts || []).find((x) => x.id === id) || null;
+  const rows = items.map((it) => ({ ...it, blocked: (hostOf(it.host_id) || {}).upgrade_blocked || null }));
+  const can = rows.filter((r) => !r.blocked);
+  const pk = (r) => (r.packages ? r.packages.join(' ') : L('alle pakketten met een oplossing'));
+  modal({
+    title, wide: true,
+    body: `<div style="padding:1rem 1.2rem" class="vb-dlg">
+      <p class="vb-intro">${can.length ? (can.length === 1 ? L('De agent werkt <b>1</b> server bij, bij zijn volgende rapport.') : L('De agent werkt <b>{n}</b> servers bij, elk bij zijn volgende rapport.', { n: can.length })) : L('Geen van deze servers kan via de agent worden bijgewerkt.')}</p>
+      ${xpHtml(L('Elke server wordt bijgewerkt met zijn eigen pakketbeheerder (dnf of apt), bij het volgende rapport van de agent.'), L('<b>Wat er gebeurt:</b> per server installeert de agent de nieuwe versie van de genoemde pakketten, met dnf of apt. Er wordt niets herstart; is dat nodig, dan zie je ↻ bij de server. Alles komt in het logboek. <b>Kan het niet?</b> Dan staat de reden erbij (bijvoorbeeld een te oude agent, of commando\'s niet als root) en krijg je na het bevestigen het commando om het zelf te doen.'))}
+      <div class="vb-list">${rows.map((r) => `<div class="vb-row ${r.blocked ? 'vb-no' : ''}" data-vb-host="${r.host_id}">
+        <span class="vb-ic">${r.blocked ? '⚠' : '⬆'}</span><b>${esc(r.host)}</b>
+        <span class="mono small vb-pk">${esc(pk(r))}</span>
+        ${r.blocked ? `<span class="warn-txt small">${L('kan niet via de agent: {why}', { why: esc(r.blocked) })}</span>` : ''}
+        <span class="vb-res small"></span></div>`).join('')}</div>
+      <div class="vb-confirm">${can.length ? confirmField('BIJWERKEN') : ''}</div>
+    </div>`,
+    buttons: can.length ? [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '⬆ ' + (can.length === 1 ? L('1 server bijwerken') : L('{n} servers bijwerken', { n: can.length })), cls: 'primary', submit: true }]
+      : [{ label: L('Sluiten'), cls: 'primary', onClick: () => $('#modal').close() }],
+    onSubmit: async (v, form) => {
+      const res = await api('vuln_upgrade_bulk', { items: can.map((r) => (r.packages ? { host_id: r.host_id, packages: r.packages } : { host_id: r.host_id, all: true })), confirm: v.confirm });
+      const ok = res.results.filter((x) => x.ok).length;
+      res.results.forEach((x, i) => {
+        const row = $(`[data-vb-host="${x.host_id}"]`, form);
+        if (!row) return;
+        row.classList.add(x.ok ? 'vb-ok' : 'vb-no');
+        $('.vb-ic', row).textContent = x.ok ? '✔' : '✘';
+        $('.vb-res', row).innerHTML = x.ok
+          ? `<span class="good-txt">${L('in de wachtrij')}</span> <button type="button" class="btn small-btn" data-vb-prog="${x.host_id}">${L('Voortgang')}</button>`
+          : `<span class="bad">${esc(x.error)}</span>${x.command ? copyBox('vb-cmd-' + i, x.command) : ''}`;
+      });
+      $('.vb-confirm', form).innerHTML = '';
+      $('.vb-intro', form).innerHTML = ok ? (ok === 1 ? L('<b>1</b> server wordt bijgewerkt bij zijn volgende rapport. Daarna scant RzSense hem meteen opnieuw.') : L('<b>{n}</b> servers worden bijgewerkt bij hun volgende rapport. Daarna scant RzSense ze meteen opnieuw.', { n: ok }))
+        : L('Er kon geen enkele server worden bijgewerkt.');
+      wireCopy(form);
+      $('#modal-footer').innerHTML = `<button type="button" class="btn primary" id="vb-close">${L('Sluiten')}</button>`;
+      $('#vb-close').onclick = () => $('#modal').close();
+      form.onclick = (e) => {
+        const b = e.target.closest('[data-vb-prog]');
+        if (b) vulnUpgradeDialog(hostOf(+b.dataset.vbProg) || { id: +b.dataset.vbProg, name: '' }, true);
+      };
+      toast(ok === 1 ? L('1 server in de wachtrij om bij te werken') : L('{n} servers in de wachtrij om bij te werken', { n: ok }));
+      loadVulns();
+      if (vulnTab === 'sw') loadVulnSoftware();
+      return 'keep';
+    },
+  });
+}
+
+/** Alles bijwerken: elke server met minstens één open kwetsbaarheid waarvoor een oplossing is */
+async function vulnUpgradeEverything() {
+  const data = vulnData || await api('vulns').catch(() => null);
+  if (!data || !data.findings) return;
+  const ids = [...new Set(data.findings.filter((f) => f.fixed && !f.ignored).map((f) => f.host_id))];
+  if (!ids.length) { toast(L('Er is niets bij te werken: geen open kwetsbaarheden met een oplossing.')); return; }
+  const items = ids.map((id) => ({ host_id: id, host: (data.hosts.find((h) => h.id === id) || {}).name || '#' + id, packages: null }))
+    .sort((a, b) => a.host.localeCompare(b.host));
+  vulnBulkUpgrade(items, (items.length === 1 ? L('Alles bijwerken (1 server)') : L('Alles bijwerken ({n} servers)', { n: items.length })));
 }

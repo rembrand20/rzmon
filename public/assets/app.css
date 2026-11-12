@@ -5927,3 +5927,17 @@ body.sk-s .cc-ring-bg { stroke: var(--s-fill); }
   .vsw-t tr, .vsw-t td { display: block; }
   .vsw-safe { white-space: normal; }
 }
+
+/* 1.249.0: bijwerken per server en alles tegelijk */
+.vw-bulk, .vsw-bulk { display: flex; justify-content: flex-end; margin: .5rem 0; }
+.vsw-bulk { margin: .2rem 0 .4rem; }
+.vsw-upbtn { white-space: nowrap; }
+.vb-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); margin: .8rem 0; max-height: 50vh; overflow: auto; }
+.vb-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem .6rem; padding: .55rem .8rem; border-top: 1px solid var(--border); }
+.vb-row:first-child { border-top: 0; }
+.vb-row .vb-ic { width: 1.2rem; text-align: center; }
+.vb-row .vb-pk { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; color: var(--muted); }
+.vb-row.vb-no { background: color-mix(in srgb, var(--warn) 7%, transparent); }
+.vb-row.vb-ok { background: color-mix(in srgb, var(--ok) 7%, transparent); }
+.vb-row .vb-res { flex-basis: 100%; padding-left: 1.8rem; }
+.vb-row .vb-res:empty { display: none; }

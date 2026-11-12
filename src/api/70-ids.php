@@ -389,6 +389,37 @@ switch ($action) {
         AgentCommands::audit($user['username'], 'Pakketten bijwerken gevraagd', "{$h['name']}: " . implode(' ', $bins));
         out(['ok' => true, 'packages' => $bins]);
 
+    // 1.249.0: meerdere servers tegelijk bijwerken, met één bevestiging. Per server dezelfde controles als vuln_upgrade.
+    // items: [{host_id, packages: [...]}, …] of [{host_id, all: true}, …]
+    case 'vuln_upgrade_bulk':
+        $in = input();
+        $confirm('BIJWERKEN');
+        $results = [];
+        foreach (array_slice((array) ($in['items'] ?? []), 0, 200) as $it) {
+            $h = q('SELECT id, name, mode, agent_version, agent_update_via, commands FROM hosts WHERE id = ?', [(int) ($it['host_id'] ?? 0)])->fetch();
+            if (!$h) {
+                continue;
+            }
+            $inv = q('SELECT mgr, packages FROM vuln_inventory WHERE host_id = ?', [$h['id']])->fetch();
+            $names = !empty($it['all'])
+                ? q('SELECT DISTINCT package FROM vuln_findings WHERE host_id = ? AND fixed_version IS NOT NULL', [$h['id']])->fetchAll(PDO::FETCH_COLUMN)
+                : array_map('strval', array_slice((array) ($it['packages'] ?? []), 0, 200));
+            $bins = $inv ? Vulns::binaries((array) json_decode((string) $inv['packages'], true), (string) $inv['mgr'], $names) : [];
+            if (!$bins) {
+                $results[] = ['host_id' => (int) $h['id'], 'host' => $h['name'], 'ok' => false, 'error' => t('Niets bij te werken')];
+                continue;
+            }
+            $r = Vulns::requestUpgrade($h, $bins, $user['username']);
+            if ($r !== true) {
+                $results[] = ['host_id' => (int) $h['id'], 'host' => $h['name'], 'ok' => false, 'error' => $r,
+                    'command' => $inv ? Vulns::upgradeCommand((string) $inv['mgr'], $bins) : null];
+                continue;
+            }
+            AgentCommands::audit($user['username'], 'Pakketten bijwerken gevraagd', "{$h['name']}: " . implode(' ', $bins));
+            $results[] = ['host_id' => (int) $h['id'], 'host' => $h['name'], 'ok' => true, 'packages' => $bins];
+        }
+        out(['results' => $results]);
+
     case 'ids_access':
         $days = Monitor::alertDays();
         $rows = q('SELECT a.id, a.host_id, a.kind, a.type, a.title, a.message, a.detail, a.created_at, h.name AS host_name

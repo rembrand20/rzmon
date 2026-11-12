@@ -543,6 +543,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <option value="3"><?= th('Vanaf high') ?></option><option value="4"><?= th('Alleen critical') ?></option>
         </select>
         <button type="button" class="btn need-admin" id="vuln-scan">🔍 <?= th('Nu scannen') ?></button>
+        <button type="button" class="btn primary need-admin" id="vuln-up-all" title="<?= th('Alle servers bijwerken waarvoor een oplossing is, met één bevestiging') ?>">⬆ <?= th('Alles bijwerken') ?></button>
         <a class="btn" id="vuln-csv" href="api.php?action=vuln_csv&amp;kind=findings" title="<?= th('Alle open kwetsbaarheden als CSV-bestand (opent in Excel)') ?>">⤓ CSV</a>
         <div class="dash-more">
           <button class="btn" type="button" data-menu-btn aria-haspopup="menu" aria-expanded="false" title="<?= th('Meer') ?>">⋯</button>
@@ -564,6 +565,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <div class="dash-chips" id="vsw-scope" role="group" aria-label="<?= th('Welke software') ?>"></div>
         <div class="dash-chips" id="vsw-filter" role="group" aria-label="<?= th('Filter') ?>"></div>
         <span class="dash-sp"></span>
+        <button type="button" class="btn primary need-admin" id="vsw-up-all" title="<?= th('Alle servers bijwerken waarvoor een oplossing is, met één bevestiging') ?>">⬆ <?= th('Alles bijwerken') ?></button>
         <a class="btn" id="vsw-csv" href="api.php?action=vuln_csv&amp;kind=software" title="<?= th('Dit overzicht als CSV-bestand (opent in Excel)') ?>">⤓ CSV</a>
       </div>
       <div id="vsw-info" class="muted small"></div>
