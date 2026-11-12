@@ -35,8 +35,19 @@ final class MailSec
         $cache = is_array($o['_mail'] ?? null) && ($o['_mail']['name'] ?? '') === $name ? $o['_mail'] : null;
         if (!$cache || (int) ($cache['at'] ?? 0) < time() - self::CACHE_SEC) {
             $fresh = self::lookup($name, $sel, !empty($o['starttls']));
+            if (empty($fresh['resolved'])) {
+                // 1.247.1: een servernaam (bv. mail.voorbeeld.nl: alleen een A-record, geen MX/SPF/NS/SOA) → het domein erboven
+                // controleren; STARTTLS dan op die server zelf
+                $org = self::orgDomain($name);
+                if ($org !== null) {
+                    $fresh = self::lookup($org, $sel, !empty($o['starttls']), self::hasAddress($name) ? $name : null);
+                    $fresh['domain'] = $org;
+                }
+            }
             if (empty($fresh['resolved'])) {   // DNS werkt niet of het domein bestaat niet: geen oordeel (en niets onthouden)
-                return Checks::result(STATUS_UNKNOWN, null, t('Kon {d} niet opzoeken in DNS (geen NS- of SOA-record): bestaat het domein, en werkt DNS op de server van RzSense?', ['d' => $name]));
+                return Checks::result(STATUS_UNKNOWN, null, self::hasAddress($name)
+                    ? t('{d} is een servernaam zonder eigen e-mailrecords, en het domein erboven is niet te vinden in DNS. Vul het domein in (bv. het deel na de eerste punt).', ['d' => $name])
+                    : t('Kon {d} niet opzoeken in DNS (geen NS- of SOA-record): bestaat het domein, en werkt DNS op de server van RzSense?', ['d' => $name]));
             }
             $cache = $fresh + ['name' => $name, 'at' => time()];
             $o['_mail'] = $cache;
@@ -44,12 +55,13 @@ final class MailSec
                 q('UPDATE checks SET options = ? WHERE id = ?', [json_encode($o, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $check['id']]);
             }
         }
-        $r = self::evaluate($name, $cache, !empty($o['nomail']));
+        $dom = (string) ($cache['domain'] ?? $name);
+        $r = self::evaluate($dom, $cache, !empty($o['nomail']));
         $st = match ($r['worst']) { 'crit' => STATUS_CRIT, 'warn' => STATUS_WARN, default => STATUS_OK };
         $bad = array_values(array_filter($r['items'], static fn($i) => in_array($i['st'], ['crit', 'warn'], true)));
         $msg = $bad ? implode(' · ', array_map(static fn($i) => ($i['st'] === 'crit' ? '✘ ' : '⚠ ') . $i['title'], array_slice($bad, 0, 4)))
             : t('SPF, DKIM en DMARC in orde');
-        return Checks::result($st, (float) $r['score'], t('E-mail {d}', ['d' => $name]) . ': ' . $msg . ' · ' . t('score {n}/100', ['n' => $r['score']]));
+        return Checks::result($st, (float) $r['score'], t('E-mail {d}', ['d' => $dom]) . ($dom !== $name ? ' (' . t('{h} is een servernaam; het domein gecontroleerd', ['h' => $name]) . ')' : '') . ': ' . $msg . ' · ' . t('score {n}/100', ['n' => $r['score']]));
     }
 
     /** TXT-records van een naam (lege lijst als er niets is) */
@@ -67,7 +79,27 @@ final class MailSec
      * @param list<string> $selectors
      * @return array<string, mixed>
      */
-    public static function lookup(string $d, array $selectors, bool $starttls = false): array
+    /** Heeft deze naam een IP-adres (A of AAAA)? */
+    private static function hasAddress(string $name): bool
+    {
+        return (bool) @dns_get_record($name, DNS_A) || (bool) @dns_get_record($name, DNS_AAAA);
+    }
+
+    /** Het domein boven een servernaam: de eerste naam erboven met een NS-, SOA- of MX-record (niet het topdomein zelf) */
+    private static function orgDomain(string $name): ?string
+    {
+        $parts = explode('.', $name);
+        for ($i = 1; count($parts) - $i >= 2; $i++) {
+            $p = implode('.', array_slice($parts, $i));
+            if (@dns_get_record($p, DNS_NS) || @dns_get_record($p, DNS_SOA) || @dns_get_record($p, DNS_MX)) {
+                return $p;
+            }
+        }
+        return null;
+    }
+
+    /** @param string|null $tlsHost STARTTLS op deze server testen in plaats van op de eerste MX (1.247.1) */
+    public static function lookup(string $d, array $selectors, bool $starttls = false, ?string $tlsHost = null): array
     {
         $mx = [];
         foreach ((array) @dns_get_record($d, DNS_MX) as $r) {
@@ -97,7 +129,9 @@ final class MailSec
         }
         $rpt = array_values(array_filter(self::txt("_smtp._tls.$d"), static fn($t) => (bool) preg_match('/^v=TLSRPTv1/i', trim($t))));
         $tls = null;
-        if ($starttls && $mx && $mx[0][1] !== '' && $mx[0][1] !== '.') {
+        if ($starttls && $tlsHost !== null) {
+            $tls = self::starttls($tlsHost);
+        } elseif ($starttls && $mx && $mx[0][1] !== '' && $mx[0][1] !== '.') {
             $tls = self::starttls($mx[0][1]);
         }
         $resolved = $mx || $spf || (bool) @dns_get_record($d, DNS_NS) || (bool) @dns_get_record($d, DNS_SOA);

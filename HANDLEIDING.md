@@ -3333,6 +3333,7 @@ Kan iemand anders mail versturen die van jouw domein lijkt te komen (phishing ui
 
 - **Met het record om te plakken:** in de popup van de check staat per punt wat er mis is, met het DNS-record dat je bij je DNS-provider kunt plakken (📋 kopieert het).
 - **Domein zonder mail** (bv. een domein dat je alleen voor een website gebruikt): vink *Dit domein verstuurt geen e-mail* aan, of RzSense ziet het zelf (geen MX). Dan hoort er `v=spf1 -all` en DMARC `p=reject` te staan: de beste bescherming tegen misbruik van je naam.
+- **Servernaam ingevuld?** (vanaf 1.247.1) Vul je de naam van je mailserver in (bv. `mail.voorbeeld.nl`), dan controleert RzSense het domein erboven (`voorbeeld.nl`), want daar staan SPF, DKIM en DMARC. Het bericht zegt dat erbij. Met *STARTTLS* aan wordt dan die mailserver zelf getest (poort 25, vanaf de server van RzSense).
 - **DNS werkt niet?** Dan wordt de check *onbekend*, niet *critical*: RzSense oordeelt alleen als het domein zelf te vinden is.
 - **Uitzetten:** *Instellingen → Overzicht → Status en functies → Functies* of *Beveiliging → E-mailbeveiliging*.
 

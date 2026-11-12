@@ -120,7 +120,7 @@ final class CheckInfo
             if (!is_array($o['_mail'] ?? null)) {
                 return null;
             }
-            $r = MailSec::evaluate((string) $c['target'], $o['_mail'], !empty($o['nomail']));
+            $r = MailSec::evaluate((string) ($o['_mail']['domain'] ?? $c['target']), $o['_mail'], !empty($o['nomail']));
             return ['kind' => 'mail', 'at' => (int) ($o['_mail']['at'] ?? 0)] + $r;
         }
         if (in_array($type, ['ssl', 'domain'], true) && $c['last_value'] !== null) {
