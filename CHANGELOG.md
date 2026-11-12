@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.242.0**: **uitleg overal**: elke kaart, elk tabblad en de belangrijke vensters zeggen wat ze doen, hoe je ze instelt en wat goed is om te weten.
 - **1.241.0**: **ⓘ bij de velden**: uitleg, eenheid, bereik en aanbevolen waarde (met één tik te gebruiken), ook op je telefoon.
 
+## 1.245.1 – 2026-11-12
+### Opgelost
+- **Accountmenu afgeknipt in het thema @S**: het menu (je naam linksonder) werd rechts afgesneden, zodat de keuzes voor lay-out, thema en licht/donker maar half te zien waren. Het menu is nu helemaal zichtbaar en iets breder, zodat de vier thema's op één regel passen.
+
 ## 1.245.0 – 2026-11-11
 ### Nieuw
 - **Thema Neo**: de Command-center-look (diep blauw, cyaan accent, gloeiende bovenranden, techletter voor getallen) is terug als vierde thema, naast Standaard, @S en Liquid Glass. Te kiezen bij **Mijn account → Weergave → Thema** of in het accountmenu, met elke lay-out en in licht en donker.

@@ -3097,7 +3097,7 @@ body.lay-cc #tab-settings .set-off { display: none !important; }
 .rule-view .rule-table td:first-child, .rule-view .rule-table th:first-child { display: none; }
 .wl-link { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-top: 1rem; }
 /* 1.163.1: accountmenu iets breder, zodat de vier lay-outs en het label op één regel passen */
-.acct-menu { width: 340px; max-width: calc(100vw - 24px); }
+.acct-menu { width: 360px; max-width: calc(100vw - 24px); }   /* 1.245.1: vier thema's op één regel */
 .acct-row { white-space: nowrap; }
 /* 1.164.0: Monitoring in CC: compacte blokken; open = servertabel met de checks eronder */
 .hb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; align-items: start; }
@@ -5696,7 +5696,11 @@ body.sk-s .kpi { background: var(--card); }
 
 /* Zijbalk: doorschijnend paneel, rustige keuze zonder streep */
 @media (min-width: 1101px) {
-  body.sk-s .topbar.app-top { background: var(--side); border: 1px solid var(--s-hair); box-shadow: var(--s-shadow);
+  /* 1.245.1: de vervaging zit op een laag eronder (::before), niet op de zijbalk zelf: een backdrop-filter op de zijbalk
+     maakt hem het kader van het zwevende accountmenu, dat daardoor rechts werd afgeknipt */
+  body.sk-s .topbar.app-top { isolation: isolate; background: var(--side); border: 1px solid var(--s-hair); box-shadow: var(--s-shadow);
+    -webkit-backdrop-filter: none; backdrop-filter: none; }
+  body.sk-s .topbar.app-top::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
     -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%); }
   body.sk-s .app-top .brand { border-bottom-color: var(--s-hair); }
   body.sk-s .app-top .top-actions { border-top-color: var(--s-hair); }
