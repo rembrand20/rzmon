@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.244.0**: **lay-out en thema los van elkaar**: kies een opbouw (Blox, L1nes, Compact, CC) en daarbovenop een thema (Standaard, @S, Liquid Glass), licht of donker.
 - **1.243.0**: **thema @S**: RzSense in de stijl van Apple, rustig en licht, te kiezen per account (licht en donker).
 
+## 1.247.4 – 2026-11-12
+### Opgelost
+- **E-mailbeveiliging: ↻ Nu checken zoekt echt opnieuw op**: de check onthoudt de DNS-uitkomst 3 uur. *Nu checken* liet daardoor de oude uitkomst zien, ook als je net een record had toegevoegd (bv. TLS-RPT). Nu zoekt *Nu checken* alles opnieuw op (hooguit eens per minuut). Ook het opslaan van de check begint opnieuw.
+
 ## 1.247.3 – 2026-11-12
 ### Opgelost
 - **E-mailbeveiliging: *Data too long for column 'options'***: werd de DKIM-sleutel gevonden (bijvoorbeeld na het invullen van de selector), dan paste de opgeslagen uitkomst niet meer in de database en bleef de check *onbekend*. De ruimte voor instellingen van een check is nu groter, en van de DKIM-sleutel onthoudt RzSense alleen nog de lengte.

@@ -19,6 +19,8 @@ final class MailSec
     public const SELECTORS = ['default', 'google', 'selector1', 'selector2', 'k1', 'k2', 'mail', 'dkim', 's1', 's2', 'smtp', 'mx',
         'protonmail', 'protonmail2', 'protonmail3', 'fm1', 'fm2', 'fm3', 'zoho', 'mxvault', 'everlytickey1', 'sendgrid', 'mandrill', 'resend', 'ovh', 'transip', 'strato'];
     private const CACHE_SEC = 10800;
+    /** 1.247.4: true bij ↻ Nu checken: opnieuw opzoeken als de vorige keer langer dan een minuut geleden was */
+    public static bool $fresh = false;
 
     public static function enabled(): bool
     {
@@ -33,7 +35,8 @@ final class MailSec
         }
         $sel = array_values(array_filter((array) ($o['dkim'] ?? []), static fn($s) => is_string($s) && preg_match('/^[a-z0-9._-]{1,63}$/i', $s)));
         $cache = is_array($o['_mail'] ?? null) && ($o['_mail']['name'] ?? '') === $name ? $o['_mail'] : null;
-        if (!$cache || (int) ($cache['at'] ?? 0) < time() - self::CACHE_SEC) {
+        $maxAge = self::$fresh ? 60 : self::CACHE_SEC;
+        if (!$cache || (int) ($cache['at'] ?? 0) < time() - $maxAge) {
             $fresh = self::lookup($name, $sel, !empty($o['starttls']));
             if (empty($fresh['resolved'])) {
                 // 1.247.1: een servernaam (bv. mail.voorbeeld.nl: alleen een A-record, geen MX/SPF/NS/SOA) → het domein erboven

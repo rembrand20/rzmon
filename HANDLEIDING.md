@@ -3321,7 +3321,7 @@ Kan iemand anders mail versturen die van jouw domein lijkt te komen (phishing ui
 
 **Toevoegen:** bij een server (bv. de server van RzSense) → **＋ Check** → type **Domein** → *Wat controleren*: **✉️ E-mailbeveiliging**. Vul het domein in en eventueel de **DKIM-selector** van je mailprovider (bv. `google` bij Google Workspace, `selector1` bij Microsoft 365; de bekendste probeert RzSense zelf).
 
-**Wat RzSense controleert** (eens per 3 uur, met een score van 0 tot 100):
+**Wat RzSense controleert** (eens per 3 uur, met een score van 0 tot 100; met **↻ Nu checken** of na het opslaan van de check meteen opnieuw, vanaf 1.247.4):
 
 | Punt | Goed | Niet goed |
 |---|---|---|

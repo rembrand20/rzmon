@@ -323,6 +323,7 @@ switch ($action) {
         out(['ok' => true]);
 
     case 'check_run':
+        MailSec::$fresh = true;   // 1.247.4: ↻ Nu checken zoekt e-mailbeveiliging echt opnieuw op (niet de uitkomst van 3 uur geleden)
         $res = Monitor::runCheckById((int) (input()['id'] ?? 0));
         out(['ok' => $res !== null, 'result' => $res]);
 
