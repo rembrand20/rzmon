@@ -711,7 +711,11 @@ Oude links (bv. `#settings/smart`, `#settings/server`) gaan vanzelf naar de nieu
   - **Bovenaan** staan labels die laten zien hoe de agent ervoor staat (sleutel, versleuteld, https, EDR, waakhond, SNMP), met **🧪 Test** en **＋ Aanbevolen checks**, en daaronder de status en het contact.
   - **Daaronder een lijst** (vanaf 1.246.0): alle onderdelen onder elkaar, in groepen. Per regel zie je het icoon, de naam en in één zin hoe het nu staat (bv. *elke 1 m · realtime aan*, *3 bronnen · 1 met een fout*, *2 onbekend · 0 geblokkeerd*). **Klik op een regel** om hem open te klappen en in te stellen; er is steeds **één tegelijk open**.
     - **Verbinding en agent:** *Rapporteren* (interval en ⚡ Realtime), *Verbinding* (versleuteling, certificaat vastzetten, IP-slot, alleen https, adres) en *Koppelen en installeren* (opnieuw koppelen, nieuw token en de installatie-instructies samen in één onderdeel).
-    - **Bescherming:** *Beveiliging* (EDR, commando-checks), *Ransomware*, *Onbekende programma's* en *Tijdelijk sudo*.
+    - **Bescherming:** *Beveiliging* (EDR), *Ransomware* en *Onbekende programma's*.
+    - **Rechten op de server** (vanaf 1.247.0): alles wat op de server als root kan gebeuren, bij elkaar:
+      - *Commando-checks*: of en als wie de agent de commando's van je commando-checks uitvoert (*uit*, *als nobody*, *als root*; zie §8.10). Bij *als root* staat er een waarschuwing op de regel.
+      - *Tijdelijk sudo*: een gebruiker op de server voor korte tijd sudo geven (zie §8.12e). RzSense voert hier zelf niets uit.
+      - **Het verschil:** bij commando-checks draait er een commando uit RzSense op de server; bij tijdelijk sudo krijgt een persoon even rechten en doet die het zelf. Verder draait als root alleen wat RzSense niet zelf kan invullen: zelf herstellen (herstarten, of een script dat jij in `heal.d` zet), updates installeren en de vaste diagnose voor AI-advies. Op de server heb je altijd het laatste woord met `COMMANDS=0`, `SUDO_JIT=0` en `HEAL=0` in `/etc/default/rzmon-agent`.
     - **Updates:** *Updates installeren*. **Meldingen:** 🐕 waakhond en info bij agent-updates. **Logs:** de logbronnen en het actielogboek. **📡 SNMP:** zie §7.7.
     - **Eigen instelling:** heeft deze server iets anders dan de algemene instelling, dan staat er *eigen* achter de regel; openklappen toont **↺ Terug naar algemeen**.
     - **Aandacht eerst:** een onderdeel dat aandacht vraagt (nog geen eigen sleutel, een logbron met een fout, een ransomware-alarm, onbekende programma's, updates met beveiliging of herstart nodig) krijgt een oranje stip en staat bovenaan zijn groep.
@@ -2614,7 +2618,7 @@ Met een **Commando**-check voert de agent een commando uit op de server, en verg
 - *Toestaan, als gebruiker nobody*: voor de meeste commando's genoeg;
 - *Toestaan, als root*: alleen als het echt nodig is.
 
-Per server kun je dat anders instellen in de **Agent Manager** (*Commando-checks op deze server*). Ruimer maken (uit → nobody → root) vraagt om je wachtwoord, en elke wijziging komt in het **logboek** (ook het aanmaken en wijzigen van commando-checks).
+Per server kun je dat anders instellen in de **Agent Manager** (*Rechten op de server → Commando-checks*). Ruimer maken (uit → nobody → root) vraagt om je wachtwoord, en elke wijziging komt in het **logboek** (ook het aanmaken en wijzigen van commando-checks).
 
 **Op de server zelf** kun je het altijd inperken, wat RzSense ook zegt. Zet daarvoor in de instellingen van de agent (`/etc/default/rzmon-agent`, of `agent.conf` op TrueNAS):
 - `COMMANDS=0`: nooit commando's uitvoeren;

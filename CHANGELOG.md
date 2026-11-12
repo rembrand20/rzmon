@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.247.0**: **Rechten op de server**: commando-checks en tijdelijk sudo samen in de Agent Manager, met uitleg wat elk doet en een waarschuwing bij root.
 - **1.246.0**: **Agent Manager als overzichtelijke lijst**: alle onderdelen onder elkaar in groepen, met per regel hoe het staat; klik om in te stellen.
 - **1.245.0**: **thema Neo**: de Command-center-look als vierde thema, met elke lay-out.
 - **1.244.0**: **lay-out en thema los van elkaar**: kies een opbouw (Blox, L1nes, Compact, CC) en daarbovenop een thema (Standaard, @S, Liquid Glass), licht of donker.
 - **1.243.0**: **thema @S**: RzSense in de stijl van Apple, rustig en licht, te kiezen per account (licht en donker).
-- **1.242.0**: **uitleg overal**: elke kaart, elk tabblad en de belangrijke vensters zeggen wat ze doen, hoe je ze instelt en wat goed is om te weten.
+
+## 1.247.0 – 2026-11-12
+### Nieuw
+- **Rechten op de server** (Agent Manager): een nieuwe groep met alles wat op een server als root kan gebeuren, bij elkaar:
+  - **Commando-checks**: stond eerst onder *Beveiliging*. De regel zegt meteen hoe het staat (*uit*, *als nobody* of *als root*); bij **als root** staat er een waarschuwing. Een eigen keuze voor de server krijgt *eigen* met **↺ Terug naar algemeen**.
+  - **Tijdelijk sudo**: stond eerst onder *Bescherming*.
+- **Uitleg** bij de groep en bij beide onderdelen (*Meer info*): wat ze doen, hoe ze werken, het verschil (bij commando-checks voert de agent een commando uit RzSense uit; bij tijdelijk sudo voert RzSense niets uit en krijgt een persoon even sudo), wat verder als root draait (zelf herstellen, updates installeren, diagnose voor AI-advies, zonder eigen commando's) en hoe je het op de server zelf altijd uitzet (`COMMANDS=0`, `SUDO_JIT=0`, `HEAL=0`).
 
 ## 1.246.0 – 2026-11-12
 ### Nieuw

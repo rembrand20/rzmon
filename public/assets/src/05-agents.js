@@ -1303,6 +1303,9 @@ function amInit(h, body) {
     sub.hidden = !me.own;
     $$('button', seg).forEach((b) => b.setAttribute('aria-checked', String(b.dataset.v === (me.own || me.mode))));
     $('#host-commands-info').textContent = me.own ? L('eigen keuze: {m}', { m: CMD_MODES[me.own] }) : glob;
+    const eff = me.own || r.global;   // 1.247.0: samenvatting in de lijst, met een waarschuwing bij root
+    amSum('cmd', eff === 'root' ? `<b class="warn-txt">⚠ ${esc(L('als root: een commando mag alles op deze server'))}</b>` : eff === 'nobody' ? esc(L('als nobody (zonder rechten)')) : esc(L('uit: er draait niets')));
+    amOwnSet('cmd', !!me.own);
     const again = () => agentInstructions(findHost(h.id));
     sw.onchange = () => {
       sub.hidden = !sw.checked;
@@ -1491,9 +1494,13 @@ function agentInstructions(h, pairNow = false) {
         <p class="am-lead">${L('Wat de agent bewaakt en mag doen')}</p>
         ${amRow(L('Endpoint-bewaking (EDR)'), L('processen, netwerk, bestanden en containers meteen bekeken; RzSense grijpt in bij een aanval'), amSw('host-edr', +(h.edr_on ?? 1)))}
         <div id="host-edr-info" class="edr-host am-sub"></div>
-        ${amRow(L('Commando-checks'), `<span id="host-commands-info">${L('laden…')}</span>`, amSw('host-cmd-own', false, 'title="' + esc(L('Eigen keuze voor deze server')) + '"'))}
-        <div class="am-sub" id="host-cmd-sub" hidden>${swSeg('cmd', Object.entries(CMD_MODES), 'off')}</div>
       </section>
+      ${h.mode === 'agent' && !isHaHost(h) ? `<section class="am-sec am-card need-admin" data-pk="cmd" data-pw="12" style="--c: var(--crit)"><h3 class="am-h"><i aria-hidden="true">🖥️</i>${L('Commando-checks')}</h3>
+        <p class="am-lead">${L('RzSense laat de agent een commando uitvoeren en vergelijkt het antwoord')}</p>
+        ${xpHtml(L('Hier bepaal je óf en als wie de agent de commando\'s van je commando-checks uitvoert.'), L('<b>Wat het doet:</b> bij een commando-check (bijvoorbeeld <code>zpool status -x</code> of <code>systemctl is-active nginx</code>) stuurt RzSense het commando naar de agent. De agent voert het uit in een kale omgeving, zonder invoer en met een time-out, en stuurt de uitvoer en de exitcode terug. RzSense vergelijkt die met het antwoord dat je verwacht. Dit is de enige plek waar een commando dat je in RzSense typt op de server draait. <b>De drie standen:</b> <i>uit</i> (standaard): er draait niets, de checks blijven onbekend. <i>als nobody</i>: het commando draait als de gebruiker nobody, zonder rechten op je bestanden; genoeg voor de meeste checks. <i>als root</i>: het commando mag alles op de server; alleen nodig voor bijvoorbeeld SMART, Docker, Proxmox of TrueNAS-meldingen. <b>Zo stel je het in:</b> schakelaar uit = de algemene instelling (Instellingen → Agents → Commando-checks); schakelaar aan = een eigen keuze voor deze server. Ruimer maken vraagt om je wachtwoord en komt in het logboek. <b>Goed om te weten:</b> op de server zelf kun je het altijd inperken, wat RzSense ook zegt: <code>COMMANDS=0</code> (nooit) of <code>COMMANDS=nobody</code> (nooit als root) in <code>/etc/default/rzmon-agent</code>. Gebruik https naar RzSense, zodat niemand onderweg een commando kan aanpassen. Kies <i>als root</i> alleen als een check het echt nodig heeft.'))}
+        ${amRow(L('Commando\'s uitvoeren'), `<span id="host-commands-info">${L('laden…')}</span>`, amSw('host-cmd-own', false, 'title="' + esc(L('Eigen keuze voor deze server')) + '"'))}
+        <div class="am-sub" id="host-cmd-sub" hidden>${swSeg('cmd', Object.entries(CMD_MODES), 'off')}</div>
+      </section>` : ''}
       <section class="am-sec am-card need-admin" data-pk="notify" data-pw="4" style="--c: var(--warn)"><h3 class="am-h"><i aria-hidden="true">🔔</i>${L('Meldingen')}</h3>
         <p class="am-lead">${L('Wanneer deze server zelf iets laat weten')}</p>
         ${amRow('🐕 ' + L('Waakhond'), `<span id="host-wd-info">${L('deze agent stuurt zelf een pushbericht (Pushover of ntfy) als RzSense onbereikbaar is of de checks stilstaan')}</span>`, amSw('host-watchdog', +h.watchdog))}
@@ -1534,6 +1541,7 @@ function agentInstructions(h, pairNow = false) {
       </section>` : ''}
       ${h.mode === 'agent' ? `<section class="am-sec am-card need-admin" data-pk="sudo" data-pw="12" style="--c: var(--crit)"><h3 class="am-h"><i aria-hidden="true">🔑</i>${L('Tijdelijk sudo')}</h3>
         <p class="am-lead">${L('Een gebruiker voor korte tijd sudo geven; gaat vanzelf weer weg')}</p>
+        ${xpHtml(L('Hier geef je een mens op de server tijdelijk root-rechten. RzSense voert zelf niets uit.'), L('<b>Wat het doet:</b> moet iemand even iets als root doen (een dienst herstarten, een update), dan geef je die gebruiker hier voor 15 minuten tot 4 uur sudo, in plaats van altijd. De agent zet het bestand <code>/etc/sudoers.d/rzsense-jit-&lt;gebruiker&gt;</code> neer (eerst gecontroleerd met <code>visudo</code>) en een systemd-timer die het op tijd weer weghaalt, ook als de agent stopt. Andere sudo-regels raakt hij niet aan. <b>Zo stel je het in:</b> kies de gebruiker (root kan niet), hoe lang en waarom, en bevestig met je wachtwoord en je 2FA-code. Met <i>Intrekken</i> haal je het eerder weg. <b>Verschil met commando-checks:</b> bij commando-checks voert de agent een commando uit RzSense uit; bij tijdelijk sudo voert RzSense niets uit, maar logt een persoon zelf in met <code>sudo</code>. <b>Goed om te weten:</b> elke aanvraag staat met reden in het logboek. Uitzetten op de server zelf: <code>SUDO_JIT=0</code> in <code>/etc/default/rzmon-agent</code>.'))}
         <div id="am-sudo"><p class="muted">${L('Laden…')}</p></div>
       </section>` : ''}
       <section class="am-sec am-card" data-pk="actlog" data-pw="12" style="--c: var(--info, #2563eb)"><h3 class="am-h"><i aria-hidden="true">📒</i>${L('Logboek')}</h3>
@@ -1972,7 +1980,7 @@ async function recommendedChecks(h) {
     title: L('＋ Aanbevolen checks – {name}', { name: h.name }),
     wide: true,
     body: `<p style="margin-top:0">${L('Herkend als <b>{p}</b>{os}. Vink aan wat je wilt bewaken; elke regel wordt een <i>Commando</i>-check die je later nog kunt aanpassen.', { p: CMD_GROUPS[platform], os: os ? ` (${os === 'rhel' ? 'Rocky/RHEL' : L('Debian-familie')})` : '' })}</p>
-      ${mode === 'off' ? `<p class="warn-txt small">${L('<b>⚠️ Commando\'s staan voor {name} uit.</b> De checks blijven onbekend tot je ze aanzet (Agent Manager → Commando-checks op deze server).', { name: esc(h.name) })}</p>`
+      ${mode === 'off' ? `<p class="warn-txt small">${L('<b>⚠️ Commando\'s staan voor {name} uit.</b> De checks blijven onbekend tot je ze aanzet (Agent Manager → Rechten op de server → Commando-checks).', { name: esc(h.name) })}</p>`
         : mode === 'nobody' && needRoot ? '<p class="warn-txt small">' + L('⚠️ Checks met <b>root</b> werken alleen als commando\'s op deze server <i>als root</i> mogen.') + '</p>' : ''}
       <div class="rec-list">${items.map(row).join('')}</div>
       <p class="muted small">${L('Voorinstellingen voor TrueNAS en Proxmox zijn nog niet op een echt systeem getest; laat weten als er een niet goed uitkomt.')}</p>`,

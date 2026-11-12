@@ -6,7 +6,8 @@
 /** Groepen en hun onderdelen (data-pk van de oude kaarten) */
 const AM_GROUPS = () => [
   ['conn', L('Verbinding en agent'), ['run', 'conn', 'maint']],
-  ['prot', L('Bescherming'), ['sec', 'ransom', 'apps', 'sudo']],
+  ['prot', L('Bescherming'), ['sec', 'ransom', 'apps']],
+  ['rights', L('Rechten op de server'), ['cmd', 'sudo'], () => xpHtml(L('Alles wat op deze server als root kan gebeuren, bij elkaar.'), L('<b>Commando-checks:</b> RzSense laat de agent een commando uitvoeren dat jij in een check hebt gezet, en vergelijkt het antwoord. Staat dit op <i>als root</i>, dan mag zo\'n commando alles; de regel krijgt dan een waarschuwing. <b>Tijdelijk sudo:</b> RzSense voert niets uit, maar geeft een gebruiker op de server voor korte tijd sudo, zodat die zelf iets als root kan doen. Het gaat vanzelf weer weg. <b>Wat verder als root draait:</b> zelf herstellen (alleen een service of container herstarten, of een script dat je zelf in <code>/etc/rzmon-agent/heal.d/</code> zet), updates installeren (de pakketbeheerder van de server) en de diagnose voor AI-advies (een vaste lijst die alleen leest). Daarbij kan RzSense geen eigen commando meesturen. <b>Op de server zelf</b> heb je altijd het laatste woord: <code>COMMANDS=0</code>, <code>SUDO_JIT=0</code> of <code>HEAL=0</code> in <code>/etc/default/rzmon-agent</code>.'), 'am-grp-xp')],
   ['upd', L('Updates'), ['patch']],
   ['notify', L('Meldingen'), ['notify']],
   ['logs', L('Logs'), ['logs', 'actlog']],
@@ -18,7 +19,7 @@ function amHidden(h) {
   const out = new Set();
   if (h.mode !== 'agent') ['run', 'sec', 'notify', 'conn', 'maint'].forEach((k) => out.add(k));
   if (h.mode === 'agent' && !h.snmp) out.add('snmp');
-  if (h.mode === 'agent' && isHaHost(h)) ['ransom', 'sudo'].forEach((k) => out.add(k));
+  if (h.mode === 'agent' && isHaHost(h)) ['ransom', 'sudo', 'cmd'].forEach((k) => out.add(k));
   return out;
 }
 
@@ -59,10 +60,20 @@ function amSum(pk, text, attn = false) {
   it.classList.toggle('am-attn', !!attn);
   amSortGroup(it.closest('.am-grp'));
 }
+/** Eigen instelling later bijwerken (onderdelen die hun stand zelf ophalen); met de knop terug naar algemeen */
+function amOwnSet(pk, own) {
+  const it = document.querySelector(`#modal-body .am-it[data-pk="${pk}"]`);
+  if (!it) return;
+  it.classList.toggle('own', own);
+  $('.am-it-own', it).hidden = !own;
+  const r = $('.am-it-reset', it);
+  if (own && !r) $('.am-it-body', it).insertAdjacentHTML('afterbegin', `<div class="am-it-reset"><span class="muted small">${L('Deze server heeft hier een eigen instelling.')}</span> <button type="button" class="btn small-btn" data-am-reset>↺ ${L('Terug naar algemeen')}</button></div>`);
+  if (!own && r) r.remove();
+}
 /** Aandacht eerst binnen een groep */
 function amSortGroup(grp) {
   if (!grp) return;
-  const items = [...grp.querySelectorAll(':scope > .am-it')];
+  const items = [...grp.querySelectorAll(':scope > .am-it')];   // (uitleg van de groep blijft bovenaan)
   items.sort((a, b) => (+b.classList.contains('am-attn') - +a.classList.contains('am-attn')) || (+a.dataset.ord - +b.dataset.ord));
   items.forEach((x) => grp.append(x));
 }
@@ -72,6 +83,7 @@ function amReset(it) {
   const pk = it.dataset.pk;
   if (pk === 'run') { const b = $('[data-sw-seg=tick] [data-v="0"]', it); if (b) b.click(); }
   if (pk === 'conn') $$('[data-am-own]', it).forEach((sw) => { if (sw.checked) { sw.checked = false; sw.dispatchEvent(new Event('change', { bubbles: true })); } });
+  if (pk === 'cmd') { const sw = $('#host-cmd-own', it); if (sw && sw.checked) { sw.checked = false; sw.dispatchEvent(new Event('change', { bubbles: true })); } }
   if (pk === 'snmp') { const sw = $('#am-snmp-own', it); if (sw && sw.checked) { sw.checked = false; sw.dispatchEvent(new Event('change', { bubbles: true })); } }
   it.classList.remove('own');
   $('.am-it-own', it).hidden = true;
@@ -121,14 +133,14 @@ function amAccordion(h, body) {
     card.remove();
     return it;
   };
-  for (const [key, label, pks] of groups) {
+  for (const [key, label, pks, intro] of groups) {
     const items = pks.filter((pk) => !hidden.has(pk)).map(make).filter(Boolean);
     pks.filter((pk) => hidden.has(pk)).forEach((pk) => { const it = make(pk); if (it) more.push(it); });
     if (!items.length) continue;
     const grp = document.createElement('section');
     grp.className = 'am-grp';
     grp.dataset.grp = key;
-    grp.innerHTML = `<h3 class="am-grp-h">${esc(label)}</h3>`;
+    grp.innerHTML = `<h3 class="am-grp-h">${esc(label)}</h3>${intro ? intro() : ''}`;
     items.forEach((x) => grp.append(x));
     amSortGroup(grp);
     if (items.every((x) => x.classList.contains('need-admin'))) grp.classList.add('need-admin');
