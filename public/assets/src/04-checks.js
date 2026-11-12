@@ -1422,7 +1422,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
       </label>
       <div id="path-wrap" hidden>
         <label>${L('Tussenliggende apparaten')} <span class="hint">${L('(optioneel: switches en andere apparaten op de weg, IP-adressen met komma\'s)')}</span>
-          <input name="via" class="mono" list="path-via-list" value="${esc((opts.via || []).join(', '))}" placeholder="${L('bv. 192.168.2.5, 192.168.2.10')}">
+          <input name="via" class="mono" list="path-via-list" value="${esc(c.type === 'path' && Array.isArray(opts.via) ? opts.via.join(', ') : '')}" placeholder="${L('bv. 192.168.2.5, 192.168.2.10')}">
           <datalist id="path-via-list">${pathViaOptions(h)}</datalist>
           <span class="hint">${L('Een switch zie je niet in een traceroute; met zijn IP-adres pingt RzSense hem wel en zet hem op de juiste plek in het pad.')}</span>
         </label>
@@ -1966,7 +1966,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     $('#test-expect-wrap').hidden = tt !== 'url';
     $('[name=test_target]', form).placeholder = tt === 'port' ? L('8080 of localhost:8080') : 'http://localhost:8080/health';
     $('[name=test_target]', form).required = deep && !!tt;
-    $('[name=target]', form).required = !!t.target && !['http', 'ssl', 'ntp', 'smart', 'ups', 'mysql', 'mqtt', 'vpn'].includes(typeSel.value);
+    $('[name=target]', form).required = !!t.target && !['http', 'ssl', 'ntp', 'smart', 'ups', 'mysql', 'mqtt', 'vpn', 'traffic'].includes(typeSel.value);   // 1.247.5: traffic leeg = adres van de server
     $('[name=target]', form).disabled = !t.target;   // niet meesturen als er geen doel is (bv. HA-checks zonder doel)
     const haLogs = ['ha:host', 'ha:core', 'ha:supervisor', ...svcs.filter((x) => x.startsWith('addon:')).map((x) => `ha:${x}`)];
     const usbs = h.metrics.filter((m) => m.startsWith('usb:')).map((m) => m.slice(4));
@@ -1983,6 +1983,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     $('#db-x-wrap').hidden = !isDb;
     dbSel.disabled = !isDb;
     if (isDb) dbForm();
+    else if ($('[name=db_container]', form)) { $('[name=db_container]', form).required = false; $('[name=db_container]', form).disabled = true; }   // 1.247.5: geen verborgen verplicht veld na wisselen van type
     $('[name=db_user]', form).required = isDb && dbVia() === 'rzmon';
     const isCmd = typeSel.value === 'command';
     $('#cmd-wrap').hidden = !isCmd;

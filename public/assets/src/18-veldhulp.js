@@ -127,7 +127,8 @@ function fhScale(el, f, unit) {
 function fhLongHint(lab) {
   if (!lab || lab.classList.contains('switch')) return null;
   return [...lab.querySelectorAll(':scope > .hint, :scope > .muted.small, :scope > .lbl-line > .hint, :scope > .lbl-line > .muted.small')]
-    .find((x) => x.textContent.trim().length >= 40 && !x.querySelector('a')) || null;
+    // 1.247.5: geen regel met een id (of met een id erin): die vult het formulier zelf, bv. #type-help bij elk type
+    .find((x) => !x.id && !x.querySelector('[id], a') && x.textContent.trim().length >= 40) || null;
 }
 
 /** Een veld voorzien van ⓘ (uitleg in een uitklapper) en de "≈"-regel */

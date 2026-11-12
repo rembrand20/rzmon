@@ -14,6 +14,14 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.244.0**: **lay-out en thema los van elkaar**: kies een opbouw (Blox, L1nes, Compact, CC) en daarbovenop een thema (Standaard, @S, Liquid Glass), licht of donker.
 - **1.243.0**: **thema @S**: RzSense in de stijl van Apple, rustig en licht, te kiezen per account (licht en donker).
 
+## 1.247.5 – 2026-11-12
+### Opgelost
+Alle checktypes nagelopen in het checkformulier (nieuw, bewerken en opslaan, op servers met en zonder agent):
+- **Keuzelijsten weg bij checks (services, processen, certificaten …)**: de ⓘ-veldhulp (1.241.0) nam ook de uitlegregel onder *Type* over, die het formulier bij elk type opnieuw invult. Daardoor liep het formulier bij elke wissel van type vast, nog vóór de lijsten met services, processen, certificaten en containers. De uitleg per type staat er nu weer, en de lijsten verschijnen weer.
+- **Databasecheck kon niet bewerkt worden**: een bestaande database-check (MariaDB/MySQL/PostgreSQL) opende niet meer.
+- **Na *Database → in een container* naar een ander type**: er bleef een verborgen verplicht veld staan, waardoor opslaan niets deed.
+- **Check *Verkeer* kon niet opgeslagen worden**: het type ontbrak in de database, en het doel was verplicht terwijl leeg (= het adres van de server) mag.
+
 ## 1.247.4 – 2026-11-12
 ### Opgelost
 - **E-mailbeveiliging: ↻ Nu checken zoekt echt opnieuw op**: de check onthoudt de DNS-uitkomst 3 uur. *Nu checken* liet daardoor de oude uitkomst zien, ook als je net een record had toegevoegd (bv. TLS-RPT). Nu zoekt *Nu checken* alles opnieuw op (hooguit eens per minuut). Ook het opslaan van de check begint opnieuw.
