@@ -242,6 +242,7 @@ function typeOf(c) {
   if (c.type === 'internet') return { ...TYPES.internet, ...(INET_METRICS[c.metric] || INET_METRICS.ping), label: L('Internet') };
   if (c.type === 'traffic') return { ...TYPES.traffic, ...(TRAFFIC_METRICS[c.metric] || TRAFFIC_METRICS.rate), label: L('Verkeer') };   // 1.187.0
   if (c.type === 'vpn') return { ...TYPES.vpn, ...(VPN_METRICS[c.metric] || VPN_METRICS.gluetun), label: 'VPN' };   // 1.170.0
+  if (c.type === 'domain' && c.metric === 'mail') return { ...TYPES.domain, ...DOMAIN_METRICS.mail, unit: '/100', low: true };   // 1.247.2: score, geen dagen
   if (c.type === 'truenas') return { ...TYPES.truenas, ...(TN_METRICS[c.metric] || TN_METRICS.alerts), label: 'TrueNAS' };   // 1.174.0
   return c.type === 'container' && c.metric ? { ...TYPES.container, ...METRICS[c.metric], label: TYPES.container.label } : TYPES[c.type];
 }
@@ -4181,7 +4182,7 @@ function keyValue(c) {
   if (c.last_value === null || c.last_value === undefined || !t.unit) return [+c.status === 0 ? 'OK' : STATUS[+c.status] === 'CRITICAL' ? '✕' : +c.status === 1 ? '!' : '?', ''];
   const v = +c.last_value;
   const n = t.unit === '%' || t.unit === 'Mbit/s' || Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
-  return [dec(n.toLocaleString(LOCALE)), t.unit === '%' ? '%' : ' ' + L(t.unit)];
+  return [dec(n.toLocaleString(LOCALE)), t.unit === '%' || t.unit.startsWith('/') ? t.unit : ' ' + L(t.unit)];
 }
 const keyText = (c) => { const [v, u] = keyValue(c); return `<span class="s${c.status}">${esc(c.name)} <b>${v}${esc(u)}</b></span>`; };
 /** Lijntje van 24 uur met een vlakje eronder, in de kleur van de status */
@@ -5186,7 +5187,7 @@ async function checkInfo(id, live = false, more = null) {
   const c = r.check;
   const [sc, h] = findCheck(c.id);   // dashboardgegevens (onderhoud, bevestigd) als die er zijn
   const now = toTime(r.now);
-  const t = TYPES[c.type] || { label: c.type };
+  const t = typeOf(c) || { label: c.type };   // 1.247.2: met de eenheid van de soort (bv. score bij e-mailbeveiliging)
   const st = +c.status;
   const problem = st !== 0 && +c.enabled && !+c.info_only;   // een info-check is nooit een storing
   const unit = t.unit || '';

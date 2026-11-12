@@ -25,7 +25,7 @@ async function checkInfo(id, live = false, more = null) {
   const c = r.check;
   const [sc, h] = findCheck(c.id);   // dashboardgegevens (onderhoud, bevestigd) als die er zijn
   const now = toTime(r.now);
-  const t = TYPES[c.type] || { label: c.type };
+  const t = typeOf(c) || { label: c.type };   // 1.247.2: met de eenheid van de soort (bv. score bij e-mailbeveiliging)
   const st = +c.status;
   const problem = st !== 0 && +c.enabled && !+c.info_only;   // een info-check is nooit een storing
   const unit = t.unit || '';

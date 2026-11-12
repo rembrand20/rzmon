@@ -2056,7 +2056,7 @@ function keyValue(c) {
   if (c.last_value === null || c.last_value === undefined || !t.unit) return [+c.status === 0 ? 'OK' : STATUS[+c.status] === 'CRITICAL' ? '✕' : +c.status === 1 ? '!' : '?', ''];
   const v = +c.last_value;
   const n = t.unit === '%' || t.unit === 'Mbit/s' || Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
-  return [dec(n.toLocaleString(LOCALE)), t.unit === '%' ? '%' : ' ' + L(t.unit)];
+  return [dec(n.toLocaleString(LOCALE)), t.unit === '%' || t.unit.startsWith('/') ? t.unit : ' ' + L(t.unit)];
 }
 const keyText = (c) => { const [v, u] = keyValue(c); return `<span class="s${c.status}">${esc(c.name)} <b>${v}${esc(u)}</b></span>`; };
 /** Lijntje van 24 uur met een vlakje eronder, in de kleur van de status */

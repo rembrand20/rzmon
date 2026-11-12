@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.244.0**: **lay-out en thema los van elkaar**: kies een opbouw (Blox, L1nes, Compact, CC) en daarbovenop een thema (Standaard, @S, Liquid Glass), licht of donker.
 - **1.243.0**: **thema @S**: RzSense in de stijl van Apple, rustig en licht, te kiezen per account (licht en donker).
 
+## 1.247.2 – 2026-11-12
+### Opgelost
+- **E-mailbeveiliging toonde de score in dagen**: in het venster van de check stond *Huidige waarde 86 dagen*. Dat is de score; die staat er nu als **86/100**.
+
 ## 1.247.1 – 2026-11-12
 ### Opgelost
 - **E-mailbeveiliging bleef *onbekend* bij een servernaam**: vulde je de naam van de mailserver in (bv. `mail.voorbeeld.nl`) in plaats van het domein, dan zocht RzSense de e-mailrecords op die servernaam. Die heeft meestal alleen een IP-adres, dus volgde *Kon … niet opzoeken in DNS*. RzSense controleert nu het domein erboven (bv. `voorbeeld.nl`) en zegt dat in het bericht. Staat *STARTTLS* aan, dan wordt de mailserver die je invulde zelf getest in plaats van de eerste MX.

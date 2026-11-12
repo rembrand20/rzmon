@@ -242,6 +242,7 @@ function typeOf(c) {
   if (c.type === 'internet') return { ...TYPES.internet, ...(INET_METRICS[c.metric] || INET_METRICS.ping), label: L('Internet') };
   if (c.type === 'traffic') return { ...TYPES.traffic, ...(TRAFFIC_METRICS[c.metric] || TRAFFIC_METRICS.rate), label: L('Verkeer') };   // 1.187.0
   if (c.type === 'vpn') return { ...TYPES.vpn, ...(VPN_METRICS[c.metric] || VPN_METRICS.gluetun), label: 'VPN' };   // 1.170.0
+  if (c.type === 'domain' && c.metric === 'mail') return { ...TYPES.domain, ...DOMAIN_METRICS.mail, unit: '/100', low: true };   // 1.247.2: score, geen dagen
   if (c.type === 'truenas') return { ...TYPES.truenas, ...(TN_METRICS[c.metric] || TN_METRICS.alerts), label: 'TrueNAS' };   // 1.174.0
   return c.type === 'container' && c.metric ? { ...TYPES.container, ...METRICS[c.metric], label: TYPES.container.label } : TYPES[c.type];
 }
