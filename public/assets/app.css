@@ -5821,3 +5821,26 @@ body.sk-neo input:focus, body.sk-neo select:focus, body.sk-neo textarea:focus { 
 body.sk-neo .switch input:checked + span { background: var(--fx-cy); box-shadow: 0 0 10px color-mix(in srgb, var(--fx-cy) 45%, transparent); }
 body.sk-neo table th { color: var(--fx-cy); letter-spacing: .06em; }
 body.sk-neo dialog .modal-inner { background: linear-gradient(160deg, var(--fx-bg2), var(--fx-bg)); border: 1px solid var(--fx-bd); }
+
+/* 1.245.2: @S ook voor onderdelen met de Neo-kleuren (Command center, Attack Flow, isolatie, live): hun --fx-kleuren
+   wijzen in @S naar de @S-kleuren, zodat licht en donker overal hetzelfde ogen */
+body.sk-s {
+  --fx-bg: var(--bg); --fx-bg2: var(--card); --fx-bd: var(--s-hair); --fx-tx: var(--text); --fx-mu: var(--muted);
+  --fx-cy: var(--primary); --fx-cr: var(--crit); --fx-wa: var(--warn); --fx-ok: var(--ok); --fx-ou: var(--maint);
+  --fx-node: var(--card); --fx-pill: var(--card); --fx-grid: transparent; --fx-glow1: transparent; --fx-glow2: transparent; --fx-shadow: var(--s-shadow);
+}
+
+/* 1.245.2: @S zonder Neo-trekjes op de Command-center- en IDS-pagina's: effen kaarten zonder verloop en gekleurde rand,
+   kopjes in gewone zinsletters (geen hoofdletters met letterafstand), geen gloed of draaiende ring */
+body.sk-s :is(.port-table th, .line-head, .cl-head, .notify-table th, .set-l1nes .set-group, .alert-table th, .vuln-table th, .sysinfo-table th, .sysinfo-table tr.si-group td, .kpi-lbl, .set-crumb, #tab-settings .set-sub, .am-h, .hm-score-lbl, .hm-tile-lbl, .inc-table th, .am-cols, .am-table th, .af-cols, .af-hl, .af-cols3, .cc .hm-card h2, .cc .hm-card .hm-card-head h2, .cc-hl, .cc-sub, .ia-body h4, .hb-stbl th, .hb-ctbl th, .ids-tbl th, .ids-todo-h, .ids-top-h, .side-admin-t, .ccx-sp-h small, .ccx-sec, .ct-kl, .ct-th, .ci2-sh, .ax-k, .ax-th, .np-th, .at-h, .feat-tbl th, .cf-s small, .mds-sec h3, .mds-top small, .mds-h4, .app-top .main-tabs .tab-group, .upd-news-h, .al2-sech h3, .al2-headrow > *, .al2-ds h4, .lw-table th, .lv-day, .lv-box h5, .mds-gh, .mds-ping em, .mds-pbig span, .wp-n .k, .ws-t th, .tn-moves h3) { text-transform: none; letter-spacing: 0; }
+body.sk-s :is(.cc-hl, .cc .hm-card h2, .cc .hm-card .hm-card-head h2, .af-hl, .ids-todo-h, .ids-top-h, .ax-k, .ccx-sec) { font-size: .9rem; font-weight: 600; color: var(--text); }
+body.sk-s .cc-hl.ok { color: var(--ok); } body.sk-s .cc-hl.warn { color: var(--warn); } body.sk-s .cc-hl.crit { color: var(--crit); }
+body.sk-s :is(.cc-sub, .kpi-lbl, .hm-tile-lbl, .ct-kl, .ci2-sh, .mds-h4, .cf-s small) { font-size: .78rem; font-weight: 600; color: var(--muted); }
+body.sk-s :is(.cc-card, .cc .hm-card, .cc-atkcard) { background: var(--card); border: 0; box-shadow: var(--s-shadow); }
+body.sk-s :is(.cc-score.ok, .cc-score.warn, .cc-score.crit) { border: 0; }
+body.sk-s .cc-score.warn { box-shadow: var(--s-shadow), inset 0 0 0 1px color-mix(in srgb, var(--warn) 30%, transparent); }
+body.sk-s .cc-score.crit { box-shadow: var(--s-shadow), inset 0 0 0 1px color-mix(in srgb, var(--crit) 30%, transparent); }
+body.sk-s button.cc-card:hover { transform: none; box-shadow: var(--s-shadow), inset 0 0 0 1px var(--s-hair); }
+body.sk-s :is(.cc-score.ok, .cc-score.warn, .cc-score.crit) .cc-ring { filter: none; }
+body.sk-s .cc-ring-spin { display: none; }
+body.sk-s .cc-ring-bg { stroke: var(--s-fill); }

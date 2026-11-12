@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.242.0**: **uitleg overal**: elke kaart, elk tabblad en de belangrijke vensters zeggen wat ze doen, hoe je ze instelt en wat goed is om te weten.
 - **1.241.0**: **ⓘ bij de velden**: uitleg, eenheid, bereik en aanbevolen waarde (met één tik te gebruiken), ook op je telefoon.
 
+## 1.245.2 – 2026-11-12
+### Opgelost
+- **Thema @S overal**: het **Command center** en onderdelen van IDS (Live, Aanvalskaart, isolatie, kopjes) hadden in @S nog de Neo-look: blauwe kaarten met een verloop en gekleurde randen, koppen in cyaan hoofdletters en gloed. In @S zijn ze nu effen (donkergrijs op zwart, of wit op lichtgrijs), met kopjes in gewone letters en zonder gloed of draaiende ring, in licht en donker. Neo, Standaard en Liquid Glass blijven zoals ze waren.
+
 ## 1.245.1 – 2026-11-12
 ### Opgelost
 - **Accountmenu afgeknipt in het thema @S**: het menu (je naam linksonder) werd rechts afgesneden, zodat de keuzes voor lay-out, thema en licht/donker maar half te zien waren. Het menu is nu helemaal zichtbaar en iets breder, zodat de vier thema's op één regel passen.
