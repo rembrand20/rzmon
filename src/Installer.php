@@ -142,7 +142,7 @@ final class Installer
         ['checks', 'verify_ssl', 'TINYINT(1) NOT NULL DEFAULT 1'],
         ['alerts', 'email_ok', 'TINYINT(1) NULL'],
         ['checks', 'metric', 'VARCHAR(16) NULL'],   // container: status | cpu | mem | disk
-        ['checks', 'options', 'VARCHAR(500) NULL'],  // JSON, bv. service: diepere controle en extra test
+        ['checks', 'options', 'TEXT NULL'],  // JSON, bv. service: diepere controle en extra test (1.247.3: TEXT, was VARCHAR(500))
         ['checks', 'maintenance_auto', 'TINYINT(1) NOT NULL DEFAULT 0'],  // onderhoud automatisch gezet na herhaalde meldingen
         ['users', 'role', "VARCHAR(10) NOT NULL DEFAULT 'admin'"],   // admin | user | readonly (bestaande accounts: admin)
         ['results', 'vals', 'VARCHAR(255) NULL'],          // container: CPU, RAM en disk van één meting (JSON)
@@ -389,6 +389,12 @@ final class Installer
         }
         if (!$hadLang) {
             $pdo->exec("UPDATE users SET lang = 'nl'");   // users.lang net toegevoegd: bestaande accounts blijven Nederlands
+        }
+        // 1.247.3: checks.options was VARCHAR(500); de opgeslagen uitkomst van bv. e-mailbeveiliging past daar niet altijd in
+        $len = $pdo->query("SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS
+                            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checks' AND COLUMN_NAME = 'options'")->fetchColumn();
+        if ($len !== false && $len !== null && (int) $len < 65535) {
+            $pdo->exec('ALTER TABLE checks MODIFY COLUMN options TEXT NULL');
         }
         // 1.107.0: nieuwe checks (elke manier van toevoegen) beginnen op 'auto': bij de eerste run de standaard drempelmodus
         $pdo->exec("ALTER TABLE checks ALTER COLUMN thresh_mode SET DEFAULT 'auto'");

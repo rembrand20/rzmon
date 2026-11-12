@@ -114,7 +114,8 @@ final class MailSec
         foreach (array_unique([...$selectors, ...self::SELECTORS]) as $s) {
             foreach (self::txt("$s._domainkey.$d") as $t) {
                 if (preg_match('/(^|;)\s*(v=DKIM1|k=|p=)/i', $t)) {
-                    $dkim[$s] = $t;
+                    $b = self::keyBits($t);   // 1.247.3: alleen de lengte onthouden, niet de hele sleutel
+                    $dkim[$s] = $b === null ? substr($t, 0, 80) : 'bits=' . $b . (preg_match('/k=ed25519/i', $t) ? '; k=ed25519' : '');
                     break;
                 }
             }
@@ -340,7 +341,7 @@ final class MailSec
                 $add('dkim', 'warn', t('Geen DKIM-sleutel gevonden'), t('RzSense probeerde de bekendste selectors en die je bij deze check opgaf. Vul bij de check de selector van je mailprovider in (bv. google, selector1).'));
             } else {
                 foreach ($dk as $sel => $txt) {
-                    $bits = self::keyBits((string) $txt);
+                    $bits = preg_match('/^bits=(\d+)/', (string) $txt, $bm) ? (int) $bm[1] : self::keyBits((string) $txt);
                     if ($bits === 0) {
                         $add('dkim', 'info', t('DKIM-sleutel {s} is ingetrokken', ['s' => $sel]), t('Een lege sleutel (p=) betekent: deze selector wordt niet meer gebruikt.'));
                     } elseif ($bits !== null && $bits < 2048 && $bits !== 256) {

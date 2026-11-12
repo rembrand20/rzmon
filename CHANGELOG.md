@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.244.0**: **lay-out en thema los van elkaar**: kies een opbouw (Blox, L1nes, Compact, CC) en daarbovenop een thema (Standaard, @S, Liquid Glass), licht of donker.
 - **1.243.0**: **thema @S**: RzSense in de stijl van Apple, rustig en licht, te kiezen per account (licht en donker).
 
+## 1.247.3 – 2026-11-12
+### Opgelost
+- **E-mailbeveiliging: *Data too long for column 'options'***: werd de DKIM-sleutel gevonden (bijvoorbeeld na het invullen van de selector), dan paste de opgeslagen uitkomst niet meer in de database en bleef de check *onbekend*. De ruimte voor instellingen van een check is nu groter, en van de DKIM-sleutel onthoudt RzSense alleen nog de lengte.
+
 ## 1.247.2 – 2026-11-12
 ### Opgelost
 - **E-mailbeveiliging toonde de score in dagen**: in het venster van de check stond *Huidige waarde 86 dagen*. Dat is de score; die staat er nu als **86/100**.

@@ -2357,6 +2357,17 @@ $good = ['mx' => [[10, 'mx.example.nl']], 'spf' => ['v=spf1 include:_spf.example
     'sts' => ['v=STSv1; id=1'], 'sts_policy' => ['mode' => 'enforce', 'mx' => ['mx.example.nl']], 'tlsrpt' => ['v=TLSRPTv1; rua=mailto:t@example.nl']];
 $r = MailSec::evaluate('example.nl', $good);
 ok($r['worst'] === 'ok' && $r['score'] >= 95, 'e-mail: SPF -all, DMARC reject, DKIM 2048, MTA-STS enforce = in orde');
+$r = MailSec::evaluate('example.nl', ['dkim' => ['2015' => 'bits=2048']] + $good);
+ok(array_column($r['items'], 'st', 'key')['dkim'] === 'ok', 'e-mail: DKIM als alleen de lengte onthouden is (bits=2048) = in orde (1.247.3)');
+$r = MailSec::evaluate('example.nl', ['dkim' => ['old' => 'bits=1024']] + $good);
+ok(array_column($r['items'], 'st', 'key')['dkim'] === 'warn', 'e-mail: DKIM bits=1024 = warning (1.247.3)');
+$big = json_encode(['dkim' => ['2015'], 'starttls' => true, '_mail' => ['spf' => [str_repeat('x', 900)]]]);
+q("INSERT INTO hosts (name, address, mode) VALUES ('mailsec-lang', '127.0.0.1', 'remote')");
+$hm = (int) db()->lastInsertId();
+q("INSERT INTO checks (host_id, name, type, target, metric, options) VALUES (?, 'mail', 'domain', 'example.nl', 'mail', ?)", [$hm, $big]);
+ok(strlen((string) q('SELECT options FROM checks WHERE host_id = ?', [$hm])->fetchColumn()) === strlen($big), 'checks.options past meer dan 500 tekens (1.247.3)');
+q('DELETE FROM checks WHERE host_id = ?', [$hm]);
+q('DELETE FROM hosts WHERE id = ?', [$hm]);
 $r = MailSec::evaluate('example.nl', ['mx' => [[10, 'mx.example.nl']], 'spf' => [], 'dmarc' => [], 'dkim' => []]);
 $keys = array_column(array_filter($r['items'], static fn($i) => $i['st'] === 'crit'), 'key');
 ok($r['worst'] === 'crit' && in_array('spf', $keys, true) && in_array('dmarc', $keys, true), 'e-mail: geen SPF en geen DMARC = critical');
