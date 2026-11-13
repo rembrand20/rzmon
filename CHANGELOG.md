@@ -8,11 +8,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.253.0**: **Axigen in de bibliotheek**: tien vaste zoekacties voor de Axigen-mailserver (wachtwoorden raden, blocklist, mail blijft hangen, licentie, en meer).
 - **1.252.0**: **voortgang overal**: knoppen laten zien dat ze bezig zijn en hoe lang het meestal duurt; netwerk- en poortscan met stappen en ⏹ Stoppen, en de netwerkscan loopt door als je weggaat.
 - **1.251.0**: **logmappen per server**: kies en doorblader in RzSense in welke mappen de agent naar logs zoekt, veilig binnen een plafond op de server.
 - **1.250.0**: **bibliotheek met vaste zoekacties**: 25 kant-en-klare logmeldingen (SSH, schijffouten, geheugen, webserver, database, mail, back-up) met vinkjes toevoegen.
 - **1.249.0**: **alles in één keer bijwerken**: per CVE, per programma of alles tegelijk, met één bevestiging en per server de uitkomst.
-- **1.248.0**: **kwetsbaarheden doorzoeken**: zoek op server, CVE of programma, zie per CVE waar hij wel en niet staat, per programma de versies en vanaf welke versie het veilig is, en exporteer naar Excel.
+
+## 1.253.0 – 2026-11-13
+### Nieuw
+- **✉️ Axigen in de bibliotheek met vaste zoekacties** (Logs → 🔔 Vaste zoekacties → 📚 Kies uit de bibliotheek): tien kant-en-klare meldingen voor de Axigen-mailserver: iemand raadt wachtwoorden (SMTP, IMAP, POP3, webmail), misbruik als relay, uitgaande mail blijft hangen, je server staat op een blocklist, veel mail onbestelbaar, virussen gevonden, Axigen start of stopt, licentie verloopt, schijf of wachtrij vol, en *Axigen schrijft niets meer*. Ze zoeken alleen in de Axigen-logs (`bron:axigen`), dus voeg eerst de logmap `/var/opt/axigen/log` toe bij de server.
 
 ## 1.252.1 – 2026-11-13
 ### Opgelost

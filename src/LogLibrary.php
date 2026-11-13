@@ -12,6 +12,7 @@ final class LogLibrary
 {
     private const SSH = 'bron:auth bron:secure bron:ssh bron:journal';
     private const SYS = 'bron:kern bron:journal bron:messages bron:syslog';
+    private const AXIGEN = 'bron:axigen';
 
     /** Groepen in de volgorde van het venster */
     public static function groups(): array
@@ -22,6 +23,7 @@ final class LogLibrary
             'web' => '🌐 ' . t('Webserver (nginx, Apache)'),
             'db' => '🗄️ ' . t('Database'),
             'mail' => '📧 ' . t('Mail'),
+            'axigen' => '✉️ ' . t('Axigen-mailserver'),
             'sec' => '🛡️ ' . t('Beveiliging'),
             'must' => '✅ ' . t('Moet juist wél gebeuren'),
         ];
@@ -84,6 +86,28 @@ final class LogLibrary
                 '"status=deferred" bron:mail bron:postfix bron:journal', 'many', 20, 60, $W, 240),
             $T('mail_auth', 'mail', t('Inlogfouten op de mailserver'), t('Mislukte logins op SMTP of IMAP: iemand probeert wachtwoorden van mailaccounts.'),
                 '/authentication failed|SASL \w+ authentication failed/ bron:mail bron:postfix bron:dovecot bron:journal', 'many', 10, 15, $W, 60),
+
+            // 1.253.0: Axigen (logs in /var/opt/axigen/log, bv. everything.txt; regels als "SMTP-IN:0001A2B3: Authentication failed …")
+            $T('ax_auth', 'axigen', t('Axigen: iemand raadt wachtwoorden'), t('Veel mislukte logins op SMTP, IMAP, POP3 of webmail in korte tijd: iemand probeert wachtwoorden van mailaccounts.'),
+                '/authentication failed|auth(entication)? (error|failure)|login failed|invalid (password|credentials)/ ' . self::AXIGEN, 'many', 20, 5, $W, 60),
+            $T('ax_relay', 'axigen', t('Axigen: misbruik als relay'), t('Iemand probeert via je server mail naar andere domeinen te sturen zonder in te loggen (open relay). Axigen weigert het, maar het zegt wie het probeert.'),
+                '/relay(ing)? (denied|not (allowed|permitted))/ ' . self::AXIGEN, 'many', 50, 60, $I, 240),
+            $T('ax_deferred', 'axigen', t('Axigen: uitgaande mail blijft hangen'), t('Mail naar buiten wordt uitgesteld (een tijdelijke fout bij de ontvanger): de wachtrij groeit.'),
+                'SMTP-OUT /deferr|will retry|temporar(y|ily) (error|fail)|try again later|\\b4\\d\\d[ -]4\\.\\d\\.\\d/ ' . self::AXIGEN, 'many', 20, 60, $W, 240),
+            $T('ax_blocklisted', 'axigen', t('Axigen: je server staat op een blocklist'), t('Andere mailservers weigeren je mail omdat je IP-adres op een blocklist staat (bv. Spamhaus). Je mail komt dan niet aan.'),
+                'SMTP-OUT /spamhaus|blocked using|listed (at|on|in|by)|black ?list|block ?list|poor reputation/ ' . self::AXIGEN, 'many', 3, 60, $C, 240),
+            $T('ax_bounce', 'axigen', t('Axigen: veel mail onbestelbaar'), t('Veel mail naar buiten komt definitief niet aan (bestaat niet, mailbox vol of geweigerd).'),
+                'SMTP-OUT /permanent(ly)? (error|fail)|user unknown|mailbox (unavailable|full)|\\b5\\d\\d[ -]5\\.\\d\\.\\d/ ' . self::AXIGEN, 'many', 20, 60, $I, 240),
+            $T('ax_virus', 'axigen', t('Axigen: virussen gevonden'), t('De virusscanner van Axigen vond besmette mail. Af en toe is normaal; veel tegelijk wijst op een golf.'),
+                '/virus (found|detected)|infected|malware (found|detected)/ ' . self::AXIGEN, 'many', 10, 60, $I, 240),
+            $T('ax_restart', 'axigen', t('Axigen start of stopt'), t('De Axigen-dienst is gestopt of opnieuw gestart. Hoort dat bij een update of iets wat je zelf deed?'),
+                '/(axigen|server) (is )?(starting|started|stopping|stopped|shutting down)|shutdown (initiated|complete)/ ' . self::AXIGEN, 'many', 1, 5, $W, 60),
+            $T('ax_license', 'axigen', t('Axigen: licentie verloopt of klopt niet'), t('Axigen meldt dat de licentie verlopen, ongeldig of overschreden is. Dan kan de mailserver functies uitzetten.'),
+                '/licen[cs]e.*(expir|invalid|exceed)/ ' . self::AXIGEN, 'many', 1, 1440, $C, 1440),
+            $T('ax_disk', 'axigen', t('Axigen: schijf of wachtrij vol'), t('Geen ruimte meer voor mail of de wachtrij is vol: nieuwe mail wordt geweigerd.'),
+                '/no space left|disk (is )?full|storage .*full|queue (is )?full/ ' . self::AXIGEN, 'many', 1, 15, $C, 240),
+            $T('ax_silent', 'axigen', t('Axigen schrijft niets meer'), t('Een uur lang geen enkele regel in het Axigen-log: de dienst staat stil, of het log wordt niet meer verzameld.'),
+                '/./ ' . self::AXIGEN, 'none', 1, 60, $W, 240),
 
             $T('f2b_bans', 'sec', t('Fail2ban blokkeert veel'), t('Fail2ban heeft veel adressen geblokkeerd: er is een golf aanvallen bezig.'),
                 '/\] Ban / bron:fail2ban bron:journal', 'many', 20, 60, $I, 240),

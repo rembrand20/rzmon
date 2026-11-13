@@ -2795,6 +2795,26 @@ foreach ($samples as $k => [$hit, $miss]) {
     }
 }
 ok(!$wrong, 'bibliotheek: elk sjabloon herkent een echte logregel en slaat een gewone over' . ($wrong ? ' (fout: ' . implode(', ', $wrong) . ')' : ''));
+// 1.253.0: Axigen (regels zoals in /var/opt/axigen/log/everything.txt)
+$ax = [
+    'ax_auth' => ['2026-11-13 10:00:01 +0100 08 rl01 IMAP:0001A2B3: Authentication failed for user [jan@voorbeeld.nl]', '2026-11-13 10:00:01 +0100 08 rl01 IMAP:0001A2B3: User jan@voorbeeld.nl logged in'],
+    'ax_relay' => ['2026-11-13 10:00:01 +0100 08 rl01 SMTP-IN:00A1: Relaying denied for <x@elders.com> from 1.2.3.4', '2026-11-13 10:00:01 +0100 08 rl01 SMTP-IN:00A1: Connection accepted from 1.2.3.4'],
+    'ax_deferred' => ['2026-11-13 10:00:01 +0100 08 rl01 SMTP-OUT:00B2: Message deferred, will retry: 451 4.7.1 Try again later', '2026-11-13 10:00:01 +0100 08 rl01 SMTP-OUT:00B2: Message delivered to mx.elders.com: 250 2.0.0 OK'],
+    'ax_blocklisted' => ['2026-11-13 10:00:01 +0100 08 rl01 SMTP-OUT:00B3: 554 5.7.1 Service unavailable; Client host [1.2.3.4] blocked using zen.spamhaus.org', '2026-11-13 10:00:01 +0100 08 rl01 SMTP-OUT:00B3: Connected to mx.elders.com'],
+    'ax_bounce' => ['2026-11-13 10:00:01 +0100 08 rl01 SMTP-OUT:00B4: Delivery failed: 550 5.1.1 User unknown', '2026-11-13 10:00:01 +0100 08 rl01 SMTP-OUT:00B4: Message delivered: 250 2.0.0 OK'],
+    'ax_virus' => ['2026-11-13 10:00:01 +0100 08 rl01 PROCESSING:00C1: Virus found: Eicar-Test-Signature, message discarded', '2026-11-13 10:00:01 +0100 08 rl01 PROCESSING:00C1: Message scanned, clean'],
+    'ax_restart' => ['2026-11-13 10:00:01 +0100 02 rl01 SERVER:00000001: Axigen is shutting down', '2026-11-13 10:00:01 +0100 08 rl01 SMTP-IN:00A1: Connection closed'],
+    'ax_license' => ['2026-11-13 10:00:01 +0100 02 rl01 SERVER:00000001: License expires in 7 days', '2026-11-13 10:00:01 +0100 08 rl01 SERVER:00000001: License check OK for 25 users'],
+    'ax_disk' => ['2026-11-13 10:00:01 +0100 02 rl01 STORAGE:0001: Error writing message: No space left on device', '2026-11-13 10:00:01 +0100 08 rl01 STORAGE:0001: Message stored'],
+];
+$wrong = [];
+foreach ($ax as $k => [$hit, $miss]) {
+    $p = LogStore::parseQuery($lib[$k]['q']);
+    if ($p['error'] || !LogStore::lineMatch($hit, $p) || LogStore::lineMatch($miss, $p) || $p['sources'] !== ['axigen']) {
+        $wrong[] = $k;
+    }
+}
+ok(isset($lib['ax_silent']) && $lib['ax_silent']['mode'] === 'none' && !$wrong, 'bibliotheek Axigen: elk sjabloon herkent een Axigen-regel, slaat een gewone over en zoekt alleen in de Axigen-bron' . ($wrong ? ' (fout: ' . implode(', ', $wrong) . ')' : ''));
 // bron: past ook op het pad en de soort van een bron
 q("INSERT INTO hosts (name, address, mode) VALUES ('ll-host', '127.0.0.1', 'agent')");
 $llh = (int) db()->lastInsertId();
