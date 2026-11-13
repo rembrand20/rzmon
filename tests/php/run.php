@@ -2817,5 +2817,37 @@ ok($lst['web_5xx']['added'] && $lst['backup_none']['added'], 'bibliotheek: toege
 q('DELETE FROM log_watches');
 q('DELETE FROM hosts WHERE id = ?', [$llh]);
 
+section('Logmappen per server (1.251.0)');
+ok(LogStore::cleanDirs('/opt/app/logs/ /srv/x,/opt/app/logs relatief /a/../etc /home/.ssh /') === ['/opt/app/logs', '/srv/x'],
+    'logmappen: alleen volledige paden, zonder .., verborgen mappen of de hele schijf; dubbele weg');
+ok(LogStore::badDirs('/opt/ok ../x /a/.ssh') === ['../x', '/a/.ssh'], 'logmappen: ongeldige paden worden gemeld');
+q("INSERT INTO hosts (name, address, mode) VALUES ('ld-host', '127.0.0.1', 'agent')");
+$ldh = (int) db()->lastInsertId();
+$before = (int) q('SELECT logscan_req FROM hosts WHERE id = ?', [$ldh])->fetchColumn();
+ok(is_string(LogStore::saveDirs($ldh, '/opt/a /etc/../x')), 'logmappen: opslaan weigert een ongeldig pad');
+ok(LogStore::saveDirs($ldh, '/opt/app/logs /srv/web') === ['/opt/app/logs', '/srv/web'] && (int) q('SELECT logscan_req FROM hosts WHERE id = ?', [$ldh])->fetchColumn() === $before + 1,
+    'logmappen: opslaan en meteen opnieuw laten zoeken');
+ok(LogStore::browseAsk($ldh, '/opt/app') === null && is_string(LogStore::browseAsk($ldh, 'opt')), 'bladeren: alleen een volledig pad');
+$lines = implode("\n", LogStore::agentLines($ldh));
+ok(str_contains($lines, "0\tlogdirs\t/opt/app/logs /srv/web") && str_contains($lines, "0\tlogbrowse\t1\t/opt/app") && str_contains($lines, "0\tlogscan\t"),
+    'logmappen: de agent krijgt de mappen, de vraag om te bladeren en opnieuw zoeken (ook zonder bronnen)');
+ok(LogStore::browse($ldh)['pending'] === true, 'bladeren: wacht op de agent');
+LogStore::storeBrowse($ldh, ['req' => 1, 'path' => '/opt/app', 'real' => '/opt/app', 'err' => '', 'dirs' => [['logs', 2, 1], ['../x', 0, 1]], 'files' => [['app.log', 10, 1700000000, 1]]]);
+$b = LogStore::browse($ldh);
+ok($b['pending'] === false && $b['result']['dirs'][0] === ['logs', 2, 1] && $b['result']['dirs'][1][0] === '..x' && $b['result']['files'][0][3] === 1,
+    'bladeren: het antwoord van de agent komt terug (namen zonder /)');
+LogStore::storeScan($ldh, ['at' => time(), 'req' => 1, 'dirs' => '/var/log /opt/app/logs', 'files' => [['/opt/app/logs/app.log', 10, time()]], 'local' => '/var/log',
+    'max' => '/var/log /opt /srv', 'refused' => [['/srv/web', 'bestaat niet']], 'ok' => '/opt/app/logs']);
+$f = LogStore::found($ldh);
+$st = array_column($f['extra'], 'state', 'dir');
+ok($f['supported'] && $f['local'] === '/var/log' && $f['max'] === '/var/log /opt /srv' && $st === ['/opt/app/logs' => 'ok', '/srv/web' => 'refused'] && $f['extra'][1]['why'] === 'bestaat niet',
+    'logmappen: actief en geweigerd (met reden) volgens de agent');
+LogStore::saveDirs($ldh, '/opt/app/logs /srv/web /data/new');
+$st = array_column(LogStore::found($ldh)['extra'], 'state', 'dir');
+ok($st['/data/new'] === 'wait', 'logmappen: een nieuwe map wacht op de agent');
+LogStore::storeScan($ldh, ['at' => time(), 'req' => 2, 'dirs' => '/var/log', 'files' => []]);
+ok(LogStore::found($ldh)['supported'] === false, 'logmappen: een oude agent (zonder local) wordt herkend');
+q('DELETE FROM hosts WHERE id = ?', [$ldh]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

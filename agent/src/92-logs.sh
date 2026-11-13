@@ -46,7 +46,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlogsrc\t' "$t_cache" && [ "${LOG_S
                     [ -f "$f" ] && [ -r "$f" ] || continue
                     case "$f" in *.gz|*.xz|*.bz2|*.zst) continue ;; esac
                     if ! log_allowed "$f"; then
-                        s_err="$f valt buiten de toegestane mappen ($LOG_DIRS); voeg de map toe aan LOG_DIRS in /etc/default/rzmon-agent"
+                        s_err=$(log_refused "$f")
                         continue
                     fi
                     s_files=$((s_files + 1))

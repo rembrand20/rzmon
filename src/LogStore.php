@@ -69,6 +69,31 @@ final class LogStore
 
     // ------------------------------------------------------------------ naar de agent
 
+    /**
+     * 1.251.0: extra logmappen (spatie of nieuwe regel ertussen): volledige paden zonder .., spaties of verborgen delen,
+     * zonder / aan het eind, niet de hele schijf, geen dubbele; hooguit 20. De agent kijkt zelf nog of ze binnen zijn plafond vallen.
+     * @return list<string>
+     */
+    public static function cleanDirs(string $raw): array
+    {
+        $out = [];
+        foreach (preg_split('/[\s,]+/', $raw) ?: [] as $d) {
+            $d = rtrim($d, '/');
+            if ($d === '' || !preg_match('#^(/[A-Za-z0-9_@+-][A-Za-z0-9._@+-]{0,99}){1,12}$#', $d) || str_contains($d, '..') || strlen($d) > 250) {
+                continue;
+            }
+            $out[$d] = $d;
+        }
+        return array_slice(array_values($out), 0, 20);
+    }
+
+    /** @return list<string> de paden die cleanDirs weigert (om te melden) */
+    public static function badDirs(string $raw): array
+    {
+        $ok = array_flip(self::cleanDirs($raw));
+        return array_values(array_filter(preg_split('/[\s,]+/', $raw) ?: [], static fn($d) => $d !== '' && !isset($ok[rtrim($d, '/')])));
+    }
+
     /** Regels voor de lijst van de agent (agent_tests): bronnen, hoe vaak, en of de daglimiet bereikt is */
     public static function agentLines(int $hostId): array
     {
@@ -86,13 +111,25 @@ final class LogStore
             }
         }
         // 1.213.0: "🔄 Opnieuw zoeken" naar logs op de server (de agent zoekt ook vanzelf één keer per dag)
-        $scan = (int) (q('SELECT logscan_req FROM hosts WHERE id = ?', [$hostId])->fetchColumn() ?: 0);
-        if (!$out) {
-            return $scan ? [implode("\t", [0, 'logscan', $scan])] : [];
+        $hr = q('SELECT logscan_req, log_dirs, logbrowse_req, logbrowse_path FROM hosts WHERE id = ?', [$hostId])->fetch() ?: [];
+        $scan = (int) ($hr['logscan_req'] ?? 0);
+        // 1.251.0 (agent 1.96.0): extra logmappen voor deze server, en een map doorbladeren
+        $extra = [];
+        $dirs = self::cleanDirs((string) ($hr['log_dirs'] ?? ''));
+        if ($dirs) {
+            $extra[] = implode("\t", [0, 'logdirs', implode(' ', $dirs)]);
+        }
+        $bp = self::cleanDirs((string) ($hr['logbrowse_path'] ?? ''));
+        if ((int) ($hr['logbrowse_req'] ?? 0) > 0 && $bp) {
+            $extra[] = implode("\t", [0, 'logbrowse', (int) $hr['logbrowse_req'], $bp[0]]);
         }
         if ($scan) {
-            $out[] = implode("\t", [0, 'logscan', $scan]);
+            $extra[] = implode("\t", [0, 'logscan', $scan]);
         }
+        if (!$out) {
+            return $extra;
+        }
+        array_push($out, ...$extra);
         array_unshift($out, implode("\t", [0, 'logship', self::intervalFor($host)]));
         if (self::limitReached($hostId)) {
             $out[] = implode("\t", [0, 'logpause', strtotime('tomorrow')]);   // tot middernacht niets meer lezen; daarna verder waar hij was
@@ -590,8 +627,17 @@ final class LogStore
                 $noread[] = (string) $p;
             }
         }
-        $scan = ['at' => (int) ($in['at'] ?? 0) ?: time(), 'req' => (int) ($in['req'] ?? 0), 'dirs' => $clean($in['dirs'] ?? '', 500),
-            'files' => $files, 'docker' => $docker, 'units' => $units, 'ha' => $ha, 'noread' => $noread];
+        $refused = [];
+        foreach (array_slice((array) ($in['refused'] ?? []), 0, 20) as $r) {
+            if (is_array($r) && isset($r[0])) {
+                $refused[] = [$clean($r[0], 250), $clean($r[1] ?? '', 200)];
+            }
+        }
+        $scan = ['at' => (int) ($in['at'] ?? 0) ?: time(), 'req' => (int) ($in['req'] ?? 0), 'dirs' => $clean($in['dirs'] ?? '', 2000),
+            'files' => $files, 'docker' => $docker, 'units' => $units, 'ha' => $ha, 'noread' => $noread,
+            // 1.251.0 (agent 1.96.0): mappen van de server zelf, het plafond, en geweigerde mappen uit RzSense (null = oude agent)
+            'local' => isset($in['local']) ? $clean($in['local'], 1000) : null, 'max' => isset($in['max']) ? $clean($in['max'], 1000) : null, 'refused' => $refused,
+            'ok' => $clean($in['ok'] ?? '', 2000)];
         // Nieuw: niet in de vorige lijst. Was die minder dan 20 uur oud (opnieuw zoeken), dan blijft "nieuw" van toen staan.
         $old = self::scanRead($hostId);
         $keys = self::scanKeys($scan);
@@ -652,7 +698,8 @@ final class LogStore
         $req = (int) q('SELECT logscan_req FROM hosts WHERE id = ?', [$hostId])->fetchColumn();
         $scan = self::scanRead($hostId);
         if ($scan === null) {
-            return ['at' => null, 'pending' => $req > 0, 'groups' => ['dirs' => [], 'docker' => [], 'units' => [], 'ha' => []], 'noread' => [], 'dirs' => '', 'new' => 0];
+            return ['at' => null, 'pending' => $req > 0, 'groups' => ['dirs' => [], 'docker' => [], 'units' => [], 'ha' => []], 'noread' => [], 'dirs' => '', 'new' => 0]
+                + self::dirsInfo($hostId, null);
         }
         $have = [];
         foreach (q('SELECT kind, spec FROM log_sources WHERE host_id = ?', [$hostId]) as $s) {
@@ -738,7 +785,93 @@ final class LogStore
             $nNew += count(array_filter($g, static fn($i) => $i['new'] && !$i['have']));
         }
         return ['at' => $scan['updated_at'], 'pending' => $req > (int) ($scan['req'] ?? 0), 'groups' => $groups, 'noread' => (array) ($scan['noread'] ?? []),
-            'dirs' => (string) ($scan['dirs'] ?? ''), 'new' => $nNew];
+            'dirs' => (string) ($scan['dirs'] ?? ''), 'new' => $nNew] + self::dirsInfo($hostId, $scan);
+    }
+
+    // ------------------------------------------------------------------ logmappen per server (1.251.0, agent 1.96.0)
+
+    /**
+     * De mappen van deze server: van de server zelf (LOG_DIRS), het plafond (LOG_DIRS_MAX), en de extra mappen uit RzSense met hun stand
+     * (actief, geweigerd met reden, of wacht op de agent). supported = false: de agent is te oud (kent geen extra mappen).
+     */
+    private static function dirsInfo(int $hostId, ?array $scan): array
+    {
+        $want = self::cleanDirs((string) q('SELECT log_dirs FROM hosts WHERE id = ?', [$hostId])->fetchColumn());
+        $supported = is_array($scan) && ($scan['local'] ?? null) !== null;
+        $active = array_map(static fn($d) => rtrim($d, '/'), is_array($scan) ? preg_split('/\s+/', trim((string) ($scan['ok'] ?? ''))) ?: [] : []);
+        $refused = [];
+        foreach ((array) ($scan['refused'] ?? []) as [$d, $why]) {
+            $refused[rtrim((string) $d, '/')] = (string) $why;
+        }
+        $extra = [];
+        foreach ($want as $d) {
+            $state = isset($refused[$d]) ? 'refused' : (in_array($d, $active, true) ? 'ok' : 'wait');
+            $extra[] = ['dir' => $d, 'state' => $state, 'why' => $refused[$d] ?? ''];
+        }
+        return ['extra' => $extra, 'local' => is_array($scan) ? (string) ($scan['local'] ?? $scan['dirs']) : '',
+            'max' => is_array($scan) ? (string) ($scan['max'] ?? '') : '', 'supported' => $supported];
+    }
+
+    /** Extra mappen opslaan en meteen opnieuw laten zoeken. @return string|array fout, of de opgeslagen lijst */
+    public static function saveDirs(int $hostId, string $raw): string|array
+    {
+        if (!q("SELECT 1 FROM hosts WHERE id = ? AND mode = 'agent'", [$hostId])->fetchColumn()) {
+            return t('Logs verzamelen kan alleen op een server met de agent');
+        }
+        $bad = self::badDirs($raw);
+        if ($bad) {
+            return t('Geen geldige map: {d}. Gebruik een volledig pad zoals /opt/mijnapp/logs (zonder spaties, .. of verborgen mappen).', ['d' => implode(', ', array_slice($bad, 0, 3))]);
+        }
+        $dirs = self::cleanDirs($raw);
+        q('UPDATE hosts SET log_dirs = ?, logscan_req = logscan_req + 1 WHERE id = ?', [implode(' ', $dirs), $hostId]);
+        return $dirs;
+    }
+
+    /** Een map laten doorbladeren door de agent */
+    public static function browseAsk(int $hostId, string $path): ?string
+    {
+        $p = self::cleanDirs($path);
+        if (!$p) {
+            return t('Geen geldige map: {d}. Gebruik een volledig pad zoals /opt/mijnapp/logs (zonder spaties, .. of verborgen mappen).', ['d' => mb_substr($path, 0, 100)]);
+        }
+        q("UPDATE hosts SET logbrowse_req = logbrowse_req + 1, logbrowse_path = ? WHERE id = ? AND mode = 'agent'", [$p[0], $hostId]);
+        return null;
+    }
+
+    /** Wat de agent terugstuurde (alleen namen, groottes, tijden) */
+    public static function storeBrowse(int $hostId, array $in): void
+    {
+        $name = static fn($s) => mb_substr(str_replace(['/', "\0"], '', (string) $s), 0, 200);
+        $dirs = [];
+        foreach (array_slice((array) ($in['dirs'] ?? []), 0, 400) as $d) {
+            if (is_array($d) && ($n = $name($d[0] ?? '')) !== '') {
+                $dirs[] = [$n, (int) ($d[1] ?? 0), (int) ($d[2] ?? 0)];
+            }
+        }
+        $files = [];
+        foreach (array_slice((array) ($in['files'] ?? []), 0, 400) as $f) {
+            if (is_array($f) && ($n = $name($f[0] ?? '')) !== '') {
+                $files[] = [$n, (int) ($f[1] ?? 0), (int) ($f[2] ?? 0), (int) ($f[3] ?? 0)];
+            }
+        }
+        $v = ['req' => (int) ($in['req'] ?? 0), 'path' => mb_substr((string) ($in['path'] ?? ''), 0, 300), 'real' => mb_substr((string) ($in['real'] ?? ''), 0, 300),
+            'err' => mb_substr((string) ($in['err'] ?? ''), 0, 200), 'dirs' => $dirs, 'files' => $files, 'at' => time()];
+        q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'logbrowse', ?, NOW()) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)",
+            [$hostId, 'gz:' . base64_encode((string) gzcompress((string) json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), 6))]);
+    }
+
+    /** De stand van het doorbladeren: pending zolang de agent de laatste vraag nog niet beantwoordde */
+    public static function browse(int $hostId): array
+    {
+        $h = q('SELECT logbrowse_req, logbrowse_path FROM hosts WHERE id = ?', [$hostId])->fetch() ?: ['logbrowse_req' => 0, 'logbrowse_path' => ''];
+        $v = (string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'logbrowse'", [$hostId])->fetchColumn();
+        if (str_starts_with($v, 'gz:')) {
+            $v = (string) @gzuncompress((string) base64_decode(substr($v, 3)));
+        }
+        $r = json_decode($v, true);
+        $r = is_array($r) ? $r : null;
+        $pending = (int) $h['logbrowse_req'] > 0 && (!$r || (int) $r['req'] < (int) $h['logbrowse_req']);
+        return ['path' => (string) $h['logbrowse_path'], 'pending' => $pending, 'result' => $pending ? null : $r];
     }
 
     // ------------------------------------------------------------------ zoeken (1.211.0)

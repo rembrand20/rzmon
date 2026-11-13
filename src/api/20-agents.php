@@ -804,6 +804,28 @@ switch ($action) {
         q("UPDATE hosts SET logscan_req = logscan_req + 1 WHERE id = ? AND mode = 'agent'", [(int) (input()['host_id'] ?? 0)]);
         out(['ok' => true]);
 
+    // 1.251.0: extra logmappen per server, en een map doorbladeren (agent 1.96.0)
+    case 'log_dirs_save':
+        $in = input();
+        $hid = (int) ($in['host_id'] ?? 0);
+        $r = LogStore::saveDirs($hid, (string) ($in['dirs'] ?? ''));
+        if (is_string($r)) {
+            out(['error' => $r], 422);
+        }
+        AgentCommands::audit((string) $user['username'], 'Logmappen gewijzigd', (string) (q('SELECT name FROM hosts WHERE id = ?', [$hid])->fetchColumn() ?: $hid) . ': ' . ($r ? implode(' ', $r) : '–'));
+        out(['ok' => true, 'dirs' => $r]);
+
+    case 'log_browse':
+        $in = input();
+        $err = LogStore::browseAsk((int) ($in['host_id'] ?? 0), (string) ($in['path'] ?? ''));
+        if ($err !== null) {
+            out(['error' => $err], 422);
+        }
+        out(['ok' => true]);
+
+    case 'log_browse_get':
+        out(LogStore::browse((int) ($_GET['host_id'] ?? 0)));
+
     case 'log_found_add':
         $in = input();
         $hid = (int) ($in['host_id'] ?? 0);

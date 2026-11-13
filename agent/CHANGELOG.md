@@ -5,6 +5,10 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.96.0 – 2026-11-13
+- **Logmappen per server vanuit RzSense** (*Agent Manager → Logs → Logmappen voor deze server*): de agent zoekt ook in de mappen die je daar kiest, maar alleen binnen het plafond op de server, `LOG_DIRS_MAX` (standaard `/var/log /opt /srv /home /var/lib/docker /data`). In die mappen leest hij alleen bestanden die op een log lijken (.log, .out, .err, .txt of "log" in de naam), en nooit sleutels, wachtwoorden, .env-bestanden, instellingen of verborgen bestanden; een snelkoppeling naar buiten wordt geweigerd. Een geweigerde map meldt hij met de reden. `LOG_DIRS_MAX=""` = RzSense mag geen mappen toevoegen. Wat in `LOG_DIRS` staat, leest hij zoals altijd.
+- **Map doorbladeren**: op verzoek van RzSense stuurt de agent wat er in één map staat (submappen met het aantal logs, bestanden met grootte en tijd, en of hij ze zou lezen). Alleen namen, nooit de inhoud, en alleen binnen `LOG_DIRS` en `LOG_DIRS_MAX`.
+
 ## 1.95.1 – 2026-11-11
 - **Geen snapshot meer** voor het installeren van updates (ZFS, snapper, btrfs). Stuurt een oudere RzSense nog "snapshot" mee, dan wordt dat genegeerd. De snapshot bij een ransomware-alarm blijft.
 

@@ -232,6 +232,10 @@ if ($action === 'agent') {
     if (isset($in['log_scan']) && is_array($in['log_scan'])) {
         LogStore::storeScan((int) $host['id'], $in['log_scan']);
     }
+    // 1.251.0 (agent 1.96.0): inhoud van een map die je in RzSense doorbladert
+    if (isset($in['log_browse']) && is_array($in['log_browse'])) {
+        LogStore::storeBrowse((int) $host['id'], $in['log_browse']);
+    }
     // Gevonden certificaatbestanden (agent 1.59.0), om bij een SSL-check uit te kiezen
     if (isset($in['cert_found']) && is_array($in['cert_found'])) {
         $found = [];

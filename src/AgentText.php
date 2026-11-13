@@ -52,6 +52,7 @@ final class AgentText
         // logbestanden
         '/^journalctl ontbreekt op deze server$/' => 'journalctl ontbreekt op deze server',
         '/^(.+) valt buiten de toegestane mappen \((.*)\); voeg de map toe aan LOG_DIRS in \/etc\/default\/rzmon-agent$/' => '{a} valt buiten de toegestane mappen ({b}); voeg de map toe aan LOG_DIRS in /etc/default/rzmon-agent',
+        '/^(.+) lijkt geen logbestand of kan geheimen bevatten; in mappen uit RzSense leest de agent alleen logs$/' => '{a} lijkt geen logbestand of kan geheimen bevatten; in mappen uit RzSense leest de agent alleen logs',
         '/^(.+) bestaat niet of is niet leesbaar$/' => '{a} bestaat niet of is niet leesbaar',
         '/^(.+) kan alleen in de Home Assistant-add-on$/' => '{a} kan alleen in de Home Assistant-add-on',
         '/^onbekende bron: (.*)$/' => 'onbekende bron: {a}',

@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.251.0**: **logmappen per server**: kies en doorblader in RzSense in welke mappen de agent naar logs zoekt, veilig binnen een plafond op de server.
 - **1.250.0**: **bibliotheek met vaste zoekacties**: 25 kant-en-klare logmeldingen (SSH, schijffouten, geheugen, webserver, database, mail, back-up) met vinkjes toevoegen.
 - **1.249.0**: **alles in één keer bijwerken**: per CVE, per programma of alles tegelijk, met één bevestiging en per server de uitkomst.
 - **1.248.0**: **kwetsbaarheden doorzoeken**: zoek op server, CVE of programma, zie per CVE waar hij wel en niet staat, per programma de versies en vanaf welke versie het veilig is, en exporteer naar Excel.
 - **1.247.0**: **Rechten op de server**: commando-checks en tijdelijk sudo samen in de Agent Manager, met uitleg wat elk doet en een waarschuwing bij root.
-- **1.246.0**: **Agent Manager als overzichtelijke lijst**: alle onderdelen onder elkaar in groepen, met per regel hoe het staat; klik om in te stellen.
+
+## 1.251.0 – 2026-11-13
+### Nieuw
+- **📂 Logmappen per server** (*Agent Manager → Logs → Logmappen voor deze server*): kies per server in welke mappen de agent naar logs zoekt, bijvoorbeeld `/opt/mijnapp/logs`. Je hoeft niet meer op de server in te loggen om `LOG_DIRS` aan te passen.
+  - **Bladeren…**: kijk via de agent wat er in een map staat (submappen met het aantal logs, bestanden met grootte en datum, en of de agent ze zou lezen) en voeg de map met één klik toe. Zolang de agent nog moet antwoorden, zie je een voortgangsbalk met de wachttijd.
+  - Per map zie je of hij **actief** is, nog **wacht op de agent**, of **geweigerd** is met de reden (bestaat niet, buiten het plafond, map met geheimen).
+  - **Veilig**: RzSense kan alleen mappen kiezen binnen het plafond `LOG_DIRS_MAX` dat óp de server staat, en daarin leest de agent alleen bestanden die op een log lijken, nooit sleutels, wachtwoorden of instellingen. De agent stuurt bij het bladeren alleen namen, nooit de inhoud.
+  - Agent 1.96.0 nodig. Een oudere agent krijgt een melding om bij te werken.
+- **Nieuwe agent 1.96.0** (logmappen uit RzSense en bladeren).
 
 ## 1.250.0 – 2026-11-13
 ### Nieuw

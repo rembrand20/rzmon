@@ -2446,8 +2446,8 @@ Klik op 📈 voor de grafiek van het aantal treffers en de **laatste 5 gevonden 
 - Nieuwe en gewijzigde zoekopdrachten worden binnen 10 minuten opgepikt.
 
 **Veiligheid**
-- De agent leest alleen logbestanden binnen de mappen in `LOG_DIRS` (standaard `/var/log`). Ook een link vanuit `/var/log` naar een bestand daarbuiten wordt geweigerd.
-- Andere mappen toestaan doe je **op de server**:
+- De agent leest alleen logbestanden binnen de mappen in `LOG_DIRS` (standaard `/var/log`) en de **logmappen die je per server in RzSense kiest** (binnen het plafond `LOG_DIRS_MAX`, zie hieronder bij Logs verzamelen). Ook een link naar een bestand daarbuiten wordt geweigerd.
+- Een map vast toestaan kan ook **op de server**:
   ```bash
   echo 'LOG_DIRS="/var/log /opt/mijnapp/logs"' | sudo tee -a /etc/default/rzmon-agent
   ```
@@ -2525,10 +2525,23 @@ De agent verzamelt de logs die je per server kiest en stuurt ze naar RzSense, wa
 - Labels: **✓ verzameld** (staat al bij de bronnen, ook als je een eigen patroon gebruikt), **nieuw** (sinds de vorige keer gevonden) en grijs voor stil (30 dagen niets) of gestopt, onderaan.
 - Overgeslagen: gedraaide bestanden (`.1`, `.gz`, `-20250101`), binaire bestanden (`wtmp`, `btmp`, `lastlog`) en de map `journal` (die staat bij Services). Mappen zonder leesrechten worden genoemd.
 - **Wanneer**: de agent zoekt één keer per dag vanzelf, en meteen met **🔄 Opnieuw zoeken**. De lijst komt dan bij het volgende of het rapport daarna binnen, meestal binnen een of twee minuten. De pagina wacht er zelf op.
-- De agent stuurt alleen namen, groottes en tijden, nooit wat er in de logs staat. Een log in een andere map: zet die op de server in `LOG_DIRS` (`/etc/default/rzmon-agent`) en klik op Opnieuw zoeken. RzSense kan zelf geen mappen openzetten.
+- De agent stuurt alleen namen, groottes en tijden, nooit wat er in de logs staat.
+
+**Logmappen voor deze server** (vanaf 1.251.0, agent 1.96.0): staat een log in een andere map, bijvoorbeeld `/opt/mijnapp/logs`, dan kies je die hier, per server. Inloggen op de server is niet nodig.
+- **Map toevoegen**: typ het volledige pad en klik op **＋ Map toevoegen**. De agent zoekt bij zijn volgende rapport opnieuw; daarna staan de logs bij het tabblad 📁 Logmappen hierboven, om aan te vinken.
+- **📂 Bladeren…**: begin bij de mappen waar de agent mag kijken en klik door. Per submap zie je hoeveel logs erin staan, per bestand de grootte, de datum en of de agent het zou lezen (**✓ log**, *overgeslagen* of *geen leesrechten*). Met **＋ Deze map toevoegen** neem je hem over. De agent antwoordt bij zijn volgende rapport (meestal binnen een minuut); tot dan zie je een voortgangsbalk met de wachttijd.
+- Per map zie je de stand: **✔ actief**, **⏳ wacht op de agent**, of **✘ geweigerd** met de reden (bestaat niet, buiten het plafond, map met geheimen). Met ✕ haal je een map weg.
+- **Het plafond** staat óp de server, in `/etc/default/rzmon-agent`:
+  ```bash
+  LOG_DIRS_MAX="/var/log /opt /srv /home /var/lib/docker /data"   # standaard
+  LOG_DIRS_MAX=""                                                 # RzSense mag geen mappen toevoegen
+  ```
+  RzSense kan alleen mappen kiezen binnen dit plafond. Daarin leest de agent alleen bestanden die op een log lijken (`.log`, `.out`, `.err`, `.txt` of "log" in de naam), en nooit sleutels, certificaten, wachtwoorden, `.env`-bestanden, instellingen (`.conf`, `.ini`, `.yaml`, `.php`), databases of verborgen bestanden. Zo kan ook iemand die RzSense zou overnemen geen andere bestanden van je server opvragen.
+- Wat in `LOG_DIRS` staat, leest de agent altijd, zonder die beperkingen: dat heb je op de server zelf gekozen.
+- Een agent ouder dan 1.96.0 kent dit nog niet: dan staat er een melding om hem bij te werken.
 
 **Veiligheid:**
-- De agent leest alleen bestanden **binnen de mappen die je op de server zelf toestaat**: `LOG_DIRS="/var/log"` in `/etc/default/rzmon-agent` (meerdere mappen met een spatie). Zo kan niemand via RzSense andere bestanden van de server opvragen.
+- De agent leest alleen bestanden **binnen de mappen die je op de server zelf toestaat** (`LOG_DIRS="/var/log"` in `/etc/default/rzmon-agent`, meerdere mappen met een spatie) en de logmappen uit RzSense, die alleen binnen het plafond `LOG_DIRS_MAX` mogen en waarin hij alleen logs leest. Zo kan niemand via RzSense andere bestanden van de server opvragen.
 - De logs gaan **altijd versleuteld** naar RzSense (met de sleutel van de agent; onversleuteld wordt geweigerd), en **gecomprimeerd** (gzip).
 - **Maskeren** (standaard aan): wachtwoorden, tokens, API-sleutels en e-mailadressen worden vóór het opslaan `••••`. Eigen patronen voeg je toe in de instellingen.
 - Zoeken mag voor beheerders en gebruikers, niet voor *alleen lezen*.

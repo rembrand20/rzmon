@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.95.1"
+AGENT_VERSION="1.96.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -75,6 +75,10 @@ SERVICE_TEST_DIR="${SERVICE_TEST_DIR:-/etc/rzmon-agent/tests}"
 # Logbestanden doorzoeken (zoekopdrachten stel je in RzSense in): alleen bestanden in deze mappen
 # mogen gelezen worden, zodat via RzSense niet zomaar elk bestand uitgelezen kan worden.
 LOG_DIRS="${LOG_DIRS:-/var/log}"
+# Agent 1.96.0: extra logmappen per server kies je in RzSense (Agent Manager › Logs), maar alleen binnen dit plafond.
+# Daar leest de agent alleen bestanden die op een log lijken, nooit sleutels of wachtwoorden. Leeg ("") = RzSense mag
+# geen mappen toevoegen (alleen LOG_DIRS hierboven).
+LOG_DIRS_MAX="${LOG_DIRS_MAX-/var/log /opt /srv /home /var/lib/docker /data}"
 # Podman: wordt alleen gemeld als podman op deze server staat. PODMAN=0 zet het uit.
 PODMAN="${PODMAN:-1}"
 # Agent 1.69.0: Docker-containers net als die van Podman (zelfde checks, herstarten, zelf herstellen); DOCKER=0 = niet

@@ -5969,3 +5969,29 @@ body.sk-s .cc-ring-bg { stroke: var(--s-fill); }
 #modal-form .ll-dlg .ll-set label { display: inline-flex; flex-direction: row; align-items: center; gap: .4rem; text-align: left; width: auto; margin: 0; font-weight: 500; }
 #modal-form .ll-dlg .ll-set .ll-q { display: flex; width: 100%; }
 #modal-form .ll-dlg .ll-set select { width: auto; }
+
+/* 1.251.0: logmappen per server (Agent Manager › Logs) */
+.ld-h { display: flex; align-items: center; gap: .5rem; }
+.ld-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; padding: .3rem 0; border-bottom: 1px solid var(--border); min-width: 0; }
+.ld-dir { word-break: break-all; }
+.ld-add { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
+.ld-add input { flex: 1 1 14rem; min-width: 0; }
+.lf-tag.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.lf-tag.wait { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.lf-tag.bad { color: var(--crit); border-color: color-mix(in srgb, var(--crit) 45%, transparent); white-space: normal; }
+.ld-browse { border: 1px solid var(--border); border-radius: 12px; padding: .6rem .7rem; display: grid; gap: .5rem; min-width: 0; }
+.ld-bh { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.ld-crumbs { word-break: break-all; }
+.ld-crumbs .linkish, .ld-crumbs button { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font: inherit; }
+.ld-list { display: grid; gap: 2px; max-height: 22rem; overflow: auto; }
+.ld-it { display: flex; align-items: center; gap: .6rem; justify-content: space-between; padding: .35rem .5rem; border-radius: 8px; background: none; border: 0; color: inherit; font: inherit; text-align: left; min-width: 0; }
+.ld-it { flex-wrap: wrap; }
+.ld-it > span:first-child { min-width: 0; overflow-wrap: anywhere; flex: 1 1 9rem; }
+button.ld-it { cursor: pointer; }
+button.ld-it:hover:not(:disabled) { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+.ld-it.dim { opacity: .55; }
+.ld-wait { display: grid; gap: .4rem; }
+.ld-bar { height: 4px; border-radius: 4px; background: color-mix(in srgb, var(--primary) 15%, transparent); overflow: hidden; position: relative; }
+.ld-bar i { position: absolute; inset: 0 auto 0 0; width: 35%; border-radius: 4px; background: var(--primary); animation: ld-slide 1.4s ease-in-out infinite; }
+@keyframes ld-slide { 0% { left: -35%; } 100% { left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .ld-bar i { animation: none; width: 100%; opacity: .5; } }

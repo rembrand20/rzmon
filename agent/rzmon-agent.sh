@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.95.1"
+AGENT_VERSION="1.96.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -75,6 +75,10 @@ SERVICE_TEST_DIR="${SERVICE_TEST_DIR:-/etc/rzmon-agent/tests}"
 # Logbestanden doorzoeken (zoekopdrachten stel je in RzSense in): alleen bestanden in deze mappen
 # mogen gelezen worden, zodat via RzSense niet zomaar elk bestand uitgelezen kan worden.
 LOG_DIRS="${LOG_DIRS:-/var/log}"
+# Agent 1.96.0: extra logmappen per server kies je in RzSense (Agent Manager › Logs), maar alleen binnen dit plafond.
+# Daar leest de agent alleen bestanden die op een log lijken, nooit sleutels of wachtwoorden. Leeg ("") = RzSense mag
+# geen mappen toevoegen (alleen LOG_DIRS hierboven).
+LOG_DIRS_MAX="${LOG_DIRS_MAX-/var/log /opt /srv /home /var/lib/docker /data}"
 # Podman: wordt alleen gemeld als podman op deze server staat. PODMAN=0 zet het uit.
 PODMAN="${PODMAN:-1}"
 # Agent 1.69.0: Docker-containers net als die van Podman (zelfde checks, herstarten, zelf herstellen); DOCKER=0 = niet
@@ -2257,14 +2261,67 @@ lap logs
 # tellen hoeveel er op het patroon passen, en de laatste 5 treffers en de IP-adressen meesturen.
 # Bron: een logbestand (binnen LOG_DIRS), "journal", "journal:<service>" of "kernel".
 log_results=""
-log_allowed() {  # log_allowed pad → 0 als het (echte) pad binnen LOG_DIRS valt
-    local real dir
-    real=$(readlink -f -- "$1" 2>/dev/null) || return 1
-    for dir in $LOG_DIRS; do
-        dir=$(readlink -f -- "$dir" 2>/dev/null) || continue
-        [[ "$real" == "$dir"/* ]] && return 0
+in_dirs() {  # in_dirs <echt pad> <mappen> → 0 als het pad in (of gelijk aan) een van de mappen valt
+    local d
+    for d in $2; do
+        d=$(readlink -f -- "$d" 2>/dev/null) || continue
+        [ "$d" = / ] && continue   # nooit de hele schijf
+        [[ "$1" == "$d" || "$1" == "$d"/* ]] && return 0
     done
     return 1
+}
+log_secret() {  # log_secret <pad> → 0 als het pad naar een geheim lijkt (sleutels, wachtwoorden, omgevingen): nooit lezen
+    local b="${1##*/}"
+    case "/$1/" in
+        */.ssh/*|*/.gnupg/*|*/.aws/*|*/.kube/*|*/.docker/*|*/.password-store/*|*/.config/*|*/.local/share/keyrings/*|*/secrets/*|*/private/*|*/ssl/*|*/certs/*) return 0 ;;
+    esac
+    case "${b,,}" in
+        .*|*.key|*.pem|*.crt|*.p12|*.pfx|*.jks|*.kdbx|*.keytab|*.env|*.env.*|id_*|*shadow*|*passw*|*secret*|*token*|*cred*|*apikey*|*_history|*.history) return 0 ;;
+        config.v2.json|hostconfig.json|*.cnf|*.ini|*.conf|*.yaml|*.yml|*.php|*.sqlite*|*.db) return 0 ;;
+    esac
+    return 1
+}
+log_like() {  # log_like <pad> → 0 als de naam op een log lijkt (.log, .out, .err, .txt, of "log" in de naam)
+    local b="${1##*/}"
+    case "${b,,}" in
+        *.log|*.out|*.err|*.txt|*log*) return 0 ;;
+    esac
+    return 1
+}
+# Agent 1.96.0: extra mappen uit RzSense (regel "0 <tab> logdirs <tab> map map …"), alleen binnen LOG_DIRS_MAX.
+# Daarin alleen bestanden die op een log lijken en geen geheim zijn; wat in LOG_DIRS van de server zelf staat, blijft zoals het was.
+LOG_DIRS_LOCAL="$LOG_DIRS"; log_dirs_remote=""; log_dirs_refused=""; log_dirs_ok=""
+lr_want=$( [ -r "${t_cache-}" ] && awk -F'\t' '$1 == "0" && $2 == "logdirs" { print $3; exit }' "$t_cache")
+for lr_d in $lr_want; do
+    lr_why=""
+    if [[ "$lr_d" != /* || "$lr_d" == *..* ]]; then lr_why="geen volledig pad"
+    elif ! lr_real=$(readlink -e -- "$lr_d" 2>/dev/null) || [ ! -d "$lr_real" ]; then lr_why="bestaat niet"
+    elif [ -z "${LOG_DIRS_MAX// /}" ]; then lr_why="LOG_DIRS_MAX staat uit op de server"
+    elif ! in_dirs "$lr_real" "$LOG_DIRS_MAX"; then lr_why="buiten LOG_DIRS_MAX ($LOG_DIRS_MAX)"
+    elif log_secret "$lr_real"; then lr_why="map met geheimen"
+    fi
+    if [ -n "$lr_why" ]; then
+        log_dirs_refused+="[\"$(json_escape "$lr_d")\",\"$(json_escape "$lr_why")\"],"
+    else
+        log_dirs_remote+=" $lr_real"; log_dirs_ok+=" $lr_d"
+    fi
+done
+LOG_DIRS="$LOG_DIRS_LOCAL$log_dirs_remote"
+log_allowed() {  # log_allowed pad → 0 als het (echte) pad binnen LOG_DIRS van de server valt, of veilig binnen een map uit RzSense
+    local real
+    real=$(readlink -f -- "$1" 2>/dev/null) || return 1
+    in_dirs "$real" "$LOG_DIRS_LOCAL" && return 0
+    [ -n "$log_dirs_remote" ] && in_dirs "$real" "$log_dirs_remote" && log_like "$real" && ! log_secret "$real" && return 0
+    return 1
+}
+log_refused() {  # log_refused pad → de foutmelding voor een bestand dat log_allowed weigert
+    local real
+    real=$(readlink -f -- "$1" 2>/dev/null) || real="$1"
+    if [ -n "$log_dirs_remote" ] && in_dirs "$real" "$log_dirs_remote"; then
+        echo "$1 lijkt geen logbestand of kan geheimen bevatten; in mappen uit RzSense leest de agent alleen logs"
+    else
+        echo "$1 valt buiten de toegestane mappen ($LOG_DIRS); voeg de map toe aan LOG_DIRS in /etc/default/rzmon-agent"
+    fi
 }
 if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlog\t' "$t_cache"; then
     l_dir="$t_dir/logstate"
@@ -2294,7 +2351,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlog\t' "$t_cache"; then
                 echo "journal|$now_l" >"$st_file" ;;
             /*)
                 if ! log_allowed "$l_src"; then
-                    l_err="$l_src valt buiten de toegestane mappen ($LOG_DIRS); voeg de map toe aan LOG_DIRS in /etc/default/rzmon-agent"
+                    l_err=$(log_refused "$l_src")
                 elif [ ! -r "$l_src" ]; then
                     l_err="$l_src bestaat niet of is niet leesbaar"
                 else
@@ -4586,10 +4643,10 @@ logscan_json=""
 if [ "$TEST" != 1 ] && [ "${LOG_SHIP:-1}" != 0 ]; then
     lv_req=$( [ -r "${t_cache-}" ] && awk -F'\t' '$1 == "0" && $2 == "logscan" { print $3; exit }' "$t_cache")
     lv_cache="$t_dir/logscan.cache"
-    lv_key=$(printf '%s|%s' "$LOG_DIRS" "$lv_req" | cksum | cut -d' ' -f1)
+    lv_key=$(printf '%s|%s|%s|%s' "$LOG_DIRS" "$lv_req" "$LOG_DIRS_MAX" "${lr_want-}" | cksum | cut -d' ' -f1)
     lv_now=$(date +%s)
     if ! { [ -r "$lv_cache" ] && [ "$(sed -n 1p "$lv_cache")" = "$lv_key" ] && [ $((lv_now - $(sed -n 2p "$lv_cache"))) -lt 86400 ]; }; then
-        lv_files=""; lv_n=0; lv_noread=""
+        lv_files=""; lv_n=0; lv_noread=""; declare -A lv_seen=()
         for lv_d in $LOG_DIRS; do
             [[ "$lv_d" == /* && "$lv_d" != *..* && -d "$lv_d" ]] || continue
             # Mappen zonder leesrechten (tot 2 diep): wel noemen, zodat je weet waarom ze ontbreken
@@ -4604,6 +4661,8 @@ if [ "$TEST" != 1 ] && [ "${LOG_SHIP:-1}" != 0 ]; then
                     wtmp*|btmp*|lastlog|faillog|*.journal|*.journal~|*.pid|*.lock|*.sock|*.db|*.sqlite*) continue ;;
                 esac
                 [ -r "$f" ] || continue
+                log_allowed "$f" || continue   # agent 1.96.0: in mappen uit RzSense alleen logs, geen geheimen
+                [ -n "${lv_seen[$f]-}" ] && continue; lv_seen[$f]=1   # map in een andere map: niet dubbel
                 read -r lv_sz lv_mt < <(stat -c '%s %Y' -- "$f" 2>/dev/null) || continue
                 # Binair? (NUL-tekens in het begin)
                 if [ "${lv_sz:-0}" -gt 0 ]; then
@@ -4637,8 +4696,54 @@ if [ "$TEST" != 1 ] && [ "${LOG_SHIP:-1}" != 0 ]; then
             lv_ha='["host","Host","started"],["core","Home Assistant Core","started"],["supervisor","Supervisor","started"],'
             lv_ha+=$(sv /addons | jq -r '.data.addons[]? | select(.slug | test("^[a-z0-9_]{1,64}$")) | "[\"addon:\(.slug)\",\(.name | @json),\(.state | @json)],"' 2>/dev/null | head -n 100 | tr -d '\n')
         fi
-        logscan_json="{\"at\":$lv_now,\"req\":${lv_req:-0},\"dirs\":\"$(json_escape "$LOG_DIRS")\",\"files\":[${lv_files%,}],\"noread\":[${lv_noread%,}],\"docker\":[${lv_dk%,}],\"units\":[${lv_un%,}],\"ha\":[${lv_ha%,}]}"
+        logscan_json="{\"at\":$lv_now,\"req\":${lv_req:-0},\"dirs\":\"$(json_escape "$LOG_DIRS")\",\"files\":[${lv_files%,}],\"noread\":[${lv_noread%,}],\"docker\":[${lv_dk%,}],\"units\":[${lv_un%,}],\"ha\":[${lv_ha%,}],\"local\":\"$(json_escape "$LOG_DIRS_LOCAL")\",\"max\":\"$(json_escape "$LOG_DIRS_MAX")\",\"refused\":[${log_dirs_refused%,}],\"ok\":\"$(json_escape "${log_dirs_ok# }")\"}"
         (umask 077; printf '%s\n%s\n' "$lv_key" "$lv_now" >"$lv_cache") 2>/dev/null || true
+    fi
+fi
+
+# ---------------------------------------------------------------- Map doorbladeren (agent 1.96.0)
+# RzSense vraagt de inhoud van één map (regel "0 <tab> logbrowse <tab> teller <tab> pad"), om een logmap te kiezen.
+# Alleen binnen LOG_DIRS of LOG_DIRS_MAX, alleen namen, groottes en tijden (nooit de inhoud), geen verborgen namen.
+# Per bestand: of de agent het als log zou lezen. Per submap: hoeveel logs erin staan (tot 2 diep).
+logbrowse_json=""
+if [ "$TEST" != 1 ] && [ "${LOG_SHIP:-1}" != 0 ] && [ -r "${t_cache-}" ]; then
+    IFS=$'\t' read -r lb_req lb_path < <(awk -F'\t' '$1 == "0" && $2 == "logbrowse" { print $3 "\t" $4; exit }' "$t_cache")
+    lb_done="$t_dir/logbrowse.done"
+    if [[ "${lb_req-}" =~ ^[0-9]+$ ]] && [ "$lb_req" != "$(cat "$lb_done" 2>/dev/null)" ]; then
+        lb_err=""; lb_dirs=""; lb_files=""; lb_real=""
+        if [[ "${lb_path-}" != /* || "$lb_path" == *..* ]]; then lb_err="geen volledig pad"
+        elif ! lb_real=$(readlink -e -- "$lb_path" 2>/dev/null) || [ ! -d "$lb_real" ]; then lb_err="bestaat niet"
+        elif ! { in_dirs "$lb_real" "$LOG_DIRS_LOCAL" || in_dirs "$lb_real" "$LOG_DIRS_MAX"; }; then lb_err="buiten LOG_DIRS en LOG_DIRS_MAX"
+        elif log_secret "$lb_real/"; then lb_err="map met geheimen"
+        elif [ ! -r "$lb_real" ] || [ ! -x "$lb_real" ]; then lb_err="geen leesrechten"
+        else
+            lb_n=0
+            while IFS= read -r -d '' x; do
+                lb_n=$((lb_n + 1)); [ "$lb_n" -gt 400 ] && break
+                b="${x##*/}"; [[ "$b" == .* ]] && continue
+                if [ -d "$x" ]; then
+                    lb_c=0; lb_ok=1
+                    if log_secret "$x/" || [ ! -r "$x" ] || [ ! -x "$x" ]; then lb_ok=0
+                    else
+                        lb_m=0
+                        while IFS= read -r -d '' y; do
+                            lb_m=$((lb_m + 1)); [ "$lb_m" -gt 500 ] && break
+                            log_like "$y" && ! log_secret "$y" && lb_c=$((lb_c + 1))
+                        done < <(timeout 5 find "$x" -xdev -maxdepth 2 -type f -print0 2>/dev/null)
+                    fi
+                    lb_dirs+="[\"$(json_escape "$b")\",$lb_c,$lb_ok],"
+                elif [ -f "$x" ]; then
+                    read -r lb_sz lb_mt < <(stat -c '%s %Y' -- "$x" 2>/dev/null) || continue
+                    # 1 = de agent leest het, 0 = geen log of een geheim, 2 = geen leesrechten
+                    if in_dirs "$lb_real" "$LOG_DIRS_LOCAL"; then lb_ok=1
+                    elif log_like "$x" && ! log_secret "$x"; then lb_ok=1; else lb_ok=0; fi
+                    [ "$lb_ok" = 1 ] && [ ! -r "$x" ] && lb_ok=2
+                    lb_files+="[\"$(json_escape "$b")\",${lb_sz:-0},${lb_mt:-0},$lb_ok],"
+                fi
+            done < <(find "$lb_real" -xdev -maxdepth 1 -mindepth 1 -print0 2>/dev/null)
+        fi
+        logbrowse_json="{\"req\":$lb_req,\"path\":\"$(json_escape "$lb_path")\",\"real\":\"$(json_escape "$lb_real")\",\"err\":\"$(json_escape "$lb_err")\",\"dirs\":[${lb_dirs%,}],\"files\":[${lb_files%,}]}"
+        (umask 077; echo "$lb_req" >"$lb_done") 2>/dev/null || true
     fi
 fi
 # ---------------------------------------------------------------- Bijwerken op afstand
@@ -5113,7 +5218,7 @@ if [ -n "$hold_id" ] && [ "$hold_since" -gt 0 ]; then
     [ "$TEST" != 1 ] && [ "${HOLD_JITTER:-1}" != 0 ] && sleep $(( RANDOM % 25 ))
 fi
 run_ms=$(( $(now_ms) - run_t0 ))
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json}${truenas_json:+,\"truenas\":$truenas_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],${logscan_json:+\"log_scan\":$logscan_json,}\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${act_json:+,\"act\":[$act_json]}${ransom_json:+,\"ransom\":$ransom_json}${apps_json:+,\"apps\":$apps_json}${ioc_json:+,\"ioc\":$ioc_json}${patch_json:+,\"patch\":$patch_json}${ha_upd_json:+,\"ha_upd_result\":$ha_upd_json}${sudo_json:+,\"sudo\":[${sudo_json%,}]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json}${path_json:+,\"path\":$path_json}${db_json:+,\"db\":$db_json}${iperfs_json:+,\"iperfs\":$iperfs_json}${selftest_json:+,\"selftest\":$selftest_json}${nic_json:+,\"nic\":$nic_json}${hold_json:+,\"hold\":$hold_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json}${truenas_json:+,\"truenas\":$truenas_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],${logscan_json:+\"log_scan\":$logscan_json,}${logbrowse_json:+\"log_browse\":$logbrowse_json,}\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${act_json:+,\"act\":[$act_json]}${ransom_json:+,\"ransom\":$ransom_json}${apps_json:+,\"apps\":$apps_json}${ioc_json:+,\"ioc\":$ioc_json}${patch_json:+,\"patch\":$patch_json}${ha_upd_json:+,\"ha_upd_result\":$ha_upd_json}${sudo_json:+,\"sudo\":[${sudo_json%,}]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json}${path_json:+,\"path\":$path_json}${db_json:+,\"db\":$db_json}${iperfs_json:+,\"iperfs\":$iperfs_json}${selftest_json:+,\"selftest\":$selftest_json}${nic_json:+,\"nic\":$nic_json}${hold_json:+,\"hold\":$hold_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
 
 # Agent 1.66.1: 50 seconden wachten op RzSense (was 20): een druk bezette RzSense verwerkt een groot rapport soms trager;
 # na 20 seconden gaf de agent het op en kreeg hij het antwoord (opdrachten, instellingen, "softwarelijst ontvangen") nooit
@@ -5524,7 +5629,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlogsrc\t' "$t_cache" && [ "${LOG_S
                     [ -f "$f" ] && [ -r "$f" ] || continue
                     case "$f" in *.gz|*.xz|*.bz2|*.zst) continue ;; esac
                     if ! log_allowed "$f"; then
-                        s_err="$f valt buiten de toegestane mappen ($LOG_DIRS); voeg de map toe aan LOG_DIRS in /etc/default/rzmon-agent"
+                        s_err=$(log_refused "$f")
                         continue
                     fi
                     s_files=$((s_files + 1))

@@ -355,6 +355,9 @@ final class Installer
         ['alerts', 'seen_by', 'VARCHAR(100) NULL'],
         ['alerts', 'log_watch', 'VARCHAR(24) NULL'],
         ['hosts', 'logscan_req', 'INT UNSIGNED NOT NULL DEFAULT 0'],   // 1.213.0: "🔄 Opnieuw zoeken" naar logs op de server    // 1.212.0: melding van een vaste zoekactie op de logs ("zoekactie:server")
+        ['hosts', 'log_dirs', "VARCHAR(1000) NOT NULL DEFAULT ''"],   // 1.251.0: extra logmappen voor deze server (agent: alleen binnen LOG_DIRS_MAX)
+        ['hosts', 'logbrowse_req', 'INT UNSIGNED NOT NULL DEFAULT 0'],   // 1.251.0: map doorbladeren (teller)
+        ['hosts', 'logbrowse_path', "VARCHAR(300) NOT NULL DEFAULT ''"],
         ['hosts', 'iperf_ok', 'TINYINT(1) NOT NULL DEFAULT 1'],
         ['weblog_state', 'kind', 'VARCHAR(16) NULL'],       // 1.222.0: soort reverse proxy (swag, npm, nginx; agent 1.86.0)
         ['weblog_state', 'ctr', 'VARCHAR(64) NULL'],        // 1.222.0: container van de proxy

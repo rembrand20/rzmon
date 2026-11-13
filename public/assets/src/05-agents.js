@@ -528,7 +528,7 @@ async function saveHostConn(sel, done) {
 
 // ---------------------------------------------------------------- 1.210.0: logs verzamelen (Agent Manager › Logs)
 const LS_KINDS = () => ({
-  file: [L('Bestand of map'), '/var/log/nginx/*.log', L('Volledig pad, met * voor meerdere bestanden. Alleen binnen LOG_DIRS van de server.')],
+  file: [L('Bestand of map'), '/var/log/nginx/*.log', L('Volledig pad, met * voor meerdere bestanden. Alleen binnen de logmappen van deze server.')],
   journal: [L('Journal (alles)'), '', L('Het hele systeemlog van systemd.')],
   unit: [L('Journal van één service'), 'mariadb.service', L('De naam van de service, zoals bij systemctl.')],
   docker: [L('Container (Docker/Podman)'), 'vaultwarden', L('De naam van de container.')],
@@ -546,7 +546,7 @@ const LS_LVL_PILL = ['debug', 'info', 'warning', 'error', 'critical'];
 // ---------------------------------------------------------------- 1.213.0: logs die de agent op de server vond, om uit te kiezen
 const LF = { tab: 'dirs', timer: 0, waitUntil: 0, sel: new Set(), host: 0 };
 const LF_TABS = () => [['dirs', '📁', L('Logmappen')], ['docker', '🐳', L('Containers')], ['units', '⚙️', L('Services')], ['ha', '🏠', 'Home Assistant']];
-const lfAgo = (ts) => { const s = Math.max(0, Date.now() / 1000 - ts); return s < 90 ? L('nu') : s < 3600 ? L('{n} min', { n: Math.round(s / 60) }) : s < 86400 ? L('{n} uur', { n: Math.round(s / 3600) }) : s < 60 * 86400 ? L('{n} dagen', { n: Math.round(s / 86400) }) : L('{n} mnd', { n: Math.round(s / (30 * 86400)) }); };
+const lfAgo = (ts) => { const s = Math.max(0, Date.now() / 1000 - ts); return s < 90 ? L('nu') : s < 3600 ? L('{n} min', { n: Math.round(s / 60) }) : s < 86400 ? L('{n} uur', { n: Math.round(s / 3600) }) : s < 60 * 86400 ? (Math.round(s / 86400) === 1 ? L('1 dag') : L('{n} dagen', { n: Math.round(s / 86400) })) : L('{n} mnd', { n: Math.round(s / (30 * 86400)) }); };
 
 async function lfLoad(h, keepChecks = false) {
   const box = $('#ls-found');
@@ -593,7 +593,7 @@ async function lfLoad(h, keepChecks = false) {
       <div class="lf-foot"><button type="button" class="btn primary small-btn" id="lf-add" disabled>＋ ${L('Toevoegen')}</button><span class="muted small" id="lf-sel"></span></div>
       ${LF.tab === 'dirs' ? `<p class="muted small">${L('Overgeslagen: gedraaide bestanden (.1, .gz), binaire bestanden (wtmp, btmp, lastlog) en de map journal (die staat bij Services).')}</p>` : ''}
       ${LF.tab === 'dirs' && d.noread.length ? `<p class="warn-txt small">${L('Geen leesrechten: {d}', { d: d.noread.map(esc).join(', ') })}</p>` : ''}
-      ${LF.tab === 'dirs' ? `<div class="lf-note small"><b>${L('Een log in een andere map?')}</b> ${L('De agent kijkt alleen in de toegestane mappen (LOG_DIRS, nu {d}). Zet een andere map op de server erbij in /etc/default/rzmon-agent en klik daarna op Opnieuw zoeken:', { d: `<code>${esc(d.dirs || '/var/log')}</code>` })}<pre class="code">LOG_DIRS="${esc(d.dirs || '/var/log')} /opt/myapp/logs"</pre></div>` : ''}`
+      `
     : `<p class="muted small">${d.pending ? L('De agent zoekt bij zijn volgende rapport (meestal binnen een minuut). Werkt het niet, dan is de agent misschien te oud: bijwerken kan bij Versie hierboven.') : L('De agent heeft nog niet gezocht. Klik op Opnieuw zoeken, of wacht tot hij het vanzelf doet (één keer per dag).')}</p>`}`;
   const sel = () => {
     const n = LF.sel.size;
@@ -604,6 +604,7 @@ async function lfLoad(h, keepChecks = false) {
     $('#lf-sel', box).textContent = n ? [...LF.sel].map((k) => (names.get(k) || {}).name || k.split('/').pop()).slice(0, 8).join(', ') + (n > 8 ? ' …' : '') + ' · ' + L('Ze gaan mee bij het volgende rapport van de agent.') : '';
   };
   sel();
+  ldRender(h, d);   // 1.251.0: logmappen voor deze server
   box.onchange = (e) => {
     const c = e.target.closest('[data-lf]');
     if (!c) return;
@@ -679,11 +680,12 @@ async function amLogs(h) {
         .map(([k, t]) => `<option value="${k}" ${k === iv ? 'selected' : ''}>${t}</option>`).join('')}</select>`)}
     ${amRow(L('Vandaag'), L('{used} van de daglimiet van {lim} (ongecomprimeerd)', { used: fmtBytes(d.used_today), lim: fmtBytes(d.day_limit) }),
       `<span class="lg-bar${limitPct >= 100 ? ' full' : ''}"><i style="width:${limitPct}%"></i></span>`)}
-    <p class="small muted lg-note">🔒 ${L('De agent leest alleen bestanden binnen de mappen die je óp de server toestaat: <code>LOG_DIRS="/var/log"</code> in <code>/etc/default/rzmon-agent</code> (meerdere mappen met een spatie). Een nieuwe bron begint bij het einde: oude regels worden niet ingelezen.')}</p>
+    <p class="small muted lg-note">🔒 ${L('De agent leest alleen bestanden in de mappen van deze server (zie Logmappen hieronder). Een nieuwe bron begint bij het einde: oude regels worden niet ingelezen.')}</p>
     ${d.sources.length ? `<div class="table-scroll"><table class="vuln-table lg-table"><thead><tr><th>${L('Aan')}</th><th>${L('Bron')}</th><th>${L('Soort')}</th><th>${L('Niveau')}</th>
       <th class="num">${L('Regels vandaag')}</th><th class="num">${L('Vandaag')}</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
       : `<p class="muted">${L('Nog geen bronnen. Kies hieronder wat de agent op de server vond, of voeg er zelf een toe.')}</p>`}
     <div class="lf-box" id="ls-found"><p class="muted small">${L('Laden…')}</p></div>
+    <div class="lf-box ld-box" id="ls-dirs"></div>
     <div class="lg-form" id="ls-form">
       <div class="lg-form-h"><b id="ls-form-t">＋ ${L('Zelf een bron toevoegen')}</b><span class="lg-presets">${LS_PRESETS().map(([n, k, sp], i) => `<button type="button" class="dchip" data-ls-preset="${i}">${esc(n)}</button>`).join('')}</span></div>
       <input type="hidden" name="id" value="">

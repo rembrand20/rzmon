@@ -308,14 +308,67 @@ lap logs
 # tellen hoeveel er op het patroon passen, en de laatste 5 treffers en de IP-adressen meesturen.
 # Bron: een logbestand (binnen LOG_DIRS), "journal", "journal:<service>" of "kernel".
 log_results=""
-log_allowed() {  # log_allowed pad → 0 als het (echte) pad binnen LOG_DIRS valt
-    local real dir
-    real=$(readlink -f -- "$1" 2>/dev/null) || return 1
-    for dir in $LOG_DIRS; do
-        dir=$(readlink -f -- "$dir" 2>/dev/null) || continue
-        [[ "$real" == "$dir"/* ]] && return 0
+in_dirs() {  # in_dirs <echt pad> <mappen> → 0 als het pad in (of gelijk aan) een van de mappen valt
+    local d
+    for d in $2; do
+        d=$(readlink -f -- "$d" 2>/dev/null) || continue
+        [ "$d" = / ] && continue   # nooit de hele schijf
+        [[ "$1" == "$d" || "$1" == "$d"/* ]] && return 0
     done
     return 1
+}
+log_secret() {  # log_secret <pad> → 0 als het pad naar een geheim lijkt (sleutels, wachtwoorden, omgevingen): nooit lezen
+    local b="${1##*/}"
+    case "/$1/" in
+        */.ssh/*|*/.gnupg/*|*/.aws/*|*/.kube/*|*/.docker/*|*/.password-store/*|*/.config/*|*/.local/share/keyrings/*|*/secrets/*|*/private/*|*/ssl/*|*/certs/*) return 0 ;;
+    esac
+    case "${b,,}" in
+        .*|*.key|*.pem|*.crt|*.p12|*.pfx|*.jks|*.kdbx|*.keytab|*.env|*.env.*|id_*|*shadow*|*passw*|*secret*|*token*|*cred*|*apikey*|*_history|*.history) return 0 ;;
+        config.v2.json|hostconfig.json|*.cnf|*.ini|*.conf|*.yaml|*.yml|*.php|*.sqlite*|*.db) return 0 ;;
+    esac
+    return 1
+}
+log_like() {  # log_like <pad> → 0 als de naam op een log lijkt (.log, .out, .err, .txt, of "log" in de naam)
+    local b="${1##*/}"
+    case "${b,,}" in
+        *.log|*.out|*.err|*.txt|*log*) return 0 ;;
+    esac
+    return 1
+}
+# Agent 1.96.0: extra mappen uit RzSense (regel "0 <tab> logdirs <tab> map map …"), alleen binnen LOG_DIRS_MAX.
+# Daarin alleen bestanden die op een log lijken en geen geheim zijn; wat in LOG_DIRS van de server zelf staat, blijft zoals het was.
+LOG_DIRS_LOCAL="$LOG_DIRS"; log_dirs_remote=""; log_dirs_refused=""; log_dirs_ok=""
+lr_want=$( [ -r "${t_cache-}" ] && awk -F'\t' '$1 == "0" && $2 == "logdirs" { print $3; exit }' "$t_cache")
+for lr_d in $lr_want; do
+    lr_why=""
+    if [[ "$lr_d" != /* || "$lr_d" == *..* ]]; then lr_why="geen volledig pad"
+    elif ! lr_real=$(readlink -e -- "$lr_d" 2>/dev/null) || [ ! -d "$lr_real" ]; then lr_why="bestaat niet"
+    elif [ -z "${LOG_DIRS_MAX// /}" ]; then lr_why="LOG_DIRS_MAX staat uit op de server"
+    elif ! in_dirs "$lr_real" "$LOG_DIRS_MAX"; then lr_why="buiten LOG_DIRS_MAX ($LOG_DIRS_MAX)"
+    elif log_secret "$lr_real"; then lr_why="map met geheimen"
+    fi
+    if [ -n "$lr_why" ]; then
+        log_dirs_refused+="[\"$(json_escape "$lr_d")\",\"$(json_escape "$lr_why")\"],"
+    else
+        log_dirs_remote+=" $lr_real"; log_dirs_ok+=" $lr_d"
+    fi
+done
+LOG_DIRS="$LOG_DIRS_LOCAL$log_dirs_remote"
+log_allowed() {  # log_allowed pad → 0 als het (echte) pad binnen LOG_DIRS van de server valt, of veilig binnen een map uit RzSense
+    local real
+    real=$(readlink -f -- "$1" 2>/dev/null) || return 1
+    in_dirs "$real" "$LOG_DIRS_LOCAL" && return 0
+    [ -n "$log_dirs_remote" ] && in_dirs "$real" "$log_dirs_remote" && log_like "$real" && ! log_secret "$real" && return 0
+    return 1
+}
+log_refused() {  # log_refused pad → de foutmelding voor een bestand dat log_allowed weigert
+    local real
+    real=$(readlink -f -- "$1" 2>/dev/null) || real="$1"
+    if [ -n "$log_dirs_remote" ] && in_dirs "$real" "$log_dirs_remote"; then
+        echo "$1 lijkt geen logbestand of kan geheimen bevatten; in mappen uit RzSense leest de agent alleen logs"
+    else
+        echo "$1 valt buiten de toegestane mappen ($LOG_DIRS); voeg de map toe aan LOG_DIRS in /etc/default/rzmon-agent"
+    fi
 }
 if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlog\t' "$t_cache"; then
     l_dir="$t_dir/logstate"
@@ -345,7 +398,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlog\t' "$t_cache"; then
                 echo "journal|$now_l" >"$st_file" ;;
             /*)
                 if ! log_allowed "$l_src"; then
-                    l_err="$l_src valt buiten de toegestane mappen ($LOG_DIRS); voeg de map toe aan LOG_DIRS in /etc/default/rzmon-agent"
+                    l_err=$(log_refused "$l_src")
                 elif [ ! -r "$l_src" ]; then
                     l_err="$l_src bestaat niet of is niet leesbaar"
                 else
