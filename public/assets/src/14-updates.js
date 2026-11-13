@@ -35,12 +35,16 @@ async function loadPatch() {
         <td>${patchBadge(h)}${h.rb ? `<br><span class="warn small">↻ ${L('herstart nodig (doe dat zelf)')}</span>` : ''}${h.list.length ? `<br><button type="button" class="linkish small" data-ph-list="${h.id}">${L('lijst')}</button>` : ''}</td>
         <td>${h.kind === 'truenas' ? '–' : esc(patchModeTxt(h)) + (h.kind === 'linux' ? `<br><span class="muted">${h.scope === 'all' ? L('alle updates') : L('alleen beveiligingsupdates')}</span>` : '')}
           ${h.mode === 'window' && !h.windows.length ? `<br><span class="warn small">${L('geen onderhoudsvenster ingesteld')}</span>` : ''}</td>
-        <td>${h.status && ['queued', 'running'].includes(h.status.state) || h.ha_req ? `<b>⏳ ${L('bezig')}</b>` : h.last ? agoSpan(h.last) : '–'}</td>
+        <td>${h.status && ['queued', 'running'].includes(h.status.state) ? `<button type="button" class="linkish" data-ph-prog="1" title="${esc(L('Voortgang tonen'))}">${agentSteps(h.status)}</button>`
+          : h.ha_req ? agentSteps({ state: 'queued' }) : h.last ? agoSpan(h.last) : '–'}</td>
         <td class="nowrap need-admin">${!h.blocked && patchCount({ ...h, scope: 'security' }) && h.kind === 'linux' ? `<button type="button" class="btn small-btn primary" data-ph-now="security">🛡 ${L('Beveiliging')}</button> ` : ''}
           ${!h.blocked && h.avail ? `<button type="button" class="btn small-btn" data-ph-now="all">⬆ ${h.kind === 'ha' ? L('Core en add-ons') : L('Alles')}</button> ` : ''}
           ${h.kind !== 'truenas' ? `<button type="button" class="btn small-btn" data-ph-am="1">${L('Instellen')} →</button>` : ''}
           ${h.blocked && h.kind !== 'truenas' && h.agent_ok ? `<br><span class="muted small">${esc(h.blocked)}</span>` : ''}</td></tr>`).join('')}
       </tbody></table></div>` : `<p class="muted">${L('Nog geen servers met de agent.')}</p>`}`;
+  // 1.252.0: zolang een server bijwerkt, elke 5 seconden de stand vernieuwen (alleen als je op deze pagina bent)
+  clearTimeout(loadPatch.t);
+  if (hs.some((h) => (h.status && ['queued', 'running'].includes(h.status.state)) || h.ha_req)) loadPatch.t = setTimeout(() => { if (box.isConnected && box.offsetParent) loadPatch(); }, 5000);
   if ($('#ph-all', box)) $('#ph-all', box).onchange = (e) => $$('[data-ph-sel]', box).forEach((c) => { c.checked = e.target.checked; });
   box.onclick = (e) => {
     if (e.target.closest('#ph-bulk')) return patchBulk($$('[data-ph-sel]:checked', box).map((c) => +c.dataset.phSel));
@@ -50,6 +54,7 @@ async function loadPatch() {
     const h = hs.find((x) => x.id === +tr.dataset.ph);
     if (e.target.closest('[data-ph-list]')) return patchList(h);
     if (e.target.closest('[data-ph-am]')) return agentInstructions(findHost(h.id));
+    if (e.target.closest('[data-ph-prog]')) return vulnUpgradeDialog(findHost(h.id) || h, true);
     const now = e.target.closest('[data-ph-now]');
     if (now) patchNow(h, now.dataset.phNow, loadPatch);
   };

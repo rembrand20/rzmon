@@ -540,6 +540,17 @@ Beweeg over een grafiek voor de precieze waarde. RzSense houdt hiervoor elk uur 
 - **Nodig:** e-mail bij *Meldingen → Kanalen*, en voor push Pushover of ntfy.
 - **Over het AI-weekoverzicht:** de AI maakt het op de gekozen dag en tijd, en zodra het klaar is wordt het verstuurd.
 
+### Voortgang ⏳ (vanaf 1.252.0)
+Overal waar RzSense iets voor je doet (opslaan, testen, scannen, bijwerken) zie je dat het loopt:
+- **De knop zelf**: na een halve seconde krijgt de knop een bewegend balkje onderin en de tijd (*4 s*). Weet RzSense hoe lang het meestal duurt (de browser onthoudt dat per actie), dan staat dat erbij (*4 s / ±12 s*) en loopt het balkje vol. Duurt het veel langer dan normaal, dan staat er ⚠ voor de tijd. Je kunt niet per ongeluk twee keer klikken.
+- **Een dun balkje bovenaan de pagina** zolang er iets loopt dat je zelf startte.
+- **Lange taken (netwerkscan, poortscan)**: de knop wordt **⏹ Stoppen** en is zelf de voortgangsbalk (*stap 4/5 · 18/120 · 7 s*). Eronder staan de stappen met ✔, de huidige stap met een balk en het adres waar hij nu is, en hoe lang het nog ongeveer duurt.
+  - Klik op **⏹ Stoppen** om te stoppen. Wat al klaar is, blijft bewaard (bij de netwerkscan de apparaten die al diep gescand zijn; bij de poortscan de open poorten die al gevonden zijn).
+  - De **netwerkscan loopt door als je de pagina verlaat**. Kom je terug op Netwerk, dan zie je de voortgang weer. Ook een geplande scan zie je zo (en kun je stoppen).
+  - Er loopt hooguit één netwerkscan tegelijk, en per server één poortscan. Klik je terwijl er al een loopt, dan volg je die.
+- **Reeksen** (meerdere checks tegelijk toevoegen): de knop telt *7 van 25* en kan ook stoppen.
+- **Wat de agent doet** (bijwerken bij Kwetsbaarheden en Updates): overal dezelfde stappen *aangevraagd → opgepakt → bezig (x%) → klaar*. Klik erop voor de details.
+
 ### Live bijwerken ⚡ en Zoeken en doen ⌨️ (vanaf 1.107.0)
 - **Live bijwerken**: RzSense kijkt elke paar seconden of er iets veranderd is (een storing, een melding, iets bevestigd of in onderhoud, een nieuwe checkronde) en werkt dan meteen het scherm bij. Het groene bolletje bij *Laatste check* laat zien dat het werkt (grijs = even geen verbinding). Het is licht voor de server: er blijven geen verbindingen openstaan.
 - **Echt live** (vanaf 1.109.0): RzSense bouwt het scherm niet meer opnieuw op, maar past **alleen aan wat veranderde**. Wat je openklapte (een server, een dag bij Meldingen, *Verbindingscontrole* in de Agent Manager), een menu, wat je typt en je scrollpositie blijven gewoon staan. Dat geldt op elke pagina: Dashboard, Meldingen, IDS, Kwetsbaarheden en Netwerk.
@@ -1409,7 +1420,7 @@ Goed om te weten:
 
 ### 7.3 Poortscan
 Klik op een serverkaart op **🔍**:
-1. Kies een bereik en klik op **Scannen**.
+1. Kies een bereik en klik op **Scannen**. De knop wordt **⏹ Stoppen** en laat zien hoeveel poorten al gedaan en open zijn (vanaf 1.252.0); stoppen houdt wat al gevonden is.
 2. Klik bij elke dienst die je wilt bewaken op **＋ Check**.
 3. Bij agent-servers staat eronder ook de lijst met luisterende poorten volgens de agent.
 

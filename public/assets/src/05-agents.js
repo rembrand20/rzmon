@@ -1991,11 +1991,11 @@ async function recommendedChecks(h) {
     onSubmit: async (d) => {
       const chosen = items.filter(([k]) => d['rec_' + k]);
       if (!chosen.length) throw new Error(L('Vink minstens één check aan'));
-      for (const [, p] of chosen) {
+      const { n } = await batchRun(chosen, async ([, p]) => {   // 1.252.0: met teller en stoppen
         await api('check_save', { host_id: h.id, type: 'command', name: p.name, interval_sec: p.interval, enabled: true,
           command: { cmd: p.cmd, expect: p.expect, match: p.match, timeout: p.timeout, fail: p.fail } });
-      }
-      toast(L('{n} check(s) toegevoegd', { n: chosen.length }));
+      });
+      toast(L('{n} check(s) toegevoegd', { n }));
       refresh();
     },
   });

@@ -703,6 +703,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <button type="button" class="btn need-admin" id="net-approve-all"><?= th('✔ Alle nieuwe bekend') ?></button>
         <button type="button" class="btn need-admin" id="net-scan">🔍 <?= th('Nu scannen') ?></button>
       </div>
+      <div id="net-scan-steps" class="rz-job-details" hidden></div>
       </div>
       <div class="pcard" data-pk="list" data-pw="12" data-pt="<?= th('Apparaten') ?>"><div class="card net-card"><div id="net-list"></div></div>
       </div>

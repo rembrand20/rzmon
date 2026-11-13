@@ -2849,5 +2849,42 @@ LogStore::storeScan($ldh, ['at' => time(), 'req' => 2, 'dirs' => '/var/log', 'fi
 ok(LogStore::found($ldh)['supported'] === false, 'logmappen: een oude agent (zonder local) wordt herkend');
 q('DELETE FROM hosts WHERE id = ?', [$ldh]);
 
+section('Voortgang van lange taken (1.252.0)');
+ok(Job::start('portscan:1', 'admin', 2) && !Job::start('portscan:1', 'admin', 2), 'taak: begint, en niet twee keer tegelijk');
+Job::step('portscan:1', 1, 'ports', 100);
+Job::tick('portscan:1', 40, '3 open');
+$j = Job::get('portscan:1');
+ok($j['running'] && $j['step'] === 1 && $j['stage'] === 'ports' && $j['done'] === 40 && $j['total'] === 100 && $j['label'] === '3 open' && $j['who'] === 'admin', 'taak: stap, teller en label');
+ok(!Job::stopped('portscan:1') && Job::requestStop('portscan:1') && Job::stopped('portscan:1'), 'taak: stoppen vragen');
+Job::finish('portscan:1', 'stopped', 'gestopt');
+$j = Job::get('portscan:1');
+ok(!$j['running'] && $j['state'] === 'stopped' && !Job::requestStop('portscan:1') && Job::start('portscan:1', 'x', 1), 'taak: gestopt, daarna kan een nieuwe beginnen');
+q("UPDATE jobs SET updated_at = NOW() - INTERVAL 5 MINUTE WHERE k = 'portscan:1'");
+$j = Job::get('portscan:1');
+ok($j['stale'] && $j['state'] === 'error' && !$j['running'] && Job::start('portscan:1', 'x', 1), 'taak: vastgelopen (geen teken van leven) telt als mislukt; opnieuw beginnen mag');
+q("DELETE FROM jobs");
+$calls = 0;
+$open = PortScan::scan('127.0.0.1', range(40000, 40599), 0.3, 200, static function (int $done, int $total) use (&$calls): bool {
+    $calls++;
+    return $done < 200;   // na het eerste groepje stoppen
+});
+ok($calls === 1 && is_array($open), 'poortscan: voortgang na elk groepje, en stoppen houdt meteen op');
+$oldNets = (string) setting('trusted_networks', '');
+save_setting('trusted_networks', '192.168.77.0/24');
+Job::start('netscan', 'admin', 2);
+Job::requestStop('netscan');
+NetScan::$job = 'netscan';
+$stoppedOk = false;
+try {
+    NetScan::sweep();
+} catch (JobStopped $e) {
+    $stoppedOk = str_contains($e->getMessage(), '0 van 254');
+}
+NetScan::$job = null;
+$j = Job::get('netscan');
+ok($stoppedOk && $j['stage'] === 'ping' && $j['total'] === 254, 'netwerkscan: stoppen werkt al tijdens het pingen (stap 1, 254 adressen)');
+q("DELETE FROM jobs");
+save_setting('trusted_networks', $oldNets);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

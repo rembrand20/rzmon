@@ -1197,12 +1197,12 @@ async function snmpChecks(h) {
     onSubmit: async (d) => {
       const chosen = r.items.filter((it, i) => d['snmp_' + i]);
       if (!chosen.length) throw new Error(L('Vink minstens één check aan'));
-      for (const it of chosen) {
+      const { n } = await batchRun(chosen, async (it) => {   // 1.252.0: met teller en stoppen
         const m = SNMP_METRICS[it.metric];
         await api('check_save', { host_id: h.id, type: 'snmp', metric: it.metric, target: it.target, name: it.name, interval_sec: 60, enabled: true,
           warn_threshold: m.warn ?? '', crit_threshold: m.crit ?? '' });
-      }
-      toast(L('{n} SNMP-check(s) toegevoegd', { n: chosen.length }));
+      });
+      toast(L('{n} SNMP-check(s) toegevoegd', { n }));
     },
   });
   // Groep in één keer aan of uit
@@ -2355,13 +2355,30 @@ function portScan(h) {
   runScan(h);
 }
 
-async function runScan(h) {
+/** 1.252.0: de knop Scannen wordt ⏹ Stoppen met de voortgang; daaronder hoeveel poorten al gedaan en open zijn */
+function runScan(h) {
   const btn = $('#scan-go');
   const out = $('#scan-result');
-  btn.disabled = true;
-  out.innerHTML = `<p class="scan-summary">⏳ ${L('Bezig met scannen…')}</p>`;
-  try {
-    const r = await api('port_scan', { host_id: h.id, preset: $('#scan-preset').value, ports: $('#scan-ports').value });
+  if (!btn || btn.classList.contains('rz-job')) return;
+  out.innerHTML = '<div id="scan-steps" class="rz-job-details"></div>';
+  const p = api('port_scan', { host_id: h.id, preset: $('#scan-preset').value, ports: $('#scan-ports').value });
+  p.catch(() => {});   // de fout komt hieronder in het venster
+  jobRun('portscan:' + h.id, btn, {
+    details: $('#scan-steps'),
+    start: () => p,
+    onEnd: async () => {
+      try { portScanShow(h, await p); } catch (ex) {
+        if (!out.isConnected) return;
+        out.innerHTML = ex.status === 409 ? `<p class="muted">${L('Er liep al een poortscan op deze server; die is nu klaar. Klik op Scannen voor een nieuwe.')}</p>` : `<p class="form-error">${esc(ex.message)}</p>`;
+      }
+    },
+  });
+}
+
+function portScanShow(h, r) {
+  const out = $('#scan-result');
+  if (!out) return;
+  {
     const certMon = new Set(h.checks.filter((c) => c.type === 'ssl').map((c) => +((c.target || '').match(/:(\d+)\/?$/) || [0, 443])[1]));
     const row = (p, extra = '') => {
       const mon = r.monitored.includes(+p.port);
@@ -2372,7 +2389,7 @@ async function runScan(h) {
           ${tls ? (certMon.has(+p.port) ? ' <span class="muted small">✓ cert</span>'
             : ` <button type="button" class="btn need-admin" data-cert="${p.port}" title="${L('Certificaat bewaken (vervaldatum)')}">＋ Cert</button>`) : ''}</td></tr>`;
     };
-    let html = `<p class="scan-summary">${L('{n} open van {m} gescande poorten', { n: r.open.length, m: r.scanned })} · ${r.seconds}s</p>`;
+    let html = `<p class="scan-summary">${L('{n} open van {m} gescande poorten', { n: r.open.length, m: r.scanned })} · ${r.seconds}s${r.stopped ? ' · ⏹ ' + L('gestopt: niet alle poorten zijn gescand') : ''}</p>`;
     html += r.open.length
       ? `<table class="port-table"><thead><tr><th>${L('Poort')}</th><th>${L('Dienst')}</th><th>${L('Reactie')}</th><th></th></tr></thead><tbody>
           ${r.open.map((p) => row(p, `<td class="muted">${p.ms} ms</td>`)).join('')}</tbody></table>`
@@ -2386,10 +2403,7 @@ async function runScan(h) {
         : `<p class="muted small">${L('Nog geen gegevens — werk de agent bij naar de nieuwste versie (vereist <code>ss</code>).')}</p>`;
     }
     out.innerHTML = html;
-  } catch (ex) {
-    out.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`;
   }
-  btn.disabled = false;
 }
 
 // Poorten waarop meestal TLS draait: daar kan direct een certificaatcheck bij

@@ -97,25 +97,47 @@ final class NetScan
         if (!self::enabled()) {
             return null;
         }
-        $lock = @fopen(sys_get_temp_dir() . '/rzmon-netscan-' . (function_exists('posix_geteuid') ? posix_geteuid() : 'x') . '.lock', 'c');
-        if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
+        $lock = self::lock();
+        if ($lock === null) {
             return null;   // de vorige scan loopt nog
         }
         $msg = [];
         self::expireBlocks();
         $st = self::state();
+        // 1.252.0: ook een geplande scan laat zijn voortgang zien (en is te stoppen) op de pagina Netwerk
+        $every0 = max(15, min(1440, (int) setting('net_sweep_minutes', '60'))) * 60;
+        $deep0 = max(1, min(24, (int) setting('net_deep_per_day', '4')));
+        $doSweep = (int) ($st['sweep_at'] ?? 0) < time() - $every0 + 30;
+        $doDeep = (int) ($st['deep_at'] ?? 0) < time() - intdiv(86400, $deep0) + 30;
+        if (($doSweep || $doDeep) && Job::start('netscan', '', $doSweep && $doDeep ? 5 : ($doDeep ? 3 : 2))) {
+            self::$job = 'netscan';
+            self::$jobSteps = $doSweep && $doDeep ? 5 : ($doDeep ? 3 : 2);
+        }
         if ((int) ($st['vendors_ok'] ?? 0) < time() - 30 * 86400 && (int) ($st['vendors_try'] ?? 0) < time() - 3600) {
             $msg[] = self::updateVendors();
         }
-        $every = max(15, min(1440, (int) setting('net_sweep_minutes', '60'))) * 60;
-        if ((int) ($st['sweep_at'] ?? 0) < time() - $every + 30) {
-            $msg[] = self::sweep();
+        try {
+            if ($doSweep) {
+                $msg[] = self::sweep();
+            }
+            if ($doDeep) {
+                $msg[] = self::deep();
+            }
+            if (self::$job !== null) {
+                Job::finish('netscan', 'done', implode(' · ', $msg));
+            }
+        } catch (JobStopped $e) {
+            $msg[] = $e->getMessage();
+            Job::finish('netscan', 'stopped', $e->getMessage());
+        } catch (Throwable $e) {
+            if (self::$job !== null) {
+                Job::finish('netscan', 'error', $e->getMessage());
+            }
+            throw $e;
+        } finally {
+            self::$job = null;
+            flock($lock, LOCK_UN);
         }
-        $deep = max(1, min(24, (int) setting('net_deep_per_day', '4')));
-        if ((int) ($st['deep_at'] ?? 0) < time() - intdiv(86400, $deep) + 30) {
-            $msg[] = self::deep();
-        }
-        flock($lock, LOCK_UN);
         return $msg ? implode(' · ', $msg) : null;
     }
 
@@ -131,6 +153,40 @@ final class NetScan
 
     // ------------------------------------------------------------------ lichte ronde
 
+    /** Slot zodat er maar één scan tegelijk loopt (gepland of met de hand). @return resource|null */
+    public static function lock()
+    {
+        $lock = @fopen(sys_get_temp_dir() . '/rzmon-netscan-' . (function_exists('posix_geteuid') ? posix_geteuid() : 'x') . '.lock', 'c');
+        if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
+            return null;
+        }
+        return $lock;
+    }
+
+    /** 1.252.0: sleutel van de Job die de voortgang bijhoudt (null = niemand kijkt mee) */
+    public static ?string $job = null;
+    /** Aantal stappen (2 = alleen de lichte ronde, 5 = met de diepe) */
+    public static int $jobSteps = 2;
+
+    private static function jStep(int $n, string $stage, int $total = 0, string $label = ''): void
+    {
+        if (self::$job !== null) {
+            Job::step(self::$job, $n, $stage, $total, $label);
+        }
+    }
+
+    private static function jTick(int $done, string $label = ''): void
+    {
+        if (self::$job !== null) {
+            Job::tick(self::$job, $done, $label);
+        }
+    }
+
+    private static function jStopped(): bool
+    {
+        return self::$job !== null && Job::stopped(self::$job);
+    }
+
     /** Ping naar elk adres, daarna de ARP-tabel; nieuwe apparaten met hun DNS-naam en fabrikant */
     public static function sweep(): string
     {
@@ -142,10 +198,22 @@ final class NetScan
             return 'Netwerkscan: geen netwerk';
         }
         $alive = [];
+        // 1.252.0: in groepjes van 64, zodat de pagina kan laten zien hoe ver hij is (en stoppen kan)
+        $all = [];
         foreach ($nets as $net) {
-            foreach (self::pingSweep($net) as $ip) {
+            array_push($all, ...self::hostsOf($net));
+        }
+        self::jStep(1, 'ping', count($all));
+        $done = 0;
+        foreach (array_chunk($all, 64) as $chunk) {
+            if (self::jStopped()) {
+                throw new JobStopped(t('Gestopt tijdens het pingen ({n} van {m} adressen)', ['n' => $done, 'm' => count($all)]));
+            }
+            foreach (self::pingIps($chunk) as $ip) {
                 $alive[$ip] = null;
             }
+            $done += count($chunk);
+            self::jTick($done, t('{n} gevonden', ['n' => count($alive)]));
         }
         // MAC-adressen: de ARP-tabel (ook apparaten die niet op ping antwoorden, maar wel op ARP) en de eigen netwerkkaarten
         foreach (self::arpTable() + self::ownInterfaces() as $ip => $mac) {
@@ -163,10 +231,13 @@ final class NetScan
         $first = !q('SELECT 1 FROM net_devices LIMIT 1')->fetchColumn();
         $new = [];
         self::$seenIds = [];
+        self::jStep(2, 'devices', count($alive));
+        $i = 0;
         foreach ($alive as $ip => $mac) {
             if ($d = self::upsert($ip, $mac, $first)) {
                 $new[] = $d;
             }
+            self::jTick(++$i, (string) $ip);
         }
         // DNS-naam van nieuwe apparaten, en de namen uit UniFi en AdGuard
         self::enrichBasic(array_column($new, 'id'));
@@ -181,9 +252,8 @@ final class NetScan
     }
 
     /** IP-adressen die op ping antwoorden (fping als die er is, anders ping, 64 tegelijk) */
-    private static function pingSweep(string $cidr): array
+    private static function pingIps(array $ips): array
     {
-        $ips = self::hostsOf($cidr);
         $out = [];
         if ($fping = self::bin('fping')) {
             exec(rz_sh(sprintf('%s -a -q -r 0 -t 400 %s 2>/dev/null', escapeshellarg($fping), implode(' ', array_map('escapeshellarg', $ips)))), $out);
@@ -387,23 +457,37 @@ final class NetScan
             return 'Netwerkscan diep: niets gezien';
         }
         $ips = array_column($rows, 'ip');
+        $base = self::$jobSteps === 5 ? 2 : 0;
+        self::jStep($base + 1, 'names', 0, t('{n} apparaten', ['n' => count($ips)]));
         $netbios = self::netbios($ips);
         $ssdp = self::ssdp();
         $mdns = self::mdns();
         $dns = self::reverseDns($ips);
         $ports = [];
-        foreach ($ips as $ip) {
+        $halt = false;
+        self::jStep($base + 2, 'ports', count($ips));
+        foreach ($ips as $i => $ip) {
+            if (self::jStopped()) {
+                $halt = true;   // stoppen: wat al gescand is, wordt wel bewaard
+                break;
+            }
             try {
                 $ports[$ip] = array_column(PortScan::scan($ip, self::DEEP_PORTS, 0.6, 100), 'port');
             } catch (Throwable) {
                 $ports[$ip] = [];
             }
+            self::jTick($i + 1, (string) $ip);
         }
+        if ($halt) {
+            $rows = array_values(array_filter($rows, static fn($r) => isset($ports[$r['ip']])));
+        }
+        self::jStep($base + 3, 'details', count($rows));
         $http = self::httpTitles($ports);
         $banners = self::banners($ports);   // 1.155.0: wat een dienst over zichzelf vertelt (versie), voor de analyse
         $agDom = NetLinks::adguardOn() ? NetLinks::adguardByClient() : [];   // 1.183.0: met welke domeinen elk apparaat praat
         $gw = self::gateway();
-        foreach ($rows as $r) {
+        foreach ($rows as $i => $r) {
+            self::jTick($i + 1, (string) $r['ip']);
             $ip = $r['ip'];
             $info = json_decode((string) $r['info'], true) ?: [];
             if (isset($netbios[$ip])) {
@@ -437,6 +521,9 @@ final class NetScan
             q('UPDATE net_devices SET hostname = ?, vendor = ?, ports = ?, kind = ?, info = ?, deep_at = ? WHERE id = ?', [
                 $r['hostname'] !== null ? mb_substr((string) $r['hostname'], 0, self::NAME_LEN) : null, $r['vendor'], json_encode($p), self::guessKind($r, $p),
                 json_encode($info, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), now(), $r['id']]);
+        }
+        if ($halt) {   // gestopt: wat klaar was is bewaard; de volgende geplande diepe ronde doet de rest
+            throw new JobStopped(t('Gestopt: {n} van {m} apparaten diep gescand en bewaard', ['n' => count($rows), 'm' => count($ips)]));
         }
         self::state(['deep_at' => time(), 'deep_n' => count($rows), 'deep_ms' => (int) ((microtime(true) - $t0) * 1000)]);
         return 'Netwerkscan diep: ' . count($rows) . ' apparaten';

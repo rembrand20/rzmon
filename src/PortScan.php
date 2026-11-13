@@ -79,7 +79,11 @@ final class PortScan
     /**
      * @return array<int, array{port:int, service:string, ms:float}>
      */
-    public static function scan(string $host, array $ports, float $timeout = 1.5, int $parallel = 200): array
+    /**
+     * @param ?callable $progress 1.252.0: na elk groepje fn(int $gedaan, int $totaal, int $open): bool; false = stoppen
+     *                            (wat al gevonden is, komt terug)
+     */
+    public static function scan(string $host, array $ports, float $timeout = 1.5, int $parallel = 200, ?callable $progress = null): array
     {
         $ip = filter_var($host, FILTER_VALIDATE_IP) ? $host : gethostbyname($host);
         if (!filter_var($ip, FILTER_VALIDATE_IP)) {
@@ -87,6 +91,7 @@ final class PortScan
         }
         $addr = str_contains($ip, ':') ? "[$ip]" : $ip;
         $open = [];
+        $doneN = 0;
 
         foreach (array_chunk($ports, $parallel) as $batch) {
             $pending = [];
@@ -117,6 +122,10 @@ final class PortScan
             }
             foreach ($pending as [$s]) {
                 fclose($s);
+            }
+            $doneN += count($batch);
+            if ($progress !== null && $progress($doneN, count($ports), count($open)) === false) {
+                break;
             }
         }
         usort($open, fn($a, $b) => $a['port'] <=> $b['port']);

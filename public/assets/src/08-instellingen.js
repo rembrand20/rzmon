@@ -2374,8 +2374,7 @@ async function discoverDialog(h) {
     onSubmit: groups.length ? async () => {
       const keys = new Set($$('#modal-body [data-dk]').filter((x) => x.checked).map((x) => x.dataset.dk));
       if (!keys.size) throw new Error(L('Niets gekozen'));
-      let n = 0;
-      for (const i of d.items.filter((x) => keys.has(x.key))) { await api('check_save', { host_id: h.id, enabled: true, interval_sec: 60, verify_ssl: true, ...i.data }); n++; }
+      const { n } = await batchRun(d.items.filter((x) => keys.has(x.key)), (i) => api('check_save', { host_id: h.id, enabled: true, interval_sec: 60, verify_ssl: true, ...i.data }));   // 1.252.0
       toast(n === 1 ? L('1 check toegevoegd') : L('{n} checks toegevoegd', { n }));
     } : null,
   });

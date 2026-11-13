@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.252.0**: **voortgang overal**: knoppen laten zien dat ze bezig zijn en hoe lang het meestal duurt; netwerk- en poortscan met stappen en ⏹ Stoppen, en de netwerkscan loopt door als je weggaat.
 - **1.251.0**: **logmappen per server**: kies en doorblader in RzSense in welke mappen de agent naar logs zoekt, veilig binnen een plafond op de server.
 - **1.250.0**: **bibliotheek met vaste zoekacties**: 25 kant-en-klare logmeldingen (SSH, schijffouten, geheugen, webserver, database, mail, back-up) met vinkjes toevoegen.
 - **1.249.0**: **alles in één keer bijwerken**: per CVE, per programma of alles tegelijk, met één bevestiging en per server de uitkomst.
 - **1.248.0**: **kwetsbaarheden doorzoeken**: zoek op server, CVE of programma, zie per CVE waar hij wel en niet staat, per programma de versies en vanaf welke versie het veilig is, en exporteer naar Excel.
-- **1.247.0**: **Rechten op de server**: commando-checks en tijdelijk sudo samen in de Agent Manager, met uitleg wat elk doet en een waarschuwing bij root.
+
+## 1.252.0 – 2026-11-13
+### Nieuw
+- **⏳ Voortgang overal**: elke knop die iets laat doen (opslaan, testen, scannen, bijwerken) laat zien dat hij bezig is, met een balkje in de knop en de tijd. De browser onthoudt per actie hoe lang het meestal duurt en toont dat erbij; duurt het veel langer, dan zie je een ⚠. Een dubbele klik kan niet meer. Bovenaan de pagina staat een dun balkje zolang er iets loopt.
+- **Netwerkscan en poortscan met echte voortgang**: de knop wordt **⏹ Stoppen** en is zelf de voortgangsbalk (*stap 4/5 · 18/120*). Eronder staan de stappen (pingen, apparaten verwerken, namen zoeken, poorten scannen, bewaren), het adres waar hij nu is, en hoe lang het nog ongeveer duurt.
+  - **Stoppen** bewaart wat al klaar is.
+  - De **netwerkscan loopt door als je de pagina verlaat**; kom je terug, dan zie je hem weer. Ook een geplande scan zie je zo.
+- **Meerdere checks tegelijk toevoegen** (SNMP, commando-checks, voorstellen): de knop telt *7 van 25* en kan stoppen.
+- **Wat de agent doet**: bij Updates en Kwetsbaarheden overal dezelfde stappen, *aangevraagd → opgepakt → bezig (x%) → klaar*. De Updates-pagina vernieuwt zichzelf zolang een server bijwerkt, en een klik op de stappen toont de details.
 
 ## 1.251.0 – 2026-11-13
 ### Nieuw

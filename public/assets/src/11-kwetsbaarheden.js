@@ -391,8 +391,7 @@ function vulnHostCard(h, fs) {
   const open = narrowed ? vulnTmp.h.get(+h.id) ?? fs.length > 0 : vulnSaved('h', h.id);
   const up = h.upgrade;
   const upTxt = !up ? '' : up.state === 'queued' || up.state === 'running'
-    ? `<a href="#" data-vact="progress" data-host="${h.id}" title="${L('Voortgang tonen')}">⏳ ${up.state === 'queued' ? L('Bijwerken gevraagd; de agent pakt het op bij zijn volgende rapport')
-      : L('Bezig met bijwerken') + (up.pct ? ` ${up.pct}%` : '')}</a>`
+    ? `<a href="#" data-vact="progress" data-host="${h.id}" title="${L('Voortgang tonen')}">${agentSteps(up)}</a>`   // 1.252.0: dezelfde stappen als overal
     : up.state === 'ok' ? `<span class="good-txt">✔ ${L('Bijgewerkt {t}', { t: ago(up.at) })}: ${esc((up.pkgs || []).join(' '))}</span>`
       + (!up.verified ? ` · <span class="muted">${L('controle volgt na de volgende scan')}</span>`
         : ` · <span class="${Object.keys(up.verified.still || {}).length ? 'warn-txt' : 'good-txt'}">🔎 ${L('gecontroleerd: {n} kwetsbaarheden opgelost', { n: up.verified.fixed })}${Object.keys(up.verified.still || {}).length

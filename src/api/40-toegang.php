@@ -192,14 +192,28 @@ switch ($action) {
         if (!$ports) {
             out(['error' => t('Geen poorten opgegeven')], 422);
         }
+        // 1.252.0: met voortgang (job_status "portscan:<server>") en stoppen
+        $jk = 'portscan:' . (int) $host['id'];
+        if (!Job::start($jk, (string) $user['username'], 1)) {
+            out(['error' => t('Er loopt al een poortscan op deze server'), 'running' => true, 'job' => Job::get($jk)], 409);
+        }
+        Job::step($jk, 1, 'ports', count($ports));
         session_write_close(); // andere verzoeken niet blokkeren tijdens de scan
-        set_time_limit(180);
+        ignore_user_abort(true);
+        set_time_limit(900);
         $start = microtime(true);
+        $stopped = false;
         try {
-            $open = PortScan::scan($host['address'], $ports, max(0.3, min(5.0, (float) ($in['timeout'] ?? 1.5))));
+            $open = PortScan::scan($host['address'], $ports, max(0.3, min(5.0, (float) ($in['timeout'] ?? 1.5))), 200,
+                static function (int $done, int $total, int $nOpen) use ($jk, &$stopped): bool {
+                    Job::tick($jk, $done, t('{n} open', ['n' => $nOpen]));
+                    return !($stopped = Job::stopped($jk));
+                });
         } catch (RuntimeException $e) {
+            Job::finish($jk, 'error', $e->getMessage());
             out(['error' => $e->getMessage()], 422);
         }
+        Job::finish($jk, $stopped ? 'stopped' : 'done', t('{n} open poorten', ['n' => count($open)]));
         $monitored = array_map('intval', q("SELECT target FROM checks WHERE host_id = ? AND type = 'tcp'", [$host['id']])->fetchAll(PDO::FETCH_COLUMN));
         $listening = json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'ports'", [$host['id']])->fetchColumn(), true) ?: [];
         foreach ($listening as &$lp) {
@@ -207,6 +221,7 @@ switch ($action) {
         }
         unset($lp);
         out([
+            'stopped' => $stopped,
             'scanned' => count($ports),
             'seconds' => round(microtime(true) - $start, 2),
             'open' => $open,

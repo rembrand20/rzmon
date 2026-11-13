@@ -5995,3 +5995,42 @@ button.ld-it:hover:not(:disabled) { background: color-mix(in srgb, var(--primary
 .ld-bar i { position: absolute; inset: 0 auto 0 0; width: 35%; border-radius: 4px; background: var(--primary); animation: ld-slide 1.4s ease-in-out infinite; }
 @keyframes ld-slide { 0% { left: -35%; } 100% { left: 100%; } }
 @media (prefers-reduced-motion: reduce) { .ld-bar i { animation: none; width: 100%; opacity: .5; } }
+
+/* 1.252.0: voortgang overal */
+#rz-topbar { position: fixed; inset: 0 0 auto 0; height: 3px; z-index: 10000; pointer-events: none; opacity: 0; transition: opacity .2s; overflow: hidden; }
+#rz-topbar.on { opacity: 1; }
+#rz-topbar i { position: absolute; top: 0; bottom: 0; width: 30%; background: var(--primary); border-radius: 3px; animation: rz-slide 1.2s ease-in-out infinite; }
+@keyframes rz-slide { 0% { left: -30%; } 100% { left: 100%; } }
+button.rz-busy, .btn.rz-busy { position: relative; overflow: hidden; pointer-events: none; }
+button.rz-busy::after, .btn.rz-busy::after { content: ''; position: absolute; left: 0; bottom: 0; height: 3px; width: 35%; background: currentColor; opacity: .5; border-radius: 3px;
+  animation: rz-slide 1.2s ease-in-out infinite; }
+button.rz-busy.rz-det::after, .btn.rz-busy.rz-det::after { animation: none; width: var(--rzp, 0%); transition: width .5s linear; }
+.rz-busy-t { font-size: .74em; opacity: .75; margin-left: .45em; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+/* Lange taak: de knop is de voortgangsbalk en de Stoppen-knop */
+button.rz-job, .btn.rz-job { position: relative; overflow: hidden; isolation: isolate; border-color: color-mix(in srgb, var(--crit) 45%, var(--border)) !important;
+  background: color-mix(in srgb, var(--crit) 6%, var(--card)) !important; color: var(--text) !important; min-width: 10rem; text-align: left; }
+button.rz-job::before, .btn.rz-job::before { content: ''; position: absolute; inset: 0 auto 0 0; width: var(--rzp, 0%); z-index: -1;
+  background: color-mix(in srgb, var(--primary) 26%, transparent); transition: width .6s ease; }
+.rz-job-in { display: inline-flex; flex-direction: column; line-height: 1.15; font-weight: 700; }
+.rz-job-in small { font-weight: 500; font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rz-job-details { margin: .6rem 0 0; padding: .6rem .8rem; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+.rz-steps { list-style: none; margin: 0 0 .4rem; padding: 0; display: grid; gap: .3rem; }
+.rz-steps li { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; color: var(--muted); font-size: .88rem; min-width: 0; }
+.rz-steps li.done { color: var(--ok); }
+.rz-steps li.cur { color: var(--text); font-weight: 600; }
+.rz-st-i { width: 1.2em; text-align: center; }
+.rz-st-bar { flex: 1 1 8rem; height: 6px; border-radius: 6px; background: color-mix(in srgb, var(--primary) 14%, transparent); overflow: hidden; min-width: 5rem; }
+.rz-st-bar i { display: block; height: 100%; background: var(--primary); border-radius: 6px; transition: width .6s ease; }
+@media (prefers-reduced-motion: reduce) { #rz-topbar i, button.rz-busy::after, .btn.rz-busy::after { animation: none; width: 100%; left: 0; } }
+.ag-steps { display: inline-flex; align-items: center; gap: .4rem; flex-wrap: wrap; font-size: .8rem; font-weight: 600; }
+.ag-dots { display: inline-flex; gap: 3px; }
+.ag-dots i { width: 14px; height: 4px; border-radius: 4px; background: var(--border); }
+.ag-dots i.done { background: var(--ok); }
+.ag-dots i.cur { background: var(--primary); animation: ag-pulse 1.2s ease-in-out infinite; }
+.ag-steps.error .ag-dots i.cur { background: var(--crit); animation: none; }
+.ag-steps.error { color: var(--crit); }
+.ag-steps.ok { color: var(--ok); }
+.ag-bar { width: 4rem; height: 4px; border-radius: 4px; background: color-mix(in srgb, var(--primary) 15%, transparent); overflow: hidden; }
+.ag-bar i { display: block; height: 100%; background: var(--primary); }
+@keyframes ag-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .ag-dots i.cur { animation: none; } }

@@ -587,6 +587,7 @@ function initNet() {
 
 async function loadNet() {
   try { netData = await api('net_devices'); renderNet(); } catch (ex) { $('#net-list').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; }
+  if (isAdmin()) jobAttach('netscan', $('#net-scan'), NET_JOB());   // 1.252.0: loopt er (nog) een scan? Dan de voortgang weer tonen
   if (netSub === 'disc') ndLoad();
 }
 
@@ -749,13 +750,12 @@ async function ndClick(e) {
   }
 }
 
-async function netScanNow(btn) {
-  btn.disabled = true;
-  const old = btn.textContent;
-  btn.textContent = '⏳ ' + L('Scannen…');
-  try { const r = await api('net_scan_now', { deep: true }); toast(r.message); await loadNet(); refresh(); } catch (ex) { toast(ex.message, 'err'); }
-  btn.disabled = false;
-  btn.textContent = old;
+/** 1.252.0: de knop wordt ⏹ Stoppen met de voortgang; de stappen staan eronder. Loopt door als je weggaat. */
+const NET_JOB = () => ({ details: $('#net-scan-steps'), onEnd: async () => { await loadNet(); refresh(); } });
+function netScanNow(btn) {
+  if (btn.classList.contains('rz-job')) return;
+  const main = $('#net-scan') || btn;   // ook vanuit de banner: de voortgang staat bij de knop in de balk
+  jobRun('netscan', main, { ...NET_JOB(), start: () => api('net_scan_now', { deep: true }) });
 }
 
 function renderNet() { withMorph(renderNetNow); if (netSub === 'map') renderNetMap(); }

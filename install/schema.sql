@@ -1611,3 +1611,19 @@ CREATE TABLE IF NOT EXISTS rate_hits (
     INDEX idx_rate_hits (scope, k, at),
     INDEX idx_rate_hits_at (at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- 1.252.0: voortgang en stoppen van lange taken (netwerkscan, poortscan): één rij per taak
+CREATE TABLE IF NOT EXISTS jobs (
+    k          VARCHAR(60)  NOT NULL PRIMARY KEY,
+    state      ENUM('running','done','error','stopped') NOT NULL DEFAULT 'running',
+    who        VARCHAR(100) NOT NULL DEFAULT '',
+    stage      VARCHAR(40)  NOT NULL DEFAULT '',
+    step       TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    steps      TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    done       INT UNSIGNED NOT NULL DEFAULT 0,
+    total      INT UNSIGNED NOT NULL DEFAULT 0,
+    label      VARCHAR(200) NOT NULL DEFAULT '',
+    msg        TEXT         NULL,
+    stop       TINYINT(1)   NOT NULL DEFAULT 0,
+    started_at DATETIME     NOT NULL,
+    updated_at DATETIME     NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

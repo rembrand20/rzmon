@@ -536,10 +536,32 @@ switch ($action) {
         if (!NetScan::networks()['scan']) {
             out(['error' => t('Geen netwerk om te scannen: zet je netwerk (bv. 192.168.1.0/24) bij Toegang → Lokale netwerken')], 422);
         }
-        @set_time_limit(120);
-        $msg = NetScan::sweep();
-        if (!empty(input()['deep'])) {
-            $msg .= ' · ' . NetScan::deep();
+        // 1.252.0: met voortgang (job_status) en stoppen (job_stop); loopt door als je de pagina verlaat
+        $deep = !empty(input()['deep']);
+        $lock = NetScan::lock();
+        if ($lock === null || !Job::start('netscan', (string) $user['username'], $deep ? 5 : 2)) {
+            out(['error' => t('Er loopt al een netwerkscan'), 'running' => true, 'job' => Job::get('netscan')], 409);
+        }
+        session_write_close();
+        ignore_user_abort(true);
+        @set_time_limit(600);
+        NetScan::$job = 'netscan';
+        NetScan::$jobSteps = $deep ? 5 : 2;
+        try {
+            $msg = NetScan::sweep();
+            if ($deep) {
+                $msg .= ' · ' . NetScan::deep();
+            }
+            Job::finish('netscan', 'done', $msg);
+        } catch (JobStopped $e) {
+            Job::finish('netscan', 'stopped', $e->getMessage());
+            out(['ok' => true, 'stopped' => true, 'message' => $e->getMessage()]);
+        } catch (Throwable $e) {
+            Job::finish('netscan', 'error', $e->getMessage());
+            throw $e;
+        } finally {
+            NetScan::$job = null;
+            flock($lock, LOCK_UN);
         }
         out(['ok' => true, 'message' => $msg]);
 

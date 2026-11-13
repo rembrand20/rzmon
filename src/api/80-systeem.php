@@ -7,11 +7,27 @@ declare(strict_types=1);
  * @var string $action
  * @var array<string, mixed> $user
  * @var callable(string): void $confirm
+ * @var bool $isAdmin
  */
 defined('RZ_API') || exit;
 
 switch ($action) {
     // ---------------------------------------------------------- Commando's op agents
+    // 1.252.0: voortgang van een lange taak (netwerkscan, poortscan) en stoppen
+    case 'job_status':
+    case 'job_stop':
+        $jk = (string) ($action === 'job_stop' ? (input()['key'] ?? '') : ($_GET['key'] ?? ''));
+        if (!preg_match('/^(netscan|portscan:\d{1,10})$/', $jk)) {
+            out(['error' => t('Onbekende taak')], 422);
+        }
+        if ($action === 'job_stop') {
+            if ($jk === 'netscan' && !$isAdmin) {
+                out(['error' => t('Daar heb je geen rechten voor (je bent {role})', ['role' => mb_strtolower(t(ROLE_LABELS[$user['role']] ?? '?'))])], 403);
+            }
+            out(['ok' => Job::requestStop($jk)]);
+        }
+        out(['job' => Job::get($jk)]);
+
     case 'agent_commands':
         $hosts = q("SELECT id, name, commands FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll();
         out([

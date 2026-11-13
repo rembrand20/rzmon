@@ -442,7 +442,8 @@ function pageWaitEnd(w, record) {
 }
 async function api(action, body, params = {}, retried = false) {
   const w = curWait, rec = w ? w.add(action) : null;
-  try { return await apiRaw(action, body, params, retried); } finally { if (rec) rec(); }
+  const busy = retried ? null : rzBusyStart(action, !!body);   // 1.252.0: de knop en het balkje bovenaan laten zien dat het loopt
+  try { return await apiRaw(action, body, params, retried); } finally { if (rec) rec(); if (busy) busy(); }
 }
 
 async function apiRaw(action, body, params = {}, retried = false) {
