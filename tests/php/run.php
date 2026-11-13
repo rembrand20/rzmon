@@ -2754,5 +2754,68 @@ foreach ($vh as $id) {
     q('DELETE FROM hosts WHERE id = ?', [$id]);
 }
 
+section('Bibliotheek met vaste zoekacties (1.250.0)');
+$lib = array_column(LogLibrary::templates(), null, 'key');
+$bad = [];
+foreach ($lib as $k => $tp) {
+    if (LogStore::parseQuery($tp['q'])['error'] || is_string(LogWatch::clean($tp))) {
+        $bad[] = $k;
+    }
+}
+ok(count($lib) >= 20 && !$bad, 'bibliotheek: alle sjablonen zijn geldige zoekacties' . ($bad ? ' (fout: ' . implode(', ', $bad) . ')' : ''));
+// Elk sjabloon herkent een echte logregel, en niet een gewone
+$samples = [
+    'ssh_bruteforce' => ['Nov 12 10:00:01 web1 sshd[123]: Failed password for root from 1.2.3.4 port 22 ssh2', 'sshd[1]: Accepted publickey for bob'],
+    'ssh_root' => ['sshd[9]: Accepted password for root from 10.0.0.5 port 50000 ssh2', 'sshd[9]: Accepted publickey for bob from 10.0.0.5 port 1 ssh2'],
+    'ssh_invalid' => ['sshd[1]: Invalid user admin from 5.6.7.8 port 4444', 'sshd[1]: Connection closed by 1.2.3.4'],
+    'sudo_wrong' => ['sudo:   bob : 3 incorrect password attempts ; TTY=pts/0', 'sudo: bob : TTY=pts/0 ; COMMAND=/bin/ls'],
+    'user_new' => ['useradd[812]: new user: name=evil, UID=1001, GID=1001', 'usermod[1]: change user bob shell'],
+    'user_sudo' => ["usermod[900]: add 'evil' to group 'sudo'", "usermod[900]: add 'bob' to group 'docker'"],
+    'oom' => ['kernel: Out of memory: Killed process 1234 (mysqld) total-vm:1000kB', 'kernel: eth0: link up'],
+    'disk_io' => ['kernel: blk_update_request: I/O error, dev sda, sector 123', 'kernel: sda: sda1 sda2'],
+    'fs_ro' => ['kernel: EXT4-fs (sda1): Remounting filesystem read-only', 'kernel: EXT4-fs (sda1): mounted filesystem'],
+    'panic' => ['kernel: INFO: task jbd2/sda1-8:300 blocked for more than 120 seconds.', 'kernel: Booting Linux'],
+    'svc_crash' => ['systemd[1]: nginx.service: Failed with result \'exit-code\'.', 'systemd[1]: Started nginx.service.'],
+    'segfault' => ['kernel: php-fpm[2211]: segfault at 0 ip 0000 sp 0000 error 4', 'kernel: php-fpm started'],
+    'web_5xx' => ['1.2.3.4 - - [12/Nov/2026:10:00:00 +0100] "GET / HTTP/1.1" 502 157 "-" "curl"', '1.2.3.4 - - [12/Nov/2026:10:00:00 +0100] "GET /500 HTTP/1.1" 200 15 "-" "curl"'],
+    'web_upstream' => ['[error] 31#31: *1 upstream timed out (110: Connection timed out) while reading', '[notice] 1#1: signal process started'],
+    'web_scan' => ['1.2.3.4 - - [12/Nov/2026] "GET /.env HTTP/1.1" 404 0', '1.2.3.4 - - [12/Nov/2026] "GET /index.html HTTP/1.1" 200 10'],
+    'db_crash' => ['mysqld got signal 11 ;', 'mysqld: ready for connections.'],
+    'db_aborted' => ['[Warning] Aborted connection 123 to db: \'app\' user: \'app\'', '[Note] Server socket created'],
+    'pg_fatal' => ['FATAL:  password authentication failed for user "x"', 'LOG:  database system is ready'],
+    'mail_deferred' => ['postfix/smtp[1]: 4A2: to=<a@b.nl>, status=deferred (connection timed out)', 'postfix/smtp[1]: 4A2: to=<a@b.nl>, status=sent'],
+    'mail_auth' => ['postfix/smtpd[1]: warning: unknown[1.2.3.4]: SASL LOGIN authentication failed: UGFzc3dvcmQ6', 'postfix/smtpd[1]: connect from unknown'],
+    'f2b_bans' => ['fail2ban.actions [999]: NOTICE  [sshd] Ban 1.2.3.4', 'fail2ban.actions [999]: NOTICE  [sshd] Unban 1.2.3.4'],
+];
+$wrong = [];
+foreach ($samples as $k => [$hit, $miss]) {
+    $p = LogStore::parseQuery($lib[$k]['q']);
+    if (!LogStore::lineMatch($hit, $p) || LogStore::lineMatch($miss, $p)) {
+        $wrong[] = $k;
+    }
+}
+ok(!$wrong, 'bibliotheek: elk sjabloon herkent een echte logregel en slaat een gewone over' . ($wrong ? ' (fout: ' . implode(', ', $wrong) . ')' : ''));
+// bron: past ook op het pad en de soort van een bron
+q("INSERT INTO hosts (name, address, mode) VALUES ('ll-host', '127.0.0.1', 'agent')");
+$llh = (int) db()->lastInsertId();
+q("INSERT INTO log_sources (host_id, name, kind, spec, level, enabled, created_at) VALUES (?, 'Webserver', 'file', '/var/log/nginx/*.log', 0, 1, NOW()), (?, 'Systeem', 'journal', '', 0, 1, NOW())", [$llh, $llh]);
+[, $srcIds] = LogStore::scope(LogStore::parseQuery('x bron:nginx'), [], []);
+[, $jIds] = LogStore::scope(LogStore::parseQuery('x bron:journal'), [], []);
+ok(count($srcIds) >= 1 && count($jIds) >= 1, 'bron: zoekt ook in het pad (nginx) en de soort (journal), niet alleen in de naam');
+$lst = array_column(LogLibrary::list()['templates'], null, 'key');
+ok($lst['web_5xx']['fits'] && !$lst['web_5xx']['via_journal'] && $lst['ssh_bruteforce']['via_journal'], 'bibliotheek: past bij nginx via het pad; SSH alleen via de journal');
+q('DELETE FROM log_watches');
+LogWatch::reset();
+$r = LogLibrary::add([['key' => 'web_5xx', 'threshold' => 80, 'severity' => 2], ['key' => 'backup_none', 'q' => '"rsync done"'], ['key' => 'onbekend']], 'test');
+$w = q("SELECT * FROM log_watches ORDER BY id")->fetchAll();
+ok(count($r['added']) === 2 && (int) $w[0]['threshold'] === 80 && (int) $w[0]['severity'] === 2 && $w[1]['q'] === '"rsync done"' && $w[1]['mode'] === 'none' && (int) $w[0]['per_host'] === 1,
+    'bibliotheek: toevoegen met eigen drempel, ernst en zoektekst; per server; onbekend sjabloon overgeslagen');
+$r = LogLibrary::add([['key' => 'web_5xx']], 'test');
+ok(!$r['added'] && $r['skipped'][0]['why'] !== '', 'bibliotheek: hetzelfde sjabloon niet twee keer');
+$lst = array_column(LogLibrary::list()['templates'], null, 'key');
+ok($lst['web_5xx']['added'] && $lst['backup_none']['added'], 'bibliotheek: toegevoegd gemarkeerd (ook met een eigen zoektekst)');
+q('DELETE FROM log_watches');
+q('DELETE FROM hosts WHERE id = ?', [$llh]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

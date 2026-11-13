@@ -877,6 +877,17 @@ switch ($action) {
         AgentCommands::audit((string) $user['username'], empty($in['id']) ? 'Vaste zoekactie gemaakt' : 'Vaste zoekactie gewijzigd', mb_substr((string) ($in['name'] ?? ''), 0, 100) . ': ' . mb_substr((string) ($in['q'] ?? ''), 0, 200));
         out(['ok' => true, 'id' => $r]);
 
+    // 1.250.0: bibliotheek met kant-en-klare vaste zoekacties
+    case 'log_library':
+        out(LogLibrary::list());
+
+    case 'log_library_add':
+        $r = LogLibrary::add((array) (input()['items'] ?? []), (string) $user['username']);
+        if ($r['added']) {
+            AgentCommands::audit((string) $user['username'], 'Vaste zoekacties uit de bibliotheek', implode(', ', $r['added']));
+        }
+        out($r);
+
     case 'log_watch_toggle':
         $in = input();
         LogWatch::setEnabled((int) ($in['id'] ?? 0), !empty($in['on']));

@@ -5941,3 +5941,31 @@ body.sk-s .cc-ring-bg { stroke: var(--s-fill); }
 .vb-row.vb-ok { background: color-mix(in srgb, var(--ok) 7%, transparent); }
 .vb-row .vb-res { flex-basis: 100%; padding-left: 1.8rem; }
 .vb-row .vb-res:empty { display: none; }
+
+/* 1.250.0: bibliotheek met vaste zoekacties */
+.ll-top { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin: .6rem 0; }
+.ll-grp { margin-top: 1rem; }
+.ll-grp h3 { font-size: .95rem; margin: 0 0 .4rem; }
+.ll-row { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); margin: .35rem 0; }
+.ll-row.is-nofit { opacity: .6; }
+.ll-row.is-added { opacity: .7; }
+.ll-main { display: flex; gap: .7rem; align-items: flex-start; padding: .6rem .8rem; cursor: pointer; }
+.ll-main input[type=checkbox] { margin-top: .25rem; flex: none; }
+.ll-txt { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .5rem; min-width: 0; }
+.ll-why { flex-basis: 100%; color: var(--muted); }
+.ll-txt .lw-q { flex-basis: 100%; overflow-wrap: anywhere; white-space: normal; }
+.ll-meta { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.ll-tag { font-size: .78rem; padding: .05rem .5rem; border-radius: 999px; background: color-mix(in srgb, var(--text) 6%, transparent); }
+.ll-fit { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.ll-journal { color: var(--info, #2563eb); background: color-mix(in srgb, var(--info, #2563eb) 10%, transparent); }
+.ll-nofit { color: var(--muted); }
+.ll-set { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; padding: 0 .8rem .7rem 2.6rem; }
+.ll-set label { display: inline-flex; align-items: center; gap: .4rem; margin: 0; }
+.ll-set input[type=number] { width: 6rem; }
+.ll-set .ll-q { flex-basis: 100%; }
+.ll-set .ll-q input { flex: 1; min-width: 0; }
+#modal-form .ll-dlg .ll-main { display: flex; flex-direction: row; align-items: flex-start; gap: .7rem; text-align: left; margin: 0; width: auto; }
+#modal-form .ll-dlg .ll-main input[type=checkbox] { width: auto; height: auto; margin: .25rem 0 0; flex: none; }
+#modal-form .ll-dlg .ll-set label { display: inline-flex; flex-direction: row; align-items: center; gap: .4rem; text-align: left; width: auto; margin: 0; font-weight: 500; }
+#modal-form .ll-dlg .ll-set .ll-q { display: flex; width: 100%; }
+#modal-form .ll-dlg .ll-set select { width: auto; }

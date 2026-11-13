@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.250.0**: **bibliotheek met vaste zoekacties**: 25 kant-en-klare logmeldingen (SSH, schijffouten, geheugen, webserver, database, mail, back-up) met vinkjes toevoegen.
 - **1.249.0**: **alles in één keer bijwerken**: per CVE, per programma of alles tegelijk, met één bevestiging en per server de uitkomst.
 - **1.248.0**: **kwetsbaarheden doorzoeken**: zoek op server, CVE of programma, zie per CVE waar hij wel en niet staat, per programma de versies en vanaf welke versie het veilig is, en exporteer naar Excel.
 - **1.247.0**: **Rechten op de server**: commando-checks en tijdelijk sudo samen in de Agent Manager, met uitleg wat elk doet en een waarschuwing bij root.
 - **1.246.0**: **Agent Manager als overzichtelijke lijst**: alle onderdelen onder elkaar in groepen, met per regel hoe het staat; klik om in te stellen.
-- **1.245.0**: **thema Neo**: de Command-center-look als vierde thema, met elke lay-out.
+
+## 1.250.0 – 2026-11-13
+### Nieuw
+- **📚 Bibliotheek met vaste zoekacties** (Logs → 🔔 Vaste zoekacties → *Kies uit de bibliotheek*): 25 kant-en-klare logmeldingen in zeven groepen:
+  - **inloggen en toegang**: SSH-wachtwoorden raden, root logt in, onbekende gebruikers, verkeerd sudo-wachtwoord, nieuwe gebruiker, gebruiker krijgt sudo;
+  - **systeem**: geheugen op, schijffouten, alleen-lezen, kernel loopt vast, dienst crasht, segfault;
+  - **webserver**: veel 5xx, backend niet bereikbaar, scans;
+  - **database**, **mail** en **beveiliging**;
+  - **moet juist wél gebeuren**: cron, de server stuurt geen logs meer, back-up gelukt (met je eigen tekst).
+  
+  Per sjabloon zie je waarom het belangrijk is, of het **bij je servers past** (je verzamelt de bijbehorende logs, of alleen via de journal) en een **proef**: hoe vaak het de laatste 24 uur gemeld had. Vink aan wat je wilt, pas eventueel de drempel en de ernst aan, en voeg ze in één keer toe. *Alles wat past aanvinken* doet dat in één klik. Elke zoekactie meldt per server apart, met herstel.
+- **`bron:` zoekt ook in het pad en de soort** van een logbron: `bron:nginx` vindt nu ook een bron die je "Webserver" noemde maar `/var/log/nginx/*` leest, en `bron:journal` vindt de journal.
 
 ## 1.249.1 – 2026-11-12
 ### Opgelost

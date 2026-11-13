@@ -805,7 +805,7 @@ final class LogStore
     public static function scope(array $p, array $hostIds, array $sourceIds): array
     {
         $src = [];
-        foreach (q('SELECT s.id, s.name, s.host_id, h.name AS host FROM log_sources s JOIN hosts h ON h.id = s.host_id')->fetchAll() as $s) {
+        foreach (q('SELECT s.id, s.name, s.kind, s.spec, s.host_id, h.name AS host FROM log_sources s JOIN hosts h ON h.id = s.host_id')->fetchAll() as $s) {
             $src[(int) $s['id']] = $s;
         }
         $hosts = $hostIds;
@@ -822,7 +822,8 @@ final class LogStore
         $sources = $sourceIds;
         foreach ($p['sources'] as $sn) {
             foreach ($src as $id => $s) {
-                if (str_contains(mb_strtolower((string) $s['name']), $sn)) {
+                // 1.250.0: ook het pad en de soort (bv. bron:nginx past op /var/log/nginx/*, bron:journal op de journal)
+                if (str_contains(mb_strtolower($s['name'] . ' ' . $s['spec'] . ' ' . $s['kind']), $sn)) {
                     $sources[] = $id;
                 }
             }

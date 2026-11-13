@@ -815,7 +815,7 @@ async function lwLoad() {
     return `<span class="lw-spark" role="img" aria-label="${esc(L('Treffers per uur, laatste 24 uur: {n} in totaal', { n: dec(w.hours.reduce((a, b) => a + b, 0)) }))}">${w.hours.map((v) => `<i class="${v >= hot ? 'h' : ''}" style="height:${Math.max(8, v / m * 100)}%"></i>`).join('')}</span>`;
   };
   box.innerHTML = `<div class="lp-row"><p class="muted small lw-intro">${L('Een vaste zoekactie geeft een melding als er te veel (of geen) regels binnenkomen die erop passen. Maak er een met 🔔 Bewaren als melding op het tabblad Zoeken.')}</p><span class="lp-sp"></span>
-      ${can ? `<button type="button" class="btn" id="lw-new">＋ ${L('Nieuwe zoekactie')}</button>` : ''}</div>
+      ${can ? `<button type="button" class="btn primary" id="lw-lib">📚 ${L('Kies uit de bibliotheek')}</button> <button type="button" class="btn" id="lw-new">＋ ${L('Nieuwe zoekactie')}</button>` : ''}</div>
     ${LW.list.length ? `<div class="lw-tw"><table class="lw-table"><thead><tr><th>${L('Aan')}</th><th>${L('Naam en zoekopdracht')}</th><th>${L('Melden als')}</th><th>${L('Laatste 24 uur')}</th><th>${L('Status')}</th><th>${L('Laatst gemeld')}</th><th></th></tr></thead><tbody>
       ${LW.list.map((w) => `<tr data-lw="${w.id}">
         <td>${can ? amSw('lw-on-' + w.id, w.enabled, `data-lw-on="${w.id}"`) : (w.enabled ? '✓' : '—')}</td>
@@ -831,6 +831,7 @@ async function lwLoad() {
     : `<p class="muted lp-empty">${L('Nog geen vaste zoekacties. Zoek op het tabblad Zoeken naar iets dat je wilt bewaken, bijvoorbeeld "failed password", en klik op 🔔 Bewaren als melding.')}</p>`}`;
   box.onclick = async (e) => {
     if (e.target.closest('#lw-new')) return lwEdit({ q: '' });
+    if (e.target.closest('#lw-lib')) return lwLibrary();   // 1.250.0
     const f = e.target.closest('[data-lw-find]');
     if (f) { const w = LW.list.find((x) => x.id === +f.dataset.lwFind); LP.q = w.q; LP.hosts = []; LP.sources = []; LP.level = ''; LP.hour = null; LP.limit = 100; LP.allLv = null; LP.sub = 'search'; return loadLogsPage(); }
     const ed = e.target.closest('[data-lw-edit]');
