@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.249.0**: **alles in één keer bijwerken**: per CVE, per programma of alles tegelijk, met één bevestiging en per server de uitkomst.
 - **1.248.0**: **kwetsbaarheden doorzoeken**: zoek op server, CVE of programma, zie per CVE waar hij wel en niet staat, per programma de versies en vanaf welke versie het veilig is, en exporteer naar Excel.
 
+## 1.252.1 – 2026-11-13
+### Opgelost
+- **Nieuwe agent 1.96.1**: een gewijzigde instelling op de server (bijvoorbeeld `LOG_DIRS_MAX` voor logmappen) geldt nu meteen, ook als de realtime-watcher aan staat. Eerst bleef een map dan *geweigerd: buiten het plafond* tot je `rzmon-watch` herstartte.
+
 ## 1.252.0 – 2026-11-13
 ### Nieuw
 - **⏳ Voortgang overal**: elke knop die iets laat doen (opslaan, testen, scannen, bijwerken) laat zien dat hij bezig is, met een balkje in de knop en de tijd. De browser onthoudt per actie hoe lang het meestal duurt en toont dat erbij; duurt het veel langer, dan zie je een ⚠. Een dubbele klik kan niet meer. Bovenaan de pagina staat een dun balkje zolang er iets loopt.

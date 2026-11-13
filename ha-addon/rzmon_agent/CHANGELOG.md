@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.96.1 – 2026-11-13
+- **Gewijzigde instellingen gelden meteen, ook met de realtime-watcher**: een agent-ronde die `rzmon-watch` start, leest `/etc/default/rzmon-agent` nu opnieuw. Eerst gebruikte zo'n ronde de instellingen van het moment dat de watcher startte, waardoor bijvoorbeeld een nieuwe `LOG_DIRS_MAX` pas gold na `systemctl restart rzmon-watch`.
+
 ## 1.96.0 – 2026-11-13
 - **Logmappen per server vanuit RzSense** (*Agent Manager → Logs → Logmappen voor deze server*): de agent zoekt ook in de mappen die je daar kiest, maar alleen binnen het plafond op de server, `LOG_DIRS_MAX` (standaard `/var/log /opt /srv /home /var/lib/docker /data`). In die mappen leest hij alleen bestanden die op een log lijken (.log, .out, .err, .txt of "log" in de naam), en nooit sleutels, wachtwoorden, .env-bestanden, instellingen of verborgen bestanden; een snelkoppeling naar buiten wordt geweigerd. Een geweigerde map meldt hij met de reden. `LOG_DIRS_MAX=""` = RzSense mag geen mappen toevoegen. Wat in `LOG_DIRS` staat, leest hij zoals altijd.
 - **Map doorbladeren**: op verzoek van RzSense stuurt de agent wat er in één map staat (submappen met het aantal logs, bestanden met grootte en tijd, en of hij ze zou lezen). Alleen namen, nooit de inhoud, en alleen binnen `LOG_DIRS` en `LOG_DIRS_MAX`.

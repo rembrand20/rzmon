@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.96.0"
+AGENT_VERSION="1.96.1"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -44,6 +44,15 @@ fi
 
 # Met de hand gestart (zonder omgeving van systemd/cron)? Dan zelf de instellingen inlezen.
 if [ -z "${MONITOR_URL-}" ] && [ -z "${SUPERVISOR_TOKEN-}" ] && [ -r /etc/default/rzmon-agent ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . /etc/default/rzmon-agent
+    set +a
+fi
+# Agent 1.96.1: een run die de realtime-watcher start (RZ_FORCE=1), erft de instellingen van het moment dat de watcher
+# begon. Het bestand opnieuw lezen, zodat een wijziging (bv. LOG_DIRS_MAX) meteen geldt en niet pas na een herstart van
+# rzmon-watch.
+if [ "${RZ_FORCE-}" = 1 ] && [ -z "${SUPERVISOR_TOKEN-}" ] && [ -r /etc/default/rzmon-agent ]; then
     set -a
     # shellcheck disable=SC1091
     . /etc/default/rzmon-agent
