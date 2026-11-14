@@ -1,5 +1,5 @@
 name: RzSense Agent
-version: "1.101.3"
+version: "1.101.4"
 slug: rzmon_agent
 description: Stuurt CPU, RAM, diskruimte, add-ons en containers, updates, back-ups, integraties, systeemstatus, herstarts, SD-kaart, USB-apparaten, logs, poorten en certificaten van Home Assistant naar RzSense
 url: https://github.com/rembrand20/rzmon

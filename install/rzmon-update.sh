@@ -89,6 +89,13 @@ if [ -n "$want" ]; then
         [ "$(git -C "$DIR" show "$c:VERSION" 2>/dev/null)" = "$want" ] && { commit=$c; break; }
     done < <(git -C "$DIR" log --format=%H "origin/$branch" -- VERSION 2>/dev/null)
     [ -n "$commit" ] || fail "Versie $want niet gevonden op GitHub; er is niets veranderd"
+    # 1.263.2: de handtekening van de agent komt in een aparte commit kort daarna ("Agent ondertekend", alleen *.sig).
+    # Die erbij nemen, anders hoort de handtekening bij de vorige agent en weigeren de agents de update.
+    while read -r c; do
+        chg=$(git -C "$DIR" diff-tree --no-commit-id --name-only -r "$c" 2>/dev/null)
+        [ -n "$chg" ] && ! grep -qv '\.sig$' <<<"$chg" || break
+        commit=$c
+    done < <(git -C "$DIR" rev-list --reverse --ancestry-path "$commit..origin/$branch" 2>/dev/null)
 else
     status running download "Nieuwste versie ophalen" 10
     git -C "$DIR" fetch --quiet origin "$branch" >>"$LOG" 2>&1 || fail "Ophalen van GitHub mislukt (zie het logboek); er is niets veranderd"

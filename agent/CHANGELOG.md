@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.101.4 – 2026-11-14
+- **"Geen handtekening" zegt nu waarom**: kan `rzmon-agent-setup --update` de handtekening niet ophalen, dan staat erbij of RzSense er geen heeft (HTTP 404: werk RzSense bij) of dat iets ertussen hem tegenhoudt (HTTP 403/429: waarschijnlijk je reverse proxy).
+
 ## 1.101.3 – 2026-11-14
 - **Suricata (proxynetwerk) start weer vanzelf**: was de container gestopt (fout bij het starten, of na een herstart van de server: Podman start `--restart unless-stopped` niet vanzelf zonder `podman-restart.service`), dan bleef hij uit en zag je alleen "de container draait niet". Nu toont de agent de status, de exitcode en de laatste logregels van Suricata, en start hij de container hooguit elke 10 minuten opnieuw.
 

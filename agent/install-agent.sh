@@ -582,7 +582,9 @@ fi
 # Handtekening van de ontwikkelaar (1.71.0): klopt hij niet, dan niet installeren. Bij bijwerken vanuit RzSense (--file)
 # heeft de agent dat al gecontroleerd.
 if [ -z "$SOURCE_FILE" ]; then
-    if curl "${CURL_OPTS[@]}" "$URL/api.php?action=agent_script_sig${DL_KEY:+&k=$DL_KEY}" -o "$tmp.sig" 2>/dev/null && [ -s "$tmp.sig" ]; then
+    # Agent 1.101.4: de HTTP-code onthouden, zodat "geen handtekening" zegt waarom (404 = er is er geen, 403/429 = de proxy)
+    sig_code=$(curl "${CURL_OPTS[@]/-fsS/-sS}" -w '%{http_code}' "$URL/api.php?action=agent_script_sig${DL_KEY:+&k=$DL_KEY}" -o "$tmp.sig" 2>/dev/null) || sig_code=000
+    if [ "$sig_code" = 200 ] && [ -s "$tmp.sig" ]; then
         sig_check "$tmp" "$tmp.sig"; s_rc=$?
         rm -f "$tmp.sig"
         case "$s_rc" in
@@ -596,7 +598,13 @@ if [ -z "$SOURCE_FILE" ]; then
     else
         rm -f "$tmp.sig"
         if [ "$MODE" = update ] && ! unsigned_ok; then
-            die "Geen handtekening bij RzSense: niet bijgewerkt (zo kan een overgenomen RzSense geen eigen code op je servers zetten). Wil je toch bijwerken, zet dan UPDATE_UNSIGNED=1 in $CONF."
+            case "$sig_code" in
+                404) sig_why="RzSense heeft geen handtekening voor deze agent (HTTP 404): werk RzSense bij naar de nieuwste versie" ;;
+                403|429) sig_why="de handtekening werd tegengehouden (HTTP $sig_code), waarschijnlijk door je reverse proxy (alleen LAN, rate limit of WAF)" ;;
+                000) sig_why="geen antwoord bij het ophalen van de handtekening" ;;
+                *) sig_why="ophalen van de handtekening gaf HTTP $sig_code" ;;
+            esac
+            die "Geen handtekening bij RzSense: $sig_why. Niet bijgewerkt (zo kan een overgenomen RzSense geen eigen code op je servers zetten). Wil je toch bijwerken, zet dan UPDATE_UNSIGNED=1 in $CONF."
         fi
         warn "Deze agent is (nog) niet ondertekend bij RzSense; alleen het controlegetal is gecontroleerd"
     fi
