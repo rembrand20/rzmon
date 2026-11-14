@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.101.2"
+AGENT_VERSION="1.101.3"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -4521,6 +4521,20 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
                     if [ "$nd_size" -gt $(( ${NIDS_EVE_MB:-64} * 1048576 )) ]; then : >"$nd_eve"; nd_size=0; fi
                     echo "$nd_size" >"$nd_dir/eve.pos"
                 fi
+            elif [ "$nd_state" != lowmem ] && nd_exists; then
+                # Agent 1.101.3: gestopt (fout bij het starten, of na een herstart van de server: Podman start
+                # "unless-stopped" niet vanzelf zonder podman-restart.service). Reden en laatste logregels tonen,
+                # en hooguit elke 10 minuten opnieuw starten.
+                nd_st=$(ndx inspect -f '{{.State.Status}} {{.State.ExitCode}}' "$nd_ctr" 2>/dev/null)
+                nd_log=$(ndx logs --tail 4 "$nd_ctr" 2>&1 | grep -v '^\s*$' | tail -n 2 | tr '\n' ' ' | cut -c1-220)
+                if [ -z "$(find "$nd_dir/start.at" -mmin -10 2>/dev/null)" ]; then
+                    touch "$nd_dir/start.at"
+                    if ndx start "$nd_ctr" >/dev/null 2>&1 && sleep 3 && [ "$(ndx inspect -f '{{.State.Running}}' "$nd_ctr" 2>/dev/null)" = true ]; then
+                        nd_state=starting; nd_msg="opnieuw gestart"
+                        act_log proxy 1 "Suricata (proxynetwerk) opnieuw gestart" "was: ${nd_st:-onbekend}"
+                    fi
+                fi
+                [ "$nd_state" = starting ] || nd_msg=${nd_msg:-"de container draait niet (${nd_st:-onbekend}${nd_log:+: $nd_log}); bekijk: $nd_eng logs --tail 30 $nd_ctr"}
             elif [ "$nd_state" != lowmem ]; then
                 nd_msg=${nd_msg:-"de container draait niet"}
             fi

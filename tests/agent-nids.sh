@@ -18,7 +18,8 @@ case "\$1" in
     inspect)
         if [ "\$2" = -f ]; then
             case "\$3" in
-                *State.Running*) [ -f "\$S/ctr" ] && echo true || exit 1 ;;
+                *State.Running*) [ -f "\$S/ctr" ] || exit 1; [ -f "\$S/stopped" ] && echo false || echo true ;;
+                *State.Status*) echo "exited 1" ;;
                 *NetworkSettings.Networks*) echo "swagnet rzsense " ;;
             esac
         else [ "\$2" = rzsense-suricata ] && { [ -f "\$S/ctr" ] || exit 1; }; fi ;;
@@ -26,6 +27,8 @@ case "\$1" in
     run) touch "\$S/ctr"; printf '%s\n' "\$*" >"\$S/run"; mkdir -p "\$N/log"; : >"\$N/log/suricata.log"; : >"\$N/log/eve.json" ;;
     rm) rm -f "\$S/ctr" ;;
     restart) touch "\$S/restarted" ;;
+    logs) printf 'i: suricata: starting\nE: af-packet: podman3: failed to open socket\n' ;;
+    start) [ -f "\$S/startok" ] && rm -f "\$S/stopped"; touch "\$S/started" ;;
     exec) [ "\$3" = suricata-update ] && { mkdir -p "\$N/lib/rules"; printf 'alert tcp any any -> any any (sid:1;)\nalert tcp any any -> any any (sid:2;)\n' >"\$N/lib/rules/suricata.rules"; } ;;
 esac
 exit 0
@@ -51,15 +54,26 @@ NIDS_MIN_MB=1 run alerts
 printf '0\tnids\ton\tfull\tlo,nope0\n' >"$work/cache/tests.cache"
 NIDS_MIN_MB=1 NIDS_EVE_MB=0 run full
 cp "$work/nids/etc/disable.conf" "$work/dis-full"
+# 1.101.3: container gestopt: reden + logregels tonen, hooguit elke 10 minuten opnieuw starten
+touch "$work/state/stopped"
+NIDS_MIN_MB=1 run stopped
+rm -f "$work/state/started"; NIDS_MIN_MB=1 run stopped2
+[ -f "$work/state/started" ] && bad_retry=1 || bad_retry=0
+rm -f "$work/nids/start.at"; touch "$work/state/startok"
+NIDS_MIN_MB=1 run restarted
 printf '0\tnids\toff\tweb\tauto\n' >"$work/cache/tests.cache"
 run off
 bad=""
+[ "$bad_retry" = 1 ] && bad+="binnen 10 minuten opnieuw gestart | "
 python3 - "$work" <<'PY' || bad+="$(cat "$work/py.err" 2>/dev/null) | "
 import json, sys, os
 w = sys.argv[1]
 err = open(f'{w}/py.err', 'w')
 try:
-    r = {k: json.load(open(f'{w}/r-{k}.json')) for k in ('lowmem', 'start', 'alerts', 'full', 'off')}
+    r = {k: json.load(open(f'{w}/r-{k}.json')) for k in ('lowmem', 'start', 'alerts', 'full', 'stopped', 'restarted', 'off')}
+    st = r['stopped']
+    assert st['state'] == 'error' and 'exited 1' in st['msg'] and 'failed to open socket' in st['msg'] and 'podman logs' in st['msg'], st
+    assert r['restarted']['state'] == 'starting' and r['restarted']['msg'] == 'opnieuw gestart', r['restarted']
     assert r['lowmem']['state'] == 'lowmem', r['lowmem']
     s = r['start']
     assert s['state'] in ('ok', 'starting') and s['ifaces'] == ['lo'] and s['found'] == ['lo'] and s['profile'] == 'web', s
@@ -78,6 +92,6 @@ try:
 except AssertionError as e:
     err.write(str(e)[:1500]); sys.exit(1)
 PY
-grep -q 'Suricata (proxynetwerk) gestart' "$work/cache/act.log" && grep -q 'Suricata (proxynetwerk) uit' "$work/cache/act.log" || bad+="logboek mist regels | "
+grep -q 'Suricata (proxynetwerk) gestart' "$work/cache/act.log" && grep -q 'opnieuw gestart' "$work/cache/act.log" && grep -q 'Suricata (proxynetwerk) uit' "$work/cache/act.log" || bad+="logboek mist regels | "
 if [ -n "$bad" ]; then echo "✘ Suricata (proxynetwerk): ${bad% | } $(tail -n 3 "$work/err" 2>/dev/null)"; exit 1; fi
-echo "✔ Suricata (proxynetwerk): netwerkbrug van de proxy gevonden (niet die van de WAF), te weinig geheugen = niet starten, --network host op de brug, regelprofiel (web/full), regels op de achtergrond bijgewerkt en herstart, meldingen uit eve.json, groot eve.json geleegd, onbekende interface genegeerd, uit = container weg, in het logboek"
+echo "✔ Suricata (proxynetwerk): netwerkbrug van de proxy gevonden (niet die van de WAF), te weinig geheugen = niet starten, --network host op de brug, regelprofiel (web/full), regels op de achtergrond bijgewerkt en herstart, meldingen uit eve.json, groot eve.json geleegd, gestopt = reden en logregels + na 10 minuten opnieuw starten, onbekende interface genegeerd, uit = container weg, in het logboek"

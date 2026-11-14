@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.260.0**: **Suricata op het proxynetwerk**: meekijken tussen de proxy en je apps, met advies voor elk veld (AI of standaard).
 - **1.259.0**: **advies voor alle velden**: één knop vult alle instellingen van de reverse proxy in met de beste waarden (AI of standaard), daarna gewoon aan te passen.
 
+## 1.263.1 – 2026-11-14
+### Opgelost
+- **Nieuwe agent 1.101.3**: Suricata op het proxynetwerk bleef uit als de container eenmaal gestopt was ("de container draait niet"). De agent start hem nu opnieuw (hooguit elke 10 minuten) en toont waarom hij stopte, met de laatste logregels.
+
 ## 1.263.0 – 2026-11-14
 ### Nieuw
 - **🌍 Agent-servers op internet komen langs de reverse proxy**: staat de site van RzSense op je proxy op *alleen vanaf het LAN* (standaard voor RzSense), dan kreeg een agent op internet (bv. een VPS) `403 Forbidden` en kon hij niet rapporteren of bijwerken. De openbare adressen van je eigen agent-servers tellen nu mee als eigen netwerk op de proxy, net als de whitelist (*Instellingen → Beveiliging → Reverse proxy*). De proxy-agent neemt dat binnen een minuut over.

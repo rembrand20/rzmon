@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.101.3 – 2026-11-14
+- **Suricata (proxynetwerk) start weer vanzelf**: was de container gestopt (fout bij het starten, of na een herstart van de server: Podman start `--restart unless-stopped` niet vanzelf zonder `podman-restart.service`), dan bleef hij uit en zag je alleen "de container draait niet". Nu toont de agent de status, de exitcode en de laatste logregels van Suricata, en start hij de container hooguit elke 10 minuten opnieuw.
+
 ## 1.101.2 – 2026-11-14
 - **Verbindingstest bij een 403 van de reverse proxy**: krijgt de agent `403 Forbidden` van nginx (SWAG/NPM), dan legt de test uit dat je proxy deze server niet toelaat (bv. RzSense alleen vanaf je LAN), en wat je eraan doet: RzSense 1.263.0 laat je agent-servers vanzelf door, of zet het IP op de whitelist.
 
