@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.99.1 – 2026-11-14
+- **ClamAV vond geen nieuwe bestanden op servers met BusyBox** (bv. Alpine): de maximale bestandsgrootte stond in MB, wat BusyBox-`find` niet kent. Nu in kB, wat overal werkt.
+
 ## 1.99.0 – 2026-11-14
 - **ClamAV op de reverse proxy** (alleen op de server met de rol *reverse proxy*, als ClamAV in RzSense aan staat): de agent kijkt of er genoeg geheugen vrij is en start dan ClamAV als eigen container (`rzsense-clamav`), die de gekozen uploadmappen alleen-lezen ziet. Elke ronde scant hij de nieuwe en gewijzigde bestanden; op verzoek alles, op de achtergrond. Een besmet bestand gaat (als *Verplaatsen* aan staat) naar een quarantaine die alleen root kan lezen, met de oude plek, eigenaar en rechten erbij; terugzetten en definitief weghalen gaan op verzoek uit RzSense. Mappen alleen binnen `AV_DIRS_MAX`, nooit systeemmappen; hij stelt mappen voor uit de volumes van je andere containers. Uit = de container weg, de quarantaine blijft. Op de server: `AV_DIR`, `AV_IMAGE`, `AV_MIN_MB`, `AV_MAX_MB` en `AV_DIRS_MAX`.
 

@@ -279,7 +279,7 @@ final class ProxyGuard
                 $sv['waf_stats'] = Waf::stats($sv['id']);
                 $sv['waf_recent'] = Waf::recent($sv['id'], 25);
                 $sv['ai'] = ProxyAdvice::state($sv['id']);   // 1.256.0
-                $sv['av'] = Av::overview($sv['id'], $sv['sites'] ?? []);   // 1.257.0
+                $sv['av'] = Av::overview($sv['id'], $sv['sites']);   // 1.257.0
                 $sv['av_agent_ok'] = version_compare((string) q('SELECT agent_version FROM hosts WHERE id = ?', [$sv['id']])->fetchColumn(), '1.99.0', '>=');
             }
         }

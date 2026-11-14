@@ -562,7 +562,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
                     touch "$av_dir/last.stamp"; av_msg=${av_msg:-"klaar; nieuwe bestanden worden vanaf nu gescand"}
                 elif [ ${#av_ok[@]} -gt 0 ]; then
                     touch "$av_dir/next.stamp"
-                    find "${av_ok[@]}" -xdev -type f -newer "$av_dir/last.stamp" -size -"${AV_MAX_MB:-100}"M ! -name '*'$'\n''*' 2>/dev/null | head -n 2001 >"$av_dir/work/list.txt"
+                    find "${av_ok[@]}" -xdev -type f -newer "$av_dir/last.stamp" -size -"$(( ${AV_MAX_MB:-100} * 1024 ))"k ! -name '*'$'\n''*' 2>/dev/null | head -n 2001 >"$av_dir/work/list.txt"
                     av_new=$(wc -l <"$av_dir/work/list.txt")
                     if [ "$av_new" -gt 0 ]; then
                         out=$(AVX_T=600 avx exec "$av_ctr" clamdscan --no-summary --infected --file-list=/rzwork/list.txt 2>&1); rc=$?
