@@ -22646,28 +22646,38 @@ function mtApply(tbl, labels) {
   }
 }
 
-/** Alle tabellen nalopen: past hij niet, dan kaartjes */
-function mtScan() {
+/**
+ * Alle tabellen nalopen: past hij niet, dan kaartjes.
+ * 1.263.6: nooit meer heen en weer. Een tabel die al kaartjes is, blijft dat (alleen nieuwe rijen krijgen hun labels);
+ * alleen een gewone tabel wordt gemeten. Pas bij draaien of breder maken van het scherm (full) alles opnieuw. Eerst zette
+ * dit bij elke live-update alle kaartjes terug naar een brede tabel om te meten: de pagina versprong en klikken mislukte.
+ */
+function mtScan(full) {
   const narrow = document.documentElement.clientWidth <= MT_MAX;
   const tables = [...document.querySelectorAll('table')].filter((t) => !t.closest('.no-stack') && t.getClientRects().length);
-  if (!narrow) { tables.forEach((t) => t.classList.remove('mt-stack')); return; }
+  if (!narrow) { tables.forEach((t) => { if (t.classList.contains('mt-stack')) t.classList.remove('mt-stack'); }); return; }
+  if (full) tables.forEach((t) => { if (t.classList.contains('mt-stack')) t.classList.remove('mt-stack'); });
   const limit = document.documentElement.clientWidth - 8;
-  // Eerst alles terug naar een gewone tabel en meten, daarna pas omzetten (geen heen-en-weer per tabel)
-  const cand = tables.map((t) => ({ t, labels: mtLabels(t), was: t.classList.contains('mt-stack') })).filter((x) => x.labels && x.labels.length >= 2);
-  cand.forEach((x) => x.t.classList.remove('mt-stack'));
-  const wide = cand.filter((x) => {
-    const box = x.t.parentElement;
-    return x.t.getBoundingClientRect().width > Math.min(limit, box ? box.getBoundingClientRect().width + 2 : limit) || x.t.getBoundingClientRect().right > limit + 8;
-  });
-  for (const x of wide) { mtApply(x.t, x.labels); x.t.classList.add('mt-stack'); }
+  // Eerst alles meten (één keer opmaak), daarna pas omzetten
+  const todo = [];
+  for (const t of tables) {
+    const labels = mtLabels(t);
+    if (!labels || labels.length < 2) continue;
+    if (t.classList.contains('mt-stack')) { todo.push([t, labels]); continue; }   // blijft kaartjes; labels van nieuwe rijen bijwerken
+    const r = t.getBoundingClientRect(), box = t.parentElement;
+    if (r.width > Math.min(limit, box ? box.getBoundingClientRect().width + 2 : limit) || r.right > limit + 8) todo.push([t, labels]);
+  }
+  for (const [t, labels] of todo) { mtApply(t, labels); if (!t.classList.contains('mt-stack')) t.classList.add('mt-stack'); }
 }
 
-let mtTimer = 0;
-const mtLater = () => { clearTimeout(mtTimer); mtTimer = setTimeout(mtScan, 120); };
+// Vóór het tekenen van het volgende beeld (requestAnimationFrame): een nieuwe brede tabel is meteen kaartjes, zonder flits
+let mtFrame = 0, mtFull = false;
+const mtLater = (full) => { mtFull = mtFull || full === true; if (!mtFrame) mtFrame = requestAnimationFrame(() => { mtFrame = 0; const f = mtFull; mtFull = false; mtScan(f); }); };
 new MutationObserver((list) => {
   // Alleen reageren op nieuwe inhoud (niet op onze eigen data-label/class-wijzigingen)
   if (list.some((m) => m.type === 'childList')) mtLater();
 }).observe(document.documentElement, { childList: true, subtree: true });
-window.addEventListener('resize', mtLater);
-window.addEventListener('orientationchange', mtLater);
-document.addEventListener('DOMContentLoaded', mtLater);
+let mtW = document.documentElement.clientWidth;
+window.addEventListener('resize', () => { const w = document.documentElement.clientWidth; if (w !== mtW) { mtW = w; mtLater(true); } });   // alleen bij een andere breedte (niet de adresbalk op iOS)
+window.addEventListener('orientationchange', () => mtLater(true));
+document.addEventListener('DOMContentLoaded', () => mtLater(true));
