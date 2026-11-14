@@ -3084,5 +3084,61 @@ q('DELETE FROM proxy_advice WHERE host_id = ?', [$ph]);
 q('DELETE FROM proxy_sites WHERE host_id = ?', [$ph]);
 q('DELETE FROM hosts WHERE id = ?', [$ph]);
 
+section('ClamAV op de reverse proxy (1.257.0)');
+q("INSERT INTO hosts (name, address, mode, agent_version) VALUES ('av-host', '127.0.0.1', 'agent', '1.99.0')");
+$vh = (int) db()->lastInsertId();
+$vHost = q('SELECT * FROM hosts WHERE id = ?', [$vh])->fetch();
+$vkeep = [];
+foreach (['proxy_on', 'av_on', 'av_notify', 'av_move'] as $k) {
+    $vkeep[$k] = setting($k, null);
+}
+save_setting('proxy_on', '1');
+save_setting('av_on', '0');
+ok(Av::agentLines($vh) === [], 'ClamAV: uit en nooit aan geweest = geen regels');
+ok(is_string(Av::addDir($vh, '/srv/data', '', 'test')), 'ClamAV: alleen op de server met de rol');
+ProxyGuard::setRole($vh, true, 'test');
+ProxyGuard::fromAgent($vHost, ['proxy' => ['kind' => 'swag', 'hook' => 1, 'state' => 'ok', 'sites' => [['name' => 'nextcloud.*', 'names' => ['nextcloud.*'], 'up' => 'nextcloud:443']]]]);
+ok(Av::addDir($vh, '/srv/nextcloud/data/', 'nextcloud.*', 'test') === null && is_string(Av::addDir($vh, '/etc/ssl', '', 'test')) && is_string(Av::addDir($vh, '/srv/../etc', '', 'test'))
+    && is_string(Av::addDir($vh, 'srv/x', '', 'test')) && is_string(Av::addDir($vh, '/var/lib/rzsense-clamav/q', '', 'test')), 'ClamAV: mappen gecontroleerd (systeemmap, .., relatief, eigen map geweigerd)');
+save_setting('av_on', '1');
+save_setting('av_notify', '1');
+save_setting('av_move', '0');
+$vl = Av::agentLines($vh);
+ok($vl === ["0\tav\ton\t1\t0", "0\tavdir\t/srv/nextcloud/data"], 'ClamAV: regels voor de agent (schakelaars en mappen)');
+Av::fullScan($vh, 'test');
+ok((bool) preg_grep("/^0\tavfull\t\\d{14}-[0-9a-f]{4}$/", Av::agentLines($vh)), 'ClamAV: volledige scan gaat mee naar de agent');
+$fullId = (string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'av_full'", [$vh])->fetchColumn();
+$sha = str_repeat('a', 64);
+$rep = ['state' => 'ok', 'mem' => 3000, 'sigs' => 'ClamAV 1.4.1/27470', 'new' => 4, 'full' => 'done', 'full_id' => $fullId,
+    'dirs' => [['p' => '/srv/nextcloud/data', 'ok' => 1]], 'suggest' => [['c' => 'nextcloud', 'p' => '/srv/nextcloud/apps'], ['c' => 'x', 'p' => '/etc/passwd']],
+    'found' => [['p' => '/srv/nextcloud/data/u/evil.php', 'sig' => 'Php.Webshell<script>', 'sha' => $sha, 'size' => 12, 'qid' => '20261114120000-0a0b0c0d', 'moved' => 1],
+        ['p' => '/srv/nextcloud/data/u/x.doc', 'sig' => 'Doc.Macro', 'sha' => str_repeat('b', 64), 'size' => 5, 'qid' => '', 'moved' => 0]],
+    'quarantine' => [['qid' => '20261114120000-0a0b0c0d', 'p' => '/srv/nextcloud/data/u/evil.php', 'sig' => 'Php.Webshell', 'size' => 12, 'at' => 1]], 'ops' => []];
+Av::fromAgent($vHost, ['av' => $rep]);
+Av::fromAgent($vHost, ['av' => $rep]);   // tweede keer: niets dubbel
+$ov = Av::overview($vh, ProxyGuard::sites($vh));
+$evs = array_column($ov['events'], null, 'path');
+ok(count($ov['events']) === 2 && $evs['/srv/nextcloud/data/u/evil.php']['status'] === 'quarantined' && $evs['/srv/nextcloud/data/u/evil.php']['sig'] === 'Php.Webshellscript'
+    && $evs['/srv/nextcloud/data/u/x.doc']['status'] === 'found', 'ClamAV: vondsten één keer opgeslagen (quarantaine of alleen gemeld), handtekening opgeschoond');
+ok($ov['state'] === 'ok' && $ov['dirs'][0]['ok'] === true && $ov['dirs'][0]['site'] === 'nextcloud.*' && count($ov['suggest']) === 1 && $ov['suggest'][0]['site'] === 'nextcloud.*'
+    && $ov['full'] === 'done' && $ov['quarantine'] === 1, 'ClamAV: overzicht met mappen, voorstellen bij de juiste site (systeemmap eruit), scan klaar');
+ok((int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'malware'", [$vh])->fetchColumn() === (Ids::enabled() ? 2 : 0), 'ClamAV: Melden aan = IDS-incident per vondst');
+$eid = $evs['/srv/nextcloud/data/u/evil.php']['id'];
+ok(Av::op($eid, 'restore', 'test') === null && is_string(Av::op($evs['/srv/nextcloud/data/u/x.doc']['id'], 'delete', 'test'))
+    && in_array("0\tavrestore\t20261114120000-0a0b0c0d", Av::agentLines($vh), true), 'ClamAV: terugzetten gaat naar de agent; alleen voor wat in quarantaine staat');
+Av::fromAgent($vHost, ['av' => ['state' => 'ok', 'ops' => [['qid' => '20261114120000-0a0b0c0d', 'op' => 'restore', 'ok' => 1, 'msg' => 'teruggezet']]] + $rep]);
+ok(q('SELECT status FROM av_events WHERE id = ?', [$eid])->fetchColumn() === 'restored' && !preg_grep('/avrestore/', Av::agentLines($vh)), 'ClamAV: na de agent teruggezet, verzoek weg');
+save_setting('av_notify', '0');
+Av::fromAgent($vHost, ['av' => ['found' => [['p' => '/srv/nextcloud/data/y.exe', 'sig' => 'Win.Trojan', 'sha' => str_repeat('c', 64), 'size' => 1, 'qid' => '', 'moved' => 0]]] + $rep]);
+ok((int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'malware'", [$vh])->fetchColumn() === (Ids::enabled() ? 2 : 0), 'ClamAV: Melden uit = geen incident (wel in de lijst)');
+save_setting('av_on', '0');
+ok(Av::agentLines($vh) === ["0\tav\toff\t0\t0"], 'ClamAV: uitgezet = de agent haalt de container weg');
+foreach ($vkeep as $k => $v) {
+    $v === null ? q('DELETE FROM settings WHERE name = ?', [$k]) : save_setting($k, (string) $v);
+}
+q('DELETE FROM av_events WHERE host_id = ?', [$vh]);
+q('DELETE FROM av_dirs WHERE host_id = ?', [$vh]);
+q('DELETE FROM hosts WHERE id = ?', [$vh]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

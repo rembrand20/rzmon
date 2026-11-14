@@ -6054,3 +6054,10 @@ button.rz-job::before, .btn.rz-job::before { content: ''; position: absolute; in
 .pxa-ch s { opacity: .6; }
 .pxa-btns { margin-left: auto; display: inline-flex; gap: .3rem; }
 .px-ai-set #proxy-ai-txt { color: var(--text); }
+/* 1.257.0: ClamAV op de reverse proxy */
+.av-dirs { display: flex; flex-wrap: wrap; gap: .35rem; }
+.av-dir { display: inline-flex; align-items: center; gap: .3rem; border: 1px solid var(--border); border-radius: 999px; padding: .15rem .25rem .15rem .6rem; font-size: .88em; max-width: 100%; overflow-wrap: anywhere; }
+.av-dir.bad { border-color: var(--bad, #d33); }
+.av-add { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.av-add input { flex: 1 1 14rem; min-width: 0; }
+.av-add select { max-width: 18rem; }

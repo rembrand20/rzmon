@@ -3271,7 +3271,7 @@ Vink per stap *verstuurd* aan. Komt een termijn binnen 6 uur (eindverslag: 3 dag
 
 **Let op:** dit is geen juridisch advies en geen certificering. Het laat zien wat RzSense technisch ziet; of je onder NIS2 valt en wat significant is, bepaal je zelf (of met je adviseur). **Aan/uit:** daar, of *Overzicht → Status en functies → Functies*.
 
-### 8.12h Reverse proxy beschermen 🔀 (vanaf 1.254.0, agent 1.97.0; WAF vanaf 1.255.0, agent 1.98.0; AI-advies vanaf 1.256.0)
+### 8.12h Reverse proxy beschermen 🔀 (vanaf 1.254.0, agent 1.97.0; WAF vanaf 1.255.0, agent 1.98.0; AI-advies vanaf 1.256.0; ClamAV vanaf 1.257.0, agent 1.99.0)
 Bescherm de apps achter je reverse proxy (**SWAG** of **Nginx Proxy Manager**, in **Podman** of **Docker**). De agent op die server voert het door; alles stel je in RzSense in.
 
 **Aanzetten**
@@ -3342,6 +3342,31 @@ De AI bekijkt je sites en wat de WAF zag, en stelt per site het beleid voor, met
 **Wat de AI terug mag geven**: alleen keuzes uit vaste lijsten (wie mag erbij, adminpaden, rate limit, bots, WAF per site). RzSense controleert elke waarde net als jouw eigen invoer; een ongeldig pad, een onbekende site of een onbekende keuze valt weg. De AI voert nooit iets uit en schrijft nooit configuratie: dat doet de agent, met dezelfde test en terugzet-stap als altijd.
 **Herkennen**: een site die de AI instelde, heeft het label **🤖 AI** (met de reden als je erover beweegt); ↺ zet hem terug naar de standaard. Pas je een site zelf aan, dan is hij weer van jou.
 **Wanneer vanzelf**: als er een site bij komt (of verdwijnt), en hooguit één keer per week als de WAF iets nieuws zag; nooit vaker dan om de 6 uur. Kosten, daglimiet, maandbudget en terugvallen op Ollama zijn die van *AI-advies*. Alles staat in het logboek van de server.
+
+**🦠 Uploads scannen op malware (ClamAV)** (vanaf 1.257.0, agent 1.99.0)
+ClamAV scant wat er via je apps binnenkomt (uploads in Nextcloud, bijlagen, formulieren) op virussen, webshells, macro-documenten en andere malware.
+
+1. *Instellingen → Beveiliging → Reverse proxy → Uploads scannen op malware*: zet **ClamAV aan**.
+2. De agent kijkt of er genoeg geheugen vrij is (standaard 1400 MB, `AV_MIN_MB`). Zo ja, dan start hij de container **`rzsense-clamav`**. De eerste keer haalt ClamAV zijn virusdefinities op; dat duurt een paar minuten (*wordt gestart*). Daarna werken de definities zichzelf bij.
+3. Op de pagina **🔀 Reverse proxy**, blok **🦠 ClamAV**: kies de **uploadmappen**. Onder *Voorstel uit je apps…* staan de mappen (volumes) van je andere containers; kies er een, kies eventueel de site erbij, en klik **＋ Toevoegen**. Je kunt ook zelf een map intikken.
+4. Vanaf dan scant de agent **elke minuut de nieuwe en gewijzigde bestanden** in die mappen (tot 100 MB per bestand, `AV_MAX_MB`). Met **🔍 Volledige scan** scant hij alles, op de achtergrond.
+
+**Twee schakelaars** in de beheerportal:
+| Schakelaar | Aan | Uit |
+|---|---|---|
+| **Melden** | een vondst wordt een **IDS-incident** (*malware*) met melding | alleen in de lijst op de pagina Reverse proxy |
+| **Verplaatsen** | het besmette bestand gaat meteen naar de **quarantaine** | het bestand blijft staan |
+
+**Quarantaine**: `/var/lib/rzsense-clamav/quarantine/<id>`, alleen voor root, het bestand met rechten 000. De oorspronkelijke plek, eigenaar en rechten worden bewaard. In de lijst *Gevonden* kies je **Terugzetten** (het bestand gaat terug en wordt daarna niet opnieuw in quarantaine gezet) of **Definitief weghalen**. De agent doet het bij zijn volgende ronde; alles staat in het logboek.
+
+**Veilig**:
+- ClamAV ziet de mappen **alleen-lezen**; alleen de agent verplaatst iets, en alleen binnen de gekozen mappen.
+- Op de server bepaalt **`AV_DIRS_MAX`** welke mappen mogen (standaard `/srv /opt /data /home /mnt /var/lib/docker/volumes /var/lib/containers/storage/volumes`). Systeemmappen (`/etc`, `/usr`, `/root` …) nooit, ook niet als je ze in het plafond zet. Een geweigerde map zie je met ✘ en de reden.
+- De mappen van je apps krijgen geen ander SELinux-label (de container draait met `label=disable`), zodat je apps er gewoon bij blijven kunnen.
+
+**Uit**: de container gaat weg; de quarantaine blijft staan.
+**Eerlijk**: dit scant direct ná het uploaden, niet aan de deur. Een besmet bestand staat dus hooguit een minuut in de map voordat het gevonden wordt.
+Op de server in te stellen: `AV_DIR`, `AV_IMAGE` (standaard `docker.io/clamav/clamav:1.4`), `AV_MIN_MB`, `AV_MAX_MB` en `AV_DIRS_MAX`.
 
 ### 8.13 Kwetsbaarheden 🐞
 Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) horen daarbij? Standaard uit; aanzetten bij *Instellingen → 🐞 Kwetsbaarheden*. Daarna staat er een tabblad **🐞 Kwetsbaarheden** in de bovenbalk (voor beheerders en gebruikers, niet voor *alleen lezen*).

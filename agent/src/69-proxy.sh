@@ -458,3 +458,163 @@ $(for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_c
     fi
     waf_json="{\"state\":\"$wf_state\",\"running\":$wf_running,\"bouncer\":\"$wf_bouncer\",\"net\":\"$wf_net\",\"image\":\"$(json_escape "$wf_img")\",\"mode\":\"$wf_mode\",\"test\":\"$wf_test\",\"test_msg\":\"$(json_escape "$wf_testmsg")\",\"msg\":\"$(json_escape "$wf_msg")\",\"alerts\":\"$wf_alerts\"}"
 fi
+
+# ---------------------------------------------------------------- ClamAV op de reverse proxy (agent 1.99.0, RzSense 1.257.0)
+# Uploads scannen: ClamAV als eigen container (rzsense-clamav) die de uploadmappen van je apps alleen-lezen ziet. Elke ronde
+# scant de agent de bestanden die sinds de vorige ronde nieuw of gewijzigd zijn (en op verzoek alles). Regels uit RzSense:
+#   0 <tab> av <tab> on|off <tab> melden 0|1 <tab> verplaatsen 0|1
+#   0 <tab> avdir <tab> /pad           (alleen binnen AV_DIRS_MAX op deze server; nooit systeemmappen)
+#   0 <tab> avfull <tab> id            (volledige scan, op de achtergrond)
+#   0 <tab> avrestore|avdelete <tab> qid   (een bestand uit de quarantaine terugzetten of definitief weghalen)
+# Verplaatsen = het besmette bestand naar /var/lib/rzsense-clamav/quarantine/<qid> (alleen root, rechten 000), met de
+# oorspronkelijke plek, eigenaar en rechten erbij, zodat terugzetten altijd kan. Vooraf kijkt de agent of er genoeg
+# geheugen vrij is (AV_MIN_MB, standaard 1400): ClamAV heeft ruim een gigabyte nodig.
+av_json=""
+if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [ -r "${t_cache-}" ] && grep -q $'^0\tav\t' "$t_cache"; then
+    IFS=$'\t' read -r av_on _ av_move < <(awk -F'\t' '$1 == "0" && $2 == "av" { print $3 "\t" $4 "\t" $5; exit }' "$t_cache")
+    av_ctr=rzsense-clamav; av_dir="${AV_DIR:-/var/lib/rzsense-clamav}"; av_img="${AV_IMAGE:-docker.io/clamav/clamav:1.4}"
+    av_max="${AV_DIRS_MAX-/srv /opt /data /home /mnt /var/lib/docker/volumes /var/lib/containers/storage/volumes}"
+    av_state=error; av_msg=""; av_sigs=""; av_found=""; av_ops=""; av_dirs_j=""; av_sugg=""; av_q=""; av_full="none"; av_fullid=""; av_new=0
+    av_mem=$(awk '/^MemAvailable:/ { print int($2 / 1024) }' /proc/meminfo 2>/dev/null); av_mem=${av_mem:-0}
+    av_eng=${px_eng-}
+    if [ -z "$av_eng" ]; then for e in podman docker; do command -v "$e" >/dev/null 2>&1 && { av_eng=$e; break; }; done; fi
+    avx() { timeout "${AVX_T:-120}" "$av_eng" "$@"; }
+    av_exists() { [ -n "$av_eng" ] && avx inspect "$av_ctr" >/dev/null 2>&1; }
+    # Een map mag als hij bestaat, echt een map is, binnen het plafond ligt en geen systeemmap of eigen map van RzSense is
+    av_ok_dir() {
+        local d r m
+        r=$(realpath -e -- "$1" 2>/dev/null) || { echo "bestaat niet"; return 1; }
+        [ -d "$r" ] || { echo "geen map"; return 1; }
+        case "$r/" in /|/etc/*|/usr/*|/bin/*|/sbin/*|/lib/*|/lib64/*|/boot/*|/proc/*|/sys/*|/dev/*|/run/*|/root/*|/var/lib/rzsense-*) echo "systeemmap"; return 1 ;; esac
+        for m in $av_max; do
+            m=${m%/}
+            [ -n "$m" ] && { [ "$r" = "$m" ] || [[ "$r" == "$m/"* ]]; } && { echo "$r"; return 0; }
+        done
+        echo "buiten het plafond (AV_DIRS_MAX)"; return 1
+    }
+    if [ "$av_on" != on ]; then
+        if av_exists; then avx rm -f "$av_ctr" >/dev/null 2>&1; act_log proxy 1 "ClamAV uit" "container $av_ctr weggehaald (de quarantaine blijft)"; fi
+        rm -f "$av_dir/env.hash"
+        av_state=off
+    elif [ -z "$av_eng" ]; then
+        av_state=unsupported; av_msg="geen Podman of Docker gevonden"
+    else
+        mkdir -p "$av_dir/db" "$av_dir/work" "$av_dir/quarantine"; chmod 700 "$av_dir" "$av_dir/quarantine"
+        # 1. Mappen: alleen wat mag; de rest met de reden terug naar RzSense
+        av_ok=()
+        while IFS=$'\t' read -r _ _ p; do
+            [ -n "$p" ] || continue
+            if r=$(av_ok_dir "$p"); then av_ok+=("$r"); av_dirs_j+="${av_dirs_j:+,}{\"p\":\"$(json_escape "$p")\",\"ok\":1}"
+            else av_dirs_j+="${av_dirs_j:+,}{\"p\":\"$(json_escape "$p")\",\"ok\":0,\"why\":\"$(json_escape "$r")\"}"; fi
+        done < <(awk -F'\t' '$1 == "0" && $2 == "avdir"' "$t_cache" | head -n 30)
+        mapfile -t av_ok < <(printf '%s\n' "${av_ok[@]}" | awk 'NF && !s[$0]++' | sort)
+        # 2. Voorstellen: de mappen van de andere containers (volumes en bind-mounts) binnen het plafond
+        while read -r c; do
+            case "$c" in ''|rzsense-*|"${px_ctr-}") continue ;; esac
+            while read -r src; do
+                [ -n "$src" ] && av_ok_dir "$src" >/dev/null && av_sugg+="${av_sugg:+,}{\"c\":\"$(json_escape "$c")\",\"p\":\"$(json_escape "$src")\"}"
+            done < <(avx inspect -f '{{range .Mounts}}{{.Source}}{{"\n"}}{{end}}' "$c" 2>/dev/null | head -n 20)
+        done < <(avx ps --format '{{.Names}}' 2>/dev/null | head -n 60)
+        # 3. Container: (opnieuw) aanmaken als hij er niet is of de mappen veranderden; eerst genoeg geheugen?
+        av_mounts=(); for d in "${av_ok[@]}"; do av_mounts+=(-v "$d:$d:ro"); done
+        av_ehash=$(printf '%s|' "$av_img" "${av_ok[@]}" | sha1sum | cut -c1-12)
+        if ! av_exists || [ "$(cat "$av_dir/env.hash" 2>/dev/null)" != "$av_ehash" ]; then
+            if ! av_exists && [ "$av_mem" -lt "${AV_MIN_MB:-1400}" ]; then
+                av_state=lowmem; av_msg="te weinig vrij geheugen: $av_mem MB, nodig ${AV_MIN_MB:-1400} MB"
+            else
+                avx rm -f "$av_ctr" >/dev/null 2>&1
+                # Geen relabel (:Z) op de mappen van je apps: dat zou hun rechten veranderen; daarom label=disable
+                if out=$(AVX_T=900 avx run -d --name "$av_ctr" --restart unless-stopped --security-opt label=disable \
+                    -v "$av_dir/db:/var/lib/clamav" -v "$av_dir/work:/rzwork:ro" "${av_mounts[@]}" "$av_img" 2>&1); then
+                    echo "$av_ehash" >"$av_dir/env.hash"
+                    act_log proxy 1 "ClamAV gestart" "$av_img, ${#av_ok[@]} mappen"
+                else
+                    av_msg="starten mislukt: $(tail -n 2 <<<"$out" | tr '\n' ' ' | cut -c1-200)"
+                fi
+            fi
+        fi
+        # 4. Bestand gevonden: melden en (als de schakelaar aan staat) naar de quarantaine
+        av_hit() {  # av_hit <pad> <handtekening>
+            local p=$1 sig=$2 r ok=0 d sha sz qid="" moved=0
+            r=$(realpath -e -- "$p" 2>/dev/null) || return 0
+            [ -f "$r" ] && [ ! -L "$p" ] || return 0
+            for d in "${av_ok[@]}"; do [[ "$r" == "$d/"* ]] && ok=1; done
+            [ "$ok" = 1 ] || return 0
+            sha=$(sha256sum -- "$r" 2>/dev/null | cut -c1-64); sz=$(stat -c %s -- "$r" 2>/dev/null || echo 0)
+            grep -qx "$sha" "$av_dir/allow.sha" 2>/dev/null && return 0   # teruggezet door de beheerder: niet opnieuw
+            if [ "$av_move" = 1 ]; then
+                qid="$(date +%Y%m%d%H%M%S)-$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+                mkdir -m 700 "$av_dir/quarantine/$qid" &&
+                    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$r" "$sig" "$sha" "$sz" "$(stat -c '%u:%g' -- "$r")" "$(stat -c '%a' -- "$r")" "$(date +%s)" >"$av_dir/quarantine/$qid/meta" &&
+                    mv -- "$r" "$av_dir/quarantine/$qid/file" && chmod 000 "$av_dir/quarantine/$qid/file" && moved=1
+                [ "$moved" = 1 ] || { rm -rf "${av_dir:?}/quarantine/$qid"; qid=""; }
+            fi
+            act_log proxy "$moved" "ClamAV: $sig" "$r$([ "$moved" = 1 ] && echo " → quarantaine $qid")"
+            av_found+="${av_found:+,}{\"p\":\"$(json_escape "$r")\",\"sig\":\"$(json_escape "$sig")\",\"sha\":\"$sha\",\"size\":${sz:-0},\"qid\":\"$qid\",\"moved\":$moved}"
+        }
+        av_parse() { while IFS= read -r l; do [[ "$l" == *': '*' FOUND' ]] || continue; l=${l% FOUND}; av_hit "${l%: *}" "${l##*: }"; done; }
+        # 5. Klaar? Dan de nieuwe bestanden scannen (de eerste keer alleen een beginpunt: alles = volledige scan)
+        if [ "$(avx inspect -f '{{.State.Running}}' "$av_ctr" 2>/dev/null)" = true ]; then
+            if avx exec "$av_ctr" clamdscan --no-summary /etc/hostname >/dev/null 2>&1; then
+                av_state=ok
+                av_sigs=$(avx exec "$av_ctr" clamdscan --version 2>/dev/null | head -n 1 | cut -c1-80)
+                if [ ! -f "$av_dir/last.stamp" ]; then
+                    touch "$av_dir/last.stamp"; av_msg=${av_msg:-"klaar; nieuwe bestanden worden vanaf nu gescand"}
+                elif [ ${#av_ok[@]} -gt 0 ]; then
+                    touch "$av_dir/next.stamp"
+                    find "${av_ok[@]}" -xdev -type f -newer "$av_dir/last.stamp" -size -"${AV_MAX_MB:-100}"M ! -name '*'$'\n''*' 2>/dev/null | head -n 2001 >"$av_dir/work/list.txt"
+                    av_new=$(wc -l <"$av_dir/work/list.txt")
+                    if [ "$av_new" -gt 0 ]; then
+                        out=$(AVX_T=600 avx exec "$av_ctr" clamdscan --no-summary --infected --file-list=/rzwork/list.txt 2>&1); rc=$?
+                        av_parse <<<"$out"
+                        [ "$rc" -le 1 ] || av_msg="scan gaf fout $rc: $(grep -v FOUND <<<"$out" | head -n 1 | cut -c1-150)"
+                    fi
+                    [ "$av_new" -gt 2000 ] && av_msg="meer dan 2000 nieuwe bestanden in één minuut: start een volledige scan"
+                    mv -f "$av_dir/next.stamp" "$av_dir/last.stamp"
+                    : >"$av_dir/work/list.txt"
+                fi
+                # Volledige scan op verzoek, op de achtergrond; de uitkomst verwerkt een volgende ronde
+                av_fullid=$(awk -F'\t' '$1 == "0" && $2 == "avfull" { print $3; exit }' "$t_cache" | tr -dc '0-9a-z-' | cut -c1-40)
+                if [ -f "$av_dir/full.rc" ] && [ ! -f "$av_dir/full.done" ]; then
+                    av_parse <"$av_dir/full.out"; cp "$av_dir/full.id" "$av_dir/full.done"
+                    act_log proxy 1 "ClamAV: volledige scan klaar" "$(grep -c ' FOUND$' "$av_dir/full.out") gevonden"
+                fi
+                if [ -n "$av_fullid" ] && [ "$(cat "$av_dir/full.id" 2>/dev/null)" != "$av_fullid" ] && [ ${#av_ok[@]} -gt 0 ]; then
+                    rm -f "$av_dir/full.rc" "$av_dir/full.out" "$av_dir/full.done"; echo "$av_fullid" >"$av_dir/full.id"
+                    nohup sh -c 'e=$0; c=$1; d=$2; shift 2; timeout 21600 "$e" exec "$c" clamdscan --no-summary --infected --multiscan "$@" >"$d/full.out" 2>&1; echo $? >"$d/full.rc"' \
+                        "$av_eng" "$av_ctr" "$av_dir" "${av_ok[@]}" >/dev/null 2>&1 &
+                    act_log proxy 1 "ClamAV: volledige scan gestart" "${#av_ok[@]} mappen"
+                fi
+                if [ -f "$av_dir/full.id" ]; then
+                    if [ -f "$av_dir/full.done" ]; then av_full="done"; else av_full="running"; fi
+                fi
+            else
+                av_state=starting; av_msg=${av_msg:-"ClamAV start nog (virusdefinities laden; de eerste keer een paar minuten)"}
+            fi
+        elif [ "$av_state" != lowmem ]; then
+            av_msg=${av_msg:-"de container draait niet"}
+        fi
+        # 6. Quarantaine: terugzetten of definitief weghalen op verzoek, en de lijst meesturen
+        while IFS=$'\t' read -r _ op qid; do
+            [[ "$qid" =~ ^[0-9]{14}-[0-9a-f]{8}$ ]] || continue
+            qd="$av_dir/quarantine/$qid"; ok=1; m=""
+            if [ ! -d "$qd" ]; then m="niet (meer) in de quarantaine"
+            elif [ "$op" = avdelete ]; then rm -rf -- "$qd"; m="definitief weggehaald"; act_log proxy 1 "ClamAV: uit de quarantaine weggehaald" "$qid"
+            else
+                IFS=$'\t' read -r op_p _ op_sha _ op_own op_mode _ <"$qd/meta"
+                if [ -e "$op_p" ]; then ok=0; m="er staat al een bestand op $op_p"
+                elif [ ! -d "$(dirname -- "$op_p")" ]; then ok=0; m="de map bestaat niet meer"
+                elif mv -- "$qd/file" "$op_p" && chown "$op_own" -- "$op_p" && chmod "$op_mode" -- "$op_p"; then
+                    echo "$op_sha" >>"$av_dir/allow.sha"; rm -rf -- "$qd"; m="teruggezet"; act_log proxy 1 "ClamAV: teruggezet" "$op_p"
+                else ok=0; m="terugzetten mislukt"; fi
+            fi
+            av_ops+="${av_ops:+,}{\"qid\":\"$qid\",\"op\":\"${op#av}\",\"ok\":$ok,\"msg\":\"$(json_escape "$m")\"}"
+        done < <(awk -F'\t' '$1 == "0" && ($2 == "avrestore" || $2 == "avdelete")' "$t_cache" | head -n 50)
+        for qd in "$av_dir"/quarantine/*/; do
+            [ -f "$qd/meta" ] || continue
+            IFS=$'\t' read -r q_p q_sig q_sha q_sz _ _ q_at <"$qd/meta"
+            av_q+="${av_q:+,}{\"qid\":\"$(basename "$qd")\",\"p\":\"$(json_escape "$q_p")\",\"sig\":\"$(json_escape "$q_sig")\",\"sha\":\"$q_sha\",\"size\":${q_sz:-0},\"at\":${q_at:-0}}"
+        done
+    fi
+    av_json="{\"state\":\"$av_state\",\"msg\":\"$(json_escape "$av_msg")\",\"mem\":$av_mem,\"image\":\"$(json_escape "$av_img")\",\"sigs\":\"$(json_escape "$av_sigs")\",\"new\":$av_new,\"full\":\"$av_full\",\"full_id\":\"$(cat "$av_dir/full.id" 2>/dev/null | tr -dc '0-9a-z-')\",\"dirs\":[$av_dirs_j],\"suggest\":[$av_sugg],\"found\":[$av_found],\"quarantine\":[$av_q],\"ops\":[$av_ops]}"
+fi

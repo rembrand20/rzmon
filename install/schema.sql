@@ -1673,3 +1673,32 @@ CREATE TABLE IF NOT EXISTS proxy_advice (
     UNIQUE KEY uq_proxy_advice (host_id, site)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('proxy_ai_on', '0'), ('proxy_ai_auto', '0');
+-- 1.257.0 (agent 1.99.0): ClamAV op de reverse proxy: uploadmappen per server (en site), en wat er gevonden is
+CREATE TABLE IF NOT EXISTS av_dirs (
+    id       INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id  INT UNSIGNED NOT NULL,
+    path     VARCHAR(250) NOT NULL,
+    site     VARCHAR(190) NOT NULL DEFAULT '',
+    added_by VARCHAR(64)  NOT NULL DEFAULT '',
+    added_at DATETIME     NOT NULL,
+    UNIQUE KEY uq_av_dir (host_id, path)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS av_events (
+    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id    INT UNSIGNED NOT NULL,
+    fkey       VARCHAR(40)  NOT NULL,
+    at         DATETIME     NOT NULL,
+    path       VARCHAR(500) NOT NULL,
+    sig        VARCHAR(120) NOT NULL,
+    sha256     CHAR(64)     NOT NULL DEFAULT '',
+    size       BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    qid        VARCHAR(40)  NOT NULL DEFAULT '',
+    status     ENUM('found','quarantined','restored','deleted') NOT NULL DEFAULT 'found',
+    op_pending ENUM('','restore','delete') NOT NULL DEFAULT '',
+    op_by      VARCHAR(64)  NULL,
+    op_at      DATETIME     NULL,
+    op_msg     VARCHAR(200) NULL,
+    UNIQUE KEY uq_av_event (host_id, fkey),
+    INDEX idx_av_at (host_id, at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('av_on', '0'), ('av_notify', '1'), ('av_move', '1');

@@ -1081,7 +1081,7 @@ function accIgnoreDialog(r) {
 
 const IDS_CATS = [['ports', () => L('Poorten'), ['port_new', 'kev_port']], ['net', () => '🌐 ' + L('Uitgaand'), ['outbound', 'out_bad', 'out_country']],
   ['web', () => '🕸️ ' + L('Webshell en diensten'), ['webshell', 'unit_new']], ['weblog', () => '📜 ' + L('Webdiensten'), ['web_attack']], ['files', () => L('Bestanden'), ['file', 'fim', 'fim_bulk']],
-  ['procs', () => L('Processen'), ['proc', 'proc_suspicious', 'revshell']], ['logins', () => L('Logins'), ['bruteforce', 'breakin', 'rootlogin', 'newip', 'user_new', 'ssh_login', 'group_add', 'uid0']], ['decoy', () => '🍯 ' + L('Honeypot'), ['decoy_user', 'decoy_port']], ['ransom', () => '🧬 ' + L('Ransomware'), ['ransom', 'ransom_mass']], ['apps', () => '🧩 ' + L('Programma\'s'), ['app_new', 'app_changed', 'app_block']], ['ioc', () => '🔎 ' + L('Sporen'), ['ioc']]];
+  ['procs', () => L('Processen'), ['proc', 'proc_suspicious', 'revshell']], ['logins', () => L('Logins'), ['bruteforce', 'breakin', 'rootlogin', 'newip', 'user_new', 'ssh_login', 'group_add', 'uid0']], ['decoy', () => '🍯 ' + L('Honeypot'), ['decoy_user', 'decoy_port']], ['ransom', () => '🧬 ' + L('Ransomware'), ['ransom', 'ransom_mass']], ['apps', () => '🧩 ' + L('Programma\'s'), ['app_new', 'app_changed', 'app_block']], ['ioc', () => '🔎 ' + L('Sporen'), ['ioc']], ['malware', () => '🦠 ' + L('Malware'), ['malware']]];
 const idsCatOf = (i) => (IDS_CATS.find((c) => c[2].includes(i.type)) || [''])[0];
 
 /** Toegang in de laatste 24 uur: [gelukt, mislukt (pogingen), per uur mislukt] */

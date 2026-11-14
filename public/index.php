@@ -1317,6 +1317,12 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
             <span id="proxy-ai-txt" class="small"></span></label>
           <datalist id="proxy-ai-steps"><option value="0"></option><option value="1"></option></datalist>
           <div id="proxy-ai-note"></div>
+          <h3 class="set-sub">🦠 <?= th('Uploads scannen op malware (ClamAV)') ?></h3>
+          <?= xp(t('ClamAV scant de bestanden die via je apps binnenkomen (uploads, bijlagen) op virussen, webshells en andere malware.'), t('<b>Hoe het werkt:</b> de agent (1.99.0) kijkt eerst of er genoeg geheugen vrij is (ruim 1,4 GB) en start dan ClamAV als eigen container (<i>rzsense-clamav</i>); de virusdefinities werken zichzelf bij. Op de pagina Reverse proxy kies je per site de uploadmap; de agent stelt ze voor uit de mappen van je apps. Elke ronde (elke minuut) scant hij de bestanden die nieuw of gewijzigd zijn; een <i>volledige scan</i> start je met een knop. ClamAV ziet de mappen alleen-lezen en de agent komt nooit aan systeemmappen; op de server bepaalt <code>AV_DIRS_MAX</code> welke mappen mogen. <b>Melden:</b> een vondst wordt een IDS-incident met melding. <b>Verplaatsen:</b> het bestand gaat naar een afgeschermde quarantaine (alleen root); terugzetten of definitief weghalen doe je vanuit RzSense. <b>Eerlijk:</b> dit scant direct ná het uploaden, niet aan de deur.')) ?>
+          <label class="switch"><input type="checkbox" name="av_on"><span></span> <?= t('<b>ClamAV aan</b> op de reverse proxy') ?></label>
+          <label class="switch"><input type="checkbox" name="av_notify"><span></span> <?= t('<b>Melden</b>: een vondst wordt een IDS-incident met melding') ?></label>
+          <label class="switch"><input type="checkbox" name="av_move"><span></span> <?= t('<b>Verplaatsen</b>: een besmet bestand meteen naar de quarantaine (terug te zetten)') ?></label>
+          <div id="av-status"></div>
           <p class="small muted"><a href="#proxy" data-goto="proxy"><?= th('Naar de pagina Reverse proxy (per site instellen)') ?> →</a></p>
         </div>
         <div data-sk="sudo" class="card" id="sudo-card">

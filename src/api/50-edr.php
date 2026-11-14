@@ -609,6 +609,25 @@ switch ($action) {
         $in = input();
         ProxyAdvice::dismiss((int) ($in['host_id'] ?? 0), strtolower((string) ($in['site'] ?? '')), (string) $user['username']) ? out(['ok' => true]) : out(['error' => t('Geen open voorstel voor deze site')], 404);
 
+    // 1.257.0: ClamAV op de reverse proxy (mappen, volledige scan, quarantaine)
+    case 'av_dir_add':
+        $in = input();
+        ($err = Av::addDir((int) ($in['host_id'] ?? 0), (string) ($in['path'] ?? ''), strtolower((string) ($in['site'] ?? '')), (string) $user['username'])) === null
+            ? out(['ok' => true]) : out(['error' => $err], 422);
+
+    case 'av_dir_remove':
+        $in = input();
+        Av::removeDir((int) ($in['host_id'] ?? 0), (string) ($in['path'] ?? ''), (string) $user['username']);
+        out(['ok' => true]);
+
+    case 'av_full':
+        Av::fullScan((int) (input()['host_id'] ?? 0), (string) $user['username']);
+        out(['ok' => true]);
+
+    case 'av_op':
+        $in = input();
+        ($err = Av::op((int) ($in['id'] ?? 0), (string) ($in['op'] ?? ''), (string) $user['username'])) === null ? out(['ok' => true]) : out(['error' => $err], 422);
+
     case 'waf_except':
         $in = input();
         $err = Waf::addException((int) ($in['host_id'] ?? 0), strtolower((string) ($in['site'] ?? '')), (string) ($in['rule'] ?? ''), (string) $user['username']);

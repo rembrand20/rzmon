@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.257.0**: **uploads scannen op malware**: ClamAV op de reverse proxy, met melden en verplaatsen naar quarantaine elk aan en uit.
 - **1.256.0**: **AI-advies voor de reverse proxy**: de AI stelt per site het beleid voor met een reden; met een slider zelf toepassen of automatisch.
 - **1.255.0**: **WAF op de reverse proxy**: CrowdSec bekijkt elk verzoek naar je apps; met een slider van alleen melden naar blokkeren, en per site zie je wat hij zou tegenhouden.
 - **1.254.0**: **reverse proxy beschermen**: per site adminpagina's alleen vanaf je eigen netwerk, rate limit en bots weren; de agent op SWAG of Nginx Proxy Manager voert het veilig door.
 - **1.253.0**: **Axigen in de bibliotheek**: tien vaste zoekacties voor de Axigen-mailserver (wachtwoorden raden, blocklist, mail blijft hangen, licentie, en meer).
-- **1.252.0**: **voortgang overal**: knoppen laten zien dat ze bezig zijn en hoe lang het meestal duurt; netwerk- en poortscan met stappen en ⏹ Stoppen, en de netwerkscan loopt door als je weggaat.
+
+## 1.257.0 – 2026-11-14
+### Nieuw
+- **🦠 Uploads scannen op malware met ClamAV** (*Instellingen → Beveiliging → Reverse proxy* en de pagina *Reverse proxy*): ClamAV op de reverse proxy scant elke minuut de nieuwe en gewijzigde bestanden in de uploadmappen van je apps (bv. de datamap van Nextcloud), en op verzoek alles.
+  - **Melden** en **Verplaatsen** elk met een eigen schakelaar: een vondst wordt een IDS-incident (*malware*), en/of het bestand gaat meteen naar een afgeschermde quarantaine. Vanuit RzSense zet je het terug of haal je het definitief weg.
+  - Uploadmappen kies je per site; de agent stelt ze voor uit de mappen van je apps. Alleen binnen het plafond op de server (`AV_DIRS_MAX`), nooit systeemmappen.
+  - De agent start ClamAV alleen als er genoeg geheugen vrij is (± 1,4 GB) en ClamAV ziet je mappen alleen-lezen.
+  - **Agent 1.99.0 nodig.**
+- **Nieuwe agent 1.99.0** (ClamAV op de reverse proxy).
+
 
 ## 1.256.0 – 2026-11-14
 ### Nieuw

@@ -11044,7 +11044,7 @@ function accIgnoreDialog(r) {
 
 const IDS_CATS = [['ports', () => L('Poorten'), ['port_new', 'kev_port']], ['net', () => '🌐 ' + L('Uitgaand'), ['outbound', 'out_bad', 'out_country']],
   ['web', () => '🕸️ ' + L('Webshell en diensten'), ['webshell', 'unit_new']], ['weblog', () => '📜 ' + L('Webdiensten'), ['web_attack']], ['files', () => L('Bestanden'), ['file', 'fim', 'fim_bulk']],
-  ['procs', () => L('Processen'), ['proc', 'proc_suspicious', 'revshell']], ['logins', () => L('Logins'), ['bruteforce', 'breakin', 'rootlogin', 'newip', 'user_new', 'ssh_login', 'group_add', 'uid0']], ['decoy', () => '🍯 ' + L('Honeypot'), ['decoy_user', 'decoy_port']], ['ransom', () => '🧬 ' + L('Ransomware'), ['ransom', 'ransom_mass']], ['apps', () => '🧩 ' + L('Programma\'s'), ['app_new', 'app_changed', 'app_block']], ['ioc', () => '🔎 ' + L('Sporen'), ['ioc']]];
+  ['procs', () => L('Processen'), ['proc', 'proc_suspicious', 'revshell']], ['logins', () => L('Logins'), ['bruteforce', 'breakin', 'rootlogin', 'newip', 'user_new', 'ssh_login', 'group_add', 'uid0']], ['decoy', () => '🍯 ' + L('Honeypot'), ['decoy_user', 'decoy_port']], ['ransom', () => '🧬 ' + L('Ransomware'), ['ransom', 'ransom_mass']], ['apps', () => '🧩 ' + L('Programma\'s'), ['app_new', 'app_changed', 'app_block']], ['ioc', () => '🔎 ' + L('Sporen'), ['ioc']], ['malware', () => '🦠 ' + L('Malware'), ['malware']]];
 const idsCatOf = (i) => (IDS_CATS.find((c) => c[2].includes(i.type)) || [''])[0];
 
 /** Toegang in de laatste 24 uur: [gelukt, mislukt (pogingen), per uur mislukt] */
@@ -22140,6 +22140,7 @@ async function loadProxy() {
       ${(s.sites || []).length ? `<div class="table-scroll"><table class="vuln-table px-table"><thead><tr><th>${L('Aan')}</th><th>${L('Site')}</th><th>${L('Wie mag erbij')}</th><th>${L('Rate limit')}</th><th>${L('Bots weren')}</th>${d.waf && d.waf.on ? `<th>${L('WAF')}</th>` : ''}<th></th></tr></thead><tbody>${rows}</tbody></table></div>`
         : `<p class="muted small">${s.report ? L('Geen sites gevonden in de proxy.') : L('Nog geen rapport van de agent. Dat komt bij zijn volgende ronde (meestal binnen een minuut).')}</p>`}
       ${d.waf && d.waf.on ? wafPanel(s, d.waf) : ''}
+      ${d.av && d.av.on ? avPanel(s) : ''}
     </section>`;
   }).join('');
   // Opslaan bij elke wijziging (de agent voert het bij zijn volgende ronde door)
@@ -22151,6 +22152,14 @@ async function loadProxy() {
     catch (ex) { toast(ex.message, 'err'); }
   };
   box.onchange = (e) => {
+    if (e.target.matches('[data-av-sugg-pick]')) {   // voorstel kiezen = map en site invullen
+      const b = e.target.closest('.av-box');
+      const x = JSON.parse(b.dataset.avSugg || '[]')[+e.target.value];
+      if (!x) return;
+      $('[data-av-path]', b).value = x.path; $('[data-av-site]', b).value = x.site || '';
+      return;
+    }
+    if (e.target.closest('.av-box')) return;
     const tr = e.target.closest('[data-px-site]');
     if (!tr) return;
     if (e.target.dataset.px === 'lan_mode') {
@@ -22182,6 +22191,29 @@ async function loadProxy() {
         else { const res = await api('proxy_ai_apply', pa.matches('[data-pxa-all]') ? { host_id: host, all: 1 } : { host_id: host, site });
           toast(L('{n} toegepast; de agent voert het binnen een minuut door', { n: res.n })); }
       } catch (ex) { toast(ex.message, 'err'); }
+      loadProxy();
+      return;
+    }
+    const av = e.target.closest('[data-av-add], [data-av-rm], [data-av-full], [data-av-op]');
+    if (av) {
+      const box2 = av.closest('.av-box');
+      try {
+        if (av.matches('[data-av-add]')) {
+          const path = $('[data-av-path]', box2).value.trim();
+          if (!path) { $('[data-av-path]', box2).focus(); return; }
+          await api('av_dir_add', { host_id: host, path, site: $('[data-av-site]', box2).value });
+          toast(L('Map toegevoegd; de agent start ClamAV opnieuw met deze map (binnen een minuut)'));
+        } else if (av.matches('[data-av-rm]')) {
+          if (!confirm(L('Map {p} niet meer scannen?', { p: av.dataset.avRm }))) return;
+          await api('av_dir_remove', { host_id: host, path: av.dataset.avRm }); toast(L('Map weggehaald'));
+        } else if (av.matches('[data-av-full]')) {
+          await api('av_full', { host_id: host }); toast(L('Volledige scan aangevraagd; die loopt op de achtergrond'));
+        } else {
+          const del = av.dataset.avOp === 'delete';
+          if (!confirm(del ? L('Dit bestand definitief weghalen? Dat kan niet ongedaan worden.') : L('Dit bestand terugzetten op zijn oude plek? Het wordt daarna niet opnieuw in quarantaine gezet.'))) return;
+          await api('av_op', { id: +av.dataset.id, op: av.dataset.avOp }); toast(L('Aangevraagd; de agent doet het bij zijn volgende ronde'));
+        }
+      } catch (ex) { toast(ex.message, 'err'); return; }
       loadProxy();
       return;
     }
@@ -22241,6 +22273,52 @@ function pxaRow(x, item, cols) {
       <span class="pxa-btns"><button type="button" class="btn small-btn primary" data-pxa-apply>${L('Toepassen')}</button> <button type="button" class="btn small-btn" data-pxa-dismiss>${L('Negeren')}</button></span></div></td></tr>`;
 }
 
+// 1.257.0: ClamAV op de reverse proxy
+const AV_STATE = () => ({ ok: ['ok', '✔ ' + L('actief')], starting: ['wait', '⏳ ' + L('wordt gestart')], lowmem: ['bad', '✘ ' + L('te weinig geheugen')],
+  error: ['bad', '✘ ' + L('fout')], off: ['', L('uit')], unsupported: ['wait', L('niet ondersteund')] });
+const avMsg = (m) => {
+  if (!m) return '';
+  const r = [[/^te weinig vrij geheugen: (\d+) MB, nodig (\d+) MB$/, (x) => L('te weinig vrij geheugen: {a} MB, nodig {b} MB', { a: x[1], b: x[2] })],
+    [/^klaar; nieuwe bestanden worden vanaf nu gescand$/, () => L('klaar; nieuwe bestanden worden vanaf nu gescand')],
+    [/^ClamAV start nog/, () => L('ClamAV start nog (virusdefinities laden; de eerste keer een paar minuten)')],
+    [/^meer dan 2000 nieuwe bestanden/, () => L('meer dan 2000 nieuwe bestanden in één minuut: start een volledige scan')],
+    [/^de container draait niet$/, () => L('de container draait niet')], [/^geen Podman of Docker gevonden$/, () => L('geen Podman of Docker gevonden')],
+    [/^starten mislukt: (.*)$/s, (x) => L('starten mislukt: {m}', { m: x[1] })]];
+  for (const [re, f] of r) { const x = m.match(re); if (x) return f(x); }
+  return m;
+};
+const avWhy = (w) => ({ 'bestaat niet': L('bestaat niet'), 'geen map': L('geen map'), systeemmap: L('systeemmap'), 'buiten het plafond (AV_DIRS_MAX)': L('buiten het plafond (AV_DIRS_MAX)') }[w] || w);
+const AV_EV = () => ({ found: ['bad', L('gemeld')], quarantined: ['wait', L('in quarantaine')], restored: ['ok', L('teruggezet')], deleted: ['', L('weggehaald')] });
+
+/** Op de pagina Reverse proxy: ClamAV per server (stand, mappen per site, voorstellen, vondsten met terugzetten) */
+function avPanel(s) {
+  const a = s.av || {};
+  const [cls, txt] = AV_STATE()[a.state] || ['wait', '⏳ ' + L('wacht op de agent')];
+  const siteOpts = (s.sites || []).map((x) => `<option value="${esc(x.site)}">${esc(x.site)}</option>`).join('');
+  const dirs = (a.dirs || []).map((d) => `<span class="av-dir ${d.ok === false ? 'bad' : ''}" title="${esc(d.ok === false ? avWhy(d.why) : '')}">${d.site ? `<b>${esc(d.site)}</b> ` : ''}<code>${esc(d.path)}</code>${d.ok === false ? ` ✘ ${esc(avWhy(d.why))}` : d.ok ? ' ✔' : ''}
+      <button type="button" class="btn small-btn" data-av-rm="${esc(d.path)}" aria-label="${esc(L('Weghalen'))}">×</button></span>`).join('');
+  const sugg = (a.suggest || []).map((x, i) => `<option value="${i}">${esc(x.site || x.ctr)} · ${esc(x.path)}</option>`).join('');
+  const ev = (a.events || []).map((e) => {
+    const [c, t] = AV_EV()[e.status] || ['', e.status];
+    return `<tr><td class="nowrap small">${esc(ago(e.at))}</td><td class="mono small">${esc(e.path)}</td><td class="small">${esc(e.sig)}</td>
+      <td><span class="lf-tag ${c}">${t}</span>${e.pending ? ` <span class="lf-tag wait">⏳ ${e.pending === 'restore' ? L('terugzetten') : L('weghalen')}</span>` : ''}${e.msg ? `<div class="muted small">${esc(e.msg)}</div>` : ''}</td>
+      <td class="nowrap">${e.status === 'quarantined' && !e.pending ? `<button type="button" class="btn small-btn" data-av-op="restore" data-id="${e.id}">${L('Terugzetten')}</button> <button type="button" class="btn small-btn danger" data-av-op="delete" data-id="${e.id}">${L('Definitief weghalen')}</button>` : ''}</td></tr>`;
+  }).join('');
+  return `<div class="waf-box av-box" data-av-sugg="${esc(JSON.stringify(a.suggest || []))}"><div class="px-h"><b>🦠 ClamAV</b> <span class="lf-tag ${cls}">${txt}</span>
+      <span class="muted small">${a.sigs ? esc(a.sigs) : ''}${a.mem ? ' · ' + L('{n} MB vrij', { n: a.mem }) : ''}${a.state === 'ok' ? ' · ' + L('{n} nieuwe bestanden gescand (laatste ronde)', { n: a.new || 0 }) : ''}</span><span class="lp-sp"></span>
+      ${a.full === 'running' || a.full === 'requested' ? `<span class="lf-tag wait">⏳ ${L('volledige scan loopt')}</span>` : `<button type="button" class="btn small-btn" data-av-full ${(a.dirs || []).length ? '' : 'disabled'}>🔍 ${L('Volledige scan')}</button>`}</div>
+    ${s.av_agent_ok === false ? `<div class="callout small">⬆ ${L('Agent 1.99.0 of nieuwer nodig voor ClamAV. Werk de agent bij in de Agent Manager.')}</div>` : ''}
+    ${a.msg ? `<p class="small ${['error', 'lowmem'].includes(a.state) ? 'danger-txt' : 'muted'}">${esc(avMsg(a.msg))}</p>` : ''}
+    <div class="small"><b>${L('Uploadmappen')}</b></div>
+    <div class="av-dirs">${dirs || `<span class="muted small">${L('Nog geen mappen. Kies hieronder een voorstel of vul een map in.')}</span>`}</div>
+    <div class="av-add">${sugg ? `<select data-av-sugg-pick aria-label="${esc(L('Voorstel'))}"><option value="">${esc(L('Voorstel uit je apps…'))}</option>${sugg}</select>` : ''}
+      <select data-av-site aria-label="${esc(L('Site'))}"><option value="">${esc(L('Site (optioneel)'))}</option>${siteOpts}</select>
+      <input type="text" class="mono" data-av-path placeholder="/srv/nextcloud/data" aria-label="${esc(L('Map'))}">
+      <button type="button" class="btn small-btn primary" data-av-add>＋ ${L('Toevoegen')}</button></div>
+    ${ev ? `<div class="table-scroll"><table class="vuln-table"><thead><tr><th>${L('Tijd')}</th><th>${L('Bestand')}</th><th>${L('Gevonden')}</th><th></th><th></th></tr></thead><tbody>${ev}</tbody></table></div>`
+      : `<p class="muted small">${L('Nog niets gevonden.')}</p>`}</div>`;
+}
+
 /** Per site: wat de WAF de laatste 14 dagen zag, en wat hij bij elke stand van de slider tegengehouden had */
 function wafSiteStats(st) {
   if (!st || !st.seen) return `<div class="muted small">${L('geen aanvallen gezien')}</div>`;
@@ -22279,6 +22357,21 @@ function wafRangeSync(fallback) {
   r.oninput = () => { h.value = WAF_MODES[+r.value]; sync(); };
 }
 
+/** Beheerportal: ClamAV per proxyserver (stand, geheugen, definities) */
+function avSettings(d) {
+  const box = $('#av-status');
+  if (!box) return;
+  const px = d.servers.filter((s) => s.role);
+  box.innerHTML = !d.av || !d.av.on || !px.length ? '' : px.map((s) => {
+    const a = s.av || {};
+    const [cls, txt] = AV_STATE()[a.state] || ['wait', '⏳ ' + L('wacht op de agent')];
+    return `<div class="px-srv"><div class="px-h"><b>${esc(s.name)}</b> <span class="lf-tag ${cls}">${txt}</span>
+      <span class="muted small">${a.sigs ? esc(a.sigs) : ''}${a.mem ? ' · ' + L('{n} MB vrij', { n: a.mem }) : ''} · ${L('{n} mappen', { n: (a.dirs || []).length })}${a.quarantine ? ' · ' + L('{n} in quarantaine', { n: a.quarantine }) : ''}</span></div>
+      ${a.msg ? `<p class="small muted">${esc(avMsg(a.msg))}</p>` : ''}
+      ${!(a.dirs || []).length ? `<p class="small">${L('Kies de uploadmappen per site op de pagina Reverse proxy.')} <a href="#proxy" data-goto="proxy">${L('Naar Reverse proxy')} →</a></p>` : ''}</div>`;
+  }).join('');
+}
+
 /** De uitleg onder de slider Zelf beheren / Automatisch volgt de stand */
 function pxaAutoSync() {
   const r = $('#proxy-ai-auto');
@@ -22301,6 +22394,7 @@ function pxaSettings(d) {
 function wafSettings(d) {
   wafRangeSync(d.waf && d.waf.mode);
   pxaSettings(d);
+  avSettings(d);
   const box = $('#waf-status');
   if (!box) return;
   const px = d.servers.filter((s) => s.role);

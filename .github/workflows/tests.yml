@@ -86,6 +86,13 @@ jobs:
           bash tests/agent-waf.sh 2>&1 | tee /tmp/waf.out
           rc=${PIPESTATUS[0]}
           [ "$rc" = 0 ] || { echo "::error title=WAF op ${{ matrix.image }}::$(tail -n 15 /tmp/waf.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
+      - name: ClamAV op de reverse proxy (nep-ClamAV)
+        shell: bash
+        run: |
+          set +e +o pipefail
+          bash tests/agent-av.sh 2>&1 | tee /tmp/av.out
+          rc=${PIPESTATUS[0]}
+          [ "$rc" = 0 ] || { echo "::error title=ClamAV op ${{ matrix.image }}::$(tail -n 15 /tmp/av.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
       - name: Endpoint-bewaking (auditd-, SWAG- en Suricata-parser)
         shell: bash
         run: |

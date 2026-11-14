@@ -514,6 +514,7 @@ if ($action === 'agent') {
     Sudo::fromAgent($host, $in);   // 1.231.0: tijdelijk sudo (agent 1.93.0)
     ProxyGuard::fromAgent($host, $in);   // 1.254.0: reverse proxy (agent 1.97.0)
     Waf::fromAgent($host, $in);   // 1.255.0: WAF (agent 1.98.0)
+    Av::fromAgent($host, $in);   // 1.257.0: ClamAV (agent 1.99.0)
     ActionLog::fromAgent($host, $in);   // 1.226.0: wat de agent zelf op de server deed (agent 1.89.0)
     // Vorige stand van de verbindingscontrole (1.100.0), vóór de oude regels verdwijnen
     $prevSec = q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'sec_state'", [$host['id']])->fetchColumn();

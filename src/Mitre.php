@@ -24,7 +24,7 @@ final class Mitre
         'bruteforce' => ['T1110.001'], 'breakin' => ['T1110', 'T1078'], 'rootlogin' => ['T1078.003'], 'newip' => ['T1078'],
         'ssh_login' => ['T1021.004', 'T1078'], 'decoy_user' => ['T1110.001'], 'decoy_port' => ['T1046'],
         'user_new' => ['T1136.001'], 'group_add' => ['T1098'], 'suid_new' => ['T1548.001'], 'module_new' => ['T1547.006'],
-        'pkg_changed' => ['T1554'], 'proc_suspicious' => ['T1059.004'], 'revshell' => ['T1059.004'], 'webshell' => ['T1505.003'],
+        'pkg_changed' => ['T1554'], 'proc_suspicious' => ['T1059.004'], 'revshell' => ['T1059.004'], 'webshell' => ['T1505.003'], 'malware' => ['T1105', 'T1204.002'],
         'outbound' => ['T1071'], 'out_country' => ['T1071'], 'out_bad' => ['T1071'], 'port_new' => ['T1571'], 'kev_port' => ['T1190'],
         'web_attack' => ['T1190'], 'web_payload' => ['T1190'], 'web_cve' => ['T1190'], 'ti_ip' => ['T1071'], 'ti_malware' => ['T1204.002'], 'dns_bad' => ['T1071.004'], 'dns_odd' => ['T1071.004'], 'fim' => ['T1565.001'], 'fim_bulk' => ['T1565.001'],
     ];
