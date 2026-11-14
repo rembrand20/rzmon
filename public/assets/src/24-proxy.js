@@ -374,6 +374,71 @@ function wafRangeSync(fallback) {
   r.oninput = () => { h.value = WAF_MODES[+r.value]; sync(); };
 }
 
+// 1.259.0: advies voor alle velden (AI of standaard), daarna gewoon aan te passen
+const PXF_LABEL = () => ({ proxy_on: L('Reverse proxy beschermen (hoofdschakelaar)'), proxy_def_lan: L('Adminpagina\'s en beheerprogramma\'s alleen vanaf mijn netwerk'),
+  proxy_def_rate: L('Te veel verzoeken afremmen (rate limit)'), proxy_def_bots: L('Bots weren'), waf_on: L('WAF aan'), waf_mode: L('Wat de WAF doet'),
+  waf_share: L('Delen met de CrowdSec-community'), proxy_ai_on: L('AI-advies voor de reverse proxy'), proxy_ai_auto: L('Wie voert het advies door'),
+  av_on: L('ClamAV aan'), av_notify: L('Melden'), av_move: L('Verplaatsen') });
+function pxfVal(k, v) {
+  if (k === 'proxy_def_rate') return (PX_RATE().find(([x]) => x === v) || [, v])[1];
+  if (k === 'waf_mode') return { detect: L('Detecteren'), sure: L('Blokkeren, alleen zeker'), strict: L('Blokkeren, streng') }[v] || v;
+  if (k === 'proxy_ai_auto') return v ? L('Automatisch') : L('Zelf beheren');
+  return v ? L('aan') : L('uit');
+}
+/** Eén veld in het formulier zetten (zoals de gebruiker het zou doen), zodat het wordt opgeslagen */
+function pxfSet(k, v, reason) {
+  const f = $('#settings-form');
+  const el = f && f.elements[k];
+  if (!el) return;
+  if (el.type === 'checkbox') el.checked = !!v;
+  else if (k === 'proxy_ai_auto') el.value = v ? '1' : '0';
+  else el.value = v;
+  if (k === 'waf_mode') wafRangeSync();
+  if (k === 'proxy_ai_auto') pxaAutoSync();
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  const lab = (k === 'waf_mode' ? $('#waf-mode-range') : el).closest('label');
+  if (lab) { lab.classList.add('pxf-filled'); lab.title = reason || ''; }
+}
+function pxfRender(r) {
+  const out = $('#pxf-out');
+  if (!out) return;
+  const F = PXF_LABEL();
+  const rows = Object.entries(r.fields).map(([k, x]) => {
+    const same = String(x.value) === String(x.current);
+    return `<tr class="${same ? 'dim' : ''}"><td>${esc(F[k] || k)}</td><td class="small nowrap">${esc(pxfVal(k, x.current))}${same ? '' : ` → <b>${esc(pxfVal(k, x.value))}</b>`}</td>
+      <td class="small">${esc(x.reason)} ${x.source === 'ai' ? '<span class="lf-tag ok">🤖 AI</span>' : `<span class="lf-tag">${L('standaard')}</span>`}</td>
+      <td>${same ? '<span class="small good">✔</span>' : `<button type="button" class="btn small-btn" data-pxf-one="${esc(k)}">${L('Invullen')}</button>`}</td></tr>`;
+  }).join('');
+  const todo = Object.values(r.fields).filter((x) => String(x.value) !== String(x.current)).length;
+  const dirs = (r.dirs || []).map((x, i) => `<tr><td>${esc(x.site)}</td><td class="mono small">${esc(x.path)}</td><td class="small muted">${esc(x.ctr)}</td><td><button type="button" class="btn small-btn" data-pxf-dir="${i}">＋ ${L('Toevoegen')}</button></td></tr>`).join('');
+  out.innerHTML = `${r.summary ? `<p class="small">${esc(r.summary)}</p>` : ''}
+    <div class="table-scroll"><table class="vuln-table pxf-table"><thead><tr><th>${L('Veld')}</th><th>${L('Nu → advies')}</th><th>${L('Waarom')}</th><th>${todo ? `<button type="button" class="btn small-btn primary" data-pxf-all>✔ ${L('Alles invullen ({n})', { n: todo })}</button>` : ''}</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${dirs ? `<p class="small"><b>${L('Uploadmappen voor ClamAV (voorstel)')}</b></p><div class="table-scroll"><table class="vuln-table"><tbody>${dirs}</tbody></table></div>` : ''}
+    ${r.sites_asked ? `<p class="small muted">🤖 ${L('De AI maakt ook het advies per site; dat staat binnen een paar minuten op de pagina Reverse proxy.')}</p>` : ''}`;
+  out.onclick = async (e) => {
+    const one = e.target.closest('[data-pxf-one]'), all = e.target.closest('[data-pxf-all]'), dir = e.target.closest('[data-pxf-dir]');
+    if (one) { const x = r.fields[one.dataset.pxfOne]; pxfSet(one.dataset.pxfOne, x.value, x.reason); x.current = x.value; pxfRender(r); }
+    if (all) { Object.entries(r.fields).forEach(([k, x]) => { if (String(x.value) !== String(x.current)) { pxfSet(k, x.value, x.reason); x.current = x.value; } }); pxfRender(r); toast(L('Advies ingevuld; je kunt alles nog aanpassen')); }
+    if (dir) {
+      const x = r.dirs[+dir.dataset.pxfDir];
+      try { await api('av_dir_add', { host_id: x.host_id, path: x.path, site: x.site }); r.dirs.splice(+dir.dataset.pxfDir, 1); pxfRender(r); toast(L('Map toegevoegd; de agent start ClamAV opnieuw met deze map (binnen een minuut)')); }
+      catch (ex) { toast(ex.message, 'err'); }
+    }
+  };
+}
+/** Beheerportal: de knop, en bij een nog niet ingestelde proxy meteen het standaardadvies laten zien */
+function pxfInit(d) {
+  const btn = $('#pxf-btn');
+  if (!btn) return;
+  const ai = d.ai && d.ai.ai_on;
+  $('#pxf-note').textContent = ai ? L('Met AI: de AI kiest per veld de beste waarde.') : L('AI-advies staat uit: RzSense vult de standaardwaarden in.');
+  btn.onclick = async () => {
+    try { const r = await api('proxy_fill_advice', { ai: ai ? 1 : 0 }); if (r.note) $('#pxf-note').textContent = r.note; pxfRender(r); }
+    catch (ex) { toast(ex.message, 'err'); }
+  };
+  if (!d.on && !$('#pxf-out').innerHTML) api('proxy_fill_advice', { ai: 0 }).then(pxfRender).catch(() => {});
+}
+
 /** Beheerportal: ClamAV per proxyserver (stand, geheugen, definities) */
 function avSettings(d) {
   const box = $('#av-status');
@@ -412,6 +477,7 @@ function wafSettings(d) {
   wafRangeSync(d.waf && d.waf.mode);
   pxaSettings(d);
   avSettings(d);
+  pxfInit(d);
   const box = $('#waf-status');
   if (!box) return;
   const px = d.servers.filter((s) => s.role);

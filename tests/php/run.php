@@ -3199,5 +3199,28 @@ q('DELETE FROM proxy_vpatch WHERE host_id = ?', [$ph2]);
 q('DELETE FROM proxy_sites WHERE host_id = ?', [$ph2]);
 q('DELETE FROM hosts WHERE id = ?', [$ph2]);
 
+section('Advies voor alle velden van de reverse proxy (1.259.0)');
+$fk = ['ai_on' => setting('ai_on', null)];
+save_setting('ai_on', '0');
+$f0 = ['servers' => 1, 'swag' => true, 'sites' => 3, 'admin' => 1, 'paths' => 1, 'mem' => 900, 'waf_days' => 3, 'waf_events' => 0, 'waf_sure' => 0, 'waf_strict' => 0, 'apps' => []];
+$std = ProxyAdvice::standard($f0);
+ok($std['waf_on']['value'] === true && $std['waf_mode']['value'] === 'detect' && $std['av_on']['value'] === false && $std['waf_share']['value'] === false
+    && $std['proxy_ai_on']['value'] === false && $std['proxy_def_rate']['value'] === 'normal' && count($std) === count(ProxyAdvice::SET_FIELDS), 'advies: standaard (WAF eerst detecteren, ClamAV niet bij te weinig geheugen, AI uit)');
+$std2 = ProxyAdvice::standard(['waf_days' => 20, 'mem' => null, 'swag' => false] + $f0);
+ok($std2['waf_mode']['value'] === 'sure' && $std2['av_on']['value'] === true && $std2['waf_on']['value'] === false, 'advies: na 14 dagen alleen zeker; geheugen onbekend = ClamAV aan; geen SWAG = geen WAF');
+$ans = 'Advies: ' . json_encode(['summary' => 'Goed zo.', 'fields' => ['waf_mode' => ['value' => 'strict', 'reason' => 'Weinig vals alarm <b>x</b>'], 'av_on' => ['value' => true, 'reason' => 'aan'],
+    'proxy_def_rate' => ['value' => 'extreem', 'reason' => 'x'], 'proxy_on' => ['value' => 'ja', 'reason' => 'x'], 'waf_share' => ['value' => true, 'reason' => 'delen']]]);
+$ps = ProxyAdvice::parseSet($ans, $std);
+ok($ps['fields']['waf_mode'] === ['value' => 'strict', 'reason' => 'Weinig vals alarm x', 'source' => 'ai'] && $ps['fields']['waf_share']['value'] === true
+    && $ps['fields']['av_on']['source'] === 'standard' && $ps['fields']['av_on']['value'] === false && $ps['fields']['proxy_def_rate']['value'] === 'normal'
+    && $ps['fields']['proxy_on']['source'] === 'standard' && $ps['ai_fields'] === 2 && $ps['summary'] === 'Goed zo.',
+    'advies: AI-antwoord gecontroleerd (ongeldig of onveilig = standaard, ClamAV niet aan bij te weinig geheugen, HTML eruit)');
+ok(ProxyAdvice::parseSet('geen json', $std)['ai_fields'] === 0, 'advies: onbruikbaar AI-antwoord = alles standaard');
+$fill = ProxyAdvice::fill(true, 'test');
+ok($fill['source'] === 'standard' && str_contains($fill['note'], 'uit') && isset($fill['fields']['waf_mode']['current']) && is_array($fill['dirs']), 'advies: AI uit = standaardadvies met de huidige waarden erbij');
+foreach ($fk as $k => $v) {
+    $v === null ? q('DELETE FROM settings WHERE name = ?', [$k]) : save_setting($k, (string) $v);
+}
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

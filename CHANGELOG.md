@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.259.0**: **advies voor alle velden**: één knop vult alle instellingen van de reverse proxy in met de beste waarden (AI of standaard), daarna gewoon aan te passen.
 - **1.258.0**: **paden dichtzetten en score per site**: bekende lekken tijdelijk afschermen op de reverse proxy, en per site een score met tips.
 - **1.257.0**: **uploads scannen op malware**: ClamAV op de reverse proxy, met melden en verplaatsen naar quarantaine elk aan en uit.
 - **1.256.0**: **AI-advies voor de reverse proxy**: de AI stelt per site het beleid voor met een reden; met een slider zelf toepassen of automatisch.
 - **1.255.0**: **WAF op de reverse proxy**: CrowdSec bekijkt elk verzoek naar je apps; met een slider van alleen melden naar blokkeren, en per site zie je wat hij zou tegenhouden.
-- **1.254.0**: **reverse proxy beschermen**: per site adminpagina's alleen vanaf je eigen netwerk, rate limit en bots weren; de agent op SWAG of Nginx Proxy Manager voert het veilig door.
+
+## 1.259.0 – 2026-11-14
+### Nieuw
+- **✨ Advies voor alle velden van de reverse proxy** (*Instellingen → Beveiliging → Reverse proxy*): met **Advies invullen** stelt RzSense voor elk veld de beste waarde voor, met een reden. Met AI-advies aan kiest de AI (alleen uit de vaste keuzes, en RzSense controleert alles); zonder AI vult RzSense de standaardwaarden in, op basis van je sites, het vrije geheugen en wat de WAF zag. Je ziet huidige waarde → advies en neemt het per veld of in één keer over; daarna pas je alles gewoon zelf aan. Uploadmappen die bij een site horen voeg je meteen toe, en met AI-advies per site aan maakt de AI ook het advies per site. Bij een nog niet ingestelde proxy staat het standaardadvies er meteen.
+
+### Opgelost
+- Twee kleine meldingen van de code-controle (PHPStan) bij de score per site en virtual patching.
+
 
 ## 1.258.0 – 2026-11-14
 ### Nieuw

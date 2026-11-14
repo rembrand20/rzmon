@@ -313,6 +313,188 @@ final class ProxyAdvice
             'auto' => (bool) $last['auto'], 'error' => $last['error'], 'note' => $last['note'], 'summary' => $sum] : null, 'items' => (object) $items];
     }
 
+    // ------------------------------------------------------------------ 1.259.0: advies voor alle velden van de beheerportal
+
+    /** De velden met hun toegestane waarden (bool = aan/uit) */
+    public const SET_FIELDS = ['proxy_on' => 'bool', 'proxy_def_lan' => 'bool', 'proxy_def_rate' => ['off', 'normal', 'strict'], 'proxy_def_bots' => 'bool',
+        'waf_on' => 'bool', 'waf_mode' => ['detect', 'sure', 'strict'], 'waf_share' => 'bool', 'proxy_ai_on' => 'bool', 'proxy_ai_auto' => 'bool',
+        'av_on' => 'bool', 'av_notify' => 'bool', 'av_move' => 'bool'];
+
+    /** Wat RzSense weet over de proxy (voor de regels en voor de AI) */
+    public static function facts(): array
+    {
+        $f = ['servers' => 0, 'swag' => false, 'sites' => 0, 'admin' => 0, 'paths' => 0, 'mem' => null, 'waf_days' => 0, 'waf_events' => 0, 'waf_sure' => 0, 'waf_strict' => 0, 'apps' => []];
+        foreach (q("SELECT id FROM hosts WHERE proxy_role = 1 AND mode = 'agent'")->fetchAll(PDO::FETCH_COLUMN) as $hid) {
+            $hid = (int) $hid;
+            $f['servers']++;
+            $rep = ProxyGuard::report($hid);
+            $f['swag'] = $f['swag'] || ($rep['kind'] ?? '') === 'swag';
+            foreach (ProxyGuard::sites($hid, $rep) as $s) {
+                $f['sites']++;
+                $k = ProxyGuard::appKind((string) $s['site'], (string) ($s['up'] ?? ''));
+                if ($k !== '') {
+                    $f[$k]++;
+                }
+                $f['apps'][] = self::hint((string) ($s['up'] ?? '')) ?: self::hint((string) $s['site']);
+            }
+            $av = Av::status($hid);
+            if (isset($av['mem']) && (int) $av['mem'] > 0) {
+                $f['mem'] = max((int) $f['mem'], (int) $av['mem']);
+            }
+            foreach (Waf::stats($hid) as $st) {
+                $f['waf_events'] += $st['seen'];
+                $f['waf_sure'] += $st['sure'];
+                $f['waf_strict'] += $st['strict'];
+            }
+            $first = q('SELECT MIN(at) FROM waf_events WHERE host_id = ?', [$hid])->fetchColumn();
+            if ($first) {
+                $f['waf_days'] = max($f['waf_days'], (int) floor((time() - strtotime((string) $first)) / 86400));
+            }
+        }
+        $f['apps'] = array_slice(array_values(array_unique(array_filter($f['apps']))), 0, 40);
+        return $f;
+    }
+
+    /** Standaardadvies (zonder AI): vaste regels op basis van wat RzSense weet. @return array<string, array{value: mixed, reason: string}> */
+    public static function standard(?array $f = null): array
+    {
+        $f ??= self::facts();
+        $wafLong = $f['waf_days'] >= 14;
+        $memOk = $f['mem'] === null || $f['mem'] >= 1400;
+        return [
+            'proxy_on' => ['value' => true, 'reason' => t('Zonder de hoofdschakelaar doet de rest niets.')],
+            'proxy_def_lan' => ['value' => true, 'reason' => t('Beheerpagina\'s horen niet open op internet; je eigen netwerk blijft er altijd bij.')],
+            'proxy_def_rate' => ['value' => 'normal', 'reason' => t('Normaal remt wachtwoorden raden en scanners af zonder gewone gebruikers te hinderen; streng kan apps met synchronisatie hinderen.')],
+            'proxy_def_bots' => ['value' => true, 'reason' => t('Bekende aanvalstools hebben op je sites niets te zoeken.')],
+            'waf_on' => ['value' => $f['swag'], 'reason' => $f['swag'] ? t('Je proxy is SWAG: de WAF herkent aanvallen in het verkeer.') : t('De WAF werkt nu alleen met SWAG.')],
+            'waf_mode' => ['value' => $wafLong ? 'sure' : 'detect', 'reason' => $wafLong
+                ? t('De WAF draait {d} dagen: alleen bekende lekken tegenhouden geeft vrijwel nooit vals alarm.', ['d' => $f['waf_days']])
+                : t('Eerst twee weken alleen melden en kijken wat er tegengehouden zou worden.')],
+            'waf_share' => ['value' => false, 'reason' => t('Uit: alles blijft op je eigen server.')],
+            'proxy_ai_on' => ['value' => Ai::on(), 'reason' => Ai::on() ? t('AI-advies staat aan: laat de AI per site meedenken.') : t('AI-advies staat uit; zet dat eerst aan als je advies per site wilt.')],
+            'proxy_ai_auto' => ['value' => false, 'reason' => t('Zelf beheren: je beoordeelt elk voorstel eerst zelf.')],
+            'av_on' => ['value' => $memOk, 'reason' => $memOk ? ($f['mem'] === null ? t('Uploads scannen; de agent kijkt eerst of er genoeg geheugen is.') : t('Er is genoeg geheugen vrij ({m} MB).', ['m' => $f['mem']]))
+                : t('Te weinig vrij geheugen ({m} MB, nodig 1400 MB).', ['m' => $f['mem']])],
+            'av_notify' => ['value' => true, 'reason' => t('Een vondst wil je weten.')],
+            'av_move' => ['value' => true, 'reason' => t('Een besmet bestand meteen afschermen; terugzetten kan altijd.')],
+        ];
+    }
+
+    public static function setContext(): array
+    {
+        $f = self::facts();
+        $cur = [];
+        foreach (array_keys(self::SET_FIELDS) as $k) {
+            $cur[] = "$k=" . setting($k, '');
+        }
+        $lines = ['# ' . t('Reverse proxy'), "- servers met de rol: {$f['servers']}, SWAG: " . ($f['swag'] ? 'ja' : 'nee'),
+            "- sites: {$f['sites']} (beheerprogramma's: {$f['admin']}, apps met adminpaden: {$f['paths']})", '- apps: ' . implode(', ', $f['apps']),
+            '- vrij geheugen op de proxy: ' . ($f['mem'] === null ? 'onbekend' : $f['mem'] . ' MB') . ' (ClamAV heeft 1400 MB nodig)',
+            "- WAF: {$f['waf_days']} dagen gegevens, {$f['waf_events']} meldingen in 14 dagen, zou tegenhouden: {$f['waf_sure']} (alleen zeker) / {$f['waf_strict']} (streng)",
+            '- AI-advies (module) aan: ' . (Ai::on() ? 'ja' : 'nee'), '- nu: ' . implode(', ', $cur)];
+        return ['text' => implode("\n", $lines), 'host_id' => null, 'diag' => null, 'actions' => []];
+    }
+
+    public static function setSystem(string $lang, string $guard): string
+    {
+        $fields = [];
+        foreach (self::SET_FIELDS as $k => $t) {
+            $fields[] = $k . ': ' . ($t === 'bool' ? 'true|false' : implode('|', $t));
+        }
+        return "Je bent een ervaren beveiligingsspecialist en stelt de instellingen voor van de reverse-proxybescherming van RzSense in een thuis- of kantoornetwerk. "
+            . "Velden: " . implode('; ', $fields) . ". Betekenis: proxy_on = hoofdschakelaar; proxy_def_* = standaard voor nieuwe sites (beheerpagina's alleen LAN, rate limit, bots weren); "
+            . "waf_mode detect = alleen melden, sure = alleen bekende lekken blokkeren, strict = ook OWASP CRS (meer vals alarm); waf_share = aanvallers delen met CrowdSec; "
+            . "proxy_ai_on/proxy_ai_auto = AI-advies per site en of het automatisch wordt toegepast; av_* = ClamAV (heeft 1400 MB vrij geheugen nodig), melden en verplaatsen naar quarantaine. "
+            . "Weeg de gegevens: een WAF met minder dan 14 dagen gegevens hoort op detect; strict alleen als 'zou tegenhouden (streng)' weinig vals alarm laat zien. "
+            . "Antwoord met alleen één JSON-object: {\"summary\":\"<twee zinnen>\",\"fields\":{\"<veld>\":{\"value\":<waarde>,\"reason\":\"<één korte zin>\"}}} met elk veld precies één keer. "
+            . "Schrijf summary en reason in het $lang. $guard";
+    }
+
+    /** Het AI-antwoord controleren; ontbrekende of ongeldige velden krijgen het standaardadvies */
+    public static function parseSet(string $answer, array $std): array
+    {
+        $a = strpos($answer, '{');
+        $b = strrpos($answer, '}');
+        $j = $a !== false && $b !== false && $b > $a ? json_decode(substr($answer, $a, $b - $a + 1), true) : null;
+        $out = [];
+        $n = 0;
+        foreach (self::SET_FIELDS as $k => $t) {
+            $x = is_array($j['fields'][$k] ?? null) ? $j['fields'][$k] : null;
+            $v = $x['value'] ?? null;
+            $ok = $t === 'bool' ? is_bool($v) : (is_string($v) && in_array($v, $t, true));
+            if ($k === 'av_on' && $ok && $v === true && $std['av_on']['value'] === false) {
+                $ok = false;   // te weinig geheugen: dan niet aan, wat de AI ook zegt
+            }
+            if ($k === 'waf_on' && $ok && $v === true && $std['waf_on']['value'] === false) {
+                $ok = false;   // geen SWAG
+            }
+            $reason = $ok ? mb_substr(trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($x['reason'] ?? ''))) ?? ''), 0, 240) : '';
+            $out[$k] = $ok ? ['value' => $v, 'reason' => $reason !== '' ? $reason : $std[$k]['reason'], 'source' => 'ai'] : $std[$k] + ['source' => 'standard'];
+            $n += $ok ? 1 : 0;
+        }
+        $sum = is_array($j) ? mb_substr(trim(strip_tags((string) ($j['summary'] ?? ''))), 0, 500) : '';
+        return ['fields' => $out, 'summary' => $sum, 'ai_fields' => $n];
+    }
+
+    /**
+     * Advies voor alle velden: met AI als die aan staat (anders, of als de AI niets bruikbaars geeft, de standaard), plus de
+     * uploadmappen die bij een site horen, en (met AI-advies per site aan) het advies per site laten maken.
+     */
+    public static function fill(bool $useAi, string $by): array
+    {
+        $f = self::facts();
+        $std = self::standard($f);
+        $res = ['source' => 'standard', 'summary' => '', 'note' => '', 'fields' => []];
+        foreach ($std as $k => $v) {
+            $res['fields'][$k] = $v + ['source' => 'standard'];
+        }
+        if ($useAi && Ai::on()) {
+            try {
+                $r = Ai::ask('proxyset', 1, $by, true);
+                $r = Ai::work((int) $r['id']);
+                if ($r['status'] === 'done') {
+                    $p = self::parseSet((string) $r['answer'], $std);
+                    if ($p['ai_fields'] > 0) {
+                        $res = ['source' => 'ai', 'summary' => $p['summary'], 'note' => t('🤖 Advies van {m}', ['m' => (string) ($r['model'] ?? '')]) . ($r['note'] ? ' · ' . $r['note'] : ''), 'fields' => $p['fields']];
+                    } else {
+                        $res['note'] = t('De AI gaf geen bruikbaar antwoord; dit is het standaardadvies.');
+                    }
+                } else {
+                    $res['note'] = t('AI-advies lukte niet ({e}); dit is het standaardadvies.', ['e' => mb_substr((string) $r['error'], 0, 160)]);
+                }
+            } catch (RuntimeException $e) {
+                $res['note'] = t('AI-advies lukte niet ({e}); dit is het standaardadvies.', ['e' => $e->getMessage()]);
+            }
+        } elseif ($useAi) {
+            $res['note'] = t('AI-advies staat uit; dit is het standaardadvies.');
+        }
+        foreach ($res['fields'] as $k => &$v) {
+            $cur = setting($k, null);
+            $v['current'] = self::SET_FIELDS[$k] === 'bool' ? $cur === '1' : $cur;
+        }
+        unset($v);
+        // Uploadmappen die bij een site horen (uit de voorstellen van de agent)
+        $res['dirs'] = [];
+        foreach (q("SELECT id FROM hosts WHERE proxy_role = 1 AND mode = 'agent'")->fetchAll(PDO::FETCH_COLUMN) as $hid) {
+            $ov = Av::overview((int) $hid, ProxyGuard::sites((int) $hid));
+            foreach ($ov['suggest'] as $s) {
+                if ($s['site'] !== '') {
+                    $res['dirs'][] = ['host_id' => (int) $hid, 'site' => $s['site'], 'path' => $s['path'], 'ctr' => $s['ctr']];
+                }
+            }
+            // Advies per site (komt binnen een paar minuten op de pagina Reverse proxy)
+            if ($res['source'] === 'ai' && self::on()) {
+                try {
+                    Ai::ask('proxy', (int) $hid, $by, true);
+                    $res['sites_asked'] = true;
+                } catch (RuntimeException) {
+                }
+            }
+        }
+        $res['dirs'] = array_slice($res['dirs'], 0, 30);
+        return $res;
+    }
+
     public static function purge(): void
     {
         q("DELETE FROM proxy_advice WHERE status IN ('applied', 'dismissed', 'same') AND created_at < NOW() - INTERVAL 90 DAY");

@@ -301,7 +301,7 @@ final class ProxyGuard
                 $sv['av'] = Av::overview($sv['id'], $sv['sites']);   // 1.257.0
                 $sv['vpatch'] = VPatch::overview($sv['id'], $sv['sites']);   // 1.258.0
                 $sv['vp_agent_ok'] = version_compare((string) q('SELECT agent_version FROM hosts WHERE id = ?', [$sv['id']])->fetchColumn(), '1.100.0', '>=');
-                $sv['sites'] = SiteScore::addAll($sv['id'], $sv['sites'], $sv['waf_stats'] ?? [], $sv['av']['dirs'] ?? [], $sv['vpatch']['active']);
+                $sv['sites'] = SiteScore::addAll($sv['id'], $sv['sites'], $sv['waf_stats'], $sv['av']['dirs'] ?? [], $sv['vpatch']['active']);
                 $sv['av_agent_ok'] = version_compare((string) q('SELECT agent_version FROM hosts WHERE id = ?', [$sv['id']])->fetchColumn(), '1.99.0', '>=');
             }
         }

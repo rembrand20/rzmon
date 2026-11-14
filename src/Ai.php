@@ -30,7 +30,7 @@ final class Ai
         'grok' => ['label' => 'Grok (xAI)', 'url' => 'https://api.x.ai', 'cloud' => true],
         'ollama' => ['label' => 'Ollama', 'url' => 'http://127.0.0.1:11434', 'cloud' => false],
     ];
-    public const KINDS = ['check', 'bundle', 'incident', 'ids', 'week', 'triage', 'report', 'cve', 'proxy'];   // 1.256.0: proxy = beleid voor de reverse proxy   // 1.179.0: cve = Raakt dit jou echt?
+    public const KINDS = ['check', 'bundle', 'incident', 'ids', 'week', 'triage', 'report', 'cve', 'proxy', 'proxyset'];   // 1.256.0: proxy = beleid voor de reverse proxy   // 1.179.0: cve = Raakt dit jou echt?
     /** 1.173.0: de extra's met hun standaardwaarde (Instellingen → AI-advies → Extra's) */
     public const EXTRAS = ['ai_memory' => '1', 'ai_cache' => '1', 'ai_fallback' => '1', 'ai_notify' => '1', 'ai_weekly' => '1', 'ai_triage' => '0', 'ai_report' => '1'];
     /** Waar je het tegoed opwaardeert */
@@ -340,7 +340,7 @@ final class Ai
             if ($kind === 'triage') {
                 $cfg['max_tokens'] = min((int) $cfg['max_tokens'], 600);   // een oordeel in twee regels
             }
-            if ($kind === 'proxy') {
+            if ($kind === 'proxy' || $kind === 'proxyset') {
                 $cfg['max_tokens'] = max((int) $cfg['max_tokens'], 4000);   // 1.256.0: JSON met een regel per site
             }
             $note = $r['note'] !== null ? (string) $r['note'] : null;
@@ -785,6 +785,9 @@ final class Ai
     private static function afterDone(array $r): void
     {
         $kind = (string) $r['kind'];
+        if ($kind === 'proxyset') {
+            return;   // 1.259.0: het advies wordt meteen getoond, niet opgeslagen
+        }
         if ($kind === 'proxy') {
             ProxyAdvice::fromAi($r);   // 1.256.0: voorstellen per site (en bij Automatisch meteen toepassen)
             return;
@@ -978,6 +981,7 @@ final class Ai
             'report' => self::ctxReport($ref),
             'cve' => CveBuzz::aiContext($ref),
             'proxy' => ProxyAdvice::aiContext($ref),
+            'proxyset' => ProxyAdvice::setContext(),   // 1.259.0: advies voor alle velden
             default => throw new RuntimeException(t('Ongeldige vraag')),
         };
     }
@@ -1208,6 +1212,9 @@ final class Ai
         }
         if ($kind === 'proxy') {
             return ProxyAdvice::system($lang, $guard);
+        }
+        if ($kind === 'proxyset') {
+            return ProxyAdvice::setSystem($lang, $guard);
         }
         if ($kind === 'cve') {
             return "Je bent een ervaren beveiligingsspecialist en beoordeelt voor de beheerder van een thuis- of kantoornetwerk een kwetsbaarheid (CVE) die op zijn servers staat: raakt die hem echt? "

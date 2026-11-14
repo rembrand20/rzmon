@@ -288,7 +288,7 @@ switch ($action) {
                 $r = !empty($in['id']) ? (q('SELECT * FROM ai_advice WHERE id = ?', [(int) $in['id']])->fetch() ?: null) : Ai::latest($kind, (int) ($in['ref'] ?? 0));
                 out(['advice' => $r ? Ai::public($r) : null]);
             }
-            if ($action === 'ai_ask' && ($in['kind'] ?? '') === 'proxy' && !$isAdmin) {
+            if ($action === 'ai_ask' && in_array($in['kind'] ?? '', ['proxy', 'proxyset'], true) && !$isAdmin) {
                 out(['error' => t('Alleen een beheerder')], 403);   // 1.256.0: via proxy_ai_ask
             }
             $r = $action === 'ai_ask' ? Ai::ask((string) ($in['kind'] ?? ''), (int) ($in['ref'] ?? 0), $user['username'], !empty($in['force']))

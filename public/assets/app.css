@@ -6071,3 +6071,7 @@ button.rz-job::before, .btn.rz-job::before { content: ''; position: absolute; in
 .vp-sug summary { cursor: pointer; }
 @media (max-width: 640px) { .px-tip { grid-template-columns: 1fr 4rem 3rem; } .px-tip > :last-child { grid-column: 1 / -1; } }
 .vp-box [data-vp-days] { width: auto; flex: 0 0 auto; }
+/* 1.259.0: advies voor alle velden */
+.pxf-box { border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border)); border-radius: 14px; padding: .7rem .8rem; margin: .4rem 0 .8rem; display: grid; gap: .4rem; min-width: 0; background: color-mix(in srgb, var(--primary) 4%, transparent); }
+.pxf-table td:first-child { min-width: 11rem; }
+label.pxf-filled { box-shadow: inset 3px 0 0 var(--primary); padding-left: .5rem; }

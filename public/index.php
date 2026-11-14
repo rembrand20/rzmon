@@ -1288,6 +1288,12 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <div data-sk="proxy" class="card" id="proxy-card">
           <h2>🔀 <?= th('Reverse proxy') ?></h2>
           <?= xp(t('Bescherming voor de apps achter je reverse proxy. De agent op de proxy voert het door; alles is aan en uit te zetten.'), t('<b>Hoofdschakelaar:</b> uit = de agent haalt alle eigen bestanden en de regel in de proxy weer weg. <b>Standaard voor nieuwe sites:</b> wat een site krijgt die je nog niet zelf hebt ingesteld. Bekende beheerprogramma\'s (Portainer, AdGuard, Proxmox, Axigen webadmin …) worden dan helemaal alleen-LAN, bekende apps (Vaultwarden, Nextcloud, WordPress …) alleen hun adminpaden. <b>Per site</b> pas je het aan op de pagina Reverse proxy. <b>Welke server:</b> zet hieronder de rol aan bij de server waar je reverse proxy draait; alleen daar doet de agent iets.')) ?>
+          <div class="pxf-box" data-nodirty>
+            <div class="px-h"><b>✨ <?= th('Advies voor alle velden') ?></b><span class="lp-sp"></span><button type="button" class="btn small-btn primary" id="pxf-btn">✨ <?= th('Advies invullen') ?></button></div>
+            <?= xp(t('Laat RzSense alle velden hieronder invullen met de beste waarden voor jouw situatie, elk met een reden. Daarna pas je alles gewoon zelf aan.'), t('<b>Met AI-advies aan</b> kijkt de AI naar je sites, het vrije geheugen op de proxy en wat de WAF zag, en kiest per veld de beste waarde (alleen uit de vaste keuzes; RzSense controleert alles). <b>Zonder AI</b> vult RzSense de standaardwaarden in, op basis van dezelfde gegevens (bv. de WAF eerst twee weken op detecteren, ClamAV alleen als er genoeg geheugen is). Je ziet eerst het advies naast de huidige waarde; met <i>Invullen</i> (per veld) of <i>Alles invullen</i> neem je het over en wordt het opgeslagen. Uploadmappen die bij een site horen kun je meteen toevoegen. Met AI-advies per site aan, maakt de AI ook het advies per site (op de pagina Reverse proxy).')) ?>
+            <p class="small muted" id="pxf-note"></p>
+            <div id="pxf-out"></div>
+          </div>
           <label class="switch"><input type="checkbox" name="proxy_on"><span></span> <?= t('<b>Reverse proxy beschermen</b> (hoofdschakelaar)') ?></label>
           <h3 class="set-sub"><?= th('Standaard voor nieuwe sites') ?></h3>
           <label class="switch"><input type="checkbox" name="proxy_def_lan"><span></span> <?= th('Adminpagina\'s en beheerprogramma\'s alleen vanaf mijn netwerk') ?></label>

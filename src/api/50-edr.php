@@ -609,6 +609,12 @@ switch ($action) {
         $in = input();
         ProxyAdvice::dismiss((int) ($in['host_id'] ?? 0), strtolower((string) ($in['site'] ?? '')), (string) $user['username']) ? out(['ok' => true]) : out(['error' => t('Geen open voorstel voor deze site')], 404);
 
+    // 1.259.0: advies voor alle velden van de reverse proxy (AI of standaard); niets wordt opgeslagen
+    case 'proxy_fill_advice':
+        $in = input();
+        session_write_close();
+        out(ProxyAdvice::fill(!empty($in['ai']), (string) $user['username']));
+
     // 1.258.0: virtual patching (paden dichtzetten, weer open, verlengen)
     case 'vp_add':
         $in = input();

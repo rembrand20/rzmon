@@ -127,7 +127,7 @@ final class VPatch
             if (!self::validPath($path) || self::covered($active, (string) $r['site'], $path) || isset($sugg[$r['site'] . '|' . $path])) {
                 continue;
             }
-            $rule = explode(' ', (string) $r['rules'])[0] ?? '';
+            $rule = explode(' ', (string) $r['rules'])[0];
             $sugg[$r['site'] . '|' . $path] = ['site' => $r['site'], 'path' => $path, 'source' => 'waf', 'n' => (int) $r['n'], 'ips' => (int) $r['ips'], 'blocked' => (bool) $r['blocked'],
                 'reason' => t('WAF zag misbruik van een bekend lek ({r})', ['r' => $rule])];
         }

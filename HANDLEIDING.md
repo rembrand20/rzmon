@@ -3380,6 +3380,15 @@ Heeft een app een bekend lek en kun je hem nog niet bijwerken? Zet het pad tijde
 - **Weer open** of **+30 dagen** per regel. Een verlopen pad gaat vanzelf weer open; na 30 dagen verdwijnt het uit de lijst.
 - De agent voert het door zoals de rest: in zijn eigen bestand, met `nginx -t` en terugzetten als een site daarna niet meer antwoordt. Je eigen netwerk blijft er altijd bij.
 
+**✨ Advies voor alle velden** (vanaf 1.259.0)
+Bovenaan *Instellingen → Beveiliging → Reverse proxy* staat het blok **✨ Advies voor alle velden**. Met **Advies invullen** stelt RzSense voor elk veld van de reverse proxy de beste waarde voor, met een reden:
+- **AI-advies aan** (*Instellingen → AI-advies*): de AI kijkt naar je sites, het vrije geheugen op de proxy en wat de WAF zag, en kiest per veld (label **🤖 AI**). Hij mag alleen uit de vaste keuzes kiezen; RzSense controleert elke waarde. Wat ongeldig of onveilig is (bv. ClamAV aan terwijl er te weinig geheugen is), krijgt het standaardadvies.
+- **AI-advies uit** (of de AI geeft niets bruikbaars): RzSense vult de **standaardwaarden** in op basis van dezelfde gegevens (label *standaard*): hoofdschakelaar aan, beheerpagina's alleen vanaf je netwerk, rate limit normaal, bots weren, de WAF aan bij SWAG en eerst twee weken op *detecteren* (daarna *alleen zeker*), niet delen met CrowdSec, ClamAV aan als er genoeg geheugen is, met melden en verplaatsen.
+- Je ziet per veld de **huidige waarde → het advies**. Met **Invullen** (per veld) of **Alles invullen** neem je het over; het wordt dan opgeslagen en het veld krijgt een blauw streepje (de reden staat erbij als je erover beweegt). Daarna pas je alles gewoon zelf aan.
+- **Uploadmappen** die bij een site horen (uit de mappen van je apps) voeg je met **＋ Toevoegen** meteen toe aan ClamAV.
+- Met AI-advies per site aan, maakt de AI ook meteen het **advies per site**; dat staat binnen een paar minuten op de pagina Reverse proxy.
+- Staat de bescherming nog uit (nieuw), dan zie je het standaardadvies meteen, zonder op de knop te drukken.
+
 **Score per site** (vanaf 1.258.0)
 Elke site krijgt een score van 0 tot 100 (A ≥ 85, B ≥ 70, C ≥ 50, D daaronder); bovenaan staat het gemiddelde van de server en de laagste site. Klik op de score voor de onderdelen en wat je kunt verbeteren:
 | Onderdeel | Punten | Volle punten als |
