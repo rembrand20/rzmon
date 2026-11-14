@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.101.1"
+AGENT_VERSION="1.101.2"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -1215,7 +1215,15 @@ if [ "$TEST" = 1 ]; then
         fail "Geen antwoord van $base: ${err#curl: }"
     else
         fail "Onverwacht antwoord van $base (HTTP $code)"
-        [ -n "$body" ] && hint "${body:0:200}"
+        if [ "$code" = 403 ] && [[ "$body" == *nginx* || "$body" == *Forbidden* ]]; then
+            # Agent 1.101.2: 403 van een reverse proxy (SWAG/NPM), niet van RzSense zelf
+            hint "Je reverse proxy laat deze server niet toe, bv. omdat de site van RzSense alleen vanaf je LAN mag."
+            hint "RzSense 1.263.0 of nieuwer laat je eigen agent-servers vanzelf door (na de volgende ronde van de proxy-agent, ±1 minuut)."
+            hint "Of zet het IP van deze server op de whitelist (IDS → Blokkades → Nooit blokkeren), of zet de site in RzSense op 'Alleen adminpaden'."
+            hint "Het publieke IP van deze server zie je met: curl -s https://ifconfig.me"
+        else
+            [ -n "$body" ] && hint "${body:0:200}"
+        fi
     fi
     if [ "$TEST_FAILED" = 1 ]; then rm -f "$tt_dir/body" "$tt_dir/err"; [ "$tt_dir" != "$t_dir" ] && rmdir "$tt_dir" 2>/dev/null; stop; fi
 

@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.101.2 – 2026-11-14
+- **Verbindingstest bij een 403 van de reverse proxy**: krijgt de agent `403 Forbidden` van nginx (SWAG/NPM), dan legt de test uit dat je proxy deze server niet toelaat (bv. RzSense alleen vanaf je LAN), en wat je eraan doet: RzSense 1.263.0 laat je agent-servers vanzelf door, of zet het IP op de whitelist.
+
 ## 1.101.1 – 2026-11-14
 - **Verbindingstest duidelijker** (`rzmon-agent-setup --test`): wijst het adres van RzSense naar een publiek IP-adres en is de poort niet bereikbaar, dan legt de test uit dat je router dat verkeer van binnen vaak niet terugstuurt (geen NAT-loopback), met twee oplossingen: de naam in je eigen netwerk naar het LAN-adres laten wijzen (DNS-rewrite in AdGuard/Pi-hole of `/etc/hosts`), of het LAN-adres als reserve instellen met `--fallback`. De firewall-tip noemt nu `https` als je via https verbindt.
 - **Opgelost:** een mislukte verbindingstest gaf twee keer "Fout op regel 409 …" erachter, alsof het script zelf kapot was. Nu stopt de test gewoon met de uitleg.

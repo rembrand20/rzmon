@@ -2943,6 +2943,18 @@ save_setting('proxy_lan_extra', '10.8.0.0/24');
 $lines = ProxyGuard::agentLines($pxh);
 ok($lines[0] === "0\tproxy\ton" && str_starts_with($lines[1], "0\tproxylan\t192.168.1.0/24 10.8.0.0/24") && in_array("0\tproxysite\tvaultwarden.*\tpaths\t/admin\tnormal\t1", $lines, true)
     && in_array("0\tproxysite\tportainer.*\tsite\t-\tnormal\t1", $lines, true), 'proxy: regels voor de agent (aan, mijn netwerk, beleid per site)');
+// 1.263.0: een eigen agent-server op internet mag langs "alleen vanaf het LAN" (anders 403 bij rapporteren en bijwerken)
+q("UPDATE hosts SET agent_ip = '198.51.100.88' WHERE id = ?", [$pxh]);
+Ids::agentIps(true);
+$pxl = explode(' ', explode("\t", ProxyGuard::agentLines($pxh)[1])[2]);
+ok(array_slice($pxl, 0, 2) === ['192.168.1.0/24', '10.8.0.0/24'] && in_array('198.51.100.88', $pxl, true), 'proxy: eigen agent-server (publiek IP) telt als eigen netwerk');
+save_setting('trusted_networks', ''); save_setting('proxy_lan_extra', '');
+$pxl = ProxyGuard::lanNets();
+ok(array_slice($pxl, 0, count(PRIVATE_NETWORKS)) === PRIVATE_NETWORKS && in_array('198.51.100.88', $pxl, true), 'proxy: niets ingesteld = privé-netwerken, plus de agent-servers');
+save_setting('trusted_networks', '192.168.1.0/24'); save_setting('proxy_lan_extra', '10.8.0.0/24');
+q('UPDATE hosts SET agent_ip = NULL WHERE id = ?', [$pxh]);
+Ids::agentIps(true);
+$lines = ProxyGuard::agentLines($pxh);
 ok(is_string(ProxyGuard::saveSite($pxh, ['site' => 'blog.example.nl', 'lan_mode' => 'paths', 'lan_paths' => '/../etc', 'rate' => 'normal'], 'test'))
     && is_string(ProxyGuard::saveSite($pxh, ['site' => 'blog.example.nl', 'lan_mode' => 'paths', 'lan_paths' => '', 'rate' => 'normal'], 'test'))
     && is_string(ProxyGuard::saveSite($pxh, ['site' => 'blog.example.nl', 'lan_mode' => 'alles', 'rate' => 'normal'], 'test')),

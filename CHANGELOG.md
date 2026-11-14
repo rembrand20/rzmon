@@ -8,11 +8,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.263.0**: **agent-servers op internet kunnen erbij**: de reverse proxy laat je eigen agent-servers door, ook als RzSense alleen vanaf je LAN mag.
 - **1.262.0**: **eigen servers nooit buitengesloten**: het IDS blokkeert je eigen agent-servers niet meer automatisch, ook niet als ze op internet staan.
 - **1.261.0**: **mobielvriendelijk**: op een telefoon worden brede tabellen kaartjes, KPI-tegels staan twee per rij en niets duwt de pagina nog breder dan het scherm.
 - **1.260.0**: **Suricata op het proxynetwerk**: meekijken tussen de proxy en je apps, met advies voor elk veld (AI of standaard).
 - **1.259.0**: **advies voor alle velden**: één knop vult alle instellingen van de reverse proxy in met de beste waarden (AI of standaard), daarna gewoon aan te passen.
-- **1.258.0**: **paden dichtzetten en score per site**: bekende lekken tijdelijk afschermen op de reverse proxy, en per site een score met tips.
+
+## 1.263.0 – 2026-11-14
+### Nieuw
+- **🌍 Agent-servers op internet komen langs de reverse proxy**: staat de site van RzSense op je proxy op *alleen vanaf het LAN* (standaard voor RzSense), dan kreeg een agent op internet (bv. een VPS) `403 Forbidden` en kon hij niet rapporteren of bijwerken. De openbare adressen van je eigen agent-servers tellen nu mee als eigen netwerk op de proxy, net als de whitelist (*Instellingen → Beveiliging → Reverse proxy*). De proxy-agent neemt dat binnen een minuut over.
+- **Nieuwe agent 1.101.2**: de verbindingstest legt een `403` van de reverse proxy uit.
 
 ## 1.262.0 – 2026-11-14
 ### Nieuw

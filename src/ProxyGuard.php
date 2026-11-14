@@ -69,7 +69,11 @@ final class ProxyGuard
         return $out;
     }
 
-    /** Je LAN (Toegang → Lokale netwerken), de whitelist en extra netwerken; niets ingesteld = de privé-netwerken */
+    /**
+     * Je LAN (Toegang → Lokale netwerken), de whitelist en extra netwerken; niets ingesteld = de privé-netwerken.
+     * 1.263.0: plus de openbare adressen van je eigen agent-servers (Ids::agentIps), anders krijgt een agent op internet
+     * een 403 van de proxy zodra de site van RzSense "alleen vanaf het LAN" staat (en kan hij niet rapporteren of bijwerken).
+     */
     public static function lanNets(): array
     {
         $all = array_merge(parse_list((string) setting('trusted_networks', '')), parse_list((string) setting('proxy_lan_extra', '')));
@@ -83,7 +87,9 @@ final class ProxyGuard
                 $ok[$n] = $n;
             }
         }
-        return $ok ? array_slice(array_values($ok), 0, 50) : PRIVATE_NETWORKS;
+        $out = $ok ? array_slice(array_values($ok), 0, 50) : PRIVATE_NETWORKS;
+        $agents = class_exists('Ids') ? array_slice(array_values(array_diff(Ids::agentIps(), $out)), 0, 30) : [];
+        return array_merge($out, array_values(array_filter($agents, [self::class, 'validNet'])));
     }
 
     public static function validNet(string $n): bool
