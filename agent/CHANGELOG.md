@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.99.3 – 2026-11-14
+- **ClamAV op servers met BusyBox**: ook het allereerste beginpunt (direct na het aanzetten) ligt nu 2 seconden terug, zodat een bestand dat in dezelfde seconde binnenkwam niet gemist wordt.
+
 ## 1.99.2 – 2026-11-14
 - **ClamAV miste soms een bestand op servers met BusyBox** (bv. Alpine): BusyBox vergelijkt tijden per hele seconde, dus een bestand uit dezelfde seconde als het beginpunt van de ronde werd overgeslagen. Het beginpunt ligt nu 2 seconden terug; een bestand twee keer scannen is onschuldig.
 

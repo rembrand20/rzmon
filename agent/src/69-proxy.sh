@@ -552,6 +552,9 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
             act_log proxy "$moved" "ClamAV: $sig" "$r$([ "$moved" = 1 ] && echo " → quarantaine $qid")"
             av_found+="${av_found:+,}{\"p\":\"$(json_escape "$r")\",\"sig\":\"$(json_escape "$sig")\",\"sha\":\"$sha\",\"size\":${sz:-0},\"qid\":\"$qid\",\"moved\":$moved}"
         }
+        # Beginpunt 2 seconden terug: BusyBox (Alpine) vergelijkt tijden per hele seconde, zodat een bestand uit dezelfde
+        # seconde anders gemist wordt. Een bestand twee keer scannen is onschuldig.
+        av_stamp() { touch -t "$(date -d "@$(( $(date +%s) - 2 ))" +%Y%m%d%H%M.%S 2>/dev/null)" "$1" 2>/dev/null || touch "$1"; }
         av_parse() { while IFS= read -r l; do [[ "$l" == *': '*' FOUND' ]] || continue; l=${l% FOUND}; av_hit "${l%: *}" "${l##*: }"; done; }
         # 5. Klaar? Dan de nieuwe bestanden scannen (de eerste keer alleen een beginpunt: alles = volledige scan)
         if [ "$(avx inspect -f '{{.State.Running}}' "$av_ctr" 2>/dev/null)" = true ]; then
@@ -559,11 +562,9 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
                 av_state=ok
                 av_sigs=$(avx exec "$av_ctr" clamdscan --version 2>/dev/null | head -n 1 | cut -c1-80)
                 if [ ! -f "$av_dir/last.stamp" ]; then
-                    touch "$av_dir/last.stamp"; av_msg=${av_msg:-"klaar; nieuwe bestanden worden vanaf nu gescand"}
+                    av_stamp "$av_dir/last.stamp"; av_msg=${av_msg:-"klaar; nieuwe bestanden worden vanaf nu gescand"}
                 elif [ ${#av_ok[@]} -gt 0 ]; then
-                    # Het nieuwe beginpunt 2 seconden terug: BusyBox (Alpine) vergelijkt tijden per hele seconde, zodat een
-                    # bestand uit dezelfde seconde anders gemist wordt. Een bestand twee keer scannen is onschuldig.
-                    touch -t "$(date -d "@$(( $(date +%s) - 2 ))" +%Y%m%d%H%M.%S 2>/dev/null)" "$av_dir/next.stamp" 2>/dev/null || touch "$av_dir/next.stamp"
+                    av_stamp "$av_dir/next.stamp"
                     find "${av_ok[@]}" -xdev -type f -newer "$av_dir/last.stamp" -size -"$(( ${AV_MAX_MB:-100} * 1024 ))"k ! -name '*'$'\n''*' 2>/dev/null | head -n 2001 >"$av_dir/work/list.txt"
                     av_new=$(wc -l <"$av_dir/work/list.txt")
                     if [ "$av_new" -gt 0 ]; then
