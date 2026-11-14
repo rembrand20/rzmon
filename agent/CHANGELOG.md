@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.101.6 – 2026-11-14
+- **Opgelost: Suricata (proxynetwerk) "container name already in use"**: bleef er van een eerder, afgebroken aanmaken een restant van `rzsense-suricata` in de opslag van Podman achter, dan kon de agent de container niet opnieuw aanmaken (`podman rm -f` ziet zo'n restant niet). De agent ruimt het nu op met `podman rm --storage` en probeert het één keer opnieuw.
+
 ## 1.101.5 – 2026-11-14
 - **Opgelost: Suricata (proxynetwerk) stopte meteen (exit 1)**: het startscript van het Suricata-image wil eigenaar worden van alles in `/etc/suricata`, maar de agent koppelde `disable.conf` alleen-lezen; daardoor stopte de container telkens direct (`chown: … Read-only file system`). Het bestand is nu schrijfbaar gekoppeld; een bestaande container maakt de agent één keer opnieuw aan.
 

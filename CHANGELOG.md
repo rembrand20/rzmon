@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.260.0**: **Suricata op het proxynetwerk**: meekijken tussen de proxy en je apps, met advies voor elk veld (AI of standaard).
 - **1.259.0**: **advies voor alle velden**: één knop vult alle instellingen van de reverse proxy in met de beste waarden (AI of standaard), daarna gewoon aan te passen.
 
+## 1.263.5 – 2026-11-14
+### Opgelost
+- **Nieuwe agent 1.101.6**: Suricata op het proxynetwerk kon niet starten als er een restant van de container in Podman achterbleef ("container name is already in use"); de agent ruimt dat nu zelf op.
+
 ## 1.263.4 – 2026-11-14
 ### Opgelost
 - **Nieuwe agent 1.101.5**: Suricata op het proxynetwerk stopte meteen na het starten (exit 1, de containercheck gaf WARNING). Nu start hij gewoon.

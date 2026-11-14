@@ -24,8 +24,9 @@ case "\$1" in
             esac
         else [ "\$2" = rzsense-suricata ] && { [ -f "\$S/ctr" ] || exit 1; }; fi ;;
     network) [ "\$2" = inspect ] && echo lo ;;
-    run) touch "\$S/ctr"; printf '%s\n' "\$*" >"\$S/run"; mkdir -p "\$N/log"; : >"\$N/log/suricata.log"; : >"\$N/log/eve.json" ;;
-    rm) rm -f "\$S/ctr" ;;
+    run) if [ -f "\$S/ghost" ]; then echo 'Error: creating container storage: the container name "rzsense-suricata" is already in use by abc123. You have to remove that container to be able to reuse that name: that name is already in use'; exit 125; fi
+         touch "\$S/ctr"; printf '%s\n' "\$*" >"\$S/run"; mkdir -p "\$N/log"; : >"\$N/log/suricata.log"; : >"\$N/log/eve.json" ;;
+    rm) [ "\$2" = --storage ] && rm -f "\$S/ghost"; rm -f "\$S/ctr" ;;
     restart) touch "\$S/restarted" ;;
     logs) printf 'i: suricata: starting\nE: af-packet: podman3: failed to open socket\n' ;;
     start) [ -f "\$S/startok" ] && rm -f "\$S/stopped"; touch "\$S/started" ;;
@@ -46,6 +47,7 @@ fn() { awk -v n="$1" '$0 ~ "^" n "\\(\\) \\{" {f=1} f{print} f&&/^\}/{exit}' age
 run() { bash "$work/run.sh" >"$work/r-$1.json" 2>>"$work/err"; }
 printf '0\tnids\ton\tweb\tauto\n' >"$work/cache/tests.cache"
 NIDS_MIN_MB=99999999 run lowmem
+touch "$work/state/ghost"   # 1.101.6: restant in de opslag van Podman: opruimen met rm --storage en opnieuw
 NIDS_MIN_MB=1 run start
 cp "$work/nids/etc/disable.conf" "$work/dis-web"
 for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "$work/nids/update.rc" ] && break; sleep 0.3; done
@@ -92,6 +94,6 @@ try:
 except AssertionError as e:
     err.write(str(e)[:1500]); sys.exit(1)
 PY
-grep -q 'Suricata (proxynetwerk) gestart' "$work/cache/act.log" && grep -q 'opnieuw gestart' "$work/cache/act.log" && grep -q 'Suricata (proxynetwerk) uit' "$work/cache/act.log" || bad+="logboek mist regels | "
+grep -q 'achtergebleven container opgeruimd' "$work/cache/act.log" && grep -q 'rm --storage rzsense-suricata' "$work/podman.log" && grep -q 'Suricata (proxynetwerk) gestart' "$work/cache/act.log" && grep -q 'opnieuw gestart' "$work/cache/act.log" && grep -q 'Suricata (proxynetwerk) uit' "$work/cache/act.log" || bad+="logboek mist regels | "
 if [ -n "$bad" ]; then echo "✘ Suricata (proxynetwerk): ${bad% | } $(tail -n 3 "$work/err" 2>/dev/null)"; exit 1; fi
-echo "✔ Suricata (proxynetwerk): netwerkbrug van de proxy gevonden (niet die van de WAF), te weinig geheugen = niet starten, --network host op de brug, regelprofiel (web/full), regels op de achtergrond bijgewerkt en herstart, meldingen uit eve.json, groot eve.json geleegd, gestopt = reden en logregels + na 10 minuten opnieuw starten, onbekende interface genegeerd, uit = container weg, in het logboek"
+echo "✔ Suricata (proxynetwerk): netwerkbrug van de proxy gevonden (niet die van de WAF), te weinig geheugen = niet starten, --network host op de brug, regelprofiel (web/full), regels op de achtergrond bijgewerkt en herstart, meldingen uit eve.json, groot eve.json geleegd, achtergebleven container in de opslag opgeruimd, gestopt = reden en logregels + na 10 minuten opnieuw starten, onbekende interface genegeerd, uit = container weg, in het logboek"

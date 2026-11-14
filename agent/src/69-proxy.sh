@@ -715,9 +715,18 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
                 else
                     ndx rm -f "$nd_ctr" >/dev/null 2>&1
                     nd_args=(); for ifn in "${nd_use[@]}"; do nd_args+=(-i "$ifn"); done
-                    if out=$(NDX_T=900 ndx run -d --name "$nd_ctr" --restart unless-stopped --network host --cap-add net_admin --cap-add net_raw --cap-add sys_nice \
+                    nd_run() { NDX_T=900 ndx run -d --name "$nd_ctr" --restart unless-stopped --network host --cap-add net_admin --cap-add net_raw --cap-add sys_nice \
                         -v "$nd_dir/log:/var/log/suricata:Z" -v "$nd_dir/lib:/var/lib/suricata:Z" -v "$nd_dir/etc/disable.conf:/etc/suricata/disable.conf:Z" \
-                        "$nd_img" "${nd_args[@]}" 2>&1); then
+                        "$nd_img" "${nd_args[@]}" 2>&1; }
+                    out=$(nd_run); nd_rc=$?
+                    # Agent 1.101.6: naam nog in gebruik door een restant in de opslag van Podman (afgebroken aanmaken);
+                    # "rm -f" ziet dat niet, "rm --storage" wel. Opruimen en één keer opnieuw.
+                    if [ "$nd_rc" != 0 ] && [ "$nd_eng" = podman ] && [[ "$out" == *"already in use"* ]]; then
+                        ndx rm -f "$nd_ctr" >/dev/null 2>&1; ndx rm --storage "$nd_ctr" >/dev/null 2>&1
+                        act_log proxy 1 "Suricata (proxynetwerk): achtergebleven container opgeruimd" "$nd_ctr"
+                        out=$(nd_run); nd_rc=$?
+                    fi
+                    if [ "$nd_rc" = 0 ]; then
                         echo "$nd_ehash" >"$nd_dir/env.hash"; rm -f "$nd_dir/rules.hash"
                         act_log proxy 1 "Suricata (proxynetwerk) gestart" "${nd_use[*]}, profiel $nd_prof"
                     else
