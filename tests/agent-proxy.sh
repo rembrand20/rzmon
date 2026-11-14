@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Agenttest reverse proxy beschermen (agent 1.97.0): een nagebootste SWAG (echte nginx, een nep-podman die ps, inspect en
 # exec nadoet). De agent vindt de sites, schrijft het beleid (adminpad alleen LAN, hele site alleen LAN, slechte bots,
-# rate limit), zet de haak in ssl.conf, test en herlaadt; daarna geeft /admin van buiten 403 en de site zelf gewoon 200.
+# rate limit, virtual patching), zet de haak in ssl.conf, test en herlaadt; daarna geeft /admin van buiten 403 en de site zelf gewoon 200.
 # Een tweede ronde verandert niets; uit haalt alles weg en ssl.conf is weer precies zoals eerst. Een beleid dat nginx
 # afkeurt wordt teruggezet. Alleen als root en met nginx, curl en openssl; anders overgeslagen.
 # Gebruik: bash tests/agent-proxy.sh
@@ -77,6 +77,7 @@ policy() {
     printf '0\tproxysite\tvaultwarden.*\tpaths\t/admin\toff\t1\n'
     printf '0\tproxysite\tportainer.*\tsite\t-\tstrict\t1\n'
     printf '0\tproxysite\tblog.*\toff\t-\tnormal\t1\n'
+    printf '0\tproxyblock\tblog.*\t/xmlrpc.php,/../etc\n0\tproxyblock\t*\t/.env,/vendor/phpunit\n0\tproxyblock\tonbekend.*\t/x\n'
 }
 policy >"$work/cache/tests.cache"
 bash "$work/run.sh" >"$work/r1.json" 2>>"$work/err"
@@ -84,6 +85,7 @@ bash "$work/run.sh" >"$work/r1.json" 2>>"$work/err"
 sed -i '/^    127\.0\.0\.1 1;$/d; /^    ::1 1;$/d' "$C/site-confs/rzsense-http.conf" && nginx -s reload -c "$work/nginx.conf" 2>>"$work/err"; sleep 1
 c_adm=$(code vaultwarden /admin); c_adm2=$(code vaultwarden /ADMIN/x); c_vw=$(code vaultwarden /); c_port=$(code portainer /); c_blog=$(code blog /)
 c_bot=$(code blog / 'sqlmap/1.7'); c_ok=$(code blog / 'Mozilla/5.0')
+c_vp1=$(code blog /XMLRPC.php); c_vp2=$(code vaultwarden /.env); c_vp3=$(code vaultwarden /vendor/phpunit/x/eval-stdin.php); c_vp_ok=$(code blog /xmlrpc-not)
 cp "$C/site-confs/rzsense-http.conf" "$work/http.conf.1"
 bash "$work/run.sh" >"$work/r2.json" 2>>"$work/err"   # tweede ronde: niets nieuws
 # Een beleid dat nginx afkeurt (twee keer dezelfde naam kan niet, maar de agent filtert dat): kapotte ssl.conf nabootsen
@@ -115,6 +117,9 @@ PY
 [ "$c_port" = 403 ] || bad+="portainer (hele site alleen LAN) niet 403 ($c_port) | "
 [ "$c_blog" = 200 ] && [ "$c_ok" = 200 ] || bad+="blog niet 200 ($c_blog/$c_ok) | "
 [ "$c_bot" = 403 ] || bad+="sqlmap niet geweerd ($c_bot) | "
+[ "$c_vp1" = 403 ] && [ "$c_vp2" = 403 ] && [ "$c_vp3" = 403 ] || bad+="virtual patch niet dicht ($c_vp1/$c_vp2/$c_vp3) | "
+[ "$c_vp_ok" = 403 ] && bad+="virtual patch: ander pad onterecht dicht | "
+grep -q '/\.\./etc' "$C/site-confs/rzsense-http.conf" "$work/http.conf.1" 2>/dev/null && bad+="ongeldig pad (..) in de config | "
 [ "$c_after_fail" = 200 ] || bad+="na een afgekeurd beleid werkt de site niet meer ($c_after_fail) | "
 [ "$c_adm_off" = 200 ] || bad+="na uitzetten is /admin nog dicht ($c_adm_off) | "
 cmp -s "$C/ssl.conf" "$work/ssl.orig" || bad+="ssl.conf niet terug zoals eerst | "
@@ -123,4 +128,4 @@ grep -q 'rzsense-hook' "$work/ssl.orig" && bad+="haak al in het origineel? | "
 grep -q 'Reverse proxy: beleid doorgevoerd' "$work/cache/act.log" && grep -q 'Reverse proxy: doorvoeren mislukt' "$work/cache/act.log" \
     && grep -q 'Reverse proxy: bescherming uit' "$work/cache/act.log" || bad+="logboek mist regels | "
 if [ -n "$bad" ]; then echo "✘ reverse proxy: ${bad% | } $(tail -n 5 "$work/err")"; exit 1; fi
-echo "✔ reverse proxy: SWAG in Podman herkend, sites uitgelezen, adminpad en hele site alleen LAN (ook andere schrijfwijze), bots geweerd, tweede ronde niets nieuws, afgekeurd beleid teruggezet, uit = alles weg en ssl.conf als eerst, in het logboek"
+echo "✔ reverse proxy: SWAG in Podman herkend, sites uitgelezen, adminpad en hele site alleen LAN (ook andere schrijfwijze), bots geweerd, virtual patching per site en voor alle sites (ongeldig pad geweigerd), tweede ronde niets nieuws, afgekeurd beleid teruggezet, uit = alles weg en ssl.conf als eerst, in het logboek"

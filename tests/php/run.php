@@ -3140,5 +3140,64 @@ q('DELETE FROM av_events WHERE host_id = ?', [$vh]);
 q('DELETE FROM av_dirs WHERE host_id = ?', [$vh]);
 q('DELETE FROM hosts WHERE id = ?', [$vh]);
 
+section('Virtual patching en score per site (1.258.0)');
+q("INSERT INTO hosts (name, address, mode, agent_version) VALUES ('vp-host', '127.0.0.1', 'agent', '1.99.3')");
+$ph2 = (int) db()->lastInsertId();
+$pH2 = q('SELECT * FROM hosts WHERE id = ?', [$ph2])->fetch();
+$vpkeep = [];
+foreach (['proxy_on', 'waf_on', 'waf_mode', 'av_on', 'proxy_def_lan'] as $k) {
+    $vpkeep[$k] = setting($k, null);
+}
+save_setting('proxy_on', '1');
+save_setting('proxy_def_lan', '1');
+ProxyGuard::setRole($ph2, true, 'test');
+ProxyGuard::fromAgent($pH2, ['proxy' => ['kind' => 'swag', 'hook' => 1, 'state' => 'ok', 'sites' => [
+    ['name' => 'blog.*', 'names' => ['blog.*'], 'up' => 'wordpress:80'], ['name' => 'portainer.*', 'names' => ['portainer.*'], 'up' => 'portainer:9000'],
+    ['name' => 'files.*', 'names' => ['files.*'], 'up' => 'nextcloud:443']]]]);
+ok(VPatch::add($ph2, 'blog.*', '/xmlrpc.php', 30, 'test', 'known', 'test') === null && VPatch::add($ph2, '*', '/.env', 0, '', 'user', 'test') === null
+    && is_string(VPatch::add($ph2, 'blog.*', '/../etc', 30, '', 'user', 'test')) && is_string(VPatch::add($ph2, 'blog.*', '/', 30, '', 'user', 'test'))
+    && is_string(VPatch::add($ph2, 'blog.*', '/x y', 30, '', 'user', 'test')), 'virtual patching: geldige paden dicht, ongeldige (.., /, spatie) geweigerd');
+ok(!preg_grep('/proxyblock/', ProxyGuard::agentLines($ph2)), 'virtual patching: een oudere agent krijgt de regels niet (kenmerk blijft kloppen)');
+q("UPDATE hosts SET agent_version = '1.100.0' WHERE id = ?", [$ph2]);
+$pl = ProxyGuard::agentLines($ph2);
+ok(in_array("0\tproxyblock\t*\t/.env", $pl, true) && in_array("0\tproxyblock\tblog.*\t/xmlrpc.php", $pl, true)
+    && array_search("0\tproxyblock\t*\t/.env", $pl, true) > max(array_keys(preg_grep('/proxysite/', $pl))), 'virtual patching: regels naar de agent, na de sites');
+$h1 = ProxyGuard::hash($ph2);
+q("UPDATE proxy_vpatch SET expires_at = NOW() - INTERVAL 1 MINUTE WHERE host_id = ? AND path = '/xmlrpc.php'", [$ph2]);
+ok(!in_array("0\tproxyblock\tblog.*\t/xmlrpc.php", ProxyGuard::agentLines($ph2), true) && ProxyGuard::hash($ph2) !== $h1, 'virtual patching: verlopen = weer open (en de agent ziet de wijziging)');
+$vpid = (int) q("SELECT id FROM proxy_vpatch WHERE host_id = ? AND path = '/xmlrpc.php'", [$ph2])->fetchColumn();
+VPatch::extend($vpid, 30, 'test');
+ok(in_array("0\tproxyblock\tblog.*\t/xmlrpc.php", ProxyGuard::agentLines($ph2), true), 'virtual patching: verlengen');
+// Voorstellen: uit de WAF (misbruik van een bekend lek) en de bekende lijst, niet wat al dicht is
+q("INSERT INTO waf_events (host_id, cs_id, at, ip, site, uri, rules, vpatch, blocked) VALUES (?, 1, NOW(), '198.51.100.9', 'files.*', '/vendor/phpunit/src/eval-stdin.php?x=1', 'crowdsecurity/vpatch-CVE-2017-9841', 1, 0)", [$ph2]);
+$vo = VPatch::overview($ph2, ProxyGuard::sites($ph2));
+$sk = array_map(static fn($x) => $x['site'] . ' ' . $x['path'], $vo['suggest']);
+ok(in_array('files.* /vendor/phpunit/src/eval-stdin.php', $sk, true) && in_array('* /.git', $sk, true) && !in_array('* /.env', $sk, true) && !in_array('blog.* /xmlrpc.php', $sk, true),
+    'virtual patching: voorstellen uit de WAF en de bekende lijst; wat al dicht is niet');
+// Score
+save_setting('waf_on', '1');
+save_setting('waf_mode', 'sure');
+save_setting('av_on', '0');
+$sc = array_column(ProxyGuard::overview()['servers'], null, 'id')[$ph2];
+$byS = array_column($sc['sites'], null, 'site');
+ok($byS['portainer.*']['score']['n'] === 25 + 10 + 10 + 22 + 15 + 15 && $byS['portainer.*']['score']['grade'] === 'A', 'score: beheerprogramma alleen LAN = A');
+ok($byS['files.*']['score']['n'] < $byS['blog.*']['score']['n'] && (bool) array_filter($byS['files.*']['score']['parts'], static fn($p) => $p['k'] === 'vuln' && $p['got'] === 0 && $p['tip'] !== ''),
+    'score: open lek dat de WAF zag kost punten, met een tip');
+VPatch::add($ph2, 'files.*', '/vendor/phpunit', 30, '', 'waf', 'test');
+$byS = array_column(array_column(ProxyGuard::overview()['servers'], null, 'id')[$ph2]['sites'], null, 'site');
+ok((bool) array_filter($byS['files.*']['score']['parts'], static fn($p) => $p['k'] === 'vuln' && $p['got'] === 15), 'score: dichtgezet = weer veilig');
+ProxyGuard::saveSite($ph2, ['site' => 'portainer.*', 'enabled' => 1, 'lan_mode' => 'off', 'rate' => 'off', 'bots' => 0, 'waf' => 'off'], 'test');
+$byS = array_column(array_column(ProxyGuard::overview()['servers'], null, 'id')[$ph2]['sites'], null, 'site');
+ok($byS['portainer.*']['score']['grade'] === 'D', 'score: beheerprogramma open voor iedereen zonder bescherming = D');
+VPatch::remove($vpid, 'test');
+ok(!q('SELECT 1 FROM proxy_vpatch WHERE id = ?', [$vpid])->fetchColumn(), 'virtual patching: weer open');
+foreach ($vpkeep as $k => $v) {
+    $v === null ? q('DELETE FROM settings WHERE name = ?', [$k]) : save_setting($k, (string) $v);
+}
+q('DELETE FROM waf_events WHERE host_id = ?', [$ph2]);
+q('DELETE FROM proxy_vpatch WHERE host_id = ?', [$ph2]);
+q('DELETE FROM proxy_sites WHERE host_id = ?', [$ph2]);
+q('DELETE FROM hosts WHERE id = ?', [$ph2]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

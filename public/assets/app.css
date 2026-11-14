@@ -6061,3 +6061,13 @@ button.rz-job::before, .btn.rz-job::before { content: ''; position: absolute; in
 .av-add { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
 .av-add input { flex: 1 1 14rem; min-width: 0; }
 .av-add select { max-width: 18rem; }
+/* 1.258.0: score per site en virtual patching */
+.px-score { cursor: pointer; font-weight: 700; border: 0; }
+.px-tips { display: grid; gap: .3rem; padding: .4rem .2rem; }
+.px-tip { display: grid; grid-template-columns: 9rem 6rem 3.5rem minmax(0, 1fr); gap: .5rem; align-items: center; }
+.px-tip-k { font-size: .88em; }
+.px-tip-bar { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--text) 12%, transparent); overflow: hidden; }
+.px-tip-bar i { display: block; height: 100%; background: var(--primary); }
+.vp-sug summary { cursor: pointer; }
+@media (max-width: 640px) { .px-tip { grid-template-columns: 1fr 4rem 3rem; } .px-tip > :last-child { grid-column: 1 / -1; } }
+.vp-box [data-vp-days] { width: auto; flex: 0 0 auto; }

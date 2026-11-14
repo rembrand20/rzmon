@@ -3271,7 +3271,7 @@ Vink per stap *verstuurd* aan. Komt een termijn binnen 6 uur (eindverslag: 3 dag
 
 **Let op:** dit is geen juridisch advies en geen certificering. Het laat zien wat RzSense technisch ziet; of je onder NIS2 valt en wat significant is, bepaal je zelf (of met je adviseur). **Aan/uit:** daar, of *Overzicht → Status en functies → Functies*.
 
-### 8.12h Reverse proxy beschermen 🔀 (vanaf 1.254.0, agent 1.97.0; WAF vanaf 1.255.0, agent 1.98.0; AI-advies vanaf 1.256.0; ClamAV vanaf 1.257.0, agent 1.99.0)
+### 8.12h Reverse proxy beschermen 🔀 (vanaf 1.254.0, agent 1.97.0; WAF vanaf 1.255.0, agent 1.98.0; AI-advies vanaf 1.256.0; ClamAV vanaf 1.257.0, agent 1.99.0; virtual patching en score vanaf 1.258.0, agent 1.100.0)
 Bescherm de apps achter je reverse proxy (**SWAG** of **Nginx Proxy Manager**, in **Podman** of **Docker**). De agent op die server voert het door; alles stel je in RzSense in.
 
 **Aanzetten**
@@ -3367,6 +3367,31 @@ ClamAV scant wat er via je apps binnenkomt (uploads in Nextcloud, bijlagen, form
 **Uit**: de container gaat weg; de quarantaine blijft staan.
 **Eerlijk**: dit scant direct ná het uploaden, niet aan de deur. Een besmet bestand staat dus hooguit een minuut in de map voordat het gevonden wordt.
 Op de server in te stellen: `AV_DIR`, `AV_IMAGE` (standaard `docker.io/clamav/clamav:1.4`), `AV_MIN_MB`, `AV_MAX_MB` en `AV_DIRS_MAX`.
+
+**🩹 Paden dichtzetten (virtual patching)** (vanaf 1.258.0, agent 1.100.0)
+Heeft een app een bekend lek en kun je hem nog niet bijwerken? Zet het pad tijdelijk dicht: iedereen buiten je eigen netwerk krijgt **403**, ook als de app zelf nog kwetsbaar is.
+
+- Op de pagina **🔀 Reverse proxy**, blok **🩹 Paden dichtzetten**: kies hoe lang (7, 30 of 90 dagen, of zonder einde), dan **🩹 Dichtzetten** bij een voorstel, of vul zelf een site (of *alle sites*) en een pad in.
+- **Voorstellen** komen uit:
+  - wat de **WAF** zag: misbruik van een bekend lek (CVE) op een pad van een site, met hoe vaak en vanaf hoeveel adressen;
+  - paden die **nooit van buiten open horen te staan**: `/.env`, `/.git`, `/.svn`, `/.aws`, `/.DS_Store`, `/vendor/phpunit`, `/server-status`;
+  - bekende paden per app, bv. `/xmlrpc.php` bij WordPress, `/actuator` bij Spring Boot, `/script` bij Jenkins.
+- Een pad is een **begin**: `/vendor/phpunit` zet ook alles daaronder dicht; hoofdletters maken niet uit.
+- **Weer open** of **+30 dagen** per regel. Een verlopen pad gaat vanzelf weer open; na 30 dagen verdwijnt het uit de lijst.
+- De agent voert het door zoals de rest: in zijn eigen bestand, met `nginx -t` en terugzetten als een site daarna niet meer antwoordt. Je eigen netwerk blijft er altijd bij.
+
+**Score per site** (vanaf 1.258.0)
+Elke site krijgt een score van 0 tot 100 (A ≥ 85, B ≥ 70, C ≥ 50, D daaronder); bovenaan staat het gemiddelde van de server en de laagste site. Klik op de score voor de onderdelen en wat je kunt verbeteren:
+| Onderdeel | Punten | Volle punten als |
+|---|---|---|
+| Wie mag erbij | 25 | een beheerprogramma alleen vanaf je netwerk; een app met adminpaden met die paden dicht |
+| Rate limit | 10 | normaal of streng |
+| Bots weren | 10 | aan |
+| WAF | 25 | aan, slider op *streng* (*alleen zeker* 22, *detecteren* of site op *alleen melden* 12) |
+| Bekende lekken | 15 | geen misbruik van een bekend lek (laatste 14 dagen) dat niet tegengehouden of dichtgezet is |
+| Uploads scannen | 15 | ClamAV aan met een uploadmap voor deze site |
+
+Een site die helemaal alleen vanaf je netwerk bereikbaar is, krijgt voor lekken en uploads de volle punten.
 
 ### 8.13 Kwetsbaarheden 🐞
 Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) horen daarbij? Standaard uit; aanzetten bij *Instellingen → 🐞 Kwetsbaarheden*. Daarna staat er een tabblad **🐞 Kwetsbaarheden** in de bovenbalk (voor beheerders en gebruikers, niet voor *alleen lezen*).

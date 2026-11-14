@@ -4,6 +4,8 @@ lap proxy
 # de proxy (SWAG of Nginx Proxy Manager, in Podman of Docker), leest de sites uit en voert het beleid per site door:
 #   0 <tab> proxylan <tab> netwerken                 je LAN (adminpagina's mogen alleen daarvandaan)
 #   0 <tab> proxysite <tab> site <tab> off|paths|site <tab> /pad,/pad|- <tab> off|normal|strict <tab> 0|1 (slechte bots)
+#   0 <tab> proxyblock <tab> site|* <tab> /pad,/pad   (agent 1.100.0: virtual patching, paden met een bekend lek tijdelijk
+#                                                      dicht voor iedereen buiten je netwerk; * = alle sites)
 # Veilig doorvoeren:
 #  - alleen eigen bestanden (rzsense-http.conf en de map rzsense/), plus één gemarkeerde regel (# rzsense-hook) in de
 #    proxy die naar het eigen bestand verwijst (SWAG: ssl.conf, die in elke HTTPS-site zit; NPM: custom/http.conf en
@@ -143,7 +145,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
         sleep 2
         return 0
     }
-    px_apply_hash=$(awk -F'\t' '$1 == "0" && ($2 == "proxylan" || $2 == "proxysite")' "$t_cache" | sha1sum | cut -c1-12)
+    px_apply_hash=$(awk -F'\t' '$1 == "0" && ($2 == "proxylan" || $2 == "proxysite" || $2 == "proxyblock")' "$t_cache" | sha1sum | cut -c1-12)
     px_applied=$(cat "$t_dir/proxy.applied" 2>/dev/null)
     # 3a. Uit: alles weghalen
     if [ "$px_state" = pending ] && [ "$px_mode" != on ]; then
@@ -168,14 +170,14 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
             px_state=error; px_msg=$(cat "$t_dir/proxy.failmsg" 2>/dev/null)
         else
             # Beleid opbouwen (alles wat binnenkomt opnieuw controleren)
-            px_geo=""; px_hosts=""; px_adm=""; px_bots=""; px_rate=""; px_id=0; declare -A px_seen=()
+            px_geo=""; px_hosts=""; px_adm=""; px_bots=""; px_rate=""; px_blk=""; px_id=0; declare -A px_seen=(); declare -A px_sid=()
             for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_cache"); do
                 [[ "$n" =~ ^[0-9a-fA-F:.]+(/[0-9]{1,3})?$ ]] && px_geo+="    $n 1;"$'\n'
             done
             while IFS=$'\t' read -r _ _ s_name s_mode s_paths s_rate s_bots; do
                 [[ "$s_name" =~ ^(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)*(\.\*)?$ ]] || continue
                 [[ "$s_mode" =~ ^(off|paths|site)$ ]] && [[ "$s_rate" =~ ^(off|normal|strict)$ ]] && [[ "$s_bots" =~ ^[01]$ ]] || continue
-                px_id=$((px_id + 1)); sid="s$px_id"
+                px_id=$((px_id + 1)); sid="s$px_id"; px_sid[$s_name]=$sid
                 # Alle namen van de site (server_name), elke naam maar één keer (anders weigert nginx de map)
                 for a in ${px_alias[$s_name]:-$s_name}; do
                     [ -n "${px_seen[$a]-}" ] && continue; px_seen[$a]=1
@@ -193,6 +195,17 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
                 [ "$s_bots" = 1 ] && px_bots+="    $sid 1;"$'\n'
                 [ "$s_rate" != off ] && px_rate+="    $sid $s_rate;"$'\n'
             done < <(awk -F'\t' '$1 == "0" && $2 == "proxysite"' "$t_cache" | head -n 200)
+            # Virtual patching: paden met een bekend lek dicht (prefix, hoofdletters maken niet uit), voor één site of alle
+            while IFS=$'\t' read -r _ _ b_site b_paths; do
+                if [ "$b_site" = '*' ]; then b_pre='[^:]*'
+                elif [ -n "${px_sid[$b_site]-}" ]; then b_pre=${px_sid[$b_site]}
+                else continue; fi
+                IFS=',' read -r -a b_list <<<"$b_paths"
+                for p in "${b_list[@]}"; do
+                    [[ "$p" =~ ^/[A-Za-z0-9._~/-]{1,120}$ ]] && [[ "$p" != *..* ]] || continue
+                    px_blk+="    \"~*^$b_pre:$(sed 's/[.~]/\\&/g' <<<"$p")\" 1;"$'\n'
+                done
+            done < <(awk -F'\t' '$1 == "0" && $2 == "proxyblock"' "$t_cache" | head -n 300)
             px_conf_http="# RzSense: reverse proxy beschermen. Beheerd door de RzSense-agent; wijzigingen hier worden overschreven.
 geo \$rzs_lan {
     default 0;
@@ -206,6 +219,13 @@ ${px_hosts}}
 map \"\$rzs_site:\$uri\" \$rzs_adm {
     default 0;
 ${px_adm}}
+map \"\$rzs_site:\$uri\" \$rzs_blk {
+    default 0;
+${px_blk}}
+map \"\$rzs_blk:\$rzs_lan\" \$rzs_deny_blk {
+    default 0;
+    \"1:0\" 1;
+}
 map \"\$rzs_adm:\$rzs_lan\" \$rzs_deny_adm {
     default 0;
     \"1:0\" 1;
@@ -237,6 +257,7 @@ limit_req_zone \$rzs_key_s zone=rzs_strict:10m rate=5r/s;
 "
             px_conf_srv="# RzSense: reverse proxy beschermen (per site). Beheerd door de RzSense-agent.
 if (\$rzs_deny_adm) { return 403; }
+if (\$rzs_deny_blk) { return 403; }
 if (\$rzs_deny_bot) { return 403; }
 limit_req zone=rzs_normal burst=40 nodelay;
 limit_req zone=rzs_strict burst=20 nodelay;

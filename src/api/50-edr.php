@@ -609,6 +609,21 @@ switch ($action) {
         $in = input();
         ProxyAdvice::dismiss((int) ($in['host_id'] ?? 0), strtolower((string) ($in['site'] ?? '')), (string) $user['username']) ? out(['ok' => true]) : out(['error' => t('Geen open voorstel voor deze site')], 404);
 
+    // 1.258.0: virtual patching (paden dichtzetten, weer open, verlengen)
+    case 'vp_add':
+        $in = input();
+        ($err = VPatch::add((int) ($in['host_id'] ?? 0), (string) ($in['site'] ?? ''), (string) ($in['path'] ?? ''), (int) ($in['days'] ?? 30),
+            mb_substr((string) ($in['reason'] ?? ''), 0, 200), (string) ($in['source'] ?? 'user'), (string) $user['username'])) === null ? out(['ok' => true]) : out(['error' => $err], 422);
+
+    case 'vp_remove':
+        VPatch::remove((int) (input()['id'] ?? 0), (string) $user['username']);
+        out(['ok' => true]);
+
+    case 'vp_extend':
+        $in = input();
+        VPatch::extend((int) ($in['id'] ?? 0), (int) ($in['days'] ?? 30), (string) $user['username']);
+        out(['ok' => true]);
+
     // 1.257.0: ClamAV op de reverse proxy (mappen, volledige scan, quarantaine)
     case 'av_dir_add':
         $in = input();

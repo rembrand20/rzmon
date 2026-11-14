@@ -22124,22 +22124,25 @@ async function loadProxy() {
     const rows = (s.sites || []).map((x) => `<tr data-px-site="${esc(x.site)}" class="${x.enabled ? '' : 'dim'}">
         <td>${amSw('px-on-' + s.id + '-' + x.site.replace(/[^a-z0-9]/gi, '_'), x.enabled, 'data-px="enabled"')}</td>
         <td><b>${esc(x.site)}</b>${x.names.length > 1 ? `<div class="muted small">${esc(x.names.slice(1).join(', '))}</div>` : ''}${x.up ? `<div class="muted small mono">→ ${esc(x.up)}</div>` : ''}</td>
+        <td>${pxScoreBadge(x)}</td>
         <td><select data-px="lan_mode" aria-label="${esc(L('Wie mag erbij'))}">${PX_LAN().map(([k, l]) => `<option value="${k}" ${k === x.lan_mode ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
           <input type="text" class="mono px-paths" data-px="lan_paths" value="${esc(x.lan_paths.replace(/,/g, ', '))}" placeholder="/admin" ${x.lan_mode === 'paths' ? '' : 'hidden'} aria-label="${esc(L('Adminpaden'))}"></td>
         <td><select data-px="rate" aria-label="${esc(L('Rate limit'))}">${PX_RATE().map(([k, l]) => `<option value="${k}" ${k === x.rate ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></td>
         <td>${amSw('px-bots-' + s.id + '-' + x.site.replace(/[^a-z0-9]/gi, '_'), x.bots, 'data-px="bots"')}</td>
         ${d.waf && d.waf.on ? `<td><select data-px="waf" aria-label="${esc(L('WAF'))}">${WAF_SITE().map(([k, l]) => `<option value="${k}" ${k === (x.waf || 'inherit') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>${wafSiteStats((s.waf_stats || {})[x.site])}</td>` : ''}
         <td class="nowrap">${x.custom && x.source === 'ai' ? `<span class="lf-tag ok" title="${esc(x.ai_reason || '')}">🤖 ${L('AI')}</span> <button type="button" class="btn small-btn" data-px-reset title="${esc(L('Terug naar de standaard'))}">↺</button>` : x.custom ? `<span class="lf-tag">${L('eigen')}</span> <button type="button" class="btn small-btn" data-px-reset title="${esc(L('Terug naar de standaard'))}">↺</button>` : `<span class="lf-tag ok">${L('standaard')}</span>`}</td></tr>`
-        + (d.ai && d.ai.on ? pxaRow(x, ((s.ai || {}).items || {})[x.site], d.waf && d.waf.on ? 7 : 6) : '')).join('');
+        + pxScoreRow(x, d.waf && d.waf.on ? 8 : 7)
+        + (d.ai && d.ai.on ? pxaRow(x, ((s.ai || {}).items || {})[x.site], d.waf && d.waf.on ? 8 : 7) : '')).join('');
     return `<section class="px-srv" data-px-host="${s.id}">
       <div class="px-h"><b>${esc(s.name)}</b> <span class="muted small">${esc(PX_KIND[r.kind] || r.kind || '–')}${r.ctr ? ' · ' + esc(r.ctr) : ''}${r.engine ? ' (' + esc(r.engine) + ')' : ''}</span>
-        <span class="lf-tag ${cls}">${txt}</span>${sync}<span class="lp-sp"></span></div>
+        <span class="lf-tag ${cls}">${txt}</span>${sync}${pxScoreSum(s)}<span class="lp-sp"></span></div>
       ${!s.agent_ok ? `<div class="callout small">⬆ ${L('Agent 1.97.0 of nieuwer nodig. Werk de agent bij in de Agent Manager.')}</div>` : ''}
       ${r.msg ? `<p class="small ${r.state === 'error' ? 'danger-txt' : 'muted'}">${esc(pxMsg(r.msg))}</p>` : ''}
       ${d.ai && d.ai.on && (s.sites || []).length ? pxaHead(s, d.ai) : ''}
-      ${(s.sites || []).length ? `<div class="table-scroll"><table class="vuln-table px-table"><thead><tr><th>${L('Aan')}</th><th>${L('Site')}</th><th>${L('Wie mag erbij')}</th><th>${L('Rate limit')}</th><th>${L('Bots weren')}</th>${d.waf && d.waf.on ? `<th>${L('WAF')}</th>` : ''}<th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+      ${(s.sites || []).length ? `<div class="table-scroll"><table class="vuln-table px-table"><thead><tr><th>${L('Aan')}</th><th>${L('Site')}</th><th>${L('Score')}</th><th>${L('Wie mag erbij')}</th><th>${L('Rate limit')}</th><th>${L('Bots weren')}</th>${d.waf && d.waf.on ? `<th>${L('WAF')}</th>` : ''}<th></th></tr></thead><tbody>${rows}</tbody></table></div>`
         : `<p class="muted small">${s.report ? L('Geen sites gevonden in de proxy.') : L('Nog geen rapport van de agent. Dat komt bij zijn volgende ronde (meestal binnen een minuut).')}</p>`}
       ${d.waf && d.waf.on ? wafPanel(s, d.waf) : ''}
+      ${d.on && (s.sites || []).length ? vpPanel(s) : ''}
       ${d.av && d.av.on ? avPanel(s) : ''}
     </section>`;
   }).join('');
@@ -22159,7 +22162,7 @@ async function loadProxy() {
       $('[data-av-path]', b).value = x.path; $('[data-av-site]', b).value = x.site || '';
       return;
     }
-    if (e.target.closest('.av-box')) return;
+    if (e.target.closest('.av-box, .vp-box')) return;
     const tr = e.target.closest('[data-px-site]');
     if (!tr) return;
     if (e.target.dataset.px === 'lan_mode') {
@@ -22191,6 +22194,34 @@ async function loadProxy() {
         else { const res = await api('proxy_ai_apply', pa.matches('[data-pxa-all]') ? { host_id: host, all: 1 } : { host_id: host, site });
           toast(L('{n} toegepast; de agent voert het binnen een minuut door', { n: res.n })); }
       } catch (ex) { toast(ex.message, 'err'); }
+      loadProxy();
+      return;
+    }
+    const sc = e.target.closest('[data-px-score]');
+    if (sc) {
+      const tr = sc.closest('[data-px-site]');
+      const row = tr && tr.parentElement.querySelector(`.px-tip-row[data-tip-for="${CSS.escape(tr.dataset.pxSite)}"]`);
+      if (row) { row.hidden = !row.hidden; sc.setAttribute('aria-expanded', String(!row.hidden)); }
+      return;
+    }
+    const vp = e.target.closest('[data-vp-sug], [data-vp-add], [data-vp-rm], [data-vp-ext]');
+    if (vp) {
+      const b2 = vp.closest('.vp-box');
+      const days = +$('[data-vp-days]', b2).value;
+      try {
+        if (vp.matches('[data-vp-sug]')) {
+          const x = JSON.parse(b2.dataset.vpSugg || '[]')[+vp.dataset.vpSug];
+          await api('vp_add', { host_id: host, site: x.site, path: x.path, days, reason: x.reason, source: x.source });
+        } else if (vp.matches('[data-vp-add]')) {
+          const path = $('[data-vp-path]', b2).value.trim();
+          if (!path) { $('[data-vp-path]', b2).focus(); return; }
+          await api('vp_add', { host_id: host, site: $('[data-vp-site]', b2).value, path, days, source: 'user' });
+        } else if (vp.matches('[data-vp-rm]')) {
+          if (!confirm(L('Dit pad weer openzetten?'))) return;
+          await api('vp_remove', { id: +vp.dataset.vpRm });
+        } else await api('vp_extend', { id: +vp.dataset.vpExt, days: 30 });
+        toast(L('Opgeslagen; de agent voert het binnen een minuut door'));
+      } catch (ex) { toast(ex.message, 'err'); return; }
       loadProxy();
       return;
     }
@@ -22271,6 +22302,53 @@ function pxaRow(x, item, cols) {
       ${ch.map(([f, a, b]) => `<span class="pxa-ch">${esc(F[f])}: <s>${esc(pxaVal(f, a))}</s> → <b>${esc(pxaVal(f, b))}</b></span>`).join(' ')}
       ${item.reason ? `<div class="muted small">${esc(item.reason)}</div>` : ''}
       <span class="pxa-btns"><button type="button" class="btn small-btn primary" data-pxa-apply>${L('Toepassen')}</button> <button type="button" class="btn small-btn" data-pxa-dismiss>${L('Negeren')}</button></span></div></td></tr>`;
+}
+
+// 1.258.0: score per site en virtual patching
+const PX_SCORE_K = () => ({ access: L('Wie mag erbij'), rate: L('Rate limit'), bots: L('Bots weren'), waf: L('WAF'), vuln: L('Bekende lekken'), upload: L('Uploads scannen'), off: L('Uit') });
+const pxGradeCls = (g) => ({ A: 'ok', B: 'ok', C: 'wait', D: 'bad' }[g] || '');
+function pxScoreBadge(x) {
+  const sc = x.score;
+  if (!sc) return '';
+  return `<button type="button" class="lf-tag px-score ${pxGradeCls(sc.grade)}" data-px-score aria-expanded="false" title="${esc(L('Waarom deze score?'))}">${esc(sc.grade)} ${sc.n}</button>`;
+}
+function pxScoreRow(x, cols) {
+  const sc = x.score;
+  if (!sc) return '';
+  const K = PX_SCORE_K();
+  return `<tr class="px-tip-row" data-tip-for="${esc(x.site)}" hidden><td></td><td colspan="${cols - 1}"><div class="px-tips">
+    ${sc.parts.map((p) => `<div class="px-tip"><span class="px-tip-k">${esc(K[p.k] || p.k)}</span><span class="px-tip-bar"><i style="width:${p.max ? Math.round((p.got / p.max) * 100) : 0}%"></i></span><span class="small">${p.got}/${p.max}</span>${p.tip ? `<span class="small muted">${esc(p.tip)}</span>` : '<span class="small good">✔</span>'}</div>`).join('')}
+  </div></td></tr>`;
+}
+function pxScoreSum(s) {
+  const sc = (s.sites || []).filter((x) => x.enabled && x.score);
+  if (!sc.length) return '';
+  const avg = Math.round(sc.reduce((a, x) => a + x.score.n, 0) / sc.length);
+  const g = avg >= 85 ? 'A' : avg >= 70 ? 'B' : avg >= 50 ? 'C' : 'D';
+  const low = sc.slice().sort((a, b) => a.score.n - b.score.n)[0];
+  return ` <span class="lf-tag ${pxGradeCls(g)}" title="${esc(L('Laagste: {s} ({n})', { s: low.site, n: low.score.n }))}">${L('Score {g} {n}', { g, n: avg })}</span>`;
+}
+const VP_DAYS = () => [[7, L('7 dagen')], [30, L('30 dagen')], [90, L('90 dagen')], [0, L('zonder einde')]];
+const vpSite = (x) => (x === '*' ? L('alle sites') : x);
+/** Op de pagina Reverse proxy: paden die dicht staan (virtual patching), voorstellen en zelf toevoegen */
+function vpPanel(s) {
+  const v = s.vpatch || { active: [], suggest: [] };
+  const days = VP_DAYS().map(([k, l]) => `<option value="${k}" ${k === 30 ? 'selected' : ''}>${esc(l)}</option>`).join('');
+  const act = v.active.map((a) => `<tr class="${a.expired ? 'dim' : ''}"><td>${esc(vpSite(a.site))}</td><td class="mono small">${esc(a.path)}</td><td class="small">${esc(a.reason || '')}</td>
+      <td class="small nowrap">${a.expired ? `<span class="lf-tag">${L('verlopen')}</span>` : a.expires ? esc(L('tot {d}', { d: fmtDateTime(a.expires) })) : L('zonder einde')}</td>
+      <td class="nowrap"><button type="button" class="btn small-btn" data-vp-ext="${a.id}">+30 ${L('dagen')}</button> <button type="button" class="btn small-btn" data-vp-rm="${a.id}">${L('Weer open')}</button></td></tr>`).join('');
+  const sug = v.suggest.map((x, i) => `<tr><td>${esc(vpSite(x.site))}</td><td class="mono small">${esc(x.path)}</td>
+      <td class="small">${esc(x.reason)}${x.n ? ` <span class="muted">· ${L('{n}× van {i} IP\'s', { n: x.n, i: x.ips })}${x.blocked ? ' · ' + L('WAF hield het tegen') : ''}</span>` : ''}</td>
+      <td class="nowrap"><button type="button" class="btn small-btn primary" data-vp-sug="${i}">🩹 ${L('Dichtzetten')}</button></td></tr>`).join('');
+  return `<div class="waf-box vp-box" data-vp-sugg="${esc(JSON.stringify(v.suggest))}"><div class="px-h"><b>🩹 ${L('Paden dichtzetten (virtual patching)')}</b>
+      <span class="muted small">${L('{n} dicht', { n: v.active.filter((a) => !a.expired).length })}</span><span class="lp-sp"></span>
+      <select data-vp-days aria-label="${esc(L('Hoe lang'))}">${days}</select></div>
+    ${s.vp_agent_ok === false ? `<div class="callout small">⬆ ${L('Agent 1.100.0 of nieuwer nodig voor virtual patching. Werk de agent bij in de Agent Manager.')}</div>` : ''}
+    ${act ? `<div class="table-scroll"><table class="vuln-table"><thead><tr><th>${L('Site')}</th><th>${L('Pad')}</th><th>${L('Waarom')}</th><th>${L('Hoe lang')}</th><th></th></tr></thead><tbody>${act}</tbody></table></div>` : `<p class="muted small">${L('Nog geen paden dichtgezet.')}</p>`}
+    ${sug ? `<details class="vp-sug"><summary class="small"><b>${L('Voorstellen ({n})', { n: v.suggest.length })}</b></summary><div class="table-scroll"><table class="vuln-table"><tbody>${sug}</tbody></table></div></details>` : ''}
+    <div class="av-add"><select data-vp-site aria-label="${esc(L('Site'))}"><option value="*">${esc(L('alle sites'))}</option>${(s.sites || []).map((x) => `<option value="${esc(x.site)}">${esc(x.site)}</option>`).join('')}</select>
+      <input type="text" class="mono" data-vp-path placeholder="/xmlrpc.php" aria-label="${esc(L('Pad'))}">
+      <button type="button" class="btn small-btn" data-vp-add>＋ ${L('Dichtzetten')}</button></div></div>`;
 }
 
 // 1.257.0: ClamAV op de reverse proxy

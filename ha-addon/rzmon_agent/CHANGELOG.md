@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.100.0 – 2026-11-14
+- **Paden dichtzetten op de reverse proxy (virtual patching)**: de agent zet de paden die je in RzSense dichtzet (per site of voor alle sites) op 403 voor iedereen buiten je eigen netwerk, in zijn eigen nginx-bestand en met dezelfde test en terugzet-stap als de rest. Een pad is een begin (ook alles daaronder), hoofdletters maken niet uit; ongeldige paden (met `..`) slaat hij over.
+
 ## 1.99.3 – 2026-11-14
 - **ClamAV op servers met BusyBox**: ook het allereerste beginpunt (direct na het aanzetten) ligt nu 2 seconden terug, zodat een bestand dat in dezelfde seconde binnenkwam niet gemist wordt.
 

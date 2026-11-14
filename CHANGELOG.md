@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.258.0**: **paden dichtzetten en score per site**: bekende lekken tijdelijk afschermen op de reverse proxy, en per site een score met tips.
 - **1.257.0**: **uploads scannen op malware**: ClamAV op de reverse proxy, met melden en verplaatsen naar quarantaine elk aan en uit.
 - **1.256.0**: **AI-advies voor de reverse proxy**: de AI stelt per site het beleid voor met een reden; met een slider zelf toepassen of automatisch.
 - **1.255.0**: **WAF op de reverse proxy**: CrowdSec bekijkt elk verzoek naar je apps; met een slider van alleen melden naar blokkeren, en per site zie je wat hij zou tegenhouden.
 - **1.254.0**: **reverse proxy beschermen**: per site adminpagina's alleen vanaf je eigen netwerk, rate limit en bots weren; de agent op SWAG of Nginx Proxy Manager voert het veilig door.
-- **1.253.0**: **Axigen in de bibliotheek**: tien vaste zoekacties voor de Axigen-mailserver (wachtwoorden raden, blocklist, mail blijft hangen, licentie, en meer).
+
+## 1.258.0 – 2026-11-14
+### Nieuw
+- **🩹 Paden dichtzetten (virtual patching)** op de pagina *Reverse proxy*: zet een pad met een bekend lek tijdelijk dicht voor iedereen buiten je netwerk (7, 30, 90 dagen of zonder einde), per site of voor alle sites. Voorstellen uit wat de WAF zag (misbruik van een bekend lek) en paden die nooit open horen te staan (`/.env`, `/.git`, `/vendor/phpunit` …), plus bekende paden per app (bv. `/xmlrpc.php` bij WordPress). Weer open en verlengen met één klik. **Agent 1.100.0 nodig.**
+- **Score per site** (A–D, 0–100) met per onderdeel wat er ontbreekt: wie mag erbij, rate limit, bots, WAF, bekende lekken en uploads scannen. Bovenaan het gemiddelde van de server en de laagste site.
+- **Nieuwe agent 1.100.0** (virtual patching).
+
 
 ## 1.257.3 – 2026-11-14
 ### Opgelost

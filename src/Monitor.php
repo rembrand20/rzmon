@@ -1247,6 +1247,7 @@ final class Monitor
         Waf::purge();   // 1.255.0
         ProxyAdvice::purge();   // 1.256.0
         Av::purge();   // 1.257.0
+        VPatch::purge();   // 1.258.0
         DnsWatch::nrdPurge();
         Ioc::purge();
         Security::purge();

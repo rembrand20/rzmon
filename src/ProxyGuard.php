@@ -42,7 +42,7 @@ final class ProxyGuard
     /** @return list<string> */
     public static function agentLines(int $hostId): array
     {
-        $h = q('SELECT proxy_role FROM hosts WHERE id = ?', [$hostId])->fetch();
+        $h = q('SELECT proxy_role, agent_version FROM hosts WHERE id = ?', [$hostId])->fetch();
         if (!$h) {
             return [];
         }
@@ -61,6 +61,10 @@ final class ProxyGuard
                 continue;
             }
             $out[] = implode("\t", [0, 'proxysite', $s['site'], $s['lan_mode'], $s['lan_paths'] !== '' ? $s['lan_paths'] : '-', $s['rate'], $s['bots'] ? 1 : 0]);
+        }
+        // 1.258.0 (agent 1.100.0): virtual patching; een oudere agent krijgt ze niet (anders klopt het kenmerk nooit)
+        if (version_compare((string) $h['agent_version'], '1.100.0', '>=')) {
+            array_push($out, ...VPatch::agentLines($hostId));
         }
         return $out;
     }
@@ -161,6 +165,21 @@ final class ProxyGuard
     // ------------------------------------------------------------------ beleid per site
 
     /** Standaardbeleid voor een site die nog niet is ingesteld (uit de beheerportal, en wat bij de app hoort) */
+    /** 1.258.0: wat voor app is het? admin = beheerprogramma (hele site alleen LAN), paths = app met adminpaden, '' = onbekend */
+    public static function appKind(string $site, string $up = ''): string
+    {
+        $hay = strtolower($site . ' ' . $up);
+        if (preg_match(self::ADMIN_APPS, $hay)) {
+            return 'admin';
+        }
+        foreach (array_keys(self::APP_PATHS) as $app) {
+            if (str_contains($hay, $app)) {
+                return 'paths';
+            }
+        }
+        return '';
+    }
+
     public static function defaults(string $site, string $up = ''): array
     {
         $hay = strtolower($site . ' ' . $up);
@@ -280,6 +299,9 @@ final class ProxyGuard
                 $sv['waf_recent'] = Waf::recent($sv['id'], 25);
                 $sv['ai'] = ProxyAdvice::state($sv['id']);   // 1.256.0
                 $sv['av'] = Av::overview($sv['id'], $sv['sites']);   // 1.257.0
+                $sv['vpatch'] = VPatch::overview($sv['id'], $sv['sites']);   // 1.258.0
+                $sv['vp_agent_ok'] = version_compare((string) q('SELECT agent_version FROM hosts WHERE id = ?', [$sv['id']])->fetchColumn(), '1.100.0', '>=');
+                $sv['sites'] = SiteScore::addAll($sv['id'], $sv['sites'], $sv['waf_stats'] ?? [], $sv['av']['dirs'] ?? [], $sv['vpatch']['active']);
                 $sv['av_agent_ok'] = version_compare((string) q('SELECT agent_version FROM hosts WHERE id = ?', [$sv['id']])->fetchColumn(), '1.99.0', '>=');
             }
         }

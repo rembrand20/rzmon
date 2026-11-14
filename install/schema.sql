@@ -1702,3 +1702,16 @@ CREATE TABLE IF NOT EXISTS av_events (
     INDEX idx_av_at (host_id, at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('av_on', '0'), ('av_notify', '1'), ('av_move', '1');
+-- 1.258.0 (agent 1.100.0): virtual patching: paden met een bekend lek tijdelijk dicht (per site of * = alle sites)
+CREATE TABLE IF NOT EXISTS proxy_vpatch (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id    INT UNSIGNED NOT NULL,
+    site       VARCHAR(190) NOT NULL,
+    path       VARCHAR(130) NOT NULL,
+    reason     VARCHAR(200) NOT NULL DEFAULT '',
+    source     ENUM('user','waf','known','ai') NOT NULL DEFAULT 'user',
+    expires_at DATETIME     NULL,
+    created_by VARCHAR(64)  NOT NULL DEFAULT '',
+    created_at DATETIME     NOT NULL,
+    UNIQUE KEY uq_proxy_vpatch (host_id, site, path)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
