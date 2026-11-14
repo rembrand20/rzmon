@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.258.0**: **paden dichtzetten en score per site**: bekende lekken tijdelijk afschermen op de reverse proxy, en per site een score met tips.
 - **1.257.0**: **uploads scannen op malware**: ClamAV op de reverse proxy, met melden en verplaatsen naar quarantaine elk aan en uit.
 
+## 1.261.1 – 2026-11-14
+### Opgelost
+- **Nieuwe agent 1.101.1**: de verbindingstest (`rzmon-agent-setup --test`) legt uit wat je moet doen als het adres van RzSense naar je publieke IP wijst en je router geen NAT-loopback doet, en geeft geen dubbele "Fout op regel 409" meer bij een mislukte test.
+
 ## 1.261.0 – 2026-11-14
 ### Nieuw
 - **📱 Alle pagina's mobielvriendelijk**: op een telefoon (smaller dan 700 px) wordt elke tabel die niet past vanzelf een stapel kaartjes: elke rij een kaartje, elke cel een regel met de kolomnaam ervoor. Knoppen in de kop van een tabel (zoals *Alles invullen*) blijven boven de kaartjes staan. Een tabel die wel past blijft een tabel; op een computer verandert er niets.

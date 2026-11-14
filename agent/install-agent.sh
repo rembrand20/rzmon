@@ -405,9 +405,11 @@ if [ "$MODE" = "test" ]; then
         exit 1
     fi
     echo
+    # Een mislukte test is geen fout van dit script: geen "Fout op regel" (ERR-trap), alleen de exitcode doorgeven
+    t_rc=0
     # shellcheck disable=SC1090
-    (set -a; . "$CONF"; bash "$BIN" --test)
-    exit $?
+    (trap - ERR; set -a; . "$CONF"; bash "$BIN" --test) || t_rc=$?
+    exit "$t_rc"
 fi
 
 if [ "$MODE" = "update" ]; then
@@ -864,7 +866,7 @@ else
     echo
     # Meteen de volledige diagnose tonen
     # shellcheck disable=SC1090
-    (set -a; . "$CONF"; bash "$BIN" --test) || true
+    (trap - ERR; set -a; . "$CONF"; bash "$BIN" --test) || true
     start_timer   # toch aan: lost het probleem zich op (bv. RzSense even weg), dan rapporteert de agent vanzelf
     die "De agent is geïnstalleerd, maar RzSense accepteert nog geen rapport. Los het bovenstaande op en test met: sudo rzmon-agent-setup --test"
 fi

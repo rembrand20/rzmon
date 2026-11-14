@@ -5,6 +5,10 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.101.1 – 2026-11-14
+- **Verbindingstest duidelijker** (`rzmon-agent-setup --test`): wijst het adres van RzSense naar een publiek IP-adres en is de poort niet bereikbaar, dan legt de test uit dat je router dat verkeer van binnen vaak niet terugstuurt (geen NAT-loopback), met twee oplossingen: de naam in je eigen netwerk naar het LAN-adres laten wijzen (DNS-rewrite in AdGuard/Pi-hole of `/etc/hosts`), of het LAN-adres als reserve instellen met `--fallback`. De firewall-tip noemt nu `https` als je via https verbindt.
+- **Opgelost:** een mislukte verbindingstest gaf twee keer "Fout op regel 409 …" erachter, alsof het script zelf kapot was. Nu stopt de test gewoon met de uitleg.
+
 ## 1.101.0 – 2026-11-14
 - **Suricata op het proxynetwerk** (alleen op de server met de rol *reverse proxy*, als het in RzSense aan staat): de agent kijkt of er genoeg geheugen is en start een eigen Suricata-container (`rzsense-suricata`, `--network host`, alleen meekijken) op de netwerkbrug(gen) van je proxycontainer, of op de interfaces uit RzSense. Het regelprofiel (web, gebalanceerd, alles) zet hij via `suricata-update`; de regels werkt hij elke dag op de achtergrond bij. De meldingen gaan naar RzSense zoals die van een gewone Suricata; `eve.json` houdt hij klein. Uit = de container weg. Op de server: `NIDS_DIR`, `NIDS_IMAGE`, `NIDS_MIN_MB` en `NIDS_EVE_MB`.
 

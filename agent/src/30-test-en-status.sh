@@ -42,7 +42,8 @@ if [ "$TEST" = 1 ]; then
 
     # 3. DNS
     if [[ "$host" =~ ^[0-9.]+$ ]] || getent hosts "$host" >/dev/null 2>&1; then
-        pass "Naam opzoeken: $host → $(getent hosts "$host" 2>/dev/null | awk '{print $1; exit}' || echo "$host")"
+        t_ip=$(getent hosts "$host" 2>/dev/null | awk '{print $1; exit}'); t_ip=${t_ip:-$host}
+        pass "Naam opzoeken: $host → $t_ip"
     else
         fail "De naam '$host' kan niet worden opgezocht (DNS)"
         hint "Gebruik het IP-adres van RzSense, of zet de naam in /etc/hosts"
@@ -54,8 +55,17 @@ if [ "$TEST" = 1 ]; then
         pass "Verbinding met $host poort $port"
     else
         fail "Geen verbinding met $host poort $port"
+        # Agent 1.101.1: naam wijst naar een publiek IP → vaak geen NAT-loopback op de router (van binnen niet terug naar binnen)
+        case "$t_ip" in
+            10.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*|127.*|169.254.*|fe80:*|fc*|fd*|::1) ;;
+            *) if [ -z "$MONITOR_URL_FALLBACK" ]; then
+                   note "$host wijst naar een publiek IP-adres ($t_ip). Staat deze server in hetzelfde netwerk als RzSense, dan stuurt je router dat verkeer vaak niet terug naar binnen (geen NAT-loopback / hairpin NAT)."
+                   hint "Oplossing 1: laat de naam in je eigen netwerk naar het LAN-adres wijzen (DNS-rewrite in AdGuard/Pi-hole, of een regel in /etc/hosts op deze server)"
+                   hint "Oplossing 2: gebruik het LAN-adres als reserve:  sudo rzmon-agent-setup --fallback $proto://<LAN-IP van RzSense of je proxy>"
+               fi ;;
+        esac
         hint "Draait de webserver op RzSense? (systemctl status httpd/apache2/nginx)"
-        hint "Firewall op de RzSense-server? Rocky: sudo firewall-cmd --permanent --add-service=http && sudo firewall-cmd --reload"
+        hint "Firewall op de RzSense-server? Rocky: sudo firewall-cmd --permanent --add-service=$proto && sudo firewall-cmd --reload"
         hint "Zitten deze server en RzSense in hetzelfde netwerk / mag het verkeer ertussen (VLAN, router)?"
         stop
     fi
