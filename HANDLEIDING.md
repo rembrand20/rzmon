@@ -3271,7 +3271,7 @@ Vink per stap *verstuurd* aan. Komt een termijn binnen 6 uur (eindverslag: 3 dag
 
 **Let op:** dit is geen juridisch advies en geen certificering. Het laat zien wat RzSense technisch ziet; of je onder NIS2 valt en wat significant is, bepaal je zelf (of met je adviseur). **Aan/uit:** daar, of *Overzicht → Status en functies → Functies*.
 
-### 8.12h Reverse proxy beschermen 🔀 (vanaf 1.254.0, agent 1.97.0)
+### 8.12h Reverse proxy beschermen 🔀 (vanaf 1.254.0, agent 1.97.0; WAF vanaf 1.255.0, agent 1.98.0)
 Bescherm de apps achter je reverse proxy (**SWAG** of **Nginx Proxy Manager**, in **Podman** of **Docker**). De agent op die server voert het door; alles stel je in RzSense in.
 
 **Aanzetten**
@@ -3294,6 +3294,37 @@ Bescherm de apps achter je reverse proxy (**SWAG** of **Nginx Proxy Manager**, i
 - Alles staat in het **logboek** (doorgevoerd, mislukt met de reden, uitgezet).
 - Op de server in te stellen (`/etc/default/rzmon-agent`): `PROXY_CTR` (welke container, als er meer zijn), `PROXY_HTTPS_PORT` (als je proxy niet op 443 luistert), `PROXY_CPATH` (de configmap zoals de container hem ziet), `PROXY_GUARD=0` (nooit).
 - **Traefik** en **Caddy** worden herkend, maar nog niet ondersteund.
+
+**🧱 WAF: aanvallen in het verkeer herkennen** (vanaf 1.255.0, agent 1.98.0)
+Een *web application firewall* bekijkt elk verzoek naar je apps op aanvallen: SQL-injectie, misbruik van bekende lekken (CVE's), path traversal, scanners. RzSense gebruikt daarvoor **CrowdSec AppSec**. De HTTPS-verbinding eindigt al in SWAG, dus de WAF ziet het verkeer gewoon, zonder extra certificaten.
+
+1. *Instellingen → Beveiliging → Reverse proxy → WAF*: zet **WAF aan** (de hoofdschakelaar en de rol moeten ook aan staan).
+2. De agent start bij zijn volgende ronde een eigen container **`rzsense-crowdsec`** (als root in Podman, of Docker), in een eigen netwerk **`rzsense`**, en hangt SWAG daaraan. Hij maakt een sleutel in `nginx/rzsense-waf/crowdsec.key` (alleen leesbaar voor root); die sleutel gaat nooit naar RzSense of je browser.
+3. **Eén keer zelf doen**: zet bij SWAG deze omgevingsvariabelen en maak de SWAG-container opnieuw aan (RzSense toont ze ook bij de server zolang de koppeling ontbreekt):
+   ```
+   DOCKER_MODS=linuxserver/mods:swag-crowdsec
+   FILE__CROWDSEC_API_KEY=/config/nginx/rzsense-waf/crowdsec.key
+   CROWDSEC_LAPI_URL=http://rzsense-crowdsec:8080
+   CROWDSEC_APPSEC_URL=http://rzsense-crowdsec:7422
+   ```
+   Heb je al een `DOCKER_MODS`, zet ze dan achter elkaar met een `|`. Start SWAG met `--network rzsense` (of laat de agent hem aan het netwerk hangen).
+4. Daarna staat bij de server **✔ actief** en **✔ zelftest**: de agent stuurt elke ronde een nep-aanval (vanaf een testadres dat nooit als incident telt) en kijkt of de WAF doet wat de slider zegt.
+
+**De slider** *Wat de WAF doet*:
+| Stand | Wat er gebeurt |
+|---|---|
+| **Detecteren** (begin hier) | alles wordt gemeld, niets tegengehouden |
+| **Blokkeren, alleen zeker** | alleen misbruik van bekende lekken (de *virtuele patches* van CrowdSec) krijgt 403; vrijwel nooit vals alarm |
+| **Blokkeren, streng** | ook de brede OWASP-regels (CRS); meer bescherming, meer kans op vals alarm |
+
+Op de pagina **🔀 Reverse proxy** zie je per site wat de WAF de laatste 14 dagen zag, hoeveel hij tegenhield, en hoeveel hij **zou tegenhouden** bij *alleen zeker* en *streng*. Zo zie je vóór je de slider verschuift wat er verandert.
+
+**Per site**: kolom *WAF*: *Standaard (slider)*, *Alleen melden* (nooit blokkeren, bv. voor een app die veel vals alarm geeft) of *Uit*.
+**Dit is normaal**: bij een melding in de lijst *Laatste meldingen* maak je met één klik een uitzondering voor die regel op die site. De agent zet hem binnen een minuut door.
+**Je eigen netwerk** wordt nooit tegengehouden en niet gemeld. Elke echte melding wordt een **IDS-incident** (*webaanval*, per IP samengevat).
+**Delen met de CrowdSec-community** (standaard uit): aanvallende IP's doorgeven en hun lijst van bekende aanvallers gebruiken. Uit = alles blijft op je eigen server.
+**Uit** (de schakelaar, de rol of de hoofdschakelaar): de agent haalt de container weg; de bestanden in `/var/lib/rzsense-crowdsec` blijven staan. Haal daarna ook de vier regels weer uit SWAG.
+Op de server in te stellen: `WAF_DIR` (standaard `/var/lib/rzsense-crowdsec`) en `WAF_IMAGE` (standaard `docker.io/crowdsecurity/crowdsec:v1.6.4`). De WAF werkt nu alleen met **SWAG**.
 
 ### 8.13 Kwetsbaarheden 🐞
 Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) horen daarbij? Standaard uit; aanzetten bij *Instellingen → 🐞 Kwetsbaarheden*. Daarna staat er een tabblad **🐞 Kwetsbaarheden** in de bovenbalk (voor beheerders en gebruikers, niet voor *alleen lezen*).

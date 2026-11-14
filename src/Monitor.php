@@ -1244,6 +1244,7 @@ final class Monitor
         RateLimit::purge();   // 1.237.0
         AppControl::purge();   // 1.229.0
         Sudo::purge();   // 1.231.0
+        Waf::purge();   // 1.255.0
         DnsWatch::nrdPurge();
         Ioc::purge();
         Security::purge();

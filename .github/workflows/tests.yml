@@ -79,6 +79,13 @@ jobs:
           bash tests/agent-proxy.sh 2>&1 | tee /tmp/proxy.out
           rc=${PIPESTATUS[0]}
           [ "$rc" = 0 ] || { echo "::error title=Reverse proxy op ${{ matrix.image }}::$(tail -n 15 /tmp/proxy.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
+      - name: WAF op de reverse proxy (nep-CrowdSec)
+        shell: bash
+        run: |
+          set +e +o pipefail
+          bash tests/agent-waf.sh 2>&1 | tee /tmp/waf.out
+          rc=${PIPESTATUS[0]}
+          [ "$rc" = 0 ] || { echo "::error title=WAF op ${{ matrix.image }}::$(tail -n 15 /tmp/waf.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
       - name: Endpoint-bewaking (auditd-, SWAG- en Suricata-parser)
         shell: bash
         run: |

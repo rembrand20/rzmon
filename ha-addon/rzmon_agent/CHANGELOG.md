@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.98.0 – 2026-11-14
+- **WAF op de reverse proxy** (alleen op de server met de rol *reverse proxy*, als de WAF in RzSense aan staat): de agent start een eigen CrowdSec-container (`rzsense-crowdsec`) in het netwerk `rzsense`, hangt SWAG daaraan en maakt de sleutel voor de koppeling (alleen leesbaar voor root). Hij schrijft de regels volgens de slider in RzSense (detecteren, blokkeren alleen zeker, blokkeren streng), per site *alleen melden* of *uit*, en de uitzonderingen; je eigen netwerk wordt nooit tegengehouden. Elke ronde test hij met een nep-aanval of de WAF doet wat de slider zegt, kijkt hij of SWAG gekoppeld is en stuurt hij de nieuwe meldingen mee. Uit = de container weg. Op de server: `WAF_DIR` en `WAF_IMAGE`.
+
 ## 1.97.0 – 2026-11-14
 - **Reverse proxy beschermen** (alleen op een server die in RzSense de rol *reverse proxy* heeft): de agent herkent SWAG of Nginx Proxy Manager in Podman of Docker, leest de sites uit en voert per site het beleid uit RzSense door: adminpaden of de hele site alleen vanaf je eigen netwerk, een rate limit en bekende aanvalstools weren. Hij schrijft alleen in eigen bestanden plus één gemarkeerde regel (`# rzsense-hook`), test met `nginx -t` vóór het herladen, kijkt daarna of de sites nog antwoorden en zet anders de vorige versie terug. Uit = alles weer weg. Op de server: `PROXY_GUARD=0` (nooit), `PROXY_CTR`, `PROXY_HTTPS_PORT` en `PROXY_CPATH`.
 

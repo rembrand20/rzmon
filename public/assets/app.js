@@ -15154,6 +15154,7 @@ async function loadSettings() {
   fimGlobal = fimEditor($('#fim-editor'), parse(s.ids_fim || '[]'), null, () => { markSettingsDirty(true); settingsSummaries(); });
   confTypes(parse(s.confirm_types));   // 1.193.0
   idsModeInfo();
+  wafRangeSync();   // 1.255.0
   backupFormToggle();
   initSmartFields(f);   // 1.239.0
   fieldHelp(f);   // 1.241.0: ⓘ bij de velden
@@ -22066,6 +22067,27 @@ const PX_RATE = () => [['off', L('Uit')], ['normal', L('Normaal')], ['strict', L
 const PX_STATE = () => ({ ok: ['ok', '✔ ' + L('doorgevoerd')], pending: ['wait', '⏳ ' + L('wacht op de agent')], error: ['bad', '✘ ' + L('mislukt')],
   off: ['', L('uit')], unsupported: ['wait', L('niet ondersteund')] });
 const PX_KIND = { swag: 'SWAG', npm: 'Nginx Proxy Manager', nginx: 'nginx', traefik: 'Traefik', caddy: 'Caddy', none: '–' };
+// 1.255.0 (agent 1.98.0): WAF (CrowdSec AppSec)
+const WAF_MODES = ['detect', 'sure', 'strict'];
+const WAF_MODE_TXT = () => ({ detect: L('Alleen melden: niets wordt tegengehouden. Kijk op de pagina Reverse proxy wat er tegengehouden zou worden.'),
+  sure: L('Houdt alleen misbruik van bekende lekken tegen (virtuele patches): vrijwel nooit vals alarm.'),
+  strict: L('Houdt ook verdachte verzoeken volgens de brede OWASP-regels tegen: meer bescherming, meer kans op vals alarm.') });
+const WAF_SITE = () => [['inherit', L('Standaard (slider)')], ['detect', L('Alleen melden')], ['off', L('Uit')]];
+const WAF_STATE = () => ({ ok: ['ok', '✔ ' + L('actief')], waiting: ['wait', '⏳ ' + L('wacht op SWAG')], starting: ['wait', '⏳ ' + L('wordt gestart')],
+  error: ['bad', '✘ ' + L('fout')], off: ['', L('uit')], unsupported: ['wait', L('niet ondersteund')] });
+const wafMsg = (m) => {
+  if (!m) return '';
+  const r = [[/^nep-aanval: (\d+) zoals verwacht$/, (x) => L('nep-aanval: {c} zoals verwacht', { c: x[1] })],
+    [/^nep-aanval gaf (\S+), verwacht (\S+) \(gewoon verzoek: (\S+)\)$/, (x) => L('nep-aanval gaf {a}, verwacht {b} (gewoon verzoek: {c})', { a: x[1], b: x[2], c: x[3] })],
+    [/^de WAF werkt nu alleen met SWAG \(gevonden: (.*)\)$/, (x) => L('de WAF werkt nu alleen met SWAG (gevonden: {p})', { p: x[1] })],
+    [/^kon (\S+) niet aan het netwerk (\S+) hangen$/, (x) => L('kon {c} niet aan het netwerk {n} hangen', { c: x[1], n: x[2] })],
+    [/^herstarten mislukt$/, () => L('herstarten mislukt')], [/^starten mislukt: (.*)$/s, (x) => L('starten mislukt: {m}', { m: x[1] })]];
+  for (const [re, f] of r) { const x = m.match(re); if (x) return f(x); }
+  return pxMsg(m);
+};
+/** Wat je één keer in SWAG zet (geen geheimen: de sleutel staat in een bestand dat alleen root kan lezen) */
+const WAF_SWAG_ENV = 'DOCKER_MODS=linuxserver/mods:swag-crowdsec\nFILE__CROWDSEC_API_KEY=/config/nginx/rzsense-waf/crowdsec.key\nCROWDSEC_LAPI_URL=http://rzsense-crowdsec:8080\nCROWDSEC_APPSEC_URL=http://rzsense-crowdsec:7422';
+
 /** De agent stuurt vaste Nederlandse teksten mee; die vertalen we hier */
 const pxMsg = (m) => {
   if (!m) return '';
@@ -22105,21 +22127,23 @@ async function loadProxy() {
           <input type="text" class="mono px-paths" data-px="lan_paths" value="${esc(x.lan_paths.replace(/,/g, ', '))}" placeholder="/admin" ${x.lan_mode === 'paths' ? '' : 'hidden'} aria-label="${esc(L('Adminpaden'))}"></td>
         <td><select data-px="rate" aria-label="${esc(L('Rate limit'))}">${PX_RATE().map(([k, l]) => `<option value="${k}" ${k === x.rate ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></td>
         <td>${amSw('px-bots-' + s.id + '-' + x.site.replace(/[^a-z0-9]/gi, '_'), x.bots, 'data-px="bots"')}</td>
+        ${d.waf && d.waf.on ? `<td><select data-px="waf" aria-label="${esc(L('WAF'))}">${WAF_SITE().map(([k, l]) => `<option value="${k}" ${k === (x.waf || 'inherit') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>${wafSiteStats((s.waf_stats || {})[x.site])}</td>` : ''}
         <td class="nowrap">${x.custom ? `<span class="lf-tag">${L('eigen')}</span> <button type="button" class="btn small-btn" data-px-reset title="${esc(L('Terug naar de standaard'))}">↺</button>` : `<span class="lf-tag ok">${L('standaard')}</span>`}</td></tr>`).join('');
     return `<section class="px-srv" data-px-host="${s.id}">
       <div class="px-h"><b>${esc(s.name)}</b> <span class="muted small">${esc(PX_KIND[r.kind] || r.kind || '–')}${r.ctr ? ' · ' + esc(r.ctr) : ''}${r.engine ? ' (' + esc(r.engine) + ')' : ''}</span>
         <span class="lf-tag ${cls}">${txt}</span>${sync}<span class="lp-sp"></span></div>
       ${!s.agent_ok ? `<div class="callout small">⬆ ${L('Agent 1.97.0 of nieuwer nodig. Werk de agent bij in de Agent Manager.')}</div>` : ''}
       ${r.msg ? `<p class="small ${r.state === 'error' ? 'danger-txt' : 'muted'}">${esc(pxMsg(r.msg))}</p>` : ''}
-      ${(s.sites || []).length ? `<div class="table-scroll"><table class="vuln-table px-table"><thead><tr><th>${L('Aan')}</th><th>${L('Site')}</th><th>${L('Wie mag erbij')}</th><th>${L('Rate limit')}</th><th>${L('Bots weren')}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+      ${(s.sites || []).length ? `<div class="table-scroll"><table class="vuln-table px-table"><thead><tr><th>${L('Aan')}</th><th>${L('Site')}</th><th>${L('Wie mag erbij')}</th><th>${L('Rate limit')}</th><th>${L('Bots weren')}</th>${d.waf && d.waf.on ? `<th>${L('WAF')}</th>` : ''}<th></th></tr></thead><tbody>${rows}</tbody></table></div>`
         : `<p class="muted small">${s.report ? L('Geen sites gevonden in de proxy.') : L('Nog geen rapport van de agent. Dat komt bij zijn volgende ronde (meestal binnen een minuut).')}</p>`}
+      ${d.waf && d.waf.on ? wafPanel(s, d.waf) : ''}
     </section>`;
   }).join('');
   // Opslaan bij elke wijziging (de agent voert het bij zijn volgende ronde door)
   const save = async (tr, extra = {}) => {
     const host = +tr.closest('[data-px-host]').dataset.pxHost;
     const v = (k) => $(`[data-px="${k}"]`, tr);
-    const body = { host_id: host, site: tr.dataset.pxSite, enabled: v('enabled').checked, lan_mode: v('lan_mode').value, lan_paths: v('lan_paths').value, rate: v('rate').value, bots: v('bots').checked, ...extra };
+    const body = { host_id: host, site: tr.dataset.pxSite, enabled: v('enabled').checked, lan_mode: v('lan_mode').value, lan_paths: v('lan_paths').value, rate: v('rate').value, bots: v('bots').checked, ...(v('waf') ? { waf: v('waf').value } : {}), ...extra };
     try { await api('proxy_site_save', body); toast(extra.reset ? L('Terug naar de standaard') : L('Opgeslagen; de agent voert het binnen een minuut door')); loadProxy(); }
     catch (ex) { toast(ex.message, 'err'); }
   };
@@ -22133,10 +22157,74 @@ async function loadProxy() {
     }
     save(tr);
   };
-  box.onclick = (e) => {
+  box.onclick = async (e) => {
     const r = e.target.closest('[data-px-reset]');
     if (r) save(r.closest('[data-px-site]'), { reset: 1 });
+    const x = e.target.closest('[data-waf-ex]');
+    if (x) {
+      const host = +x.closest('[data-px-host]').dataset.pxHost;
+      if (!confirm(L('Regel {r} op {s} voortaan niet meer melden of tegenhouden?', { r: x.dataset.rule, s: x.dataset.site }))) return;
+      x.disabled = true;
+      try { await api('waf_except', { host_id: host, site: x.dataset.site, rule: x.dataset.rule }); toast(L('Uitzondering opgeslagen; de agent voert het binnen een minuut door')); loadProxy(); }
+      catch (ex) { x.disabled = false; toast(ex.message, 'err'); }
+    }
   };
+}
+
+/** Per site: wat de WAF de laatste 14 dagen zag, en wat hij bij elke stand van de slider tegengehouden had */
+function wafSiteStats(st) {
+  if (!st || !st.seen) return `<div class="muted small">${L('geen aanvallen gezien')}</div>`;
+  return `<div class="small waf-st" title="${esc(L('Laatste 14 dagen'))}">${L('{n} gezien', { n: st.seen })} · <b>${L('{n} tegengehouden', { n: st.blocked })}</b>
+    <div class="muted">${L('zou tegenhouden: {a} (alleen zeker) · {b} (streng)', { a: st.sure, b: st.strict })}</div></div>`;
+}
+
+/** Op de pagina Reverse proxy: stand van de WAF en de laatste meldingen, met "dit is normaal" */
+function wafPanel(s, cfg) {
+  const w = s.waf || {};
+  const [cls, txt] = WAF_STATE()[w.state] || ['wait', '⏳ ' + L('wacht op de agent')];
+  const ev = (s.waf_recent || []).slice(0, 15);
+  const rows = ev.map((e) => {
+    const rule = (e.rules || '').split(' ').filter(Boolean)[0] || '';
+    return `<tr><td class="nowrap small">${esc(ago(e.at))}</td><td><code>${esc(e.ip)}</code></td><td>${esc(e.site)}<div class="muted small mono">${esc(e.uri)}</div></td>
+      <td class="small mono">${esc((e.rules || '').split(' ').slice(0, 3).join(', '))}${e.vpatch ? ` <span class="lf-tag">${L('bekend lek')}</span>` : ''}</td>
+      <td>${e.blocked ? `<span class="lf-tag bad">${L('tegengehouden')}</span>` : `<span class="lf-tag">${L('gemeld')}</span>`}</td>
+      <td>${rule && e.site ? `<button type="button" class="btn small-btn" data-waf-ex data-site="${esc(e.site)}" data-rule="${esc(rule)}" title="${esc(L('Deze regel op deze site voortaan overslaan'))}">${L('Dit is normaal')}</button>` : ''}</td></tr>`;
+  }).join('');
+  return `<div class="waf-box"><div class="px-h"><b>🧱 ${L('WAF')}</b> <span class="lf-tag ${cls}">${txt}</span>
+      <span class="muted small">${esc({ detect: L('Detecteren'), sure: L('Blokkeren, alleen zeker'), strict: L('Blokkeren, streng') }[cfg.mode] || cfg.mode)}</span>
+      ${w.test === 'ok' ? `<span class="lf-tag ok">✔ ${L('zelftest')}</span>` : w.test === 'fail' ? `<span class="lf-tag bad">✘ ${L('zelftest')}</span>` : ''}</div>
+    ${s.waf_agent_ok === false ? `<div class="callout small">⬆ ${L('Agent 1.98.0 of nieuwer nodig voor de WAF. Werk de agent bij in de Agent Manager.')}</div>` : ''}
+    ${w.msg || w.test_msg ? `<p class="small ${w.state === 'error' || w.test === 'fail' ? 'danger-txt' : 'muted'}">${esc(wafMsg(w.state === 'error' ? w.msg : (w.test_msg || w.msg)))}</p>` : ''}
+    ${ev.length ? `<div class="table-scroll"><table class="vuln-table"><thead><tr><th>${L('Tijd')}</th><th>${L('Van')}</th><th>${L('Site')}</th><th>${L('Regel')}</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+      : `<p class="muted small">${L('Nog geen aanvallen gezien door de WAF.')}</p>`}</div>`;
+}
+
+/** De slider (zonder naam) volgt het verborgen veld waf_mode, dat met de instellingen wordt opgeslagen */
+function wafRangeSync(fallback) {
+  const r = $('#waf-mode-range'), h = $('#settings-form [name="waf_mode"]');
+  if (!r || !h) return;
+  const sync = () => { $('#waf-mode-txt').textContent = WAF_MODE_TXT()[WAF_MODES[+r.value]] || ''; };
+  r.value = String(Math.max(0, WAF_MODES.indexOf(h.value || fallback || 'detect')));
+  sync();
+  r.oninput = () => { h.value = WAF_MODES[+r.value]; sync(); };
+}
+
+/** Beheerportal: de WAF-slider en per proxyserver de stand en wat je één keer in SWAG zet */
+function wafSettings(d) {
+  wafRangeSync(d.waf && d.waf.mode);
+  const box = $('#waf-status');
+  if (!box) return;
+  const px = d.servers.filter((s) => s.role);
+  box.innerHTML = !d.waf || !d.waf.on || !px.length ? '' : px.map((s) => {
+    const w = s.waf || {};
+    const [cls, txt] = WAF_STATE()[w.state] || ['wait', '⏳ ' + L('wacht op de agent')];
+    const need = w.state === 'waiting' || (w.running && w.bouncer !== 'active');
+    return `<div class="px-srv"><div class="px-h"><b>${esc(s.name)}</b> <span class="lf-tag ${cls}">${txt}</span>
+        ${w.test === 'ok' ? `<span class="lf-tag ok">✔ ${L('zelftest')}</span>` : w.test === 'fail' ? `<span class="lf-tag bad">✘ ${L('zelftest')}</span>` : ''}</div>
+      ${w.msg || w.test_msg ? `<p class="small muted">${esc(wafMsg(w.state === 'error' ? w.msg : (w.test_msg || w.msg)))}</p>` : ''}
+      ${need ? `<p class="small">${L('Zet deze regels één keer bij de omgevingsvariabelen van SWAG en maak de SWAG-container opnieuw aan. De sleutel heeft de agent al in een bestand gezet dat alleen root kan lezen.')}</p>
+        <pre class="code small">${esc(WAF_SWAG_ENV)}</pre>` : ''}</div>`;
+  }).join('');
 }
 
 /** Beheerportal: bij welke server de rol staat (en welke op een proxy lijken) */
@@ -22149,6 +22237,7 @@ async function loadProxyRoles() {
       <b>${esc(s.name)}</b> ${s.report && s.report.kind && s.report.kind !== 'none' ? `<span class="lf-tag ok">${esc(PX_KIND[s.report.kind] || s.report.kind)}</span>` : ''}
       ${!s.agent_ok ? `<span class="muted small">${L('agent 1.97.0 nodig')}</span>` : ''}</label>`).join('')}</div>`
     : `<p class="muted small">${L('Nog geen servers met de agent.')}</p>`;
+  wafSettings(d);
   box.onchange = async (e) => {
     const c = e.target.closest('[data-px-role]');
     if (!c) return;

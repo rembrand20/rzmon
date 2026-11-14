@@ -1642,3 +1642,19 @@ CREATE TABLE IF NOT EXISTS proxy_sites (
     UNIQUE KEY uq_proxy_site (host_id, site)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('proxy_on', '0'), ('proxy_def_lan', '1'), ('proxy_def_rate', 'normal'), ('proxy_def_bots', '1'), ('proxy_lan_extra', '');
+-- 1.255.0: WAF op de reverse proxy (CrowdSec AppSec): wat hij zag en tegenhield
+CREATE TABLE IF NOT EXISTS waf_events (
+    id       BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id  INT UNSIGNED NOT NULL,
+    cs_id    BIGINT UNSIGNED NOT NULL,
+    at       DATETIME     NOT NULL,
+    ip       VARCHAR(45)  NOT NULL DEFAULT '',
+    site     VARCHAR(190) NOT NULL DEFAULT '',
+    uri      VARCHAR(500) NOT NULL DEFAULT '',
+    rules    VARCHAR(300) NOT NULL DEFAULT '',
+    vpatch   TINYINT(1)   NOT NULL DEFAULT 0,
+    blocked  TINYINT(1)   NOT NULL DEFAULT 0,
+    UNIQUE KEY uq_waf_ev (host_id, cs_id),
+    INDEX idx_waf_at (host_id, at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('waf_on', '0'), ('waf_mode', 'detect'), ('waf_share', '0');

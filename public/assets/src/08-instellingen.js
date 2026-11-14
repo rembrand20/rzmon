@@ -1647,6 +1647,7 @@ async function loadSettings() {
   fimGlobal = fimEditor($('#fim-editor'), parse(s.ids_fim || '[]'), null, () => { markSettingsDirty(true); settingsSummaries(); });
   confTypes(parse(s.confirm_types));   // 1.193.0
   idsModeInfo();
+  wafRangeSync();   // 1.255.0
   backupFormToggle();
   initSmartFields(f);   // 1.239.0
   fieldHelp(f);   // 1.241.0: ⓘ bij de velden

@@ -577,6 +577,14 @@ switch ($action) {
         }
         out(['ok' => true]);
 
+    case 'waf_except':
+        $in = input();
+        $err = Waf::addException((int) ($in['host_id'] ?? 0), strtolower((string) ($in['site'] ?? '')), (string) ($in['rule'] ?? ''), (string) $user['username']);
+        if ($err !== null) {
+            out(['error' => $err], 422);
+        }
+        out(['ok' => true]);
+
     case 'proxy_site_save':
         $in = input();
         if (!empty($in['reset'])) {

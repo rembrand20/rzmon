@@ -1297,6 +1297,17 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <label><?= th('Extra netwerken die bij "mijn netwerk" horen') ?> <span class="hint"><?= th('(bv. je VPN, 10.8.0.0/24; je lokale netwerken en de whitelist tellen al mee)') ?></span><input name="proxy_lan_extra" maxlength="1000" placeholder="10.8.0.0/24"></label>
           <h3 class="set-sub"><?= th('Welke server is de reverse proxy?') ?></h3>
           <div id="proxy-roles"><p class="muted"><?= th('Laden…') ?></p></div>
+          <h3 class="set-sub">🧱 <?= th('WAF (aanvallen in het verkeer herkennen)') ?></h3>
+          <?= xp(t('Een web application firewall (CrowdSec AppSec) bekijkt elk verzoek naar je apps op aanvallen zoals SQL-injectie, misbruik van bekende lekken en scanners.'), t('<b>Hoe het werkt:</b> de agent (1.98.0) start op de proxyserver een eigen CrowdSec-container (<i>rzsense-crowdsec</i>, als root in Podman) in het netwerk <i>rzsense</i> en hangt SWAG daaraan. SWAG vraagt bij elk verzoek aan CrowdSec of het mag. <b>Slider:</b> <i>Detecteren</i> = alleen melden, niets tegenhouden; <i>Blokkeren, alleen zeker</i> = alleen misbruik van bekende lekken (virtuele patches, vrijwel nooit vals alarm); <i>Blokkeren, streng</i> = ook de brede OWASP-regels (CRS), met meer kans op vals alarm. Begin met detecteren en kijk op de pagina Reverse proxy wat er tegengehouden <i>zou</i> worden. <b>Je eigen netwerk</b> wordt nooit tegengehouden. <b>Per site</b> zet je de WAF op <i>alleen melden</i> of <i>uit</i>, en een melding die normaal is maak je met één klik een uitzondering. <b>Eén keer zelf doen:</b> SWAG opnieuw aanmaken met de regels die hieronder bij de server staan.')) ?>
+          <label class="switch"><input type="checkbox" name="waf_on"><span></span> <?= t('<b>WAF aan</b> op de reverse proxy') ?></label>
+          <input type="hidden" name="waf_mode">
+          <label class="af-motion-set waf-mode-set"><span><?= th('Wat de WAF doet') ?></span>
+            <input type="range" id="waf-mode-range" min="0" max="2" step="1" list="waf-mode-steps" aria-describedby="waf-mode-txt">
+            <span class="af-motion-lbls small muted" aria-hidden="true"><span><?= th('Detecteren') ?></span><span><?= th('Blokkeren, alleen zeker') ?></span><span><?= th('Blokkeren, streng') ?></span></span>
+            <span id="waf-mode-txt" class="small"></span></label>
+          <datalist id="waf-mode-steps"><option value="0"></option><option value="1"></option><option value="2"></option></datalist>
+          <label class="switch"><input type="checkbox" name="waf_share"><span></span> <?= t('<b>Delen met de CrowdSec-community</b>: aanvallende IP\'s doorgeven en hun lijst van bekende aanvallers gebruiken') ?> <span class="hint"><?= th('(uit = alles blijft op je eigen server)') ?></span></label>
+          <div id="waf-status"></div>
           <p class="small muted"><a href="#proxy" data-goto="proxy"><?= th('Naar de pagina Reverse proxy (per site instellen)') ?> →</a></p>
         </div>
         <div data-sk="sudo" class="card" id="sudo-card">

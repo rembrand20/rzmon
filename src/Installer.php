@@ -359,6 +359,8 @@ final class Installer
         ['hosts', 'logbrowse_req', 'INT UNSIGNED NOT NULL DEFAULT 0'],   // 1.251.0: map doorbladeren (teller)
         ['hosts', 'logbrowse_path', "VARCHAR(300) NOT NULL DEFAULT ''"],
         ['hosts', 'proxy_role', 'TINYINT(1) NOT NULL DEFAULT 0'],   // 1.254.0: deze server is de reverse proxy (agent 1.97.0)
+        ['proxy_sites', 'waf', "ENUM('inherit','detect','off') NOT NULL DEFAULT 'inherit'"],   // 1.255.0: WAF per site (standaard = de slider)
+        ['proxy_sites', 'waf_except', "VARCHAR(1000) NOT NULL DEFAULT ''"],   // 1.255.0: regels die voor deze site normaal zijn
         ['hosts', 'iperf_ok', 'TINYINT(1) NOT NULL DEFAULT 1'],
         ['weblog_state', 'kind', 'VARCHAR(16) NULL'],       // 1.222.0: soort reverse proxy (swag, npm, nginx; agent 1.86.0)
         ['weblog_state', 'ctr', 'VARCHAR(64) NULL'],        // 1.222.0: container van de proxy

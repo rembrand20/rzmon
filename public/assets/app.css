@@ -6043,3 +6043,7 @@ button.rz-job::before, .btn.rz-job::before { content: ''; position: absolute; in
 .px-table select { max-width: 15rem; }
 .px-paths { display: block; margin-top: .3rem; width: 100%; max-width: 15rem; }
 .px-roles { display: grid; gap: .4rem; }
+/* 1.255.0: WAF op de reverse proxy */
+.waf-box { border-top: 1px dashed var(--border); padding-top: .5rem; display: grid; gap: .4rem; min-width: 0; }
+.waf-st { margin-top: .3rem; }
+.waf-mode-set #waf-mode-txt { color: var(--text); }

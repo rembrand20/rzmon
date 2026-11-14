@@ -182,7 +182,7 @@ final class ProxyGuard
         }
         $rate = (string) setting('proxy_def_rate', 'normal');
         return ['enabled' => true, 'lan_mode' => $mode, 'lan_paths' => $paths, 'rate' => in_array($rate, self::RATES, true) ? $rate : 'normal',
-            'bots' => setting('proxy_def_bots', '1') === '1', 'custom' => false];
+            'bots' => setting('proxy_def_bots', '1') === '1', 'custom' => false, 'waf' => 'inherit', 'waf_except' => ''];
     }
 
     /** Alle sites die de agent vond, met het beleid (eigen instelling of de standaard) */
@@ -199,7 +199,7 @@ final class ProxyGuard
             if (isset($own[$s['name']])) {
                 $o = $own[$s['name']];
                 $d = ['enabled' => (bool) $o['enabled'], 'lan_mode' => $o['lan_mode'], 'lan_paths' => $o['lan_paths'], 'rate' => $o['rate'], 'bots' => (bool) $o['bots'],
-                    'custom' => true, 'updated_by' => $o['updated_by'], 'updated_at' => $o['updated_at']];
+                    'custom' => true, 'updated_by' => $o['updated_by'], 'updated_at' => $o['updated_at'], 'waf' => $o['waf'] ?? 'inherit', 'waf_except' => $o['waf_except'] ?? ''];
             }
             $out[] = ['site' => $s['name'], 'names' => $s['names'], 'up' => $s['up'], 'file' => $s['file'], 'code' => $s['code'] ?? 0] + $d;
         }
@@ -229,6 +229,13 @@ final class ProxyGuard
             ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), lan_mode = VALUES(lan_mode), lan_paths = VALUES(lan_paths), rate = VALUES(rate), bots = VALUES(bots),
             updated_by = VALUES(updated_by), updated_at = VALUES(updated_at)',
             [$hostId, $site, empty($in['enabled']) ? 0 : 1, $mode, $paths, $rate, empty($in['bots']) ? 0 : 1, mb_substr($by, 0, 100)]);
+        // 1.255.0: WAF per site (standaard, alleen melden of uit) en de uitzonderingen
+        if (isset($in['waf']) && in_array((string) $in['waf'], Waf::SITE_MODES, true)) {
+            q('UPDATE proxy_sites SET waf = ? WHERE host_id = ? AND site = ?', [(string) $in['waf'], $hostId, $site]);
+        }
+        if (isset($in['waf_except'])) {
+            q('UPDATE proxy_sites SET waf_except = ? WHERE host_id = ? AND site = ?', [implode(',', Waf::exceptList((string) $in['waf_except'])), $hostId, $site]);
+        }
         ActionLog::by($by, $hostId, 'proxy', t('Reverse proxy: beleid van een site gewijzigd'), $site);
         return null;
     }
@@ -262,10 +269,19 @@ final class ProxyGuard
                 continue;
             }
             $sites = self::sites((int) $h['id'], $rep);
-            $servers[] = ['id' => (int) $h['id'], 'name' => $h['name'], 'role' => (bool) $h['proxy_role'], 'looks' => $looks, 'agent_ok' => self::agentOk($h['agent_version']),
+            $servers[] = ['id' => (int) $h['id'], 'name' => $h['name'], 'role' => (bool) $h['proxy_role'], 'looks' => $looks, 'agent_ok' => self::agentOk($h['agent_version']), 'waf_agent_ok' => version_compare((string) $h['agent_version'], '1.98.0', '>='),
                 'report' => $rep, 'sites' => $sites, 'in_sync' => $rep && ($rep['state'] ?? '') === 'ok' && ($rep['applied'] ?? '') === self::hash((int) $h['id'])];
         }
+        foreach ($servers as &$sv) {   // 1.255.0: de WAF per server (stand, meldingen per site, de laatste meldingen)
+            if (!empty($sv['role'])) {
+                $sv['waf'] = Waf::status($sv['id']);
+                $sv['waf_stats'] = Waf::stats($sv['id']);
+                $sv['waf_recent'] = Waf::recent($sv['id'], 25);
+            }
+        }
+        unset($sv);
         return ['on' => self::enabled(), 'lan' => self::lanNets(), 'servers' => $servers,
+            'waf' => ['on' => setting('waf_on', '0') === '1', 'mode' => Waf::mode(), 'share' => setting('waf_share', '0') === '1'],
             'defaults' => ['lan' => setting('proxy_def_lan', '1') === '1', 'rate' => setting('proxy_def_rate', 'normal'), 'bots' => setting('proxy_def_bots', '1') === '1']];
     }
 

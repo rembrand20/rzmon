@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.97.0"
+AGENT_VERSION="1.98.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -4032,6 +4032,184 @@ limit_req_status 429;
     fi
     proxy_json="{\"kind\":\"$px_kind\",\"engine\":\"$px_eng\",\"ctr\":\"$(json_escape "$px_ctr")\",\"conf\":\"$(json_escape "$px_root")\",\"hook\":$px_hook,\"state\":\"$px_state\",\"msg\":\"$(json_escape "$px_msg")\",\"applied\":\"$(cat "$t_dir/proxy.applied" 2>/dev/null | tr -dc 'a-f0-9')\",\"sites\":[${px_sites%,}]}"
 fi
+
+# ---------------------------------------------------------------- WAF op de reverse proxy (agent 1.98.0, RzSense 1.255.0)
+# CrowdSec AppSec met de OWASP Core Rule Set, als eigen container (rzsense-crowdsec) op een eigen netwerk (rzsense) waar ook
+# SWAG aan hangt. SWAG vraagt via de mod swag-crowdsec bij elk verzoek of het mag. Regels uit RzSense:
+#   0 <tab> waf <tab> on|off <tab> detect|sure|strict <tab> 0|1 (delen met de CrowdSec-community)
+#   0 <tab> wafsite <tab> site <tab> detect|off
+#   0 <tab> wafex <tab> site <tab> regel (CRS-id of naam)
+# De agent schrijft alleen eigen bestanden in /var/lib/rzsense-crowdsec (de container leest ze), maakt de sleutel voor SWAG
+# (in de configmap van SWAG, rzsense-waf/crowdsec.key, alleen voor root), en test na elke wijziging of de WAF doet wat de
+# slider zegt (een nep-aanval vanaf 203.0.113.10 naar de WAF zelf). Uit: de container weg; je SWAG blijft gewoon werken.
+waf_json=""
+if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [ -r "${t_cache-}" ] && grep -q $'^0\twaf\t' "$t_cache"; then
+    IFS=$'\t' read -r wf_on wf_mode wf_share < <(awk -F'\t' '$1 == "0" && $2 == "waf" { print $3 "\t" $4 "\t" $5; exit }' "$t_cache")
+    [[ "$wf_mode" =~ ^(detect|sure|strict)$ ]] || wf_mode=detect
+    wf_ctr=rzsense-crowdsec; wf_net=rzsense; wf_dir="${WAF_DIR:-/var/lib/rzsense-crowdsec}"
+    wf_img="${WAF_IMAGE:-docker.io/crowdsecurity/crowdsec:v1.6.4}"
+    wf_state=error; wf_msg=""; wf_test=skip; wf_testmsg=""; wf_bouncer=none; wf_running=0; wf_alerts=""
+    wf_eng=${px_eng-}
+    if [ -z "$wf_eng" ]; then
+        for e in podman docker; do command -v "$e" >/dev/null 2>&1 && timeout 15 "$e" inspect "$wf_ctr" >/dev/null 2>&1 && { wf_eng=$e; break; }; done
+    fi
+    wfx() { timeout "${WFX_T:-60}" "$wf_eng" "$@"; }
+    wf_exists() { [ -n "$wf_eng" ] && wfx inspect "$wf_ctr" >/dev/null 2>&1; }
+    if [ "$wf_on" != on ]; then
+        if wf_exists; then
+            wfx rm -f "$wf_ctr" >/dev/null 2>&1
+            act_log proxy 1 "WAF uit" "container $wf_ctr weggehaald"
+        fi
+        rm -f "$wf_dir/env.hash" "$wf_dir/conf.hash"
+        wf_state=off
+    elif [ "${px_kind-}" != swag ] || [ -z "${px_eng-}" ] || [ -z "${px_root-}" ]; then
+        wf_state=unsupported; wf_msg="de WAF werkt nu alleen met SWAG (gevonden: ${px_kind:-geen proxy})"
+    else
+        mkdir -p "$wf_dir/acquis.d" "$wf_dir/data" "$px_root/rzsense-waf"; chmod 700 "$wf_dir" "$px_root/rzsense-waf"
+        # 1. Sleutel voor SWAG (de bouncer), alleen voor root leesbaar
+        wf_keyf="$px_root/rzsense-waf/crowdsec.key"
+        if [ ! -s "$wf_keyf" ]; then
+            (umask 077; head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' >"$wf_keyf")
+            act_log proxy 1 "WAF: sleutel voor SWAG gemaakt" "$px_root/rzsense-waf/crowdsec.key"
+        fi
+        wf_key=$(tr -dc 'a-f0-9' <"$wf_keyf" | head -c 64)
+        # 2. Configuratie (alles opnieuw opgebouwd uit de regels, met controle van wat binnenkomt)
+        wf_lan=""
+        for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_cache") 127.0.0.1/32; do
+            [[ "$n" =~ ^[0-9a-fA-F:.]+(/[0-9]{1,3})?$ ]] || continue
+            [[ "$n" == */* ]] || n="$n/32"
+            wf_lan+="${wf_lan:+ || }IpInRange(req.RemoteAddr, \"$n\")"
+        done
+        wf_re() {  # sitenaam (naam, *.domein of app.*) → regex op de Host, met dubbele backslashes voor YAML
+            local s=$1 pre='^' suf='$' r
+            if [[ "$s" == '*.'* ]]; then s=${s:2}; pre='\.'; fi
+            if [[ "$s" == *'.*' ]]; then s=${s%.\*}; suf='\.'; fi
+            s=$(sed 's/\./\\./g' <<<"$s")
+            if [ "$pre" = '^' ]; then r="^$s$suf"; else r="$pre$s$suf"; fi
+            printf '%s' "${r//\\/\\\\}"
+        }
+        wf_off=""; wf_det=""; wf_ex=""
+        while IFS=$'\t' read -r _ _ s m; do
+            [[ "$s" =~ ^(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)*(\.\*)?$ ]] || continue
+            case "$m" in off) wf_off+="${wf_off:+|}$(wf_re "$s")" ;; detect) wf_det+="${wf_det:+|}$(wf_re "$s")" ;; esac
+        done < <(awk -F'\t' '$1 == "0" && $2 == "wafsite"' "$t_cache" | head -n 200)
+        while IFS=$'\t' read -r _ _ s r; do
+            [[ "$s" =~ ^(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)*(\.\*)?$ ]] || continue
+            if [[ "$r" =~ ^[0-9]{3,7}$ ]]; then a="RemoveInBandRuleByID($r)"$'\n'"      - RemoveOutBandRuleByID($r)"
+            elif [[ "$r" =~ ^[a-z0-9_-]{1,40}/[A-Za-z0-9._-]{1,80}$ ]]; then a="RemoveInBandRuleByName(\"$r\")"$'\n'"      - RemoveOutBandRuleByName(\"$r\")"
+            else continue; fi
+            wf_ex+="  - filter: req.Host matches \"$(wf_re "$s")\""$'\n'"    apply:"$'\n'"      - $a"$'\n'
+        done < <(awk -F'\t' '$1 == "0" && $2 == "wafex"' "$t_cache" | head -n 200)
+        case "$wf_mode" in
+            detect) wf_in="  - crowdsecurity/base-config"; wf_out="  - crowdsecurity/vpatch-*"$'\n'"  - crowdsecurity/crs" ;;
+            sure) wf_in="  - crowdsecurity/base-config"$'\n'"  - crowdsecurity/vpatch-*"; wf_out="  - crowdsecurity/crs" ;;
+            strict) wf_in="  - crowdsecurity/base-config"$'\n'"  - crowdsecurity/vpatch-*"$'\n'"  - crowdsecurity/crs"; wf_out="" ;;
+        esac
+        wf_conf="# RzSense: beheerd door de RzSense-agent (slider: $wf_mode). Wijzigingen hier worden overschreven.
+name: rzsense/appsec
+default_remediation: ban
+inband_rules:
+$wf_in
+outofband_rules:${wf_out:+$'\n'$wf_out}${wf_out:- []}
+${wf_ex:+pre_eval:$'\n'$wf_ex}on_match:
+  - filter: $wf_lan
+    apply:
+      - SetRemediation(\"allow\")
+      - CancelAlert()
+      - CancelEvent()
+${wf_off:+  - filter: req.Host matches \"($wf_off)\"
+    apply:
+      - SetRemediation(\"allow\")
+      - CancelAlert()
+      - CancelEvent()
+}${wf_det:+  - filter: IsInBand && req.Host matches \"($wf_det)\"
+    apply:
+      - SetRemediation(\"allow\")
+}"
+        wf_acq="# RzSense: beheerd door de RzSense-agent
+source: appsec
+listen_addr: 0.0.0.0:7422
+appsec_config: rzsense/appsec
+name: rzsense-appsec
+labels:
+  type: appsec
+"
+        wf_wl="# RzSense: je eigen netwerk en RzSense nooit blokkeren
+name: rzsense/whitelist
+description: \"RzSense: eigen netwerk\"
+whitelist:
+  reason: \"RzSense: eigen netwerk\"
+  cidr:
+$(for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_cache") 127.0.0.1/32; do [[ "$n" =~ ^[0-9a-fA-F:.]+(/[0-9]{1,3})?$ ]] || continue; [[ "$n" == */* ]] || n="$n/32"; echo "    - \"$n\""; done)
+"
+        wf_write() { if [ -f "$1" ]; then printf '%s' "$2" >"$1"; else (umask 077; printf '%s' "$2" >"$1"); fi; }   # zelfde bestand (de container heeft het vast)
+        wf_write "$wf_dir/rzsense.yaml" "$wf_conf"; wf_write "$wf_dir/acquis.d/rzsense-appsec.yaml" "$wf_acq"; wf_write "$wf_dir/whitelist.yaml" "$wf_wl"
+        wf_chash=$(cat "$wf_dir/rzsense.yaml" "$wf_dir/acquis.d/rzsense-appsec.yaml" "$wf_dir/whitelist.yaml" | sha1sum | cut -c1-12)
+        wf_ehash=$(printf '%s|%s|%s' "$wf_img" "$wf_share" "$wf_key" | sha1sum | cut -c1-12)
+        # 3. Netwerk: rzsense, en SWAG eraan (ook opnieuw als SWAG opnieuw is aangemaakt)
+        wfx network inspect "$wf_net" >/dev/null 2>&1 || wfx network create "$wf_net" >/dev/null 2>&1
+        if ! wfx inspect -f '{{json .NetworkSettings.Networks}}' "$px_ctr" 2>/dev/null | grep -q "\"$wf_net\""; then
+            if wfx network connect "$wf_net" "$px_ctr" >/dev/null 2>&1; then act_log proxy 1 "WAF: $px_ctr aan het netwerk $wf_net gehangen" ""
+            else wf_msg="kon $px_ctr niet aan het netwerk $wf_net hangen"; fi
+        fi
+        # 4. Container: (opnieuw) aanmaken als hij er niet is of de omgeving veranderde; herstarten als alleen de regels veranderden
+        if ! wf_exists || [ "$(cat "$wf_dir/env.hash" 2>/dev/null)" != "$wf_ehash" ]; then
+            wfx rm -f "$wf_ctr" >/dev/null 2>&1
+            wf_env=(-e "COLLECTIONS=crowdsecurity/appsec-virtual-patching crowdsecurity/appsec-generic-rules crowdsecurity/appsec-crs" -e "BOUNCER_KEY_swag=$wf_key")
+            [ "$wf_share" = 1 ] || wf_env+=(-e "DISABLE_ONLINE_API=true")
+            if out=$(WFX_T=600 wfx run -d --name "$wf_ctr" --network "$wf_net" --restart unless-stopped "${wf_env[@]}" \
+                -v "$wf_dir/acquis.d:/etc/crowdsec/acquis.d:Z" -v "$wf_dir/rzsense.yaml:/etc/crowdsec/appsec-configs/rzsense.yaml:Z" \
+                -v "$wf_dir/whitelist.yaml:/etc/crowdsec/parsers/s02-enrich/rzsense-whitelist.yaml:Z" -v "$wf_dir/data:/var/lib/crowdsec/data:Z" "$wf_img" 2>&1); then
+                echo "$wf_ehash" >"$wf_dir/env.hash"; echo "$wf_chash" >"$wf_dir/conf.hash"
+                act_log proxy 1 "WAF: CrowdSec gestart" "$wf_img, slider $wf_mode"
+            else
+                wf_msg="starten mislukt: $(tail -n 2 <<<"$out" | tr '\n' ' ' | cut -c1-200)"
+            fi
+        elif [ "$(cat "$wf_dir/conf.hash" 2>/dev/null)" != "$wf_chash" ]; then
+            if wfx restart "$wf_ctr" >/dev/null 2>&1; then
+                echo "$wf_chash" >"$wf_dir/conf.hash"; act_log proxy 1 "WAF: regels doorgevoerd" "slider $wf_mode"
+            else wf_msg="herstarten mislukt"; fi
+        fi
+        # 5. Draait hij, antwoordt de WAF, is SWAG gekoppeld, en doet hij wat de slider zegt?
+        [ "$(wfx inspect -f '{{.State.Running}}' "$wf_ctr" 2>/dev/null)" = true ] && wf_running=1
+        wf_ask() {  # wf_ask <uri> → 200 (mag), 403 (tegengehouden) of 000 (geen antwoord)
+            local o
+            o=$(wfx exec "$wf_ctr" wget -q -S -O /dev/null --header "X-Crowdsec-Appsec-Ip: 203.0.113.10" --header "X-Crowdsec-Appsec-Uri: $1" \
+                --header "X-Crowdsec-Appsec-Host: rzsense-selftest.invalid" --header "X-Crowdsec-Appsec-Verb: GET" \
+                --header "X-Crowdsec-Appsec-Api-Key: $wf_key" http://127.0.0.1:7422/ 2>&1)
+            if grep -q ' 200' <<<"$o"; then echo 200; elif grep -q ' 403' <<<"$o"; then echo 403; else echo 000; fi
+        }
+        if [ "$wf_running" = 1 ]; then
+            wf_ok=$(wf_ask /)
+            if [ "$wf_ok" = 000 ]; then
+                wf_state=starting; wf_msg=${wf_msg:-"de WAF start nog (regels laden)"}
+            else
+                # Zelftest: alleen zeker = een bekend lek (CVE-2017-9841); streng = SQL-injectie; detecteren = SQL-injectie mag door
+                case "$wf_mode" in
+                    sure) wf_u='/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php'; wf_want=403 ;;
+                    strict) wf_u='/?id=1%27%20OR%20%271%27%3D%271'; wf_want=403 ;;
+                    *) wf_u='/?id=1%27%20OR%20%271%27%3D%271'; wf_want=200 ;;
+                esac
+                wf_got=$(wf_ask "$wf_u")
+                if [ "$wf_got" = "$wf_want" ] && [ "$wf_ok" = 200 ]; then wf_test=ok; wf_testmsg="nep-aanval: $wf_got zoals verwacht"
+                else wf_test=fail; wf_testmsg="nep-aanval gaf $wf_got, verwacht $wf_want (gewoon verzoek: $wf_ok)"; fi
+                # SWAG gekoppeld? (de bouncer haalt elke paar seconden de lijst op)
+                wf_bl=$(wfx exec "$wf_ctr" cscli bouncers list -o json 2>/dev/null)
+                if grep -q '"name": *"swag"' <<<"$wf_bl"; then
+                    wf_lp=$(tr -d '\n' <<<"$wf_bl" | grep -o '"name": *"swag"[^}]*' | grep -o '"last_pull": *"[^"]*"' | cut -d'"' -f4)
+                    if [ -n "$wf_lp" ] && [ "${wf_lp:0:4}" != 0001 ]; then wf_bouncer=active; else wf_bouncer=waiting; fi
+                fi
+                if [ "$wf_bouncer" = active ]; then wf_state=ok; wf_msg=${wf_msg:-"actief, slider $wf_mode"}
+                else wf_state=waiting; wf_msg=${wf_msg:-"draait; zet de koppeling aan in SWAG (zie RzSense)"}; fi
+                # Nieuwe meldingen (RzSense slaat elke melding één keer op)
+                wf_alerts=$(wfx exec "$wf_ctr" cscli alerts list -o json -l 100 --since 20m 2>/dev/null | head -c 300000 | base64 | tr -d '\n')
+            fi
+        else
+            wf_msg=${wf_msg:-"de container draait niet"}
+        fi
+    fi
+    waf_json="{\"state\":\"$wf_state\",\"running\":$wf_running,\"bouncer\":\"$wf_bouncer\",\"net\":\"$wf_net\",\"image\":\"$(json_escape "$wf_img")\",\"mode\":\"$wf_mode\",\"test\":\"$wf_test\",\"test_msg\":\"$(json_escape "$wf_testmsg")\",\"msg\":\"$(json_escape "$wf_msg")\",\"alerts\":\"$wf_alerts\"}"
+fi
 # ---------------------------------------------------------------- Podman: containers, pods en opslag
 lap containers
 # Per context: versie, containers (status, health, herstarts, grootte, volumes), pods en opslag.
@@ -5509,7 +5687,7 @@ if [ -n "$hold_id" ] && [ "$hold_since" -gt 0 ]; then
     [ "$TEST" != 1 ] && [ "${HOLD_JITTER:-1}" != 0 ] && sleep $(( RANDOM % 25 ))
 fi
 run_ms=$(( $(now_ms) - run_t0 ))
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json}${truenas_json:+,\"truenas\":$truenas_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],${logscan_json:+\"log_scan\":$logscan_json,}${logbrowse_json:+\"log_browse\":$logbrowse_json,}${proxy_json:+\"proxy\":$proxy_json,}\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${act_json:+,\"act\":[$act_json]}${ransom_json:+,\"ransom\":$ransom_json}${apps_json:+,\"apps\":$apps_json}${ioc_json:+,\"ioc\":$ioc_json}${patch_json:+,\"patch\":$patch_json}${ha_upd_json:+,\"ha_upd_result\":$ha_upd_json}${sudo_json:+,\"sudo\":[${sudo_json%,}]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json}${path_json:+,\"path\":$path_json}${db_json:+,\"db\":$db_json}${iperfs_json:+,\"iperfs\":$iperfs_json}${selftest_json:+,\"selftest\":$selftest_json}${nic_json:+,\"nic\":$nic_json}${hold_json:+,\"hold\":$hold_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json}${truenas_json:+,\"truenas\":$truenas_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],${logscan_json:+\"log_scan\":$logscan_json,}${logbrowse_json:+\"log_browse\":$logbrowse_json,}${proxy_json:+\"proxy\":$proxy_json,}${waf_json:+\"waf\":$waf_json,}\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${act_json:+,\"act\":[$act_json]}${ransom_json:+,\"ransom\":$ransom_json}${apps_json:+,\"apps\":$apps_json}${ioc_json:+,\"ioc\":$ioc_json}${patch_json:+,\"patch\":$patch_json}${ha_upd_json:+,\"ha_upd_result\":$ha_upd_json}${sudo_json:+,\"sudo\":[${sudo_json%,}]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json}${path_json:+,\"path\":$path_json}${db_json:+,\"db\":$db_json}${iperfs_json:+,\"iperfs\":$iperfs_json}${selftest_json:+,\"selftest\":$selftest_json}${nic_json:+,\"nic\":$nic_json}${hold_json:+,\"hold\":$hold_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
 
 # Agent 1.66.1: 50 seconden wachten op RzSense (was 20): een druk bezette RzSense verwerkt een groot rapport soms trager;
 # na 20 seconden gaf de agent het op en kreeg hij het antwoord (opdrachten, instellingen, "softwarelijst ontvangen") nooit

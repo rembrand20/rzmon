@@ -2955,5 +2955,52 @@ save_setting('proxy_on', '0');
 q('DELETE FROM hosts WHERE id = ?', [$pxh]);
 q('DELETE FROM proxy_sites WHERE host_id = ?', [$pxh]);
 
+section('WAF op de reverse proxy (1.255.0)');
+q("INSERT INTO hosts (name, address, mode, agent_version) VALUES ('waf-host', '127.0.0.1', 'agent', '1.98.0')");
+$wh = (int) db()->lastInsertId();
+$wHost = q('SELECT * FROM hosts WHERE id = ?', [$wh])->fetch();
+$oldNets = (string) setting('trusted_networks', '');
+save_setting('trusted_networks', '192.168.1.0/24');
+ProxyGuard::fromAgent($wHost, ['proxy' => ['kind' => 'swag', 'hook' => 1, 'state' => 'ok', 'sites' => [
+    ['name' => 'nextcloud.*', 'names' => ['nextcloud.*']], ['name' => 'blog.example.nl', 'names' => ['blog.example.nl']]]]]);
+ProxyGuard::setRole($wh, true, 'test');
+save_setting('proxy_on', '1');
+save_setting('waf_on', '0');
+ok(!preg_grep("/^0\twaf\t/", ProxyGuard::agentLines($wh)) && Waf::agentLines($wh) === [], 'WAF: uit = geen regels (en niets te ruimen)');
+save_setting('waf_on', '1');
+save_setting('waf_mode', 'sure');
+ok(ProxyGuard::saveSite($wh, ['site' => 'nextcloud.*', 'enabled' => 1, 'lan_mode' => 'off', 'rate' => 'normal', 'bots' => 1, 'waf' => 'detect', 'waf_except' => '942100, rm -rf'], 'test') === null
+    && Waf::addException($wh, 'blog.example.nl', 'crowdsecurity/vpatch-CVE-2017-9841', 'test') === null && is_string(Waf::addException($wh, 'blog.example.nl', '1; rm', 'test')), 'WAF: per site alleen melden, uitzonderingen (ongeldige geweigerd)');
+$wl = Waf::agentLines($wh);
+ok($wl[0] === "0\twaf\ton\tsure\t0" && in_array("0\twafsite\tnextcloud.*\tdetect", $wl, true) && in_array("0\twafex\tnextcloud.*\t942100", $wl, true)
+    && in_array("0\twafex\tblog.example.nl\tcrowdsecurity/vpatch-CVE-2017-9841", $wl, true) && !preg_grep('/rm/', $wl), 'WAF: regels voor de agent (slider, per site, uitzonderingen)');
+ok(Waf::wouldBlock('sure', 'inherit', true) && !Waf::wouldBlock('sure', 'inherit', false) && Waf::wouldBlock('strict', 'inherit', false) && !Waf::wouldBlock('strict', 'detect', true) && !Waf::wouldBlock('detect', 'inherit', true),
+    'WAF: wat tegengehouden wordt volgt de slider en de site');
+$alerts = [
+    ['id' => 11, 'scenario' => 'crowdsecurity/vpatch-CVE-2017-9841', 'source' => ['ip' => '198.51.100.7'], 'created_at' => '2026-11-14T10:00:00Z',
+        'events' => [['meta' => [['key' => 'target_uri', 'value' => '/vendor/x/eval-stdin.php'], ['key' => 'target_host', 'value' => 'blog.example.nl']]]]],
+    ['id' => 12, 'scenario' => 'crowdsecurity/crowdsec-appsec-outofband', 'source' => ['ip' => '198.51.100.8'],
+        'events' => [['meta' => [['key' => 'target_uri', 'value' => "/?q=1' OR 1=1"], ['key' => 'target_host', 'value' => 'nextcloud.example.nl'], ['key' => 'rule_name', 'value' => '942100']]]]],
+    ['id' => 13, 'scenario' => 'x', 'source' => ['ip' => '192.168.1.20'], 'events' => []],
+    ['id' => 14, 'scenario' => 'x', 'source' => ['ip' => Waf::TEST_IP], 'events' => []],
+];
+Waf::fromAgent($wHost, ['waf' => ['state' => 'ok', 'running' => 1, 'bouncer' => 'active', 'mode' => 'sure', 'test' => 'ok', 'alerts' => base64_encode(json_encode($alerts))]]);
+Waf::fromAgent($wHost, ['waf' => ['state' => 'ok', 'running' => 1, 'bouncer' => 'active', 'mode' => 'sure', 'test' => 'ok', 'alerts' => base64_encode(json_encode($alerts))]]);   // tweede keer: niets dubbel
+$ev = array_column(Waf::recent($wh), null, 'ip');
+ok(count($ev) === 2 && $ev['198.51.100.7']['blocked'] && $ev['198.51.100.7']['vpatch'] && $ev['198.51.100.7']['site'] === 'blog.example.nl'
+    && !$ev['198.51.100.8']['blocked'] && $ev['198.51.100.8']['site'] === 'nextcloud.*', 'WAF: meldingen één keer, bij de juiste site (ook app.*), tegengehouden volgens slider en site; eigen netwerk en zelftest overgeslagen');
+$st = Waf::stats($wh);
+ok($st['blog.example.nl']['blocked'] === 1 && $st['nextcloud.*']['seen'] === 1 && $st['nextcloud.*']['blocked'] === 0, 'WAF: tellingen per site');
+ok((int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'web_attack'", [$wh])->fetchColumn() >= (Ids::enabled() ? 2 : 0), 'WAF: meldingen worden IDS-incidenten (als het IDS aan staat)');
+$ov = array_column(ProxyGuard::overview()['servers'], null, 'id')[$wh];
+ok($ov['waf']['state'] === 'ok' && isset($ov['waf_stats']['blog.example.nl']) && count($ov['waf_recent']) === 2, 'WAF: in het overzicht van de pagina');
+save_setting('waf_on', '0');
+ok(Waf::agentLines($wh) === ["0\twaf\toff\tsure\t0"], 'WAF: uitgezet terwijl hij draait = de agent haalt de container weg');
+save_setting('trusted_networks', $oldNets);
+save_setting('proxy_on', '0');
+q('DELETE FROM waf_events WHERE host_id = ?', [$wh]);
+q('DELETE FROM proxy_sites WHERE host_id = ?', [$wh]);
+q('DELETE FROM hosts WHERE id = ?', [$wh]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

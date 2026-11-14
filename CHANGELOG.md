@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.255.0**: **WAF op de reverse proxy**: CrowdSec bekijkt elk verzoek naar je apps; met een slider van alleen melden naar blokkeren, en per site zie je wat hij zou tegenhouden.
 - **1.254.0**: **reverse proxy beschermen**: per site adminpagina's alleen vanaf je eigen netwerk, rate limit en bots weren; de agent op SWAG of Nginx Proxy Manager voert het veilig door.
 - **1.253.0**: **Axigen in de bibliotheek**: tien vaste zoekacties voor de Axigen-mailserver (wachtwoorden raden, blocklist, mail blijft hangen, licentie, en meer).
 - **1.252.0**: **voortgang overal**: knoppen laten zien dat ze bezig zijn en hoe lang het meestal duurt; netwerk- en poortscan met stappen en ⏹ Stoppen, en de netwerkscan loopt door als je weggaat.
 - **1.251.0**: **logmappen per server**: kies en doorblader in RzSense in welke mappen de agent naar logs zoekt, veilig binnen een plafond op de server.
-- **1.250.0**: **bibliotheek met vaste zoekacties**: 25 kant-en-klare logmeldingen (SSH, schijffouten, geheugen, webserver, database, mail, back-up) met vinkjes toevoegen.
+
+## 1.255.0 – 2026-11-14
+### Nieuw
+- **🧱 WAF op de reverse proxy** (*Instellingen → Beveiliging → Reverse proxy → WAF* en de pagina *Reverse proxy*): een web application firewall (CrowdSec AppSec) bekijkt elk verzoek naar je apps op SQL-injectie, misbruik van bekende lekken, scanners en meer.
+  - **Slider**: *Detecteren* (alleen melden, hier begin je) → *Blokkeren, alleen zeker* (alleen bekende lekken, vrijwel nooit vals alarm) → *Blokkeren, streng* (ook de brede OWASP-regels).
+  - Per site zie je wat de WAF de laatste 14 dagen zag, wat hij tegenhield en wat hij **zou tegenhouden** bij elke stand, zodat je weet wat er verandert vóór je de slider verschuift.
+  - Per site *Standaard*, *Alleen melden* of *Uit*; een melding die normaal is, maak je met **Dit is normaal** een uitzondering.
+  - Je eigen netwerk wordt nooit tegengehouden. Elke melding wordt een IDS-incident (*webaanval*).
+  - Delen met de CrowdSec-community is een aparte schakelaar (standaard uit).
+  - De agent start de container zelf en test elke ronde met een nep-aanval of de WAF doet wat de slider zegt. Eén keer zelf doen: vier regels bij SWAG zetten (staan in de beheerportal). Werkt nu met **SWAG**. **Agent 1.98.0 nodig.**
+- **Nieuwe agent 1.98.0** (WAF op de reverse proxy).
+
 
 ## 1.254.0 – 2026-11-14
 ### Nieuw
