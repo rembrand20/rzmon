@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.260.0**: **Suricata op het proxynetwerk**: meekijken tussen de proxy en je apps, met advies voor elk veld (AI of standaard).
 - **1.259.0**: **advies voor alle velden**: één knop vult alle instellingen van de reverse proxy in met de beste waarden (AI of standaard), daarna gewoon aan te passen.
 
+## 1.263.7 – 2026-11-14
+### Opgelost
+- **Nieuwe agent 1.101.7**: Suricata op het proxynetwerk start nu ook als een gekoppeld restant van de container in Podman vastzit (opruimen met force, anders een andere containernaam).
+
 ## 1.263.6 – 2026-11-14
 ### Opgelost
 - **Op een telefoon sprong de pagina terug tijdens het scrollen en bij live-updates**: de kaartjesweergave van 1.261.0 zette bij elke live-update en bij elke `resize` alle kaartjes even terug naar een brede tabel om te meten. Een iPhone geeft zo'n `resize` tijdens het scrollen (de adresbalk verschijnt en verdwijnt); daardoor werd de pagina even korter en sprong de scrollpositie omhoog (in een test 18.000 px), en klikte je naast wat je wilde. Nu blijft een tabel die kaartjes is gewoon kaartjes, wordt alleen een gewone tabel gemeten, en alles opnieuw alleen als de breedte echt verandert (draaien). Een nieuwe brede tabel is ook meteen kaartjes, zonder eerst even breed te flitsen.

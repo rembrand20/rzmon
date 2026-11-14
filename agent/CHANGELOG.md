@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.101.7 – 2026-11-14
+- **Suricata (proxynetwerk) start ook als de containernaam vastzit in Podman**: is een restant van `rzsense-suricata` nog gekoppeld (mount), dan weigerde Podman het weg te halen ("is mounted and cannot be removed", "replacing mount point … file exists"). De agent haalt het nu weg met `--force`, maakt de vastgelopen koppeling los en probeert het opnieuw. Lukt dat niet, dan start hij Suricata onder een andere naam (`rzsense-suricata-2`) en onthoudt die; de oude naam is na een herstart van de server weer vrij.
+
 ## 1.101.6 – 2026-11-14
 - **Opgelost: Suricata (proxynetwerk) "container name already in use"**: bleef er van een eerder, afgebroken aanmaken een restant van `rzsense-suricata` in de opslag van Podman achter, dan kon de agent de container niet opnieuw aanmaken (`podman rm -f` ziet zo'n restant niet). De agent ruimt het nu op met `podman rm --storage` en probeert het één keer opnieuw.
 

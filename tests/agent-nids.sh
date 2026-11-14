@@ -22,11 +22,13 @@ case "\$1" in
                 *State.Status*) echo "exited 1" ;;
                 *NetworkSettings.Networks*) echo "swagnet rzsense " ;;
             esac
-        else [ "\$2" = rzsense-suricata ] && { [ -f "\$S/ctr" ] || exit 1; }; fi ;;
+        else [[ "\$2" == rzsense-suricata* ]] && { [ -f "\$S/ctr" ] || exit 1; }; fi ;;
     network) [ "\$2" = inspect ] && echo lo ;;
-    run) if [ -f "\$S/ghost" ]; then echo 'Error: creating container storage: the container name "rzsense-suricata" is already in use by abc123. You have to remove that container to be able to reuse that name: that name is already in use'; exit 125; fi
+    run) if [ -f "\$S/stuck" ] && [[ " \$* " == *" --name rzsense-suricata "* ]]; then echo 'Error: creating container storage: the container name "rzsense-suricata" is already in use by abc. You have to remove that container to be able to reuse that name: that name is already in use'; exit 125; fi
+         if [ -f "\$S/ghost" ]; then echo 'Error: creating container storage: the container name "rzsense-suricata" is already in use by abc123. You have to remove that container to be able to reuse that name: that name is already in use'; exit 125; fi
          touch "\$S/ctr"; printf '%s\n' "\$*" >"\$S/run"; mkdir -p "\$N/log"; : >"\$N/log/suricata.log"; : >"\$N/log/eve.json" ;;
-    rm) [ "\$2" = --storage ] && rm -f "\$S/ghost"; rm -f "\$S/ctr" ;;
+    rm) if [ -f "\$S/stuck" ]; then echo 'Error: removing storage for container "rzsense-suricata": replacing mount point "/var/lib/containers/storage/overlay/eda98011055064cc735c633aff07585b8a2faa45335bb5c0182bb71907a4fe9d/merged": file exists'; exit 125; fi
+        [ "\$2" = --storage ] && rm -f "\$S/ghost"; rm -f "\$S/ctr" ;;
     restart) touch "\$S/restarted" ;;
     logs) printf 'i: suricata: starting\nE: af-packet: podman3: failed to open socket\n' ;;
     start) [ -f "\$S/startok" ] && rm -f "\$S/stopped"; touch "\$S/started" ;;
@@ -63,6 +65,15 @@ rm -f "$work/state/started"; NIDS_MIN_MB=1 run stopped2
 [ -f "$work/state/started" ] && bad_retry=1 || bad_retry=0
 rm -f "$work/nids/start.at"; touch "$work/state/startok"
 NIDS_MIN_MB=1 run restarted
+# 1.101.7: naam zit vast (gekoppeld restant, rm faalt): koppeling los proberen, daarna uitwijken naar rzsense-suricata-2
+cat >"$work/bin/umount" <<EOF2
+#!/usr/bin/env bash
+echo "\$*" >>"$work/umount.log"
+EOF2
+chmod +x "$work/bin/umount"
+rm -f "$work/state/ctr" "$work/nids/env.hash"; touch "$work/state/stuck"
+NIDS_MIN_MB=1 run stuck
+rm -f "$work/state/stuck"
 printf '0\tnids\toff\tweb\tauto\n' >"$work/cache/tests.cache"
 run off
 bad=""
@@ -72,7 +83,12 @@ import json, sys, os
 w = sys.argv[1]
 err = open(f'{w}/py.err', 'w')
 try:
-    r = {k: json.load(open(f'{w}/r-{k}.json')) for k in ('lowmem', 'start', 'alerts', 'full', 'stopped', 'restarted', 'off')}
+    r = {k: json.load(open(f'{w}/r-{k}.json')) for k in ('lowmem', 'start', 'alerts', 'full', 'stopped', 'restarted', 'stuck', 'off')}
+    assert open(f'{w}/nids/ctr.name').read().strip() == 'rzsense-suricata-2', 'andere naam onthouden'
+    assert '--name rzsense-suricata-2' in open(f'{w}/state/run').read() or '--name rzsense-suricata-2' in open(f'{w}/podman.log').read(), 'gestart met de andere naam'
+    assert '-l /var/lib/containers/storage/overlay/eda98011055064cc735c633aff07585b8a2faa45335bb5c0182bb71907a4fe9d/merged' in open(f'{w}/umount.log').read(), 'vastgelopen koppeling los'
+    assert 'rm --storage --force rzsense-suricata' in open(f'{w}/podman.log').read(), 'opruimen met --force'
+    assert r['stuck']['state'] in ('ok', 'starting'), r['stuck']
     st = r['stopped']
     assert st['state'] == 'error' and 'exited 1' in st['msg'] and 'failed to open socket' in st['msg'] and 'podman logs' in st['msg'], st
     assert r['restarted']['state'] == 'starting' and r['restarted']['msg'] == 'opnieuw gestart', r['restarted']
@@ -94,6 +110,6 @@ try:
 except AssertionError as e:
     err.write(str(e)[:1500]); sys.exit(1)
 PY
-grep -q 'achtergebleven container opgeruimd' "$work/cache/act.log" && grep -q 'rm --storage rzsense-suricata' "$work/podman.log" && grep -q 'Suricata (proxynetwerk) gestart' "$work/cache/act.log" && grep -q 'opnieuw gestart' "$work/cache/act.log" && grep -q 'Suricata (proxynetwerk) uit' "$work/cache/act.log" || bad+="logboek mist regels | "
+grep -q 'achtergebleven container opgeruimd' "$work/cache/act.log" && grep -q 'rm --storage --force rzsense-suricata' "$work/podman.log" && grep -q 'Suricata (proxynetwerk) gestart' "$work/cache/act.log" && grep -q 'opnieuw gestart' "$work/cache/act.log" && grep -q 'Suricata (proxynetwerk) uit' "$work/cache/act.log" || bad+="logboek mist regels | "
 if [ -n "$bad" ]; then echo "✘ Suricata (proxynetwerk): ${bad% | } $(tail -n 3 "$work/err" 2>/dev/null)"; exit 1; fi
-echo "✔ Suricata (proxynetwerk): netwerkbrug van de proxy gevonden (niet die van de WAF), te weinig geheugen = niet starten, --network host op de brug, regelprofiel (web/full), regels op de achtergrond bijgewerkt en herstart, meldingen uit eve.json, groot eve.json geleegd, achtergebleven container in de opslag opgeruimd, gestopt = reden en logregels + na 10 minuten opnieuw starten, onbekende interface genegeerd, uit = container weg, in het logboek"
+echo "✔ Suricata (proxynetwerk): netwerkbrug van de proxy gevonden (niet die van de WAF), te weinig geheugen = niet starten, --network host op de brug, regelprofiel (web/full), regels op de achtergrond bijgewerkt en herstart, meldingen uit eve.json, groot eve.json geleegd, achtergebleven container in de opslag opgeruimd (ook gekoppeld: --force en koppeling los, anders andere naam), gestopt = reden en logregels + na 10 minuten opnieuw starten, onbekende interface genegeerd, uit = container weg, in het logboek"

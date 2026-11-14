@@ -655,7 +655,8 @@ nids_json=""
 if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [ -r "${t_cache-}" ] && grep -q $'^0\tnids\t' "$t_cache"; then
     IFS=$'\t' read -r nd_on nd_prof nd_if < <(awk -F'\t' '$1 == "0" && $2 == "nids" { print $3 "\t" $4 "\t" $5; exit }' "$t_cache")
     [[ "$nd_prof" =~ ^(web|balanced|full)$ ]] || nd_prof=balanced
-    nd_ctr=rzsense-suricata; nd_dir="${NIDS_DIR:-/var/lib/rzsense-suricata}"; nd_img="${NIDS_IMAGE:-docker.io/jasonish/suricata:7.0}"
+    # Agent 1.101.7: de naam kan uitwijken (rzsense-suricata-2 …) als de vaste naam vastzit in de opslag van Podman
+    nd_dir="${NIDS_DIR:-/var/lib/rzsense-suricata}"; nd_ctr=$(cat "$nd_dir/ctr.name" 2>/dev/null); [[ "$nd_ctr" =~ ^rzsense-suricata(-[0-9]+)?$ ]] || nd_ctr=rzsense-suricata; nd_img="${NIDS_IMAGE:-docker.io/jasonish/suricata:7.0}"
     nd_state=error; nd_msg=""; nd_rules=0; nd_alerts=""; nd_found=(); nd_use=()
     nd_mem=$(awk '/^MemAvailable:/ { print int($2 / 1024) }' /proc/meminfo 2>/dev/null); nd_mem=${nd_mem:-0}
     nd_eng=${px_eng-}
@@ -722,9 +723,20 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
                     # Agent 1.101.6: naam nog in gebruik door een restant in de opslag van Podman (afgebroken aanmaken);
                     # "rm -f" ziet dat niet, "rm --storage" wel. Opruimen en één keer opnieuw.
                     if [ "$nd_rc" != 0 ] && [ "$nd_eng" = podman ] && [[ "$out" == *"already in use"* ]]; then
-                        ndx rm -f "$nd_ctr" >/dev/null 2>&1; ndx rm --storage "$nd_ctr" >/dev/null 2>&1
+                        # 1.101.7: ook als het restant nog gekoppeld is (mount): eerst --force, dan de vastgelopen koppeling
+                        # (alleen een .../overlay/<id>/merged uit de foutmelding) los en nog eens
+                        nd_rm=$(ndx rm -f "$nd_ctr" 2>&1; ndx rm --storage --force "$nd_ctr" 2>&1)
+                        nd_mnt=$(grep -oE '/[A-Za-z0-9_./-]*/overlay/[0-9a-f]{64}/merged' <<<"$nd_rm" | head -n 1)
+                        if [ -n "$nd_mnt" ] && [[ "$nd_mnt" != *..* ]]; then umount -l "$nd_mnt" 2>/dev/null; ndx rm --storage --force "$nd_ctr" >/dev/null 2>&1; fi
                         act_log proxy 1 "Suricata (proxynetwerk): achtergebleven container opgeruimd" "$nd_ctr"
                         out=$(nd_run); nd_rc=$?
+                        if [ "$nd_rc" != 0 ] && [[ "$out" == *"already in use"* ]]; then
+                            # Zit de naam nog steeds vast (pas weg na een herstart van de server): een andere naam gebruiken
+                            nd_n=${nd_ctr##*-}; [[ "$nd_n" =~ ^[0-9]+$ ]] && nd_n=$((nd_n + 1)) || nd_n=2
+                            nd_ctr="rzsense-suricata-$nd_n"; echo "$nd_ctr" >"$nd_dir/ctr.name"
+                            act_log proxy 1 "Suricata (proxynetwerk): andere containernaam" "$nd_ctr (de vorige naam zit vast in Podman tot een herstart)"
+                            ndx rm -f "$nd_ctr" >/dev/null 2>&1; out=$(nd_run); nd_rc=$?
+                        fi
                     fi
                     if [ "$nd_rc" = 0 ]; then
                         echo "$nd_ehash" >"$nd_dir/env.hash"; rm -f "$nd_dir/rules.hash"
