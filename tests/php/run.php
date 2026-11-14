@@ -561,6 +561,19 @@ DnsWatch::check([['client' => '10.0.0.9', 'client_info' => ['name' => 'rzmon'], 
 ok((int) q('SELECT COUNT(*) FROM ids_incidents')->fetchColumn() === $inc0 && (int) q("SELECT COUNT(*) FROM edr_events WHERE own = 'net' AND kind IN ('s', 'd')")->fetchColumn() === 2,
     'netwerkscan van RzSense (Suricata) en DNS van RzSense: geen incident, wel een groene regel');
 ok(Ids::protectedIp('10.0.0.9') && Ids::autoBlock($hc, '10.0.0.9', 'test') === null, 'RzSense wordt nooit geblokkeerd');
+// 1.262.0: een eigen agent-server op internet wordt nooit automatisch geblokkeerd (wel met de hand); oude automatische blokkade telt niet meer
+save_setting('ids_mode', 'block');
+q("UPDATE hosts SET agent_ip = '198.51.100.77' WHERE id = ?", [$hd['id']]);
+q("INSERT INTO ids_blocks (host_id, ip, reason, auto, created_by) VALUES (?, '198.51.100.77', 'automatisch', 1, 'IDS')", [$hc['id']]);
+Ids::agentIps(true);
+$agb = array_column(Ids::blocksFor((int) $hc['id']), 'ip');
+ok(Ids::protectedIp('198.51.100.77') && Ids::autoBlock($hc, '198.51.100.77', 'test') === null && !in_array('198.51.100.77', $agb, true) && !Ids::protectedIp('198.51.100.78'),
+    'eigen agent-server (publiek IP): nooit automatisch geblokkeerd, oude automatische blokkade vervalt');
+q("INSERT INTO ids_blocks (host_id, ip, reason, auto, created_by) VALUES (?, '198.51.100.77', 'met de hand', 0, 'admin')", [$hc['id']]);
+ok(in_array('198.51.100.77', array_column(Ids::blocksFor((int) $hc['id']), 'ip'), true), 'met de hand blokkeren kan nog wel');
+q("DELETE FROM ids_blocks WHERE ip = '198.51.100.77'");
+q('UPDATE hosts SET agent_ip = NULL WHERE id = ?', [$hd['id']]);
+Ids::agentIps(true);
 
 section('Bescherming: waarom, trigger en actie (1.115.0)');
 save_setting('ids_mode', 'block');

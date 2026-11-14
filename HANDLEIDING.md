@@ -2511,7 +2511,7 @@ De agent vraagt TrueNAS zelf met `midclt`, zonder API-sleutel: alles gaat over d
 **IDS op TrueNAS** (vanaf 1.174.0, agent 1.77.0): standaard **alleen detecteren**, want TrueNAS beheert zijn eigen netwerk. Wil je dat het IDS ook blokkeert, open dan bij de server **🛡️ Hardening** en zet **IDS mag hier blokkeren** aan (met je wachtwoord). Dan:
 - blokkeert het IDS aanvallers en werkt de honeypot-poort, net als op andere servers;
 - gebruikt de agent een eigen firewalltabel (`inet rzmon`) en zet die elke minuut terug, ook na een herstart of update van TrueNAS;
-- worden je lokale netwerken en RzSense nooit geblokkeerd.
+- worden je lokale netwerken, RzSense en je eigen agent-servers (ook op internet, 1.262.0) nooit automatisch geblokkeerd. Met de hand blokkeren kan nog wel.
 Isoleren werkte al op TrueNAS.
 
 **Agents-overzicht:** TrueNAS-servers staan in een eigen groep **🗄️ TrueNAS**, onder de andere agents.

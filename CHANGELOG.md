@@ -8,11 +8,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.262.0**: **eigen servers nooit buitengesloten**: het IDS blokkeert je eigen agent-servers niet meer automatisch, ook niet als ze op internet staan.
 - **1.261.0**: **mobielvriendelijk**: op een telefoon worden brede tabellen kaartjes, KPI-tegels staan twee per rij en niets duwt de pagina nog breder dan het scherm.
 - **1.260.0**: **Suricata op het proxynetwerk**: meekijken tussen de proxy en je apps, met advies voor elk veld (AI of standaard).
 - **1.259.0**: **advies voor alle velden**: één knop vult alle instellingen van de reverse proxy in met de beste waarden (AI of standaard), daarna gewoon aan te passen.
 - **1.258.0**: **paden dichtzetten en score per site**: bekende lekken tijdelijk afschermen op de reverse proxy, en per site een score met tips.
-- **1.257.0**: **uploads scannen op malware**: ClamAV op de reverse proxy, met melden en verplaatsen naar quarantaine elk aan en uit.
+
+## 1.262.0 – 2026-11-14
+### Nieuw
+- **🛡️ Eigen agent-servers worden nooit automatisch geblokkeerd**: staat een server met de agent op internet (bv. een VPS), dan kon het IDS zijn IP blokkeren door een blocklist, mislukte logins of de Docker-blokkade op je proxy. De agent kwam dan niet meer bij RzSense en je zag de server niet meer. RzSense behandelt de openbare adressen van je agent-servers (het adres van de server, het IP waarmee de agent rapporteert en de toegestane agent-IP's) nu net als je LAN en RzSense zelf: nooit automatisch blokkeren, niet in de blocklists naar de firewall, en een eerdere automatische blokkade vervalt vanzelf. Met de hand blokkeren kan nog wel.
 
 ## 1.261.1 – 2026-11-14
 ### Opgelost

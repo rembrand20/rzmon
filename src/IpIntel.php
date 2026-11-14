@@ -123,7 +123,8 @@ final class IpIntel
         if (!self::blocklistsOn() || !Ids::blocking()) {
             return [];
         }
-        $allow = array_map([self::class, 'range'], Whitelist::values('ip'));
+        // 1.262.0: ook je eigen agent-servers (een VPS in een bekende 'slechte' reeks mag RzSense blijven bereiken)
+        $allow = array_map([self::class, 'range'], array_merge(Whitelist::values('ip'), Ids::agentIps()));
         $out = [];
         foreach (q('SELECT cidr, start_ip, end_ip FROM ip_blocklist ORDER BY fam, start_ip LIMIT ' . self::MAX_AGENT)->fetchAll() as $r) {
             foreach ($allow as $a) {

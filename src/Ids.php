@@ -247,11 +247,12 @@ final class Ids
     {
         $shared = setting('ids_block_shared', '1') === '1';
         $out = [];
-        foreach (q('SELECT ip, until FROM ids_blocks WHERE removed_at IS NULL AND (until IS NULL OR until > NOW()) AND (host_id = ?' . ($shared ? ' OR auto = 1' : '') . ')',
+        foreach (q('SELECT ip, until, auto FROM ids_blocks WHERE removed_at IS NULL AND (until IS NULL OR until > NOW()) AND (host_id = ?' . ($shared ? ' OR auto = 1' : '') . ')',
             [$hostId])->fetchAll() as $b) {
-            if (Whitelist::ip((string) $b['ip'])) {
-                continue;   // whitelist: nergens blokkeren
+            if (Whitelist::ip((string) $b['ip']) || ((int) $b['auto'] === 1 && self::isAgentIp((string) $b['ip']))) {
+                continue;   // whitelist: nergens blokkeren; 1.262.0: een eigen agent-server niet automatisch
             }
+            unset($b['auto']);
             $cur = $out[$b['ip']] ?? null;
             if (!$cur || ($cur['until'] !== null && ($b['until'] === null || $b['until'] > $cur['until']))) {
                 $out[$b['ip']] = $b;
@@ -1386,7 +1387,47 @@ final class Ids
     public static function protectedIp(string $ip): bool
     {
         // 1.237.0: het adres uit base_url zit al in rzmonIps(); dat werd hier nog eens apart opgezocht
-        return is_private_ip($ip) || Whitelist::ip($ip) || self::isRzmon($ip);
+        return is_private_ip($ip) || Whitelist::ip($ip) || self::isRzmon($ip) || self::isAgentIp($ip);
+    }
+
+    /**
+     * 1.262.0: de openbare adressen van je eigen agent-servers (adres van de server, het IP waarmee de agent rapporteert en
+     * de toegestane agent-IP's). Een server die op internet staat mag het IDS niet automatisch buitensluiten: dan kan hij
+     * RzSense niet meer bereiken en zie je hem niet meer. Met de hand blokkeren kan nog wel. Namen worden opgezocht en
+     * 10 minuten onthouden (de cron en elk agentrapport gebruiken dit).
+     */
+    public static function agentIps(bool $fresh = false): array
+    {
+        static $ips = null, $at = 0;
+        if (!$fresh && $ips !== null && time() - $at < 600) {
+            return $ips;
+        }
+        $saved = json_decode((string) setting('agent_own_ips', ''), true);
+        if (!$fresh && is_array($saved) && isset($saved['at'], $saved['ips']) && time() - (int) $saved['at'] < 600) {
+            [$ips, $at] = [(array) $saved['ips'], (int) $saved['at']];
+            return $ips;
+        }
+        $out = [];
+        foreach (q("SELECT address, agent_ip, agent_ips FROM hosts WHERE mode = 'agent'")->fetchAll() as $h) {
+            foreach (array_merge([(string) $h['agent_ip']], preg_split('/[\s,]+/', (string) $h['agent_ips']) ?: []) as $ip) {
+                $out[] = trim($ip);
+            }
+            $addr = trim((string) $h['address']);
+            if ($addr === '' || @inet_pton($addr) !== false) {
+                $out[] = $addr;
+            } elseif (preg_match('/^[a-z0-9.-]+$/i', $addr) && str_contains($addr, '.')) {
+                array_push($out, ...(@gethostbynamel($addr) ?: []));
+            }
+        }
+        $ips = array_slice(array_values(array_unique(array_filter($out, static fn($ip) => $ip !== '' && @inet_pton($ip) !== false && !is_private_ip($ip)))), 0, 500);
+        $at = time();
+        save_setting('agent_own_ips', json_encode(['at' => $at, 'ips' => $ips]));
+        return $ips;
+    }
+
+    public static function isAgentIp(string $ip): bool
+    {
+        return $ip !== '' && in_array($ip, self::agentIps(), true);
     }
 
     /**
