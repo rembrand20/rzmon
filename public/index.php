@@ -1303,11 +1303,20 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <input type="hidden" name="waf_mode">
           <label class="af-motion-set waf-mode-set"><span><?= th('Wat de WAF doet') ?></span>
             <input type="range" id="waf-mode-range" min="0" max="2" step="1" list="waf-mode-steps" aria-describedby="waf-mode-txt">
-            <span class="af-motion-lbls small muted" aria-hidden="true"><span><?= th('Detecteren') ?></span><span><?= th('Blokkeren, alleen zeker') ?></span><span><?= th('Blokkeren, streng') ?></span></span>
+            <span class="af-motion-lbls small muted" id="waf-mode-lbls" aria-hidden="true"><span><?= th('Detecteren') ?></span><span><?= th('Blokkeren, alleen zeker') ?></span><span><?= th('Blokkeren, streng') ?></span></span>
             <span id="waf-mode-txt" class="small"></span></label>
           <datalist id="waf-mode-steps"><option value="0"></option><option value="1"></option><option value="2"></option></datalist>
           <label class="switch"><input type="checkbox" name="waf_share"><span></span> <?= t('<b>Delen met de CrowdSec-community</b>: aanvallende IP\'s doorgeven en hun lijst van bekende aanvallers gebruiken') ?> <span class="hint"><?= th('(uit = alles blijft op je eigen server)') ?></span></label>
           <div id="waf-status"></div>
+          <h3 class="set-sub">🤖 <?= th('AI-advies voor de instellingen per site') ?></h3>
+          <?= xp(t('De AI bekijkt je sites en wat de WAF zag, en stelt per site het beleid voor, met een reden. Jij houdt de regie.'), t('<b>Hoe het werkt:</b> RzSense geeft de AI per site het herkenbare deel van de naam (bv. <i>nextcloud</i>, nooit je domein), de app erachter, het huidige beleid en wat de WAF de laatste 14 dagen zag. De AI antwoordt alleen met keuzes uit vaste lijsten (wie mag erbij, adminpaden, rate limit, bots, WAF per site); RzSense controleert elke waarde zoals bij je eigen invoer en de AI voert nooit iets uit. <b>Slider:</b> <i>Zelf beheren</i> = de voorstellen staan op de pagina Reverse proxy en jij past ze toe of negeert ze; <i>Automatisch</i> = RzSense past ze meteen toe, behalve bij sites die je zelf hebt ingesteld (die blijven altijd van jou). <b>Wanneer:</b> met de knop <i>Vraag advies</i>, en vanzelf als er een site bij komt of hooguit één keer per week als de WAF iets nieuws zag. Kosten, daglimiet en maandbudget zijn die van <i>AI-advies</i>.')) ?>
+          <label class="switch"><input type="checkbox" name="proxy_ai_on"><span></span> <?= t('<b>AI-advies</b> voor de reverse proxy') ?></label>
+          <label class="af-motion-set px-ai-set"><span><?= th('Wie voert het advies door') ?></span>
+            <input type="range" name="proxy_ai_auto" id="proxy-ai-auto" min="0" max="1" step="1" value="0" list="proxy-ai-steps" aria-describedby="proxy-ai-txt">
+            <span class="af-motion-lbls small muted" id="proxy-ai-lbls" aria-hidden="true"><span><?= th('Zelf beheren') ?></span><span><?= th('Automatisch') ?></span></span>
+            <span id="proxy-ai-txt" class="small"></span></label>
+          <datalist id="proxy-ai-steps"><option value="0"></option><option value="1"></option></datalist>
+          <div id="proxy-ai-note"></div>
           <p class="small muted"><a href="#proxy" data-goto="proxy"><?= th('Naar de pagina Reverse proxy (per site instellen)') ?> →</a></p>
         </div>
         <div data-sk="sudo" class="card" id="sudo-card">

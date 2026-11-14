@@ -6047,3 +6047,10 @@ button.rz-job::before, .btn.rz-job::before { content: ''; position: absolute; in
 .waf-box { border-top: 1px dashed var(--border); padding-top: .5rem; display: grid; gap: .4rem; min-width: 0; }
 .waf-st { margin-top: .3rem; }
 .waf-mode-set #waf-mode-txt { color: var(--text); }
+/* 1.256.0: AI-advies voor de reverse proxy */
+.pxa-box { border: 1px dashed var(--border); border-radius: 12px; padding: .5rem .7rem; display: grid; gap: .3rem; min-width: 0; }
+.pxa-row td { border-top: 0; padding-top: 0; }
+.pxa-prop { background: color-mix(in srgb, var(--primary) 7%, transparent); border-radius: 10px; padding: .45rem .6rem; display: flex; flex-wrap: wrap; gap: .35rem .6rem; align-items: center; font-size: .9em; }
+.pxa-ch s { opacity: .6; }
+.pxa-btns { margin-left: auto; display: inline-flex; gap: .3rem; }
+.px-ai-set #proxy-ai-txt { color: var(--text); }

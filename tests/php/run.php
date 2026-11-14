@@ -3002,5 +3002,87 @@ q('DELETE FROM waf_events WHERE host_id = ?', [$wh]);
 q('DELETE FROM proxy_sites WHERE host_id = ?', [$wh]);
 q('DELETE FROM hosts WHERE id = ?', [$wh]);
 
+section('AI-advies voor de reverse proxy (1.256.0)');
+q("INSERT INTO hosts (name, address, mode, agent_version) VALUES ('pxa-host', '127.0.0.1', 'agent', '1.98.0')");
+$ph = (int) db()->lastInsertId();
+$pHost = q('SELECT * FROM hosts WHERE id = ?', [$ph])->fetch();
+$keep = [];
+foreach (['proxy_on', 'proxy_ai_on', 'proxy_ai_auto', 'ai_on', 'ai_provider', 'ai_ollama_model', 'waf_on'] as $k) {
+    $keep[$k] = setting($k, null);
+}
+save_setting('proxy_on', '1');
+ProxyGuard::setRole($ph, true, 'test');
+ProxyGuard::fromAgent($pHost, ['proxy' => ['kind' => 'swag', 'hook' => 1, 'state' => 'ok', 'sites' => [
+    ['name' => 'portainer.geheim-domein.nl', 'names' => ['portainer.geheim-domein.nl'], 'up' => 'portainer:9000', 'file' => 'portainer.subdomain.conf'],
+    ['name' => 'nextcloud.*', 'names' => ['nextcloud.*', 'cloud.geheim-domein.nl'], 'up' => '10.0.0.5:443', 'file' => 'nextcloud.subdomain.conf'],
+    ['name' => 'blog.geheim-domein.nl', 'names' => ['blog.geheim-domein.nl'], 'up' => 'wordpress:80', 'file' => 'blog.subdomain.conf']]]]);
+$ctx = ProxyAdvice::aiContext($ph)['text'];
+ok(!str_contains($ctx, 'geheim-domein') && str_contains($ctx, ProxyAdvice::code('nextcloud.*')) && str_contains($ctx, 'naam: nextcloud, cloud') && str_contains($ctx, 'app erachter: portainer'),
+    'AI-proxy: de AI ziet codes en het eerste deel van de naam, nooit het domein');
+$cP = ProxyAdvice::code('portainer.geheim-domein.nl');
+$cN = ProxyAdvice::code('nextcloud.*');
+$cB = ProxyAdvice::code('blog.geheim-domein.nl');
+$answer = "Hier is het advies:\n```json\n" . json_encode(['summary' => 'Portainer dicht, WordPress-admin alleen thuis.', 'sites' => [
+    ['id' => $cP, 'lan_mode' => 'site', 'lan_paths' => [], 'rate' => 'normal', 'bots' => true, 'waf' => 'inherit', 'reason' => 'Beheerprogramma <script>x</script>'],
+    ['id' => $cB, 'lan_mode' => 'paths', 'lan_paths' => ['/wp-admin', '/wp-login.php'], 'rate' => 'strict', 'bots' => true, 'waf' => 'inherit', 'reason' => 'WordPress'],
+    ['id' => $cN, 'lan_mode' => 'paths', 'lan_paths' => ['/../etc; rm -rf /'], 'rate' => 'normal', 'bots' => true, 'waf' => 'detect', 'reason' => 'kwaadaardig pad'],
+    ['id' => 'Sxxxxxx', 'lan_mode' => 'site', 'lan_paths' => [], 'rate' => 'off', 'bots' => false, 'waf' => 'off', 'reason' => 'bestaat niet'],
+    ['id' => $cP, 'lan_mode' => 'everything', 'rate' => 'normal', 'bots' => true, 'waf' => 'inherit']]]) . "\n```";
+$parsed = ProxyAdvice::parse($answer, ProxyGuard::sites($ph));
+ok($parsed !== null && count($parsed['sites']) === 2 && isset($parsed['sites']['portainer.geheim-domein.nl'], $parsed['sites']['blog.geheim-domein.nl'])
+    && $parsed['sites']['blog.geheim-domein.nl']['lan_paths'] === '/wp-admin,/wp-login.php' && !str_contains($parsed['sites']['portainer.geheim-domein.nl']['reason'], '<'),
+    'AI-proxy: alleen geldige waarden voor bekende sites (ongeldig pad, onbekende site en onbekende keuze vallen weg)');
+ok(ProxyAdvice::parse('geen json', []) === null && ProxyAdvice::parse('{"sites": "x"}', []) === null, 'AI-proxy: onbruikbaar antwoord = niets');
+// Zelf beheren: voorstellen, niets veranderd
+save_setting('proxy_ai_auto', '0');
+ProxyGuard::saveSite($ph, ['site' => 'blog.geheim-domein.nl', 'enabled' => 1, 'lan_mode' => 'off', 'rate' => 'off', 'bots' => 1], 'beheerder');
+ProxyGuard::saveSite($ph, ['site' => 'portainer.geheim-domein.nl', 'enabled' => 1, 'lan_mode' => 'off', 'rate' => 'normal', 'bots' => 1], 'beheerder');
+$hashBefore = ProxyGuard::hash($ph);
+q("INSERT INTO ai_advice (kind, ref_id, host_id, status, provider, model, answer, created_at, done_at) VALUES ('proxy', ?, ?, 'done', 'ollama', 'test', ?, NOW(), NOW())", [$ph, $ph, $answer]);
+$aid = (int) db()->lastInsertId();
+ProxyAdvice::fromAi(['id' => $aid, 'ref_id' => $ph, 'answer' => $answer, 'auto' => 1]);
+$state = ProxyAdvice::state($ph);
+$items = (array) $state['items'];
+ok(ProxyGuard::hash($ph) === $hashBefore && $items['portainer.geheim-domein.nl']['status'] === 'new' && $items['blog.geheim-domein.nl']['status'] === 'new'
+    && $state['last']['summary'] === 'Portainer dicht, WordPress-admin alleen thuis.' && !isset($items['nextcloud.*']), 'AI-proxy: Zelf beheren = voorstellen staan klaar, het beleid blijft gelijk');
+ok(ProxyAdvice::apply($ph, 'portainer.geheim-domein.nl', 'beheerder') === null && ProxyAdvice::dismiss($ph, 'blog.geheim-domein.nl', 'beheerder'), 'AI-proxy: toepassen en negeren per site');
+$sites = array_column(ProxyGuard::sites($ph), null, 'site');
+ok($sites['portainer.geheim-domein.nl']['lan_mode'] === 'site' && $sites['portainer.geheim-domein.nl']['source'] === 'ai' && $sites['blog.geheim-domein.nl']['lan_mode'] === 'off'
+    && in_array("0\tproxysite\tportainer.geheim-domein.nl\tsite\t-\tnormal\t1", ProxyGuard::agentLines($ph), true), 'AI-proxy: toegepast gaat naar de agent; genegeerd blijft zoals het was');
+// Automatisch: alleen sites die de beheerder niet zelf instelde
+save_setting('proxy_ai_auto', '1');
+ProxyAdvice::fromAi(['id' => $aid, 'ref_id' => $ph, 'answer' => $answer, 'auto' => 1]);
+$sites = array_column(ProxyGuard::sites($ph), null, 'site');
+ok($sites['blog.geheim-domein.nl']['lan_mode'] === 'off' && $sites['blog.geheim-domein.nl']['source'] === 'user', 'AI-proxy: Automatisch laat zelf ingestelde sites met rust');
+ProxyGuard::resetSite($ph, 'blog.geheim-domein.nl', 'beheerder');
+ProxyAdvice::fromAi(['id' => $aid, 'ref_id' => $ph, 'answer' => $answer, 'auto' => 1]);
+$sites = array_column(ProxyGuard::sites($ph), null, 'site');
+ok($sites['blog.geheim-domein.nl']['lan_mode'] === 'paths' && $sites['blog.geheim-domein.nl']['rate'] === 'strict' && $sites['blog.geheim-domein.nl']['source'] === 'ai',
+    'AI-proxy: Automatisch past de rest meteen toe');
+ProxyGuard::saveSite($ph, ['site' => 'blog.geheim-domein.nl', 'enabled' => 1, 'lan_mode' => 'off', 'rate' => 'normal', 'bots' => 1], 'beheerder');
+ok(array_column(ProxyGuard::sites($ph), null, 'site')['blog.geheim-domein.nl']['source'] === 'user', 'AI-proxy: zelf wijzigen maakt de site weer van jou');
+// Vanzelf vragen: één keer per verandering, niet als het uit staat
+save_setting('ai_on', '1');
+save_setting('ai_provider', 'ollama');
+save_setting('ai_ollama_model', 'test-model');
+save_setting('proxy_ai_on', '0');
+q("DELETE FROM ai_advice WHERE kind = 'proxy' AND ref_id = ?", [$ph]);
+ProxyAdvice::cron();
+$cnt = static fn() => (int) q("SELECT COUNT(*) FROM ai_advice WHERE kind = 'proxy' AND ref_id = ?", [$ph])->fetchColumn();
+$off = $cnt();
+save_setting('proxy_ai_on', '1');
+ProxyAdvice::cron();
+$one = $cnt();
+ProxyAdvice::cron();
+ok($off === 0 && $one === 1 && $cnt() === 1, 'AI-proxy: vanzelf vragen alleen als het aan staat, en één keer');
+ok(ProxyGuard::overview()['ai']['on'] === true && isset(array_column(ProxyGuard::overview()['servers'], null, 'id')[$ph]['ai']['items']), 'AI-proxy: in het overzicht');
+q("DELETE FROM ai_advice WHERE kind = 'proxy' AND ref_id = ?", [$ph]);
+foreach ($keep as $k => $v) {
+    $v === null ? q('DELETE FROM settings WHERE name = ?', [$k]) : save_setting($k, (string) $v);
+}
+q('DELETE FROM proxy_advice WHERE host_id = ?', [$ph]);
+q('DELETE FROM proxy_sites WHERE host_id = ?', [$ph]);
+q('DELETE FROM hosts WHERE id = ?', [$ph]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

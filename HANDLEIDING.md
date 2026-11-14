@@ -3271,7 +3271,7 @@ Vink per stap *verstuurd* aan. Komt een termijn binnen 6 uur (eindverslag: 3 dag
 
 **Let op:** dit is geen juridisch advies en geen certificering. Het laat zien wat RzSense technisch ziet; of je onder NIS2 valt en wat significant is, bepaal je zelf (of met je adviseur). **Aan/uit:** daar, of *Overzicht → Status en functies → Functies*.
 
-### 8.12h Reverse proxy beschermen 🔀 (vanaf 1.254.0, agent 1.97.0; WAF vanaf 1.255.0, agent 1.98.0)
+### 8.12h Reverse proxy beschermen 🔀 (vanaf 1.254.0, agent 1.97.0; WAF vanaf 1.255.0, agent 1.98.0; AI-advies vanaf 1.256.0)
 Bescherm de apps achter je reverse proxy (**SWAG** of **Nginx Proxy Manager**, in **Podman** of **Docker**). De agent op die server voert het door; alles stel je in RzSense in.
 
 **Aanzetten**
@@ -3325,6 +3325,23 @@ Op de pagina **🔀 Reverse proxy** zie je per site wat de WAF de laatste 14 dag
 **Delen met de CrowdSec-community** (standaard uit): aanvallende IP's doorgeven en hun lijst van bekende aanvallers gebruiken. Uit = alles blijft op je eigen server.
 **Uit** (de schakelaar, de rol of de hoofdschakelaar): de agent haalt de container weg; de bestanden in `/var/lib/rzsense-crowdsec` blijven staan. Haal daarna ook de vier regels weer uit SWAG.
 Op de server in te stellen: `WAF_DIR` (standaard `/var/lib/rzsense-crowdsec`) en `WAF_IMAGE` (standaard `docker.io/crowdsecurity/crowdsec:v1.6.4`). De WAF werkt nu alleen met **SWAG**.
+
+**🤖 AI-advies voor de instellingen per site** (vanaf 1.256.0)
+De AI bekijkt je sites en wat de WAF zag, en stelt per site het beleid voor, met een reden erbij.
+
+1. Zet eerst **AI-advies** aan en kies een model (*Instellingen → AI-advies*).
+2. *Instellingen → Beveiliging → Reverse proxy → AI-advies voor de instellingen per site*: zet **AI-advies voor de reverse proxy** aan.
+3. Kies met de slider **Wie voert het advies door**:
+   | Stand | Wat er gebeurt |
+   |---|---|
+   | **Zelf beheren** (standaard) | de voorstellen staan op de pagina *Reverse proxy*, onder de site; jij kiest **Toepassen** of **Negeren**, of **Alles toepassen** |
+   | **Automatisch** | RzSense past het advies meteen toe, **behalve bij sites die je zelf hebt ingesteld**: die blijven altijd van jou |
+4. Op de pagina **🔀 Reverse proxy** staat per server het blok **🤖 AI-advies**: wanneer het laatste advies kwam, met welk model, een korte samenvatting en de knop **Vraag advies**.
+
+**Wat de AI ziet**: per site een code (bv. `S3f9a2c`) en alleen het herkenbare deel van de naam (`nextcloud`, nooit je domein), de app erachter, het huidige beleid, of jij of de AI het instelde, en wat de WAF de laatste 14 dagen zag (aantallen en de regels). Bij een cloudmodel worden IP-adressen en servernamen bovendien gemaskeerd.
+**Wat de AI terug mag geven**: alleen keuzes uit vaste lijsten (wie mag erbij, adminpaden, rate limit, bots, WAF per site). RzSense controleert elke waarde net als jouw eigen invoer; een ongeldig pad, een onbekende site of een onbekende keuze valt weg. De AI voert nooit iets uit en schrijft nooit configuratie: dat doet de agent, met dezelfde test en terugzet-stap als altijd.
+**Herkennen**: een site die de AI instelde, heeft het label **🤖 AI** (met de reden als je erover beweegt); ↺ zet hem terug naar de standaard. Pas je een site zelf aan, dan is hij weer van jou.
+**Wanneer vanzelf**: als er een site bij komt (of verdwijnt), en hooguit één keer per week als de WAF iets nieuws zag; nooit vaker dan om de 6 uur. Kosten, daglimiet, maandbudget en terugvallen op Ollama zijn die van *AI-advies*. Alles staat in het logboek van de server.
 
 ### 8.13 Kwetsbaarheden 🐞
 Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) horen daarbij? Standaard uit; aanzetten bij *Instellingen → 🐞 Kwetsbaarheden*. Daarna staat er een tabblad **🐞 Kwetsbaarheden** in de bovenbalk (voor beheerders en gebruikers, niet voor *alleen lezen*).

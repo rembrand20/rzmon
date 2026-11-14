@@ -288,6 +288,9 @@ switch ($action) {
                 $r = !empty($in['id']) ? (q('SELECT * FROM ai_advice WHERE id = ?', [(int) $in['id']])->fetch() ?: null) : Ai::latest($kind, (int) ($in['ref'] ?? 0));
                 out(['advice' => $r ? Ai::public($r) : null]);
             }
+            if ($action === 'ai_ask' && ($in['kind'] ?? '') === 'proxy' && !$isAdmin) {
+                out(['error' => t('Alleen een beheerder')], 403);   // 1.256.0: via proxy_ai_ask
+            }
             $r = $action === 'ai_ask' ? Ai::ask((string) ($in['kind'] ?? ''), (int) ($in['ref'] ?? 0), $user['username'], !empty($in['force']))
                 : (q('SELECT * FROM ai_advice WHERE id = ?', [(int) ($in['id'] ?? 0)])->fetch() ?: throw new RuntimeException(t('Niet gevonden')));
             if (in_array($r['status'], ['pending', 'diag'], true)) {

@@ -1648,6 +1648,7 @@ async function loadSettings() {
   confTypes(parse(s.confirm_types));   // 1.193.0
   idsModeInfo();
   wafRangeSync();   // 1.255.0
+  pxaAutoSync();   // 1.256.0
   backupFormToggle();
   initSmartFields(f);   // 1.239.0
   fieldHelp(f);   // 1.241.0: ⓘ bij de velden

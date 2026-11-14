@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.256.0**: **AI-advies voor de reverse proxy**: de AI stelt per site het beleid voor met een reden; met een slider zelf toepassen of automatisch.
 - **1.255.0**: **WAF op de reverse proxy**: CrowdSec bekijkt elk verzoek naar je apps; met een slider van alleen melden naar blokkeren, en per site zie je wat hij zou tegenhouden.
 - **1.254.0**: **reverse proxy beschermen**: per site adminpagina's alleen vanaf je eigen netwerk, rate limit en bots weren; de agent op SWAG of Nginx Proxy Manager voert het veilig door.
 - **1.253.0**: **Axigen in de bibliotheek**: tien vaste zoekacties voor de Axigen-mailserver (wachtwoorden raden, blocklist, mail blijft hangen, licentie, en meer).
 - **1.252.0**: **voortgang overal**: knoppen laten zien dat ze bezig zijn en hoe lang het meestal duurt; netwerk- en poortscan met stappen en ⏹ Stoppen, en de netwerkscan loopt door als je weggaat.
-- **1.251.0**: **logmappen per server**: kies en doorblader in RzSense in welke mappen de agent naar logs zoekt, veilig binnen een plafond op de server.
+
+## 1.256.0 – 2026-11-14
+### Nieuw
+- **🤖 AI-advies voor de reverse proxy** (*Instellingen → Beveiliging → Reverse proxy* en de pagina *Reverse proxy*): de AI bekijkt je sites en wat de WAF zag, en stelt per site het beleid voor (wie mag erbij, adminpaden, rate limit, bots, WAF per site), met een reden.
+  - **Slider** *Zelf beheren* ↔ *Automatisch*. Zelf beheren: de voorstellen staan onder elke site, met wat er verandert, en jij kiest **Toepassen** of **Negeren** (of alles tegelijk). Automatisch: RzSense past het meteen toe, maar nooit bij sites die je zelf hebt ingesteld.
+  - Een site die de AI instelde, heeft het label **🤖 AI**; ↺ zet hem terug, en zelf aanpassen maakt hem weer van jou.
+  - **Veilig**: de AI ziet geen domeinnamen (alleen een code en het eerste deel van de naam, bv. *nextcloud*) en mag alleen kiezen uit vaste lijsten; RzSense controleert elke waarde zoals je eigen invoer. De AI voert nooit iets uit.
+  - Vanzelf vragen als er een site bij komt, en hooguit wekelijks als de WAF iets nieuws zag. Kosten, daglimiet en maandbudget zijn die van *AI-advies*. Werkt met elke aanbieder, ook Ollama.
+
 
 ## 1.255.0 – 2026-11-14
 ### Nieuw

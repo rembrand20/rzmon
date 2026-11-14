@@ -577,6 +577,38 @@ switch ($action) {
         }
         out(['ok' => true]);
 
+    // 1.256.0: AI-advies voor de reverse proxy (vragen, toepassen per site of alles, afwijzen)
+    case 'proxy_ai_ask':
+        $in = input();
+        if (!ProxyAdvice::on()) {
+            out(['error' => t('AI-advies voor de reverse proxy staat uit (Instellingen → Beveiliging → Reverse proxy)')], 422);
+        }
+        $hid = (int) ($in['host_id'] ?? 0);
+        try {
+            $r = Ai::ask('proxy', $hid, (string) $user['username'], true);
+            if ($r['status'] === 'pending') {
+                session_write_close();
+                ignore_user_abort(true);
+                Ai::work((int) $r['id']);
+            }
+        } catch (RuntimeException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+        out(['ok' => true, 'ai' => ProxyAdvice::state($hid)]);
+
+    case 'proxy_ai_apply':
+        $in = input();
+        $hid = (int) ($in['host_id'] ?? 0);
+        if (!empty($in['all'])) {
+            out(['ok' => true, 'n' => ProxyAdvice::applyAll($hid, (string) $user['username'])]);
+        }
+        $err = ProxyAdvice::apply($hid, strtolower((string) ($in['site'] ?? '')), (string) $user['username']);
+        $err === null ? out(['ok' => true, 'n' => 1]) : out(['error' => $err], 422);
+
+    case 'proxy_ai_dismiss':
+        $in = input();
+        ProxyAdvice::dismiss((int) ($in['host_id'] ?? 0), strtolower((string) ($in['site'] ?? '')), (string) $user['username']) ? out(['ok' => true]) : out(['error' => t('Geen open voorstel voor deze site')], 404);
+
     case 'waf_except':
         $in = input();
         $err = Waf::addException((int) ($in['host_id'] ?? 0), strtolower((string) ($in['site'] ?? '')), (string) ($in['rule'] ?? ''), (string) $user['username']);

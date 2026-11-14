@@ -199,7 +199,7 @@ final class ProxyGuard
             if (isset($own[$s['name']])) {
                 $o = $own[$s['name']];
                 $d = ['enabled' => (bool) $o['enabled'], 'lan_mode' => $o['lan_mode'], 'lan_paths' => $o['lan_paths'], 'rate' => $o['rate'], 'bots' => (bool) $o['bots'],
-                    'custom' => true, 'updated_by' => $o['updated_by'], 'updated_at' => $o['updated_at'], 'waf' => $o['waf'] ?? 'inherit', 'waf_except' => $o['waf_except'] ?? ''];
+                    'custom' => true, 'updated_by' => $o['updated_by'], 'updated_at' => $o['updated_at'], 'source' => $o['source'] ?? 'user', 'ai_reason' => $o['ai_reason'] ?? '', 'waf' => $o['waf'] ?? 'inherit', 'waf_except' => $o['waf_except'] ?? ''];
             }
             $out[] = ['site' => $s['name'], 'names' => $s['names'], 'up' => $s['up'], 'file' => $s['file'], 'code' => $s['code'] ?? 0] + $d;
         }
@@ -229,6 +229,7 @@ final class ProxyGuard
             ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), lan_mode = VALUES(lan_mode), lan_paths = VALUES(lan_paths), rate = VALUES(rate), bots = VALUES(bots),
             updated_by = VALUES(updated_by), updated_at = VALUES(updated_at)',
             [$hostId, $site, empty($in['enabled']) ? 0 : 1, $mode, $paths, $rate, empty($in['bots']) ? 0 : 1, mb_substr($by, 0, 100)]);
+        q("UPDATE proxy_sites SET source = 'user', ai_reason = '' WHERE host_id = ? AND site = ?", [$hostId, $site]);   // 1.256.0: ProxyAdvice zet 'ai' daarna zelf
         // 1.255.0: WAF per site (standaard, alleen melden of uit) en de uitzonderingen
         if (isset($in['waf']) && in_array((string) $in['waf'], Waf::SITE_MODES, true)) {
             q('UPDATE proxy_sites SET waf = ? WHERE host_id = ? AND site = ?', [(string) $in['waf'], $hostId, $site]);
@@ -277,11 +278,13 @@ final class ProxyGuard
                 $sv['waf'] = Waf::status($sv['id']);
                 $sv['waf_stats'] = Waf::stats($sv['id']);
                 $sv['waf_recent'] = Waf::recent($sv['id'], 25);
+                $sv['ai'] = ProxyAdvice::state($sv['id']);   // 1.256.0
             }
         }
         unset($sv);
         return ['on' => self::enabled(), 'lan' => self::lanNets(), 'servers' => $servers,
             'waf' => ['on' => setting('waf_on', '0') === '1', 'mode' => Waf::mode(), 'share' => setting('waf_share', '0') === '1'],
+            'ai' => ['on' => ProxyAdvice::on(), 'auto' => ProxyAdvice::auto(), 'ai_on' => Ai::on(), 'set' => setting('proxy_ai_on', '0') === '1'],
             'defaults' => ['lan' => setting('proxy_def_lan', '1') === '1', 'rate' => setting('proxy_def_rate', 'normal'), 'bots' => setting('proxy_def_bots', '1') === '1']];
     }
 

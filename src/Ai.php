@@ -30,7 +30,7 @@ final class Ai
         'grok' => ['label' => 'Grok (xAI)', 'url' => 'https://api.x.ai', 'cloud' => true],
         'ollama' => ['label' => 'Ollama', 'url' => 'http://127.0.0.1:11434', 'cloud' => false],
     ];
-    public const KINDS = ['check', 'bundle', 'incident', 'ids', 'week', 'triage', 'report', 'cve'];   // 1.179.0: cve = Raakt dit jou echt?
+    public const KINDS = ['check', 'bundle', 'incident', 'ids', 'week', 'triage', 'report', 'cve', 'proxy'];   // 1.256.0: proxy = beleid voor de reverse proxy   // 1.179.0: cve = Raakt dit jou echt?
     /** 1.173.0: de extra's met hun standaardwaarde (Instellingen → AI-advies → Extra's) */
     public const EXTRAS = ['ai_memory' => '1', 'ai_cache' => '1', 'ai_fallback' => '1', 'ai_notify' => '1', 'ai_weekly' => '1', 'ai_triage' => '0', 'ai_report' => '1'];
     /** Waar je het tegoed opwaardeert */
@@ -340,6 +340,9 @@ final class Ai
             if ($kind === 'triage') {
                 $cfg['max_tokens'] = min((int) $cfg['max_tokens'], 600);   // een oordeel in twee regels
             }
+            if ($kind === 'proxy') {
+                $cfg['max_tokens'] = max((int) $cfg['max_tokens'], 4000);   // 1.256.0: JSON met een regel per site
+            }
             $note = $r['note'] !== null ? (string) $r['note'] : null;
             $ctx = self::context($kind, (int) $r['ref_id']);
             $plain = $ctx['text'] . self::memory($kind, (int) $r['ref_id'], $id) . ($r['diag'] ? "\n\n## " . t('Diagnose') . "\n" . self::scrub((string) $r['diag']) : '');
@@ -409,6 +412,7 @@ final class Ai
         // 1.173.0: een oordeel bij nieuwe IDS-incidenten. Het weekoverzicht plant Reports (1.180.0, Instellingen → Rapporten).
         // 1.223.0: slim: eerst jouw keuze, regels en eerdere oordelen; de AI alleen voor wat dan nog onzeker is (één per soort)
         Triage::cron();
+        ProxyAdvice::cron();   // 1.256.0
         $todo = (int) q("SELECT COUNT(*) FROM ai_advice WHERE status = 'pending' OR (status = 'diag' AND created_at < NOW() - INTERVAL " . self::DIAG_WAIT . ' SECOND)')->fetchColumn();
         if ($todo > 0 && PHP_SAPI === 'cli') {
             // Een model kan lang nadenken: in een eigen proces, zodat de checks van de volgende minuut niet wachten
@@ -781,6 +785,10 @@ final class Ai
     private static function afterDone(array $r): void
     {
         $kind = (string) $r['kind'];
+        if ($kind === 'proxy') {
+            ProxyAdvice::fromAi($r);   // 1.256.0: voorstellen per site (en bij Automatisch meteen toepassen)
+            return;
+        }
         if ($kind === 'week') {
             if ((int) $r['auto'] === 1) {
                 Reports::afterAiWeek();   // 1.180.0: via de kanalen van het rapport (Instellingen → Rapporten)
@@ -969,6 +977,7 @@ final class Ai
             'week' => self::ctxWeek(),
             'report' => self::ctxReport($ref),
             'cve' => CveBuzz::aiContext($ref),
+            'proxy' => ProxyAdvice::aiContext($ref),
             default => throw new RuntimeException(t('Ongeldige vraag')),
         };
     }
@@ -1196,6 +1205,9 @@ final class Ai
             return "Je beoordeelt een melding van het inbraakdetectiesysteem (IDS) van RzSense voor een thuis- of kantoornetwerk: is dit waarschijnlijk vals alarm of echt? "
                 . "Antwoord met precies twee regels en verder niets:\nOORDEEL: onschuldig | verdacht | echt\nREDEN: <één korte zin in het $lang>\n"
                 . "Kies onschuldig alleen als de gegevens dat duidelijk laten zien (bv. een bekende eigen dienst of een update). Twijfel je, kies verdacht. $guard";
+        }
+        if ($kind === 'proxy') {
+            return ProxyAdvice::system($lang, $guard);
         }
         if ($kind === 'cve') {
             return "Je bent een ervaren beveiligingsspecialist en beoordeelt voor de beheerder van een thuis- of kantoornetwerk een kwetsbaarheid (CVE) die op zijn servers staat: raakt die hem echt? "

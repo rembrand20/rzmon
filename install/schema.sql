@@ -1658,3 +1658,18 @@ CREATE TABLE IF NOT EXISTS waf_events (
     INDEX idx_waf_at (host_id, at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('waf_on', '0'), ('waf_mode', 'detect'), ('waf_share', '0');
+-- 1.256.0: AI-advies voor de reverse proxy: het laatste voorstel per site (de AI kiest alleen uit vaste waarden)
+CREATE TABLE IF NOT EXISTS proxy_advice (
+    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id    INT UNSIGNED NOT NULL,
+    site       VARCHAR(190) NOT NULL,
+    advice_id  BIGINT UNSIGNED NULL,
+    data       VARCHAR(2000) NOT NULL DEFAULT '{}',
+    reason     VARCHAR(300) NOT NULL DEFAULT '',
+    status     ENUM('new','applied','dismissed','same') NOT NULL DEFAULT 'new',
+    created_at DATETIME     NOT NULL,
+    decided_at DATETIME     NULL,
+    decided_by VARCHAR(64)  NULL,
+    UNIQUE KEY uq_proxy_advice (host_id, site)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('proxy_ai_on', '0'), ('proxy_ai_auto', '0');
