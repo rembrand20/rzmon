@@ -87,7 +87,7 @@ try:
     assert 'group:' not in open(f'{w}/dis-full').read(), 'full = niets uit'
     assert r['off']['state'] == 'off', r['off']
     run = open(f'{w}/state/run').read()
-    assert '--network host' in run and '-i lo' in run and 'net_raw' in run and 'disable.conf' in run and 'nope0' not in run, run
+    assert '--network host' in run and '-i lo' in run and 'net_raw' in run and 'disable.conf:/etc/suricata/disable.conf:Z' in run and ':ro' not in run and 'nope0' not in run, run
     assert 'rm -f rzsense-suricata' in open(f'{w}/podman.log').read()
 except AssertionError as e:
     err.write(str(e)[:1500]); sys.exit(1)

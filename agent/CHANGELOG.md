@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.101.5 – 2026-11-14
+- **Opgelost: Suricata (proxynetwerk) stopte meteen (exit 1)**: het startscript van het Suricata-image wil eigenaar worden van alles in `/etc/suricata`, maar de agent koppelde `disable.conf` alleen-lezen; daardoor stopte de container telkens direct (`chown: … Read-only file system`). Het bestand is nu schrijfbaar gekoppeld; een bestaande container maakt de agent één keer opnieuw aan.
+
 ## 1.101.4 – 2026-11-14
 - **"Geen handtekening" zegt nu waarom**: kan `rzmon-agent-setup --update` de handtekening niet ophalen, dan staat erbij of RzSense er geen heeft (HTTP 404: werk RzSense bij) of dat iets ertussen hem tegenhoudt (HTTP 403/429: waarschijnlijk je reverse proxy).
 

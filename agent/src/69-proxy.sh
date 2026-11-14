@@ -704,7 +704,9 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
                 done
             fi
             printf '# RzSense: beheerd door de RzSense-agent (profiel %s)\n%s' "$nd_prof" "$nd_dis" >"$nd_dir/etc/disable.conf"
-            nd_ehash=$(printf '%s|' "$nd_img" "${nd_use[@]}" | sha1sum | cut -c1-12)
+            # Agent 1.101.5: "m2" = disable.conf schrijfbaar gekoppeld (het startscript van het image doet chown op
+            # /etc/suricata en stopte met exit 1 bij :ro); een andere waarde maakt een bestaande container één keer opnieuw
+            nd_ehash=$(printf '%s|' "$nd_img" m2 "${nd_use[@]}" | sha1sum | cut -c1-12)
             nd_rhash=$(sha1sum <"$nd_dir/etc/disable.conf" | cut -c1-12)
             # 3. Container: (opnieuw) als hij er niet is of de interfaces veranderden; eerst genoeg geheugen?
             if ! nd_exists || [ "$(cat "$nd_dir/env.hash" 2>/dev/null)" != "$nd_ehash" ]; then
@@ -714,7 +716,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
                     ndx rm -f "$nd_ctr" >/dev/null 2>&1
                     nd_args=(); for ifn in "${nd_use[@]}"; do nd_args+=(-i "$ifn"); done
                     if out=$(NDX_T=900 ndx run -d --name "$nd_ctr" --restart unless-stopped --network host --cap-add net_admin --cap-add net_raw --cap-add sys_nice \
-                        -v "$nd_dir/log:/var/log/suricata:Z" -v "$nd_dir/lib:/var/lib/suricata:Z" -v "$nd_dir/etc/disable.conf:/etc/suricata/disable.conf:ro,Z" \
+                        -v "$nd_dir/log:/var/log/suricata:Z" -v "$nd_dir/lib:/var/lib/suricata:Z" -v "$nd_dir/etc/disable.conf:/etc/suricata/disable.conf:Z" \
                         "$nd_img" "${nd_args[@]}" 2>&1); then
                         echo "$nd_ehash" >"$nd_dir/env.hash"; rm -f "$nd_dir/rules.hash"
                         act_log proxy 1 "Suricata (proxynetwerk) gestart" "${nd_use[*]}, profiel $nd_prof"
