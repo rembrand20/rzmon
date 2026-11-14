@@ -561,7 +561,9 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
                 if [ ! -f "$av_dir/last.stamp" ]; then
                     touch "$av_dir/last.stamp"; av_msg=${av_msg:-"klaar; nieuwe bestanden worden vanaf nu gescand"}
                 elif [ ${#av_ok[@]} -gt 0 ]; then
-                    touch "$av_dir/next.stamp"
+                    # Het nieuwe beginpunt 2 seconden terug: BusyBox (Alpine) vergelijkt tijden per hele seconde, zodat een
+                    # bestand uit dezelfde seconde anders gemist wordt. Een bestand twee keer scannen is onschuldig.
+                    touch -t "$(date -d "@$(( $(date +%s) - 2 ))" +%Y%m%d%H%M.%S 2>/dev/null)" "$av_dir/next.stamp" 2>/dev/null || touch "$av_dir/next.stamp"
                     find "${av_ok[@]}" -xdev -type f -newer "$av_dir/last.stamp" -size -"$(( ${AV_MAX_MB:-100} * 1024 ))"k ! -name '*'$'\n''*' 2>/dev/null | head -n 2001 >"$av_dir/work/list.txt"
                     av_new=$(wc -l <"$av_dir/work/list.txt")
                     if [ "$av_new" -gt 0 ]; then

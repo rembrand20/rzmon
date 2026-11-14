@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.254.0**: **reverse proxy beschermen**: per site adminpagina's alleen vanaf je eigen netwerk, rate limit en bots weren; de agent op SWAG of Nginx Proxy Manager voert het veilig door.
 - **1.253.0**: **Axigen in de bibliotheek**: tien vaste zoekacties voor de Axigen-mailserver (wachtwoorden raden, blocklist, mail blijft hangen, licentie, en meer).
 
+## 1.257.2 – 2026-11-14
+### Opgelost
+- **Nieuwe agent 1.99.2**: ClamAV mist op servers met BusyBox (bv. Alpine) geen bestanden meer die in dezelfde seconde als de vorige ronde binnenkwamen.
+
 ## 1.257.1 – 2026-11-14
 ### Opgelost
 - **Nieuwe agent 1.99.1**: ClamAV scant nu ook nieuwe bestanden op servers met BusyBox (bv. Alpine).
