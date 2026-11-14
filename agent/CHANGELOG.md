@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.102.0 – 2026-11-14
+- **Statistieken voor de pagina Reverse proxy**: de agent telt in het proxylog (SWAG `rzsense.log`, of de logs per site van Nginx Proxy Manager) per site het aantal verzoeken per statuscode (2xx, 3xx, 403, 404, 429, 444, 5xx en de rest) en hoeveel 403's naar slechte bots gingen, de aangevallen paden **zonder querystring**, en het aantal nieuwe unieke bezoekers van vandaag (een lijstje IP's van vandaag blijft op de server zelf). Er gaan alleen tellingen naar RzSense, geen logregels.
+
 ## 1.101.8 – 2026-11-14
 - **Suricata (proxynetwerk) ziet hele pakketten**: de kernel plakte op de netwerkbrug van de proxy pakketten samen (offloading, GRO/TSO) tot blokken van ~13 KB; Suricata kapte die af ("truncated packet") en kon ze niet goed onderzoeken. De agent start Suricata nu met `capture.disable-offloading`: offloading staat uit zolang Suricata draait en gaat daarna vanzelf terug. Een bestaande container maakt de agent één keer opnieuw aan.
 

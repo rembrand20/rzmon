@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.264.0**: **statistieken van de reverse proxy**: bovenaan de pagina wat er gebeurde, wat er tegengehouden is en waarom, de meest aangevallen paden, sites en landen, in cijfers en percentages.
 - **1.263.0**: **agent-servers op internet kunnen erbij**: de reverse proxy laat je eigen agent-servers door, ook als RzSense alleen vanaf je LAN mag.
 - **1.262.0**: **eigen servers nooit buitengesloten**: het IDS blokkeert je eigen agent-servers niet meer automatisch, ook niet als ze op internet staan.
 - **1.261.0**: **mobielvriendelijk**: op een telefoon worden brede tabellen kaartjes, KPI-tegels staan twee per rij en niets duwt de pagina nog breder dan het scherm.
 - **1.260.0**: **Suricata op het proxynetwerk**: meekijken tussen de proxy en je apps, met advies voor elk veld (AI of standaard).
-- **1.259.0**: **advies voor alle velden**: één knop vult alle instellingen van de reverse proxy in met de beste waarden (AI of standaard), daarna gewoon aan te passen.
+
+## 1.264.0 – 2026-11-14
+### Nieuw
+- **📊 Wat er gebeurde op je reverse proxy** (bovenaan de pagina *Reverse proxy*): over 24 uur, 7 of 30 dagen, voor alle sites of één site.
+  - **Tegels**: verzoeken, doorgelaten %, tegengehouden (aantal en %), unieke bezoekers, aanvallers (en hoeveel geblokkeerd) en de WAF, elk met het verschil met de periode ervoor.
+  - **Tegengehouden door**: per reden het aantal en percentage (WAF, dichtgezette paden, alleen eigen netwerk, slechte bots, rate limit, onbekende hostnaam, overig).
+  - **Statuscodes** in procenten, een **grafiek** per uur of dag, en de meest aangevallen **paden**, **sites**, **landen** en **IP's**.
+  - Inklapbaar; de gekozen periode wordt onthouden. Ook op een telefoon (tegels twee per rij, compacte tabellen).
+- **Nieuwe agent 1.102.0** (telt het verkeer in het proxylog). **Agent 1.102.0 nodig** op de proxyserver; zonder die update toont het blok alleen wat RzSense al wist (WAF, aanvallers).
+### Opgelost
+- De test van 1.263.3 (agent-acties en het doorsturen naar https) las een stuk tekst als PHP-variabele; hij controleert nu echt wat hij moet controleren.
 
 ## 1.263.8 – 2026-11-14
 ### Opgelost

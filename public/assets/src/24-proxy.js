@@ -44,6 +44,7 @@ const pxMsg = (m) => {
 async function loadProxy() {
   const box = $('#proxy-page');
   if (!box) return;
+  pxsLoad();   // 1.264.0: statistieken bovenaan
   let d;
   try { d = await api('proxy_overview'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const st = PX_STATE();

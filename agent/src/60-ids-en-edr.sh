@@ -522,7 +522,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
     }
     while IFS=$'\t' read -r z t w_src w_arg; do
         [ "$z" = 0 ] && [ "$t" = weblog ] || continue
-        w_path=""; w_err=""; w_body=""; w_req=""; w_kind=""; w_ctr=""; w_full=""
+        w_path=""; w_err=""; w_body=""; w_req=""; w_kind=""; w_ctr=""; w_full=""; w_stat=""
         case "$w_src" in
             swag)
                 # Agent 1.86.0: de reverse proxy herkennen (SWAG, Nginx Proxy Manager of een gewone nginx). Met het extra
@@ -604,6 +604,32 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
                                 s = ""; for (i = 1; i <= ns[ip]; i++) { h = sl[ip, i]; x = ip SUBSEP h; up = su[x]; uh = up; sub(/:[0-9]+$/, "", uh)
                                     s = s (s == "" ? "" : ",") "[\"" js(h) "\",\"" js(up) "\",\"" js(cn[uh]) "\"," sc[x] + 0 "," so[x] + 0 "]" }
                                 printf "\"%s\":[%d,%d,%d,%d,\"%s\",[%s]%s],", ip, n[ip], c404[ip], c40x[ip], c444[ip], u[ip], ps[ip], (ns[ip] ? ",[" s "]" : "") } }' | sed 's/,$//')
+                    # Agent 1.102.0: statistieken voor de pagina Reverse proxy (alleen tellingen, geen logregels): per site het aantal
+                    # verzoeken per statuscode en slechte bots, de aangevallen paden (zonder querystring) en nieuwe unieke bezoekers vandaag
+                    if [ "$w_full" = 1 ] && [ -n "$w_lines" ]; then
+                        w_today=$(date +%Y%m%d)
+                        find "$w_dir" -maxdepth 1 -name 'uniq-*' ! -name "uniq-$w_today" -delete 2>/dev/null
+                        w_stat=$(printf '%s\n' "$w_lines" | awk -F'"' -v uf="$w_dir/uniq-$w_today" '
+                            function js(s) { gsub(/[\\"]/, "", s); gsub(/[^ -~]/, "?", s); return substr(s, 1, 100) }
+                            BEGIN { while ((getline l < uf) > 0) { seen[l] = 1; ns++ }; close(uf) }
+                            { split($1, a, " "); ip = a[1]; if (ip !~ /^[0-9a-fA-F:.]+$/) next
+                              split($3, b, " "); st = b[1] + 0; split($2, r, " "); p = r[2]; sub(/[?#;].*$/, "", p); if (p == "") p = "/"
+                              ua = tolower($6); h = (NF >= 10 ? $8 : "-"); if (h == "" || h == "_") h = "-"
+                              if (!(h in t)) { if (nh >= 60) h = "(overig)"; else if (!(h in t)) nh++ }
+                              t[h]++
+                              if (st >= 200 && st < 300) s2[h]++; else if (st < 400) s3[h]++; else if (st == 403) s403[h]++; else if (st == 404) s404[h]++
+                              else if (st == 429) s429[h]++; else if (st == 444) s444[h]++; else if (st >= 500) s5[h]++; else s4[h]++
+                              bot = (ua ~ /(sqlmap|nikto|nuclei|zgrab|masscan|nmap scripting|dirbuster|gobuster|feroxbuster|wpscan|acunetix|netsparker|havij|zmeu|jorgee|fimap|w3af|openvas|nessus)/)
+                              if (bot && st == 403) b403[h]++
+                              if (bot || st == 400 || st == 401 || st == 403 || st == 404 || st == 405 || st == 429 || st == 444) {
+                                  k = h SUBSEP p; ph[k]++; if (st == 403 || st == 429 || st == 444) pb[k]++; if (st == 403) p3[k]++; if (bot && st == 403) pbot[k]++ }
+                              if (!(ip in seen) && ns < 200000) { seen[ip] = 1; ns++; nu++; print ip >> uf } }
+                            END { o = ""; for (h in t) o = o (o == "" ? "" : ",") "\"" js(h) "\":[" t[h] "," s2[h] + 0 "," s3[h] + 0 "," s4[h] + 0 "," s403[h] + 0 "," s404[h] + 0 "," s429[h] + 0 "," s444[h] + 0 "," s5[h] + 0 "," b403[h] + 0 "]"
+                                  # de 40 meest getroffen paden (eenvoudig: herhaald het grootste kiezen)
+                                  q = ""; for (i = 1; i <= 40; i++) { m = 0; mk = ""; for (k in ph) if (ph[k] > m) { m = ph[k]; mk = k }; if (mk == "") break
+                                      split(mk, kk, SUBSEP); q = q (q == "" ? "" : ",") "[\"" js(kk[1]) "\",\"" js(kk[2]) "\"," ph[mk] "," pb[mk] + 0 "," p3[mk] + 0 "," pbot[mk] + 0 "]"; delete ph[mk] }
+                                  printf "{\"t\":{%s},\"p\":[%s],\"u\":%d}", o, q, nu }')
+                    fi
                 fi ;;
             ha)
                 if [ "$HA_MODE" = 1 ]; then
@@ -640,7 +666,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
                 w_body=$(printf '%s\n' "$vw_lines" | grep -i 'username or password is incorrect' | sed -n 's/.*IP: \([0-9a-fA-F:.]*\).*/\1/p' | wl_ip_count) ;;
             *) continue ;;
         esac
-        weblog_json+="\"$w_src\":{\"path\":\"$(json_escape "$w_path")\"${w_err:+,\"err\":\"$(json_escape "$w_err")\"}${w_kind:+,\"kind\":\"$w_kind\"}${w_ctr:+,\"ctr\":\"$(json_escape "$w_ctr")\"}${w_full:+,\"full\":$w_full},\"ips\":{$w_body}${w_req:+,\"req\":[$w_req]}},"
+        weblog_json+="\"$w_src\":{\"path\":\"$(json_escape "$w_path")\"${w_stat:+,\"stat\":$w_stat}${w_err:+,\"err\":\"$(json_escape "$w_err")\"}${w_kind:+,\"kind\":\"$w_kind\"}${w_ctr:+,\"ctr\":\"$(json_escape "$w_ctr")\"}${w_full:+,\"full\":$w_full},\"ips\":{$w_body}${w_req:+,\"req\":[$w_req]}},"
     done <"$t_cache"
     [ -n "$weblog_json" ] && weblog_json="\"weblog\":{${weblog_json%,}},"
 fi

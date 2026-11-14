@@ -3273,7 +3273,7 @@ Vink per stap *verstuurd* aan. Komt een termijn binnen 6 uur (eindverslag: 3 dag
 
 **Let op:** dit is geen juridisch advies en geen certificering. Het laat zien wat RzSense technisch ziet; of je onder NIS2 valt en wat significant is, bepaal je zelf (of met je adviseur). **Aan/uit:** daar, of *Overzicht → Status en functies → Functies*.
 
-### 8.12h Reverse proxy beschermen 🔀 (vanaf 1.254.0, agent 1.97.0; WAF vanaf 1.255.0, agent 1.98.0; AI-advies vanaf 1.256.0; ClamAV vanaf 1.257.0, agent 1.99.0; virtual patching en score vanaf 1.258.0, agent 1.100.0; Suricata op het proxynetwerk vanaf 1.260.0, agent 1.101.0)
+### 8.12h Reverse proxy beschermen 🔀 (vanaf 1.254.0, agent 1.97.0; WAF vanaf 1.255.0, agent 1.98.0; AI-advies vanaf 1.256.0; ClamAV vanaf 1.257.0, agent 1.99.0; virtual patching en score vanaf 1.258.0, agent 1.100.0; Suricata op het proxynetwerk vanaf 1.260.0, agent 1.101.0; statistieken vanaf 1.264.0, agent 1.102.0)
 Bescherm de apps achter je reverse proxy (**SWAG** of **Nginx Proxy Manager**, in **Podman** of **Docker**). De agent op die server voert het door; alles stel je in RzSense in.
 
 **Aanzetten**
@@ -3296,6 +3296,17 @@ Bescherm de apps achter je reverse proxy (**SWAG** of **Nginx Proxy Manager**, i
 - Alles staat in het **logboek** (doorgevoerd, mislukt met de reden, uitgezet).
 - Op de server in te stellen (`/etc/default/rzmon-agent`): `PROXY_CTR` (welke container, als er meer zijn), `PROXY_HTTPS_PORT` (als je proxy niet op 443 luistert), `PROXY_CPATH` (de configmap zoals de container hem ziet), `PROXY_GUARD=0` (nooit).
 - **Traefik** en **Caddy** worden herkend, maar nog niet ondersteund.
+
+**📊 Wat er gebeurde: statistieken bovenaan de pagina** (vanaf 1.264.0, agent 1.102.0)
+Helemaal bovenaan de pagina **🔀 Reverse proxy** staat een inklapbaar blok met cijfers en percentages, over **24 uur, 7 of 30 dagen**, voor alle sites samen of voor één site (keuzelijst):
+- **Tegels**: verzoeken, **doorgelaten %**, **tegengehouden** (aantal en %; 403, 429 en 444 samen), unieke bezoekers (per dag), aanvallers (en hoeveel daarvan nu geblokkeerd zijn) en wat de WAF tegenhield. Bij elk getal het verschil met de periode ervoor (↑/↓, bij percentages in procentpunten).
+- **Tegengehouden door**: een balk met per reden het aantal en het percentage: WAF, dichtgezette paden (virtual patching), alleen eigen netwerk, slechte bots, rate limit (429), onbekende hostnaam (444) en overig (403 van de app zelf of een andere regel).
+- **Statuscodes**: 2xx / 3xx / 4xx / 5xx in procenten. Geeft meer dan 2% een fout in een app (5xx), dan staat dat erbij, en in de lijst Sites zie je welke.
+- **Grafiek**: doorgelaten en tegengehouden per uur (24 uur) of per dag.
+- **Top-lijsten**: de meest aangevallen **paden** (met hits en % tegengehouden), de **sites** (verzoeken, fouten, tegengehouden), de **landen** van aanvallers en de meest actieve IP's (⛔ = nu geblokkeerd).
+- Onderaan wat buiten het proxylog gebeurt: IP's die het IDS in de firewall blokkeerde, bestanden in quarantaine (ClamAV) en meldingen van Suricata.
+
+De agent telt dit in het proxylog (SWAG: `rzsense.log`, zie *Instellingen → IDS → Netwerk en aanvallers*; Nginx Proxy Manager: de logs per site) en stuurt alleen **tellingen**: per uur en per site het aantal per statuscode, de aangevallen paden **zonder querystring** (dus zonder tokens) en het aantal nieuwe bezoekers van vandaag. Geen logregels. RzSense bewaart de tellingen 62 dagen (30 dagen tonen en vergelijken met de 30 dagen ervoor).
 
 **🧱 WAF: aanvallen in het verkeer herkennen** (vanaf 1.255.0, agent 1.98.0)
 Een *web application firewall* bekijkt elk verzoek naar je apps op aanvallen: SQL-injectie, misbruik van bekende lekken (CVE's), path traversal, scanners. RzSense gebruikt daarvoor **CrowdSec AppSec**. De HTTPS-verbinding eindigt al in SWAG, dus de WAF ziet het verkeer gewoon, zonder extra certificaten.

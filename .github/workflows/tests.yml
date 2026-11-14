@@ -100,6 +100,13 @@ jobs:
           bash tests/agent-nids.sh 2>&1 | tee /tmp/nids.out
           rc=${PIPESTATUS[0]}
           [ "$rc" = 0 ] || { echo "::error title=Suricata op ${{ matrix.image }}::$(tail -n 15 /tmp/nids.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
+      - name: Statistieken van de reverse proxy (telling uit het proxylog)
+        shell: bash
+        run: |
+          set +e +o pipefail
+          bash tests/agent-pxstat.sh 2>&1 | tee /tmp/pxstat.out
+          rc=${PIPESTATUS[0]}
+          [ "$rc" = 0 ] || { echo "::error title=Proxy-statistieken op ${{ matrix.image }}::$(tail -n 15 /tmp/pxstat.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
       - name: Endpoint-bewaking (auditd-, SWAG- en Suricata-parser)
         shell: bash
         run: |

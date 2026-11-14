@@ -1717,3 +1717,45 @@ CREATE TABLE IF NOT EXISTS proxy_vpatch (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 -- 1.260.0 (agent 1.101.0): Suricata op het netwerk tussen de reverse proxy en de apps
 INSERT IGNORE INTO settings (name, value) VALUES ('nids_on', '0'), ('nids_profile', 'balanced'), ('nids_iface', 'auto'), ('nids_min_sev', '2');
+
+-- 1.264.0 (agent 1.102.0): statistieken van de reverse proxy (alleen tellingen per uur en per site; geen logregels)
+CREATE TABLE IF NOT EXISTS proxy_traffic (
+    host_id INT UNSIGNED NOT NULL,
+    hour    DATETIME     NOT NULL,
+    site    VARCHAR(190) NOT NULL,
+    total   INT UNSIGNED NOT NULL DEFAULT 0,
+    s2      INT UNSIGNED NOT NULL DEFAULT 0,
+    s3      INT UNSIGNED NOT NULL DEFAULT 0,
+    s4      INT UNSIGNED NOT NULL DEFAULT 0,
+    s403    INT UNSIGNED NOT NULL DEFAULT 0,
+    s404    INT UNSIGNED NOT NULL DEFAULT 0,
+    s429    INT UNSIGNED NOT NULL DEFAULT 0,
+    s444    INT UNSIGNED NOT NULL DEFAULT 0,
+    s5      INT UNSIGNED NOT NULL DEFAULT 0,
+    bot     INT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY (host_id, hour, site),
+    INDEX idx_pt_hour (hour),
+    CONSTRAINT fk_pt_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- Aangevallen paden (zonder querystring) per dag: aantal, tegengehouden (403/429/444), waarvan 403, waarvan slechte bot
+CREATE TABLE IF NOT EXISTS proxy_paths (
+    host_id INT UNSIGNED NOT NULL,
+    day     DATE         NOT NULL,
+    site    VARCHAR(190) NOT NULL,
+    path    VARCHAR(120) NOT NULL,
+    hits    INT UNSIGNED NOT NULL DEFAULT 0,
+    blocked INT UNSIGNED NOT NULL DEFAULT 0,
+    s403    INT UNSIGNED NOT NULL DEFAULT 0,
+    bot     INT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY (host_id, day, site, path),
+    INDEX idx_pp_day (day),
+    CONSTRAINT fk_pp_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- Unieke bezoekers (IP-adressen) per dag; de agent telt alleen nieuwe van vandaag
+CREATE TABLE IF NOT EXISTS proxy_uniq (
+    host_id INT UNSIGNED NOT NULL,
+    day     DATE         NOT NULL,
+    n       INT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY (host_id, day),
+    CONSTRAINT fk_pu_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

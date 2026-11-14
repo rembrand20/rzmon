@@ -677,6 +677,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <div class="card proxy-page">
         <h2>🔀 <?= th('Reverse proxy') ?></h2>
         <?= xp(t('Bescherm de apps achter je reverse proxy: adminpagina\'s alleen vanaf je eigen netwerk, slechte bots weren en te veel verzoeken afremmen.'), t('<b>Hoe het werkt:</b> de agent op de server met je reverse proxy (SWAG of Nginx Proxy Manager, in Podman of Docker) leest je sites uit en voert per site het beleid van hieronder door. Hij schrijft alleen in eigen bestanden en zet één gemarkeerde regel in de proxy die ernaar verwijst. Vóór het herladen test hij de configuratie (<code>nginx -t</code>), en daarna kijkt hij of je sites nog antwoorden; zo niet, dan zet hij de vorige versie terug. <b>Uit</b> (hier per site, of alles in de beheerportal) haalt het weer weg. <b>Je eigen netwerk</b> (Toegang → Lokale netwerken en de whitelist) wordt nooit tegengehouden.')) ?>
+        <div id="pxs-box"></div>
         <div id="proxy-page"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
     </section>

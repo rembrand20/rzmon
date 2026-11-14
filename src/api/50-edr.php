@@ -569,6 +569,12 @@ switch ($action) {
     case 'proxy_overview':
         out(ProxyGuard::overview());
 
+    // 1.264.0: statistieken bovenaan de pagina Reverse proxy (24 uur, 7 of 30 dagen; alle sites of één)
+    case 'proxy_stats':
+        $per = (string) ($_GET['period'] ?? '24h');
+        $site = mb_substr((string) ($_GET['site'] ?? ''), 0, 190);
+        out(ProxyStats::summary(isset(ProxyStats::PERIODS[$per]) ? $per : '24h', $site));
+
     case 'proxy_role':
         $in = input();
         $err = ProxyGuard::setRole((int) ($in['host_id'] ?? 0), !empty($in['on']), (string) $user['username']);

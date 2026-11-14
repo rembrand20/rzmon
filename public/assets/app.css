@@ -6117,3 +6117,65 @@ label.pxf-filled { box-shadow: inset 3px 0 0 var(--primary); padding-left: .5rem
   #modal-footer > * { width: 100%; margin: 0; min-width: 0; }
   #modal-footer > :empty:not(button) { display: none; }
 }
+
+/* 1.264.0: statistieken bovenaan de pagina Reverse proxy. Kleuren per reden (vaste volgorde, gecontroleerd op kleurenblindheid) */
+:root { --pxs-1: #3987e5; --pxs-2: #d95926; --pxs-3: #199e70; --pxs-4: #c98500; --pxs-5: #d55181; --pxs-6: #008300; --pxs-7: #9085e9; }
+:root[data-theme="light"] { --pxs-1: #2a78d6; --pxs-2: #eb6834; --pxs-3: #1baf7a; --pxs-4: #eda100; --pxs-5: #e87ba4; --pxs-6: #008300; --pxs-7: #6250d6; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --pxs-1: #2a78d6; --pxs-2: #eb6834; --pxs-3: #1baf7a; --pxs-4: #eda100; --pxs-5: #e87ba4; --pxs-6: #008300; --pxs-7: #6250d6; } }
+#pxs-box { margin: .4rem 0 1rem; }
+details.pxs { border: 1px solid var(--border); border-radius: 12px; padding: .6rem .9rem; background: var(--card-2); }
+details.pxs > summary { cursor: pointer; list-style-position: inside; }
+details.pxs h4 { margin: .2rem 0 .45rem; font-size: .9rem; }
+.pxs-head { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: space-between; margin: .6rem 0; }
+.pxs-head select { max-width: 100%; }
+.pxs-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .55rem; margin: .4rem 0 .8rem; }
+.pxs-tile { display: flex; flex-direction: column; gap: .1rem; padding: .55rem .7rem; border: 1px solid var(--border); border-radius: 10px; background: var(--card); min-width: 0; }
+.pxs-l { font-size: .8rem; color: var(--muted); }
+.pxs-v { font-size: 1.45rem; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.pxs-s { font-size: .78rem; color: var(--muted); }
+.pxs-d { font-size: .76rem; color: var(--muted); white-space: nowrap; }
+.pxs-d.up { color: var(--ok); } .pxs-d.down { color: var(--crit); }
+.pxs-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+.pxs-row > *, .pxs-grid > * { min-width: 0; }
+.pxs-bar { display: flex; gap: 2px; height: 14px; border-radius: 4px; overflow: hidden; background: var(--border); }
+.pxs-bar.slim { height: 10px; }
+.pxs-seg { min-width: 3px; height: 100%; }
+.pxs-legend { list-style: none; margin: .45rem 0 0; padding: 0; display: grid; gap: .2rem; }
+.pxs-legend li { display: grid; grid-template-columns: 12px 1fr auto 3.6rem; gap: .45rem; align-items: center; font-size: .85rem; }
+.pxs-legend li > :last-child { text-align: right; }
+.pxs-legend.inline { display: flex; flex-wrap: wrap; gap: .3rem 1rem; }
+.pxs-legend.inline li { display: inline-flex; gap: .35rem; }
+.pxs-sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.pxs-c1 { background: var(--pxs-1); } .pxs-c2 { background: var(--pxs-2); } .pxs-c3 { background: var(--pxs-3); } .pxs-c4 { background: var(--pxs-4); }
+.pxs-c5 { background: var(--pxs-5); } .pxs-c6 { background: var(--pxs-6); } .pxs-c7 { background: var(--pxs-7); }
+.st-ok { background: var(--ok); } .st-neutral { background: var(--muted); } .st-warn { background: var(--warn); } .st-crit { background: var(--crit); }
+.pxs-sw.cp, .pxs-cp { background: var(--pxs-1); fill: var(--pxs-1); } .pxs-sw.cb, .pxs-cb { background: var(--pxs-2); fill: var(--pxs-2); }
+.pxs-extra { margin: .7rem 0 0; }
+.pxs-chart { margin: .8rem 0; }
+.pxs-chart svg { width: 100%; height: 110px; display: block; }
+.pxs-axis { display: flex; justify-content: space-between; font-size: .75rem; color: var(--muted); }
+.pxs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: .4rem; }
+.pxs-t { width: 100%; font-size: .85rem; border-collapse: collapse; }
+.pxs-t th, .pxs-t td { padding: .25rem .35rem; border-bottom: 1px solid var(--border); text-align: left; }
+.pxs-t .r { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pxs-t code { word-break: break-all; }
+.pxs-mini { display: inline-block; width: 40px; height: 6px; border-radius: 3px; background: var(--border); vertical-align: middle; overflow: hidden; }
+.pxs-mini i { display: block; height: 100%; background: var(--pxs-2); }
+.pxs-list { list-style: none; margin: 0 0 .6rem; padding: 0; display: grid; gap: .2rem; }
+.pxs-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: .5rem; align-items: center; font-size: .85rem; }
+.pxs-list code { overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 700px) { .pxs-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pxs-v { font-size: 1.2rem; } }
+.pxs-head .seg { margin-bottom: 0; }
+.pxs-head select { width: auto; min-width: 12rem; }
+.pxs-paths { margin-top: .6rem; }
+.pxs-paths code { word-break: break-word; }
+.pxs-t td.r .pxs-mini { margin-right: .35rem; }
+.pxs-list li > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 700px) { .pxs-head select { width: 100%; } }
+@media (max-width: 700px) {
+  .pxs-t { font-size: .8rem; }
+  .pxs-t th, .pxs-t td { padding: .25rem .2rem; }
+  .pxs-t .pxs-mini { display: none; }
+}
+/* Telefoon: kolom Fouten weg in de sitestabel (de 5xx-markering blijft), lange sitenamen afbreken */
+@media (max-width: 700px) { .pxs-t .pxs-err { display: none; } .pxs-t td:first-child { overflow-wrap: anywhere; } .pxs-t th { white-space: normal; } }

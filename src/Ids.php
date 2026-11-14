@@ -1611,6 +1611,7 @@ final class Ids
         q('DELETE FROM ids_attempts WHERE at < NOW() - INTERVAL 1 DAY');
         q('DELETE FROM ids_kills WHERE created_at < NOW() - INTERVAL 30 DAY');
         WebLog::purge();
+        ProxyStats::purge();   // 1.264.0
         // 1.224.3: alleen afgehandelde incidenten, en pas na de laatste keer gezien (een open incident blijft staan)
         q("DELETE FROM ids_incidents WHERE status <> 'open' AND GREATEST(created_at, COALESCE(last_seen, created_at)) < NOW() - INTERVAL ? DAY", [Monitor::alertDays()]);
         // Bewaren zo lang als de meldingen, minstens 90 dagen (ook voor "eerder geblokkeerd": bij herhaling langer)

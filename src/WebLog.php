@@ -79,6 +79,10 @@ final class WebLog
                 q('UPDATE weblog_state SET kind = ?, ctr = ?, full = ? WHERE host_id = ? AND src = ?', [isset(self::PROXIES[$w['kind']]) ? $w['kind'] : 'nginx',
                     mb_substr((string) ($w['ctr'] ?? ''), 0, 64) ?: null, (int) !empty($w['full']), $hid, $src]);
             }
+            // 1.264.0 (agent 1.102.0): tellingen voor de statistieken bovenaan de pagina Reverse proxy (ook als het IDS uit staat)
+            if ($src === 'swag' && is_array($w['stat'] ?? null)) {
+                ProxyStats::fromAgent($host, $w['stat']);
+            }
             if (!Ids::enabled() || !self::enabled($src)) {
                 continue;
             }

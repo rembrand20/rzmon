@@ -562,7 +562,7 @@ ok((int) q('SELECT COUNT(*) FROM ids_incidents')->fetchColumn() === $inc0 && (in
     'netwerkscan van RzSense (Suricata) en DNS van RzSense: geen incident, wel een groene regel');
 ok(Ids::protectedIp('10.0.0.9') && Ids::autoBlock($hc, '10.0.0.9', 'test') === null, 'RzSense wordt nooit geblokkeerd');
 // 1.263.3: elke actie die een agent aanroept (src/api/agent.php) slaat het doorsturen naar https over (handtekening gaf 302)
-preg_match_all("/\\$action === '((?:agent|ping)[a-z_]*)'/", (string) file_get_contents(SM_ROOT . '/src/api/agent.php'), $agm);
+preg_match_all('/\\$action === \'((?:agent|ping)[a-z_]*)\'/', (string) file_get_contents(SM_ROOT . '/src/api/agent.php'), $agm);
 $agMissing = array_diff(array_unique($agm[1]), (new ReflectionClassConstant('Https', 'AGENT_ACTIONS'))->getValue());
 ok(count($agm[1]) > 5 && !$agMissing, 'https-doorsturen: alle agent-acties uitgezonderd' . ($agMissing ? ' (mist: ' . implode(', ', $agMissing) . ')' : ''));
 // 1.262.0: een eigen agent-server op internet wordt nooit automatisch geblokkeerd (wel met de hand); oude automatische blokkade telt niet meer
@@ -3293,6 +3293,57 @@ foreach ($nk as $k => $v) {
 }
 q('DELETE FROM ids_incidents WHERE host_id = ?', [$nh]);
 q('DELETE FROM hosts WHERE id = ?', [$nh]);
+
+section('Statistieken van de reverse proxy (1.264.0)');
+q("INSERT INTO hosts (name, address, mode, proxy_role) VALUES ('ci-pxstat', '10.0.0.88', 'agent', 1)");
+$pxh = (int) db()->lastInsertId();
+$pxHost = q('SELECT * FROM hosts WHERE id = ?', [$pxh])->fetch();
+foreach (['proxy_traffic', 'proxy_paths', 'proxy_uniq'] as $tb) {
+    q("DELETE FROM $tb");
+}
+q("DELETE FROM waf_events WHERE host_id = ?", [$pxh]);
+// Via de gewone weg van de agent (weblog → swag → stat); ook als het IDS uit staat
+$idsWas = setting('ids_mode', 'off');
+save_setting('ids_mode', 'off');
+WebLog::process($pxHost, ['swag' => ['path' => '/config/log/nginx/rzsense.log', 'kind' => 'swag', 'full' => 1, 'ips' => [], 'stat' => [
+    // site => [totaal, 2xx, 3xx, 4xx-overig, 403, 404, 429, 444, 5xx, waarvan 403 door een slechte bot]
+    't' => ['vaultwarden.example.nl' => [100, 70, 5, 2, 12, 4, 3, 0, 4, 2], 'blog.example.nl' => [50, 40, 0, 0, 5, 5, 0, 0, 0, 0], '-' => [10, 0, 0, 0, 0, 0, 0, 10, 0, 0]],
+    // [site, pad, hits, tegengehouden, 403, bot]
+    'p' => [['vaultwarden.example.nl', '/admin', 8, 8, 8, 0], ['vaultwarden.example.nl', '/.env', 4, 4, 4, 2], ['blog.example.nl', '/wp-login.php?pwd=geheim', 9, 5, 5, 0], ['x', 'geen-pad', 1, 1, 1, 0]],
+    'u' => 37]]]);
+save_setting('ids_mode', $idsWas);
+ok((int) q('SELECT SUM(total) FROM proxy_traffic')->fetchColumn() === 160 && (int) q('SELECT n FROM proxy_uniq')->fetchColumn() === 37
+    && !q("SELECT 1 FROM proxy_paths WHERE path LIKE '%geheim%' OR path NOT LIKE '/%'")->fetchColumn(), 'proxy-statistieken: opgeslagen via het weblog (ook met IDS uit), zonder querystring of ongeldig pad');
+// Site Vaultwarden: /admin alleen vanaf het LAN; blog: /.env dichtgezet voor alle sites
+ProxyGuard::fromAgent($pxHost, ['proxy' => ['kind' => 'swag', 'engine' => 'podman', 'ctr' => 'swag', 'hook' => 1, 'state' => 'ok', 'sites' => [
+    ['name' => 'vaultwarden.*', 'names' => ['vaultwarden.*'], 'up' => 'vaultwarden:80', 'file' => 'vaultwarden.subdomain.conf'],
+    ['name' => 'blog.example.nl', 'names' => ['blog.example.nl'], 'up' => 'ghost:2368', 'file' => 'blog.subdomain.conf']]]]);
+q('DELETE FROM proxy_vpatch WHERE host_id = ?', [$pxh]);
+VPatch::add($pxh, '*', '/.env', 0, 'test', 'user', 'test');
+q("INSERT INTO waf_events (host_id, cs_id, at, ip, site, uri, rules, vpatch, blocked) VALUES (?, 990001, NOW(), '203.0.113.9', 'blog.example.nl', '/?q=union', '942100', 0, 1)", [$pxh]);
+$ps = ProxyStats::summary('24h');
+$rs = array_column($ps['reasons'], 'n', 'k');
+ok($ps['has_data'] && $ps['tiles']['total']['n'] === 160 && $ps['tiles']['blocked']['n'] === 17 + 3 + 10 && abs($ps['tiles']['blocked']['pct'] - 18.8) < 0.1
+    && $ps['tiles']['passed']['pct'] === round(130 * 100 / 160, 1) && $ps['tiles']['visitors']['n'] === 37,
+    'proxy-statistieken: totaal, tegengehouden (403+429+444) en doorgelaten in %, bezoekers');
+ok(($rs['lan'] ?? 0) === 8 && ($rs['vpatch'] ?? 0) === 2 && ($rs['bots'] ?? 0) === 2 && ($rs['rate'] ?? 0) === 3 && ($rs['nohost'] ?? 0) === 10 && ($rs['waf'] ?? 0) === 1
+    && ($rs['other'] ?? 0) === 17 - 2 - 8 - 2 - 1, 'proxy-statistieken: redenen (alleen-LAN, dichtgezet pad, bots, rate limit, geen hostnaam, WAF, overig): ' . json_encode($rs));
+ok(abs(array_sum(array_column($ps['reasons'], 'pct')) - 100) < 0.5 && $ps['status']['2xx'] === 110 && $ps['status']['5xx'] === 4 && $ps['status']['4xx'] === 2 + 17 + 9 + 3 + 10,
+    'proxy-statistieken: percentages per reden tellen op tot 100, statuscodes');
+ok($ps['paths'][0]['path'] === '/wp-login.php' && $ps['paths'][0]['hits'] === 9 && abs($ps['paths'][0]['pct'] - 55.6) < 0.1 && $ps['top_sites'][0]['site'] === 'vaultwarden.example.nl'
+    && in_array('blog.example.nl', $ps['sites'], true) && !in_array('-', $ps['sites'], true) && count($ps['chart']) === 24 && array_sum(array_column($ps['chart'], 'blocked')) === 30,
+    'proxy-statistieken: top-paden met % tegengehouden, sites, keuzelijst zonder "-", grafiek per uur');
+$pb = ProxyStats::summary('7d', 'blog.example.nl');
+ok($pb['tiles']['total']['n'] === 50 && $pb['tiles']['visitors'] === null && $pb['extra'] === null && count($pb['chart']) === 7 && array_column($pb['paths'], 'site') === ['blog.example.nl'],
+    'proxy-statistieken: één site (7 dagen per dag, zonder bezoekers en extra\'s)');
+// Vorige periode: gisteren (24-48 uur geleden) 80 verzoeken
+q("INSERT INTO proxy_traffic (host_id, hour, site, total, s2) VALUES (?, NOW() - INTERVAL 30 HOUR, 'blog.example.nl', 80, 80)", [$pxh]);
+$ps = ProxyStats::summary('24h');
+ok($ps['tiles']['total']['prev'] === 80 && $ps['tiles']['passed']['prev_pct'] === 100.0, 'proxy-statistieken: vergelijking met de vorige periode');
+q("UPDATE proxy_traffic SET hour = NOW() - INTERVAL 70 DAY WHERE total = 80");
+ProxyStats::purge();
+ok(!q('SELECT 1 FROM proxy_traffic WHERE total = 80')->fetchColumn(), 'proxy-statistieken: ouder dan 62 dagen opgeruimd');
+q('DELETE FROM hosts WHERE id = ?', [$pxh]);
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);
