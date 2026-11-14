@@ -1329,6 +1329,15 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <label class="switch"><input type="checkbox" name="av_notify"><span></span> <?= t('<b>Melden</b>: een vondst wordt een IDS-incident met melding') ?></label>
           <label class="switch"><input type="checkbox" name="av_move"><span></span> <?= t('<b>Verplaatsen</b>: een besmet bestand meteen naar de quarantaine (terug te zetten)') ?></label>
           <div id="av-status"></div>
+          <h3 class="set-sub">👀 <?= th('Suricata op het netwerk tussen proxy en apps') ?></h3>
+          <?= xp(t('Tussen je reverse proxy en je apps loopt het verkeer onversleuteld. Suricata kijkt daar mee en herkent aanvallen op je apps, en malware of cryptominers in je apps die naar buiten bellen.'), t('<b>Hoe het werkt:</b> de agent (1.101.0) kijkt of er genoeg geheugen vrij is (± 800 MB) en start dan een eigen Suricata-container (<i>rzsense-suricata</i>) die alleen meekijkt op de netwerkbrug van Podman of Docker waar je proxy aan hangt (<i>auto</i>), of op de interfaces die je zelf invult. De regels (Emerging Threats Open) werkt hij elke dag bij. Meldingen worden IDS-incidenten, net als bij een gewone Suricata (en met <i>blokkeren bij ernst 1</i> aan in het IDS ook een blokkade). <b>Profiel:</b> <i>Web</i> = alleen aanvallen op webapps; <i>Gebalanceerd</i> = ook malware, command-and-control en cryptominers; <i>Alles</i> = alle regels (veel meldingen). <b>Melden vanaf:</b> welke ernst een incident wordt (1 = alleen ernstig).')) ?>
+          <label class="switch"><input type="checkbox" name="nids_on"><span></span> <?= t('<b>Suricata aan</b> op het proxynetwerk') ?></label>
+          <label><?= th('Regelprofiel') ?>
+            <select name="nids_profile"><option value="web"><?= th('Web: aanvallen op je webapps') ?></option><option value="balanced"><?= th('Gebalanceerd: ook malware en command-and-control') ?></option><option value="full"><?= th('Alles: alle regels (veel meldingen)') ?></option></select></label>
+          <label><?= th('Melden vanaf ernst') ?>
+            <select name="nids_min_sev"><option value="1"><?= th('1: alleen ernstig') ?></option><option value="2"><?= th('2: ernstig en middel') ?></option><option value="3"><?= th('3: alles') ?></option></select></label>
+          <label><?= th('Netwerkinterface') ?> <span class="hint"><?= th('(auto = de netwerkbrug van je proxy; of bv. podman1, br-1a2b3c)') ?></span><input name="nids_iface" maxlength="70" placeholder="auto"></label>
+          <div id="nids-status"></div>
           <p class="small muted"><a href="#proxy" data-goto="proxy"><?= th('Naar de pagina Reverse proxy (per site instellen)') ?> →</a></p>
         </div>
         <div data-sk="sudo" class="card" id="sudo-card">

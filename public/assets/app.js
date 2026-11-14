@@ -22144,6 +22144,7 @@ async function loadProxy() {
       ${d.waf && d.waf.on ? wafPanel(s, d.waf) : ''}
       ${d.on && (s.sites || []).length ? vpPanel(s) : ''}
       ${d.av && d.av.on ? avPanel(s) : ''}
+      ${d.nids && d.nids.on ? `<div class="waf-box">${nidsLine(s)} <p class="small"><a href="#ids" data-goto="ids">${L('De meldingen staan bij IDS')} →</a></p></div>` : ''}
     </section>`;
   }).join('');
   // Opslaan bij elke wijziging (de agent voert het bij zijn volgende ronde door)
@@ -22439,11 +22440,15 @@ function wafRangeSync(fallback) {
 const PXF_LABEL = () => ({ proxy_on: L('Reverse proxy beschermen (hoofdschakelaar)'), proxy_def_lan: L('Adminpagina\'s en beheerprogramma\'s alleen vanaf mijn netwerk'),
   proxy_def_rate: L('Te veel verzoeken afremmen (rate limit)'), proxy_def_bots: L('Bots weren'), waf_on: L('WAF aan'), waf_mode: L('Wat de WAF doet'),
   waf_share: L('Delen met de CrowdSec-community'), proxy_ai_on: L('AI-advies voor de reverse proxy'), proxy_ai_auto: L('Wie voert het advies door'),
-  av_on: L('ClamAV aan'), av_notify: L('Melden'), av_move: L('Verplaatsen') });
+  av_on: L('ClamAV aan'), av_notify: L('Melden'), av_move: L('Verplaatsen'), nids_on: L('Suricata aan'), nids_profile: L('Regelprofiel'),
+  nids_min_sev: L('Melden vanaf ernst'), proxy_lan_extra: L('Extra netwerken die bij "mijn netwerk" horen'), nids_iface: L('Netwerkinterface') });
 function pxfVal(k, v) {
   if (k === 'proxy_def_rate') return (PX_RATE().find(([x]) => x === v) || [, v])[1];
   if (k === 'waf_mode') return { detect: L('Detecteren'), sure: L('Blokkeren, alleen zeker'), strict: L('Blokkeren, streng') }[v] || v;
   if (k === 'proxy_ai_auto') return v ? L('Automatisch') : L('Zelf beheren');
+  if (k === 'nids_profile') return { web: L('Web'), balanced: L('Gebalanceerd'), full: L('Alles') }[v] || v;
+  if (k === 'nids_min_sev') return { 1: L('1: alleen ernstig'), 2: L('2: ernstig en middel'), 3: L('3: alles') }[v] || v;
+  if (k === 'proxy_lan_extra' || k === 'nids_iface') return v || '–';
   return v ? L('aan') : L('uit');
 }
 /** Eén veld in het formulier zetten (zoals de gebruiker het zou doen), zodat het wordt opgeslagen */
@@ -22500,6 +22505,36 @@ function pxfInit(d) {
   if (!d.on && !$('#pxf-out').innerHTML) api('proxy_fill_advice', { ai: 0 }).then(pxfRender).catch(() => {});
 }
 
+// 1.260.0: Suricata op het proxynetwerk
+const NIDS_STATE = () => ({ ok: ['ok', '✔ ' + L('actief')], starting: ['wait', '⏳ ' + L('wordt gestart')], lowmem: ['bad', '✘ ' + L('te weinig geheugen')],
+  error: ['bad', '✘ ' + L('fout')], off: ['', L('uit')], unsupported: ['wait', L('niet ondersteund')] });
+const nidsMsg = (m) => {
+  if (!m) return '';
+  const r = [[/^te weinig vrij geheugen: (\d+) MB, nodig (\d+) MB$/, (x) => L('te weinig vrij geheugen: {a} MB, nodig {b} MB', { a: x[1], b: x[2] })],
+    [/^geen netwerkbrug gevonden/, () => L('geen netwerkbrug gevonden (stel de interface in RzSense in)')],
+    [/^regels worden opgehaald/, () => L('regels worden opgehaald (de eerste keer een paar minuten)')],
+    [/^Suricata start nog$/, () => L('Suricata start nog')], [/^geen reverse proxy in Podman of Docker gevonden$/, () => L('geen reverse proxy in Podman of Docker gevonden')],
+    [/^regels bijwerken mislukt: (.*)$/, (x) => L('regels bijwerken mislukt: {m}', { m: x[1] })], [/^de container draait niet$/, () => L('de container draait niet')],
+    [/^starten mislukt: (.*)$/s, (x) => L('starten mislukt: {m}', { m: x[1] })]];
+  for (const [re, f] of r) { const x = m.match(re); if (x) return f(x); }
+  return m;
+};
+function nidsLine(s) {
+  const n = s.nids || {};
+  const [cls, txt] = NIDS_STATE()[n.state] || ['wait', '⏳ ' + L('wacht op de agent')];
+  return `<div class="px-h"><b>👀 ${L('Suricata (proxynetwerk)')}</b> <span class="lf-tag ${cls}">${txt}</span>
+    <span class="muted small">${(n.ifaces || []).length ? esc(n.ifaces.join(', ')) : ''}${n.rules ? ' · ' + L('{n} regels', { n: n.rules.toLocaleString(LOCALE) }) : ''}${n.mem ? ' · ' + L('{n} MB vrij', { n: n.mem }) : ''}${n.total ? ' · ' + L('{n} meldingen', { n: n.total }) : ''}</span></div>
+    ${s.nids_agent_ok === false ? `<div class="callout small">⬆ ${L('Agent 1.101.0 of nieuwer nodig voor Suricata op het proxynetwerk. Werk de agent bij in de Agent Manager.')}</div>` : ''}
+    ${n.msg ? `<p class="small ${['error', 'lowmem'].includes(n.state) ? 'danger-txt' : 'muted'}">${esc(nidsMsg(n.msg))}</p>` : ''}
+    ${(n.found || []).length ? `<p class="small muted">${L('Gevonden bruggen van je proxy: {b}', { b: esc(n.found.join(', ')) })}</p>` : ''}`;
+}
+function nidsSettings(d) {
+  const box = $('#nids-status');
+  if (!box) return;
+  const px = d.servers.filter((s) => s.role);
+  box.innerHTML = !d.nids || !d.nids.on || !px.length ? '' : px.map((s) => `<div class="px-srv">${nidsLine(s).replace('👀 ' + L('Suricata (proxynetwerk)'), esc(s.name))}</div>`).join('');
+}
+
 /** Beheerportal: ClamAV per proxyserver (stand, geheugen, definities) */
 function avSettings(d) {
   const box = $('#av-status');
@@ -22539,6 +22574,7 @@ function wafSettings(d) {
   pxaSettings(d);
   avSettings(d);
   pxfInit(d);
+  nidsSettings(d);
   const box = $('#waf-status');
   if (!box) return;
   const px = d.servers.filter((s) => s.role);

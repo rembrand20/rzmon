@@ -1715,3 +1715,5 @@ CREATE TABLE IF NOT EXISTS proxy_vpatch (
     created_at DATETIME     NOT NULL,
     UNIQUE KEY uq_proxy_vpatch (host_id, site, path)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- 1.260.0 (agent 1.101.0): Suricata op het netwerk tussen de reverse proxy en de apps
+INSERT IGNORE INTO settings (name, value) VALUES ('nids_on', '0'), ('nids_profile', 'balanced'), ('nids_iface', 'auto'), ('nids_min_sev', '2');

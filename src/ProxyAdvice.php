@@ -318,12 +318,14 @@ final class ProxyAdvice
     /** De velden met hun toegestane waarden (bool = aan/uit) */
     public const SET_FIELDS = ['proxy_on' => 'bool', 'proxy_def_lan' => 'bool', 'proxy_def_rate' => ['off', 'normal', 'strict'], 'proxy_def_bots' => 'bool',
         'waf_on' => 'bool', 'waf_mode' => ['detect', 'sure', 'strict'], 'waf_share' => 'bool', 'proxy_ai_on' => 'bool', 'proxy_ai_auto' => 'bool',
-        'av_on' => 'bool', 'av_notify' => 'bool', 'av_move' => 'bool'];
+        'av_on' => 'bool', 'av_notify' => 'bool', 'av_move' => 'bool', 'nids_on' => 'bool', 'nids_profile' => ['web', 'balanced', 'full'], 'nids_min_sev' => ['1', '2', '3']];
+    /** 1.260.0: velden die de AI niet kiest (adressen en interfaces ziet hij niet); RzSense geeft het advies zelf */
+    public const FREE_FIELDS = ['proxy_lan_extra', 'nids_iface'];
 
     /** Wat RzSense weet over de proxy (voor de regels en voor de AI) */
     public static function facts(): array
     {
-        $f = ['servers' => 0, 'swag' => false, 'sites' => 0, 'admin' => 0, 'paths' => 0, 'mem' => null, 'waf_days' => 0, 'waf_events' => 0, 'waf_sure' => 0, 'waf_strict' => 0, 'apps' => []];
+        $f = ['servers' => 0, 'swag' => false, 'sites' => 0, 'admin' => 0, 'paths' => 0, 'mem' => null, 'waf_days' => 0, 'waf_events' => 0, 'waf_sure' => 0, 'waf_strict' => 0, 'apps' => [], 'bridges' => []];
         foreach (q("SELECT id FROM hosts WHERE proxy_role = 1 AND mode = 'agent'")->fetchAll(PDO::FETCH_COLUMN) as $hid) {
             $hid = (int) $hid;
             $f['servers']++;
@@ -337,6 +339,11 @@ final class ProxyAdvice
                 }
                 $f['apps'][] = self::hint((string) ($s['up'] ?? '')) ?: self::hint((string) $s['site']);
             }
+            $nd = Nids::status($hid);
+            if (isset($nd['mem']) && (int) $nd['mem'] > 0) {
+                $f['mem'] = max((int) $f['mem'], (int) $nd['mem']);
+            }
+            $f['bridges'] = array_merge($f['bridges'], (array) ($nd['found'] ?? []));
             $av = Av::status($hid);
             if (isset($av['mem']) && (int) $av['mem'] > 0) {
                 $f['mem'] = max((int) $f['mem'], (int) $av['mem']);
@@ -377,6 +384,25 @@ final class ProxyAdvice
                 : t('Te weinig vrij geheugen ({m} MB, nodig 1400 MB).', ['m' => $f['mem']])],
             'av_notify' => ['value' => true, 'reason' => t('Een vondst wil je weten.')],
             'av_move' => ['value' => true, 'reason' => t('Een besmet bestand meteen afschermen; terugzetten kan altijd.')],
+            'nids_on' => ['value' => $f['mem'] === null || $f['mem'] >= ($memOk ? 2200 : 800), 'reason' => $f['mem'] === null || $f['mem'] >= ($memOk ? 2200 : 800)
+                ? t('Suricata ziet het onversleutelde verkeer tussen de proxy en je apps, ook wat je apps zelf naar buiten sturen.')
+                : t('Te weinig vrij geheugen voor Suricata ({m} MB; nodig ± 800 MB, samen met ClamAV ± 2200 MB).', ['m' => $f['mem']])],
+            'nids_profile' => ['value' => 'balanced', 'reason' => t('Gebalanceerd: aanvallen op je webapps én malware of cryptominers in je apps die naar buiten bellen, zonder de lawaaierige beleidsregels.')],
+            'nids_min_sev' => ['value' => '2', 'reason' => t('Ernstig en middel worden een incident; de lichte meldingen (meestal informatief) niet.')],
+        ];
+    }
+
+    /** Advies voor de vrije velden (zonder AI): wat er nu staat blijft, met uitleg */
+    public static function freeAdvice(array $f): array
+    {
+        $lan = (string) setting('proxy_lan_extra', '');
+        $if = (string) setting('nids_iface', 'auto');
+        return [
+            'proxy_lan_extra' => ['value' => $lan, 'source' => 'standard', 'reason' => $lan !== '' ? t('Dit stelde je zelf in; alleen jij weet welke netwerken (bv. je VPN) erbij horen.')
+                : t('Leeg is goed als je geen VPN gebruikt: je lokale netwerken en de whitelist tellen al mee.')],
+            'nids_iface' => ['value' => 'auto', 'source' => 'standard', 'reason' => $f['bridges']
+                ? t('Auto: de agent vond {b}, de bruggen van je proxy.', ['b' => implode(', ', array_unique($f['bridges']))])
+                : t('Auto: de agent zoekt zelf de netwerkbrug van je proxy.')],
         ];
     }
 
@@ -405,6 +431,7 @@ final class ProxyAdvice
             . "Velden: " . implode('; ', $fields) . ". Betekenis: proxy_on = hoofdschakelaar; proxy_def_* = standaard voor nieuwe sites (beheerpagina's alleen LAN, rate limit, bots weren); "
             . "waf_mode detect = alleen melden, sure = alleen bekende lekken blokkeren, strict = ook OWASP CRS (meer vals alarm); waf_share = aanvallers delen met CrowdSec; "
             . "proxy_ai_on/proxy_ai_auto = AI-advies per site en of het automatisch wordt toegepast; av_* = ClamAV (heeft 1400 MB vrij geheugen nodig), melden en verplaatsen naar quarantaine. "
+            . "nids_* = Suricata op het netwerk tussen de proxy en de apps (± 800 MB); nids_profile web = alleen aanvallen op webapps, balanced = ook malware/C2/cryptominers van de apps naar buiten, full = alle Emerging Threats-regels (veel lawaai); nids_min_sev = vanaf welke ernst (1 hoog, 3 laag) een melding een incident wordt. "
             . "Weeg de gegevens: een WAF met minder dan 14 dagen gegevens hoort op detect; strict alleen als 'zou tegenhouden (streng)' weinig vals alarm laat zien. "
             . "Antwoord met alleen één JSON-object: {\"summary\":\"<twee zinnen>\",\"fields\":{\"<veld>\":{\"value\":<waarde>,\"reason\":\"<één korte zin>\"}}} met elk veld precies één keer. "
             . "Schrijf summary en reason in het $lang. $guard";
@@ -424,6 +451,9 @@ final class ProxyAdvice
             $ok = $t === 'bool' ? is_bool($v) : (is_string($v) && in_array($v, $t, true));
             if ($k === 'av_on' && $ok && $v === true && $std['av_on']['value'] === false) {
                 $ok = false;   // te weinig geheugen: dan niet aan, wat de AI ook zegt
+            }
+            if ($k === 'nids_on' && $ok && $v === true && $std['nids_on']['value'] === false) {
+                $ok = false;   // te weinig geheugen
             }
             if ($k === 'waf_on' && $ok && $v === true && $std['waf_on']['value'] === false) {
                 $ok = false;   // geen SWAG
@@ -468,9 +498,10 @@ final class ProxyAdvice
         } elseif ($useAi) {
             $res['note'] = t('AI-advies staat uit; dit is het standaardadvies.');
         }
+        $res['fields'] += self::freeAdvice($f);
         foreach ($res['fields'] as $k => &$v) {
             $cur = setting($k, null);
-            $v['current'] = self::SET_FIELDS[$k] === 'bool' ? $cur === '1' : $cur;
+            $v['current'] = (self::SET_FIELDS[$k] ?? '') === 'bool' ? $cur === '1' : (string) ($cur ?? '');
         }
         unset($v);
         // Uploadmappen die bij een site horen (uit de voorstellen van de agent)

@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.260.0**: **Suricata op het proxynetwerk**: meekijken tussen de proxy en je apps, met advies voor elk veld (AI of standaard).
 - **1.259.0**: **advies voor alle velden**: één knop vult alle instellingen van de reverse proxy in met de beste waarden (AI of standaard), daarna gewoon aan te passen.
 - **1.258.0**: **paden dichtzetten en score per site**: bekende lekken tijdelijk afschermen op de reverse proxy, en per site een score met tips.
 - **1.257.0**: **uploads scannen op malware**: ClamAV op de reverse proxy, met melden en verplaatsen naar quarantaine elk aan en uit.
 - **1.256.0**: **AI-advies voor de reverse proxy**: de AI stelt per site het beleid voor met een reden; met een slider zelf toepassen of automatisch.
-- **1.255.0**: **WAF op de reverse proxy**: CrowdSec bekijkt elk verzoek naar je apps; met een slider van alleen melden naar blokkeren, en per site zie je wat hij zou tegenhouden.
+
+## 1.260.0 – 2026-11-14
+### Nieuw
+- **👀 Suricata op het netwerk tussen proxy en apps** (*Instellingen → Beveiliging → Reverse proxy*): Suricata kijkt mee op het onversleutelde verkeer tussen je reverse proxy en je apps, en herkent aanvallen op je apps en malware of cryptominers in je apps die naar buiten bellen. Instelbaar: aan/uit, regelprofiel (web, gebalanceerd, alles), vanaf welke ernst een melding een IDS-incident wordt, en de netwerkinterface (auto = de netwerkbrug van je proxy). De agent controleert eerst het geheugen en werkt de regels elke dag bij. **Agent 1.101.0 nodig.**
+- **Advies voor élk veld van de reverse proxy**: *Advies invullen* geeft nu ook advies voor Suricata (met AI of standaard, rekening houdend met het geheugen naast ClamAV), en voor de extra netwerken en de netwerkinterface (die vult RzSense zelf in; die gegevens gaan niet naar de AI).
+- **Nieuwe agent 1.101.0** (Suricata op het proxynetwerk).
+
 
 ## 1.259.0 – 2026-11-14
 ### Nieuw

@@ -299,6 +299,8 @@ final class ProxyGuard
                 $sv['waf_recent'] = Waf::recent($sv['id'], 25);
                 $sv['ai'] = ProxyAdvice::state($sv['id']);   // 1.256.0
                 $sv['av'] = Av::overview($sv['id'], $sv['sites']);   // 1.257.0
+                $sv['nids'] = Nids::status($sv['id']);   // 1.260.0
+                $sv['nids_agent_ok'] = version_compare((string) q('SELECT agent_version FROM hosts WHERE id = ?', [$sv['id']])->fetchColumn(), '1.101.0', '>=');
                 $sv['vpatch'] = VPatch::overview($sv['id'], $sv['sites']);   // 1.258.0
                 $sv['vp_agent_ok'] = version_compare((string) q('SELECT agent_version FROM hosts WHERE id = ?', [$sv['id']])->fetchColumn(), '1.100.0', '>=');
                 $sv['sites'] = SiteScore::addAll($sv['id'], $sv['sites'], $sv['waf_stats'], $sv['av']['dirs'] ?? [], $sv['vpatch']['active']);
@@ -308,6 +310,7 @@ final class ProxyGuard
         unset($sv);
         return ['on' => self::enabled(), 'lan' => self::lanNets(), 'servers' => $servers,
             'waf' => ['on' => setting('waf_on', '0') === '1', 'mode' => Waf::mode(), 'share' => setting('waf_share', '0') === '1'],
+            'nids' => ['on' => setting('nids_on', '0') === '1', 'profile' => setting('nids_profile', 'balanced'), 'iface' => setting('nids_iface', 'auto'), 'min_sev' => setting('nids_min_sev', '2')],
             'av' => ['on' => setting('av_on', '0') === '1', 'notify' => setting('av_notify', '1') === '1', 'move' => setting('av_move', '1') === '1'],
             'ai' => ['on' => ProxyAdvice::on(), 'auto' => ProxyAdvice::auto(), 'ai_on' => Ai::on(), 'set' => setting('proxy_ai_on', '0') === '1'],
             'defaults' => ['lan' => setting('proxy_def_lan', '1') === '1', 'rate' => setting('proxy_def_rate', 'normal'), 'bots' => setting('proxy_def_bots', '1') === '1']];

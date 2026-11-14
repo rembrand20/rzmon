@@ -642,3 +642,120 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
     fi
     av_json="{\"state\":\"$av_state\",\"msg\":\"$(json_escape "$av_msg")\",\"mem\":$av_mem,\"image\":\"$(json_escape "$av_img")\",\"sigs\":\"$(json_escape "$av_sigs")\",\"new\":$av_new,\"full\":\"$av_full\",\"full_id\":\"$(cat "$av_dir/full.id" 2>/dev/null | tr -dc '0-9a-z-')\",\"dirs\":[$av_dirs_j],\"suggest\":[$av_sugg],\"found\":[$av_found],\"quarantine\":[$av_q],\"ops\":[$av_ops]}"
 fi
+
+# ---------------------------------------------------------------- Suricata op het proxynetwerk (agent 1.101.0, RzSense 1.260.0)
+# Tussen de reverse proxy en je apps loopt het verkeer onversleuteld over de netwerkbrug van Podman of Docker. Daar kijkt een
+# eigen Suricata-container (rzsense-suricata, --network host, alleen meekijken) naar aanvallen en malware. Regels uit RzSense:
+#   0 <tab> nids <tab> on|off <tab> web|balanced|full <tab> auto|interface,interface
+# web = aanvallen op webapps; balanced = ook malware, command-and-control en cryptominers van je apps naar buiten; full = alle
+# regels van Emerging Threats Open. De regels werkt de agent elke dag bij (suricata-update, op de achtergrond). De meldingen
+# gaan naar RzSense zoals die van een gewone Suricata (IDS-incidenten). Vooraf kijkt hij of er genoeg geheugen vrij is
+# (NIDS_MIN_MB, standaard 800). Uit: de container weg.
+nids_json=""
+if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [ -r "${t_cache-}" ] && grep -q $'^0\tnids\t' "$t_cache"; then
+    IFS=$'\t' read -r nd_on nd_prof nd_if < <(awk -F'\t' '$1 == "0" && $2 == "nids" { print $3 "\t" $4 "\t" $5; exit }' "$t_cache")
+    [[ "$nd_prof" =~ ^(web|balanced|full)$ ]] || nd_prof=balanced
+    nd_ctr=rzsense-suricata; nd_dir="${NIDS_DIR:-/var/lib/rzsense-suricata}"; nd_img="${NIDS_IMAGE:-docker.io/jasonish/suricata:7.0}"
+    nd_state=error; nd_msg=""; nd_rules=0; nd_alerts=""; nd_found=(); nd_use=()
+    nd_mem=$(awk '/^MemAvailable:/ { print int($2 / 1024) }' /proc/meminfo 2>/dev/null); nd_mem=${nd_mem:-0}
+    nd_eng=${px_eng-}
+    if [ -z "$nd_eng" ]; then for e in podman docker; do command -v "$e" >/dev/null 2>&1 && { nd_eng=$e; break; }; done; fi
+    ndx() { timeout "${NDX_T:-60}" "$nd_eng" "$@"; }
+    nd_exists() { [ -n "$nd_eng" ] && ndx inspect "$nd_ctr" >/dev/null 2>&1; }
+    if [ "$nd_on" != on ]; then
+        if nd_exists; then ndx rm -f "$nd_ctr" >/dev/null 2>&1; act_log proxy 1 "Suricata (proxynetwerk) uit" "container $nd_ctr weggehaald"; fi
+        rm -f "$nd_dir/env.hash"
+        nd_state=off
+    elif [ -z "$nd_eng" ] || [ -z "${px_ctr-}" ]; then
+        nd_state=unsupported; nd_msg="geen reverse proxy in Podman of Docker gevonden"
+    else
+        # 1. Welke netwerkbruggen? (de netwerken van de proxycontainer, behalve dat van de WAF)
+        for net in $(ndx inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$px_ctr" 2>/dev/null); do
+            [ "$net" = rzsense ] && continue
+            if [ "$nd_eng" = podman ]; then
+                ifn=$(ndx network inspect -f '{{.NetworkInterface}}' "$net" 2>/dev/null | head -n 1)
+                [ -n "$ifn" ] && [ "$ifn" != '<no value>' ] || ifn=$(ndx network inspect "$net" 2>/dev/null | grep -o '"network_interface": *"[^"]*"' | head -n 1 | cut -d'"' -f4)
+            else
+                ifn=$(ndx network inspect -f '{{index .Options "com.docker.network.bridge.name"}}' "$net" 2>/dev/null | head -n 1)
+                if [ -z "$ifn" ] || [ "$ifn" = '<no value>' ]; then
+                    if [ "$net" = bridge ]; then ifn=docker0; else ifn="br-$(ndx network inspect -f '{{.Id}}' "$net" 2>/dev/null | cut -c1-12)"; fi
+                fi
+            fi
+            [[ "$ifn" =~ ^[A-Za-z0-9_.-]{1,15}$ ]] && [ -e "/sys/class/net/$ifn" ] && nd_found+=("$ifn")
+        done
+        if [ "$nd_if" = auto ] || [ -z "$nd_if" ]; then nd_use=("${nd_found[@]}")
+        else
+            IFS=',' read -r -a nd_req <<<"$nd_if"
+            for ifn in "${nd_req[@]}"; do [[ "$ifn" =~ ^[A-Za-z0-9_.-]{1,15}$ ]] && [ -e "/sys/class/net/$ifn" ] && nd_use+=("$ifn"); done
+        fi
+        nd_use=("${nd_use[@]:0:4}")
+        if [ ${#nd_use[@]} -eq 0 ]; then
+            nd_msg="geen netwerkbrug gevonden (stel de interface in RzSense in)"
+        else
+            mkdir -p "$nd_dir/log" "$nd_dir/lib" "$nd_dir/etc"; chmod 700 "$nd_dir"
+            # 2. Regelprofiel: welke groepen van Emerging Threats Open uit (suricata-update leest disable.conf)
+            nd_keep="web_server web_specific_apps exploit sql attack_response shellcode scan current_events"
+            [ "$nd_prof" != web ] && nd_keep+=" malware mobile_malware coinminer exploit_kit phishing dns worm dos user_agents"
+            nd_dis=""
+            if [ "$nd_prof" != full ]; then
+                read -r -a nd_all <<<"activex adware_pup attack_response chat coinminer current_events dns dos exploit exploit_kit files ftp games hunting icmp icmp_info imap inappropriate info ja3 malware misc mobile_malware netbios p2p phishing policy pop3 rpc scada scan shellcode smb smtp snmp sql telnet tftp user_agents voip web_client web_server web_specific_apps worm"
+                for g in "${nd_all[@]}"; do
+                    [[ " $nd_keep " == *" $g "* ]] || nd_dis+="group:emerging-$g.rules"$'\n'
+                done
+            fi
+            printf '# RzSense: beheerd door de RzSense-agent (profiel %s)\n%s' "$nd_prof" "$nd_dis" >"$nd_dir/etc/disable.conf"
+            nd_ehash=$(printf '%s|' "$nd_img" "${nd_use[@]}" | sha1sum | cut -c1-12)
+            nd_rhash=$(sha1sum <"$nd_dir/etc/disable.conf" | cut -c1-12)
+            # 3. Container: (opnieuw) als hij er niet is of de interfaces veranderden; eerst genoeg geheugen?
+            if ! nd_exists || [ "$(cat "$nd_dir/env.hash" 2>/dev/null)" != "$nd_ehash" ]; then
+                if ! nd_exists && [ "$nd_mem" -lt "${NIDS_MIN_MB:-800}" ]; then
+                    nd_state=lowmem; nd_msg="te weinig vrij geheugen: $nd_mem MB, nodig ${NIDS_MIN_MB:-800} MB"
+                else
+                    ndx rm -f "$nd_ctr" >/dev/null 2>&1
+                    nd_args=(); for ifn in "${nd_use[@]}"; do nd_args+=(-i "$ifn"); done
+                    if out=$(NDX_T=900 ndx run -d --name "$nd_ctr" --restart unless-stopped --network host --cap-add net_admin --cap-add net_raw --cap-add sys_nice \
+                        -v "$nd_dir/log:/var/log/suricata:Z" -v "$nd_dir/lib:/var/lib/suricata:Z" -v "$nd_dir/etc/disable.conf:/etc/suricata/disable.conf:ro,Z" \
+                        "$nd_img" "${nd_args[@]}" 2>&1); then
+                        echo "$nd_ehash" >"$nd_dir/env.hash"; rm -f "$nd_dir/rules.hash"
+                        act_log proxy 1 "Suricata (proxynetwerk) gestart" "${nd_use[*]}, profiel $nd_prof"
+                    else
+                        nd_msg="starten mislukt: $(tail -n 2 <<<"$out" | tr '\n' ' ' | cut -c1-200)"
+                    fi
+                fi
+            fi
+            if [ "$(ndx inspect -f '{{.State.Running}}' "$nd_ctr" 2>/dev/null)" = true ]; then
+                # 4. Regels bijwerken (nieuw profiel of ouder dan een dag), op de achtergrond; daarna herstarten om ze te laden
+                nd_rf="$nd_dir/lib/rules/suricata.rules"
+                if [ -f "$nd_dir/update.rc" ]; then
+                    if [ "$(cat "$nd_dir/update.rc")" = 0 ]; then
+                        ndx restart "$nd_ctr" >/dev/null 2>&1 && act_log proxy 1 "Suricata (proxynetwerk): regels bijgewerkt" "profiel $nd_prof"
+                    else nd_msg="regels bijwerken mislukt: $(tail -n 1 "$nd_dir/update.out" 2>/dev/null | cut -c1-150)"; fi
+                    rm -f "$nd_dir/update.rc"
+                elif [ ! -f "$nd_dir/update.run" ] && { [ ! -s "$nd_rf" ] || [ "$(cat "$nd_dir/rules.hash" 2>/dev/null)" != "$nd_rhash" ] || [ -n "$(find "$nd_rf" -mmin +1440 2>/dev/null)" ]; }; then
+                    echo "$nd_rhash" >"$nd_dir/rules.hash"; touch "$nd_dir/update.run"
+                    nohup sh -c 'timeout 600 "$0" exec "$1" suricata-update --no-test --no-reload >"$2/update.out" 2>&1; echo $? >"$2/update.rc"; rm -f "$2/update.run"' \
+                        "$nd_eng" "$nd_ctr" "$nd_dir" >/dev/null 2>&1 &
+                fi
+                nd_rules=$(grep -c '^alert' "$nd_rf" 2>/dev/null); nd_rules=${nd_rules:-0}
+                if [ -f "$nd_dir/log/eve.json" ] || [ -f "$nd_dir/log/suricata.log" ]; then
+                    nd_state=ok; [ "$nd_rules" -gt 0 ] || nd_msg=${nd_msg:-"regels worden opgehaald (de eerste keer een paar minuten)"}
+                else nd_state=starting; nd_msg=${nd_msg:-"Suricata start nog"}; fi
+                # 5. Nieuwe meldingen uit eve.json (zelfde verwerking als een gewone Suricata); groot bestand = leegmaken
+                nd_eve="$nd_dir/log/eve.json"
+                if [ -r "$nd_eve" ]; then
+                    nd_size=$(stat -c %s "$nd_eve" 2>/dev/null || echo 0); nd_pos=$(cat "$nd_dir/eve.pos" 2>/dev/null); [[ "$nd_pos" =~ ^[0-9]+$ ]] || nd_pos=-1
+                    [ "$nd_pos" -gt "$nd_size" ] && nd_pos=0
+                    if [ "$nd_pos" -ge 0 ]; then
+                        nd_alerts=$(tail -c +$(( nd_pos + 1 )) "$nd_eve" 2>/dev/null | head -c $(( nd_size - nd_pos )) | tail -n 50000 | edr_eve_awk)
+                    fi
+                    if [ "$nd_size" -gt $(( ${NIDS_EVE_MB:-64} * 1048576 )) ]; then : >"$nd_eve"; nd_size=0; fi
+                    echo "$nd_size" >"$nd_dir/eve.pos"
+                fi
+            elif [ "$nd_state" != lowmem ]; then
+                nd_msg=${nd_msg:-"de container draait niet"}
+            fi
+        fi
+    fi
+    nd_j() { local x o=""; for x in "$@"; do o+="${o:+,}\"$(json_escape "$x")\""; done; printf '%s' "$o"; }
+    nids_json="{\"state\":\"$nd_state\",\"msg\":\"$(json_escape "$nd_msg")\",\"mem\":$nd_mem,\"image\":\"$(json_escape "$nd_img")\",\"profile\":\"$nd_prof\",\"rules\":$nd_rules,\"ifaces\":[$(nd_j "${nd_use[@]}")],\"found\":[$(nd_j "${nd_found[@]}")],\"alerts\":[$nd_alerts]}"
+fi

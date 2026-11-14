@@ -3271,7 +3271,7 @@ Vink per stap *verstuurd* aan. Komt een termijn binnen 6 uur (eindverslag: 3 dag
 
 **Let op:** dit is geen juridisch advies en geen certificering. Het laat zien wat RzSense technisch ziet; of je onder NIS2 valt en wat significant is, bepaal je zelf (of met je adviseur). **Aan/uit:** daar, of *Overzicht → Status en functies → Functies*.
 
-### 8.12h Reverse proxy beschermen 🔀 (vanaf 1.254.0, agent 1.97.0; WAF vanaf 1.255.0, agent 1.98.0; AI-advies vanaf 1.256.0; ClamAV vanaf 1.257.0, agent 1.99.0; virtual patching en score vanaf 1.258.0, agent 1.100.0)
+### 8.12h Reverse proxy beschermen 🔀 (vanaf 1.254.0, agent 1.97.0; WAF vanaf 1.255.0, agent 1.98.0; AI-advies vanaf 1.256.0; ClamAV vanaf 1.257.0, agent 1.99.0; virtual patching en score vanaf 1.258.0, agent 1.100.0; Suricata op het proxynetwerk vanaf 1.260.0, agent 1.101.0)
 Bescherm de apps achter je reverse proxy (**SWAG** of **Nginx Proxy Manager**, in **Podman** of **Docker**). De agent op die server voert het door; alles stel je in RzSense in.
 
 **Aanzetten**
@@ -3388,6 +3388,26 @@ Bovenaan *Instellingen → Beveiliging → Reverse proxy* staat het blok **✨ A
 - **Uploadmappen** die bij een site horen (uit de mappen van je apps) voeg je met **＋ Toevoegen** meteen toe aan ClamAV.
 - Met AI-advies per site aan, maakt de AI ook meteen het **advies per site**; dat staat binnen een paar minuten op de pagina Reverse proxy.
 - Staat de bescherming nog uit (nieuw), dan zie je het standaardadvies meteen, zonder op de knop te drukken.
+
+**👀 Suricata op het netwerk tussen proxy en apps** (vanaf 1.260.0, agent 1.101.0)
+Tussen SWAG en je apps loopt het verkeer **onversleuteld** over de netwerkbrug van Podman of Docker. Suricata kijkt daar mee: aanvallen op je apps die door de proxy en de WAF heen komen, en malware, command-and-control of cryptominers in je apps die naar buiten bellen.
+
+1. *Instellingen → Beveiliging → Reverse proxy → Suricata op het netwerk tussen proxy en apps*: zet **Suricata aan** (of laat **✨ Advies invullen** het voor je bepalen).
+2. De agent kijkt of er genoeg geheugen vrij is (± 800 MB, `NIDS_MIN_MB`) en start de container **`rzsense-suricata`** met `--network host`. Hij kijkt alleen mee (hij blokkeert zelf niets in het verkeer).
+3. **Netwerkinterface** *auto*: de agent zoekt de netwerkbruggen van je proxycontainer (behalve die van de WAF). Werkt dat niet, vul dan zelf de interface in, bv. `podman1` of `br-1a2b3c4d5e6f` (zie `ip link`), meerdere met een komma (hooguit 4).
+4. De regels (**Emerging Threats Open**) haalt hij op de achtergrond op met `suricata-update`, de eerste keer binnen een paar minuten, daarna elke dag.
+
+| Instelling | Keuzes |
+|---|---|
+| **Regelprofiel** | *Web* (aanvallen op webapps), *Gebalanceerd* (ook malware, command-and-control, cryptominers, phishing; aanbevolen), *Alles* (alle regels, veel meldingen) |
+| **Melden vanaf ernst** | *1* alleen ernstig, *2* ernstig en middel (aanbevolen), *3* alles |
+
+- Meldingen worden **IDS-incidenten**, net als bij een gewone Suricata. Staat *blokkeren bij ernst 1* aan in het IDS, dan wordt een aanvaller van buiten ook geblokkeerd.
+- Op de pagina **🔀 Reverse proxy** zie je per server de stand, de interfaces, het aantal regels en het aantal meldingen.
+- `eve.json` houdt de agent klein (boven 64 MB leeg, `NIDS_EVE_MB`). **Uit**: de container gaat weg.
+- Op de server in te stellen: `NIDS_DIR`, `NIDS_IMAGE` (standaard `docker.io/jasonish/suricata:7.0`), `NIDS_MIN_MB`, `NIDS_EVE_MB`.
+
+**Advies voor alle velden** geldt sinds 1.260.0 voor **elk veld** van de reverse proxy: ook Suricata (aan, profiel, ernst), de extra netwerken en de netwerkinterface. De AI kiest alleen de keuzevelden; adressen en interfaces ziet hij niet, daar geeft RzSense zelf het advies (wat je instelde blijft staan, de interface op *auto* met de bruggen die de agent vond).
 
 **Score per site** (vanaf 1.258.0)
 Elke site krijgt een score van 0 tot 100 (A ≥ 85, B ≥ 70, C ≥ 50, D daaronder); bovenaan staat het gemiddelde van de server en de laagste site. Klik op de score voor de onderdelen en wat je kunt verbeteren:

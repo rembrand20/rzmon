@@ -437,7 +437,8 @@ function agent_tests_text(int $hostId, bool $secure = false): string
     array_push($out, ...Sudo::agentLines($hostId));   // 1.231.0: tijdelijk sudo (agent 1.93.0)
     array_push($out, ...ProxyGuard::agentLines($hostId));   // 1.254.0: reverse proxy beschermen (agent 1.97.0)
     array_push($out, ...Waf::agentLines($hostId));   // 1.255.0: WAF op de reverse proxy (agent 1.98.0)
-    array_push($out, ...Av::agentLines($hostId));   // 1.257.0: ClamAV op de reverse proxy (agent 1.99.0)
+    array_push($out, ...Av::agentLines($hostId));
+    array_push($out, ...Nids::agentLines($hostId));   // 1.260.0: Suricata op het proxynetwerk (agent 1.101.0)   // 1.257.0: ClamAV op de reverse proxy (agent 1.99.0)
     return $out ? implode("\n", $out) . "\n" : '';
 }
 

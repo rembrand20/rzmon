@@ -3222,5 +3222,48 @@ foreach ($fk as $k => $v) {
     $v === null ? q('DELETE FROM settings WHERE name = ?', [$k]) : save_setting($k, (string) $v);
 }
 
+section('Suricata op het proxynetwerk (1.260.0)');
+q("INSERT INTO hosts (name, address, mode, agent_version) VALUES ('nids-host', '127.0.0.1', 'agent', '1.100.0')");
+$nh = (int) db()->lastInsertId();
+$nH = q('SELECT * FROM hosts WHERE id = ?', [$nh])->fetch();
+$nk = [];
+foreach (['proxy_on', 'nids_on', 'nids_profile', 'nids_iface', 'nids_min_sev', 'ids_enabled', 'suricata_on'] as $k) {
+    $nk[$k] = setting($k, null);
+}
+save_setting('proxy_on', '1');
+save_setting('nids_on', '1');
+save_setting('nids_profile', 'web');
+save_setting('nids_iface', 'auto');
+ProxyGuard::setRole($nh, true, 'test');
+ok(Nids::agentLines($nh) === [], 'Suricata (proxynetwerk): een oudere agent krijgt niets');
+q("UPDATE hosts SET agent_version = '1.101.0' WHERE id = ?", [$nh]);
+ok(Nids::agentLines($nh) === ["0\tnids\ton\tweb\tauto"], 'Suricata (proxynetwerk): regel voor de agent');
+ok(Nids::cleanIface('Podman1, br-1a2b3c') === 'podman1,br-1a2b3c' && Nids::cleanIface('') === 'auto' && Nids::cleanIface('eth0; rm -rf /') === null, 'Suricata (proxynetwerk): interfaces gecontroleerd');
+save_setting('nids_min_sev', '2');
+save_setting('ids_enabled', '1');
+save_setting('suricata_on', '1');
+$al = [['2026-11-14T10:00:00', '198.51.100.44', 4444, '10.89.0.5', 80, 'TCP', 2012345, 'ET WEB_SERVER SQL Injection', 'Web Application Attack', 1, 'allowed'],
+    ['2026-11-14T10:00:01', '198.51.100.45', 4444, '10.89.0.5', 80, 'TCP', 2099999, 'ET INFO something', 'Misc activity', 3, 'allowed']];
+Nids::fromAgent($nH, ['nids' => ['state' => 'ok', 'mem' => 3000, 'profile' => 'web', 'rules' => 41000, 'ifaces' => ['podman1', 'bad iface'], 'found' => ['podman1'], 'alerts' => $al]]);
+$ns = Nids::status($nh);
+ok($ns['state'] === 'ok' && $ns['ifaces'] === ['podman1'] && $ns['seen'] === 2 && $ns['kept'] === 1 && $ns['total'] === 1, 'Suricata (proxynetwerk): status opgeslagen, ernst 3 onder de drempel weggelaten');
+ok((int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'suricata'", [$nh])->fetchColumn() === (Suricata::on() ? 1 : 0), 'Suricata (proxynetwerk): melding boven de drempel wordt een IDS-incident');
+save_setting('nids_on', '0');
+ok(Nids::agentLines($nh) === ["0\tnids\toff\tbalanced\tauto"], 'Suricata (proxynetwerk): uitgezet = de agent haalt de container weg');
+$stdN = ProxyAdvice::standard(['servers' => 1, 'swag' => true, 'sites' => 1, 'admin' => 0, 'paths' => 0, 'mem' => 1000, 'waf_days' => 0, 'waf_events' => 0, 'waf_sure' => 0, 'waf_strict' => 0, 'apps' => [], 'bridges' => []]);
+ok($stdN['av_on']['value'] === false && $stdN['nids_on']['value'] === true && $stdN['nids_profile']['value'] === 'balanced' && $stdN['nids_min_sev']['value'] === '2',
+    'advies: 1000 MB vrij = geen ClamAV maar wel Suricata, gebalanceerd, vanaf ernst 2');
+$psN = ProxyAdvice::parseSet(json_encode(['fields' => ['nids_on' => ['value' => true, 'reason' => 'x'], 'nids_profile' => ['value' => 'full', 'reason' => 'y'], 'nids_min_sev' => ['value' => 2, 'reason' => 'z']]]),
+    ProxyAdvice::standard(['mem' => 500] + ['servers' => 1, 'swag' => true, 'sites' => 1, 'admin' => 0, 'paths' => 0, 'waf_days' => 0, 'waf_events' => 0, 'waf_sure' => 0, 'waf_strict' => 0, 'apps' => [], 'bridges' => []]));
+ok($psN['fields']['nids_on']['source'] === 'standard' && $psN['fields']['nids_on']['value'] === false && $psN['fields']['nids_profile']['value'] === 'full' && $psN['fields']['nids_min_sev']['source'] === 'standard',
+    'advies: AI mag Suricata niet aanzetten bij te weinig geheugen; ernst moet een geldige keuze zijn');
+$fl = ProxyAdvice::fill(false, 'test');
+ok(isset($fl['fields']['proxy_lan_extra'], $fl['fields']['nids_iface']) && $fl['fields']['nids_iface']['value'] === 'auto', 'advies: ook de vrije velden (extra netwerken, interface) krijgen een advies');
+foreach ($nk as $k => $v) {
+    $v === null ? q('DELETE FROM settings WHERE name = ?', [$k]) : save_setting($k, (string) $v);
+}
+q('DELETE FROM ids_incidents WHERE host_id = ?', [$nh]);
+q('DELETE FROM hosts WHERE id = ?', [$nh]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);
