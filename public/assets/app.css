@@ -6075,3 +6075,45 @@ button.rz-job::before, .btn.rz-job::before { content: ''; position: absolute; in
 .pxf-box { border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border)); border-radius: 14px; padding: .7rem .8rem; margin: .4rem 0 .8rem; display: grid; gap: .4rem; min-width: 0; background: color-mix(in srgb, var(--primary) 4%, transparent); }
 .pxf-table td:first-child { min-width: 11rem; }
 label.pxf-filled { box-shadow: inset 3px 0 0 var(--primary); padding-left: .5rem; }
+/* 1.261.0: mobielvriendelijk. Tabellen die niet passen worden kaartjes (25-mobiel.js), kerncijfers twee per rij, en
+   onderdelen van een grid of flex mogen smaller worden dan hun inhoud (anders duwt een tabel de hele pagina breed). */
+.pxf-box > *, .waf-box > *, .px-srv > *, .av-box > *, .vp-box > *, .pxa-box > *, .card > *, .set-main > *, .an-box > * { min-width: 0; }
+@media (max-width: 700px) {
+  table.mt-stack, table.mt-stack > tbody, table.mt-stack > tbody > tr, table.mt-stack > tbody > tr > td { display: block; width: auto !important; max-width: 100%; }
+  table.mt-stack { min-width: 0 !important; border: 0; background: none; }
+  table.mt-stack > thead, table.mt-stack > colgroup { display: none; }
+  table.mt-stack > tbody > tr { border: 1px solid var(--border); border-radius: 12px; margin: 0 0 .55rem; padding: .35rem .65rem; background: var(--card); }
+  table.mt-stack > tbody > tr[hidden] { display: none; }
+  table.mt-stack > tbody > tr > td { position: relative; display: block; padding: .3rem 0 .3rem calc(34% + .6rem) !important; min-height: 1.4em;
+    border: 0 !important; text-align: left !important; white-space: normal !important; overflow-wrap: break-word; }
+  table.mt-stack > tbody > tr > td::before { content: attr(data-label); position: absolute; left: 0; top: .42rem; width: 34%;
+    font-size: .78rem; font-weight: 600; line-height: 1.25; color: var(--muted); overflow-wrap: break-word; }
+  table.mt-stack > tbody > tr > td[data-label=""] { padding-left: 0 !important; }
+  table.mt-stack > tbody > tr > td[data-label=""]::before { display: none; }
+  table.mt-stack > tbody > tr > td:empty { display: none; }
+  /* Knoppen of vinkjes in de kop (bv. "Alles invullen", alles selecteren) blijven zichtbaar boven de kaartjes */
+  table.mt-stack > thead:has(button, input, select, a) { display: block; }
+  table.mt-stack > thead:has(button, input, select, a) > tr { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .4rem; }
+  table.mt-stack > thead:has(button, input, select, a) th { display: none; border: 0; padding: 0 0 .5rem; }
+  table.mt-stack > thead:has(button, input, select, a) th:has(button, input, select, a) { display: block; }
+  table.mt-stack select, table.mt-stack input:not([type=checkbox]):not([type=radio]) { max-width: 100% !important; width: 100%; }
+  table.mt-stack + *, .table-scroll:has(> table.mt-stack) { overflow: visible; }
+  /* Kerncijfers: alle tegels zichtbaar, twee per rij (in plaats van opzij schuiven) */
+  .kpis { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; margin: 0 0 1rem; padding: 0; scroll-snap-type: none; }
+  .kpis > .kpi { flex: none; min-width: 0; }
+  .kpis > .kpi-main { grid-column: 1 / -1; }
+  #tab-vulns .health-counts { flex-wrap: wrap; overflow: visible; }
+  .an-custom { flex-wrap: wrap; max-width: 100%; }
+  .an-custom input[type=date] { min-width: 0; flex: 1 1 8rem; }
+  .pxf-table td:first-child { min-width: 0; }
+}
+@media (max-width: 700px) {
+  .kpis .kpi-sub, .kpis .kpi-val-txt { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+  .dash-chips { flex-wrap: wrap; overflow: visible; row-gap: .4rem; }
+}
+@media (max-width: 700px) {
+  /* Knoppen onderin een venster: altijd in beeld, twee per rij */
+  #modal-footer { position: sticky; bottom: 0; z-index: 2; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; background: var(--card); }
+  #modal-footer > * { width: 100%; margin: 0; min-width: 0; }
+  #modal-footer > :empty:not(button) { display: none; }
+}

@@ -12,6 +12,8 @@ Je kunt hem draaien op elke Linux-machine met PHP 8 en MariaDB: een VM, een Rasp
 >
 > **IDS-incidenten (1.217.0):** afhandelen gaat meteen. Vink meerdere incidenten aan om ze in één keer af te handelen, of gebruik *Alles van deze server afhandelen* op de serverkaart. Wat vaak terugkomt staat bovenaan met *Dit is normaal*. De pagina toont de open incidenten en de laatste 2 dagen; ouder haal je op met *Ouder laden*.
 >
+> **Op een telefoon (1.261.0):** brede tabellen worden kaartjes (elke rij een kaartje met de kolomnamen ervoor), KPI-tegels staan twee per rij en de knoppen onderin een venster blijven in beeld. Op een computer verandert er niets.
+
 > **Meldingskaart (1.218.0):** klik op een melding voor het paneel met de waarde, de drempels, de grafiek en eerdere keren. Slaat een check vaak kort aan, dan stelt de kaart voor om pas na meer metingen te melden of een slimme drempel te gebruiken (één klik). Op een telefoon sluit je het blad door het omlaag te vegen.
 >
 > **RzSense-kern en IDS Live (1.219.0):** bovenaan *Monitoring* staat de **RzSense-kern**: CPU, RAM, disk en cron van de server waar RzSense op draait, met één oordeel; klik erop voor alle details. *IDS → Live* begint nu met een oordeel en de soorten, toont standaard alleen wat aandacht vraagt (**Aandacht · Alles · Toegestaan**), zegt elke gebeurtenis in gewone taal en voegt herhalingen samen. Klik op een treffer voor uitleg en de knoppen *Bekijk incident*, *Proces stoppen* en *Dit is normaal*.

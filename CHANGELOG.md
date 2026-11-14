@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.261.0**: **mobielvriendelijk**: op een telefoon worden brede tabellen kaartjes, KPI-tegels staan twee per rij en niets duwt de pagina nog breder dan het scherm.
 - **1.260.0**: **Suricata op het proxynetwerk**: meekijken tussen de proxy en je apps, met advies voor elk veld (AI of standaard).
 - **1.259.0**: **advies voor alle velden**: één knop vult alle instellingen van de reverse proxy in met de beste waarden (AI of standaard), daarna gewoon aan te passen.
 - **1.258.0**: **paden dichtzetten en score per site**: bekende lekken tijdelijk afschermen op de reverse proxy, en per site een score met tips.
 - **1.257.0**: **uploads scannen op malware**: ClamAV op de reverse proxy, met melden en verplaatsen naar quarantaine elk aan en uit.
-- **1.256.0**: **AI-advies voor de reverse proxy**: de AI stelt per site het beleid voor met een reden; met een slider zelf toepassen of automatisch.
+
+## 1.261.0 – 2026-11-14
+### Nieuw
+- **📱 Alle pagina's mobielvriendelijk**: op een telefoon (smaller dan 700 px) wordt elke tabel die niet past vanzelf een stapel kaartjes: elke rij een kaartje, elke cel een regel met de kolomnaam ervoor. Knoppen in de kop van een tabel (zoals *Alles invullen*) blijven boven de kaartjes staan. Een tabel die wel past blijft een tabel; op een computer verandert er niets.
+- **KPI-tegels twee per rij** op een telefoon (de hoofdtegel over de hele breedte), in plaats van een strook om zijwaarts te vegen.
+- **Knoppen onderin vensters** blijven op een telefoon in beeld (vastgezet onderaan, twee per rij).
+### Opgelost
+- De tabel *Advies voor alle velden* (*Instellingen → Beveiliging → Reverse proxy*) en andere brede tabellen en filterchips duwden de pagina op een telefoon breder dan het scherm.
 
 ## 1.260.0 – 2026-11-14
 ### Nieuw
