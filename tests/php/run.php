@@ -561,6 +561,10 @@ DnsWatch::check([['client' => '10.0.0.9', 'client_info' => ['name' => 'rzmon'], 
 ok((int) q('SELECT COUNT(*) FROM ids_incidents')->fetchColumn() === $inc0 && (int) q("SELECT COUNT(*) FROM edr_events WHERE own = 'net' AND kind IN ('s', 'd')")->fetchColumn() === 2,
     'netwerkscan van RzSense (Suricata) en DNS van RzSense: geen incident, wel een groene regel');
 ok(Ids::protectedIp('10.0.0.9') && Ids::autoBlock($hc, '10.0.0.9', 'test') === null, 'RzSense wordt nooit geblokkeerd');
+// 1.263.3: elke actie die een agent aanroept (src/api/agent.php) slaat het doorsturen naar https over (handtekening gaf 302)
+preg_match_all("/\\$action === '((?:agent|ping)[a-z_]*)'/", (string) file_get_contents(SM_ROOT . '/src/api/agent.php'), $agm);
+$agMissing = array_diff(array_unique($agm[1]), (new ReflectionClassConstant('Https', 'AGENT_ACTIONS'))->getValue());
+ok(count($agm[1]) > 5 && !$agMissing, 'https-doorsturen: alle agent-acties uitgezonderd' . ($agMissing ? ' (mist: ' . implode(', ', $agMissing) . ')' : ''));
 // 1.262.0: een eigen agent-server op internet wordt nooit automatisch geblokkeerd (wel met de hand); oude automatische blokkade telt niet meer
 save_setting('ids_mode', 'block');
 q("UPDATE hosts SET agent_ip = '198.51.100.77' WHERE id = ?", [$hd['id']]);

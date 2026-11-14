@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.260.0**: **Suricata op het proxynetwerk**: meekijken tussen de proxy en je apps, met advies voor elk veld (AI of standaard).
 - **1.259.0**: **advies voor alle velden**: één knop vult alle instellingen van de reverse proxy in met de beste waarden (AI of standaard), daarna gewoon aan te passen.
 
+## 1.263.3 – 2026-11-14
+### Opgelost
+- **Agents kunnen weer bijwerken als RzSense alleen via https werkt**: de handtekening van de agent (`agent_script_sig`, `agent_install_sig`) stond niet op de lijst van agent-verzoeken die niet naar het beheeradres worden doorgestuurd. Een agent die RzSense via een ander adres bereikt (bv. de naam via je reverse proxy) kreeg dan een 302 in plaats van de handtekening en weigerde de update ("Geen handtekening bij RzSense"). Een test controleert nu dat elke agent-actie uitgezonderd is.
+
 ## 1.263.2 – 2026-11-14
 ### Opgelost
 - **Bijwerken naar een gekozen versie neemt de handtekening van de agent mee**: de handtekening komt in een aparte commit vlak na de versie. Koos je een bepaalde versie, dan kreeg je de handtekening van de vorige agent en weigerden je servers de update. Nu neemt RzSense die commit mee.
