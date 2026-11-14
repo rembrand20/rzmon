@@ -609,6 +609,7 @@ function showTab(name) {
   if ((name === 'dashboard' || name === 'alerts') && state.badges) refresh();   // tab gezien: teller naar 0
   if (name === 'ids') loadIds();
   if (name === 'net') loadNet();
+  if (name === 'proxy') loadProxy();   // 1.254.0
   if (netReq) setNetSub(netReq);   // 1.197.0
   if (monReq) setMonSub(monReq);
   if (name === 'home') loadHome();

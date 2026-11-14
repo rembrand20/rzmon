@@ -6034,3 +6034,12 @@ button.rz-job::before, .btn.rz-job::before { content: ''; position: absolute; in
 .ag-bar i { display: block; height: 100%; background: var(--primary); }
 @keyframes ag-pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .ag-dots i.cur { animation: none; } }
+
+/* 1.254.0: reverse proxy */
+.px-srv { border: 1px solid var(--border); border-radius: 14px; padding: .8rem .9rem; margin: .8rem 0; display: grid; gap: .5rem; min-width: 0; }
+.px-h { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.px-table td { vertical-align: top; }
+.px-table tr.dim td { opacity: .55; }
+.px-table select { max-width: 15rem; }
+.px-paths { display: block; margin-top: .3rem; width: 100%; max-width: 15rem; }
+.px-roles { display: grid; gap: .4rem; }

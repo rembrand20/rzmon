@@ -1627,3 +1627,18 @@ CREATE TABLE IF NOT EXISTS jobs (
     started_at DATETIME     NOT NULL,
     updated_at DATETIME     NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- 1.254.0: reverse proxy beschermen (beleid per site; de agent op de proxy voert het door)
+CREATE TABLE IF NOT EXISTS proxy_sites (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id    INT UNSIGNED NOT NULL,
+    site       VARCHAR(190) NOT NULL,
+    enabled    TINYINT(1)   NOT NULL DEFAULT 1,
+    lan_mode   ENUM('off','paths','site') NOT NULL DEFAULT 'off',
+    lan_paths  VARCHAR(1000) NOT NULL DEFAULT '',
+    rate       ENUM('off','normal','strict') NOT NULL DEFAULT 'normal',
+    bots       TINYINT(1)   NOT NULL DEFAULT 1,
+    updated_by VARCHAR(100) NOT NULL DEFAULT '',
+    updated_at DATETIME     NULL,
+    UNIQUE KEY uq_proxy_site (host_id, site)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('proxy_on', '0'), ('proxy_def_lan', '1'), ('proxy_def_rate', 'normal'), ('proxy_def_bots', '1'), ('proxy_lan_extra', '');

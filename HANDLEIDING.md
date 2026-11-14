@@ -3271,6 +3271,30 @@ Vink per stap *verstuurd* aan. Komt een termijn binnen 6 uur (eindverslag: 3 dag
 
 **Let op:** dit is geen juridisch advies en geen certificering. Het laat zien wat RzSense technisch ziet; of je onder NIS2 valt en wat significant is, bepaal je zelf (of met je adviseur). **Aan/uit:** daar, of *Overzicht → Status en functies → Functies*.
 
+### 8.12h Reverse proxy beschermen 🔀 (vanaf 1.254.0, agent 1.97.0)
+Bescherm de apps achter je reverse proxy (**SWAG** of **Nginx Proxy Manager**, in **Podman** of **Docker**). De agent op die server voert het door; alles stel je in RzSense in.
+
+**Aanzetten**
+1. *Instellingen → Beveiliging → Reverse proxy*: zet de **hoofdschakelaar** aan en zet bij **Welke server is de reverse proxy?** de rol aan bij de server waar je proxy draait. Alleen daar doet de agent iets; andere agents krijgen niets.
+2. Bij de volgende ronde zoekt de agent de proxy (eerst Podman, dan Docker) en leest de sites uit: SWAG uit `proxy-confs/*.conf` en `site-confs/*.conf`, NPM uit `proxy_host/*.conf`. Per site: de naam (`server_name`, ook `app.*`), de andere namen en de app erachter.
+3. Op de pagina **🔀 Reverse proxy** (zijbalk, onder Beveiliging) zie je per site het beleid en pas je het aan. Een wijziging voert de agent binnen een minuut door.
+
+**Per site** (alles aan of uit)
+- **Wie mag erbij**: *Iedereen*, *Adminpaden alleen mijn netwerk* (bv. `/admin`; ook `/Admin` en `/admin/…`), of *Hele site alleen mijn netwerk* (voor beheerprogramma's). Van buiten krijgt men dan **403**.
+- **Rate limit**: *Uit*, *Normaal* (20 verzoeken per seconde per adres, pieken tot 40) of *Streng* (5 per seconde, pieken tot 20). Te veel = **429**.
+- **Bots weren**: bekende aanvalstools en scanners (sqlmap, nikto, nuclei, zgrab, wpscan …) krijgen 403.
+- **Standaard of eigen**: een site die je niet zelf instelde, krijgt de standaard uit de beheerportal. Bekende beheerprogramma's (Portainer, AdGuard, Pi-hole, UniFi, Proxmox, Cockpit, phpMyAdmin, Axigen *webadmin* …) worden dan helemaal alleen-LAN; bekende apps alleen hun adminpaden (Vaultwarden `/admin`, Nextcloud `/settings/admin`, WordPress `/wp-admin` en `/wp-login.php` …). Met ↺ zet je een site terug naar de standaard.
+- **Mijn netwerk** = *Toegang → Lokale netwerken*, de whitelist en de **extra netwerken** uit de beheerportal (bv. je VPN). Daarvandaan wordt nooit iets tegengehouden.
+
+**Hoe de agent het veilig doet**
+- Hij schrijft alleen in **eigen bestanden**: SWAG `site-confs/rzsense-http.conf` en `rzsense/server.conf`; NPM `rzsense/http.conf` en `rzsense/server.conf`.
+- In de proxy zet hij **één gemarkeerde regel** (`# rzsense-hook`) die naar zijn eigen bestand verwijst: bij SWAG in `ssl.conf` (die in elke HTTPS-site zit), bij NPM in `custom/http.conf` en `custom/server_proxy.conf` (die NPM zelf voor zulke toevoegingen heeft). De rest van die bestanden blijft precies zoals het was, ook de eigenaar.
+- Eerst een **kopie**, dan **`nginx -t`** in de container; pas als dat goed is **herladen**. Daarna kijkt hij of je sites nog antwoorden (via `127.0.0.1:443`). Gaf een site eerst een gewoon antwoord en daarna niet meer, dan zet hij **de vorige versie terug**. Een afgekeurd beleid probeert hij niet elke minuut opnieuw (pas na een wijziging of na een uur).
+- **Uit** (de hoofdschakelaar, de rol, of `PROXY_GUARD=0` op de server): de agent haalt de regel en zijn bestanden weer weg; je proxy is daarna precies zoals ervoor.
+- Alles staat in het **logboek** (doorgevoerd, mislukt met de reden, uitgezet).
+- Op de server in te stellen (`/etc/default/rzmon-agent`): `PROXY_CTR` (welke container, als er meer zijn), `PROXY_HTTPS_PORT` (als je proxy niet op 443 luistert), `PROXY_CPATH` (de configmap zoals de container hem ziet), `PROXY_GUARD=0` (nooit).
+- **Traefik** en **Caddy** worden herkend, maar nog niet ondersteund.
+
 ### 8.13 Kwetsbaarheden 🐞
 Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) horen daarbij? Standaard uit; aanzetten bij *Instellingen → 🐞 Kwetsbaarheden*. Daarna staat er een tabblad **🐞 Kwetsbaarheden** in de bovenbalk (voor beheerders en gebruikers, niet voor *alleen lezen*).
 

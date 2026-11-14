@@ -9,7 +9,7 @@ const API_GET = [
     'db_rotate_status', 'discover', 'edr_feed', 'edr_host', 'edr_rules', 'exc_export', 'exc_list', 'exc_proposals', 'export', 'features',
     'harden_detail', 'hibp_info', 'hibp_overview', 'history', 'home', 'host_exposure', 'https_info', 'ids', 'ids_access', 'ids_anom',
     'ids_attack_flow', 'ids_flows', 'ids_incident_info', 'ids_ip_events', 'ids_mitre', 'ids_protect', 'incident_info', 'incidents', 'inet_state',
-    'insight_analyses', 'insights', 'ip_info', 'ip_timeline', 'ipintel_status', 'log_context', 'log_export', 'log_facets', 'log_found', 'log_browse_get', 'job_status',
+    'insight_analyses', 'insights', 'ip_info', 'ip_timeline', 'ipintel_status', 'log_context', 'log_export', 'log_facets', 'log_found', 'log_browse_get', 'job_status', 'proxy_overview',
     'log_overview', 'log_search', 'log_source_lines', 'log_sources', 'log_library', 'log_watches', 'mds', 'my_access', 'my_logins', 'net_devices', 'net_discover',
     'net_domains', 'net_dpi', 'net_traffic_device', 'path_info', 'paths', 'podman', 'pve_overview', 'pw_reset_info', 'quiet_get', 'report',
     'report_preview', 'reports_get', 'rev', 'security', 'self_status', 'sessions', 'sessions_all', 'settings', 'settings_health', 'setup_info',

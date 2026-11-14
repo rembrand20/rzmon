@@ -13,7 +13,7 @@ final class ActionLog
 {
     /** Onderdelen (module) die in het logboek voorkomen; de agent mag alleen deze gebruiken */
     public const MODULES = ['agent', 'settings', 'checks', 'isolate', 'userlock', 'kill', 'heal', 'update', 'packages', 'edr', 'firewall', 'logs',
-        'ransom', 'patch', 'sudo', 'appctl', 'ioc', 'dns', 'harden', 'nis2', 'report', 'admin'];   // 1.235.0: admin = acties van beheerders (was audit_log)
+        'ransom', 'patch', 'sudo', 'appctl', 'ioc', 'dns', 'harden', 'nis2', 'report', 'admin', 'proxy'];   // 1.254.0: proxy = reverse proxy   // 1.235.0: admin = acties van beheerders (was audit_log)
     public const SOURCES = ['user', 'rzsense', 'agent'];
 
     /** Eén regel vastleggen. $ok: true gelukt, false mislukt, null ter info. Mag nooit iets tegenhouden. */

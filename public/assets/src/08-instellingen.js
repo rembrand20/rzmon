@@ -787,6 +787,7 @@ const SET_NAV = [
     ['vulns', L('Kwetsbaarheden'), ['vulns', 'eol', 'cvebuzz'], L('Bekende lekken in de software op je servers, en software die geen updates meer krijgt.')],
     ['mailsec', L('E-mailbeveiliging'), ['mailsec'], L('SPF, DKIM en DMARC van je domeinen: kan iemand mailen namens jou?')],
     ['sudo', L('Tijdelijk sudo'), ['sudo'], L('Een gebruiker voor korte tijd sudo geven op één server, met je wachtwoord en 2FA.')],
+    ['proxy', L('Reverse proxy'), ['proxy'], L('De apps achter je reverse proxy beschermen: adminpagina\'s alleen vanaf je netwerk, bots en te veel verzoeken.')],   // 1.254.0
     ['patch', L('Updates'), ['patch'], L('Updates installeren: met de hand, in het onderhoudsvenster of elke dag; snapshot en Home Assistant met back-up.')],
     ['hibp', L('Datalekken'), ['hibp'], L('Staan je e-mailadressen of domein in een datalek?')],
     ['netscan', L('Netwerkscan'), ['netscan'], L('Nieuwe apparaten en open poorten in je netwerk.')]]],
@@ -905,6 +906,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'patch') loadPatchSet();   // 1.230.0
   if (setSection === 'sudo') loadSudoSet();   // 1.231.0
   if (setSection === 'nis2') loadNis2();   // 1.232.0
+  if (setSection === 'proxy') loadProxyRoles();   // 1.254.0
   if (setSection === 'ids_ti') loadDnsbl();
   if (setSection === 'ids_edr' && cards.includes('ids_rules')) { loadEdrRules(); }   // 1.162.0
   if (setSection === 'db' || setSection === 'perf') loadSyscheck();   // 1.151.0: systeemcheck, cron, database, prestaties
@@ -2695,7 +2697,7 @@ const AL_MOD = {
   userlock: () => '🔒 ' + L('Gebruikers'), kill: () => '⛔ ' + L('Processen'), heal: () => '🩹 ' + L('Zelf herstellen'), update: () => '⬆️ ' + L('Agent bijwerken'),
   packages: () => '📦 ' + L('Pakketten'), edr: () => '🛡️ EDR', firewall: () => '🧯 ' + L('Firewall'), logs: () => '📜 ' + L('Logs'),
   ransom: () => '🧬 ' + L('Ransomware'), patch: () => '🩹 ' + L('Updates'), sudo: () => '🔑 ' + L('Tijdelijk sudo'), appctl: () => '🧩 ' + L('Programma\'s'),
-  ioc: () => '🔎 ' + L('Sporen'), dns: () => '🌐 DNS', harden: () => '🧰 ' + L('Hardening'), nis2: () => '🇪🇺 NIS2', report: () => '📬 ' + L('Rapporten'),
+  ioc: () => '🔎 ' + L('Sporen'), dns: () => '🌐 DNS', harden: () => '🧰 ' + L('Hardening'), nis2: () => '🇪🇺 NIS2', report: () => '📬 ' + L('Rapporten'), proxy: () => '🔀 ' + L('Reverse proxy'),
   config: () => '🛠️ ' + L('RzSense-instellingen'), admin: () => '🧑‍💼 ' + L('Beheer'),
 };
 const AL_SRC = { user: ['🧑', () => L('Beheerder')], rzsense: ['🤖', () => 'RzSense'], agent: ['🖥️', () => L('Agent')] };

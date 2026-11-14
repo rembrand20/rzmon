@@ -365,7 +365,7 @@ switch ($action) {
             'confirm_fails', 'confirm_ok', 'confirm_types', 'confirm_fast',   // 1.185.0, 1.193.0
             'net_traffic', 'net_traffic_swap', 'net_wan_cap_gb',   // 1.186.0, 1.187.0
             'logs_on', 'logs_interval', 'logs_days', 'logs_max_gb', 'logs_day_mb', 'logs_mask', 'logs_mask_extra',
-            'trend_alert_days', 'trend_ups_min', 'mailsec_on', 'eol_on', 'ransom_on', 'ransom_min', 'appctl_on', 'appctl_learn', 'ioc_on', 'patch_on', 'sudo_on', 'sudo_max', 'dnsbl_on', 'dnsbl_ti', 'dnsbl_ioc', 'dnsbl_own', 'dnsbl_allow', 'dns_nrd', 'dns_nrd_days', 'nis2_on', 'nis2_org', 'nis2_csirt'];   // 1.227.0, 1.228.0   // 1.224.0   // 1.210.0
+            'trend_alert_days', 'trend_ups_min', 'mailsec_on', 'eol_on', 'ransom_on', 'ransom_min', 'appctl_on', 'appctl_learn', 'ioc_on', 'patch_on', 'sudo_on', 'sudo_max', 'dnsbl_on', 'dnsbl_ti', 'dnsbl_ioc', 'dnsbl_own', 'dnsbl_allow', 'dns_nrd', 'dns_nrd_days', 'nis2_on', 'nis2_org', 'nis2_csirt', 'proxy_on', 'proxy_def_lan', 'proxy_def_rate', 'proxy_def_bots', 'proxy_lan_extra'];   // 1.254.0   // 1.227.0, 1.228.0   // 1.224.0   // 1.210.0
         // 1.179.0: Mastodon alleen via https naar een gewone hostnaam
         if (isset($in['cve_mastodon_url']) && trim((string) $in['cve_mastodon_url']) !== '' && !CveBuzz::safeUrl(rtrim(trim((string) $in['cve_mastodon_url']), '/'))) {
             out(['error' => t('Mastodon: vul een https-adres in, bv. https://infosec.exchange')], 422);
@@ -409,6 +409,16 @@ switch ($action) {
                 if (trim($p) !== '' && @preg_match('~' . str_replace('~', '\~', trim($p)) . '~iu', '') === false) {
                     out(['error' => t('Ongeldig patroon om te maskeren: {p}', ['p' => mb_substr(trim($p), 0, 80)])], 422);
                 }
+            }
+        }
+        // 1.254.0: reverse proxy: een bekende rate limit, en extra LAN-netwerken als geldige adressen of netwerken
+        if (isset($in['proxy_def_rate']) && !in_array((string) $in['proxy_def_rate'], ProxyGuard::RATES, true)) {
+            out(['error' => t('Ongeldige keuze')], 422);
+        }
+        if (isset($in['proxy_lan_extra'])) {
+            $bad = array_filter(parse_list((string) $in['proxy_lan_extra']), static fn($n) => !ProxyGuard::validNet(trim((string) $n)));
+            if ($bad) {
+                out(['error' => t('Geen geldig adres of netwerk: {n}', ['n' => mb_substr(implode(', ', $bad), 0, 80)])], 422);
             }
         }
         if (isset($in['confirm_grace_min'])) {

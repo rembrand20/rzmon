@@ -2906,5 +2906,54 @@ ok($stoppedOk && $j['stage'] === 'ping' && $j['total'] === 254, 'netwerkscan: st
 q("DELETE FROM jobs");
 save_setting('trusted_networks', $oldNets);
 
+section('Reverse proxy beschermen (1.254.0)');
+q("INSERT INTO hosts (name, address, mode, agent_version) VALUES ('px-host', '127.0.0.1', 'agent', '1.97.0')");
+$pxh = (int) db()->lastInsertId();
+$pxHost = q('SELECT * FROM hosts WHERE id = ?', [$pxh])->fetch();
+ok(ProxyGuard::agentLines($pxh) === [], 'proxy: zonder de rol krijgt de agent niets');
+ProxyGuard::fromAgent($pxHost, ['proxy' => ['kind' => 'swag', 'engine' => 'podman', 'ctr' => 'swag', 'hook' => 0, 'state' => 'off', 'sites' => [
+    ['name' => 'vaultwarden.*', 'names' => ['vaultwarden.*'], 'up' => 'vaultwarden:80', 'file' => 'vaultwarden.subdomain.conf'],
+    ['name' => 'portainer.*', 'names' => ['portainer.*'], 'up' => 'portainer:9000', 'file' => 'portainer.subdomain.conf'],
+    ['name' => 'blog.example.nl', 'names' => ['blog.example.nl', 'www.example.nl'], 'up' => 'ghost:2368', 'file' => 'blog.subdomain.conf'],
+    ['name' => 'kapot; rm -rf /', 'names' => [], 'up' => '', 'file' => '']]]]);
+$sites = array_column(ProxyGuard::sites($pxh), null, 'site');
+ok(count($sites) === 3 && $sites['vaultwarden.*']['lan_mode'] === 'paths' && $sites['vaultwarden.*']['lan_paths'] === '/admin'
+    && $sites['portainer.*']['lan_mode'] === 'site' && $sites['blog.example.nl']['lan_mode'] === 'off' && $sites['blog.example.nl']['rate'] === 'normal',
+    'proxy: sites van de agent (ongeldige naam overgeslagen), standaard per app: Vaultwarden /admin, Portainer hele site, blog open');
+ok(ProxyGuard::setRole($pxh, true, 'test') === null, 'proxy: rol aan');
+save_setting('proxy_on', '0');
+ok(ProxyGuard::agentLines($pxh) === ["0\tproxy\toff"], 'proxy: hoofdschakelaar uit = de agent haalt alles weg');
+save_setting('proxy_on', '1');
+$oldNets = (string) setting('trusted_networks', '');
+save_setting('trusted_networks', '192.168.1.0/24');
+save_setting('proxy_lan_extra', '10.8.0.0/24');
+$lines = ProxyGuard::agentLines($pxh);
+ok($lines[0] === "0\tproxy\ton" && str_starts_with($lines[1], "0\tproxylan\t192.168.1.0/24 10.8.0.0/24") && in_array("0\tproxysite\tvaultwarden.*\tpaths\t/admin\tnormal\t1", $lines, true)
+    && in_array("0\tproxysite\tportainer.*\tsite\t-\tnormal\t1", $lines, true), 'proxy: regels voor de agent (aan, mijn netwerk, beleid per site)');
+ok(is_string(ProxyGuard::saveSite($pxh, ['site' => 'blog.example.nl', 'lan_mode' => 'paths', 'lan_paths' => '/../etc', 'rate' => 'normal'], 'test'))
+    && is_string(ProxyGuard::saveSite($pxh, ['site' => 'blog.example.nl', 'lan_mode' => 'paths', 'lan_paths' => '', 'rate' => 'normal'], 'test'))
+    && is_string(ProxyGuard::saveSite($pxh, ['site' => 'blog.example.nl', 'lan_mode' => 'alles', 'rate' => 'normal'], 'test')),
+    'proxy: ongeldig pad, leeg pad bij adminpaden en een onbekende keuze worden geweigerd');
+ok(ProxyGuard::saveSite($pxh, ['site' => 'blog.example.nl', 'enabled' => 1, 'lan_mode' => 'paths', 'lan_paths' => '/ghost, /ghost/api/admin', 'rate' => 'strict', 'bots' => 0], 'test') === null
+    && ProxyGuard::saveSite($pxh, ['site' => 'portainer.*', 'enabled' => 0, 'lan_mode' => 'site', 'rate' => 'off', 'bots' => 1], 'test') === null, 'proxy: beleid per site opslaan');
+$lines = ProxyGuard::agentLines($pxh);
+ok(in_array("0\tproxysite\tblog.example.nl\tpaths\t/ghost,/ghost/api/admin\tstrict\t0", $lines, true) && !preg_grep('/portainer/', $lines), 'proxy: eigen beleid gaat mee; een site die uit staat niet');
+// Het kenmerk is hetzelfde als wat de agent uitrekent (sha1 van de regels proxylan en proxysite)
+$agentHash = substr(sha1(implode("\n", array_values(array_filter($lines, static fn($l) => preg_match("/^0\t(proxylan|proxysite)\t/", $l)))) . "\n"), 0, 12);
+ok(ProxyGuard::hash($pxh) === $agentHash, 'proxy: RzSense en de agent rekenen hetzelfde kenmerk uit (doorgevoerd of niet)');
+$rep = ProxyGuard::report($pxh);
+ProxyGuard::fromAgent($pxHost, ['proxy' => ['kind' => 'swag', 'hook' => 1, 'state' => 'ok', 'applied' => $agentHash, 'sites' => $rep['sites']]]);
+$ov = array_column(ProxyGuard::overview()['servers'], null, 'id')[$pxh];
+ok($ov['role'] && $ov['in_sync'] && $ov['report']['state'] === 'ok', 'proxy: overzicht ziet dat het beleid is doorgevoerd');
+ok((int) q("SELECT COUNT(*) FROM host_actions WHERE host_id = ? AND module = 'proxy'", [$pxh])->fetchColumn() >= 3, 'proxy: rol, wijzigingen en doorvoeren staan in het logboek');
+ProxyGuard::setRole($pxh, false, 'test');
+ok(ProxyGuard::agentLines($pxh) === ["0\tproxy\toff"], 'proxy: rol uit terwijl de koppeling nog staat = de agent ruimt op');
+ok(ProxyGuard::cleanPaths('/admin,/admin /x') === '/admin,/x' && ProxyGuard::cleanPaths('/a /b') === '/a,/b' && ProxyGuard::cleanPaths('/a b') === null && ProxyGuard::cleanPaths('admin') === null
+    && ProxyGuard::validNet('10.0.0.0/8') && !ProxyGuard::validNet('10.0.0.0/40') && ProxyGuard::validSite('nextcloud.*') && !ProxyGuard::validSite('a b'), 'proxy: controles op paden, netwerken en sitenamen');
+save_setting('trusted_networks', $oldNets);
+save_setting('proxy_on', '0');
+q('DELETE FROM hosts WHERE id = ?', [$pxh]);
+q('DELETE FROM proxy_sites WHERE host_id = ?', [$pxh]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

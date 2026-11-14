@@ -268,7 +268,7 @@ const STATUS_WORD = ['OK', 'WARNING', 'CRITICAL', L('onbekend')];
 const MDS_MQ = window.matchMedia ? window.matchMedia('(max-width: 720px)') : { matches: false, addEventListener() {} };
 let mdsData = null, mdsAt = 0, mdsAll = false;
 // 1.196.0: op een telefoon staan deze pagina's onder "Meer" (de tabbalk houdt mDS, Checks, Meldingen, IDS en Meer)
-const MORE_TABS = ['home', 'incidents', 'vulns', 'analytics', 'logs', 'net', 'settings'];
+const MORE_TABS = ['home', 'incidents', 'vulns', 'proxy', 'analytics', 'logs', 'net', 'settings'];
 
 let stats = { uptime: {}, sparks: {} };
 // Sorteren op de pagina Meldingen (per apparaat onthouden): { key: 'time'|'status'|'server'|'check'|'message'|'channels', dir: 1|-1 }

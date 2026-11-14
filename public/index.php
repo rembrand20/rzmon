@@ -173,6 +173,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <button class="tab" data-tab="ids" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><span class="tab-badge" id="ids-badge" hidden></span></span><span class="tab-lbl">IDS</span></button>
       <?php if ($role !== 'readonly'): ?><button class="tab" data-tab="incidents" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17.5v.01"/></svg><span class="tab-badge" id="inc-badge" hidden></span></span><span class="tab-lbl has-s"><?= th('Incidenten') ?></span><span class="tab-lbl-s"><?= th('Incid.') ?></span></button><?php endif; ?>
       <?php if ($showVulns || $showLeaks || $showEol): ?><button class="tab" data-tab="vulns" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 2 1.9 1.9M16 2l-1.9 1.9"/><path d="M9 7.1V6a3 3 0 1 1 6 0v1.1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9M6.5 13H3M21 13h-3.5M6 17l-2.5 2M18 17l2.5 2M6 9 3.5 7.5M18 9l2.5-1.5"/></svg><span class="tab-badge" id="vuln-badge" hidden></span></span><span class="tab-lbl has-s"><?= th('Kwetsbaarheden') ?></span><span class="tab-lbl-s"><?= th('CVE\'s') ?></span></button><?php endif; ?>
+      <?php if ($role === 'admin'): ?><button class="tab" data-tab="proxy" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h11l-3-3M21 17H10l3 3"/><path d="M14 7h4a3 3 0 0 1 3 3v1M10 17H6a3 3 0 0 1-3-3v-1"/></svg><span class="tab-badge s2" id="proxy-badge" hidden></span></span><span class="tab-lbl"><?= th('Reverse proxy') ?></span></button><?php endif; ?>
       <?php if ($showStats || $showNet): ?><span class="tab-group side-only" role="presentation"><?= th('Analyse en netwerk') ?></span><?php endif; ?>
       <?php if ($showStats): ?><button class="tab" data-tab="analytics" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></span><span class="tab-lbl"><?= th('Analyse') ?></span></button><?php endif; ?>
       <?php if ($showStats): ?><button class="tab" data-tab="logs" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="tab-lbl"><?= th('Logs') ?></span></button><?php endif; ?>
@@ -671,6 +672,15 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
     <?php endif; ?>
 
     <?php if ($showNet): ?>
+    <?php if ($role === 'admin'): ?>
+    <section id="tab-proxy" class="tab-panel" role="tabpanel" hidden>
+      <div class="card proxy-page">
+        <h2>🔀 <?= th('Reverse proxy') ?></h2>
+        <?= xp(t('Bescherm de apps achter je reverse proxy: adminpagina\'s alleen vanaf je eigen netwerk, slechte bots weren en te veel verzoeken afremmen.'), t('<b>Hoe het werkt:</b> de agent op de server met je reverse proxy (SWAG of Nginx Proxy Manager, in Podman of Docker) leest je sites uit en voert per site het beleid van hieronder door. Hij schrijft alleen in eigen bestanden en zet één gemarkeerde regel in de proxy die ernaar verwijst. Vóór het herladen test hij de configuratie (<code>nginx -t</code>), en daarna kijkt hij of je sites nog antwoorden; zo niet, dan zet hij de vorige versie terug. <b>Uit</b> (hier per site, of alles in de beheerportal) haalt het weer weg. <b>Je eigen netwerk</b> (Toegang → Lokale netwerken en de whitelist) wordt nooit tegengehouden.')) ?>
+        <div id="proxy-page"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+    </section>
+    <?php endif; ?>
     <section id="tab-net" class="tab-panel" role="tabpanel" hidden>
       <!-- 1.183.0: Apparaten (de lijst) en Ontdekken (wat er verandert, voorstellen, aanwezigheid) -->
       <div class="subtabs mon-tabs" role="tablist" aria-label="<?= th('Netwerk') ?>" id="net-tabs">
@@ -1275,6 +1285,20 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <div class="btn-row"><button type="button" class="btn" id="vuln-scan-now">🔍 <?= th('Nu scannen') ?></button> <span class="muted small" id="vuln-scan-info"></span></div>
         </div>
 
+        <div data-sk="proxy" class="card" id="proxy-card">
+          <h2>🔀 <?= th('Reverse proxy') ?></h2>
+          <?= xp(t('Bescherming voor de apps achter je reverse proxy. De agent op de proxy voert het door; alles is aan en uit te zetten.'), t('<b>Hoofdschakelaar:</b> uit = de agent haalt alle eigen bestanden en de regel in de proxy weer weg. <b>Standaard voor nieuwe sites:</b> wat een site krijgt die je nog niet zelf hebt ingesteld. Bekende beheerprogramma\'s (Portainer, AdGuard, Proxmox, Axigen webadmin …) worden dan helemaal alleen-LAN, bekende apps (Vaultwarden, Nextcloud, WordPress …) alleen hun adminpaden. <b>Per site</b> pas je het aan op de pagina Reverse proxy. <b>Welke server:</b> zet hieronder de rol aan bij de server waar je reverse proxy draait; alleen daar doet de agent iets.')) ?>
+          <label class="switch"><input type="checkbox" name="proxy_on"><span></span> <?= t('<b>Reverse proxy beschermen</b> (hoofdschakelaar)') ?></label>
+          <h3 class="set-sub"><?= th('Standaard voor nieuwe sites') ?></h3>
+          <label class="switch"><input type="checkbox" name="proxy_def_lan"><span></span> <?= th('Adminpagina\'s en beheerprogramma\'s alleen vanaf mijn netwerk') ?></label>
+          <label><?= th('Te veel verzoeken afremmen (rate limit)') ?>
+            <select name="proxy_def_rate"><option value="off"><?= th('Uit') ?></option><option value="normal"><?= th('Normaal (20 per seconde per adres)') ?></option><option value="strict"><?= th('Streng (5 per seconde per adres)') ?></option></select></label>
+          <label class="switch"><input type="checkbox" name="proxy_def_bots"><span></span> <?= th('Bekende aanvalstools en scanners weren (sqlmap, nikto, nuclei …)') ?></label>
+          <label><?= th('Extra netwerken die bij "mijn netwerk" horen') ?> <span class="hint"><?= th('(bv. je VPN, 10.8.0.0/24; je lokale netwerken en de whitelist tellen al mee)') ?></span><input name="proxy_lan_extra" maxlength="1000" placeholder="10.8.0.0/24"></label>
+          <h3 class="set-sub"><?= th('Welke server is de reverse proxy?') ?></h3>
+          <div id="proxy-roles"><p class="muted"><?= th('Laden…') ?></p></div>
+          <p class="small muted"><a href="#proxy" data-goto="proxy"><?= th('Naar de pagina Reverse proxy (per site instellen)') ?> →</a></p>
+        </div>
         <div data-sk="sudo" class="card" id="sudo-card">
           <h2>🔑 <?= th('Tijdelijk sudo') ?></h2>
           <?= xp(t('Geef een gebruiker op één server voor korte tijd sudo, in plaats van altijd.'), t('<b>Hoe het werkt:</b> in de <b>Agent Manager</b> (kaart <i>Tijdelijk sudo</i>) kies je een gebruiker, hoe lang (standaard 30 minuten) en waarom; je bevestigt met je <b>wachtwoord</b> en, als je die hebt, je <b>2FA-code</b>. De agent (1.93.0) zet een eigen bestand in <i>/etc/sudoers.d</i>, gecontroleerd met visudo, en haalt het op tijd weer weg; een systemd-timer is het vangnet als de agent stopt. <b>Intrekken</b> kan altijd. Root kan niet, en andere sudo-regels raakt de agent nooit aan. Alles staat in het logboek van de server.')) ?>

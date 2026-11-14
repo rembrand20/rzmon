@@ -565,6 +565,30 @@ switch ($action) {
         }
         out(['ok' => true, 'message' => $msg]);
 
+    // 1.254.0: reverse proxy beschermen (agent 1.97.0)
+    case 'proxy_overview':
+        out(ProxyGuard::overview());
+
+    case 'proxy_role':
+        $in = input();
+        $err = ProxyGuard::setRole((int) ($in['host_id'] ?? 0), !empty($in['on']), (string) $user['username']);
+        if ($err !== null) {
+            out(['error' => $err], 422);
+        }
+        out(['ok' => true]);
+
+    case 'proxy_site_save':
+        $in = input();
+        if (!empty($in['reset'])) {
+            ProxyGuard::resetSite((int) ($in['host_id'] ?? 0), strtolower((string) ($in['site'] ?? '')), (string) $user['username']);
+            out(['ok' => true]);
+        }
+        $err = ProxyGuard::saveSite((int) ($in['host_id'] ?? 0), $in, (string) $user['username']);
+        if ($err !== null) {
+            out(['error' => $err], 422);
+        }
+        out(['ok' => true]);
+
     // 1.102.0: apparaten die van buiten geweigerd werden (wachtende apparaten)
     case 'device_request_approve':
         $in = input();

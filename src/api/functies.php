@@ -435,6 +435,7 @@ function agent_tests_text(int $hostId, bool $secure = false): string
     array_push($out, ...AppControl::agentLines($hostId), ...Ioc::agentLines($hostId));   // 1.229.0: programma's en jagen (agent 1.91.0)
     array_push($out, ...Patch::agentLines($hostId));   // 1.230.0: updates (agent 1.92.0)
     array_push($out, ...Sudo::agentLines($hostId));   // 1.231.0: tijdelijk sudo (agent 1.93.0)
+    array_push($out, ...ProxyGuard::agentLines($hostId));   // 1.254.0: reverse proxy beschermen (agent 1.97.0)
     return $out ? implode("\n", $out) . "\n" : '';
 }
 

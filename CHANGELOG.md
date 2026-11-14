@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.254.0**: **reverse proxy beschermen**: per site adminpagina's alleen vanaf je eigen netwerk, rate limit en bots weren; de agent op SWAG of Nginx Proxy Manager voert het veilig door.
 - **1.253.0**: **Axigen in de bibliotheek**: tien vaste zoekacties voor de Axigen-mailserver (wachtwoorden raden, blocklist, mail blijft hangen, licentie, en meer).
 - **1.252.0**: **voortgang overal**: knoppen laten zien dat ze bezig zijn en hoe lang het meestal duurt; netwerk- en poortscan met stappen en ⏹ Stoppen, en de netwerkscan loopt door als je weggaat.
 - **1.251.0**: **logmappen per server**: kies en doorblader in RzSense in welke mappen de agent naar logs zoekt, veilig binnen een plafond op de server.
 - **1.250.0**: **bibliotheek met vaste zoekacties**: 25 kant-en-klare logmeldingen (SSH, schijffouten, geheugen, webserver, database, mail, back-up) met vinkjes toevoegen.
-- **1.249.0**: **alles in één keer bijwerken**: per CVE, per programma of alles tegelijk, met één bevestiging en per server de uitkomst.
+
+## 1.254.0 – 2026-11-14
+### Nieuw
+- **🔀 Reverse proxy beschermen** (nieuwe pagina *Reverse proxy* en *Instellingen → Beveiliging → Reverse proxy*): de apps achter je SWAG of Nginx Proxy Manager beschermen, per site aan en uit:
+  - **adminpagina's alleen vanaf je eigen netwerk**: per pad (bv. `/admin` van Vaultwarden) of de hele site (beheerprogramma's zoals Portainer of de Axigen webadmin); van buiten 403;
+  - **rate limit** (normaal of streng) tegen te veel verzoeken;
+  - **bekende aanvalstools en scanners weren** (sqlmap, nikto, nuclei …).
+  
+  Per server kies je in de beheerportal welke de reverse proxy is; alleen die agent doet iets. Bekende apps krijgen meteen een passende standaard, die je per site aanpast. De agent schrijft alleen in eigen bestanden, test met `nginx -t`, kijkt na het herladen of je sites nog antwoorden en zet anders de vorige versie terug. Met de hoofdschakelaar staat alles in één keer uit. Je eigen netwerk en de whitelist worden nooit tegengehouden. **Agent 1.97.0 nodig.**
+- **Nieuwe agent 1.97.0** (reverse proxy beschermen).
 
 ## 1.253.0 – 2026-11-13
 ### Nieuw
