@@ -44,6 +44,57 @@ final class ProxyOpen
             q('SELECT o.*, u.username FROM proxy_open o LEFT JOIN users u ON u.id = o.user_id WHERE o.revoked_at IS NULL AND o.until > NOW() ORDER BY o.until DESC LIMIT 50')->fetchAll());
     }
 
+    /**
+     * 1.271.0 (agent 1.105.0): paden van RzSense die van buiten altijd bereikbaar moeten zijn, ook als de site alleen vanaf mijn
+     * netwerk mag. Ze hebben elk hun eigen geheime token: bevestigen vanuit Pushover, de statuspagina met geheime link en
+     * heartbeats van buiten. assets/app.css is de opmaak van de bevestigpagina.
+     */
+    public const PASS = ['/ack.php', '/status.php', '/hb.php', '/assets/app.css'];
+    public const PASS_AGENT = '1.105.0';
+
+    /** De sites van RzSense op alle proxyservers (voor de waarschuwing) */
+    public static function rzSitesAll(): array
+    {
+        $out = [];
+        foreach (q('SELECT id, name, agent_version FROM hosts WHERE proxy_role = 1')->fetchAll() as $h) {
+            $sites = self::sites(ProxyGuard::sites((int) $h['id'], ProxyGuard::report((int) $h['id'])));
+            if ($sites) {
+                $out[] = ['host' => (string) $h['name'], 'agent' => (string) $h['agent_version'], 'sites' => $sites];
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * 1.271.0: staat RzSense op de proxy alleen open voor mijn netwerk terwijl er de laatste 60 dagen van buiten is ingelogd of
+     * gewerkt? Dan krijg je onderweg 403. null = niets aan de hand.
+     * @return array{status:string,text:string,n:int}|null
+     */
+    public static function selfCheck(): ?array
+    {
+        if (!ProxyGuard::enabled()) {
+            return null;
+        }
+        $rz = self::rzSitesAll();
+        if (!$rz) {
+            return null;
+        }
+        $lan = ProxyGuard::lanNets();
+        $ips = array_unique(array_merge(
+            q('SELECT DISTINCT ip FROM login_log WHERE ok = 1 AND created_at >= NOW() - INTERVAL 60 DAY LIMIT 500')->fetchAll(PDO::FETCH_COLUMN),
+            q("SELECT DISTINCT ip FROM user_sessions WHERE ip <> '' AND last_seen >= NOW() - INTERVAL 60 DAY LIMIT 500")->fetchAll(PDO::FETCH_COLUMN)));
+        $outside = array_values(array_filter(array_map('strval', $ips), static fn($ip) => filter_var($ip, FILTER_VALIDATE_IP) && !is_private_ip($ip) && !ip_in_list($ip, $lan)));
+        if (!$outside) {
+            return null;
+        }
+        $old = array_filter($rz, static fn($r) => version_compare($r['agent'], self::AGENT, '<'));
+        $way = self::enabled() && !$old;
+        $names = implode(', ', array_merge(...array_column($rz, 'sites')));
+        return $way
+            ? ['status' => 'ok', 'n' => count($outside), 'text' => t('RzSense ({s}) staat op de proxy alleen open voor je eigen netwerk, en je gebruikte het {n}× van buiten. Onderweg kom je erin via /rz-open/ (wachtwoord + 2FA).', ['s' => $names, 'n' => count($outside)])]
+            : ['status' => 'warn', 'n' => count($outside), 'text' => t('RzSense ({s}) staat op de proxy alleen open voor je eigen netwerk, maar je gebruikte het {n}× van buiten: daar krijg je nu 403. Zet Tijdelijk toegang van buiten aan (agent 1.104.0 op de proxy), of zet de site op "Adminpaden alleen mijn netwerk".', ['s' => $names, 'n' => count($outside)])];
+    }
+
     /** De site(s) van RzSense op deze proxy: naam of app erachter is rzsense/rzmon, of de site is het adres van RzSense */
     public static function sites(array $sites): array
     {

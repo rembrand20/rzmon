@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.104.0"
+AGENT_VERSION="1.105.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -3942,7 +3942,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
         sleep 2
         return 0
     }
-    px_apply_hash=$(awk -F'\t' '$1 == "0" && ($2 == "proxylan" || $2 == "proxysite" || $2 == "proxyblock" || $2 == "proxyopen")' "$t_cache" | sha1sum | cut -c1-12)
+    px_apply_hash=$(awk -F'\t' '$1 == "0" && ($2 == "proxylan" || $2 == "proxysite" || $2 == "proxyblock" || $2 == "proxyopen" || $2 == "proxypass")' "$t_cache" | sha1sum | cut -c1-12)
     px_applied=$(cat "$t_dir/proxy.applied" 2>/dev/null)
     # 3a. Uit: alles weghalen
     if [ "$px_state" = pending ] && [ "$px_mode" != on ]; then
@@ -3998,6 +3998,17 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
                 [ -n "${px_sid[$o_site]-}" ] || continue
                 px_open+="    \"~^${px_sid[$o_site]}:/rz-open(/|\$)\" 0;"$'\n'
             done < <(awk -F'\t' '$1 == "0" && $2 == "proxyopen"' "$t_cache" | head -n 10)
+            # Agent 1.105.0: paden van RzSense met een eigen token (bevestigen, statuspagina, heartbeats) altijd door.
+            # Precies dat pad (op "/" eindigend: alles eronder); hoofdletters tellen, zodat /ACK.php niet langs kan.
+            while IFS=$'\t' read -r _ _ o_site o_paths; do
+                [ -n "${px_sid[$o_site]-}" ] || continue
+                IFS=',' read -r -a o_list <<<"$o_paths"
+                for p in "${o_list[@]}"; do
+                    [[ "$p" =~ ^/[A-Za-z0-9._~/-]{1,100}$ ]] && [[ "$p" != *..* ]] || continue
+                    if [[ "$p" == */ ]]; then px_open+="    \"~^${px_sid[$o_site]}:$(sed 's/[.~]/\\&/g' <<<"$p")\" 0;"$'\n'
+                    else px_open+="    \"~^${px_sid[$o_site]}:$(sed 's/[.~]/\\&/g' <<<"$p")\$\" 0;"$'\n'; fi
+                done
+            done < <(awk -F'\t' '$1 == "0" && $2 == "proxypass"' "$t_cache" | head -n 10)
             # Virtual patching: paden met een bekend lek dicht (prefix, hoofdletters maken niet uit), voor één site of alle
             while IFS=$'\t' read -r _ _ b_site b_paths; do
                 if [ "$b_site" = '*' ]; then b_pre='[^:]*'

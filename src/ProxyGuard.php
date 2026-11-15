@@ -68,6 +68,12 @@ final class ProxyGuard
                 $out[] = implode("\t", [0, 'proxyopen', $site]);
             }
         }
+        // 1.271.0 (agent 1.105.0): bevestigen, statuspagina en heartbeats van buiten (elk met een eigen token) altijd door
+        if (version_compare((string) $h['agent_version'], ProxyOpen::PASS_AGENT, '>=')) {
+            foreach (ProxyOpen::sites(self::sites($hostId, $rep)) as $site) {
+                $out[] = implode("\t", [0, 'proxypass', $site, implode(',', ProxyOpen::PASS)]);
+            }
+        }
         // 1.258.0 (agent 1.100.0): virtual patching; een oudere agent krijgt ze niet (anders klopt het kenmerk nooit)
         if (version_compare((string) $h['agent_version'], '1.100.0', '>=')) {
             array_push($out, ...VPatch::agentLines($hostId));
@@ -323,7 +329,7 @@ final class ProxyGuard
         }
         unset($sv);
         return ['on' => self::enabled(), 'lan' => self::lanNets(), 'servers' => $servers,
-            'open' => ['on' => ProxyOpen::enabled(), 'hours' => ProxyOpen::hours(), 'list' => ProxyOpen::active(), 'path' => ProxyOpen::PATH],   // 1.270.0
+            'open' => ['on' => ProxyOpen::enabled(), 'hours' => ProxyOpen::hours(), 'list' => ProxyOpen::active(), 'path' => ProxyOpen::PATH, 'check' => ProxyOpen::selfCheck()],   // 1.270.0, 1.271.0
             'waf' => ['on' => setting('waf_on', '0') === '1', 'mode' => Waf::mode(), 'share' => setting('waf_share', '0') === '1'],
             'nids' => ['on' => setting('nids_on', '0') === '1', 'profile' => setting('nids_profile', 'balanced'), 'iface' => setting('nids_iface', 'auto'), 'min_sev' => setting('nids_min_sev', '2')],
             'av' => ['on' => setting('av_on', '0') === '1', 'notify' => setting('av_notify', '1') === '1', 'move' => setting('av_move', '1') === '1'],

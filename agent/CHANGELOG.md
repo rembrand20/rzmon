@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.105.0 – 2026-11-15
+- **Bevestigen, statuspagina en heartbeats van buiten werken weer**: staat de site van RzSense op de reverse proxy *alleen vanaf mijn netwerk*, dan laat de agent nu ook deze paden altijd door: bevestigen vanuit een Pushover-melding, de statuspagina met geheime link en heartbeats van buiten (elk met een eigen geheim token), plus de opmaak van de bevestigpagina. Alleen precies die paden; al het andere blijft van buiten dicht.
+
 ## 1.104.0 – 2026-11-15
 - **Tijdelijk toegang van buiten**: staat de site van RzSense op de reverse proxy *alleen vanaf mijn netwerk*, dan laat de agent daar één pad altijd door: `/rz-open/`. Daar log je in met wachtwoord + 2FA om je adres een paar uur toe te laten. Al het andere op die site blijft van buiten dicht (403).
 

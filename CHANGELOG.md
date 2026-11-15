@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.271.0**: **RzSense blijft van buiten bruikbaar achter de proxy**: bevestigen vanuit Pushover, de statuspagina en heartbeats werken weer, en RzSense waarschuwt als je jezelf buitensluit.
 - **1.270.0**: **tijdelijk toegang van buiten**: staat RzSense alleen open voor je eigen netwerk, dan laat je met wachtwoord + 2FA op /rz-open/ je adres een paar uur toe.
 - **1.269.0**: **proxystatistieken ook zonder rzsense.log**, en per proxyserver precies wat er nog ontbreekt als de tellingen leeg zijn.
 - **1.268.0**: **route van een aanval in het venster**: per station (firewall, proxy, WAF, Suricata, app, server erna) zie je waar een aanval stopte of doorkwam.
 - **1.267.0**: **Reverse proxy en IDS zonder dubbel werk**: de proxypagina gaat over je sites en het afstellen, alles wat je afhandelt staat bij IDS.
-- **1.266.0**: **IDS-pagina overzichtelijk**: één statusregel, vijf vaste tabbladen plus *Meer*, de incidentenlijst meteen bovenaan en het grote plaatje op het tabblad *Overzicht*.
+
+## 1.271.0 – 2026-11-15
+### Opgelost
+- **RzSense van buiten, achter de reverse proxy**: sinds 1.254.0 zet de proxy de site van RzSense standaard op *alleen vanaf mijn netwerk*. Daardoor kreeg je onderweg ook *403 Forbidden* bij **bevestigen vanuit een Pushover-melding**, de **statuspagina met geheime link** en **heartbeats van buiten**, terwijl die elk al een eigen geheim token hebben. Die paden laat de proxy nu altijd door (precies die paden, plus de opmaak van de bevestigpagina); de rest van RzSense blijft van buiten dicht. **Agent 1.105.0 nodig** op de proxyserver.
+### Nieuw
+- **Waarschuwing als je jezelf buitensluit**: staat RzSense op de proxy alleen open voor je eigen netwerk, terwijl je het de laatste 60 dagen van buiten gebruikte (inloggen of een open sessie vanaf een adres buiten je netwerk), dan zie je dat op de pagina *Reverse proxy* en bij *Hoe staat het ervoor*, met de oplossing: *Tijdelijk toegang van buiten* (/rz-open/) aanzetten, of de site op *Adminpaden alleen mijn netwerk* zetten. Is /rz-open/ al bruikbaar, dan staat er alleen uitleg.
+- **Nieuwe agent 1.105.0**.
+- Tests: de agenttest controleert dat bevestigen en de opmaak van buiten bereikbaar zijn en dat een ander pad (of `../`) dicht blijft; de PHP-tests controleren de regels naar de agent en de waarschuwing.
 
 ## 1.270.1 – 2026-11-15
 ### Opgelost

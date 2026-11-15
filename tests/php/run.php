@@ -3467,5 +3467,33 @@ q("DELETE FROM proxy_open");
 q("DELETE FROM security_fails WHERE ip LIKE '198.51.100.7%'");
 q('DELETE FROM users WHERE id = ?', [$oUid]);
 
+// 1.271.0: paden met een eigen token altijd door, en een waarschuwing als RzSense van buiten wordt gebruikt maar dicht staat
+$pOnWas = setting('proxy_on', '0');
+$pOpenWas = setting('proxy_open_on', '1');
+save_setting('proxy_on', '1');
+q("INSERT INTO hosts (name, address, mode, agent_version, proxy_role) VALUES ('ci-rzproxy', '10.0.0.91', 'agent', '1.104.0', 1)");
+$rzp = (int) db()->lastInsertId();
+$rzpHost = q('SELECT * FROM hosts WHERE id = ?', [$rzp])->fetch();
+ProxyGuard::fromAgent($rzpHost, ['proxy' => ['kind' => 'swag', 'hook' => 1, 'state' => 'ok', 'sites' => [
+    ['name' => 'rzsense.*', 'names' => ['rzsense.*'], 'up' => 'rzsense:443', 'file' => 'rzsense.subdomain.conf']]]]);
+$l104 = ProxyGuard::agentLines($rzp);
+q("UPDATE hosts SET agent_version = '1.105.0' WHERE id = ?", [$rzp]);
+$l105 = ProxyGuard::agentLines($rzp);
+ok(in_array("0\tproxyopen\trzsense.*", $l104, true) && !preg_grep('/^0\tproxypass/', $l104)
+    && in_array("0\tproxypass\trzsense.*\t/ack.php,/status.php,/hb.php,/assets/app.css", $l105, true), 'proxy: bevestigen, statuspagina en heartbeats van buiten door (alleen agent 1.105.0+)');
+q("DELETE FROM login_log WHERE ip = '198.51.100.90'");
+$admId = (int) q("SELECT id FROM users ORDER BY id LIMIT 1")->fetchColumn();
+q("INSERT INTO login_log (user_id, ok, ip, how, created_at) VALUES (?, 1, '198.51.100.90', 'test', NOW())", [$admId]);
+save_setting('proxy_open_on', '0');
+$c1 = ProxyOpen::selfCheck();
+save_setting('proxy_open_on', '1');
+$c2 = ProxyOpen::selfCheck();
+ok(($c1['status'] ?? '') === 'warn' && str_contains((string) $c1['text'], '403') && ($c2['status'] ?? '') === 'ok' && str_contains((string) $c2['text'], '/rz-open/'),
+    'proxy: RzSense van buiten gebruikt maar dicht = waarschuwing; met /rz-open/ aan = alleen uitleg');
+q("DELETE FROM login_log WHERE ip = '198.51.100.90'");
+q('DELETE FROM hosts WHERE id = ?', [$rzp]);
+save_setting('proxy_on', $pOnWas);
+save_setting('proxy_open_on', $pOpenWas);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

@@ -43,6 +43,10 @@ switch ($action) {
                 ? t('beheerders zonder 2FA: {names}', ['names' => implode(', ', $no2fa)]) : t('alle beheerders hebben 2FA'))
                 . ($local ? ' · ' . t('alleen lokaal, zonder 2FA: {names}', ['names' => implode(', ', $local)]) : ''), 'users');
         }
+        // 1.271.0: RzSense van buiten gebruikt, maar de proxy laat het alleen vanaf mijn netwerk toe
+        if (($pc = ProxyOpen::selfCheck()) !== null && $pc['status'] === 'warn') {
+            $add('proxy_self', 'warn', t('RzSense van buiten'), $pc['text'], 'proxy');
+        }
         $locks = setting('login_lock_account', '1') === '1' || setting('login_lock_ip', '1') === '1';
         $add('lock', $locks ? 'ok' : 'warn', t('Inlogbeveiliging'), $locks
             ? t('blokkeren na {n} mislukte pogingen', ['n' => (int) setting('login_lock_fails', '3')]) : t('staat uit: wachtwoorden raden wordt niet afgeremd'), 'access');

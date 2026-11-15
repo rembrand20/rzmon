@@ -10911,4 +10911,7 @@ return [
     'Laat dit adres toe' => 'Let this address in',
     'Alleen met tweestapsverificatie. Na te veel foute pogingen wordt dit adres geblokkeerd. Je krijgt een melding als een adres wordt toegelaten.' => 'Only with two-factor authentication. After too many wrong attempts this address is blocked. You get a notification when an address is let in.',
     'De pagina was verlopen. Probeer het nog eens.' => 'The page had expired. Please try again.',
+    'RzSense ({s}) staat op de proxy alleen open voor je eigen netwerk, en je gebruikte het {n}× van buiten. Onderweg kom je erin via /rz-open/ (wachtwoord + 2FA).' => 'RzSense ({s}) is only open to your own network on the proxy, and you used it {n}× from outside. On the road you get in via /rz-open/ (password + 2FA).',
+    'RzSense ({s}) staat op de proxy alleen open voor je eigen netwerk, maar je gebruikte het {n}× van buiten: daar krijg je nu 403. Zet Tijdelijk toegang van buiten aan (agent 1.104.0 op de proxy), of zet de site op "Adminpaden alleen mijn netwerk".' => 'RzSense ({s}) is only open to your own network on the proxy, but you used it {n}× from outside: there you now get 403. Turn on Temporary access from outside (agent 1.104.0 on the proxy), or set the site to "Admin paths only my network".',
+    'RzSense van buiten' => 'RzSense from outside',
 ];

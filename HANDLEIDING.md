@@ -28,6 +28,8 @@ Je kunt hem draaien op elke Linux-machine met PHP 8 en MariaDB: een VM, een Rasp
 >
 > **Tijdelijk toegang van buiten (1.270.0):** staat RzSense op de reverse proxy alleen open voor je eigen netwerk en krijg je onderweg *403 Forbidden*? Ga dan naar `https://<adres van RzSense>/rz-open/`, log in met je wachtwoord en de 2FA-code, en je huidige adres mag een paar uur bij RzSense en je andere sites (agent 1.104.0 op de proxyserver). Je krijgt er een melding van; intrekken kan op de pagina *Reverse proxy*. Wissel je van netwerk, dan doe je het opnieuw.
 >
+> **Van buiten blijft werken (1.271.0):** ook als RzSense op de proxy alleen open staat voor je eigen netwerk, werken van buiten altijd: bevestigen vanuit een Pushover-melding, de statuspagina met geheime link en heartbeats (agent 1.105.0 op de proxy). Gebruik je RzSense van buiten terwijl de site dicht staat, dan waarschuwt RzSense je op de pagina *Reverse proxy* en bij *Hoe staat het ervoor*.
+>
 > **Bijwerken sneller (1.221.0):** een update maakt een snelle back-up (zonder geschiedenis en logs; volledig als de database-opbouw verandert) en slaat over wat al goed staat. Na afloop staat de duur per stap in het venster.
 
 ---
