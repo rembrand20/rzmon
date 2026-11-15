@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.261.0**: **mobielvriendelijk**: op een telefoon worden brede tabellen kaartjes, KPI-tegels staan twee per rij en niets duwt de pagina nog breder dan het scherm.
 - **1.260.0**: **Suricata op het proxynetwerk**: meekijken tussen de proxy en je apps, met advies voor elk veld (AI of standaard).
 
+## 1.264.1 – 2026-11-15
+### Opgelost
+- Statistieken van de reverse proxy: een overbodige controle weggehaald (gevonden door de codecontrole); geen verschil in wat je ziet.
+
 ## 1.264.0 – 2026-11-14
 ### Nieuw
 - **📊 Wat er gebeurde op je reverse proxy** (bovenaan de pagina *Reverse proxy*): over 24 uur, 7 of 30 dagen, voor alle sites of één site.

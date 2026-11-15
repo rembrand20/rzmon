@@ -207,7 +207,7 @@ final class ProxyStats
     private static function underAny(string $path, string $list): bool
     {
         foreach (array_filter(array_map('trim', explode(',', $list))) as $p) {
-            if ($p !== '' && stripos($path, $p) === 0) {
+            if (stripos($path, $p) === 0) {
                 return true;
             }
         }
