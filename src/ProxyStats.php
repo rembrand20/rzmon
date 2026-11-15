@@ -66,6 +66,42 @@ final class ProxyStats
     }
 
     /**
+     * 1.269.0: per proxyserver wat er ontbreekt voor de tellingen (of dat de sites ontbreken): de agent, het proxylog, het logbestand.
+     * @param list<int> $hosts
+     * @return list<array{host:string,lvl:string,text:string}>
+     */
+    public static function why(array $hosts, bool $hasData): array
+    {
+        $out = [];
+        foreach ($hosts as $hid) {
+            $h = q('SELECT name, agent_version FROM hosts WHERE id = ?', [$hid])->fetch();
+            if (!$h) {
+                continue;
+            }
+            $w = q("SELECT path, err, full, seen_at FROM weblog_state WHERE host_id = ? AND src = 'swag'", [$hid])->fetch() ?: null;
+            $full = $w && (int) $w['full'] === 1;
+            $need = $full ? '1.102.0' : '1.103.0';
+            $name = (string) $h['name'];
+            if (!Ids::enabled()) {
+                $out[] = ['host' => $name, 'lvl' => 'bad', 'text' => t('Het IDS staat uit; dan leest de agent het proxylog niet. Zet het IDS aan bij Instellingen → IDS.')];
+            } elseif (!WebLog::enabled('swag')) {
+                $out[] = ['host' => $name, 'lvl' => 'bad', 'text' => t('Het proxylog staat uit. Zet het aan bij Instellingen → IDS → Netwerk en aanvallers.')];
+            } elseif (version_compare((string) $h['agent_version'], $need, '<')) {
+                $out[] = ['host' => $name, 'lvl' => 'bad', 'text' => t('De agent is {v}; voor de tellingen is {need} of nieuwer nodig. Werk hem bij in de Agent Manager.', ['v' => (string) ($h['agent_version'] ?: '?'), 'need' => $need])];
+            } elseif (!$w || strtotime((string) $w['seen_at']) < time() - 1800) {
+                $out[] = ['host' => $name, 'lvl' => 'bad', 'text' => t('De agent stuurt (nog) niets over het proxylog. Wacht een ronde, of kijk in de Agent Manager of de agent rapporteert.')];
+            } elseif (!empty($w['err'])) {
+                $out[] = ['host' => $name, 'lvl' => 'bad', 'text' => t('Proxylog: {err} ({path}). Vul het pad naar de log in bij Instellingen → IDS → Netwerk en aanvallers.', ['err' => (string) $w['err'], 'path' => (string) ($w['path'] ?: 'auto')])];
+            } elseif (!$hasData) {
+                $out[] = ['host' => $name, 'lvl' => 'wait', 'text' => t('Alles staat goed ({path}); de eerste tellingen komen bij de volgende ronde.', ['path' => (string) $w['path']])];
+            } elseif (!$full) {
+                $out[] = ['host' => $name, 'lvl' => 'info', 'text' => t('Leest {path}: geen verdeling per site. Met het extra logbestand rzsense.log (SWAG) zie je ook de sites en de dienst erachter.', ['path' => (string) $w['path']])];
+            }
+        }
+        return $out;
+    }
+
+    /**
      * Alles voor het blok bovenaan: tegels (met de vorige periode), redenen, statuscodes, top-lijsten en een grafiek.
      * @param string $period 24h, 7d of 30d
      * @param string $site   leeg = alle sites
@@ -94,6 +130,7 @@ final class ProxyStats
         $cur = $sum($from, date('Y-m-d H:i:s', $now + 3600));
         $prev = $sum($prevFrom, $from);
         $out['has_data'] = ($cur['total'] ?? 0) > 0 || ($prev['total'] ?? 0) > 0;
+        $out['why'] = self::why($hosts, $out['has_data']);   // 1.269.0
 
         // Redenen van de 403's uit de paden: alleen-LAN en dichtgezette paden (per proxyserver de eigen sites en regels)
         $lan = 0;

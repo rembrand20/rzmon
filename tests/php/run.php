@@ -3306,6 +3306,20 @@ foreach (['proxy_traffic', 'proxy_paths', 'proxy_uniq'] as $tb) {
     q("DELETE FROM $tb");
 }
 q("DELETE FROM waf_events WHERE host_id = ?", [$pxh]);
+// 1.269.0: waarom er geen tellingen zijn, per proxyserver
+$enWas = setting('ids_enabled', '0');
+save_setting('ids_enabled', '1');
+q("UPDATE hosts SET agent_version = '1.101.0' WHERE id = ?", [$pxh]);
+$w1 = ProxyStats::why([$pxh], false);
+q("UPDATE hosts SET agent_version = '1.103.0' WHERE id = ?", [$pxh]);
+$w2 = ProxyStats::why([$pxh], false);
+q("INSERT INTO weblog_state (host_id, src, path, err, seen_at, full) VALUES (?, 'swag', '/opt/swag/log/nginx/access.log', NULL, NOW(), 0)
+   ON DUPLICATE KEY UPDATE path = VALUES(path), err = NULL, seen_at = NOW(), full = 0", [$pxh]);
+$w3 = ProxyStats::why([$pxh], true);
+ok(($w1[0]['lvl'] ?? '') === 'bad' && str_contains($w1[0]['text'] ?? '', '1.103.0') && str_contains($w2[0]['text'] ?? '', 'proxylog')
+    && ($w3[0]['lvl'] ?? '') === 'info' && str_contains($w3[0]['text'] ?? '', 'rzsense.log'), 'proxy-statistieken: per server de reden (te oude agent, nog geen log, geen sites zonder rzsense.log)');
+save_setting('ids_enabled', $enWas);
+q("DELETE FROM weblog_state WHERE host_id = ?", [$pxh]);
 // Via de gewone weg van de agent (weblog → swag → stat); ook als het IDS uit staat
 $idsWas = setting('ids_mode', 'off');
 save_setting('ids_mode', 'off');

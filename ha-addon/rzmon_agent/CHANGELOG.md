@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.103.0 – 2026-11-15
+- **Tellingen voor de pagina Reverse proxy ook met de gewone access-log**: tot nu toe telde de agent alleen met het extra logbestand `rzsense.log` (SWAG) of de logs van Nginx Proxy Manager. Nu telt hij ook met de gewone `access.log`: verzoeken per statuscode, aangevallen paden en unieke bezoekers. Zonder `rzsense.log` staat alles onder één regel zonder site.
+
 ## 1.102.0 – 2026-11-14
 - **Statistieken voor de pagina Reverse proxy**: de agent telt in het proxylog (SWAG `rzsense.log`, of de logs per site van Nginx Proxy Manager) per site het aantal verzoeken per statuscode (2xx, 3xx, 403, 404, 429, 444, 5xx en de rest) en hoeveel 403's naar slechte bots gingen, de aangevallen paden **zonder querystring**, en het aantal nieuwe unieke bezoekers van vandaag (een lijstje IP's van vandaag blijft op de server zelf). Er gaan alleen tellingen naar RzSense, geen logregels.
 

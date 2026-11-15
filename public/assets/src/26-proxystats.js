@@ -104,7 +104,10 @@ function pxsRender(d) {
   const head = `<div class="pxs-head"><div class="seg" role="group" aria-label="${esc(L('Periode'))}">${Object.entries(per).map(([k, v]) => `<button type="button" data-pxs-period="${k}" class="seg-btn ${k === d.period ? 'active' : ''}" aria-pressed="${k === d.period}">${v}</button>`).join('')}</div>
     <select id="pxs-site" aria-label="${esc(L('Site'))}"><option value="">${L('Alle sites')}</option>${(d.sites || []).map((s) => `<option value="${esc(s)}" ${s === d.site ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></div>`;
   if (!d.hosts) { box.innerHTML = ''; return; }
-  const none = !d.has_data ? `<div class="callout small">📊 ${L('Nog geen tellingen van het proxylog. Werk de agent op de proxyserver bij naar 1.102.0 of nieuwer, en zet het proxylog aan bij Instellingen → IDS → Netwerk en aanvallers (SWAG: het logbestand rzsense.log). Wat RzSense al weet (WAF, aanvallers) staat hieronder.')}</div>` : '';
+  // 1.269.0: per proxyserver wat er ontbreekt, in plaats van één algemene melding
+  const why = (d.why || []).map((w) => `<li class="pxs-why-${w.lvl}"><b>${esc(w.host)}</b>: ${esc(w.text)}</li>`).join('');
+  const none = !d.has_data ? `<div class="callout small">📊 ${L('Nog geen tellingen van het proxylog.')}${why ? `<ul class="pxs-why">${why}</ul>` : ''} ${L('Wat RzSense al weet (WAF, aanvallers) staat hieronder.')}</div>`
+    : why ? `<div class="pxs-whyinfo small muted"><ul class="pxs-why">${why}</ul></div>` : '';
   const ex = d.extra;
   const tiles = `<div class="pxs-tiles">
     ${pxsTile('📨', L('Verzoeken'), pxsNum(t.total.n), pxsDelta(t.total.n, t.total.prev, { neutral: true }))}

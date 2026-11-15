@@ -8,11 +8,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.269.0**: **proxystatistieken ook zonder rzsense.log**, en per proxyserver precies wat er nog ontbreekt als de tellingen leeg zijn.
 - **1.268.0**: **route van een aanval in het venster**: per station (firewall, proxy, WAF, Suricata, app, server erna) zie je waar een aanval stopte of doorkwam.
 - **1.267.0**: **Reverse proxy en IDS zonder dubbel werk**: de proxypagina gaat over je sites en het afstellen, alles wat je afhandelt staat bij IDS.
 - **1.266.0**: **IDS-pagina overzichtelijk**: één statusregel, vijf vaste tabbladen plus *Meer*, de incidentenlijst meteen bovenaan en het grote plaatje op het tabblad *Overzicht*.
 - **1.265.0**: **status van een melding in één oogopslag**: vooraan elke melding geblokkeerd, tegengehouden, alleen gemeld of mogelijk gelukt, met chips om erop te filteren.
-- **1.264.0**: **statistieken van de reverse proxy**: bovenaan de pagina wat er gebeurde, wat er tegengehouden is en waarom, de meest aangevallen paden, sites en landen, in cijfers en percentages.
+
+## 1.269.0 – 2026-11-15
+### Nieuw
+- **Nieuwe agent 1.103.0**: de statistieken bovenaan de pagina *Reverse proxy* werken nu ook met de gewone `access.log` van SWAG of nginx (zonder verdeling per site). Met het extra logbestand `rzsense.log` zie je ook de sites. **Agent 1.103.0 nodig** voor tellingen uit de gewone access-log; met `rzsense.log` was 1.102.0 al genoeg.
+- **Waarom er geen tellingen zijn**: in plaats van één algemene melding staat er per proxyserver wat er ontbreekt: het IDS of het proxylog staat uit, de agent is te oud (met de versie die nodig is), de agent stuurt nog niets, het logbestand is niet gevonden of niet leesbaar (met het pad), of dat alleen de eerste ronde nog moet komen. Leest de agent de gewone access-log, dan staat er een tip voor `rzsense.log` erbij.
 
 ## 1.268.0 – 2026-11-15
 ### Nieuw

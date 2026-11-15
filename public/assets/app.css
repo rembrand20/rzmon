@@ -6252,3 +6252,8 @@ details.pxs h4 { margin: .2rem 0 .45rem; font-size: .9rem; }
 .rt-tag { font-size: .72rem; font-weight: 700; padding: .1rem .45rem; border-radius: 999px; border: 1px solid var(--border); }
 .rt-tag.rt-stop { color: var(--ok); border-color: var(--ok); } .rt-tag.rt-warn { color: var(--warn); border-color: var(--warn); }
 .rt-tag.rt-bad { color: var(--crit); border-color: var(--crit); } .rt-tag.rt-skip, .rt-tag.rt-na, .rt-tag.rt-pass { color: var(--muted); }
+
+/* 1.269.0: waarom er (nog) geen tellingen van het proxylog zijn, per proxyserver */
+.pxs-why { margin: .35rem 0 .2rem; padding-left: 1.1rem; display: grid; gap: .2rem; }
+.pxs-why .pxs-why-bad b { color: var(--crit); } .pxs-why .pxs-why-wait b { color: var(--warn); }
+.pxs-whyinfo { margin: -.2rem 0 .6rem; }

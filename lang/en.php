@@ -10871,4 +10871,13 @@ return [
     'Gestopt bij: {s}' => 'Stopped at: {s}',
     'Doorgelaten; niets verdachts gezien' => 'Let through; nothing suspicious seen',
     'Route van de aanval' => 'Route of the attack',
+    'Het IDS staat uit; dan leest de agent het proxylog niet. Zet het IDS aan bij Instellingen → IDS.' => 'The IDS is off, so the agent does not read the proxy log. Turn the IDS on under Settings → IDS.',
+    'Het proxylog staat uit. Zet het aan bij Instellingen → IDS → Netwerk en aanvallers.' => 'The proxy log is off. Turn it on under Settings → IDS → Network and attackers.',
+    'De agent is {v}; voor de tellingen is {need} of nieuwer nodig. Werk hem bij in de Agent Manager.' => 'The agent is {v}; the counts need {need} or newer. Update it in the Agent Manager.',
+    'De agent stuurt (nog) niets over het proxylog. Wacht een ronde, of kijk in de Agent Manager of de agent rapporteert.' => 'The agent is not sending anything about the proxy log (yet). Wait one round, or check in the Agent Manager whether the agent reports.',
+    'Proxylog: {err} ({path}). Vul het pad naar de log in bij Instellingen → IDS → Netwerk en aanvallers.' => 'Proxy log: {err} ({path}). Fill in the path to the log under Settings → IDS → Network and attackers.',
+    'Alles staat goed ({path}); de eerste tellingen komen bij de volgende ronde.' => 'Everything is set up ({path}); the first counts arrive with the next round.',
+    'Leest {path}: geen verdeling per site. Met het extra logbestand rzsense.log (SWAG) zie je ook de sites en de dienst erachter.' => 'Reads {path}: no breakdown per site. With the extra log file rzsense.log (SWAG) you also see the sites and the service behind them.',
+    'Nog geen tellingen van het proxylog.' => 'No counts from the proxy log yet.',
+    'Wat RzSense al weet (WAF, aanvallers) staat hieronder.' => 'What RzSense already knows (WAF, attackers) is shown below.',
 ];

@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.102.0"
+AGENT_VERSION="1.103.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -3046,7 +3046,8 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
                                 printf "\"%s\":[%d,%d,%d,%d,\"%s\",[%s]%s],", ip, n[ip], c404[ip], c40x[ip], c444[ip], u[ip], ps[ip], (ns[ip] ? ",[" s "]" : "") } }' | sed 's/,$//')
                     # Agent 1.102.0: statistieken voor de pagina Reverse proxy (alleen tellingen, geen logregels): per site het aantal
                     # verzoeken per statuscode en slechte bots, de aangevallen paden (zonder querystring) en nieuwe unieke bezoekers vandaag
-                    if [ "$w_full" = 1 ] && [ -n "$w_lines" ]; then
+                    # Agent 1.103.0: ook met de gewone access.log (zonder site: alles onder "-"); met rzsense.log per site
+                    if [ -n "$w_lines" ]; then
                         w_today=$(date +%Y%m%d)
                         find "$w_dir" -maxdepth 1 -name 'uniq-*' ! -name "uniq-$w_today" -delete 2>/dev/null
                         w_stat=$(printf '%s\n' "$w_lines" | awk -F'"' -v uf="$w_dir/uniq-$w_today" '
