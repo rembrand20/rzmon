@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.104.0 – 2026-11-15
+- **Tijdelijk toegang van buiten**: staat de site van RzSense op de reverse proxy *alleen vanaf mijn netwerk*, dan laat de agent daar één pad altijd door: `/rz-open/`. Daar log je in met wachtwoord + 2FA om je adres een paar uur toe te laten. Al het andere op die site blijft van buiten dicht (403).
+
 ## 1.103.0 – 2026-11-15
 - **Tellingen voor de pagina Reverse proxy ook met de gewone access-log**: tot nu toe telde de agent alleen met het extra logbestand `rzsense.log` (SWAG) of de logs van Nginx Proxy Manager. Nu telt hij ook met de gewone `access.log`: verzoeken per statuscode, aangevallen paden en unieke bezoekers. Zonder `rzsense.log` staat alles onder één regel zonder site.
 

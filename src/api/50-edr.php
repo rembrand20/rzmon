@@ -569,6 +569,10 @@ switch ($action) {
     case 'proxy_overview':
         out(ProxyGuard::overview());
 
+    // 1.270.0: tijdelijk toegang van buiten intrekken
+    case 'proxy_open_revoke':
+        ProxyOpen::revoke((int) (input()['id'] ?? 0), (string) $user['username']) ? out(['ok' => true]) : out(['error' => t('Niet gevonden')], 404);
+
     // 1.264.0: statistieken bovenaan de pagina Reverse proxy (24 uur, 7 of 30 dagen; alle sites of één)
     case 'proxy_stats':
         $per = (string) ($_GET['period'] ?? '24h');

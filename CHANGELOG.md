@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.270.0**: **tijdelijk toegang van buiten**: staat RzSense alleen open voor je eigen netwerk, dan laat je met wachtwoord + 2FA op /rz-open/ je adres een paar uur toe.
 - **1.269.0**: **proxystatistieken ook zonder rzsense.log**, en per proxyserver precies wat er nog ontbreekt als de tellingen leeg zijn.
 - **1.268.0**: **route van een aanval in het venster**: per station (firewall, proxy, WAF, Suricata, app, server erna) zie je waar een aanval stopte of doorkwam.
 - **1.267.0**: **Reverse proxy en IDS zonder dubbel werk**: de proxypagina gaat over je sites en het afstellen, alles wat je afhandelt staat bij IDS.
 - **1.266.0**: **IDS-pagina overzichtelijk**: één statusregel, vijf vaste tabbladen plus *Meer*, de incidentenlijst meteen bovenaan en het grote plaatje op het tabblad *Overzicht*.
-- **1.265.0**: **status van een melding in één oogopslag**: vooraan elke melding geblokkeerd, tegengehouden, alleen gemeld of mogelijk gelukt, met chips om erop te filteren.
+
+## 1.270.0 – 2026-11-15
+### Nieuw
+- **🔓 Tijdelijk toegang van buiten**: de reverse proxy zet de site van RzSense standaard op *alleen vanaf mijn netwerk*, dus op je telefoon via 5G kreeg je *403 Forbidden*. Nu kun je dan naar **`/rz-open/`** op het adres van RzSense:
+  - inloggen met je **wachtwoord én de code uit je authenticator-app** (2FA is verplicht; een account zonder 2FA kan het niet);
+  - daarna telt je huidige adres een paar uur als *mijn netwerk*, voor al je sites (standaard 8 uur, instelbaar van 1 tot 72). De proxy neemt het binnen een minuut over;
+  - je krijgt bij elk toegelaten adres een melding. Op de pagina *Reverse proxy* staat bij **🔓 Tijdelijk toegang van buiten** wie er open staat, met **Intrekken**;
+  - na te veel foute pogingen wordt het adres geblokkeerd (dezelfde regels als bij gewoon inloggen), een 2FA-code werkt maar één keer, en per gebruiker kan het hooguit 10 keer per dag.
+  - Aan/uit en de duur staan bij *Instellingen → Beveiliging → Reverse proxy*. Al het andere op de site van RzSense blijft van buiten dicht.
+- **Nieuwe agent 1.104.0** (op de proxyserver nodig voor `/rz-open/`).
 
 ## 1.269.0 – 2026-11-15
 ### Nieuw

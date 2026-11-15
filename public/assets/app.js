@@ -22151,11 +22151,12 @@ async function loadProxy() {
   if (badge) { const n = proxies.filter((s) => s.report && s.report.state === 'error').length; badge.textContent = n || ''; badge.hidden = !n; }
   const head = !d.on ? `<div class="callout">⏸ ${L('De bescherming staat uit voor alle servers.')} <a href="#settings/proxy" data-goto="settings/proxy">${L('Aanzetten in de beheerportal')} →</a></div>`
     : `<p class="small muted">${L('Mijn netwerk: {n}', { n: d.lan.map((x) => `<code>${esc(x)}</code>`).join(' ') })}</p>`;
+  const openBox = pxOpenBox(d.open);   // 1.270.0
   if (!proxies.length) {
     box.innerHTML = head + `<div class="callout">${L('Nog geen server met de rol reverse proxy.')} <a href="#settings/proxy" data-goto="settings/proxy">${L('Kies de server in de beheerportal')} →</a></div>`;
     return;
   }
-  box.innerHTML = head + proxies.map((s) => {
+  box.innerHTML = head + openBox + proxies.map((s) => {
     const r = s.report || {};
     const [cls, txt] = st[r.state || 'pending'] || st.pending;
     const sync = r.state === 'ok' && !s.in_sync ? ` <span class="lf-tag wait">⏳ ${L('nieuwe wijziging wacht op de agent')}</span>` : '';
@@ -22641,6 +22642,22 @@ async function loadProxyRoles() {
     catch (ex) { c.checked = !c.checked; toast(ex.message, 'err'); }
   };
 }
+
+// 1.270.0: tijdelijk toegang van buiten (via /rz-open/ met wachtwoord + 2FA); hier zie je wie open staat en trek je het in
+function pxOpenBox(o) {
+  if (!o || !o.on) return '';
+  const rows = (o.list || []).map((x) => `<li><code>${esc(x.ip)}</code> · ${esc(x.user || '?')} · ${esc(x.device || '')} · ${L('tot {t}', { t: esc(fmtDateTime(x.until)) })}
+    <button type="button" class="btn small-btn danger need-admin" data-pxopen-rm="${x.id}">${L('Intrekken')}</button></li>`).join('');
+  return `<div class="waf-box px-open"><div class="px-h"><b>🔓 ${L('Tijdelijk toegang van buiten')}</b>
+      <span class="muted small">${L('via {p} met wachtwoord + 2FA, {h} uur', { p: esc(o.path), h: o.hours })}</span></div>
+    ${rows ? `<ul class="px-open-l">${rows}</ul>` : `<p class="muted small">${L('Nu staat er geen adres tijdelijk open.')}</p>`}</div>`;
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest && e.target.closest('[data-pxopen-rm]');
+  if (!b) return;
+  try { await api('proxy_open_revoke', { id: +b.dataset.pxopenRm }); toast(L('Ingetrokken; de proxy sluit binnen een minuut')); } catch (ex) { toast(ex.message, 'err'); return; }
+  loadProxy();
+});
 // ---------------------------------------------------------------- 1.261.0: mobielvriendelijk
 // Op een telefoon (smaller dan 700 px) worden tabellen die niet passen kaartjes: elke rij een kaartje, elke cel een regel
 // met de kolomnaam ervoor (uit de kop van de tabel). Een tabel die wel past blijft een tabel. Werkt vanzelf voor elke tabel,

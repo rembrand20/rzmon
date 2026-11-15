@@ -1306,6 +1306,10 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
             <select name="proxy_def_rate"><option value="off"><?= th('Uit') ?></option><option value="normal"><?= th('Normaal (20 per seconde per adres)') ?></option><option value="strict"><?= th('Streng (5 per seconde per adres)') ?></option></select></label>
           <label class="switch"><input type="checkbox" name="proxy_def_bots"><span></span> <?= th('Bekende aanvalstools en scanners weren (sqlmap, nikto, nuclei …)') ?></label>
           <label><?= th('Extra netwerken die bij "mijn netwerk" horen') ?> <span class="hint"><?= th('(bv. je VPN, 10.8.0.0/24; je lokale netwerken en de whitelist tellen al mee)') ?></span><input name="proxy_lan_extra" maxlength="1000" placeholder="10.8.0.0/24"></label>
+          <h3 class="set-sub">🔓 <?= th('Tijdelijk toegang van buiten') ?></h3>
+          <?= xp(t('Staat RzSense (of een andere site) alleen open voor je eigen netwerk, dan kun je van buiten je adres een paar uur toelaten.'), t('<b>Hoe het werkt:</b> op de site van RzSense laat de proxy één pad altijd door: <i>/rz-open/</i>. Daar log je in met je wachtwoord én de code uit je authenticator-app (2FA is verplicht). Daarna telt je huidige adres een paar uur als <i>mijn netwerk</i>, voor al je sites; binnen een minuut neemt de proxy het over. <b>Veilig:</b> na te veel foute pogingen wordt het adres geblokkeerd, je krijgt bij elk toegelaten adres een melding, en op de pagina Reverse proxy trek je het met één klik in. Agent 1.104.0 nodig op de proxyserver.')) ?>
+          <label class="switch"><input type="checkbox" name="proxy_open_on"><span></span> <?= th('Tijdelijk toegang van buiten via /rz-open/ (met wachtwoord + 2FA)') ?></label>
+          <label><?= th('Hoe lang') ?> <span class="hint"><?= th('(uren, 1–72)') ?></span><input type="number" name="proxy_open_hours" min="1" max="72" step="1"></label>
           <h3 class="set-sub"><?= th('Welke server is de reverse proxy?') ?></h3>
           <div id="proxy-roles"><p class="muted"><?= th('Laden…') ?></p></div>
           <h3 class="set-sub">🧱 <?= th('WAF (aanvallen in het verkeer herkennen)') ?></h3>

@@ -145,7 +145,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
         sleep 2
         return 0
     }
-    px_apply_hash=$(awk -F'\t' '$1 == "0" && ($2 == "proxylan" || $2 == "proxysite" || $2 == "proxyblock")' "$t_cache" | sha1sum | cut -c1-12)
+    px_apply_hash=$(awk -F'\t' '$1 == "0" && ($2 == "proxylan" || $2 == "proxysite" || $2 == "proxyblock" || $2 == "proxyopen")' "$t_cache" | sha1sum | cut -c1-12)
     px_applied=$(cat "$t_dir/proxy.applied" 2>/dev/null)
     # 3a. Uit: alles weghalen
     if [ "$px_state" = pending ] && [ "$px_mode" != on ]; then
@@ -170,7 +170,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
             px_state=error; px_msg=$(cat "$t_dir/proxy.failmsg" 2>/dev/null)
         else
             # Beleid opbouwen (alles wat binnenkomt opnieuw controleren)
-            px_geo=""; px_hosts=""; px_adm=""; px_bots=""; px_rate=""; px_blk=""; px_id=0; declare -A px_seen=(); declare -A px_sid=()
+            px_geo=""; px_hosts=""; px_adm=""; px_open=""; px_bots=""; px_rate=""; px_blk=""; px_id=0; declare -A px_seen=(); declare -A px_sid=()
             for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_cache"); do
                 [[ "$n" =~ ^[0-9a-fA-F:.]+(/[0-9]{1,3})?$ ]] && px_geo+="    $n 1;"$'\n'
             done
@@ -195,6 +195,12 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
                 [ "$s_bots" = 1 ] && px_bots+="    $sid 1;"$'\n'
                 [ "$s_rate" != off ] && px_rate+="    $sid $s_rate;"$'\n'
             done < <(awk -F'\t' '$1 == "0" && $2 == "proxysite"' "$t_cache" | head -n 200)
+            # Agent 1.104.0: op de site van RzSense blijft /rz-open/ bereikbaar (inloggen met 2FA om je IP tijdelijk toe te laten),
+            # ook als de site alleen vanaf mijn netwerk mag. Staat vóór de andere regels: de eerste die past telt.
+            while IFS=$'\t' read -r _ _ o_site; do
+                [ -n "${px_sid[$o_site]-}" ] || continue
+                px_open+="    \"~^${px_sid[$o_site]}:/rz-open(/|\$)\" 0;"$'\n'
+            done < <(awk -F'\t' '$1 == "0" && $2 == "proxyopen"' "$t_cache" | head -n 10)
             # Virtual patching: paden met een bekend lek dicht (prefix, hoofdletters maken niet uit), voor één site of alle
             while IFS=$'\t' read -r _ _ b_site b_paths; do
                 if [ "$b_site" = '*' ]; then b_pre='[^:]*'
@@ -218,7 +224,7 @@ map \$host \$rzs_site {
 ${px_hosts}}
 map \"\$rzs_site:\$uri\" \$rzs_adm {
     default 0;
-${px_adm}}
+${px_open}${px_adm}}
 map \"\$rzs_site:\$uri\" \$rzs_blk {
     default 0;
 ${px_blk}}

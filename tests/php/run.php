@@ -3442,5 +3442,30 @@ ok(($states(IncidentRoute::forIncident($ri('bruteforce', '192.168.1.66', 'Brute 
 q("DELETE FROM ids_blocks WHERE ip LIKE '203.0.113.23%'");
 q('DELETE FROM hosts WHERE id = ?', [$rh['id']]);
 
+// 1.270.0: tijdelijk toegang van buiten via /rz-open/ (wachtwoord + 2FA)
+$oSecret = Totp::newSecret();
+q("INSERT INTO users (username, password_hash, role, totp_secret) VALUES ('ci-open', ?, 'admin', ?)", [password_hash('Geheim-open-123', PASSWORD_DEFAULT), $oSecret]);
+$oUid = (int) db()->lastInsertId();
+q("DELETE FROM proxy_open");
+q("DELETE FROM security_fails WHERE ip = '198.51.100.77'");
+$oBad = ProxyOpen::attempt('ci-open', 'Geheim-open-123', '000000', '198.51.100.77', 'test');
+$oPw = ProxyOpen::attempt('ci-open', 'fout', Totp::code($oSecret, intdiv(time(), 30)), '198.51.100.77', 'test');
+$oOk = ProxyOpen::attempt('ci-open', 'Geheim-open-123', Totp::code($oSecret, intdiv(time(), 30)), '198.51.100.77', 'iPhone');
+ok(!$oBad['ok'] && !$oPw['ok'] && $oOk['ok'] && in_array('198.51.100.77', ProxyOpen::ips(), true) && in_array('198.51.100.77', ProxyGuard::lanNets(), true),
+    'toegang van buiten: alleen met juist wachtwoord én 2FA; daarna telt het IP als mijn netwerk');
+$oReuse = ProxyOpen::attempt('ci-open', 'Geheim-open-123', Totp::code($oSecret, intdiv(time(), 30)), '198.51.100.78', 'test');
+ok(!$oReuse['ok'], 'toegang van buiten: dezelfde 2FA-code geen tweede keer');
+$oId = (int) q("SELECT id FROM proxy_open WHERE ip = '198.51.100.77'")->fetchColumn();
+ok(ProxyOpen::revoke($oId, 'test') && !in_array('198.51.100.77', ProxyOpen::ips(), true), 'toegang van buiten: intrekken haalt het IP weer weg');
+q("UPDATE users SET totp_secret = NULL WHERE id = ?", [$oUid]);
+$oNo2fa = ProxyOpen::attempt('ci-open', 'Geheim-open-123', '123456', '198.51.100.79', 'test');
+ok(!$oNo2fa['ok'] && str_contains((string) $oNo2fa['error'], '2FA'), 'toegang van buiten: zonder 2FA geweigerd');
+$oSites = ProxyOpen::sites([['site' => 'rzsense.*', 'up' => 'rzsense:443', 'lan_mode' => 'site', 'enabled' => true],
+    ['site' => 'portainer.*', 'up' => 'portainer:9000', 'lan_mode' => 'site', 'enabled' => true], ['site' => 'rzmon.*', 'up' => '', 'lan_mode' => 'off', 'enabled' => true]]);
+ok($oSites === ['rzsense.*'], 'toegang van buiten: alleen de site van RzSense (en alleen als die niet voor iedereen open staat)');
+q("DELETE FROM proxy_open");
+q("DELETE FROM security_fails WHERE ip LIKE '198.51.100.7%'");
+q('DELETE FROM users WHERE id = ?', [$oUid]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);
