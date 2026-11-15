@@ -22,6 +22,8 @@ Je kunt hem draaien op elke Linux-machine met PHP 8 en MariaDB: een VM, een Rasp
 >
 > **IDS overzichtelijk (1.266.0):** bovenaan één statusregel (🟢 *Rustig*, 🟠 *Aandacht*, 🔴 *Actie nodig*) met de tellers en *⛔ IP blokkeren*. Daaronder vijf vaste tabbladen: *Incidenten · Blokkades · Live · Aanvalskaart · 📊 Overzicht*; de rest (*Toegang, Programma's, Jagen, Afwijkingen, MITRE, Bescherming*) staat onder **Meer ▾**. *Incidenten* begint met *Nu aandacht nodig* en chips per server (klik om alleen die server te zien). Kerncijfers, serverkaarten en de grafieken staan op **📊 Overzicht**.
 >
+> **Reverse proxy en IDS zonder dubbel werk (1.267.0):** de pagina *Reverse proxy* gaat over je sites: instellingen, score, statistieken, paden dichtzetten en de WAF afstellen per regel. Wat er gebeurde en wat je moet doen staat alleen bij *IDS*: webaanvallen en ClamAV-vondsten (met *Terugzetten* en *Definitief weghalen* in het incident). De WAF *houdt een verzoek tegen*; *IP blokkeren (firewall)* houdt alles van een IP tegen. Klik op een IP in de proxystatistieken voor zijn tijdlijn.
+>
 > **Bijwerken sneller (1.221.0):** een update maakt een snelle back-up (zonder geschiedenis en logs; volledig als de database-opbouw verandert) en slaat over wat al goed staat. Na afloop staat de duur per stap in het venster.
 
 ---
@@ -2865,7 +2867,7 @@ Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over n
 **🛤️ Het hele pad van een webaanval** (vanaf 1.222.0, agent 1.86.0)
 - **Wat je ziet:** in een incident *Web: …* een extra blok **Pad van de aanval**: aanvaller → reverse proxy → website → dienst erachter. De rest van het incident (uitleg, noodstappen, knoppen) blijft zoals het was.
 - **Oordeel:** *Niet gelukt* als de proxy de verzoeken zelf weigerde (444), *Waarschijnlijk niet gelukt* als de dienst alleen foutcodes gaf (404, 401 …), en ⚠️ *Let op* als een verzoek een gewoon antwoord kreeg (2xx of 3xx): kijk dan of er iets gevonden is.
-- **Aanvallen per site** (*IDS → Overzicht*, 24 uur): per site de dienst, het aantal verdachte verzoeken en IP-adressen, het meest gevraagde pad en het resultaat. Scans op je kale IP-adres (zonder site) staan apart, onderaan.
+- **Webverkeer** (*IDS → Overzicht*, 24 uur, vanaf 1.267.0): één regel met het aantal verzoeken, het percentage dat tegengehouden is en het aantal aanvallers. Per site, pad en land staat het op de pagina **Reverse proxy** (knop *Per site, pad en land →*).
 - **Wat nodig is:** de gewone access-log van nginx heeft de site en de dienst niet. Daarom:
   - **SWAG** of **nginx**: zet één keer een **extra logbestand** aan. De twee regels staan kant-en-klaar bij *Instellingen → IDS → Netwerk en aanvallers* (met Kopiëren): een `log_format rzsense` en een `access_log …/rzsense.log rzsense;` in het blok `http { … }` van `nginx.conf`. Daarna SWAG herstarten (`docker restart swag`) of nginx herladen. Je bestaande `access.log` blijft precies zoals hij is, dus **fail2ban blijft gewoon werken**.
   - **Nginx Proxy Manager**: niets te doen, de logs per site hebben de site en de dienst al.
@@ -3349,13 +3351,14 @@ Een *web application firewall* bekijkt elk verzoek naar je apps op aanvallen: SQ
 | Stand | Wat er gebeurt |
 |---|---|
 | **Detecteren** (begin hier) | alles wordt gemeld, niets tegengehouden |
-| **Blokkeren, alleen zeker** | alleen misbruik van bekende lekken (de *virtuele patches* van CrowdSec) krijgt 403; vrijwel nooit vals alarm |
-| **Blokkeren, streng** | ook de brede OWASP-regels (CRS); meer bescherming, meer kans op vals alarm |
+| **Verzoek tegenhouden (alleen zeker)** | alleen misbruik van bekende lekken (de *virtuele patches* van CrowdSec) krijgt 403; vrijwel nooit vals alarm |
+| **Verzoek tegenhouden (streng)** | ook de brede OWASP-regels (CRS); meer bescherming, meer kans op vals alarm |
 
 Op de pagina **🔀 Reverse proxy** zie je per site wat de WAF de laatste 14 dagen zag, hoeveel hij tegenhield, en hoeveel hij **zou tegenhouden** bij *alleen zeker* en *streng*. Zo zie je vóór je de slider verschuift wat er verandert.
 
 **Per site**: kolom *WAF*: *Standaard (slider)*, *Alleen melden* (nooit blokkeren, bv. voor een app die veel vals alarm geeft) of *Uit*.
-**Dit is normaal**: bij een melding in de lijst *Laatste meldingen* maak je met één klik een uitzondering voor die regel op die site. De agent zet hem binnen een minuut door.
+**Afstellen per regel** (vanaf 1.267.0): de pagina toont per WAF-regel en site hoe vaak hij de laatste 14 dagen afging, hoe vaak hij tegenhield en hoeveel IP's. Is het vals alarm, kies dan **⚙️ Overslaan op deze site**: dat wordt een uitzondering voor die regel op die site, die de agent binnen een minuut doorzet. De losse aanvallen handel je af bij **IDS** (knop *Webaanvallen bij IDS →*).
+**Verschil met IP blokkeren:** de WAF houdt één *verzoek* tegen; het IP kan daarna gewoon verder. *⛔ IP blokkeren (firewall)* bij IDS houdt *alles* van dat IP tegen, op al je servers.
 **Je eigen netwerk** wordt nooit tegengehouden en niet gemeld. Elke echte melding wordt een **IDS-incident** (*webaanval*, per IP samengevat).
 **Delen met de CrowdSec-community** (standaard uit): aanvallende IP's doorgeven en hun lijst van bekende aanvallers gebruiken. Uit = alles blijft op je eigen server.
 **Uit** (de schakelaar, de rol of de hoofdschakelaar): de agent haalt de container weg; de bestanden in `/var/lib/rzsense-crowdsec` blijven staan. Haal daarna ook de vier regels weer uit SWAG.
@@ -3392,7 +3395,7 @@ ClamAV scant wat er via je apps binnenkomt (uploads in Nextcloud, bijlagen, form
 | **Melden** | een vondst wordt een **IDS-incident** (*malware*) met melding | alleen in de lijst op de pagina Reverse proxy |
 | **Verplaatsen** | het besmette bestand gaat meteen naar de **quarantaine** | het bestand blijft staan |
 
-**Quarantaine**: `/var/lib/rzsense-clamav/quarantine/<id>`, alleen voor root, het bestand met rechten 000. De oorspronkelijke plek, eigenaar en rechten worden bewaard. In de lijst *Gevonden* kies je **Terugzetten** (het bestand gaat terug en wordt daarna niet opnieuw in quarantaine gezet) of **Definitief weghalen**. De agent doet het bij zijn volgende ronde; alles staat in het logboek.
+**Quarantaine**: `/var/lib/rzsense-clamav/quarantine/<id>`, alleen voor root, het bestand met rechten 000. De oorspronkelijke plek, eigenaar en rechten worden bewaard. Een vondst wordt een IDS-incident *Malware gevonden*; in dat venster (vanaf 1.267.0; eerst op de pagina Reverse proxy) kies je **Terugzetten** (het bestand gaat terug en wordt daarna niet opnieuw in quarantaine gezet) of **Definitief weghalen**. De agent doet het bij zijn volgende ronde; alles staat in het logboek.
 
 **Veilig**:
 - ClamAV ziet de mappen **alleen-lezen**; alleen de agent verplaatst iets, en alleen binnen de gekozen mappen.

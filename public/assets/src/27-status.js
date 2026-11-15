@@ -68,3 +68,35 @@ document.addEventListener('keydown', (e) => {
   const menu = $('#ids-more-menu');
   if (e.key === 'Escape' && menu && !menu.hidden) { menu.hidden = true; $('#ids-more-btn').setAttribute('aria-expanded', 'false'); $('#ids-more-btn').focus(); }
 });
+
+// 1.267.0: geen dubbel werk tussen Reverse proxy en IDS
+/** ClamAV-vondst in het venster van een incident "Malware gevonden", met Terugzetten/Weghalen (stond eerst op de pagina Reverse proxy) */
+function avIncHtml(e) {
+  const [c, t] = AV_EV()[e.status] || ['', e.status];
+  return `<h3 class="set-sub">🦠 ${L('Bestand')}</h3><div class="av-inc" data-av-inc="${e.id}"><code class="mono small">${esc(e.path)}</code>
+    <div class="small">${esc(e.sig)} · <span class="lf-tag ${c}">${t}</span>${e.pending ? ` <span class="lf-tag wait">⏳ ${e.pending === 'restore' ? L('terugzetten') : L('weghalen')}</span>` : ''}${e.msg ? ` <span class="muted">${esc(e.msg)}</span>` : ''}</div>
+    ${e.status === 'quarantined' && !e.pending ? `<div class="btn-row need-admin"><button type="button" class="btn small-btn" data-av-inc-op="restore">↩ ${L('Terugzetten')}</button>
+      <button type="button" class="btn small-btn danger" data-av-inc-op="delete">🗑 ${L('Definitief weghalen')}</button>
+      <span class="muted small">${L('Terugzetten alleen als je zeker weet dat het bestand veilig is.')}</span></div>` : ''}</div>`;
+}
+document.addEventListener('click', async (e) => {
+  const op = e.target.closest && e.target.closest('[data-av-inc-op]');
+  if (op) {
+    const box = op.closest('[data-av-inc]');
+    if (op.dataset.avIncOp === 'delete' && !confirm(L('Het bestand definitief weghalen?'))) return;
+    try { await api('av_op', { id: +box.dataset.avInc, op: op.dataset.avIncOp }); toast(L('Aangevraagd; de agent doet het bij zijn volgende ronde')); } catch (ex) { toast(ex.message, 'err'); return; }
+    $$('[data-av-inc-op]', box).forEach((b) => { b.disabled = true; });
+    return;
+  }
+  const cat = e.target.closest && e.target.closest('[data-to-idscat]');
+  if (cat) {
+    e.preventDefault();
+    idsCat = cat.dataset.toIdscat; idsFilter = 'all'; idsTab = 'inc'; idsHost = 0;
+    const q = $('#ids-search'); if (q) q.value = '';
+    showTab('ids/inc');
+    if (idsData) renderIds();
+    return;
+  }
+  const ip = e.target.closest && e.target.closest('[data-px-ip]');
+  if (ip) { e.preventDefault(); ipTimeline(ip.dataset.pxIp); }
+});

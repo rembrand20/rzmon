@@ -209,6 +209,26 @@ final class Waf
             q('SELECT * FROM waf_events WHERE host_id = ? ORDER BY at DESC, id DESC LIMIT ' . max(1, min(200, $limit)), [$hostId])->fetchAll());
     }
 
+    /** 1.267.0: per regel en site samengevat (14 dagen), om de WAF af te stellen; de losse treffers staan bij IDS */
+    public static function byRule(int $hostId, int $limit = 20): array
+    {
+        $out = [];
+        foreach (q('SELECT site, rules, COUNT(*) AS n, SUM(blocked) AS b, SUM(vpatch) AS vp, COUNT(DISTINCT ip) AS ips, MAX(at) AS last, MAX(uri) AS uri
+                    FROM waf_events WHERE host_id = ? AND at >= NOW() - INTERVAL 14 DAY GROUP BY site, rules ORDER BY n DESC LIMIT 500', [$hostId]) as $r) {
+            $rule = explode(' ', trim((string) $r['rules']))[0] ?? '';
+            $k = $r['site'] . '|' . $rule;
+            $o = $out[$k] ?? ['site' => (string) $r['site'], 'rule' => $rule, 'n' => 0, 'blocked' => 0, 'vpatch' => false, 'ips' => 0, 'last' => '', 'uri' => (string) $r['uri']];
+            $o['n'] += (int) $r['n'];
+            $o['blocked'] += (int) $r['b'];
+            $o['vpatch'] = $o['vpatch'] || (int) $r['vp'] > 0;
+            $o['ips'] += (int) $r['ips'];   // bij elkaar opgeteld: een bovengrens
+            $o['last'] = max($o['last'], (string) $r['last']);
+            $out[$k] = $o;
+        }
+        usort($out, static fn($a, $b) => $b['n'] <=> $a['n']);
+        return array_slice($out, 0, $limit);
+    }
+
     /** Een regel is normaal voor deze site: als uitzondering bewaren (de agent zet hem in de configuratie) */
     public static function addException(int $hostId, string $site, string $rule, string $by): ?string
     {

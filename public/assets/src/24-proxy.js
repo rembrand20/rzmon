@@ -317,12 +317,9 @@ function avPanel(s) {
   const dirs = (a.dirs || []).map((d) => `<span class="av-dir ${d.ok === false ? 'bad' : ''}" title="${esc(d.ok === false ? avWhy(d.why) : '')}">${d.site ? `<b>${esc(d.site)}</b> ` : ''}<code>${esc(d.path)}</code>${d.ok === false ? ` ✘ ${esc(avWhy(d.why))}` : d.ok ? ' ✔' : ''}
       <button type="button" class="btn small-btn" data-av-rm="${esc(d.path)}" aria-label="${esc(L('Weghalen'))}">×</button></span>`).join('');
   const sugg = (a.suggest || []).map((x, i) => `<option value="${i}">${esc(x.site || x.ctr)} · ${esc(x.path)}</option>`).join('');
-  const ev = (a.events || []).map((e) => {
-    const [c, t] = AV_EV()[e.status] || ['', e.status];
-    return `<tr><td class="nowrap small">${esc(ago(e.at))}</td><td class="mono small">${esc(e.path)}</td><td class="small">${esc(e.sig)}</td>
-      <td><span class="lf-tag ${c}">${t}</span>${e.pending ? ` <span class="lf-tag wait">⏳ ${e.pending === 'restore' ? L('terugzetten') : L('weghalen')}</span>` : ''}${e.msg ? `<div class="muted small">${esc(e.msg)}</div>` : ''}</td>
-      <td class="nowrap">${e.status === 'quarantined' && !e.pending ? `<button type="button" class="btn small-btn" data-av-op="restore" data-id="${e.id}">${L('Terugzetten')}</button> <button type="button" class="btn small-btn danger" data-av-op="delete" data-id="${e.id}">${L('Definitief weghalen')}</button>` : ''}</td></tr>`;
-  }).join('');
+  // 1.267.0: de vondsten zelf (met Terugzetten/Weghalen) staan bij IDS → incident "Malware gevonden"
+  const nFound = (a.events || []).filter((e) => e.status === 'found' || e.status === 'quarantined').length;
+  const nQ = (a.events || []).filter((e) => e.status === 'quarantined').length;
   return `<div class="waf-box av-box" data-av-sugg="${esc(JSON.stringify(a.suggest || []))}"><div class="px-h"><b>🦠 ClamAV</b> <span class="lf-tag ${cls}">${txt}</span>
       <span class="muted small">${a.sigs ? esc(a.sigs) : ''}${a.mem ? ' · ' + L('{n} MB vrij', { n: a.mem }) : ''}${a.state === 'ok' ? ' · ' + L('{n} nieuwe bestanden gescand (laatste ronde)', { n: a.new || 0 }) : ''}</span><span class="lp-sp"></span>
       ${a.full === 'running' || a.full === 'requested' ? `<span class="lf-tag wait">⏳ ${L('volledige scan loopt')}</span>` : `<button type="button" class="btn small-btn" data-av-full ${(a.dirs || []).length ? '' : 'disabled'}>🔍 ${L('Volledige scan')}</button>`}</div>
@@ -334,8 +331,7 @@ function avPanel(s) {
       <select data-av-site aria-label="${esc(L('Site'))}"><option value="">${esc(L('Site (optioneel)'))}</option>${siteOpts}</select>
       <input type="text" class="mono" data-av-path placeholder="/srv/nextcloud/data" aria-label="${esc(L('Map'))}">
       <button type="button" class="btn small-btn primary" data-av-add>＋ ${L('Toevoegen')}</button></div>
-    ${ev ? `<div class="table-scroll"><table class="vuln-table"><thead><tr><th>${L('Tijd')}</th><th>${L('Bestand')}</th><th>${L('Gevonden')}</th><th></th><th></th></tr></thead><tbody>${ev}</tbody></table></div>`
-      : `<p class="muted small">${L('Nog niets gevonden.')}</p>`}</div>`;
+    <p class="small">${nFound ? `🦠 <b>${L('{n} vondsten', { n: nFound })}</b>${nQ ? ' · ' + L('{n} in quarantaine', { n: nQ }) : ''} · <a href="#ids" data-to-idscat="malware">${L('Bekijken en afhandelen bij IDS')} →</a>` : `<span class="muted">${L('Nog niets gevonden.')}</span>`}</p></div>`;
 }
 
 /** Per site: wat de WAF de laatste 14 dagen zag, en wat hij bij elke stand van de slider tegengehouden had */
@@ -349,20 +345,19 @@ function wafSiteStats(st) {
 function wafPanel(s, cfg) {
   const w = s.waf || {};
   const [cls, txt] = WAF_STATE()[w.state] || ['wait', '⏳ ' + L('wacht op de agent')];
-  const ev = (s.waf_recent || []).slice(0, 15);
-  const rows = ev.map((e) => {
-    const rule = (e.rules || '').split(' ').filter(Boolean)[0] || '';
-    return `<tr><td class="nowrap small">${esc(ago(e.at))}</td><td><code>${esc(e.ip)}</code></td><td>${esc(e.site)}<div class="muted small mono">${esc(e.uri)}</div></td>
-      <td class="small mono">${esc((e.rules || '').split(' ').slice(0, 3).join(', '))}${e.vpatch ? ` <span class="lf-tag">${L('bekend lek')}</span>` : ''}</td>
-      <td>${e.blocked ? `<span class="lf-tag bad">${L('tegengehouden')}</span>` : `<span class="lf-tag">${L('gemeld')}</span>`}</td>
-      <td>${rule && e.site ? `<button type="button" class="btn small-btn" data-waf-ex data-site="${esc(e.site)}" data-rule="${esc(rule)}" title="${esc(L('Deze regel op deze site voortaan overslaan'))}">${L('Dit is normaal')}</button>` : ''}</td></tr>`;
-  }).join('');
+  // 1.267.0: per regel en site samengevat (14 dagen) om af te stellen; de losse aanvallen handel je af bij IDS
+  const rows = (s.waf_rules || []).map((r) => `<tr><td class="small mono">${esc(r.rule || '–')}${r.vpatch ? ` <span class="lf-tag">${L('bekend lek')}</span>` : ''}<div class="muted small">${esc(r.uri || '')}</div></td>
+      <td>${esc(r.site || '–')}</td><td class="num"><b>${r.n}</b></td><td class="num">${r.blocked ? `<span class="lf-tag bad">🛡️ ${r.blocked}</span>` : `<span class="lf-tag">👁 ${L('gemeld')}</span>`}</td>
+      <td class="num hide-m">${r.ips}</td><td class="nowrap small hide-m">${esc(ago(r.last))}</td>
+      <td>${r.rule && r.site ? `<button type="button" class="btn small-btn need-admin" data-waf-ex data-site="${esc(r.site)}" data-rule="${esc(r.rule)}" title="${esc(L('Valse melding: deze regel op deze site voortaan overslaan'))}">⚙️ ${L('Overslaan op deze site')}</button>` : ''}</td></tr>`).join('');
   return `<div class="waf-box"><div class="px-h"><b>🧱 ${L('WAF')}</b> <span class="lf-tag ${cls}">${txt}</span>
-      <span class="muted small">${esc({ detect: L('Detecteren'), sure: L('Blokkeren, alleen zeker'), strict: L('Blokkeren, streng') }[cfg.mode] || cfg.mode)}</span>
-      ${w.test === 'ok' ? `<span class="lf-tag ok">✔ ${L('zelftest')}</span>` : w.test === 'fail' ? `<span class="lf-tag bad">✘ ${L('zelftest')}</span>` : ''}</div>
+      <span class="muted small">${esc({ detect: L('Detecteren'), sure: L('Verzoek tegenhouden (alleen zeker)'), strict: L('Verzoek tegenhouden (streng)') }[cfg.mode] || cfg.mode)}</span>
+      ${w.test === 'ok' ? `<span class="lf-tag ok">✔ ${L('zelftest')}</span>` : w.test === 'fail' ? `<span class="lf-tag bad">✘ ${L('zelftest')}</span>` : ''}<span class="lp-sp"></span>
+      <button type="button" class="btn small-btn" data-to-idscat="weblog">🕸️ ${L('Webaanvallen bij IDS')} →</button></div>
     ${s.waf_agent_ok === false ? `<div class="callout small">⬆ ${L('Agent 1.98.0 of nieuwer nodig voor de WAF. Werk de agent bij in de Agent Manager.')}</div>` : ''}
     ${w.msg || w.test_msg ? `<p class="small ${w.state === 'error' || w.test === 'fail' ? 'danger-txt' : 'muted'}">${esc(wafMsg(w.state === 'error' ? w.msg : (w.test_msg || w.msg)))}</p>` : ''}
-    ${ev.length ? `<div class="table-scroll"><table class="vuln-table"><thead><tr><th>${L('Tijd')}</th><th>${L('Van')}</th><th>${L('Site')}</th><th>${L('Regel')}</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+    ${rows ? `<div class="small"><b>${L('Afstellen per regel')}</b> <span class="muted">${L('(14 dagen; de losse aanvallen handel je af bij IDS)')}</span></div>
+      <div class="table-scroll"><table class="vuln-table no-stack"><thead><tr><th>${L('Regel')}</th><th>${L('Site')}</th><th class="num">${L('Keer')}</th><th class="num">${L('Tegengehouden')}</th><th class="num hide-m">${L("IP's")}</th><th class="hide-m">${L('Laatst')}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
       : `<p class="muted small">${L('Nog geen aanvallen gezien door de WAF.')}</p>`}</div>`;
 }
 
@@ -384,7 +379,7 @@ const PXF_LABEL = () => ({ proxy_on: L('Reverse proxy beschermen (hoofdschakelaa
   nids_min_sev: L('Melden vanaf ernst'), proxy_lan_extra: L('Extra netwerken die bij "mijn netwerk" horen'), nids_iface: L('Netwerkinterface') });
 function pxfVal(k, v) {
   if (k === 'proxy_def_rate') return (PX_RATE().find(([x]) => x === v) || [, v])[1];
-  if (k === 'waf_mode') return { detect: L('Detecteren'), sure: L('Blokkeren, alleen zeker'), strict: L('Blokkeren, streng') }[v] || v;
+  if (k === 'waf_mode') return { detect: L('Detecteren'), sure: L('Verzoek tegenhouden (alleen zeker)'), strict: L('Verzoek tegenhouden (streng)') }[v] || v;
   if (k === 'proxy_ai_auto') return v ? L('Automatisch') : L('Zelf beheren');
   if (k === 'nids_profile') return { web: L('Web'), balanced: L('Gebalanceerd'), full: L('Alles') }[v] || v;
   if (k === 'nids_min_sev') return { 1: L('1: alleen ernstig'), 2: L('2: ernstig en middel'), 3: L('3: alles') }[v] || v;

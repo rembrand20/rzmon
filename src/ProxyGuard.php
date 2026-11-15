@@ -302,7 +302,7 @@ final class ProxyGuard
             if (!empty($sv['role'])) {
                 $sv['waf'] = Waf::status($sv['id']);
                 $sv['waf_stats'] = Waf::stats($sv['id']);
-                $sv['waf_recent'] = Waf::recent($sv['id'], 25);
+                $sv['waf_rules'] = Waf::byRule($sv['id']);   // 1.267.0: per regel (losse treffers staan bij IDS)
                 $sv['ai'] = ProxyAdvice::state($sv['id']);   // 1.256.0
                 $sv['av'] = Av::overview($sv['id'], $sv['sites']);   // 1.257.0
                 $sv['nids'] = Nids::status($sv['id']);   // 1.260.0

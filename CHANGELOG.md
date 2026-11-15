@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.267.0**: **Reverse proxy en IDS zonder dubbel werk**: de proxypagina gaat over je sites en het afstellen, alles wat je afhandelt staat bij IDS.
 - **1.266.0**: **IDS-pagina overzichtelijk**: één statusregel, vijf vaste tabbladen plus *Meer*, de incidentenlijst meteen bovenaan en het grote plaatje op het tabblad *Overzicht*.
 - **1.265.0**: **status van een melding in één oogopslag**: vooraan elke melding geblokkeerd, tegengehouden, alleen gemeld of mogelijk gelukt, met chips om erop te filteren.
 - **1.264.0**: **statistieken van de reverse proxy**: bovenaan de pagina wat er gebeurde, wat er tegengehouden is en waarom, de meest aangevallen paden, sites en landen, in cijfers en percentages.
 - **1.263.0**: **agent-servers op internet kunnen erbij**: de reverse proxy laat je eigen agent-servers door, ook als RzSense alleen vanaf je LAN mag.
-- **1.262.0**: **eigen servers nooit buitengesloten**: het IDS blokkeert je eigen agent-servers niet meer automatisch, ook niet als ze op internet staan.
+
+## 1.267.0 – 2026-11-15
+### Nieuw
+- **🔀 Reverse proxy en IDS zonder dubbel werk**: elke pagina heeft één taak. *Reverse proxy* gaat over je sites (instellingen, score, statistieken, afstellen); wat er gebeurde en wat je moet doen staat alleen bij *IDS*.
+  - **IDS → Overzicht**: *Aanvallen per site* is vervangen door één regel **🌐 Webverkeer** (verzoeken, % tegengehouden, aanvallers) met de knop *Per site, pad en land →* naar de pagina Reverse proxy.
+  - **WAF**: in plaats van een lijst met losse meldingen een tabel **Afstellen per regel** (regel, site, aantal keer, tegengehouden, IP's, laatst; 14 dagen) met **⚙️ Overslaan op deze site** voor vals alarm, en de knop **Webaanvallen bij IDS →**.
+  - **ClamAV**: de vondsten handel je af in het IDS-incident *Malware gevonden*; daar staan nu het bestand, de status en **Terugzetten** / **Definitief weghalen**. Op de proxypagina staan de uploadmappen, de scan en *N vondsten → IDS*.
+  - **Duidelijke namen**: de WAF-standen heten *Verzoek tegenhouden (alleen zeker / streng)*, de knop bij IDS *⛔ IP blokkeren (firewall)*, met uitleg over het verschil.
+  - **IP's in de proxystatistieken** zijn klikbaar en openen de tijdlijn van dat IP.
+  - De IDS-chip *📜 Webdiensten* bevat nu ook webaanvallen met een payload en aanvallen op een bekend lek.
 
 ## 1.266.0 – 2026-11-15
 ### Nieuw

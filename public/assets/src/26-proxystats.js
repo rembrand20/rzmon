@@ -89,7 +89,7 @@ function pxsTop(d) {
     : `<p class="small muted">${L('Nog geen verzoeken geteld.')}</p>`;
   const cc = (d.countries || []).length ? `<ul class="pxs-list">${d.countries.map((r) => `<li><span>${r.cc === '??' ? '🌐 ' + L('onbekend') : `${ccFlagOf(r.cc)} ${esc(r.cc)}`}</span>${mini(r.pct)}<b>${pxsPct(r.pct)}</b><span class="muted">${pxsNum(r.hits)}</span></li>`).join('')}</ul>`
     : `<p class="small muted">${L('Geen aanvallers in deze periode.')}</p>`;
-  const ips = (d.ips || []).length ? `<ul class="pxs-list">${d.ips.map((r) => `<li><code>${esc(r.ip)}</code><span>${r.cc ? ccFlagOf(r.cc) : ''}</span><b>${pxsNum(r.hits)}</b><span>${r.blocked ? `<span class="lf-tag bad" title="${esc(L('nu geblokkeerd'))}">⛔</span>` : `<span class="muted small">${L('open')}</span>`}</span></li>`).join('')}</ul>` : '';
+  const ips = (d.ips || []).length ? `<ul class="pxs-list">${d.ips.map((r) => `<li><button type="button" class="linkbtn mono" data-px-ip="${esc(r.ip)}" title="${esc(L('Tijdlijn van dit IP'))}">${esc(r.ip)}</button><span>${r.cc ? ccFlagOf(r.cc) : ''}</span><b>${pxsNum(r.hits)}</b><span>${r.blocked ? `<span class="lf-tag bad" title="${esc(L('nu geblokkeerd'))}">⛔</span>` : `<span class="muted small">${L('open')}</span>`}</span></li>`).join('')}</ul>` : '';
   return `<div class="pxs-paths"><h4>${L('Meest aangevallen paden')}</h4>${paths}</div>
     <div class="pxs-grid">
     <div><h4>${L('Sites')}</h4>${sites}</div>

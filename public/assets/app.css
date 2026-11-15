@@ -6220,3 +6220,10 @@ details.pxs h4 { margin: .2rem 0 .45rem; font-size: .9rem; }
   .ids-more { position: static; } .ids-more > .seg-btn { width: 100%; }
   .ids-more-menu { left: 4px; right: 4px; min-width: 0; }
 }
+
+/* 1.267.0: IDS → Overzicht: één regel webverkeer (details op Reverse proxy); ClamAV-vondst in het incident */
+.ids-web { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1.2rem; }
+.ids-web .ids-web-t { flex-basis: 100%; }
+@media (min-width: 721px) { .ids-web .ids-web-t { flex-basis: auto; } }
+.av-inc { display: grid; gap: .35rem; padding: .6rem .8rem; border: 1px solid var(--border); border-radius: 10px; background: var(--card-2); }
+.av-inc code { word-break: break-all; }

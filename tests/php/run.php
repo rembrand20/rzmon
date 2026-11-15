@@ -3022,7 +3022,7 @@ $st = Waf::stats($wh);
 ok($st['blog.example.nl']['blocked'] === 1 && $st['nextcloud.*']['seen'] === 1 && $st['nextcloud.*']['blocked'] === 0, 'WAF: tellingen per site');
 ok((int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'web_attack'", [$wh])->fetchColumn() >= (Ids::enabled() ? 2 : 0), 'WAF: meldingen worden IDS-incidenten (als het IDS aan staat)');
 $ov = array_column(ProxyGuard::overview()['servers'], null, 'id')[$wh];
-ok($ov['waf']['state'] === 'ok' && isset($ov['waf_stats']['blog.example.nl']) && count($ov['waf_recent']) === 2, 'WAF: in het overzicht van de pagina');
+ok($ov['waf']['state'] === 'ok' && isset($ov['waf_stats']['blog.example.nl']) && count($ov['waf_rules']) >= 1 && $ov['waf_rules'][0]['n'] >= 1, 'WAF: per regel in het overzicht van de pagina');
 save_setting('waf_on', '0');
 ok(Waf::agentLines($wh) === ["0\twaf\toff\tsure\t0"], 'WAF: uitgezet terwijl hij draait = de agent haalt de container weg');
 save_setting('trusted_networks', $oldNets);
@@ -3153,6 +3153,10 @@ ok($ov['state'] === 'ok' && $ov['dirs'][0]['ok'] === true && $ov['dirs'][0]['sit
     && $ov['full'] === 'done' && $ov['quarantine'] === 1, 'ClamAV: overzicht met mappen, voorstellen bij de juiste site (systeemmap eruit), scan klaar');
 ok((int) q("SELECT COUNT(*) FROM ids_incidents WHERE host_id = ? AND type = 'malware'", [$vh])->fetchColumn() === (Ids::enabled() ? 2 : 0), 'ClamAV: Melden aan = IDS-incident per vondst');
 $eid = $evs['/srv/nextcloud/data/u/evil.php']['id'];
+// 1.267.0: de vondst hoort bij het incident (Terugzetten/Weghalen in het venster bij IDS)
+$fi = Av::forIncident(['type' => 'malware', 'host_id' => $vh, 'detail' => '/srv/nextcloud/data/u/evil.php · x']);
+ok($fi !== null && $fi['id'] === $eid && $fi['status'] === 'quarantined' && Av::forIncident(['type' => 'web_attack', 'host_id' => $vh, 'detail' => '']) === null,
+    'ClamAV: vondst gevonden bij het incident (alleen bij Malware gevonden)');
 ok(Av::op($eid, 'restore', 'test') === null && is_string(Av::op($evs['/srv/nextcloud/data/u/x.doc']['id'], 'delete', 'test'))
     && in_array("0\tavrestore\t20261114120000-0a0b0c0d", Av::agentLines($vh), true), 'ClamAV: terugzetten gaat naar de agent; alleen voor wat in quarantaine staat');
 Av::fromAgent($vHost, ['av' => ['state' => 'ok', 'ops' => [['qid' => '20261114120000-0a0b0c0d', 'op' => 'restore', 'ok' => 1, 'msg' => 'teruggezet']]] + $rep]);

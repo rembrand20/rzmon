@@ -223,6 +223,18 @@ final class Av
             'quarantine' => count((array) ($st['quarantine'] ?? []))];
     }
 
+    /** 1.267.0: de vondst achter een IDS-incident "Malware gevonden" (voor Terugzetten/Weghalen in het venster van het incident) */
+    public static function forIncident(array $inc): ?array
+    {
+        if (($inc['type'] ?? '') !== 'malware') {
+            return null;
+        }
+        $path = explode(' · ', (string) ($inc['detail'] ?? ''), 2)[0];
+        $r = q('SELECT * FROM av_events WHERE host_id = ? AND path = ? ORDER BY at DESC, id DESC LIMIT 1', [(int) $inc['host_id'], $path])->fetch();
+        return $r ? ['id' => (int) $r['id'], 'at' => $r['at'], 'path' => $r['path'], 'sig' => $r['sig'], 'size' => (int) $r['size'],
+            'status' => $r['status'], 'pending' => $r['op_pending'], 'msg' => $r['op_msg']] : null;
+    }
+
     public static function purge(): void
     {
         q("DELETE FROM av_events WHERE status IN ('restored', 'deleted', 'found') AND at < NOW() - INTERVAL 180 DAY");
