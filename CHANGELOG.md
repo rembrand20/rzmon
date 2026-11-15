@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.264.0**: **statistieken van de reverse proxy**: bovenaan de pagina wat er gebeurde, wat er tegengehouden is en waarom, de meest aangevallen paden, sites en landen, in cijfers en percentages.
 - **1.263.0**: **agent-servers op internet kunnen erbij**: de reverse proxy laat je eigen agent-servers door, ook als RzSense alleen vanaf je LAN mag.
 
+## 1.267.1 – 2026-11-15
+### Opgelost
+- WAF per regel: een overbodige controle weggehaald (gevonden door de codecontrole); geen verschil in wat RzSense doet.
+
 ## 1.267.0 – 2026-11-15
 ### Nieuw
 - **🔀 Reverse proxy en IDS zonder dubbel werk**: elke pagina heeft één taak. *Reverse proxy* gaat over je sites (instellingen, score, statistieken, afstellen); wat er gebeurde en wat je moet doen staat alleen bij *IDS*.

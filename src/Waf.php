@@ -215,7 +215,7 @@ final class Waf
         $out = [];
         foreach (q('SELECT site, rules, COUNT(*) AS n, SUM(blocked) AS b, SUM(vpatch) AS vp, COUNT(DISTINCT ip) AS ips, MAX(at) AS last, MAX(uri) AS uri
                     FROM waf_events WHERE host_id = ? AND at >= NOW() - INTERVAL 14 DAY GROUP BY site, rules ORDER BY n DESC LIMIT 500', [$hostId]) as $r) {
-            $rule = explode(' ', trim((string) $r['rules']))[0] ?? '';
+            $rule = explode(' ', trim((string) $r['rules']))[0];
             $k = $r['site'] . '|' . $rule;
             $o = $out[$k] ?? ['site' => (string) $r['site'], 'rule' => $rule, 'n' => 0, 'blocked' => 0, 'vpatch' => false, 'ips' => 0, 'last' => '', 'uri' => (string) $r['uri']];
             $o['n'] += (int) $r['n'];
