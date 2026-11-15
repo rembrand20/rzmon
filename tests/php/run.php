@@ -3496,6 +3496,30 @@ $l107 = $haLine();
 ok($defHa['rate'] === 'app' && $defBlog['rate'] === 'normal' && str_contains($l106, "\tnormal\t") && str_contains($l107, "\tapp\t")
     && ProxyGuard::saveSite($rzp, ['site' => 'blog.*', 'lan_mode' => 'off', 'rate' => 'app', 'bots' => 1], 'test') === null,
     'proxy: Home Assistant standaard ruim (apps), andere sites normaal; agent ouder dan 1.107.0 krijgt normaal');
+// 1.274.0: per site "toegestane apparaten mogen er van buiten bij" (alleen apparaattags, niet de noodlink)
+q("UPDATE hosts SET agent_version = '1.108.0' WHERE id = ?", [$rzp]);
+$dl0 = ProxyGuard::agentLines($rzp);   // schakelaar overal uit: geen regels
+ProxyGuard::saveSite($rzp, ['site' => 'homeassistant.*', 'enabled' => 1, 'lan_mode' => 'off', 'rate' => 'app', 'bots' => 1, 'devices' => 1], 'test');
+ProxyGuard::saveSite($rzp, ['site' => 'rzsense.*', 'enabled' => 1, 'lan_mode' => 'site', 'rate' => 'normal', 'bots' => 1, 'devices' => 1], 'test');
+ProxyGuard::saveSite($rzp, ['site' => 'homeassistant.*', 'enabled' => 1, 'lan_mode' => 'off', 'rate' => 'normal', 'bots' => 1], 'test');   // zonder devices: blijft aan
+ProxyOpen::deviceSeen(['id' => $tDev2 = (int) (function () use ($tUser) {
+    q("INSERT INTO trusted_devices (user_id, name, key_hash, created_at, last_seen) VALUES (?, 'ci-telefoon2', ?, NOW(), NOW())", [$tUser['id'], hash('sha256', 'y')]);
+    return db()->lastInsertId();
+})(), 'user_id' => $tUser['id']]);
+$devTag = (string) q('SELECT tag FROM proxy_tags WHERE device_id = ?', [$tDev2])->fetchColumn();
+ProxyOpen::doorTag((int) $tUser['id']);
+$dl1 = ProxyGuard::agentLines($rzp);
+$trust = (string) current(preg_grep('/^0\tproxytrust\t/', $dl1) ?: ['']);
+q("UPDATE hosts SET agent_version = '1.107.0' WHERE id = ?", [$rzp]);
+$dl7 = ProxyGuard::agentLines($rzp);
+$buWas = setting('base_url', '');
+save_setting('base_url', 'https://rzsense.voorbeeld.nl');
+ok(!preg_grep('/^0\tproxy(trust|dev)\t/', $dl0) && in_array("0\tproxydev\thomeassistant.*", $dl1, true) && !in_array("0\tproxydev\trzsense.*", $dl1, true)
+    && $trust === "0\tproxytrust\t$devTag" && !preg_grep('/^0\tproxy(trust|dev)\t/', $dl7)
+    && ProxyOpen::cookieDomain() === 'voorbeeld.nl' && ProxyOpen::parentDomain('voorbeeld.nl') === 'voorbeeld.nl' && ProxyOpen::parentDomain('10.0.0.5') === '',
+    'proxy: toegestane apparaten per site (schakelaar blijft bij opslaan zonder keuze), alleen apparaattags, RzSense-site niet dubbel, oudere agent niets; cookie voor het hele domein');
+save_setting('base_url', $buWas);
+q('DELETE FROM proxy_tags');
 q('DELETE FROM proxy_sites WHERE host_id = ?', [$rzp]);
 q("DELETE FROM login_log WHERE ip = '198.51.100.90'");
 q('DELETE FROM hosts WHERE id = ?', [$rzp]);

@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.108.0 – 2026-11-15
+- **Toegestane apparaten van RzSense per site**: zet je in RzSense bij een site *Toegestane apparaten* aan, dan laat de proxy je toegestane apparaten (hun eigen tag) daar van buiten door, ook als de site alleen vanaf je eigen netwerk mag, en zonder rate limit. Dichtgezette paden (virtual patching), de WAF, de IDS-blokkades en het inloggen bij de app blijven gewoon gelden. Alleen de tags van apparaten tellen, niet die van een noodlink.
+
 ## 1.107.0 – 2026-11-15
 - **Vaste bestanden tellen niet meer mee voor de rate limit van de reverse proxy**: scripts, opmaak, afbeeldingen, iconen en lettertypes (en alles onder `/frontend_latest/` en `/static/`) worden niet meer afgeremd. Een dashboard van Home Assistant haalt er in één keer tientallen op; van buiten kreeg je dan `429` en in de app *Error while loading page*.
 - **Nieuwe stand voor de rate limit: *ruim (apps)***: 50 verzoeken per seconde per adres met pieken tot 300, voor apps met een mobiele app (Home Assistant, Nextcloud, Jellyfin …). Inlogpaden van zo'n site (`/auth/…`, `/login` …) blijven onder de normale limiet, zodat wachtwoorden raden afgeremd blijft.

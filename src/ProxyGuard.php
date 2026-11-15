@@ -76,6 +76,18 @@ final class ProxyGuard
                 $out[] = implode("\t", [0, 'proxytags', $site, $tags !== '' ? $tags : '-']);
             }
         }
+        // 1.274.0 (agent 1.108.0): sites waar toegestane apparaten (hun tag) van buiten bij mogen, ook als de site alleen vanaf
+        // mijn netwerk mag, en zonder rate limit. Alleen de tags van apparaten, niet die van een noodlink.
+        if (version_compare((string) $h['agent_version'], ProxyOpen::DEV_AGENT, '>=')) {
+            $dev = array_column(array_filter(self::sites($hostId, $rep), static fn($s) => $s['enabled'] && $s['devices'] && !$s['rz']), 'site');
+            if ($dev) {
+                $tags = implode(',', ProxyOpen::deviceTags());
+                $out[] = implode("\t", [0, 'proxytrust', $tags !== '' ? $tags : '-']);
+                foreach ($dev as $site) {
+                    $out[] = implode("\t", [0, 'proxydev', $site]);
+                }
+            }
+        }
         // 1.271.0 (agent 1.105.0): bevestigen, statuspagina en heartbeats van buiten (elk met een eigen token) altijd door
         if (version_compare((string) $h['agent_version'], ProxyOpen::PASS_AGENT, '>=')) {
             foreach (ProxyOpen::sites(self::sites($hostId, $rep)) as $site) {
@@ -237,7 +249,7 @@ final class ProxyGuard
             $rate = 'app';   // 1.273.0: apps met een mobiele app laden veel tegelijk (Home Assistant: tientallen bestanden per dashboard)
         }
         return ['enabled' => true, 'lan_mode' => $mode, 'lan_paths' => $paths, 'rate' => $rate,
-            'bots' => setting('proxy_def_bots', '1') === '1', 'custom' => false, 'waf' => 'inherit', 'waf_except' => ''];
+            'bots' => setting('proxy_def_bots', '1') === '1', 'devices' => setting('proxy_def_devices', '0') === '1', 'custom' => false, 'waf' => 'inherit', 'waf_except' => ''];
     }
 
     /** Alle sites die de agent vond, met het beleid (eigen instelling of de standaard) */
@@ -253,11 +265,16 @@ final class ProxyGuard
             $d = self::defaults($s['name'], (string) ($s['up'] ?? '') . ' ' . (string) ($s['file'] ?? ''));
             if (isset($own[$s['name']])) {
                 $o = $own[$s['name']];
-                $d = ['enabled' => (bool) $o['enabled'], 'lan_mode' => $o['lan_mode'], 'lan_paths' => $o['lan_paths'], 'rate' => $o['rate'], 'bots' => (bool) $o['bots'],
+                $d = ['enabled' => (bool) $o['enabled'], 'lan_mode' => $o['lan_mode'], 'lan_paths' => $o['lan_paths'], 'rate' => $o['rate'], 'bots' => (bool) $o['bots'], 'devices' => (bool) ($o['devices'] ?? false),
                     'custom' => true, 'updated_by' => $o['updated_by'], 'updated_at' => $o['updated_at'], 'source' => $o['source'] ?? 'user', 'ai_reason' => $o['ai_reason'] ?? '', 'waf' => $o['waf'] ?? 'inherit', 'waf_except' => $o['waf_except'] ?? ''];
             }
             $out[] = ['site' => $s['name'], 'names' => $s['names'], 'up' => $s['up'], 'file' => $s['file'], 'code' => $s['code'] ?? 0] + $d;
         }
+        $rz = ProxyOpen::sites($out);   // 1.274.0: de site van RzSense zelf (toegestane apparaten altijd)
+        foreach ($out as &$o) {
+            $o['rz'] = in_array($o['site'], $rz, true);
+        }
+        unset($o);
         return $out;
     }
 
@@ -280,11 +297,17 @@ final class ProxyGuard
         if ($mode === 'paths' && $paths === '') {
             return t('Vul minstens één adminpad in, of kies "hele site" of "uit"');
         }
+        $new = !q('SELECT 1 FROM proxy_sites WHERE host_id = ? AND site = ?', [$hostId, $site])->fetchColumn();
         q('INSERT INTO proxy_sites (host_id, site, enabled, lan_mode, lan_paths, rate, bots, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
             ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), lan_mode = VALUES(lan_mode), lan_paths = VALUES(lan_paths), rate = VALUES(rate), bots = VALUES(bots),
             updated_by = VALUES(updated_by), updated_at = VALUES(updated_at)',
             [$hostId, $site, empty($in['enabled']) ? 0 : 1, $mode, $paths, $rate, empty($in['bots']) ? 0 : 1, mb_substr($by, 0, 100)]);
         q("UPDATE proxy_sites SET source = 'user', ai_reason = '' WHERE host_id = ? AND site = ?", [$hostId, $site]);   // 1.256.0: ProxyAdvice zet 'ai' daarna zelf
+        // 1.274.0: toegestane apparaten mogen er van buiten bij. Niet meegegeven (bv. het AI-advies) = laten zoals het was; nieuw = de standaard
+        if (array_key_exists('devices', $in) || $new) {
+            $dev = array_key_exists('devices', $in) ? !empty($in['devices']) : setting('proxy_def_devices', '0') === '1';
+            q('UPDATE proxy_sites SET devices = ? WHERE host_id = ? AND site = ?', [$dev ? 1 : 0, $hostId, $site]);
+        }
         // 1.255.0: WAF per site (standaard, alleen melden of uit) en de uitzonderingen
         if (isset($in['waf']) && in_array((string) $in['waf'], Waf::SITE_MODES, true)) {
             q('UPDATE proxy_sites SET waf = ? WHERE host_id = ? AND site = ?', [(string) $in['waf'], $hostId, $site]);
@@ -326,7 +349,7 @@ final class ProxyGuard
             }
             $sites = self::sites((int) $h['id'], $rep);
             $servers[] = ['id' => (int) $h['id'], 'name' => $h['name'], 'role' => (bool) $h['proxy_role'], 'looks' => $looks, 'agent_ok' => self::agentOk($h['agent_version']), 'waf_agent_ok' => version_compare((string) $h['agent_version'], '1.98.0', '>='),
-                'report' => $rep, 'sites' => $sites, 'in_sync' => $rep && ($rep['state'] ?? '') === 'ok' && ($rep['applied'] ?? '') === self::hash((int) $h['id'])];
+                'report' => $rep, 'sites' => $sites, 'dev_agent_ok' => version_compare((string) $h['agent_version'], ProxyOpen::DEV_AGENT, '>='), 'in_sync' => $rep && ($rep['state'] ?? '') === 'ok' && ($rep['applied'] ?? '') === self::hash((int) $h['id'])];
         }
         foreach ($servers as &$sv) {   // 1.255.0: de WAF per server (stand, meldingen per site, de laatste meldingen)
             if (!empty($sv['role'])) {
@@ -350,7 +373,8 @@ final class ProxyGuard
             'nids' => ['on' => setting('nids_on', '0') === '1', 'profile' => setting('nids_profile', 'balanced'), 'iface' => setting('nids_iface', 'auto'), 'min_sev' => setting('nids_min_sev', '2')],
             'av' => ['on' => setting('av_on', '0') === '1', 'notify' => setting('av_notify', '1') === '1', 'move' => setting('av_move', '1') === '1'],
             'ai' => ['on' => ProxyAdvice::on(), 'auto' => ProxyAdvice::auto(), 'ai_on' => Ai::on(), 'set' => setting('proxy_ai_on', '0') === '1'],
-            'defaults' => ['lan' => setting('proxy_def_lan', '1') === '1', 'rate' => setting('proxy_def_rate', 'normal'), 'bots' => setting('proxy_def_bots', '1') === '1']];
+            'defaults' => ['lan' => setting('proxy_def_lan', '1') === '1', 'rate' => setting('proxy_def_rate', 'normal'), 'bots' => setting('proxy_def_bots', '1') === '1', 'devices' => setting('proxy_def_devices', '0') === '1'],
+            'cookie_domain' => ProxyOpen::cookieDomain()];
     }
 
     /** Kenmerk van het beleid zoals de agent het ook berekent (sha1 van de regels, eerste 12 tekens) */

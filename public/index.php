@@ -1306,6 +1306,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <label><?= th('Te veel verzoeken afremmen (rate limit)') ?>
             <select name="proxy_def_rate"><option value="off"><?= th('Uit') ?></option><option value="normal"><?= th('Normaal (20 per seconde per adres)') ?></option><option value="strict"><?= th('Streng (5 per seconde per adres)') ?></option></select></label>
           <label class="switch"><input type="checkbox" name="proxy_def_bots"><span></span> <?= th('Bekende aanvalstools en scanners weren (sqlmap, nikto, nuclei …)') ?></label>
+          <label class="switch"><input type="checkbox" name="proxy_def_devices"><span></span> <?= th('Toegestane apparaten van RzSense mogen er van buiten bij (ook als de site alleen vanaf mijn netwerk mag, en zonder rate limit)') ?></label>
           <label><?= th('Extra netwerken die bij "mijn netwerk" horen') ?> <span class="hint"><?= th('(bv. je VPN, 10.8.0.0/24; je lokale netwerken en de whitelist tellen al mee)') ?></span><input name="proxy_lan_extra" maxlength="1000" placeholder="10.8.0.0/24"></label>
           <h3 class="set-sub"><?= th('Welke server is de reverse proxy?') ?></h3>
           <div id="proxy-roles"><p class="muted"><?= th('Laden…') ?></p></div>

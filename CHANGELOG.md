@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.274.0**: **toegestane apparaten per site**: met één schakelaar kom je met je eigen telefoon onderweg ook bij beheerprogramma's achter de proxy.
 - **1.273.0**: **apps als Home Assistant laden weer achter de proxy**: vaste bestanden tellen niet mee voor de rate limit, en een nieuwe stand *ruim (apps)*.
 - **1.272.0**: **van buiten weer binnen met je toegestane apparaten**: de reverse proxy volgt de apparaatsleutels van RzSense en de noodlink; /rz-open/ is weg.
 - **1.271.0**: **RzSense blijft van buiten bruikbaar achter de proxy**: bevestigen vanuit Pushover, de statuspagina en heartbeats werken weer, en RzSense waarschuwt als je jezelf buitensluit.
 - **1.269.0**: **proxystatistieken ook zonder rzsense.log**, en per proxyserver precies wat er nog ontbreekt als de tellingen leeg zijn.
-- **1.268.0**: **route van een aanval in het venster**: per station (firewall, proxy, WAF, Suricata, app, server erna) zie je waar een aanval stopte of doorkwam.
+
+## 1.274.0 – 2026-11-15
+### Nieuw
+- **Toegestane apparaten per site langs de reverse proxy** (Reverse proxy → kolom *Toegestane apparaten*). Met de schakelaar aan komen je toegestane apparaten van RzSense (Mijn account → Toegestane apparaten) ook bij die site van buiten, zelfs als hij *alleen vanaf mijn netwerk* mag, en zonder rate limit. Handig voor beheerprogramma's als Portainer of AdGuard onderweg. De WAF, dichtgezette paden, de IDS-blokkades en het inloggen bij de app zelf blijven gewoon werken.
+  - Standaard **uit**; bij de site van RzSense zelf altijd aan. De standaard voor nieuwe sites stel je in bij Beheerportal → Beveiliging → Reverse proxy.
+  - De sleutel geldt dan voor het hele domein van RzSense (bv. alle sites onder `voorbeeld.nl`). Een apparaat krijgt hem als het RzSense opent; een app met eigen cookies (zoals de Home Assistant-app) moet RzSense daarvoor één keer zelf openen.
+  - Alleen de sleutels van toegestane apparaten tellen, niet die van een noodlink. Intrekken sluit ook deze sites.
+- Nieuwe agent 1.108.0 (nodig op de proxyserver).
 
 ## 1.273.0 – 2026-11-15
 ### Opgelost

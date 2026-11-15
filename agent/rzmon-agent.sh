@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.107.0"
+AGENT_VERSION="1.108.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -3942,7 +3942,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
         sleep 2
         return 0
     }
-    px_apply_hash=$(awk -F'\t' '$1 == "0" && ($2 == "proxylan" || $2 == "proxysite" || $2 == "proxyblock" || $2 == "proxytags" || $2 == "proxypass")' "$t_cache" | sha1sum | cut -c1-12)
+    px_apply_hash=$(awk -F'\t' '$1 == "0" && ($2 == "proxylan" || $2 == "proxysite" || $2 == "proxyblock" || $2 == "proxytags" || $2 == "proxypass" || $2 == "proxytrust" || $2 == "proxydev")' "$t_cache" | sha1sum | cut -c1-12)
     px_applied=$(cat "$t_dir/proxy.applied" 2>/dev/null)
     # 3a. Uit: alles weghalen
     if [ "$px_state" = pending ] && [ "$px_mode" != on ]; then
@@ -3970,7 +3970,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
             # Agent 1.107.0: vaste bestanden (scripts, opmaak, afbeeldingen, lettertypes; /frontend_latest/ en /static/) tellen niet
             # mee voor de rate limit: een dashboard van Home Assistant haalt er tientallen tegelijk op. Stand "app" = ruim (50/s,
             # pieken tot 300), maar inlogpaden van zo'n site blijven onder de normale limiet (wachtwoorden raden blijft afgeremd).
-            px_geo=""; px_hosts=""; px_adm=""; px_open=""; px_tag=""; px_nood=""; px_bots=""; px_rate=""; px_blk=""; px_id=0; declare -A px_seen=(); declare -A px_sid=()
+            px_geo=""; px_hosts=""; px_adm=""; px_open=""; px_tag=""; px_nood=""; px_trust=""; px_dev=""; px_bots=""; px_rate=""; px_blk=""; px_id=0; declare -A px_seen=(); declare -A px_sid=()
             for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_cache"); do
                 [[ "$n" =~ ^[0-9a-fA-F:.]+(/[0-9]{1,3})?$ ]] && px_geo+="    $n 1;"$'\n'
             done
@@ -4008,6 +4008,14 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
                 px_nood+="    \"~^$o_sid:/(index\\.php)?:[A-Za-z0-9._@-]{1,64}:\$\" 1;"$'\n'
                 px_nood+="    \"~^$o_sid:/(index\\.php)?::[0-9a-f]{48}\$\" 1;"$'\n'
             done < <(awk -F'\t' '$1 == "0" && $2 == "proxytags"' "$t_cache" | head -n 10)
+            # Agent 1.108.0: sites waar de toegestane apparaten van RzSense (hun tag, cookie "pxt") van buiten bij mogen, ook als de
+            # site alleen vanaf mijn netwerk mag, en zonder rate limit. De WAF, de IDS-blokkades en het inloggen bij de app blijven.
+            for g in $(awk -F'\t' '$1 == "0" && $2 == "proxytrust" { gsub(",", " ", $3); print $3; exit }' "$t_cache"); do
+                [[ "$g" =~ ^[0-9a-f]{32}$ ]] && px_trust+="    $g 1;"$'\n'
+            done
+            while IFS=$'\t' read -r _ _ d_site; do
+                [ -n "${px_sid[$d_site]-}" ] && px_dev+="    ${px_sid[$d_site]} 1;"$'\n'
+            done < <(awk -F'\t' '$1 == "0" && $2 == "proxydev"' "$t_cache" | head -n 200)
             # Agent 1.105.0: paden van RzSense met een eigen token (bevestigen, statuspagina, heartbeats) altijd door.
             # Precies dat pad (op "/" eindigend: alles eronder); hoofdletters tellen, zodat /ACK.php niet langs kan.
             while IFS=$'\t' read -r _ _ o_site o_paths; do
@@ -4056,9 +4064,23 @@ ${px_tag}}
 map \"\$rzs_site:\$uri:\$arg_nood:\$arg_door\" \$rzs_nood {
     default 0;
 ${px_nood}}
-map \"\$rzs_adm:\$rzs_lan:\$rzs_tag:\$rzs_nood\" \$rzs_deny_adm {
+map \$cookie_pxt \$rzs_trust {
     default 0;
-    \"1:0:0:0\" 1;
+${px_trust}}
+map \$rzs_site \$rzs_dev_on {
+    default 0;
+${px_dev}}
+map \"\$rzs_dev_on:\$rzs_trust\" \$rzs_devok {
+    default 0;
+    \"1:1\" 1;
+}
+map \"\$rzs_lan:\$rzs_devok\" \$rzs_free {
+    default 1;
+    \"0:0\" 0;
+}
+map \"\$rzs_adm:\$rzs_lan:\$rzs_tag:\$rzs_nood:\$rzs_devok\" \$rzs_deny_adm {
+    default 0;
+    \"1:0:0:0:0\" 1;
 }
 map \$http_user_agent \$rzs_badbot {
     default 0;
@@ -4083,16 +4105,16 @@ map \$uri \$rzs_login {
     default 0;
     \"~*(^|/)(auth|login|signin|sign_in|sso|oauth2?|identity|token|wp-login\\.php)(/|\$|\\.)\" 1;
 }
-map \"\$rzs_rate:\$rzs_lan:\$rzs_static:\$rzs_login\" \$rzs_key_n {
+map \"\$rzs_rate:\$rzs_free:\$rzs_static:\$rzs_login\" \$rzs_key_n {
     default \"\";
     \"~^normal:0:0:\" \$binary_remote_addr;
     \"app:0:0:1\" \$binary_remote_addr;
 }
-map \"\$rzs_rate:\$rzs_lan:\$rzs_static:\$rzs_login\" \$rzs_key_s {
+map \"\$rzs_rate:\$rzs_free:\$rzs_static:\$rzs_login\" \$rzs_key_s {
     default \"\";
     \"~^strict:0:0:\" \$binary_remote_addr;
 }
-map \"\$rzs_rate:\$rzs_lan:\$rzs_static:\$rzs_login\" \$rzs_key_a {
+map \"\$rzs_rate:\$rzs_free:\$rzs_static:\$rzs_login\" \$rzs_key_a {
     default \"\";
     \"app:0:0:0\" \$binary_remote_addr;
 }

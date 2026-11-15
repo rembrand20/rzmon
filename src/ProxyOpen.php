@@ -15,6 +15,9 @@ final class ProxyOpen
 {
     public const COOKIE = 'pxt';
     public const AGENT = '1.106.0';
+    /** 1.274.0 (agent 1.108.0): per site "toegestane apparaten mogen er van buiten bij" */
+    public const DEV_AGENT = '1.108.0';
+    private const DOMAIN_MARK = 'pxd';
     private const MAX_TAGS = 300;
     private const DOOR_MINUTES = 15;
 
@@ -77,6 +80,36 @@ final class ProxyOpen
             ->fetchAll(PDO::FETCH_COLUMN)), static fn($t) => preg_match('/^[0-9a-f]{32}$/', $t) === 1));
     }
 
+    /** 1.274.0: alleen de tags van toegestane apparaten (geen noodlink): die gelden ook op andere sites met de schakelaar aan */
+    public static function deviceTags(): array
+    {
+        return array_values(array_filter(array_map('strval', q('SELECT tag FROM proxy_tags WHERE device_id IS NOT NULL AND until IS NULL ORDER BY created_at DESC LIMIT ' . self::MAX_TAGS)
+            ->fetchAll(PDO::FETCH_COLUMN)), static fn($t) => preg_match('/^[0-9a-f]{32}$/', $t) === 1));
+    }
+
+    /**
+     * 1.274.0: het domein waarop de tag ook moet gelden (ha.voorbeeld.nl naast rzsense.voorbeeld.nl), alleen als er een site
+     * is met "toegestane apparaten" aan (of dat de standaard is). Het adres van RzSense zonder het eerste deel; '' = alleen RzSense.
+     */
+    public static function cookieDomain(): string
+    {
+        if (setting('proxy_def_devices', '0') !== '1' && !q('SELECT 1 FROM proxy_sites WHERE devices = 1 AND enabled = 1 LIMIT 1')->fetchColumn()) {
+            return '';
+        }
+        return self::parentDomain((string) parse_url((string) setting('base_url', ''), PHP_URL_HOST));
+    }
+
+    public static function parentDomain(string $host): string
+    {
+        $host = strtolower(trim($host, '.[]'));
+        if ($host === '' || filter_var($host, FILTER_VALIDATE_IP) || !str_contains($host, '.')
+            || !preg_match('/^[a-z0-9-]+(\.[a-z0-9-]+)+$/', $host)) {
+            return '';
+        }
+        $parts = explode('.', $host);
+        return count($parts) >= 3 ? implode('.', array_slice($parts, 1)) : $host;
+    }
+
     /** Een toegestaan apparaat dat RzSense nu herkent: zorg dat het een tag heeft en de browser die als cookie heeft */
     public static function deviceSeen(array $dev): void
     {
@@ -85,8 +118,8 @@ final class ProxyOpen
             $tag = bin2hex(random_bytes(16));
             q('INSERT INTO proxy_tags (tag, device_id, user_id, created_at) VALUES (?, ?, ?, NOW())', [$tag, $dev['id'], $dev['user_id']]);
         }
-        if (($_COOKIE[self::COOKIE] ?? '') !== $tag) {
-            self::cookie($tag, 365 * 86400);
+        if (($_COOKIE[self::COOKIE] ?? '') !== $tag || ($_COOKIE[self::DOMAIN_MARK] ?? '') !== self::cookieDomain()) {
+            self::cookie($tag, 365 * 86400, true);
         }
     }
 
@@ -104,13 +137,24 @@ final class ProxyOpen
         q('DELETE FROM proxy_tags WHERE device_id = ?', [$deviceId]);
     }
 
-    private static function cookie(string $tag, int $ttl): void
+    private static function cookie(string $tag, int $ttl, bool $device = false): void
     {
         if (headers_sent()) {
             return;
         }
         // Pad "/": de proxy moet de tag bij elk verzoek naar deze site zien (pagina, API, opmaak)
-        setcookie(self::COOKIE, $tag, ['expires' => time() + $ttl, 'path' => '/', 'httponly' => true, 'secure' => Https::isHttps(), 'samesite' => 'Lax']);
+        $o = ['expires' => time() + $ttl, 'path' => '/', 'httponly' => true, 'secure' => Https::isHttps(), 'samesite' => 'Lax'];
+        setcookie(self::COOKIE, $tag, $o);
+        if (!$device) {
+            return;
+        }
+        // 1.274.0: ook voor de andere sites onder hetzelfde domein (alleen de apparaattag, niet die van de noodlink). Naast de
+        // gewone cookie: weigert de browser dit domein, dan blijft RzSense zelf gewoon werken.
+        $dom = self::cookieDomain();
+        if ($dom !== '') {
+            setcookie(self::COOKIE, $tag, $o + ['domain' => $dom]);
+        }
+        setcookie(self::DOMAIN_MARK, $dom, $o);
     }
 
     /** Wachtpagina na de noodlink: de proxy neemt de tijdelijke tag binnen een minuut over; ververst zichzelf */

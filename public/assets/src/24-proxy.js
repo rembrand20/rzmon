@@ -54,11 +54,15 @@ async function loadProxy() {
   const head = !d.on ? `<div class="callout">⏸ ${L('De bescherming staat uit voor alle servers.')} <a href="#settings/proxy" data-goto="settings/proxy">${L('Aanzetten in de beheerportal')} →</a></div>`
     : `<p class="small muted">${L('Mijn netwerk: {n}', { n: d.lan.map((x) => `<code>${esc(x)}</code>`).join(' ') })}</p>`;
   const openBox = pxAccessBox(d.access);   // 1.272.0
+  const anyDev = proxies.some((s) => (s.sites || []).some((x) => x.devices && !x.rz));
+  const devNote = anyDev ? `<p class="small muted">📱 ${d.cookie_domain
+    ? L('Toegestane apparaten gelden voor de sites onder {d}. Een apparaat krijgt de sleutel als het RzSense opent; een app met eigen cookies (zoals de Home Assistant-app) moet RzSense daarvoor één keer zelf openen.', { d: d.cookie_domain })
+    : L('Toegestane apparaten gelden alleen voor sites onder hetzelfde domein als RzSense, en RzSense heeft geen domeinnaam als adres (Beheer via https).')}</p>` : '';
   if (!proxies.length) {
     box.innerHTML = head + `<div class="callout">${L('Nog geen server met de rol reverse proxy.')} <a href="#settings/proxy" data-goto="settings/proxy">${L('Kies de server in de beheerportal')} →</a></div>`;
     return;
   }
-  box.innerHTML = head + openBox + proxies.map((s) => {
+  box.innerHTML = head + openBox + devNote + proxies.map((s) => {
     const r = s.report || {};
     const [cls, txt] = st[r.state || 'pending'] || st.pending;
     const sync = r.state === 'ok' && !s.in_sync ? ` <span class="lf-tag wait">⏳ ${L('nieuwe wijziging wacht op de agent')}</span>` : '';
@@ -70,17 +74,19 @@ async function loadProxy() {
           <input type="text" class="mono px-paths" data-px="lan_paths" value="${esc(x.lan_paths.replace(/,/g, ', '))}" placeholder="/admin" ${x.lan_mode === 'paths' ? '' : 'hidden'} aria-label="${esc(L('Adminpaden'))}"></td>
         <td><select data-px="rate" aria-label="${esc(L('Rate limit'))}">${PX_RATE().map(([k, l]) => `<option value="${k}" ${k === x.rate ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></td>
         <td>${amSw('px-bots-' + s.id + '-' + x.site.replace(/[^a-z0-9]/gi, '_'), x.bots, 'data-px="bots"')}</td>
+        <td>${x.rz ? `<span class="lf-tag ok" title="${esc(L('De site van RzSense zelf: je toegestane apparaten komen er altijd bij.'))}">✔ ${L('altijd')}</span>`
+          : amSw('px-dev-' + s.id + '-' + x.site.replace(/[^a-z0-9]/gi, '_'), x.devices, `data-px="devices" ${s.dev_agent_ok ? '' : `disabled title="${esc(L('Agent {v} of nieuwer nodig', { v: '1.108.0' }))}"`}`)}</td>
         ${d.waf && d.waf.on ? `<td><select data-px="waf" aria-label="${esc(L('WAF'))}">${WAF_SITE().map(([k, l]) => `<option value="${k}" ${k === (x.waf || 'inherit') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>${wafSiteStats((s.waf_stats || {})[x.site])}</td>` : ''}
         <td class="nowrap">${x.custom && x.source === 'ai' ? `<span class="lf-tag ok" title="${esc(x.ai_reason || '')}">🤖 ${L('AI')}</span> <button type="button" class="btn small-btn" data-px-reset title="${esc(L('Terug naar de standaard'))}">↺</button>` : x.custom ? `<span class="lf-tag">${L('eigen')}</span> <button type="button" class="btn small-btn" data-px-reset title="${esc(L('Terug naar de standaard'))}">↺</button>` : `<span class="lf-tag ok">${L('standaard')}</span>`}</td></tr>`
-        + pxScoreRow(x, d.waf && d.waf.on ? 8 : 7)
-        + (d.ai && d.ai.on ? pxaRow(x, ((s.ai || {}).items || {})[x.site], d.waf && d.waf.on ? 8 : 7) : '')).join('');
+        + pxScoreRow(x, d.waf && d.waf.on ? 9 : 8)
+        + (d.ai && d.ai.on ? pxaRow(x, ((s.ai || {}).items || {})[x.site], d.waf && d.waf.on ? 9 : 8) : '')).join('');
     return `<section class="px-srv" data-px-host="${s.id}">
       <div class="px-h"><b>${esc(s.name)}</b> <span class="muted small">${esc(PX_KIND[r.kind] || r.kind || '–')}${r.ctr ? ' · ' + esc(r.ctr) : ''}${r.engine ? ' (' + esc(r.engine) + ')' : ''}</span>
         <span class="lf-tag ${cls}">${txt}</span>${sync}${pxScoreSum(s)}<span class="lp-sp"></span></div>
       ${!s.agent_ok ? `<div class="callout small">⬆ ${L('Agent 1.97.0 of nieuwer nodig. Werk de agent bij in de Agent Manager.')}</div>` : ''}
       ${r.msg ? `<p class="small ${r.state === 'error' ? 'danger-txt' : 'muted'}">${esc(pxMsg(r.msg))}</p>` : ''}
       ${d.ai && d.ai.on && (s.sites || []).length ? pxaHead(s, d.ai) : ''}
-      ${(s.sites || []).length ? `<div class="table-scroll"><table class="vuln-table px-table"><thead><tr><th>${L('Aan')}</th><th>${L('Site')}</th><th>${L('Score')}</th><th>${L('Wie mag erbij')}</th><th>${L('Rate limit')}</th><th>${L('Bots weren')}</th>${d.waf && d.waf.on ? `<th>${L('WAF')}</th>` : ''}<th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+      ${(s.sites || []).length ? `<div class="table-scroll"><table class="vuln-table px-table"><thead><tr><th>${L('Aan')}</th><th>${L('Site')}</th><th>${L('Score')}</th><th>${L('Wie mag erbij')}</th><th>${L('Rate limit')}</th><th>${L('Bots weren')}</th><th title="${esc(L('Je toegestane apparaten (Mijn account → Toegestane apparaten) komen er van buiten bij, ook als de site alleen vanaf mijn netwerk mag, en zonder rate limit. De WAF, de IDS en het inloggen bij de app blijven gewoon werken.'))}">${L('Toegestane apparaten')}</th>${d.waf && d.waf.on ? `<th>${L('WAF')}</th>` : ''}<th></th></tr></thead><tbody>${rows}</tbody></table></div>`
         : `<p class="muted small">${s.report ? L('Geen sites gevonden in de proxy.') : L('Nog geen rapport van de agent. Dat komt bij zijn volgende ronde (meestal binnen een minuut).')}</p>`}
       ${d.waf && d.waf.on ? wafPanel(s, d.waf) : ''}
       ${d.on && (s.sites || []).length ? vpPanel(s) : ''}
@@ -92,7 +98,7 @@ async function loadProxy() {
   const save = async (tr, extra = {}) => {
     const host = +tr.closest('[data-px-host]').dataset.pxHost;
     const v = (k) => $(`[data-px="${k}"]`, tr);
-    const body = { host_id: host, site: tr.dataset.pxSite, enabled: v('enabled').checked, lan_mode: v('lan_mode').value, lan_paths: v('lan_paths').value, rate: v('rate').value, bots: v('bots').checked, ...(v('waf') ? { waf: v('waf').value } : {}), ...extra };
+    const body = { host_id: host, site: tr.dataset.pxSite, enabled: v('enabled').checked, lan_mode: v('lan_mode').value, lan_paths: v('lan_paths').value, rate: v('rate').value, bots: v('bots').checked, ...(v('waf') ? { waf: v('waf').value } : {}), ...(v('devices') && !v('devices').disabled ? { devices: v('devices').checked } : {}), ...extra };
     try { await api('proxy_site_save', body); toast(extra.reset ? L('Terug naar de standaard') : L('Opgeslagen; de agent voert het binnen een minuut door')); loadProxy(); }
     catch (ex) { toast(ex.message, 'err'); }
   };
@@ -374,7 +380,7 @@ function wafRangeSync(fallback) {
 
 // 1.259.0: advies voor alle velden (AI of standaard), daarna gewoon aan te passen
 const PXF_LABEL = () => ({ proxy_on: L('Reverse proxy beschermen (hoofdschakelaar)'), proxy_def_lan: L('Adminpagina\'s en beheerprogramma\'s alleen vanaf mijn netwerk'),
-  proxy_def_rate: L('Te veel verzoeken afremmen (rate limit)'), proxy_def_bots: L('Bots weren'), waf_on: L('WAF aan'), waf_mode: L('Wat de WAF doet'),
+  proxy_def_rate: L('Te veel verzoeken afremmen (rate limit)'), proxy_def_bots: L('Bots weren'), proxy_def_devices: L('Toegestane apparaten'), waf_on: L('WAF aan'), waf_mode: L('Wat de WAF doet'),
   waf_share: L('Delen met de CrowdSec-community'), proxy_ai_on: L('AI-advies voor de reverse proxy'), proxy_ai_auto: L('Wie voert het advies door'),
   av_on: L('ClamAV aan'), av_notify: L('Melden'), av_move: L('Verplaatsen'), nids_on: L('Suricata aan'), nids_profile: L('Regelprofiel'),
   nids_min_sev: L('Melden vanaf ernst'), proxy_lan_extra: L('Extra netwerken die bij "mijn netwerk" horen'), nids_iface: L('Netwerkinterface') });
