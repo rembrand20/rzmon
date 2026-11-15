@@ -1759,3 +1759,5 @@ CREATE TABLE IF NOT EXISTS proxy_uniq (
     PRIMARY KEY (host_id, day),
     CONSTRAINT fk_pu_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- 1.265.0: Suricata blokkeert automatisch vanaf ernst 1 (standaard) of 2 (dan alleen reputatie, scan en aanval, aanvaller van buiten)
+INSERT IGNORE INTO settings (name, value) VALUES ('suricata_block_sev', '1');

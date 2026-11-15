@@ -805,6 +805,7 @@ function actChips(p) {
 /** Waarom / Trigger / Actie in het incidentvenster */
 function explainHtml(x) {
   return `<table class="kv-table small explain"><tbody>
+    ${x.outcome ? `<tr><th>${L('Status')}</th><td>${outcomePill(x.outcome)}${x.outcome.warn ? `<div class="small warn-txt">⚠️ ${esc(x.outcome.warn)}</div>` : ''}</td></tr>` : ''}
     ${x.why ? `<tr><th>${L('Waarom')}</th><td>${esc(x.why)}${x.card ? ` <a href="#ids/prot" class="small" data-goto="ids/prot" data-prot-card="${esc(x.card.id)}">🛡️ ${esc(x.card.title)}</a>` : ''}</td></tr>` : ''}
     ${x.trigger ? `<tr><th>${L('Trigger')}</th><td>${esc(x.trigger)}</td></tr>` : ''}
     <tr><th>${L('Actie')}</th><td>${x.actions.map((a) => `<div class="act-line ${a.ok === true ? 'ok' : a.ok === false ? 'bad' : ''}">${a.icon} ${esc(a.text)}${a.ok === true ? ' ✔' : a.ok === false ? ' ✘' : ''}</div>`).join('')}</td></tr>
@@ -1386,9 +1387,21 @@ function renderIds() {
     const cardTitle = (((protData && protData.cards) || []).find((c) => c.id === idsCard) || {}).title || idsCard;
     $('#ids-filter').innerHTML += ` <button type="button" class="dchip on" data-icard-off="1" title="${esc(L('Filter weghalen'))}">🛡️ ${esc(cardTitle)} ✕</button>`;
   }
-  const list = scope.filter((i) => (!idsCard || ((d.prot || {})[i.id] || {}).card === idsCard) && (!idsCat || idsCatOf(i) === idsCat) && (!q || `${i.title} ${i.detail} ${i.host_name} ${i.ip || ''}`.toLowerCase().includes(q)) && fxPass('ids', i));
+  // 1.265.0: chips per status (geblokkeerd, alleen gemeld, mogelijk gelukt …) met aantallen
+  let outRow = $('#ids-out-row');
+  if (!outRow) {
+    outRow = document.createElement('div');
+    outRow.id = 'ids-out-row';
+    outRow.className = 'out-row-bar';
+    const bar = $('#ids-filter').parentElement;
+    bar.parentNode.insertBefore(outRow, bar.nextSibling);
+  }
+  outRow.innerHTML = outcomeChips(scope);
+  outRow.hidden = !outRow.innerHTML;
+  if (idsOutcome && !scope.some((i) => (outcomeOf(i) || {}).k === idsOutcome)) idsOutcome = '';
+  const list = scope.filter((i) => (!idsOutcome || (outcomeOf(i) || {}).k === idsOutcome) && (!idsCard || ((d.prot || {})[i.id] || {}).card === idsCard) && (!idsCat || idsCatOf(i) === idsCat) && (!q || `${i.title} ${i.detail} ${i.host_name} ${i.ip || ''}`.toLowerCase().includes(q)) && fxPass('ids', i));
   fxRender('ids');
-  const narrowed = !!q || !!idsCat || !!idsCard || fxActive('ids');
+  const narrowed = !!q || !!idsCat || !!idsCard || !!idsOutcome || fxActive('ids');
   $('#ids-info').textContent = L('{open} open · {n} in de laatste {days} dagen', { open: open.length, n: d.incidents.length, days: d.days });
   $('#it-n-inc').textContent = open.length ? open.length : '';
   const el = $('#ids-incidents');
@@ -2813,9 +2826,15 @@ function idsRow(i, group = null, nav = null) {
   const release = i.type === 'out_bad' && i.ip ? ` <button type="button" class="btn small-btn" data-ids="release" data-ip="${esc(i.ip)}" title="${esc(L('Dit IP op de whitelist: nooit meer melden of blokkeren'))}">✅ ${L('Vrijgeven')}</button>` : '';
   const many = group && !done ? group.filter((x) => x.status === 'open').map((x) => x.id).join(',') : '';
   const selIds = !done ? (many || String(i.id)) : '';
-  return `<div class="irow s${sev} ${done ? 'ids-done' : ''}">
+  // 1.265.0: status vooraan (bij een bundel de belangrijkste), en blokkeren kan ook als de hele bundel van één IP komt
+  // Elke regel toont zijn eigen status; zit er in de bundel iets anders, dan staat dat erbij (nooit "geblokkeerd" voor een ander IP)
+  const out = outcomeOf(i);
+  const mixed = group ? [...new Set(group.map((x) => (outcomeOf(x) || {}).k).filter(Boolean))].filter((k) => k !== (out || {}).k) : [];
+  const oneIp = i.ip && (!group || group.every((x) => x.ip === i.ip));
+  const blockBtn = oneIp && out && ['notified', 'maybe', 'learn', 'expired', 'unblocked'].includes(out.k) && !done;
+  return `<div class="irow s${sev} ${done ? 'ids-done' : ''}${out ? ' out-row out-' + (OUT_META()[out.k] || [])[2] : ''}">
     <span class="ids-selw">${selIds && (!group || many) ? `<input type="checkbox" class="ids-sel need-admin" data-sel-id="${selIds}" aria-label="${esc(L('Kiezen'))}" ${selIds.split(',').every((x) => IDS_SEL.has(+x)) ? 'checked' : ''}>` : ''}<i class="adot s${sev}"></i></span>
-    <span class="m-tt"><button type="button" class="inc-open" data-inc="${i.id}" ${nav && nav.length > 1 ? `data-inc-list="${nav.map((x) => x.id).join(',')}"` : ''} title="${esc(L('Details, advies en acties'))}">${esc(i.title)}</button>${aiTriage(i.id)}${done ? '' : aiBtn('ids', i.id)}${actChips(((idsData && idsData.prot) || {})[i.id])}${+i.hits > 1 ? ` <span class="rep hits" tabindex="0" title="${esc(L('Dit incident is {n}× gezien · eerst {a} · laatst {b}', { n: i.hits, a: fmtDateTime(i.created_at), b: fmtDateTime(i.last_seen || i.created_at) }))}">${i.hits}×</span>` : ''}${group ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} incidenten van deze soort op {host} ({o} open) · van {a} tot {b} · klik om ze te tonen; klik op de titel om ze één voor één te bekijken', { n: group.length, host: i.host_name, o: group.filter((x) => x.status === 'open').length, a: group[group.length - 1].created_at.slice(11, 16), b: group[0].created_at.slice(11, 16) }))}">${group.length}×</button>` : ''}
+    <span class="m-tt">${outcomePill(out)}${mixed.length ? `<span class="out-mixed" title="${esc(L('Andere meldingen in deze bundel: {s}', { s: mixed.map((k) => OUT_META()[k][1]).join(', ') }))}">+ ${mixed.map((k) => OUT_META()[k][0]).join(' ')}</span>` : ''}<button type="button" class="inc-open" data-inc="${i.id}" ${nav && nav.length > 1 ? `data-inc-list="${nav.map((x) => x.id).join(',')}"` : ''} title="${esc(L('Details, advies en acties'))}">${esc(i.title)}</button>${aiTriage(i.id)}${done ? '' : aiBtn('ids', i.id)}${actChips(((idsData && idsData.prot) || {})[i.id])}${+i.hits > 1 ? ` <span class="rep hits" tabindex="0" title="${esc(L('Dit incident is {n}× gezien · eerst {a} · laatst {b}', { n: i.hits, a: fmtDateTime(i.created_at), b: fmtDateTime(i.last_seen || i.created_at) }))}">${i.hits}×</span>` : ''}${group ? ` <button type="button" class="rep" data-bundle-btn title="${esc(L('{n} incidenten van deze soort op {host} ({o} open) · van {a} tot {b} · klik om ze te tonen; klik op de titel om ze één voor één te bekijken', { n: group.length, host: i.host_name, o: group.filter((x) => x.status === 'open').length, a: group[group.length - 1].created_at.slice(11, 16), b: group[0].created_at.slice(11, 16) }))}">${group.length}×</button>` : ''}
       <small>${esc(i.detail)}${i.ip ? ` · IP <code>${esc(i.ip)}</code>${ccTag(i.cc)}` : ''}${done ? ` · ✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}` : ''}</small></span>
     <span class="m-sv">${esc(i.host_name)}</span>
     <span class="m-t" title="${esc(i.created_at)}">${esc(i.created_at.slice(11, 16))}</span>
@@ -2823,7 +2842,7 @@ function idsRow(i, group = null, nav = null) {
       : many ? `<button type="button" class="btn small-btn" data-ids="handle" data-many="${many}" title="${esc(L('Alle {n} afhandelen', { n: many.split(',').length }))}">${okLabel} (${many.split(',').length})</button>`
       : `<button type="button" class="btn small-btn" data-ids="handle" data-id="${i.id}">${okLabel}</button>
          ${release || `<button type="button" class="btn small-btn" data-ids="normal" data-id="${i.id}" title="${normal[1]}">${normal[0]}</button>`}`}
-      ${i.ip && !many ? `<button type="button" class="btn small-btn" data-ids="block" data-ip="${esc(i.ip)}" data-host="${i.host_id}">⛔ ${L('Blokkeer IP')}</button>` : ''}</span>
+      ${blockBtn || (i.ip && !many && !out) ? `<button type="button" class="btn small-btn ${out && out.k === 'maybe' ? 'danger' : ''}" data-ids="block" data-ip="${esc(i.ip)}" data-host="${i.host_id}">⛔ ${L('Blokkeren')}</button>` : ''}</span>
   </div>`;
 }
 

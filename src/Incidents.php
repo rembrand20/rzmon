@@ -258,6 +258,16 @@ final class Incidents
             'opened_at' => $r['opened_at'], 'resolved_at' => $r['resolved_at'], 'updated_at' => $r['updated_at'], 'notes' => (int) $r['notes'],
             'parts' => (int) $r['parts'] + 1,
         ] + self::urgency($r), $rows);
+        // 1.265.0: bij een IDS-incident de status (geblokkeerd, alleen gemeld, mogelijk gelukt …)
+        $ref = array_values(array_unique(array_filter(array_map(static fn($i) => $i['source'] === 'ids' ? $i['ref_id'] : null, $out))));
+        if ($ref) {
+            $rows = q('SELECT * FROM ids_incidents WHERE id IN (' . implode(',', array_map('intval', array_slice($ref, 0, 500))) . ')')->fetchAll();
+            $prot = Protect::describeAll($rows);
+            foreach ($out as &$i) {
+                $i['outcome'] = $i['source'] === 'ids' && $i['ref_id'] !== null ? ($prot[$i['ref_id']]['o'] ?? null) : null;
+            }
+            unset($i);
+        }
         // 1.144.0: wat nog loopt op urgentie (dezelfde score als "Nu doen"), daarna wat opgelost is
         usort($out, static fn($a, $b) => [$a['status'] === 'resolved', -$a['urgency']] <=> [$b['status'] === 'resolved', -$b['urgency']]);
         $mttr = q("SELECT AVG(TIMESTAMPDIFF(SECOND, opened_at, resolved_at)) FROM incidents WHERE status = 'resolved' AND resolved_at >= NOW() - INTERVAL 30 DAY")->fetchColumn();

@@ -6179,3 +6179,22 @@ details.pxs h4 { margin: .2rem 0 .45rem; font-size: .9rem; }
 }
 /* Telefoon: kolom Fouten weg in de sitestabel (de 5xx-markering blijft), lange sitenamen afbreken */
 @media (max-width: 700px) { .pxs-t .pxs-err { display: none; } .pxs-t td:first-child { overflow-wrap: anywhere; } .pxs-t th { white-space: normal; } }
+
+/* 1.265.0: status van een melding (geblokkeerd, tegengehouden, alleen gemeld, mogelijk gelukt …): label vooraan + rand links */
+.out-pill { display: inline-flex; align-items: center; gap: .25rem; padding: .08rem .5rem; margin-right: .45rem; border-radius: 999px; font-size: .78rem; font-weight: 600;
+  border: 1px solid var(--border); white-space: nowrap; vertical-align: middle; background: var(--card-2); color: var(--text); }
+.out-pill.sm { font-size: .72rem; padding: .02rem .42rem; }
+.out-pill.out-good { border-color: color-mix(in srgb, var(--ok) 55%, transparent); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.out-pill.out-bad { border-color: color-mix(in srgb, var(--crit) 60%, transparent); background: color-mix(in srgb, var(--crit) 16%, transparent); }
+.out-pill.out-wait { border-color: color-mix(in srgb, var(--warn) 55%, transparent); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.out-pill.out-neutral { color: var(--muted); }
+.out-pill .out-warn { font-weight: 400; }
+.irow.out-row { box-shadow: inset 3px 0 0 var(--border); }
+.irow.out-row.out-good { box-shadow: inset 3px 0 0 var(--ok); }
+.irow.out-row.out-bad { box-shadow: inset 3px 0 0 var(--crit); }
+.irow.out-row.out-wait { box-shadow: inset 3px 0 0 var(--warn); }
+.out-sep { display: inline-block; width: 1px; align-self: stretch; min-height: 1.4rem; background: var(--border); margin: 0 .2rem; flex: none; }
+.out-chip.out-bad b { color: var(--crit); }
+.out-row-bar { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; margin: -.2rem 0 .7rem; }
+.out-row-bar .out-lbl { font-size: .8rem; color: var(--muted); margin-right: .2rem; }
+.out-mixed { font-size: .75rem; color: var(--muted); margin-right: .45rem; white-space: nowrap; }

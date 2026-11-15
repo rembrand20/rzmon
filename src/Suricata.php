@@ -10,6 +10,14 @@ declare(strict_types=1);
  */
 final class Suricata
 {
+    /** 1.265.0: bij "blokkeren vanaf ernst 2": alleen deze soorten (slechte reputatie, scans, aanvallen, malware), geen beleid of info */
+    public static function blockable2(string $text): bool
+    {
+        return (bool) preg_match('/poor reputation|cins|dshield|spamhaus|drop listed|compromised|known bad|scan|attack|exploit|brute|trojan|malware|botnet|command and control|c2|web application/i', $text)
+            && !preg_match('/\b(policy|info|inappropriate|games|chat|p2p)\b/i', $text);
+    }
+
+
     /** Categorie van Suricata/Emerging Threats → [tactiek, techniek] */
     private const CATS = [
         'trojan' => ['command-and-control', 'T1071'], 'command and control' => ['command-and-control', 'T1071'], 'malware' => ['command-and-control', 'T1071'],
@@ -65,7 +73,9 @@ final class Suricata
                 Chain::signal($host, 'ids', 'suricata', $tactic !== '' ? [$tactic] : [], $tech !== '' ? [$tech] : [], $title, 20, $ext, null, "sur|$key", null, 60);
                 continue;
             }
-            if ($sev === 1 && $ext !== null && $ext === $src && setting('suricata_block', '1') === '1' && ($b = Ids::autoBlock($host, $ext, t('Suricata: {sig}', ['sig' => mb_substr($sig, 0, 80)])))) {
+            // 1.265.0: vanaf ernst 1 (standaard) of 2; bij 2 alleen reputatie, scans en aanvallen (geen beleid of info)
+            $blockable = $sev === 1 || ($sev === 2 && setting('suricata_block_sev', '1') === '2' && self::blockable2("$sig $cat"));
+            if ($blockable && $ext !== null && $ext === $src && setting('suricata_block', '1') === '1' && ($b = Ids::autoBlock($host, $ext, t('Suricata: {sig}', ['sig' => mb_substr($sig, 0, 80)])))) {
                 $detail .= " · ⛔ $ext $b";
             }
             $id = Ids::raise($host, $sev === 1 ? 2 : 1, 'suricata', $key, $title, $detail, $ext);

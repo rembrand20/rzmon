@@ -254,13 +254,90 @@ final class Protect
         return $out;
     }
 
+    /** 1.265.0: de eindstatus van een melding, in deze volgorde van belang */
+    public const OUTCOMES = ['maybe', 'failed', 'isolated', 'blocked', 'stopped', 'pending', 'learn', 'notified', 'unblocked', 'expired', 'allowed'];
+
+    /**
+     * 1.265.0: wat er met een melding gebeurde, in één woord, voor een label vooraan in elke lijst en in Pushover:
+     *   blocked (IP nu geblokkeerd) · stopped (dit verzoek of proces tegengehouden) · pending (wordt gestopt) · isolated ·
+     *   maybe (doorgelaten en de app gaf een gewoon antwoord: misschien gelukt) · notified (alleen gemeld, doorgelaten) ·
+     *   learn (modus Leren: zou geblokkeerd zijn) · allowed (eigen netwerk, whitelist, RzSense) · unblocked · expired · failed.
+     * @return array{k: string, until: ?string, text: string, warn: ?string}
+     */
+    public static function outcome(array $inc, array $acts): array
+    {
+        $by = [];
+        foreach ($acts as $a) {
+            $by[$a['t']][] = $a;
+        }
+        $first = static fn(string $t, $ok = 'any') => current(array_filter($by[$t] ?? [], static fn($a) => $ok === 'any' || $a['ok'] === $ok)) ?: null;
+        $ok2xx = 0;
+        if ($inc['type'] === 'web_attack' && !empty($inc['wpath'])) {
+            foreach ((array) ((json_decode((string) $inc['wpath'], true) ?: [])['sites'] ?? []) as $x) {
+                $ok2xx += is_array($x) ? (int) ($x[4] ?? 0) : 0;
+            }
+        }
+        $warn = $ok2xx > 0 ? t('{n} verzoek(en) kregen een gewoon antwoord (2xx/3xx): kijk of het lukte', ['n' => $ok2xx]) : null;
+        $res = static fn(string $k, string $text, ?string $until = null) => ['k' => $k, 'until' => $until, 'text' => $text, 'warn' => $k === 'maybe' ? null : $warn];
+        if (($a = $first('kill', false))) {
+            return $res('failed', $a['text']);
+        }
+        if (($a = $first('isolate', true))) {
+            return $res('isolated', $a['text']);
+        }
+        if (($a = $first('block', true))) {
+            $until = preg_match('/(\d{2}-\d{2} \d{2}:\d{2})/', $a['text'], $m) ? $m[1] : (str_contains($a['text'], 'permanent') ? 'permanent' : null);
+            // "IP was toen al geblokkeerd" (blokkade inmiddels voorbij) telt niet als nu geblokkeerd
+            if ($until !== null || !str_contains($a['text'], t('IP was toen al geblokkeerd'))) {
+                return $res('blocked', $a['text'], $until);
+            }
+        }
+        if (($a = $first('kill', true)) || str_contains((string) $inc['detail'], t('Suricata blokkeerde het'))) {
+            return $res('stopped', $a['text'] ?? t('Suricata blokkeerde het'));
+        }
+        if (($a = $first('kill', null))) {
+            return $res('pending', $a['text']);
+        }
+        $ip = (string) ($inc['ip'] ?? '');
+        if ($ip !== '' && Ids::protectedIp($ip)) {
+            return $res('allowed', is_private_ip($ip) ? t('eigen netwerk: wordt nooit geblokkeerd') : t('whitelist of eigen server: wordt nooit geblokkeerd'));
+        }
+        if ($warn !== null) {
+            return $res('maybe', $warn);
+        }
+        if (($a = $first('learn'))) {
+            return $res('learn', $a['text']);
+        }
+        foreach ($by['block'] ?? [] as $a) {
+            if ($a['icon'] === '↩') {
+                return $res('unblocked', $a['text']);
+            }
+            if ($a['icon'] === '⌛' || $a['ok'] === true) {
+                return $res('expired', $a['text']);
+            }
+        }
+        return $res('notified', $ip !== '' ? t('doorgelaten: niet geblokkeerd, alleen gemeld') : t('alleen gemeld'));
+    }
+
+    /** Het label van een eindstatus (icoon + woord), voor Pushover en e-mail; de interface heeft dezelfde lijst */
+    public static function outcomeLabel(string $k): string
+    {
+        return [
+            'blocked' => '⛔ ' . t('Geblokkeerd'), 'stopped' => '🛡️ ' . t('Tegengehouden'), 'pending' => '⏳ ' . t('Wordt gestopt'),
+            'isolated' => '🧱 ' . t('Geïsoleerd'), 'maybe' => '⚠️ ' . t('Doorgelaten – mogelijk gelukt'), 'notified' => '👁 ' . t('Alleen gemeld'),
+            'learn' => '🎓 ' . t('Leren (niet ingegrepen)'), 'allowed' => '✅ ' . t('Toegestaan'), 'unblocked' => '↩ ' . t('Gedeblokkeerd'),
+            'expired' => '⌛ ' . t('Blokkade verlopen'), 'failed' => '✘ ' . t('Mislukt'),
+        ][$k] ?? $k;
+    }
+
     /** Alles voor één incident (venster, Pushover) */
     public static function describe(array $inc, ?array $ctx = null): array
     {
         $card = self::cardFor($inc);
         $why = self::why($inc, $card);
+        $acts = self::actions($inc, $card, $ctx);
         return ['card' => $card ? ['id' => $card['id'], 'title' => t($card['title']), 'g' => $card['g']] : null, 'why' => $why,
-            'trigger' => self::trigger($inc, $why), 'actions' => self::actions($inc, $card, $ctx)];
+            'trigger' => self::trigger($inc, $why), 'actions' => $acts, 'outcome' => self::outcome($inc, $acts)];
     }
 
     /** Voor de lijst: compact (alleen de acties), met de gegevens in één keer voorgeladen */
@@ -281,7 +358,8 @@ final class Protect
         $out = [];
         foreach ($incidents as $i) {
             $card = self::cardFor($i);
-            $out[(int) $i['id']] = ['card' => $card['id'] ?? null, 'acts' => array_map(static fn($a) => [$a['icon'], $a['text'], $a['t'], $a['ok']], self::actions($i, $card, $ctx))];
+            $acts = self::actions($i, $card, $ctx);
+            $out[(int) $i['id']] = ['card' => $card['id'] ?? null, 'acts' => array_map(static fn($a) => [$a['icon'], $a['text'], $a['t'], $a['ok']], $acts), 'o' => self::outcome($i, $acts)];
         }
         return $out;
     }
@@ -294,7 +372,9 @@ final class Protect
             return null;
         }
         $d = self::describe($i);
+        $o = $d['outcome'];
         return implode("\n", array_filter([
+            t('Status') . ': ' . self::outcomeLabel($o['k']) . ($o['until'] ? ' ' . ($o['until'] === 'permanent' ? t('(permanent)') : t('tot {t}', ['t' => $o['until']])) : '') . ($o['warn'] ? ' · ⚠️ ' . $o['warn'] : ''),
             $d['why'] !== '' ? t('Waarom') . ': ' . mb_substr($d['why'], 0, 300) : null,
             $d['trigger'] !== '' ? t('Trigger') . ': ' . mb_substr($d['trigger'], 0, 400) : null,
             t('Actie') . ': ' . implode(', ', array_map(static fn($a) => $a['icon'] . ' ' . $a['text'], $d['actions'])),

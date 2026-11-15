@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.265.0**: **status van een melding in één oogopslag**: vooraan elke melding geblokkeerd, tegengehouden, alleen gemeld of mogelijk gelukt, met chips om erop te filteren.
 - **1.264.0**: **statistieken van de reverse proxy**: bovenaan de pagina wat er gebeurde, wat er tegengehouden is en waarom, de meest aangevallen paden, sites en landen, in cijfers en percentages.
 - **1.263.0**: **agent-servers op internet kunnen erbij**: de reverse proxy laat je eigen agent-servers door, ook als RzSense alleen vanaf je LAN mag.
 - **1.262.0**: **eigen servers nooit buitengesloten**: het IDS blokkeert je eigen agent-servers niet meer automatisch, ook niet als ze op internet staan.
 - **1.261.0**: **mobielvriendelijk**: op een telefoon worden brede tabellen kaartjes, KPI-tegels staan twee per rij en niets duwt de pagina nog breder dan het scherm.
-- **1.260.0**: **Suricata op het proxynetwerk**: meekijken tussen de proxy en je apps, met advies voor elk veld (AI of standaard).
+
+## 1.265.0 – 2026-11-15
+### Nieuw
+- **🏷️ Status van een melding in één oogopslag**: vooraan elke beveiligingsmelding één label met wat er gebeurde: ⛔ *Geblokkeerd* (tot …), 🛡️ *Tegengehouden*, ⏳ *Wordt gestopt*, 🧱 *Geïsoleerd*, ⚠️ *Doorgelaten – mogelijk gelukt* (de app gaf een gewoon antwoord op een aanval), 👁 *Alleen gemeld*, 🎓 *Leren*, ✅ *Toegestaan*, ↩ *Gedeblokkeerd*, ⌛ *Blokkade verlopen* of ✘ *Mislukt*, met een gekleurde rand links.
+  - In de IDS-lijst, het venster van een melding (*Status*), de pagina *Incidenten*, *Recente incidenten* op het dashboard en als eerste regel in Pushover.
+  - In een bundel heeft elke regel zijn eigen status (nooit "geblokkeerd" voor een ander IP); verschilt de bundel, dan staat dat erachter.
+  - **Chips per status met aantallen** onder de filterbalk: klik om alleen die meldingen te zien.
+  - Knop **⛔ Blokkeren** op de regel bij *Alleen gemeld*, *Mogelijk gelukt*, *Leren* en een verlopen blokkade (ook bij een bundel van één IP).
+- **Suricata: blokkeren vanaf ernst 1 of 2** (*Instellingen → IDS*): standaard alleen ernst 1 (zoals tot nu toe). Op 2 blokkeert RzSense ook bij ernst 2, maar alleen bij slechte reputatie (CINS, DShield …), scans en aanvallen, en alleen een aanvaller van buiten.
 
 ## 1.264.1 – 2026-11-15
 ### Opgelost

@@ -3345,5 +3345,54 @@ ProxyStats::purge();
 ok(!q('SELECT 1 FROM proxy_traffic WHERE total = 80')->fetchColumn(), 'proxy-statistieken: ouder dan 62 dagen opgeruimd');
 q('DELETE FROM hosts WHERE id = ?', [$pxh]);
 
+section('Status van een melding in één oogopslag (1.265.0)');
+q("INSERT INTO hosts (name, address, mode) VALUES ('ci-status', '10.0.0.89', 'agent')");
+$sh = q('SELECT * FROM hosts WHERE id = ?', [(int) db()->lastInsertId()])->fetch();
+$modeWas = setting('ids_mode', 'off');
+save_setting('ids_mode', 'block');
+save_setting('suricata_block', '1');
+$sur = static fn($ip, $sid, $sig, $cat, $sev) => Suricata::process($sh, [['2026-11-15T10:00:00+0100', $ip, 40000, '10.89.2.3', 80, 'TCP', $sid, $sig, $cat, $sev, 'allowed']]);
+$oOf = static function (string $ip) use ($sh): array {
+    $i = q('SELECT * FROM ids_incidents WHERE host_id = ? AND ip = ? ORDER BY id DESC LIMIT 1', [$sh['id'], $ip])->fetch();
+    return $i ? Protect::describe($i)['outcome'] : ['k' => 'geen'];
+};
+// Ernst 1 van buiten: geblokkeerd (met de tijd)
+$sur('203.0.113.201', 2010001, 'ET EXPLOIT test', 'Attempted Administrator Privilege Gain', 1);
+$o = $oOf('203.0.113.201');
+ok($o['k'] === 'blocked' && $o['until'] !== null, 'status: ernst 1 van buiten = geblokkeerd tot …');
+// Ernst 2, standaard (alleen ernst 1): alleen gemeld, doorgelaten
+save_setting('suricata_block_sev', '1');
+$sur('203.0.113.202', 2403423, 'ET CINS Active Threat Intelligence Poor Reputation IP group 124', 'Misc Attack', 2);
+ok($oOf('203.0.113.202')['k'] === 'notified' && !q("SELECT 1 FROM ids_blocks WHERE ip = '203.0.113.202'")->fetchColumn(), 'status: ernst 2 bij "vanaf ernst 1" = alleen gemeld, niet geblokkeerd');
+// Vanaf ernst 2: slechte reputatie wel, beleid (policy) niet
+save_setting('suricata_block_sev', '2');
+$sur('203.0.113.203', 2403424, 'ET CINS Active Threat Intelligence Poor Reputation IP group 125', 'Misc Attack', 2);
+$sur('203.0.113.204', 2013028, 'ET POLICY curl User-Agent Outbound', 'Attempted Information Leak', 2);
+ok($oOf('203.0.113.203')['k'] === 'blocked' && $oOf('203.0.113.204')['k'] === 'notified', 'status: "vanaf ernst 2" blokkeert slechte reputatie, geen beleidsregels');
+save_setting('suricata_block_sev', '1');
+// Eigen netwerk: toegestaan
+Ids::raise($sh, 1, 'web_attack', 'swag|192.168.50.7', 'Web: test vanaf 192.168.50.7', 'test', '192.168.50.7');
+ok($oOf('192.168.50.7')['k'] === 'allowed', 'status: eigen netwerk = toegestaan');
+// Web-aanval die een gewoon antwoord kreeg: mogelijk gelukt (en blokkeren blijft de hoofdstatus als het IP wel geblokkeerd is)
+save_setting('ids_mode', 'learn');
+Ids::webAttack($sh, 'swag', '203.0.113.205', 'Web: aanvalspad /wp-admin/x.php vanaf 203.0.113.205', 'test', 'Web: aanvalspad', ['ua' => '', 'sites' => [['blog.example.nl', 'ghost:2368', 'ghost', 5, 2]]]);
+$o = $oOf('203.0.113.205');
+ok($o['k'] === 'maybe' && str_contains((string) $o['text'], '2'), 'status: web-aanval met een gewoon antwoord = doorgelaten, mogelijk gelukt');
+save_setting('ids_mode', 'block');
+Ids::autoBlock($sh, '203.0.113.205', 'test');
+$o = $oOf('203.0.113.205');
+ok($o['k'] === 'blocked' && $o['warn'] !== null, 'status: daarna geblokkeerd, met de waarschuwing dat eerder iets een gewoon antwoord kreeg');
+// Met de hand vrijgegeven
+Ids::unblock((int) q("SELECT id FROM ids_blocks WHERE ip = '203.0.113.201' AND removed_at IS NULL")->fetchColumn(), 'test');
+ok($oOf('203.0.113.201')['k'] === 'unblocked', 'status: na deblokkeren = gedeblokkeerd');
+// In de lijst (describeAll) en in Pushover dezelfde status
+$rows = q('SELECT * FROM ids_incidents WHERE host_id = ?', [$sh['id']])->fetchAll();
+$all = Protect::describeAll($rows);
+$id202 = (int) q("SELECT id FROM ids_incidents WHERE ip = '203.0.113.202'")->fetchColumn();
+ok(($all[$id202]['o']['k'] ?? '') === 'notified' && str_starts_with((string) Protect::pushText($id202), 'Status: 👁 Alleen gemeld'), 'status: zelfde in de lijst en als eerste regel in Pushover');
+save_setting('ids_mode', $modeWas);
+q("DELETE FROM ids_blocks WHERE ip LIKE '203.0.113.20%'");
+q('DELETE FROM hosts WHERE id = ?', [$sh['id']]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

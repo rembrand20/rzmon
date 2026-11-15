@@ -3143,6 +3143,26 @@ Wat in een bepaalde situatie **normaal** is, zet je bij *Instellingen → IDS �
 - *Dit is normaal* bij een incident blijft werken zoals altijd (alleen dat ene geval, op die server).
 - Andere monitoring (Home Assistant, Uptime Kuma …) zet je op de whitelist.
 
+**🏷️ Status van een melding in één oogopslag** (vanaf 1.265.0)
+Vooraan elke beveiligingsmelding staat één label met wat er gebeurde, met een gekleurde rand links:
+
+| Label | Betekenis |
+|---|---|
+| ⛔ **Geblokkeerd** · tot … | het IP kan er nu niet meer in (firewall of proxy) |
+| 🛡️ **Tegengehouden** | dit verzoek of proces is gestopt; het IP zelf niet |
+| ⏳ **Wordt gestopt** | de agent voert het bij de volgende ronde uit |
+| 🧱 **Geïsoleerd** | de server is van het netwerk gehaald |
+| ⚠️ **Doorgelaten – mogelijk gelukt** | de app gaf een gewoon antwoord (2xx/3xx) op een aanval: kijk of het lukte |
+| 👁 **Alleen gemeld** | doorgelaten, er is niets tegen gedaan (ernst te laag, of blokkeren staat uit) |
+| 🎓 **Leren** | modus Leren: in Blokkeren was hier ingegrepen |
+| ✅ **Toegestaan** | je eigen netwerk, de whitelist of RzSense zelf: nooit geblokkeerd |
+| ↩ **Gedeblokkeerd** / ⌛ **Blokkade verlopen** | was geblokkeerd, nu niet meer |
+| ✘ **Mislukt** | de actie lukte niet |
+
+Het label staat in de IDS-lijst, in het venster van een melding (regel *Status*), op de pagina *Incidenten*, bij *Recente incidenten* op het dashboard en als eerste regel in Pushover. In een bundel heeft elke regel zijn eigen status; zit er in de bundel iets anders, dan staat dat erachter (bv. `+ ⛔`). Onder de filterbalk staan **chips per status met aantallen**: klik er een aan om alleen die meldingen te zien (bv. alleen *Alleen gemeld* of *Mogelijk gelukt*). Bij *Alleen gemeld*, *Mogelijk gelukt*, *Leren* en een verlopen blokkade staat de knop **⛔ Blokkeren** op de regel.
+
+**Suricata: blokkeren vanaf ernst 1 of 2** (vanaf 1.265.0): standaard blokkeert RzSense een aanvaller van buiten alleen bij ernst 1. Bij *Instellingen → IDS* kun je **Blokkeren vanaf ernst** op 2 zetten; dan blokkeert RzSense ook bij ernst 2, maar alleen bij slechte reputatie (bv. CINS, DShield), scans en aanvallen, niet bij beleids- of info-regels.
+
 **🛡️ Bescherming en Waarom / Trigger / Actie** (vanaf 1.115.0)
 
 - **🛡️ IDS → Bescherming**: alles wat het IDS doet, als kaarten in groepen (Inloggen, Web, Processen en bestanden, Netwerk en DNS, Afwijkingen en ketens, Dreigingsinformatie). Per kaart:

@@ -84,10 +84,11 @@ final class Home
     /** 1.135.0: de laatste IDS-incidenten (open eerst), voor het paneel "Recente incidenten" */
     private static function incidents(): array
     {
-        $rows = q("SELECT i.id, i.severity, i.title, i.status, i.hits, i.last_seen, h.name AS host FROM ids_incidents i JOIN hosts h ON h.id = i.host_id
+        $rows = q("SELECT i.*, h.name AS host FROM ids_incidents i JOIN hosts h ON h.id = i.host_id
                    WHERE i.last_seen >= NOW() - INTERVAL 14 DAY ORDER BY i.status = 'open' DESC, i.severity DESC, i.last_seen DESC LIMIT 6")->fetchAll();
+        $prot = Protect::describeAll($rows);   // 1.265.0: status (geblokkeerd, alleen gemeld …)
         return array_map(static fn($r) => ['id' => (int) $r['id'], 'sev' => (int) $r['severity'], 'title' => (string) $r['title'], 'open' => $r['status'] === 'open',
-            'hits' => (int) $r['hits'], 'host' => (string) $r['host'], 'at' => (string) $r['last_seen']], $rows);
+            'hits' => (int) $r['hits'], 'host' => (string) $r['host'], 'at' => (string) $r['last_seen'], 'outcome' => $prot[(int) $r['id']]['o'] ?? null], $rows);
     }
 
     /** Open incidenten (warning/critical) en wat er vandaag en nu geblokkeerd is */

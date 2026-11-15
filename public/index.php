@@ -1196,6 +1196,8 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <label><?= th('Nieuw = jonger dan') ?> <span class="hint"><?= th('(dagen)') ?></span> <input type="number" name="dns_nrd_days" min="1" max="365" class="num-in"></label>
           <label class="switch"><input type="checkbox" name="suricata_on"><span></span> <?= t('<b>Suricata</b> (alerts van de agents gebruiken, als Suricata op een server draait; agent 1.64.0)') ?></label>
           <label class="switch"><input type="checkbox" name="suricata_block"><span></span> <?= t('<b>Blokkeren</b> bij een ernstig Suricata-alert (ernst 1, aanvaller van buiten, modus Blokkeren)') ?></label>
+          <label><?= th('Blokkeren vanaf ernst') ?> <select name="suricata_block_sev"><option value="1"><?= th('1: alleen ernstig (aanbevolen)') ?></option><option value="2"><?= th('2: ook middel (reputatie, scans en aanvallen)') ?></option></select>
+            <span class="hint"><?= th('Bij 2 blokkeert RzSense ook IP\'s van buiten die bekendstaan als slecht (bv. CINS, DShield), scannen of aanvallen. Meer tegengehouden, iets meer kans op een onterechte blokkade.') ?></span></label>
           <label class="switch"><input type="checkbox" name="edr_yara"><span></span> <?= t('<b>YARA</b> (regels van RzSense naar de agents sturen: nieuwe bestanden op webshells, miners, botnets en rootkits controleren; YARA moet op de server staan)') ?></label>
           <p class="muted small" id="ti-status"></p>
           <p class="small"><button type="button" class="btn small-btn" id="ti-lists"><?= th('Lijsten nu bijwerken') ?></button></p>

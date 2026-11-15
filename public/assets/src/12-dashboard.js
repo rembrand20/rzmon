@@ -710,7 +710,7 @@ function hmIncidents(d) {
   return `<section class="hm-card hm-inc" aria-labelledby="hm-h-inc"><div class="hm-card-head"><h2 id="hm-h-inc">${esc(L('Recente incidenten'))}</h2>
     <button type="button" class="link-btn" data-hm-go="ids">${esc(d.ids.open_total ? L('{n} open', { n: d.ids.open_total }) : L('Naar IDS'))}</button></div>
     ${list.length ? `<ul>${list.slice(0, 5).map((i) => { const [c, l] = sev(i); return `<li class="${i.open ? '' : 'done'}">${hmShape(i.open ? c : 'ok', 11)}
-      <span><small class="hm-sevlbl ${i.open ? c : 'ok'}">${esc(i.open ? l : L('Afgehandeld'))}</small><b>${esc(i.title)}</b><small>${esc(i.host)} · ${esc(fmtUntil(i.at))}${i.hits > 1 ? ' · ' + esc(L('{n}×', { n: i.hits })) : ''}</small></span></li>`; }).join('')}</ul>`
+      <span><small class="hm-sevlbl ${i.open ? c : 'ok'}">${esc(i.open ? l : L('Afgehandeld'))}</small>${i.outcome ? outcomePill(i.outcome, true) : ''}<b>${esc(i.title)}</b><small>${esc(i.host)} · ${esc(fmtUntil(i.at))}${i.hits > 1 ? ' · ' + esc(L('{n}×', { n: i.hits })) : ''}</small></span></li>`; }).join('')}</ul>`
       : `<p class="hm-empty">${hmShape('ok', 14)} ${esc(L('Geen incidenten de laatste 14 dagen'))}</p>`}</section>`;
 }
 
@@ -756,7 +756,7 @@ function renderIncidents() {
       return `<tr class="inc-row inc-${i.status}" data-inc="${i.id}" tabindex="0">
         <td>${i.status === 'resolved' ? '<span class="muted small">–</span>' : urgPill(i.urgency, i.why)}</td>
         <td title="${esc(src())}">${ic}</td>
-        <td><b>${esc(i.title)}</b>${i.status !== 'resolved' ? ' ' + aiBtn('incident', i.id) : ''}${i.parts > 1 ? ` <span class="muted small">· ${esc(L('{n} stappen', { n: i.parts }))}</span>` : ''}${i.detail ? `<div class="muted small">${esc(i.detail.length > 120 ? i.detail.slice(0, 120) + '…' : i.detail)}</div>` : ''}</td>
+        <td>${i.outcome ? outcomePill(i.outcome, true) + ' ' : ''}<b>${esc(i.title)}</b>${i.status !== 'resolved' ? ' ' + aiBtn('incident', i.id) : ''}${i.parts > 1 ? ` <span class="muted small">· ${esc(L('{n} stappen', { n: i.parts }))}</span>` : ''}${i.detail ? `<div class="muted small">${esc(i.detail.length > 120 ? i.detail.slice(0, 120) + '…' : i.detail)}</div>` : ''}</td>
         <td><span class="inc-st inc-st-${i.status}">${INC_ST[i.status]()}</span>${i.notes ? ` <span class="muted small" title="${esc(L('notities'))}">💬 ${i.notes}</span>` : ''}</td>
         <td>${i.owner ? esc(i.owner) : '<span class="muted">–</span>'}</td>
         <td class="small">${agoSpan(i.opened_at)}</td>

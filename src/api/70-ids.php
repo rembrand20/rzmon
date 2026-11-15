@@ -54,7 +54,8 @@ switch ($action) {
             // 1.220.0: van afgehandelde incidenten ouder dan 2 dagen alleen het begin van de omschrijving (het venster haalt de rest op)
             'incidents' => $incs = (static function () use ($days): array {
                 $cols = "i.id, i.host_id, i.severity, i.type, i.dkey, i.title, IF(i.status = 'open' OR i.created_at >= NOW() - INTERVAL 2 DAY, i.detail, LEFT(i.detail, 240)) AS detail,
-                         i.ip, i.hits, i.status, i.handled_by, i.handled_at, i.created_at, i.last_seen, i.cc, i.mode, i.dport, i.proto, i.service, i.dir, h.name AS host_name";
+                         i.ip, i.hits, i.status, i.handled_by, i.handled_at, i.created_at, i.last_seen, i.cc, i.mode, i.dport, i.proto, i.service, i.dir, h.name AS host_name,
+                         IF(i.type = 'web_attack' AND (i.status = 'open' OR i.created_at >= NOW() - INTERVAL 2 DAY), i.wpath, NULL) AS wpath";
                 $r = q("SELECT * FROM (
                     SELECT $cols FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.status = 'open'
                     UNION SELECT $cols FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.created_at >= CURDATE() - INTERVAL ? DAY
