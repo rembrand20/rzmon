@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.275.0**: **rust op je telefoon**: geblokkeerde scanners geven geen pushmelding meer, wel een samenvatting om 20:00; alleen als je iets moet doen komt er meteen een melding.
 - **1.274.0**: **toegestane apparaten per site**: met één schakelaar kom je met je eigen telefoon onderweg ook bij beheerprogramma's achter de proxy.
 - **1.273.0**: **apps als Home Assistant laden weer achter de proxy**: vaste bestanden tellen niet mee voor de rate limit, en een nieuwe stand *ruim (apps)*.
 - **1.272.0**: **van buiten weer binnen met je toegestane apparaten**: de reverse proxy volgt de apparaatsleutels van RzSense en de noodlink; /rz-open/ is weg.
 - **1.271.0**: **RzSense blijft van buiten bruikbaar achter de proxy**: bevestigen vanuit Pushover, de statuspagina en heartbeats werken weer, en RzSense waarschuwt als je jezelf buitensluit.
-- **1.269.0**: **proxystatistieken ook zonder rzsense.log**, en per proxyserver precies wat er nog ontbreekt als de tellingen leeg zijn.
+
+## 1.275.0 – 2026-11-15
+### Nieuw
+- **IDS-pushmeldingen alleen als je iets moet doen** (Beheerportal → IDS → *Pushmeldingen van het IDS*). Scanners van internet (log4j, Kubernetes en andere bekende lekken) die al automatisch geblokkeerd zijn, gaven elk een pushmelding; daar hoefde je niets mee. Nu, in de nieuwe standaardstand *Alleen als ik iets moet doen*:
+  - een aanval van buiten die al **geblokkeerd of tegengehouden** is, geeft **geen** pushmelding meer; hij staat gewoon bij IDS;
+  - wél meteen een melding als hij **niet** geblokkeerd kon worden, als de app een gewoon antwoord gaf (misschien gelukt), of als het lek past bij software die je **echt draait** (Kwetsbaarheden);
+  - iets op een **server zelf** (webshell, verdacht proces, bestand, login van buiten, malware) blijft altijd meteen komen;
+  - dezelfde aanvaller binnen 10 minuten: één melding.
+  - Andere standen: *Alles pushen* (zoals eerst) of *Alleen de dagelijkse samenvatting*.
+- **Dagelijkse samenvatting van het IDS**, standaard om 20:00 en zonder geluid: hoeveel aanvallen van buiten er waren, hoeveel automatisch geblokkeerd, of er iets is doorgekomen, de meest geziene aanvallen en hoeveel andere meldingen op je servers nog open staan. Op een dag zonder meldingen komt er niets. Staat de WAF al twee weken op *detecteren*, dan staat er een tip bij om hem op *alleen zeker* te zetten.
 
 ## 1.274.0 – 2026-11-15
 ### Nieuw

@@ -365,7 +365,7 @@ switch ($action) {
             'confirm_fails', 'confirm_ok', 'confirm_types', 'confirm_fast',   // 1.185.0, 1.193.0
             'net_traffic', 'net_traffic_swap', 'net_wan_cap_gb',   // 1.186.0, 1.187.0
             'logs_on', 'logs_interval', 'logs_days', 'logs_max_gb', 'logs_day_mb', 'logs_mask', 'logs_mask_extra',
-            'trend_alert_days', 'trend_ups_min', 'mailsec_on', 'eol_on', 'ransom_on', 'ransom_min', 'appctl_on', 'appctl_learn', 'ioc_on', 'patch_on', 'sudo_on', 'sudo_max', 'dnsbl_on', 'dnsbl_ti', 'dnsbl_ioc', 'dnsbl_own', 'dnsbl_allow', 'dns_nrd', 'dns_nrd_days', 'nis2_on', 'nis2_org', 'nis2_csirt', 'proxy_on', 'proxy_def_lan', 'proxy_def_rate', 'proxy_def_bots', 'proxy_def_devices', 'proxy_lan_extra', 'waf_on', 'waf_mode', 'waf_share', 'proxy_ai_on', 'proxy_ai_auto', 'av_on', 'av_notify', 'av_move', 'nids_on', 'nids_profile', 'nids_iface', 'nids_min_sev'];   // 1.254.0, 1.255.0, 1.256.0, 1.257.0   // 1.227.0, 1.228.0   // 1.224.0   // 1.210.0
+            'trend_alert_days', 'trend_ups_min', 'mailsec_on', 'eol_on', 'ransom_on', 'ransom_min', 'appctl_on', 'appctl_learn', 'ioc_on', 'patch_on', 'sudo_on', 'sudo_max', 'dnsbl_on', 'dnsbl_ti', 'dnsbl_ioc', 'dnsbl_own', 'dnsbl_allow', 'dns_nrd', 'dns_nrd_days', 'nis2_on', 'nis2_org', 'nis2_csirt', 'proxy_on', 'proxy_def_lan', 'proxy_def_rate', 'proxy_def_bots', 'proxy_def_devices', 'ids_push_mode', 'ids_digest_on', 'ids_digest_time', 'proxy_lan_extra', 'waf_on', 'waf_mode', 'waf_share', 'proxy_ai_on', 'proxy_ai_auto', 'av_on', 'av_notify', 'av_move', 'nids_on', 'nids_profile', 'nids_iface', 'nids_min_sev'];   // 1.254.0, 1.255.0, 1.256.0, 1.257.0   // 1.227.0, 1.228.0   // 1.224.0   // 1.210.0
         // 1.179.0: Mastodon alleen via https naar een gewone hostnaam
         if (isset($in['cve_mastodon_url']) && trim((string) $in['cve_mastodon_url']) !== '' && !CveBuzz::safeUrl(rtrim(trim((string) $in['cve_mastodon_url']), '/'))) {
             out(['error' => t('Mastodon: vul een https-adres in, bv. https://infosec.exchange')], 422);
@@ -543,6 +543,13 @@ switch ($action) {
         }
         if (isset($in['ids_weekly_day'])) {
             $in['ids_weekly_day'] = (string) max(1, min(7, (int) $in['ids_weekly_day']));
+        }
+        // 1.275.0: IDS-pushmeldingen en de samenvatting
+        if (isset($in['ids_digest_time'])) {
+            $in['ids_digest_time'] = preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['ids_digest_time']) ? (string) $in['ids_digest_time'] : '20:00';
+        }
+        if (isset($in['ids_push_mode']) && !in_array((string) $in['ids_push_mode'], IdsPush::MODES, true)) {
+            $in['ids_push_mode'] = 'action';
         }
         if (isset($in['ids_weekly_time'])) {
             $in['ids_weekly_time'] = preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $in['ids_weekly_time']) ? (string) $in['ids_weekly_time'] : '08:00';

@@ -149,6 +149,9 @@ try {
     if ($msg = OwnCert::cron()) {
         echo date('c') . " $msg\n";
     }
+    if ($msg = IdsPush::cron()) {   // 1.275.0: dagelijkse samenvatting van het IDS
+        echo date('c') . " $msg\n";
+    }
     if ($msg = Reports::cron()) {   // 1.180.0: alle rapporten (IDS-, AI-weekoverzicht, maandrapport, maandoverzicht …)
         echo date('c') . " $msg\n";
     }

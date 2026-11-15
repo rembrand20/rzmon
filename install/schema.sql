@@ -1644,6 +1644,8 @@ CREATE TABLE IF NOT EXISTS proxy_sites (
 INSERT IGNORE INTO settings (name, value) VALUES ('proxy_on', '0'), ('proxy_def_lan', '1'), ('proxy_def_rate', 'normal'), ('proxy_def_bots', '1'), ('proxy_lan_extra', '');
 -- 1.274.0: standaard voor nieuwe sites: toegestane apparaten van RzSense mogen er van buiten bij (uit)
 INSERT IGNORE INTO settings (name, value) VALUES ('proxy_def_devices', '0');
+-- 1.275.0: IDS-pushmeldingen alleen als je iets moet doen, en een dagelijkse samenvatting
+INSERT IGNORE INTO settings (name, value) VALUES ('ids_push_mode', 'action'), ('ids_digest_on', '1'), ('ids_digest_time', '20:00');
 -- 1.255.0: WAF op de reverse proxy (CrowdSec AppSec): wat hij zag en tegenhield
 CREATE TABLE IF NOT EXISTS waf_events (
     id       BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

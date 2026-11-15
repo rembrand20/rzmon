@@ -3523,6 +3523,38 @@ q('DELETE FROM proxy_tags');
 q('DELETE FROM proxy_sites WHERE host_id = ?', [$rzp]);
 q("DELETE FROM login_log WHERE ip = '198.51.100.90'");
 q('DELETE FROM hosts WHERE id = ?', [$rzp]);
+
+// 1.275.0: IDS-pushmeldingen alleen als je iets moet doen, en de samenvatting
+q("INSERT INTO hosts (name, address, mode) VALUES ('ci-push', '10.0.0.92', 'agent')");
+$ph = q('SELECT * FROM hosts WHERE id = ?', [(int) db()->lastInsertId()])->fetch();
+$pmWas = setting('ids_push_mode', 'action');
+save_setting('ids_push_mode', 'action');
+$pushed = static fn(string $ip) => (int) q("SELECT COUNT(*) FROM alerts WHERE kind = 'ids' AND title LIKE ?", ['%' . $ip . '%'])->fetchColumn();
+$blk = static fn(string $ip) => q("INSERT INTO ids_blocks (host_id, ip, reason, auto, created_by, until) VALUES (?, ?, 'test', 1, 'IDS', NOW() + INTERVAL 1 DAY)", [$ph['id'], $ip]);
+$blk('203.0.113.71');
+Ids::raise($ph, 2, 'suricata', 'p1', 'Suricata: ET EXPLOIT Apache log4j RCE Attempt (CVE-2021-44228) · 203.0.113.71', 'x', '203.0.113.71');   // geblokkeerd: stil
+Ids::raise($ph, 2, 'suricata', 'p2', 'Suricata: ET SCAN iets · 203.0.113.72', 'x', '203.0.113.72');   // niet geblokkeerd: push
+Ids::raise($ph, 2, 'webshell', 'p3', 'Webshell op ci-push 203.0.113.74', 'x', null);   // op de server zelf: altijd
+q("INSERT INTO vuln_findings (host_id, package, version, source, vuln_id, cve, first_seen) VALUES (?, 'log4j-core', '2.14.1', 'test', 'CVE-2021-44228', 'CVE-2021-44228', NOW())", [$ph['id']]);
+$blk('203.0.113.73');
+Ids::raise($ph, 2, 'suricata', 'p4', 'Suricata: ET EXPLOIT Apache log4j RCE Attempt (CVE-2021-44228) · 203.0.113.73', 'x', '203.0.113.73');   // lek in eigen software: push
+save_setting('ids_push_mode', 'all');
+$blk('203.0.113.75');
+Ids::raise($ph, 2, 'suricata', 'p5', 'Suricata: ET SCAN ander · 203.0.113.75', 'x', '203.0.113.75');   // alles pushen
+ok($pushed('203.0.113.71') === 0 && $pushed('203.0.113.72') === 1 && $pushed('203.0.113.74') === 1 && $pushed('203.0.113.73') === 1 && $pushed('203.0.113.75') === 1,
+    'IDS-push: geblokkeerde scanner stil; niet geblokkeerd, op de server zelf, lek in eigen software en "alles pushen" wel');
+$dg = IdsPush::digest();
+$dtWas = setting('ids_digest_time', '20:00');
+save_setting('ids_digest_time', '00:00');
+save_setting('ids_digest', '{}');
+$c1 = IdsPush::cron();
+$c2 = IdsPush::cron();
+ok($dg !== null && $dg['n'] >= 5 && $dg['handled'] >= 3 && $dg['open'] >= 1 && str_contains(IdsPush::digestText($dg), '×)') && str_contains(IdsPush::digestText($dg), 'van buiten') && is_string($c1) && $c2 === null,
+    'IDS-samenvatting: tellingen, meest geziene aanval, één keer per dag');
+save_setting('ids_digest_time', $dtWas);
+save_setting('ids_push_mode', $pmWas);
+q('DELETE FROM vuln_findings WHERE host_id = ?', [$ph['id']]);
+q('DELETE FROM hosts WHERE id = ?', [$ph['id']]);
 save_setting('proxy_on', $pOnWas);
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");

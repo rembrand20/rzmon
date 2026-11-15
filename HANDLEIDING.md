@@ -2774,6 +2774,8 @@ De agent let op tekenen van een inbraak en RzSense vergelijkt dat met wat normaa
 
 Begin met *leren* en kijk een paar dagen wat er gemeld wordt. Schakel pas over naar *blokkeren* als het klopt, en doe dat de eerste keer terwijl je ook via de console bij de server kunt.
 
+**Pushmeldingen van het IDS** (vanaf 1.275.0, *Instellingen → IDS → Algemeen*): standaard *Alleen als ik iets moet doen*. Een aanval van buiten (Suricata, webaanval, brute force, honeypot, bekende aanvaller) die al automatisch **geblokkeerd of tegengehouden** is, geeft dan geen pushmelding; hij staat wel bij IDS en in de samenvatting. Je krijgt wél meteen een melding als hij **niet** geblokkeerd kon worden (beschermd adres, IDS op leren, blokkeren mislukt), als de app een gewoon antwoord gaf (2xx/3xx: misschien gelukt), als het lek (CVE) past bij software die op een van je servers staat (Kwetsbaarheden), en **altijd** bij iets op een server zelf (webshell, verdacht proces, gewijzigd bestand, login van buiten, malware, ransomware). Dezelfde aanvaller binnen 10 minuten geeft één melding. Andere standen: *Alles pushen* (elke ernstige melding, zoals vóór 1.275.0) en *Alleen de dagelijkse samenvatting* (servers zelf blijven meteen melden). De **dagelijkse samenvatting** (standaard 20:00, stil zonder geluid) telt de aanvallen van buiten van de afgelopen 24 uur, hoeveel automatisch geblokkeerd zijn, of er iets nog open staat, de meest geziene aanvallen en hoeveel andere meldingen op je servers nog open staan. Op een dag zonder meldingen komt er niets. Staat de WAF al twee weken op *detecteren*, dan staat er een tip bij om hem op *alleen zeker* te zetten: dan houdt de proxy bekende lekken zoals log4j al tegen.
+
 **Wat wordt gemeld**
 
 | Melding | Ernst |

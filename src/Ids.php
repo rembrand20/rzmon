@@ -1081,8 +1081,8 @@ final class Ids
         if ($ip !== null && $ip !== '' && !in_array($type, ['ti_ip', 'chain'], true)) {
             ThreatIntel::queue('i', $ip, $hid, $newId);   // 1.112.0: wat is er over dit IP bekend? (in de cron)
         }
-        if ($sev === 2) {
-            // 1.115.0: Waarom, Trigger en Actie in de melding
+        // 1.115.0: Waarom, Trigger en Actie in de melding. 1.275.0: alleen pushen als je iets moet doen (IdsPush)
+        if ($sev === 2 && IdsPush::now($newId)) {
             self::notify($ctx['host']['name'] . ': ' . $title, Protect::pushText($newId) ?? $detail);
         }
         return true;
