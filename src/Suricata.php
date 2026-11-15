@@ -74,7 +74,7 @@ final class Suricata
                 continue;
             }
             // 1.265.0: vanaf ernst 1 (standaard) of 2; bij 2 alleen reputatie, scans en aanvallen (geen beleid of info)
-            $blockable = $sev === 1 || ($sev === 2 && setting('suricata_block_sev', '1') === '2' && self::blockable2("$sig $cat"));
+            $blockable = $sev === 1 || (setting('suricata_block_sev', '1') === '2' && self::blockable2("$sig $cat"));   // ernst 3+ is hierboven al overgeslagen
             if ($blockable && $ext !== null && $ext === $src && setting('suricata_block', '1') === '1' && ($b = Ids::autoBlock($host, $ext, t('Suricata: {sig}', ['sig' => mb_substr($sig, 0, 80)])))) {
                 $detail .= " · ⛔ $ext $b";
             }

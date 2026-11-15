@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.262.0**: **eigen servers nooit buitengesloten**: het IDS blokkeert je eigen agent-servers niet meer automatisch, ook niet als ze op internet staan.
 - **1.261.0**: **mobielvriendelijk**: op een telefoon worden brede tabellen kaartjes, KPI-tegels staan twee per rij en niets duwt de pagina nog breder dan het scherm.
 
+## 1.265.1 – 2026-11-15
+### Opgelost
+- Suricata blokkeren vanaf ernst: een overbodige controle weggehaald (gevonden door de codecontrole); geen verschil in wat RzSense doet.
+
 ## 1.265.0 – 2026-11-15
 ### Nieuw
 - **🏷️ Status van een melding in één oogopslag**: vooraan elke beveiligingsmelding één label met wat er gebeurde: ⛔ *Geblokkeerd* (tot …), 🛡️ *Tegengehouden*, ⏳ *Wordt gestopt*, 🧱 *Geïsoleerd*, ⚠️ *Doorgelaten – mogelijk gelukt* (de app gaf een gewoon antwoord op een aanval), 👁 *Alleen gemeld*, 🎓 *Leren*, ✅ *Toegestaan*, ↩ *Gedeblokkeerd*, ⌛ *Blokkade verlopen* of ✘ *Mislukt*, met een gekleurde rand links.
