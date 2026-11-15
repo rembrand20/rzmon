@@ -328,34 +328,37 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
     <section id="tab-ids" class="tab-panel" role="tabpanel" hidden>
       <!-- 1.67.0: zelfde opbouw als het dashboard -->
       <div class="dash-counters"><div class="dash-in">
+        <span class="ids-state" id="ids-state"></span>
         <div class="health-counts" id="ids-counts"></div>
         <span class="dash-last muted small" id="ids-last"></span>
+        <button type="button" class="btn small-btn need-admin" id="ids-block-add"><?= th('⛔ IP blokkeren') ?></button>
       </div></div>
-      <div class="pg-tools" data-pgtools="ids"></div>
-      <div class="pgrid" data-pgrid="ids">
-      <div class="pcard" data-pk="kpis" data-pw="12" data-pt="<?= th('Kerncijfers') ?>"><div class="kpis" id="ids-kpis"></div>
-      </div>
-      <div class="pcard" data-pk="attn" data-pw="12" data-pt="<?= th('Nu aandacht nodig') ?>"><div class="attn-sec" id="ids-attn" hidden></div>
-      </div>
-      <div class="pcard" data-pk="hosts" data-pw="6" data-pt="<?= th('Servers met open incidenten') ?>"><div class="srv-list" id="ids-hosts"></div>
-      </div>
-      <div class="pcard" data-pk="chart" data-pw="6" data-pt="<?= th('Aanvallen per dag') ?>"><div id="ids-chart" hidden></div>
-      </div>
-      <div class="pcard" data-pk="sites" data-pw="12" data-pt="<?= th('Aanvallen per site') ?>" id="ids-sites-card" hidden><div class="card" id="ids-sites"></div>
-      </div>
-      <div class="pcard" data-pk="tabs" data-pw="12" data-pt="<?= th('Tabbladen') ?>"><div class="subtabs ids-tabs" role="tablist" aria-label="IDS" id="ids-tabs">
-        <!-- 1.234.1: eerst waar je iets doet (belangrijkste eerst), dan wat je bekijkt -->
+      <!-- 1.266.0: overzichtelijk: één statusregel (hierboven), direct de tabbladen; analyse staat op 📊 Overzicht -->
+      <div class="subtabs ids-tabs" role="tablist" aria-label="IDS" id="ids-tabs">
         <button type="button" class="seg-btn active" data-it="inc"><?= th('⚠️ Incidenten') ?> <span class="it-n" id="it-n-inc"></span></button>
         <button type="button" class="seg-btn" data-it="blk"><?= th('⛔ Blokkades') ?> <span class="it-n" id="it-n-blk"></span></button>
-        <button type="button" class="seg-btn" data-it="apps"><?= th('🧩 Programma\'s') ?> <span class="it-n" id="it-n-apps"></span></button>
-        <button type="button" class="seg-btn" data-it="hunt"><?= th('🔎 Jagen') ?></button>
-        <span class="it-sep" role="separator" aria-hidden="true"></span>
-        <button type="button" class="seg-btn" data-it="anom"><?= th('🧬 Afwijkingen') ?> <span class="it-n" id="it-n-anom"></span></button>
-        <button type="button" class="seg-btn" data-it="prot"><?= th('🛡️ Bescherming') ?> <span class="it-n" id="it-n-prot"></span></button>
-        <button type="button" class="seg-btn" data-it="acc"><?= th('🔑 Toegang') ?> <span class="it-n" id="it-n-acc"></span></button>
         <button type="button" class="seg-btn" data-it="live"><?= th('🛰️ Live') ?></button>
         <button type="button" class="seg-btn" data-it="map"><?= th('🗺️ Aanvalskaart') ?></button>
-        <button type="button" class="seg-btn" data-it="mitre"><?= th('🧭 MITRE') ?></button>
+        <button type="button" class="seg-btn" data-it="ovw"><?= th('📊 Overzicht') ?></button>
+        <div class="ids-more">
+          <button type="button" class="seg-btn" id="ids-more-btn" aria-haspopup="menu" aria-expanded="false"><span id="ids-more-lbl"><?= th('Meer') ?></span> <span class="it-n" id="it-n-more"></span> ▾</button>
+          <div class="ids-more-menu" id="ids-more-menu" role="menu" hidden>
+            <button type="button" class="seg-btn" role="menuitem" data-it="acc"><?= th('🔑 Toegang') ?> <span class="it-n" id="it-n-acc"></span></button>
+            <button type="button" class="seg-btn" role="menuitem" data-it="apps"><?= th('🧩 Programma\'s') ?> <span class="it-n" id="it-n-apps"></span></button>
+            <button type="button" class="seg-btn" role="menuitem" data-it="hunt"><?= th('🔎 Jagen') ?></button>
+            <button type="button" class="seg-btn" role="menuitem" data-it="anom"><?= th('🧬 Afwijkingen') ?> <span class="it-n" id="it-n-anom"></span></button>
+            <button type="button" class="seg-btn" role="menuitem" data-it="mitre"><?= th('🧭 MITRE') ?></button>
+            <button type="button" class="seg-btn" role="menuitem" data-it="prot"><?= th('🛡️ Bescherming') ?> <span class="it-n" id="it-n-prot"></span></button>
+          </div>
+        </div>
+      </div>
+      <!-- 1.266.0: 📊 Overzicht: kerncijfers, servers, aanvallen per dag en per site -->
+      <div class="ids-pane" data-pane="ovw" hidden>
+        <?= xp(t('Hoe het ervoor staat: kerncijfers, servers, aanvallen per dag en de meest actieve aanvallers.'), t('<b>Wat het doet:</b> het grote plaatje van het IDS. Het werk zelf (wat je moet afhandelen) staat op het tabblad <b>Incidenten</b>.')) ?>
+        <div class="kpis" id="ids-kpis"></div>
+        <div class="srv-list" id="ids-hosts"></div>
+        <div id="ids-chart" hidden></div>
+        <div id="ids-sites-card" hidden><div class="card" id="ids-sites"></div></div>
       </div>
       <!-- 1.149.0: aanvalskaart -->
       <div class="ids-pane" data-pane="map" hidden>
@@ -430,13 +433,14 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       </div>
       <div class="ids-pane" data-pane="inc">
         <?= xp(t('Mogelijke aanvallen die het IDS zag, met wat het deed en wat jij kunt doen.'), t('<b>Wat het doet:</b> elk incident vertelt waarom het IDS iets verdacht vond, wat het deed (bijvoorbeeld blokkeren) en op welke server. <b>Zo gebruik je het:</b> open een incident en kies: afhandelen, het IP-adres blokkeren, of vrijgeven als het normaal is (dan komt het niet terug). <b>Goed om te weten:</b> op de pagina Incidenten staan deze samen met storingen en kwetsbaarheden in één lijst.')) ?>
+        <div class="attn-sec" id="ids-attn" hidden></div>
+        <div class="ids-srvchips" id="ids-srvchips" hidden></div>
         <div class="dash-bar">
           <input type="search" id="ids-search" placeholder="<?= th('🔍 Zoek incident, IP of server…') ?>">
           <div class="dash-chips" id="ids-filter" role="group" aria-label="Filter"></div>
           <span class="dash-sp"></span>
           <span class="muted small" id="ids-info"></span>
           <a class="btn small-btn" href="#incidents" data-goto="incidents" title="<?= th('Eén lijst met de incidenten uit monitoring, het IDS en kwetsbaarheden') ?>">🧾 <?= th('Alle incidenten') ?> →</a>
-          <button type="button" class="btn need-admin" id="ids-block-add"><?= th('⛔ IP blokkeren') ?></button>
           <div class="dash-more">
             <button class="btn" type="button" data-menu-btn aria-haspopup="menu" aria-expanded="false" title="<?= th('Meer') ?>">⋯</button>
             <div class="dash-menu" role="menu" hidden><button type="button" id="ids-toggle" role="menuitem"><?= th('⊞ Alles openen') ?></button></div>
@@ -494,8 +498,6 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <div id="wl-list"><p class="muted"><?= th('Laden…') ?></p></div>
         </div>
 
-      </div>
-      </div>
       </div>
     </section>
 

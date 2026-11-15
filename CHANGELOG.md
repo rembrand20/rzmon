@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.266.0**: **IDS-pagina overzichtelijk**: één statusregel, vijf vaste tabbladen plus *Meer*, de incidentenlijst meteen bovenaan en het grote plaatje op het tabblad *Overzicht*.
 - **1.265.0**: **status van een melding in één oogopslag**: vooraan elke melding geblokkeerd, tegengehouden, alleen gemeld of mogelijk gelukt, met chips om erop te filteren.
 - **1.264.0**: **statistieken van de reverse proxy**: bovenaan de pagina wat er gebeurde, wat er tegengehouden is en waarom, de meest aangevallen paden, sites en landen, in cijfers en percentages.
 - **1.263.0**: **agent-servers op internet kunnen erbij**: de reverse proxy laat je eigen agent-servers door, ook als RzSense alleen vanaf je LAN mag.
 - **1.262.0**: **eigen servers nooit buitengesloten**: het IDS blokkeert je eigen agent-servers niet meer automatisch, ook niet als ze op internet staan.
-- **1.261.0**: **mobielvriendelijk**: op een telefoon worden brede tabellen kaartjes, KPI-tegels staan twee per rij en niets duwt de pagina nog breder dan het scherm.
+
+## 1.266.0 – 2026-11-15
+### Nieuw
+- **🧭 IDS-pagina overzichtelijker**:
+  - Bovenaan **één statusregel**: 🟢 *Rustig*, 🟠 *Aandacht*, 🔴 *Actie nodig* of ⏸ *IDS staat uit*, met de tellers en de knop **⛔ IP blokkeren** (die stond er eerst twee keer).
+  - **Vijf vaste tabbladen** op één regel: *Incidenten · Blokkades · Live · Aanvalskaart · Overzicht*. De rest (*Toegang, Programma's, Jagen, Afwijkingen, MITRE, Bescherming*) staat onder **Meer ▾**; de tellers daarvan staan opgeteld achter *Meer*, en kies je er een, dan staat zijn naam op de knop.
+  - De pagina opent op **Incidenten**: eerst *Nu aandacht nodig*, dan **serverchips** (per server met open incidenten één chip met 🔴/🟠-aantallen; klik om alleen die server te zien), dan de lijst.
+  - De kerncijfers, de grote serverkaarten, *Aanvallen per dag* en *Aanvallen per site* staan op het nieuwe tabblad **📊 Overzicht**.
+  - Op de telefoon staan de zes knoppen in een raster van 3 × 2 en klapt *Meer* uit over de volle breedte.
+### Opgelost
+- IDS: de tellerbalk bovenaan stond een stuk te laag en kon op de telefoon de tabbladen bedekken.
 
 ## 1.265.1 – 2026-11-15
 ### Opgelost

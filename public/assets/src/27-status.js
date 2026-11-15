@@ -48,3 +48,23 @@ document.addEventListener('click', (e) => {
   idsOutcome = idsOutcome === b.dataset.iout ? '' : b.dataset.iout;
   renderIds();
 });
+
+// 1.266.0: IDS overzichtelijk: filter op server (chips boven de lijst) en het menu "Meer" bij de tabbladen
+let idsHost = 0;
+document.addEventListener('click', (e) => {
+  const h = e.target.closest && e.target.closest('[data-ihost]');
+  if (h) { idsHost = +h.dataset.ihost === +idsHost ? 0 : +h.dataset.ihost; renderIds(); return; }
+  const mb = e.target.closest && e.target.closest('#ids-more-btn');
+  const menu = $('#ids-more-menu');
+  if (mb && menu) {
+    menu.hidden = !menu.hidden;
+    mb.setAttribute('aria-expanded', String(!menu.hidden));
+    if (!menu.hidden) { const first = $('[data-it]', menu); if (first) first.focus(); }
+    return;
+  }
+  if (menu && !menu.hidden && !(e.target.closest && e.target.closest('#ids-more-menu'))) { menu.hidden = true; $('#ids-more-btn').setAttribute('aria-expanded', 'false'); }
+});
+document.addEventListener('keydown', (e) => {
+  const menu = $('#ids-more-menu');
+  if (e.key === 'Escape' && menu && !menu.hidden) { menu.hidden = true; $('#ids-more-btn').setAttribute('aria-expanded', 'false'); $('#ids-more-btn').focus(); }
+});

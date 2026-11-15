@@ -5404,7 +5404,6 @@ body.lg .mds-sheet-p { background: var(--bg-2, var(--bg)); -webkit-backdrop-filt
 #tab-ids { position: relative; }
 #tab-ids.ids-syncing .dash-counters::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: 0; height: 2px; border-radius: 2px;
   background: linear-gradient(90deg, transparent, var(--primary), transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: idsSync 1.1s linear infinite; }
-#tab-ids .dash-counters { position: relative; }
 @keyframes idsSync { from { background-position: -40% 0; } to { background-position: 140% 0; } }
 .sk-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .8rem; }
 .sk-blk { border-radius: 14px; margin-bottom: .5rem; background: linear-gradient(90deg, color-mix(in srgb, var(--muted) 12%, transparent) 25%, color-mix(in srgb, var(--muted) 22%, transparent) 50%, color-mix(in srgb, var(--muted) 12%, transparent) 75%);
@@ -6198,3 +6197,26 @@ details.pxs h4 { margin: .2rem 0 .45rem; font-size: .9rem; }
 .out-row-bar { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; margin: -.2rem 0 .7rem; }
 .out-row-bar .out-lbl { font-size: .8rem; color: var(--muted); margin-right: .2rem; }
 .out-mixed { font-size: .75rem; color: var(--muted); margin-right: .45rem; white-space: nowrap; }
+
+/* 1.266.0: IDS overzichtelijk: toestand vooraan, "Meer"-menu bij de tabbladen, serverchips boven de lijst */
+.ids-state:empty { display: none; }
+.ids-st { display: inline-flex; align-items: center; gap: .3rem; padding: .2rem .65rem; border-radius: 999px; font-weight: 700; font-size: .85rem; white-space: nowrap; border: 1px solid var(--border); background: var(--card-2); }
+.ids-st.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.ids-st.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.ids-st.bad { color: var(--crit); border-color: color-mix(in srgb, var(--crit) 50%, transparent); background: color-mix(in srgb, var(--crit) 10%, var(--card-2)); }
+.ids-st.off { color: var(--muted); }
+.ids-more { position: relative; display: inline-flex; }
+.ids-more-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 60; display: flex; flex-direction: column; gap: 2px; min-width: 13rem; padding: 4px; border-radius: 12px; background: var(--card); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,.28); }
+.ids-more-menu[hidden] { display: none; }
+.ids-more-menu .seg-btn { text-align: left; width: 100%; }
+.ids-more-menu .seg-btn:hover, .ids-more-menu .seg-btn:focus-visible { background: var(--card-2); color: var(--text); }
+.ids-srvchips { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; margin: 0 0 .7rem; }
+.ids-srvchips[hidden] { display: none; }
+.ids-srvchips .out-lbl { font-size: .8rem; color: var(--muted); margin-right: .2rem; }
+/* Telefoon: zes knoppen in een raster van 3 × 2, het menu over de volle breedte eronder (niet afgeknipt door schuiven) */
+@media (max-width: 720px) {
+  .subtabs.ids-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); position: relative; overflow: visible; -webkit-mask-image: none; mask-image: none; width: 100%; }
+  .subtabs.ids-tabs .seg-btn { padding: .38rem .4rem; font-size: .84rem; overflow: hidden; text-overflow: ellipsis; }
+  .ids-more { position: static; } .ids-more > .seg-btn { width: 100%; }
+  .ids-more-menu { left: 4px; right: 4px; min-width: 0; }
+}

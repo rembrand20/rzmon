@@ -253,12 +253,24 @@ async function loadIds() {
   if (idsAgain) { idsAgain = false; loadIds(); }
 }
 
+const IDS_TABS = ['inc', 'blk', 'live', 'map', 'ovw', 'acc', 'apps', 'hunt', 'anom', 'mitre', 'prot'];
 function showIdsTab() {
-  if (!['inc', 'map', 'acc', 'blk', 'prot', 'live', 'anom', 'mitre', 'apps', 'hunt'].includes(idsTab)) idsTab = 'inc';
-  $$('#ids-tabs .seg-btn').forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab));
+  if (!IDS_TABS.includes(idsTab)) idsTab = 'inc';
+  $$('#ids-tabs [data-it]').forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab));
   $$('#tab-ids .ids-pane').forEach((x) => { x.hidden = x.dataset.pane !== idsTab; });
   const nAnom = ((idsData && idsData.incidents) || []).filter((i) => (i.type === 'chain' || i.type === 'anomaly') && i.status === 'open').length;
   $('#it-n-anom').textContent = nAnom || '';
+  // 1.266.0: "Meer": toont het gekozen tabblad als het daarin zit, met de som van de tellers
+  const inMore = $(`#ids-more-menu [data-it="${idsTab}"]`);
+  const mb = $('#ids-more-btn');
+  if (mb) {
+    mb.classList.toggle('active', !!inMore);
+    $('#ids-more-lbl').textContent = inMore ? inMore.childNodes[0].textContent.trim() : L('Meer');
+    const sum = $$('#ids-more-menu .it-n').reduce((a, x) => a + (parseInt(x.textContent, 10) || 0), 0);
+    $('#it-n-more').textContent = sum || '';
+    $('#ids-more-menu').hidden = true;
+    mb.setAttribute('aria-expanded', 'false');
+  }
   withPageWait('ids', () => {   // 1.202.0
     if (idsTab === 'blk' && isAdmin()) loadBlocks();
     if (idsTab === 'live') loadEdrFeed();
@@ -1321,6 +1333,16 @@ function renderIds() {
   $('#ids-counts').innerHTML = cnt('s2', o2, 'Critical', 'data-igo="inc"') + cnt('s1', open.length - o2, 'Warning', 'data-igo="inc"')
     + cnt('sx2', d.blocks.length, '⛔ ' + L('Geblokkeerd'), 'data-igo="blk"') + cnt('si', accOk, '🔑 ' + L('Logins 24 u'), 'data-igo="acc"')
     + cnt('sx', accFail, '❌ ' + L('Mislukt 24 u'), 'data-igo="acc" data-fail="1"');
+  // 1.266.0: één woord voor de toestand, vooraan de statusregel
+  $('#ids-state').innerHTML = !d.enabled ? `<span class="ids-st off">⏸ ${esc(L('IDS staat uit'))}</span>`
+    : o2 ? `<span class="ids-st bad">🔴 ${esc(L('Actie nodig'))}</span>` : open.length ? `<span class="ids-st warn">🟠 ${esc(L('Aandacht'))}</span>` : `<span class="ids-st ok">🟢 ${esc(L('Rustig'))}</span>`;
+  // Serverchips: per server met open incidenten één chip; klik = alleen die server in de lijst
+  const busyHosts = d.hosts.filter((h) => !h.ha && h.open && (h.open[1] + h.open[2] > 0));
+  if (idsHost && !busyHosts.some((h) => +h.id === +idsHost)) idsHost = 0;
+  const sc = $('#ids-srvchips');
+  sc.hidden = busyHosts.length < 1;
+  sc.innerHTML = busyHosts.length ? `<span class="out-lbl">${esc(L('Servers'))}</span>` + busyHosts.map((h) => `<button type="button" class="dchip ${+idsHost === +h.id ? 'on' : ''}" data-ihost="${h.id}" title="${esc(L('Alleen de incidenten van {s}', { s: h.name }))}">🖥️ ${esc(h.name)}${h.open[2] ? ` <b class="danger-txt">🔴 ${h.open[2]}</b>` : ''}${h.open[1] ? ` <b class="warn-txt">🟠 ${h.open[1]}</b>` : ''}</button>`).join('')
+    + (idsHost ? ` <button type="button" class="linkbtn" data-ihost="0">✕ ${esc(L('alle servers'))}</button>` : '') : '';
   const lastRep = d.hosts.map((h) => h.last_report).filter(Boolean).sort().pop();
   $('#ids-last').textContent = lastRep ? L('IDS-rapport {ago}', { ago: ago(lastRep) }) : '';
   // Kerncijfers
@@ -1399,9 +1421,9 @@ function renderIds() {
   outRow.innerHTML = outcomeChips(scope);
   outRow.hidden = !outRow.innerHTML;
   if (idsOutcome && !scope.some((i) => (outcomeOf(i) || {}).k === idsOutcome)) idsOutcome = '';
-  const list = scope.filter((i) => (!idsOutcome || (outcomeOf(i) || {}).k === idsOutcome) && (!idsCard || ((d.prot || {})[i.id] || {}).card === idsCard) && (!idsCat || idsCatOf(i) === idsCat) && (!q || `${i.title} ${i.detail} ${i.host_name} ${i.ip || ''}`.toLowerCase().includes(q)) && fxPass('ids', i));
+  const list = scope.filter((i) => (!idsHost || +i.host_id === +idsHost) && (!idsOutcome || (outcomeOf(i) || {}).k === idsOutcome) && (!idsCard || ((d.prot || {})[i.id] || {}).card === idsCard) && (!idsCat || idsCatOf(i) === idsCat) && (!q || `${i.title} ${i.detail} ${i.host_name} ${i.ip || ''}`.toLowerCase().includes(q)) && fxPass('ids', i));
   fxRender('ids');
-  const narrowed = !!q || !!idsCat || !!idsCard || !!idsOutcome || fxActive('ids');
+  const narrowed = !!q || !!idsCat || !!idsCard || !!idsOutcome || !!idsHost || fxActive('ids');
   $('#ids-info').textContent = L('{open} open · {n} in de laatste {days} dagen', { open: open.length, n: d.incidents.length, days: d.days });
   $('#it-n-inc').textContent = open.length ? open.length : '';
   const el = $('#ids-incidents');

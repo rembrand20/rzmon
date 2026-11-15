@@ -10800,4 +10800,8 @@ return [
     'Was geblokkeerd, met de hand vrijgegeven.' => 'Was blocked, released by hand.',
     'Was geblokkeerd; de blokkade is voorbij.' => 'Was blocked; the block is over.',
     'De actie lukte niet (bv. een proces dat niet te stoppen was).' => 'The action failed (e.g. a process that could not be stopped).',
+    '📊 Overzicht' => '📊 Overview',
+    'Hoe het ervoor staat: kerncijfers, servers, aanvallen per dag en de meest actieve aanvallers.' => 'How things stand: key figures, servers, attacks per day and the most active attackers.',
+    '<b>Wat het doet:</b> het grote plaatje van het IDS. Het werk zelf (wat je moet afhandelen) staat op het tabblad <b>Incidenten</b>.' => '<b>What it does:</b> the big picture of the IDS. The actual work (what you need to handle) is on the <b>Incidents</b> tab.',
+    'Alleen de incidenten van {s}' => 'Only the incidents of {s}',
 ];

@@ -582,7 +582,7 @@ function showTab(name) {
   if (/^(ids|vulns)\//.test(name)) {
     const [tab, s] = name.split('/');
     name = tab;
-    if (tab === 'ids' && ['inc', 'map', 'acc', 'blk', 'prot', 'live', 'anom', 'mitre', 'apps', 'hunt'].includes(s)) idsTab = s;
+    if (tab === 'ids' && IDS_TABS.includes(s)) idsTab = s;
     if (tab === 'ids' && s === 'rules') { showTab('settings/ids_rules'); return; }   // 1.236.0: regels staan in de beheerportal
     if (tab === 'vulns' && ['cve', 'sw', 'leak', 'eol', 'patch'].includes(s)) vulnTab = s;
   }

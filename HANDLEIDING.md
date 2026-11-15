@@ -20,6 +20,8 @@ Je kunt hem draaien op elke Linux-machine met PHP 8 en MariaDB: een VM, een Rasp
 >
 > **mDS en IDS (1.220.0):** op *mDS* staan de servers en apparaten per soort (tik op *Servers*, *Netwerk* … om alleen die te zien), met bij servers het netwerkverkeer (**Net**) en bij apparaten zonder CPU/RAM/Disk de **ping**. De IDS-pagina toont meteen het vorige beeld en werkt het daarna bij; hoe lang elk onderdeel duurt zie je bij *Instellingen → Prestaties en fouten*.
 >
+> **IDS overzichtelijk (1.266.0):** bovenaan één statusregel (🟢 *Rustig*, 🟠 *Aandacht*, 🔴 *Actie nodig*) met de tellers en *⛔ IP blokkeren*. Daaronder vijf vaste tabbladen: *Incidenten · Blokkades · Live · Aanvalskaart · 📊 Overzicht*; de rest (*Toegang, Programma's, Jagen, Afwijkingen, MITRE, Bescherming*) staat onder **Meer ▾**. *Incidenten* begint met *Nu aandacht nodig* en chips per server (klik om alleen die server te zien). Kerncijfers, serverkaarten en de grafieken staan op **📊 Overzicht**.
+>
 > **Bijwerken sneller (1.221.0):** een update maakt een snelle back-up (zonder geschiedenis en logs; volledig als de database-opbouw verandert) en slaat over wat al goed staat. Na afloop staat de duur per stap in het venster.
 
 ---
@@ -214,7 +216,7 @@ In de **Instellingen** heeft elk onderdeel (bv. *Meldingen → Kanalen* of *IDS 
 **Nu aandacht nodig in CC** (vanaf 1.176.0): bovenaan Monitoring staat in CC een compacte lijst met vaste kolommen: status, server, check, melding, hoe lang al, de laatste 24 uur en de knoppen ✓ (bevestigen), AI en → (openen). Bovenaan het aantal open problemen, een balk met de verdeling en filters op *Critical*, *Warning* en *Onbekend*. Een server met veel problemen of een stille agent is één regel; klap hem open voor de checks eronder. Wat al bevestigd is staat ingeklapt onderaan. Na 8 regels: *Alle … tonen*. In Blox, L1nes en Compact blijft het zoals het was.
 
 **Extra kaarten in CC** (vanaf 1.159.0), naast alles wat er al stond:
-- **IDS**: *Aanvallen per dag* staat altijd open (in de andere lay-outs blijft het een regel die je uitklapt). De tabbladen zijn samen één kaart. Vanaf 1.234.1 staan ze in twee groepen: eerst waar je iets doet (*Incidenten · Blokkades · Programma's · Jagen · Regels*), dan wat je bekijkt (*Afwijkingen · Bescherming · Toegang · Live · Aanvalskaart · MITRE*); past het niet op één regel, dan elke groep op een eigen regel.
+- **IDS**: *Aanvallen per dag* staat altijd open (in de andere lay-outs blijft het een regel die je uitklapt). De tabbladen zijn samen één kaart. Vanaf 1.266.0 staan er vijf vaste tabbladen (*Incidenten · Blokkades · Live · Aanvalskaart · Overzicht*) en de rest onder *Meer ▾*.
 - **Incidenten**: *Geopend en opgelost* (per dag, 30 dagen) en *Nog bezig, per bron* (monitoring, IDS, kwetsbaarheden).
 - **Kwetsbaarheden**: *Per ernst* (met hoeveel er actief misbruikt worden) en *Servers met de meeste kwetsbaarheden*.
 - **Netwerk**: *Apparaten*: online, nieuw, riskante poort, in RzSense, bekend en genegeerd.
