@@ -6258,6 +6258,3 @@ details.pxs h4 { margin: .2rem 0 .45rem; font-size: .9rem; }
 .pxs-why .pxs-why-bad b { color: var(--crit); } .pxs-why .pxs-why-wait b { color: var(--warn); }
 .pxs-whyinfo { margin: -.2rem 0 .6rem; }
 
-/* 1.270.0: tijdelijk toegang van buiten */
-.px-open-l { margin: .3rem 0 0; padding-left: 1.1rem; display: grid; gap: .3rem; font-size: .88rem; }
-.px-open-l .btn { margin-left: .4rem; }

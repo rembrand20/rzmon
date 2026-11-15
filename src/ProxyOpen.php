@@ -2,47 +2,21 @@
 declare(strict_types=1);
 
 /**
- * 1.270.0: tijdelijk toegang van buiten tot sites achter de reverse proxy die "alleen mijn netwerk" staan (zoals RzSense zelf).
+ * Van buiten bij RzSense, ook als de reverse proxy de site van RzSense "alleen vanaf mijn netwerk" laat (standaard).
  *
- * Op de site van RzSense laat de proxy één pad door vanaf overal: /rz-open/ (agent 1.104.0, regel "0 proxyopen <site>").
- * Daar log je in met wachtwoord én 2FA; daarna telt je huidige IP een paar uur als "mijn netwerk" (in de regel proxylan)
- * en kom je overal bij. Het gaat vanzelf weer dicht; je krijgt er een melding van en kunt het op de pagina Reverse proxy intrekken.
+ * 1.272.0 (agent 1.106.0): de proxy volgt de manier van inloggen van buiten die RzSense al heeft, de toegestane apparaten
+ * (Stealth, 1.86.0): elk toegestaan apparaat krijgt naast zijn apparaatsleutel een eigen proxy-tag (cookie "pxt"). Alleen
+ * precies die tags staan in de proxy (regel "0 proxytags <site> <tags>"); daarachter controleert RzSense zelf de sleutel,
+ * het land, het inloggen en de 2FA. Intrekken haalt de tag weg. De noodlink (?nood= en ?door= op de hoofdpagina) mag ook
+ * langs de proxy; een gebruikte noodlink geeft een tijdelijke tag voor de duur van de noodlink.
+ * Daarnaast altijd door: bevestigen, statuspagina en heartbeats (elk met een eigen token, 1.271.0).
  */
 final class ProxyOpen
 {
-    public const PATH = '/rz-open/';
-    public const AGENT = '1.104.0';
-    private const MAX = 20;            // hooguit zoveel IP's tegelijk open
-    private const FAILS = 5;           // mislukte pogingen per IP per 15 minuten
-    private const OPENS_PER_DAY = 10;  // per gebruiker
-
-    public static function enabled(): bool
-    {
-        return setting('proxy_open_on', '1') === '1';
-    }
-
-    public static function hours(): int
-    {
-        return max(1, min(72, (int) setting('proxy_open_hours', '8')));
-    }
-
-    /** De IP's die nu open staan (voor de regel proxylan) */
-    public static function ips(): array
-    {
-        if (!self::enabled()) {
-            return [];
-        }
-        return array_values(array_filter(array_map('strval', q('SELECT DISTINCT ip FROM proxy_open WHERE revoked_at IS NULL AND until > NOW() ORDER BY until DESC LIMIT ' . self::MAX)
-            ->fetchAll(PDO::FETCH_COLUMN)), static fn($ip) => (bool) filter_var($ip, FILTER_VALIDATE_IP)));
-    }
-
-    /** Voor de pagina Reverse proxy */
-    public static function active(): array
-    {
-        return array_map(static fn($r) => ['id' => (int) $r['id'], 'ip' => $r['ip'], 'user' => $r['username'], 'device' => $r['device'],
-            'created_at' => $r['created_at'], 'until' => $r['until']],
-            q('SELECT o.*, u.username FROM proxy_open o LEFT JOIN users u ON u.id = o.user_id WHERE o.revoked_at IS NULL AND o.until > NOW() ORDER BY o.until DESC LIMIT 50')->fetchAll());
-    }
+    public const COOKIE = 'pxt';
+    public const AGENT = '1.106.0';
+    private const MAX_TAGS = 300;
+    private const DOOR_MINUTES = 15;
 
     /**
      * 1.271.0 (agent 1.105.0): paden van RzSense die van buiten altijd bereikbaar moeten zijn, ook als de site alleen vanaf mijn
@@ -51,49 +25,6 @@ final class ProxyOpen
      */
     public const PASS = ['/ack.php', '/status.php', '/hb.php', '/assets/app.css'];
     public const PASS_AGENT = '1.105.0';
-
-    /** De sites van RzSense op alle proxyservers (voor de waarschuwing) */
-    public static function rzSitesAll(): array
-    {
-        $out = [];
-        foreach (q('SELECT id, name, agent_version FROM hosts WHERE proxy_role = 1')->fetchAll() as $h) {
-            $sites = self::sites(ProxyGuard::sites((int) $h['id'], ProxyGuard::report((int) $h['id'])));
-            if ($sites) {
-                $out[] = ['host' => (string) $h['name'], 'agent' => (string) $h['agent_version'], 'sites' => $sites];
-            }
-        }
-        return $out;
-    }
-
-    /**
-     * 1.271.0: staat RzSense op de proxy alleen open voor mijn netwerk terwijl er de laatste 60 dagen van buiten is ingelogd of
-     * gewerkt? Dan krijg je onderweg 403. null = niets aan de hand.
-     * @return array{status:string,text:string,n:int}|null
-     */
-    public static function selfCheck(): ?array
-    {
-        if (!ProxyGuard::enabled()) {
-            return null;
-        }
-        $rz = self::rzSitesAll();
-        if (!$rz) {
-            return null;
-        }
-        $lan = ProxyGuard::lanNets();
-        $ips = array_unique(array_merge(
-            q('SELECT DISTINCT ip FROM login_log WHERE ok = 1 AND created_at >= NOW() - INTERVAL 60 DAY LIMIT 500')->fetchAll(PDO::FETCH_COLUMN),
-            q("SELECT DISTINCT ip FROM user_sessions WHERE ip <> '' AND last_seen >= NOW() - INTERVAL 60 DAY LIMIT 500")->fetchAll(PDO::FETCH_COLUMN)));
-        $outside = array_values(array_filter(array_map('strval', $ips), static fn($ip) => filter_var($ip, FILTER_VALIDATE_IP) && !is_private_ip($ip) && !ip_in_list($ip, $lan)));
-        if (!$outside) {
-            return null;
-        }
-        $old = array_filter($rz, static fn($r) => version_compare($r['agent'], self::AGENT, '<'));
-        $way = self::enabled() && !$old;
-        $names = implode(', ', array_merge(...array_column($rz, 'sites')));
-        return $way
-            ? ['status' => 'ok', 'n' => count($outside), 'text' => t('RzSense ({s}) staat op de proxy alleen open voor je eigen netwerk, en je gebruikte het {n}× van buiten. Onderweg kom je erin via /rz-open/ (wachtwoord + 2FA).', ['s' => $names, 'n' => count($outside)])]
-            : ['status' => 'warn', 'n' => count($outside), 'text' => t('RzSense ({s}) staat op de proxy alleen open voor je eigen netwerk, maar je gebruikte het {n}× van buiten: daar krijg je nu 403. Zet Tijdelijk toegang van buiten aan (agent 1.104.0 op de proxy), of zet de site op "Adminpaden alleen mijn netwerk".', ['s' => $names, 'n' => count($outside)])];
-    }
 
     /** De site(s) van RzSense op deze proxy: naam of app erachter is rzsense/rzmon, of de site is het adres van RzSense */
     public static function sites(array $sites): array
@@ -115,68 +46,135 @@ final class ProxyOpen
         return array_values(array_unique($out));
     }
 
-    /** Te veel mislukte pogingen vanaf dit IP? */
-    public static function throttled(string $ip): bool
+    /** De sites van RzSense op alle proxyservers */
+    public static function rzSitesAll(): array
     {
-        return (int) q("SELECT COUNT(*) FROM security_fails WHERE ip = ? AND kind = 'open' AND created_at >= NOW() - INTERVAL 15 MINUTE", [mb_substr($ip, 0, 45)])->fetchColumn() >= self::FAILS;
+        $out = [];
+        foreach (q('SELECT id, name, agent_version FROM hosts WHERE proxy_role = 1')->fetchAll() as $h) {
+            $rep = ProxyGuard::report((int) $h['id']);
+            $sites = self::sites(ProxyGuard::sites((int) $h['id'], $rep));
+            if ($sites) {
+                $out[] = ['id' => (int) $h['id'], 'host' => (string) $h['name'], 'agent' => (string) $h['agent_version'], 'sites' => $sites,
+                    'synced' => $rep && ($rep['state'] ?? '') === 'ok' && ($rep['applied'] ?? '') === ProxyGuard::hash((int) $h['id'])];
+            }
+        }
+        return $out;
     }
 
-    public static function failed(string $ip, string $user, string $why, bool $exists): void
+    /** Staat RzSense ergens achter een proxy die alleen mijn netwerk toelaat? */
+    public static function behindProxy(): bool
     {
-        q("INSERT INTO security_fails (ip, kind, user, created_at) VALUES (?, 'open', ?, ?)", [mb_substr($ip, 0, 45), mb_substr($user, 0, 64) ?: '?', now()]);
-        Security::loginFailed($user, $why, $exists);   // dezelfde vergrendeling en IP-blokkade als bij gewoon inloggen
+        return ProxyGuard::enabled() && self::rzSitesAll() !== [];
     }
+
+    // ------------------------------------------------------------------ proxy-tags
+
+    /** De tags die de proxy doorlaat (toegestane apparaten en lopende noodlinks) */
+    public static function tags(): array
+    {
+        q('DELETE FROM proxy_tags WHERE until IS NOT NULL AND until < NOW() - INTERVAL 1 DAY');
+        return array_values(array_filter(array_map('strval', q('SELECT tag FROM proxy_tags WHERE until IS NULL OR until > NOW() ORDER BY created_at DESC LIMIT ' . self::MAX_TAGS)
+            ->fetchAll(PDO::FETCH_COLUMN)), static fn($t) => preg_match('/^[0-9a-f]{32}$/', $t) === 1));
+    }
+
+    /** Een toegestaan apparaat dat RzSense nu herkent: zorg dat het een tag heeft en de browser die als cookie heeft */
+    public static function deviceSeen(array $dev): void
+    {
+        $tag = (string) q('SELECT tag FROM proxy_tags WHERE device_id = ? AND until IS NULL LIMIT 1', [$dev['id']])->fetchColumn();
+        if (!preg_match('/^[0-9a-f]{32}$/', $tag)) {
+            $tag = bin2hex(random_bytes(16));
+            q('INSERT INTO proxy_tags (tag, device_id, user_id, created_at) VALUES (?, ?, ?, NOW())', [$tag, $dev['id'], $dev['user_id']]);
+        }
+        if (($_COOKIE[self::COOKIE] ?? '') !== $tag) {
+            self::cookie($tag, 365 * 86400);
+        }
+    }
+
+    /** Gebruikte noodlink: een tijdelijke tag voor deze browser */
+    public static function doorTag(int $userId): void
+    {
+        $tag = bin2hex(random_bytes(16));
+        q('INSERT INTO proxy_tags (tag, device_id, user_id, created_at, until) VALUES (?, NULL, ?, NOW(), ?)', [$tag, $userId, date('Y-m-d H:i:s', time() + self::DOOR_MINUTES * 60)]);
+        self::cookie($tag, self::DOOR_MINUTES * 60);
+    }
+
+    /** Apparaat ingetrokken: zijn tag weg (de proxy sluit bij de volgende ronde van de agent) */
+    public static function deviceRevoked(int $deviceId): void
+    {
+        q('DELETE FROM proxy_tags WHERE device_id = ?', [$deviceId]);
+    }
+
+    private static function cookie(string $tag, int $ttl): void
+    {
+        if (headers_sent()) {
+            return;
+        }
+        // Pad "/": de proxy moet de tag bij elk verzoek naar deze site zien (pagina, API, opmaak)
+        setcookie(self::COOKIE, $tag, ['expires' => time() + $ttl, 'path' => '/', 'httponly' => true, 'secure' => Https::isHttps(), 'samesite' => 'Lax']);
+    }
+
+    /** Wachtpagina na de noodlink: de proxy neemt de tijdelijke tag binnen een minuut over; ververst zichzelf */
+    public static function waitPage(): never
+    {
+        header('Cache-Control: no-store');
+        header('X-Robots-Tag: noindex');
+        $e = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES);
+        echo '<!doctype html><html lang="' . $e(I18n::lang()) . '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+            . '<meta http-equiv="refresh" content="10"><title>RzSense</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;background:#0d121b;color:#e6ebf4;padding:24px}'
+            . 'main{max-width:380px;text-align:center}p{color:#94a0b6}</style></head><body><main><h1>🚪 ' . $e(t('Noodlink geopend')) . '</h1><p>'
+            . $e(t('De reverse proxy neemt je tijdelijke sleutel over; dat duurt hooguit een minuut. Deze pagina ververst vanzelf en opent dan RzSense.')) . '</p></main></body></html>';
+        exit;
+    }
+
+    /** Heeft elke proxy met de site van RzSense de laatste regels (en dus de nieuwe tags) al doorgevoerd? */
+    public static function synced(): bool
+    {
+        foreach (self::rzSitesAll() as $r) {
+            if (!$r['synced']) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // ------------------------------------------------------------------ waarschuwing
 
     /**
-     * Inloggen met wachtwoord + 2FA en het IP openzetten.
-     * @return array{ok:bool,error?:string,until?:string}
+     * Staat RzSense op de proxy alleen open voor mijn netwerk terwijl het de laatste 60 dagen van buiten werd gebruikt?
+     * null = niets aan de hand.
+     * @return array{status:string,text:string,n:int}|null
      */
-    public static function attempt(string $username, string $password, string $code, string $ip, string $device): array
+    public static function selfCheck(): ?array
     {
-        $deny = ['ok' => false, 'error' => t('Onjuiste gegevens. Gebruik je gebruikersnaam, wachtwoord en de code uit je authenticator-app.')];
-        if (!self::enabled() || !filter_var($ip, FILTER_VALIDATE_IP)) {
-            return ['ok' => false, 'error' => t('Tijdelijk toegang van buiten staat uit.')];
+        if (!ProxyGuard::enabled()) {
+            return null;
         }
-        if (Security::blockFor($ip) || self::throttled($ip)) {
-            return ['ok' => false, 'error' => t('Te veel pogingen. Probeer het over een kwartier opnieuw.')];
+        $rz = self::rzSitesAll();
+        if (!$rz) {
+            return null;
         }
-        $u = q('SELECT id, username, password_hash, totp_secret, totp_last_step, locked_at, locked_until, local_only FROM users WHERE username = ?', [$username])->fetch();
-        $ok = password_verify($password, $u ? (string) $u['password_hash'] : '$2y$10$0IjxnWsq1E9mapltBUPRsukncwuqi3XyC40ho25urRmNpbYij5Qtu');
-        if (!$u || !$ok) {
-            self::failed($ip, $username, $u ? 'toegang van buiten: verkeerd wachtwoord' : 'toegang van buiten: onbekende gebruiker', (bool) $u);
-            usleep(500000);
-            return $deny;
+        $lan = ProxyGuard::lanNets();
+        $ips = array_unique(array_merge(
+            q('SELECT DISTINCT ip FROM login_log WHERE ok = 1 AND created_at >= NOW() - INTERVAL 60 DAY LIMIT 500')->fetchAll(PDO::FETCH_COLUMN),
+            q("SELECT DISTINCT ip FROM user_sessions WHERE ip <> '' AND last_seen >= NOW() - INTERVAL 60 DAY LIMIT 500")->fetchAll(PDO::FETCH_COLUMN)));
+        $outside = array_values(array_filter(array_map('strval', $ips), static fn($ip) => filter_var($ip, FILTER_VALIDATE_IP) && !is_private_ip($ip) && !ip_in_list($ip, $lan)));
+        if (!$outside) {
+            return null;
         }
-        if (Security::accountLocked($u) || (int) $u['local_only'] || !$u['totp_secret']) {
-            self::failed($ip, $username, 'toegang van buiten: account niet toegestaan', true);
-            return ['ok' => false, 'error' => !$u['totp_secret'] ? t('Alleen met tweestapsverificatie (2FA). Zet die eerst aan bij Mijn account, vanaf je eigen netwerk.') : $deny['error']];
+        $n = count($outside);
+        $names = implode(', ', array_merge(...array_column($rz, 'sites')));
+        $old = array_column(array_filter($rz, static fn($r) => version_compare($r['agent'], self::AGENT, '<')), 'host');
+        if ($old) {
+            return ['status' => 'warn', 'n' => $n, 'text' => t('RzSense ({s}) staat op de proxy alleen open voor je eigen netwerk, maar je gebruikte het {n}× van buiten: daar krijg je 403. Werk de agent op {hosts} bij naar {v}; dan komen je toegestane apparaten en de noodlink weer langs de proxy.',
+                ['s' => $names, 'n' => $n, 'hosts' => implode(', ', $old), 'v' => self::AGENT])];
         }
-        $step = Totp::verify((string) $u['totp_secret'], preg_replace('/\D/', '', $code) ?? '', $u['totp_last_step'] !== null ? (int) $u['totp_last_step'] : null);
-        if ($step === null) {
-            self::failed($ip, $username, 'toegang van buiten: verkeerde 2FA-code', true);
-            usleep(500000);
-            return $deny;
+        $devs = (int) q('SELECT COUNT(*) FROM trusted_devices')->fetchColumn();
+        if ($devs === 0) {
+            return ['status' => 'warn', 'n' => $n, 'text' => t('RzSense ({s}) staat op de proxy alleen open voor je eigen netwerk, maar je gebruikte het {n}× van buiten, en er is nog geen toegestaan apparaat. Sta je telefoon thuis toe bij Mijn account → Toegestane apparaten; onderweg kom je anders alleen binnen met de noodlink.',
+                ['s' => $names, 'n' => $n])];
         }
-        q('UPDATE users SET totp_last_step = ? WHERE id = ?', [$step, $u['id']]);
-        if ((int) q('SELECT COUNT(*) FROM proxy_open WHERE user_id = ? AND created_at >= NOW() - INTERVAL 1 DAY', [$u['id']])->fetchColumn() >= self::OPENS_PER_DAY) {
-            return ['ok' => false, 'error' => t('Vandaag al te vaak opengezet. Probeer het morgen weer, of vanaf je eigen netwerk.')];
-        }
-        $until = date('Y-m-d H:i:s', time() + self::hours() * 3600);
-        q('DELETE FROM proxy_open WHERE created_at < NOW() - INTERVAL 30 DAY');
-        q('INSERT INTO proxy_open (user_id, ip, device, created_at, until) VALUES (?, ?, ?, NOW(), ?)', [$u['id'], $ip, mb_substr($device, 0, 120), $until]);
-        Monitor::sysInfo('proxy_open', null, null, '🔓 ' . t('Toegang van buiten: {ip}', ['ip' => $ip]),
-            fn() => t('{user} zette {ip} open tot {t} ({dev}). Niet jij? Trek het in op de pagina Reverse proxy en wijzig je wachtwoord.',
-                ['user' => $u['username'], 'ip' => $ip, 't' => date('d-m H:i', strtotime($until)), 'dev' => $device ?: '?']), $ip);
-        ActionLog::add(null, 'user', 'proxy', t('Toegang van buiten'), t('{ip} tijdelijk toegelaten tot {t}', ['ip' => $ip, 't' => date('d-m H:i', strtotime($until))]), true, '', null, (string) $u['username']);
-        return ['ok' => true, 'until' => $until];
-    }
-
-    public static function revoke(int $id, string $by): bool
-    {
-        $ok = q('UPDATE proxy_open SET revoked_at = NOW(), revoked_by = ? WHERE id = ? AND revoked_at IS NULL', [mb_substr($by, 0, 64), $id])->rowCount() > 0;
-        if ($ok) {
-            ActionLog::add(null, 'user', 'proxy', t('Toegang van buiten ingetrokken'), '', true, '', null, $by);
-        }
-        return $ok;
+        $noTag = (int) q('SELECT COUNT(*) FROM trusted_devices d WHERE NOT EXISTS (SELECT 1 FROM proxy_tags t WHERE t.device_id = d.id)')->fetchColumn();
+        return ['status' => 'ok', 'n' => $n, 'text' => t('RzSense ({s}) staat op de proxy alleen open voor je eigen netwerk. Je {d} toegestane apparaten komen er van buiten langs; een nieuw apparaat sta je thuis toe of via de noodlink.', ['s' => $names, 'd' => $devs])
+            . ($noTag ? ' ' . t('{n} apparaat/apparaten moet RzSense nog één keer openen (thuis, of via de noodlink) om de sleutel voor de proxy te krijgen.', ['n' => $noTag]) : '')];
     }
 }

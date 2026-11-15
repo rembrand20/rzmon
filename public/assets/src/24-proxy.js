@@ -53,7 +53,7 @@ async function loadProxy() {
   if (badge) { const n = proxies.filter((s) => s.report && s.report.state === 'error').length; badge.textContent = n || ''; badge.hidden = !n; }
   const head = !d.on ? `<div class="callout">⏸ ${L('De bescherming staat uit voor alle servers.')} <a href="#settings/proxy" data-goto="settings/proxy">${L('Aanzetten in de beheerportal')} →</a></div>`
     : `<p class="small muted">${L('Mijn netwerk: {n}', { n: d.lan.map((x) => `<code>${esc(x)}</code>`).join(' ') })}</p>`;
-  const openBox = pxOpenBox(d.open);   // 1.270.0
+  const openBox = pxAccessBox(d.access);   // 1.272.0
   if (!proxies.length) {
     box.innerHTML = head + `<div class="callout">${L('Nog geen server met de rol reverse proxy.')} <a href="#settings/proxy" data-goto="settings/proxy">${L('Kies de server in de beheerportal')} →</a></div>`;
     return;
@@ -545,20 +545,10 @@ async function loadProxyRoles() {
   };
 }
 
-// 1.270.0: tijdelijk toegang van buiten (via /rz-open/ met wachtwoord + 2FA); hier zie je wie open staat en trek je het in
-function pxOpenBox(o) {
-  // 1.271.0: RzSense van buiten gebruikt terwijl de proxy het alleen vanaf mijn netwerk toelaat
-  const chk = o && o.check && o.check.status === 'warn' ? `<div class="callout small">⚠️ ${esc(o.check.text)} <a href="#settings/proxy" data-goto="settings/proxy">${L('Instellen')} →</a></div>` : '';
-  if (!o || !o.on) return chk;
-  const rows = (o.list || []).map((x) => `<li><code>${esc(x.ip)}</code> · ${esc(x.user || '?')} · ${esc(x.device || '')} · ${L('tot {t}', { t: esc(fmtDateTime(x.until)) })}
-    <button type="button" class="btn small-btn danger need-admin" data-pxopen-rm="${x.id}">${L('Intrekken')}</button></li>`).join('');
-  return chk + `<div class="waf-box px-open"><div class="px-h"><b>🔓 ${L('Tijdelijk toegang van buiten')}</b>
-      <span class="muted small">${L('via {p} met wachtwoord + 2FA, {h} uur', { p: esc(o.path), h: o.hours })}</span></div>
-    ${rows ? `<ul class="px-open-l">${rows}</ul>` : `<p class="muted small">${L('Nu staat er geen adres tijdelijk open.')}</p>`}</div>`;
+// 1.272.0: van buiten langs de proxy met een toegestaan apparaat; waarschuwing als RzSense van buiten gebruikt wordt maar dicht staat
+function pxAccessBox(a) {
+  const c = a && a.check;
+  if (!c) return '';
+  return `<div class="callout small ${c.status === 'warn' ? '' : 'px-access-ok'}">${c.status === 'warn' ? '⚠️' : '📱'} ${esc(c.text)}
+    <a href="#settings/outside" data-goto="settings/outside">${L('Toegestane apparaten')} →</a></div>`;
 }
-document.addEventListener('click', async (e) => {
-  const b = e.target.closest && e.target.closest('[data-pxopen-rm]');
-  if (!b) return;
-  try { await api('proxy_open_revoke', { id: +b.dataset.pxopenRm }); toast(L('Ingetrokken; de proxy sluit binnen een minuut')); } catch (ex) { toast(ex.message, 'err'); return; }
-  loadProxy();
-});

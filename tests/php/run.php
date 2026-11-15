@@ -3442,34 +3442,8 @@ ok(($states(IncidentRoute::forIncident($ri('bruteforce', '192.168.1.66', 'Brute 
 q("DELETE FROM ids_blocks WHERE ip LIKE '203.0.113.23%'");
 q('DELETE FROM hosts WHERE id = ?', [$rh['id']]);
 
-// 1.270.0: tijdelijk toegang van buiten via /rz-open/ (wachtwoord + 2FA)
-$oSecret = Totp::newSecret();
-q("INSERT INTO users (username, password_hash, role, totp_secret) VALUES ('ci-open', ?, 'admin', ?)", [password_hash('Geheim-open-123', PASSWORD_DEFAULT), $oSecret]);
-$oUid = (int) db()->lastInsertId();
-q("DELETE FROM proxy_open");
-q("DELETE FROM security_fails WHERE ip = '198.51.100.77'");
-$oBad = ProxyOpen::attempt('ci-open', 'Geheim-open-123', '000000', '198.51.100.77', 'test');
-$oPw = ProxyOpen::attempt('ci-open', 'fout', Totp::code($oSecret, intdiv(time(), 30)), '198.51.100.77', 'test');
-$oOk = ProxyOpen::attempt('ci-open', 'Geheim-open-123', Totp::code($oSecret, intdiv(time(), 30)), '198.51.100.77', 'iPhone');
-ok(!$oBad['ok'] && !$oPw['ok'] && $oOk['ok'] && in_array('198.51.100.77', ProxyOpen::ips(), true) && in_array('198.51.100.77', ProxyGuard::lanNets(), true),
-    'toegang van buiten: alleen met juist wachtwoord én 2FA; daarna telt het IP als mijn netwerk');
-$oReuse = ProxyOpen::attempt('ci-open', 'Geheim-open-123', Totp::code($oSecret, intdiv(time(), 30)), '198.51.100.78', 'test');
-ok(!$oReuse['ok'], 'toegang van buiten: dezelfde 2FA-code geen tweede keer');
-$oId = (int) q("SELECT id FROM proxy_open WHERE ip = '198.51.100.77'")->fetchColumn();
-ok(ProxyOpen::revoke($oId, 'test') && !in_array('198.51.100.77', ProxyOpen::ips(), true), 'toegang van buiten: intrekken haalt het IP weer weg');
-q("UPDATE users SET totp_secret = NULL WHERE id = ?", [$oUid]);
-$oNo2fa = ProxyOpen::attempt('ci-open', 'Geheim-open-123', '123456', '198.51.100.79', 'test');
-ok(!$oNo2fa['ok'] && str_contains((string) $oNo2fa['error'], '2FA'), 'toegang van buiten: zonder 2FA geweigerd');
-$oSites = ProxyOpen::sites([['site' => 'rzsense.*', 'up' => 'rzsense:443', 'lan_mode' => 'site', 'enabled' => true],
-    ['site' => 'portainer.*', 'up' => 'portainer:9000', 'lan_mode' => 'site', 'enabled' => true], ['site' => 'rzmon.*', 'up' => '', 'lan_mode' => 'off', 'enabled' => true]]);
-ok($oSites === ['rzsense.*'], 'toegang van buiten: alleen de site van RzSense (en alleen als die niet voor iedereen open staat)');
-q("DELETE FROM proxy_open");
-q("DELETE FROM security_fails WHERE ip LIKE '198.51.100.7%'");
-q('DELETE FROM users WHERE id = ?', [$oUid]);
-
 // 1.271.0: paden met een eigen token altijd door, en een waarschuwing als RzSense van buiten wordt gebruikt maar dicht staat
 $pOnWas = setting('proxy_on', '0');
-$pOpenWas = setting('proxy_open_on', '1');
 save_setting('proxy_on', '1');
 q("INSERT INTO hosts (name, address, mode, agent_version, proxy_role) VALUES ('ci-rzproxy', '10.0.0.91', 'agent', '1.104.0', 1)");
 $rzp = (int) db()->lastInsertId();
@@ -3479,21 +3453,39 @@ ProxyGuard::fromAgent($rzpHost, ['proxy' => ['kind' => 'swag', 'hook' => 1, 'sta
 $l104 = ProxyGuard::agentLines($rzp);
 q("UPDATE hosts SET agent_version = '1.105.0' WHERE id = ?", [$rzp]);
 $l105 = ProxyGuard::agentLines($rzp);
-ok(in_array("0\tproxyopen\trzsense.*", $l104, true) && !preg_grep('/^0\tproxypass/', $l104)
+ok(!preg_grep('/^0\tproxy(open|pass|tags)/', $l104)
     && in_array("0\tproxypass\trzsense.*\t/ack.php,/status.php,/hb.php,/assets/app.css", $l105, true), 'proxy: bevestigen, statuspagina en heartbeats van buiten door (alleen agent 1.105.0+)');
 q("DELETE FROM login_log WHERE ip = '198.51.100.90'");
 $admId = (int) q("SELECT id FROM users ORDER BY id LIMIT 1")->fetchColumn();
 q("INSERT INTO login_log (user_id, ok, ip, how, created_at) VALUES (?, 1, '198.51.100.90', 'test', NOW())", [$admId]);
-save_setting('proxy_open_on', '0');
-$c1 = ProxyOpen::selfCheck();
-save_setting('proxy_open_on', '1');
-$c2 = ProxyOpen::selfCheck();
-ok(($c1['status'] ?? '') === 'warn' && str_contains((string) $c1['text'], '403') && ($c2['status'] ?? '') === 'ok' && str_contains((string) $c2['text'], '/rz-open/'),
-    'proxy: RzSense van buiten gebruikt maar dicht = waarschuwing; met /rz-open/ aan = alleen uitleg');
+$c1 = ProxyOpen::selfCheck();   // agent 1.105.0: te oud voor de proxy-tags
+q("UPDATE hosts SET agent_version = '1.106.0' WHERE id = ?", [$rzp]);
+q('DELETE FROM trusted_devices');
+$c2 = ProxyOpen::selfCheck();   // geen toegestane apparaten
+$tUser = q('SELECT * FROM users ORDER BY id LIMIT 1')->fetch();
+q("INSERT INTO trusted_devices (user_id, name, key_hash, created_at, last_seen) VALUES (?, 'ci-telefoon', ?, NOW(), NOW())", [$tUser['id'], hash('sha256', 'x')]);
+$tDev = (int) db()->lastInsertId();
+$c3 = ProxyOpen::selfCheck();   // apparaat zonder tag
+ProxyOpen::deviceSeen(['id' => $tDev, 'user_id' => $tUser['id']]);
+$tTag = (string) q('SELECT tag FROM proxy_tags WHERE device_id = ?', [$tDev])->fetchColumn();
+$c4 = ProxyOpen::selfCheck();
+ok(($c1['status'] ?? '') === 'warn' && str_contains((string) $c1['text'], '1.106.0') && ($c2['status'] ?? '') === 'warn' && str_contains((string) $c2['text'], 'toegestaan apparaat')
+    && ($c3['status'] ?? '') === 'ok' && str_contains((string) $c3['text'], 'nog één keer') && ($c4['status'] ?? '') === 'ok' && !str_contains((string) $c4['text'], 'nog één keer'),
+    'proxy: waarschuwing als RzSense van buiten gebruikt wordt maar dicht staat (te oude agent, geen apparaat), anders uitleg');
+// 1.272.0: toegestane apparaten en de noodlink langs de proxy (proxy-tags)
+$l106 = ProxyGuard::agentLines($rzp);
+ProxyOpen::doorTag((int) $tUser['id']);
+$doorTags = (int) q('SELECT COUNT(*) FROM proxy_tags WHERE device_id IS NULL AND until > NOW()')->fetchColumn();
+$tagLine = preg_grep('/^0\tproxytags\trzsense\.\*\t/', ProxyGuard::agentLines($rzp));
+ok(preg_match('/^[0-9a-f]{32}$/', $tTag) === 1 && in_array("0\tproxytags\trzsense.*\t$tTag", $l106, true) && $doorTags === 1 && count(explode(',', explode("\t", (string) reset($tagLine))[3])) === 2,
+    'proxy: toegestaan apparaat en gebruikte noodlink krijgen een tag; de agent krijgt precies die tags');
+q("UPDATE proxy_tags SET until = NOW() - INTERVAL 1 MINUTE WHERE device_id IS NULL");
+Stealth::revoke($tDev, null, 'test');
+ok(ProxyOpen::tags() === [] && !preg_match('/[0-9a-f]{32}/', implode("\n", preg_grep('/^0\tproxytags/', ProxyGuard::agentLines($rzp)))),
+    'proxy: verlopen noodlink en ingetrokken apparaat = tag weg');
 q("DELETE FROM login_log WHERE ip = '198.51.100.90'");
 q('DELETE FROM hosts WHERE id = ?', [$rzp]);
 save_setting('proxy_on', $pOnWas);
-save_setting('proxy_open_on', $pOpenWas);
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

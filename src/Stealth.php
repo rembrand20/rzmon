@@ -203,6 +203,34 @@ final class Stealth
         }
     }
 
+    /**
+     * 1.272.0: aan het begin van index.php, vóór gate(). Achter een reverse proxy die RzSense alleen vanaf mijn netwerk laat:
+     * - een toegestaan apparaat krijgt (of houdt) zijn proxy-tag als cookie;
+     * - de noodlink (?door=) geeft een tijdelijke tag; tot de proxy die heeft, een wachtpagina die zichzelf ververst.
+     */
+    public static function proxyAccess(): void
+    {
+        if (PHP_SAPI === 'cli' || !ProxyGuard::enabled()) {
+            return;
+        }
+        if ($dev = self::device()) {
+            ProxyOpen::deviceSeen($dev);
+        }
+        if (!isset($_GET['door']) || !self::outside() || !ProxyOpen::behindProxy()) {
+            return;
+        }
+        if (self::doorUse((string) $_GET['door'])) {
+            ProxyOpen::doorTag((int) self::doorUser());
+        } elseif (self::doorUser() === null || ($_COOKIE[ProxyOpen::COOKIE] ?? '') === '') {
+            return;   // onbekende of oude noodlink: gate() geeft de gewone 404
+        }
+        if (!ProxyOpen::synced()) {
+            ProxyOpen::waitPage();
+        }
+        header('Location: ' . strtok((string) ($_SERVER['REQUEST_URI'] ?? '/'), '?'));
+        exit;
+    }
+
     /** Mag deze gebruiker hier ingelogd zijn? Van buiten met de webinterface op slot: alleen op een eigen toegestaan apparaat */
     public static function userAllowed(int $userId): bool
     {
@@ -237,6 +265,9 @@ final class Stealth
             q('DELETE FROM trusted_devices WHERE id = ?', [$old['id']]);
         }
         self::cookie($key);
+        if (ProxyGuard::enabled()) {   // 1.272.0: meteen een proxy-tag, zodat het apparaat ook langs de reverse proxy komt
+            ProxyOpen::deviceSeen(['id' => $id, 'user_id' => $user['id']]);
+        }
         AgentCommands::audit($user['username'], 'Apparaat toegestaan van buiten', $name);
         Monitor::sysInfo('device_trust', null, null, '📱 ' . t('Apparaat toegestaan van buiten: {name}', ['name' => $name]),
             fn() => t('{user} heeft {name} toegestaan om van buiten je netwerk RzSense te openen', ['user' => $user['username'], 'name' => $name]) . " · IP $ip", $ip);
@@ -265,6 +296,7 @@ final class Stealth
             return false;
         }
         q('DELETE FROM passkeys WHERE device_id = ?', [$id]);
+        ProxyOpen::deviceRevoked($id);   // 1.272.0: ook niet meer langs de reverse proxy
         q('DELETE FROM trusted_devices WHERE id = ?', [$id]);
         AgentCommands::audit($by, 'Apparaat ingetrokken', "{$d['username']}: {$d['name']}");
         Monitor::sysInfo('device_trust', null, null, '📵 ' . t('Apparaat ingetrokken: {name}', ['name' => $d['name']]),

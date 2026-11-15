@@ -71,13 +71,14 @@ fn() { awk -v n="$1" '$0 ~ "^" n "\\(\\) \\{" {f=1} f{print} f&&/^\}/{exit}' age
     echo 'printf "%s" "$proxy_json"'
 } >"$work/run.sh"
 code() { curl -sk --noproxy '*' -o /dev/null -w '%{http_code}' --max-time 5 --resolve "$1.example.test:$port:127.0.0.1" -H "X-Forwarded-For: 1.2.3.4" ${3:+-A "$3"} "https://$1.example.test:$port$2"; }
+codec() { curl -sk --noproxy '*' -o /dev/null -w '%{http_code}' --max-time 5 --resolve "$1.example.test:$port:127.0.0.1" -b "$3" "https://$1.example.test:$port$2"; }
 lan='127.0.0.2/32'   # de test komt van 127.0.0.1: buiten "het LAN" (127.0.0.1 telt alleen via de vaste regel, die hieronder niet geldt)
 policy() {
     printf '0\tproxy\ton\n0\tproxylan\t%s\n' "$lan"
     printf '0\tproxysite\tvaultwarden.*\tpaths\t/admin\toff\t1\n'
     printf '0\tproxysite\tportainer.*\tsite\t-\tstrict\t1\n'
     printf '0\tproxysite\tblog.*\toff\t-\tnormal\t1\n'
-    printf '0\tproxyopen\tportainer.*\n'   # agent 1.104.0: /rz-open/ blijft bereikbaar
+    printf '0\tproxytags\tportainer.*\t0123456789abcdef0123456789abcdef,KAPOT\n'   # agent 1.106.0: toegestane apparaten en noodlink
     printf '0\tproxypass\tportainer.*\t/ack.php,/status.php,/assets/app.css,/../x,/a b\n'   # agent 1.105.0
     printf '0\tproxyblock\tblog.*\t/xmlrpc.php,/../etc\n0\tproxyblock\t*\t/.env,/vendor/phpunit\n0\tproxyblock\tonbekend.*\t/x\n'
 }
@@ -88,7 +89,8 @@ sed -i '/^    127\.0\.0\.1 1;$/d; /^    ::1 1;$/d' "$C/site-confs/rzsense-http.c
 c_adm=$(code vaultwarden /admin); c_adm2=$(code vaultwarden /ADMIN/x); c_vw=$(code vaultwarden /); c_port=$(code portainer /); c_blog=$(code blog /)
 c_bot=$(code blog / 'sqlmap/1.7'); c_ok=$(code blog / 'Mozilla/5.0')
 c_pass=$(code portainer /ack.php); c_pass2=$(code portainer /assets/app.css); c_pass3=$(code portainer /ack.phpx); c_pass4=$(code portainer /assets/app.js)
-c_open=$(code portainer /rz-open/); c_open2=$(code portainer /rz-openx); c_open3=$(code portainer /rz-open/../admin)
+c_tag=$(codec portainer /api.php pxt=0123456789abcdef0123456789abcdef); c_tag2=$(codec portainer / pxt=ffffffffffffffffffffffffffffffff); c_tag3=$(codec blog / pxt=0123456789abcdef0123456789abcdef)
+c_nood=$(code portainer '/?nood=jan'); c_door=$(code portainer "/?door=$(printf '%048d' 0)"); c_door2=$(code portainer '/?door=abc'); c_nood2=$(code portainer '/admin?nood=jan')
 c_vp1=$(code blog /XMLRPC.php); c_vp2=$(code vaultwarden /.env); c_vp3=$(code vaultwarden /vendor/phpunit/x/eval-stdin.php); c_vp_ok=$(code blog /xmlrpc-not)
 cp "$C/site-confs/rzsense-http.conf" "$work/http.conf.1"
 bash "$work/run.sh" >"$work/r2.json" 2>>"$work/err"   # tweede ronde: niets nieuws
@@ -122,7 +124,8 @@ PY
 [ "$c_blog" = 200 ] && [ "$c_ok" = 200 ] || bad+="blog niet 200 ($c_blog/$c_ok) | "
 [ "$c_bot" = 403 ] || bad+="sqlmap niet geweerd ($c_bot) | "
 [ "$c_pass" = 200 ] && [ "$c_pass2" = 200 ] && [ "$c_pass3" = 403 ] && [ "$c_pass4" = 403 ] || bad+="vaste paden niet goed (ack $c_pass, css $c_pass2, ack.phpx $c_pass3, app.js $c_pass4) | "
-[ "$c_open" = 200 ] && [ "$c_open2" = 403 ] && [ "$c_open3" = 403 ] || bad+="/rz-open/ niet goed (open $c_open, ander pad $c_open2, ../ $c_open3) | "
+[ "$c_tag" = 200 ] && [ "$c_tag2" = 403 ] && [ "$c_tag3" = 200 ] || bad+="proxy-tag niet goed (juiste tag $c_tag, verkeerde $c_tag2, blog $c_tag3) | "
+[ "$c_nood" = 200 ] && [ "$c_door" = 200 ] && [ "$c_door2" = 403 ] && [ "$c_nood2" = 403 ] || bad+="noodlink niet goed (nood $c_nood, door $c_door, korte door $c_door2, nood op ander pad $c_nood2) | "
 [ "$c_vp1" = 403 ] && [ "$c_vp2" = 403 ] && [ "$c_vp3" = 403 ] || bad+="virtual patch niet dicht ($c_vp1/$c_vp2/$c_vp3) | "
 [ "$c_vp_ok" = 403 ] && bad+="virtual patch: ander pad onterecht dicht | "
 grep -q '/\.\./etc' "$C/site-confs/rzsense-http.conf" "$work/http.conf.1" 2>/dev/null && bad+="ongeldig pad (..) in de config | "
@@ -134,4 +137,4 @@ grep -q 'rzsense-hook' "$work/ssl.orig" && bad+="haak al in het origineel? | "
 grep -q 'Reverse proxy: beleid doorgevoerd' "$work/cache/act.log" && grep -q 'Reverse proxy: doorvoeren mislukt' "$work/cache/act.log" \
     && grep -q 'Reverse proxy: bescherming uit' "$work/cache/act.log" || bad+="logboek mist regels | "
 if [ -n "$bad" ]; then echo "✘ reverse proxy: ${bad% | } $(tail -n 5 "$work/err")"; exit 1; fi
-echo "✔ reverse proxy: SWAG in Podman herkend, sites uitgelezen, adminpad en hele site alleen LAN (ook andere schrijfwijze), bots geweerd, /rz-open/ en de paden met een eigen token (bevestigen, statuspagina) bereikbaar op een site die alleen LAN mag, virtual patching per site en voor alle sites (ongeldig pad geweigerd), tweede ronde niets nieuws, afgekeurd beleid teruggezet, uit = alles weg en ssl.conf als eerst, in het logboek"
+echo "✔ reverse proxy: SWAG in Podman herkend, sites uitgelezen, adminpad en hele site alleen LAN (ook andere schrijfwijze), bots geweerd, toegestane apparaten (proxy-tag), de noodlink en de paden met een eigen token (bevestigen, statuspagina) bereikbaar op een site die alleen LAN mag, virtual patching per site en voor alle sites (ongeldig pad geweigerd), tweede ronde niets nieuws, afgekeurd beleid teruggezet, uit = alles weg en ssl.conf als eerst, in het logboek"

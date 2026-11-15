@@ -1762,17 +1762,15 @@ CREATE TABLE IF NOT EXISTS proxy_uniq (
 -- 1.265.0: Suricata blokkeert automatisch vanaf ernst 1 (standaard) of 2 (dan alleen reputatie, scan en aanval, aanvaller van buiten)
 INSERT IGNORE INTO settings (name, value) VALUES ('suricata_block_sev', '1');
 
--- 1.270.0: tijdelijk toegang van buiten via de reverse proxy (/rz-open/: inloggen met wachtwoord + 2FA, dan telt het IP een paar uur als "mijn netwerk")
-CREATE TABLE IF NOT EXISTS proxy_open (
-    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id    INT UNSIGNED NULL,
-    ip         VARCHAR(45)  NOT NULL,
-    device     VARCHAR(120) NOT NULL DEFAULT '',
+-- 1.272.0: proxy-tags. Een toegestaan apparaat (trusted_devices) of een gebruikte noodlink krijgt een tag (cookie "pxt");
+-- de reverse proxy laat alleen precies die tags langs als de site van RzSense alleen vanaf mijn netwerk mag.
+CREATE TABLE IF NOT EXISTS proxy_tags (
+    tag        CHAR(32)     NOT NULL PRIMARY KEY,
+    device_id  INT UNSIGNED NULL,
+    user_id    INT UNSIGNED NOT NULL,
     created_at DATETIME     NOT NULL,
-    until      DATETIME     NOT NULL,
-    revoked_at DATETIME     NULL,
-    revoked_by VARCHAR(64)  NULL,
-    INDEX idx_popen (revoked_at, until),
-    INDEX idx_popen_user (user_id, created_at)
+    until      DATETIME     NULL,
+    INDEX idx_ptag_dev (device_id),
+    CONSTRAINT fk_ptag_dev FOREIGN KEY (device_id) REFERENCES trusted_devices(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ptag_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-INSERT IGNORE INTO settings (name, value) VALUES ('proxy_open_on', '1'), ('proxy_open_hours', '8');

@@ -145,7 +145,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
         sleep 2
         return 0
     }
-    px_apply_hash=$(awk -F'\t' '$1 == "0" && ($2 == "proxylan" || $2 == "proxysite" || $2 == "proxyblock" || $2 == "proxyopen" || $2 == "proxypass")' "$t_cache" | sha1sum | cut -c1-12)
+    px_apply_hash=$(awk -F'\t' '$1 == "0" && ($2 == "proxylan" || $2 == "proxysite" || $2 == "proxyblock" || $2 == "proxytags" || $2 == "proxypass")' "$t_cache" | sha1sum | cut -c1-12)
     px_applied=$(cat "$t_dir/proxy.applied" 2>/dev/null)
     # 3a. Uit: alles weghalen
     if [ "$px_state" = pending ] && [ "$px_mode" != on ]; then
@@ -170,7 +170,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
             px_state=error; px_msg=$(cat "$t_dir/proxy.failmsg" 2>/dev/null)
         else
             # Beleid opbouwen (alles wat binnenkomt opnieuw controleren)
-            px_geo=""; px_hosts=""; px_adm=""; px_open=""; px_bots=""; px_rate=""; px_blk=""; px_id=0; declare -A px_seen=(); declare -A px_sid=()
+            px_geo=""; px_hosts=""; px_adm=""; px_open=""; px_tag=""; px_nood=""; px_bots=""; px_rate=""; px_blk=""; px_id=0; declare -A px_seen=(); declare -A px_sid=()
             for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_cache"); do
                 [[ "$n" =~ ^[0-9a-fA-F:.]+(/[0-9]{1,3})?$ ]] && px_geo+="    $n 1;"$'\n'
             done
@@ -195,12 +195,19 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
                 [ "$s_bots" = 1 ] && px_bots+="    $sid 1;"$'\n'
                 [ "$s_rate" != off ] && px_rate+="    $sid $s_rate;"$'\n'
             done < <(awk -F'\t' '$1 == "0" && $2 == "proxysite"' "$t_cache" | head -n 200)
-            # Agent 1.104.0: op de site van RzSense blijft /rz-open/ bereikbaar (inloggen met 2FA om je IP tijdelijk toe te laten),
-            # ook als de site alleen vanaf mijn netwerk mag. Staat vóór de andere regels: de eerste die past telt.
-            while IFS=$'\t' read -r _ _ o_site; do
+            # Agent 1.106.0: de toegestane apparaten van RzSense (een eigen tag per apparaat, cookie "pxt") en de noodlink van RzSense
+            # (?nood=gebruiker en ?door=sleutel op de hoofdpagina) komen langs, ook als de site alleen vanaf mijn netwerk mag.
+            # RzSense controleert daarachter zelf de apparaatsleutel, het inloggen en de noodlink.
+            while IFS=$'\t' read -r _ _ o_site o_tags; do
                 [ -n "${px_sid[$o_site]-}" ] || continue
-                px_open+="    \"~^${px_sid[$o_site]}:/rz-open(/|\$)\" 0;"$'\n'
-            done < <(awk -F'\t' '$1 == "0" && $2 == "proxyopen"' "$t_cache" | head -n 10)
+                o_sid=${px_sid[$o_site]}
+                IFS=',' read -r -a o_list <<<"$o_tags"
+                for g in "${o_list[@]}"; do
+                    [[ "$g" =~ ^[0-9a-f]{32}$ ]] && px_tag+="    \"$o_sid:$g\" 1;"$'\n'
+                done
+                px_nood+="    \"~^$o_sid:/(index\\.php)?:[A-Za-z0-9._@-]{1,64}:\$\" 1;"$'\n'
+                px_nood+="    \"~^$o_sid:/(index\\.php)?::[0-9a-f]{48}\$\" 1;"$'\n'
+            done < <(awk -F'\t' '$1 == "0" && $2 == "proxytags"' "$t_cache" | head -n 10)
             # Agent 1.105.0: paden van RzSense met een eigen token (bevestigen, statuspagina, heartbeats) altijd door.
             # Precies dat pad (op "/" eindigend: alles eronder); hoofdletters tellen, zodat /ACK.php niet langs kan.
             while IFS=$'\t' read -r _ _ o_site o_paths; do
@@ -243,9 +250,15 @@ map \"\$rzs_blk:\$rzs_lan\" \$rzs_deny_blk {
     default 0;
     \"1:0\" 1;
 }
-map \"\$rzs_adm:\$rzs_lan\" \$rzs_deny_adm {
+map \"\$rzs_site:\$cookie_pxt\" \$rzs_tag {
     default 0;
-    \"1:0\" 1;
+${px_tag}}
+map \"\$rzs_site:\$uri:\$arg_nood:\$arg_door\" \$rzs_nood {
+    default 0;
+${px_nood}}
+map \"\$rzs_adm:\$rzs_lan:\$rzs_tag:\$rzs_nood\" \$rzs_deny_adm {
+    default 0;
+    \"1:0:0:0\" 1;
 }
 map \$http_user_agent \$rzs_badbot {
     default 0;

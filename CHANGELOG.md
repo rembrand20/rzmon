@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.272.0**: **van buiten weer binnen met je toegestane apparaten**: de reverse proxy volgt de apparaatsleutels van RzSense en de noodlink; /rz-open/ is weg.
 - **1.271.0**: **RzSense blijft van buiten bruikbaar achter de proxy**: bevestigen vanuit Pushover, de statuspagina en heartbeats werken weer, en RzSense waarschuwt als je jezelf buitensluit.
-- **1.270.0**: **tijdelijk toegang van buiten**: staat RzSense alleen open voor je eigen netwerk, dan laat je met wachtwoord + 2FA op /rz-open/ je adres een paar uur toe.
 - **1.269.0**: **proxystatistieken ook zonder rzsense.log**, en per proxyserver precies wat er nog ontbreekt als de tellingen leeg zijn.
 - **1.268.0**: **route van een aanval in het venster**: per station (firewall, proxy, WAF, Suricata, app, server erna) zie je waar een aanval stopte of doorkwam.
 - **1.267.0**: **Reverse proxy en IDS zonder dubbel werk**: de proxypagina gaat over je sites en het afstellen, alles wat je afhandelt staat bij IDS.
+
+## 1.272.0 – 2026-11-15
+### Opgelost
+- **Inloggen van buiten met een toegestaan apparaat werkt weer achter de reverse proxy.** Sinds 1.254.0 zette de proxy de site van RzSense standaard op *alleen vanaf mijn netwerk*, en weigerde die alles van buiten (403), vóórdat RzSense je apparaatsleutel kon bekijken. Nu volgt de proxy de manier van inloggen van buiten die RzSense al had:
+  - elk **toegestaan apparaat** (Instellingen → Beheer via https → Toegestane apparaten) krijgt naast zijn apparaatsleutel een eigen **proxy-tag**; de proxy laat precies die tags door. Daarachter controleert RzSense zelf de sleutel, het land, het inloggen en de 2FA;
+  - **intrekken** van een apparaat haalt ook zijn tag weg (binnen een minuut dicht op de proxy);
+  - de **noodlink** (`?nood=gebruiker` en de link `?door=…`) mag langs de proxy; een gebruikte noodlink geeft een tijdelijke tag (15 minuten). Tot de proxy die heeft, toont RzSense een korte wachtpagina die zichzelf ververst;
+  - een apparaat dat je al eerder toestond, moet RzSense **één keer thuis** openen (of via de noodlink) om zijn tag te krijgen.
+- **Weg: `/rz-open/`** (1.270.0, inloggen met wachtwoord + 2FA om je adres een paar uur toe te laten), met de instelling en de lijst op de pagina Reverse proxy. Dat was een tweede manier om van buiten binnen te komen naast de toegestane apparaten.
+- De **waarschuwing** (RzSense van buiten gebruikt, maar de proxy laat het alleen vanaf je netwerk toe) wijst nu naar de toegestane apparaten: te oude agent, nog geen toegestaan apparaat, of apparaten die hun tag nog moeten ophalen.
+- **Nieuwe agent 1.106.0** (nodig op de proxyserver).
 
 ## 1.271.0 – 2026-11-15
 ### Opgelost

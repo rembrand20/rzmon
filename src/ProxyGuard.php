@@ -62,10 +62,11 @@ final class ProxyGuard
             }
             $out[] = implode("\t", [0, 'proxysite', $s['site'], $s['lan_mode'], $s['lan_paths'] !== '' ? $s['lan_paths'] : '-', $s['rate'], $s['bots'] ? 1 : 0]);
         }
-        // 1.270.0 (agent 1.104.0): op de site van RzSense blijft /rz-open/ bereikbaar, ook als de site alleen vanaf mijn netwerk mag
-        if (ProxyOpen::enabled() && version_compare((string) $h['agent_version'], ProxyOpen::AGENT, '>=')) {
+        // 1.272.0 (agent 1.106.0): toegestane apparaten (proxy-tag) en de noodlink komen langs, ook als de site alleen vanaf mijn netwerk mag
+        if (version_compare((string) $h['agent_version'], ProxyOpen::AGENT, '>=')) {
+            $tags = implode(',', ProxyOpen::tags());
             foreach (ProxyOpen::sites(self::sites($hostId, $rep)) as $site) {
-                $out[] = implode("\t", [0, 'proxyopen', $site]);
+                $out[] = implode("\t", [0, 'proxytags', $site, $tags !== '' ? $tags : '-']);
             }
         }
         // 1.271.0 (agent 1.105.0): bevestigen, statuspagina en heartbeats van buiten (elk met een eigen token) altijd door
@@ -101,9 +102,7 @@ final class ProxyGuard
         }
         $out = $ok ? array_slice(array_values($ok), 0, 50) : PRIVATE_NETWORKS;
         $agents = class_exists('Ids') ? array_slice(array_values(array_diff(Ids::agentIps(), $out)), 0, 30) : [];
-        // 1.270.0: IP's die tijdelijk open staan (via /rz-open/, met wachtwoord + 2FA)
-        $open = array_values(array_diff(ProxyOpen::ips(), $out, $agents));
-        return array_merge($out, array_values(array_filter(array_merge($agents, $open), [self::class, 'validNet'])));
+        return array_merge($out, array_values(array_filter($agents, [self::class, 'validNet'])));
     }
 
     public static function validNet(string $n): bool
@@ -329,7 +328,7 @@ final class ProxyGuard
         }
         unset($sv);
         return ['on' => self::enabled(), 'lan' => self::lanNets(), 'servers' => $servers,
-            'open' => ['on' => ProxyOpen::enabled(), 'hours' => ProxyOpen::hours(), 'list' => ProxyOpen::active(), 'path' => ProxyOpen::PATH, 'check' => ProxyOpen::selfCheck()],   // 1.270.0, 1.271.0
+            'access' => ['check' => ProxyOpen::selfCheck()],   // 1.271.0, 1.272.0
             'waf' => ['on' => setting('waf_on', '0') === '1', 'mode' => Waf::mode(), 'share' => setting('waf_share', '0') === '1'],
             'nids' => ['on' => setting('nids_on', '0') === '1', 'profile' => setting('nids_profile', 'balanced'), 'iface' => setting('nids_iface', 'auto'), 'min_sev' => setting('nids_min_sev', '2')],
             'av' => ['on' => setting('av_on', '0') === '1', 'notify' => setting('av_notify', '1') === '1', 'move' => setting('av_move', '1') === '1'],
