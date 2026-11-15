@@ -102,11 +102,11 @@ final class ProxyAdvice
     {
         return "Je bent een ervaren beveiligingsspecialist voor reverse proxies (nginx, SWAG, Nginx Proxy Manager) in een thuis- of kantoornetwerk. "
             . "Stel per site het beleid voor dat RzSense doorvoert. Antwoord met alleen één JSON-object, zonder uitleg ervoor of erna, in deze vorm:\n"
-            . '{"summary":"<twee zinnen>","sites":[{"id":"<id uit de gegevens>","lan_mode":"off|paths|site","lan_paths":["/admin"],"rate":"off|normal|strict","bots":true,"waf":"inherit|detect|off","reason":"<één korte zin>"}]}' . "\n"
+            . '{"summary":"<twee zinnen>","sites":[{"id":"<id uit de gegevens>","lan_mode":"off|paths|site","lan_paths":["/admin"],"rate":"off|normal|strict|app","bots":true,"waf":"inherit|detect|off","reason":"<één korte zin>"}]}' . "\n"
             . "Betekenis: lan_mode site = de hele site alleen vanaf het eigen netwerk (voor beheerprogramma's zoals Portainer, AdGuard, Proxmox, UniFi, Cockpit, phpMyAdmin, webmail-beheer); "
             . "paths = alleen de adminpaden in lan_paths (zoals /admin van Vaultwarden, /wp-admin van WordPress, /settings/admin van Nextcloud); off = iedereen. "
-            . "rate normal = 20 verzoeken per seconde per adres, strict = 5 per seconde (alleen voor inlogpagina's of kleine sites). "
-            . "Let op apps met mobiele apps of synchronisatie (Nextcloud, Home Assistant, Jellyfin, Plex, Immich, Vaultwarden, Syncthing): die doen veel verzoeken, dus geen strict en de site niet helemaal afsluiten. "
+            . "rate normal = 20 verzoeken per seconde per adres, strict = 5 per seconde (alleen voor inlogpagina's of kleine sites), app = 50 per seconde met ruime pieken (inlogpaden houden 20); vaste bestanden (js, css, afbeeldingen) tellen nooit mee. "
+            . "Let op apps met mobiele apps of synchronisatie (Nextcloud, Home Assistant, Jellyfin, Plex, Immich, Vaultwarden, Syncthing): die doen veel verzoeken, dus rate app en de site niet helemaal afsluiten. "
             . "waf detect = voor deze site alleen melden (bij veel meldingen die op vals alarm lijken: veel verschillende IP's op gewone paden, WebDAV, API's); off alleen als de WAF de app echt breekt; anders inherit. "
             . "bots false alleen als de site bedoeld is voor tools die op scanners lijken. Paden beginnen met / en bevatten alleen letters, cijfers en ._~/-. "
             . "Geef elke site uit de gegevens precies één keer terug, ook als er niets verandert. Twijfel je, laat het huidige beleid staan. "
@@ -147,6 +147,9 @@ final class ProxyAdvice
             if (!in_array($mode, ProxyGuard::LAN_MODES, true) || !in_array($rate, ProxyGuard::RATES, true) || !in_array($waf, Waf::SITE_MODES, true)
                 || $paths === null || ($mode === 'paths' && $paths === '') || !is_bool($x['bots'] ?? null)) {
                 continue;   // ongeldig: deze site niet
+            }
+            if ($rate === 'strict' && ProxyGuard::mobileApp((string) $s['site'], (string) ($s['up'] ?? ''))) {
+                $rate = 'app';   // 1.273.0: een app met een mobiele app nooit streng
             }
             $reason = trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($x['reason'] ?? ''))) ?? '');
             $out[$s['site']] = ['lan_mode' => $mode, 'lan_paths' => $mode === 'paths' ? $paths : '', 'rate' => $rate, 'bots' => $x['bots'], 'waf' => $waf,

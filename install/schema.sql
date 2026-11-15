@@ -1635,7 +1635,7 @@ CREATE TABLE IF NOT EXISTS proxy_sites (
     enabled    TINYINT(1)   NOT NULL DEFAULT 1,
     lan_mode   ENUM('off','paths','site') NOT NULL DEFAULT 'off',
     lan_paths  VARCHAR(1000) NOT NULL DEFAULT '',
-    rate       ENUM('off','normal','strict') NOT NULL DEFAULT 'normal',
+    rate       ENUM('off','normal','strict','app') NOT NULL DEFAULT 'normal',
     bots       TINYINT(1)   NOT NULL DEFAULT 1,
     updated_by VARCHAR(100) NOT NULL DEFAULT '',
     updated_at DATETIME     NULL,

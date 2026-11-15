@@ -3313,7 +3313,7 @@ Bescherm de apps achter je reverse proxy (**SWAG** of **Nginx Proxy Manager**, i
 
 **Per site** (alles aan of uit)
 - **Wie mag erbij**: *Iedereen*, *Adminpaden alleen mijn netwerk* (bv. `/admin`; ook `/Admin` en `/admin/…`), of *Hele site alleen mijn netwerk* (voor beheerprogramma's). Van buiten krijgt men dan **403**.
-- **Rate limit**: *Uit*, *Normaal* (20 verzoeken per seconde per adres, pieken tot 40) of *Streng* (5 per seconde, pieken tot 20). Te veel = **429**.
+- **Rate limit**: *Uit*, *Ruim (apps)* (50 verzoeken per seconde per adres, pieken tot 300; inlogpaden houden *Normaal*), *Normaal* (20 per seconde, pieken tot 40) of *Streng* (5 per seconde, pieken tot 20). Te veel = **429**. Vaste bestanden (scripts, opmaak, afbeeldingen, iconen, lettertypes, `/frontend_latest/`, `/static/`) tellen nooit mee (1.273.0, agent 1.107.0). Apps met een mobiele app of synchronisatie (Home Assistant, Nextcloud, Jellyfin, Plex, Immich, Vaultwarden, Syncthing …) krijgen als nieuwe site vanzelf *Ruim (apps)*: een dashboard haalt tientallen bestanden tegelijk op, en met *Streng* krijg je in de app al snel *Error while loading page*.
 - **Bots weren**: bekende aanvalstools en scanners (sqlmap, nikto, nuclei, zgrab, wpscan …) krijgen 403.
 - **Standaard of eigen**: een site die je niet zelf instelde, krijgt de standaard uit de beheerportal. Bekende beheerprogramma's (Portainer, AdGuard, Pi-hole, UniFi, Proxmox, Cockpit, phpMyAdmin, Axigen *webadmin* …) worden dan helemaal alleen-LAN; bekende apps alleen hun adminpaden (Vaultwarden `/admin`, Nextcloud `/settings/admin`, WordPress `/wp-admin` en `/wp-login.php` …). Met ↺ zet je een site terug naar de standaard.
 - **Mijn netwerk** = *Toegang → Lokale netwerken*, de whitelist en de **extra netwerken** uit de beheerportal (bv. je VPN). Daarvandaan wordt nooit iets tegengehouden.
@@ -3458,7 +3458,7 @@ Elke site krijgt een score van 0 tot 100 (A ≥ 85, B ≥ 70, C ≥ 50, D daaron
 | Onderdeel | Punten | Volle punten als |
 |---|---|---|
 | Wie mag erbij | 25 | een beheerprogramma alleen vanaf je netwerk; een app met adminpaden met die paden dicht |
-| Rate limit | 10 | normaal of streng |
+| Rate limit | 10 | ruim, normaal of streng |
 | Bots weren | 10 | aan |
 | WAF | 25 | aan, slider op *streng* (*alleen zeker* 22, *detecteren* of site op *alleen melden* 12) |
 | Bekende lekken | 15 | geen misbruik van een bekend lek (laatste 14 dagen) dat niet tegengehouden of dichtgezet is |

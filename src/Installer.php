@@ -404,6 +404,12 @@ final class Installer
         if ($len !== false && $len !== null && (int) $len < 65535) {
             $pdo->exec('ALTER TABLE checks MODIFY COLUMN options TEXT NULL');
         }
+        // 1.273.0: proxy_sites.rate kent ook 'app' (ruim, voor apps met een mobiele app)
+        $enum = $pdo->query("SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+                             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'proxy_sites' AND COLUMN_NAME = 'rate'")->fetchColumn();
+        if (is_string($enum) && !str_contains($enum, "'app'")) {
+            $pdo->exec("ALTER TABLE proxy_sites MODIFY COLUMN rate ENUM('off','normal','strict','app') NOT NULL DEFAULT 'normal'");
+        }
         // 1.107.0: nieuwe checks (elke manier van toevoegen) beginnen op 'auto': bij de eerste run de standaard drempelmodus
         $pdo->exec("ALTER TABLE checks ALTER COLUMN thresh_mode SET DEFAULT 'auto'");
         self::mergeContainerChecks($pdo);

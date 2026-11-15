@@ -5,6 +5,10 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.107.0 – 2026-11-15
+- **Vaste bestanden tellen niet meer mee voor de rate limit van de reverse proxy**: scripts, opmaak, afbeeldingen, iconen en lettertypes (en alles onder `/frontend_latest/` en `/static/`) worden niet meer afgeremd. Een dashboard van Home Assistant haalt er in één keer tientallen op; van buiten kreeg je dan `429` en in de app *Error while loading page*.
+- **Nieuwe stand voor de rate limit: *ruim (apps)***: 50 verzoeken per seconde per adres met pieken tot 300, voor apps met een mobiele app (Home Assistant, Nextcloud, Jellyfin …). Inlogpaden van zo'n site (`/auth/…`, `/login` …) blijven onder de normale limiet, zodat wachtwoorden raden afgeremd blijft.
+
 ## 1.106.0 – 2026-11-15
 - **Toegestane apparaten van RzSense komen weer langs de reverse proxy**: staat de site van RzSense op *alleen vanaf mijn netwerk*, dan laat de proxy nu precies de toegestane apparaten door (een eigen tag per apparaat, die RzSense meegeeft), plus de noodlink (`?nood=` en `?door=` op de hoofdpagina). Daarachter controleert RzSense zelf de apparaatsleutel en het inloggen. Het pad `/rz-open/` (1.104.0) is weg.
 

@@ -3483,6 +3483,20 @@ q("UPDATE proxy_tags SET until = NOW() - INTERVAL 1 MINUTE WHERE device_id IS NU
 Stealth::revoke($tDev, null, 'test');
 ok(ProxyOpen::tags() === [] && !preg_match('/[0-9a-f]{32}/', implode("\n", preg_grep('/^0\tproxytags/', ProxyGuard::agentLines($rzp)))),
     'proxy: verlopen noodlink en ingetrokken apparaat = tag weg');
+// 1.273.0: stand "ruim (apps)" voor apps met een mobiele app; een oudere agent krijgt dan "normaal"
+$defHa = ProxyGuard::defaults('ha.*', '192.168.1.5:8123');
+$defBlog = ProxyGuard::defaults('blog.*', 'blog:80');
+ProxyGuard::fromAgent($rzpHost, ['proxy' => ['kind' => 'swag', 'hook' => 1, 'state' => 'ok', 'sites' => [
+    ['name' => 'rzsense.*', 'names' => ['rzsense.*'], 'up' => 'rzsense:443', 'file' => 'rzsense.subdomain.conf'],
+    ['name' => 'homeassistant.*', 'names' => ['homeassistant.*'], 'up' => 'homeassistant:8123', 'file' => 'homeassistant.subdomain.conf']]]]);
+$haLine = static fn() => (string) current(preg_grep('/^0\tproxysite\thomeassistant\.\*\t/', ProxyGuard::agentLines($rzp)) ?: ['']);
+$l106 = $haLine();
+q("UPDATE hosts SET agent_version = '1.107.0' WHERE id = ?", [$rzp]);
+$l107 = $haLine();
+ok($defHa['rate'] === 'app' && $defBlog['rate'] === 'normal' && str_contains($l106, "\tnormal\t") && str_contains($l107, "\tapp\t")
+    && ProxyGuard::saveSite($rzp, ['site' => 'blog.*', 'lan_mode' => 'off', 'rate' => 'app', 'bots' => 1], 'test') === null,
+    'proxy: Home Assistant standaard ruim (apps), andere sites normaal; agent ouder dan 1.107.0 krijgt normaal');
+q('DELETE FROM proxy_sites WHERE host_id = ?', [$rzp]);
 q("DELETE FROM login_log WHERE ip = '198.51.100.90'");
 q('DELETE FROM hosts WHERE id = ?', [$rzp]);
 save_setting('proxy_on', $pOnWas);

@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.." || exit 1
 if [ "$(id -u)" != 0 ] || ! command -v nginx >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1 || ! command -v openssl >/dev/null 2>&1; then
     echo "• reverse proxy: overgeslagen (geen root, nginx, curl of openssl)"; exit 0
 fi
-work=$(mktemp -d)
+work=$(mktemp -d); chmod 755 "$work"   # nginx-werkers (nobody) lezen de testbestanden in $work/www
 port=18443
 trap '[ -f "$work/nginx.pid" ] && kill "$(cat "$work/nginx.pid")" 2>/dev/null; rm -rf "$work"' EXIT
 C="$work/config/nginx"
@@ -32,7 +32,8 @@ cp "$C/ssl.conf" "$work/ssl.orig"
 cat >"$C/site-confs/default.conf" <<EOF
 include $C/proxy-confs/*.subdomain.conf;
 EOF
-for app in vaultwarden portainer blog; do
+for app in vaultwarden portainer blog ha; do
+    mkdir -p "$work/www/$app"; echo "ok $app" >"$work/www/$app/ok.txt"
     cat >"$C/proxy-confs/$app.subdomain.conf" <<EOF
 server {
     listen 127.0.0.1:$port ssl;
@@ -40,7 +41,8 @@ server {
     include $C/ssl.conf;
     set \$upstream_app $app;
     set \$upstream_port 80;
-    location / { return 200 "ok $app"; }
+    # Een echt bestand (geen "return": dat komt vóór de rate limit, zoals proxy_pass dat niet doet)
+    location / { root $work/www/$app; try_files /ok.txt =404; }
 }
 EOF
 done
@@ -78,6 +80,7 @@ policy() {
     printf '0\tproxysite\tvaultwarden.*\tpaths\t/admin\toff\t1\n'
     printf '0\tproxysite\tportainer.*\tsite\t-\tstrict\t1\n'
     printf '0\tproxysite\tblog.*\toff\t-\tnormal\t1\n'
+    printf '0\tproxysite\tha.*\toff\t-\tapp\t1\n'   # agent 1.107.0: ruim (apps)
     printf '0\tproxytags\tportainer.*\t0123456789abcdef0123456789abcdef,KAPOT\n'   # agent 1.106.0: toegestane apparaten en noodlink
     printf '0\tproxypass\tportainer.*\t/ack.php,/status.php,/assets/app.css,/../x,/a b\n'   # agent 1.105.0
     printf '0\tproxyblock\tblog.*\t/xmlrpc.php,/../etc\n0\tproxyblock\t*\t/.env,/vendor/phpunit\n0\tproxyblock\tonbekend.*\t/x\n'
@@ -92,6 +95,14 @@ c_pass=$(code portainer /ack.php); c_pass2=$(code portainer /assets/app.css); c_
 c_tag=$(codec portainer /api.php pxt=0123456789abcdef0123456789abcdef); c_tag2=$(codec portainer / pxt=ffffffffffffffffffffffffffffffff); c_tag3=$(codec blog / pxt=0123456789abcdef0123456789abcdef)
 c_nood=$(code portainer '/?nood=jan'); c_door=$(code portainer "/?door=$(printf '%048d' 0)"); c_door2=$(code portainer '/?door=abc'); c_nood2=$(code portainer '/admin?nood=jan')
 c_vp1=$(code blog /XMLRPC.php); c_vp2=$(code vaultwarden /.env); c_vp3=$(code vaultwarden /vendor/phpunit/x/eval-stdin.php); c_vp_ok=$(code blog /xmlrpc-not)
+# Agent 1.107.0: rate limit. Snel achter elkaar: vaste bestanden nooit 429, gewone pagina's op "normaal" wel; "app" ruim, inlogpad niet
+burst() {   # één curl met n keer dezelfde URL (één verbinding, dus echt snel achter elkaar); telt de 429's
+    local u="https://$1.example.test:$port$2" a=() i
+    for i in $(seq 1 "$3"); do a+=(-o /dev/null "$u"); done
+    curl -sk --noproxy '*' --max-time 20 --resolve "$1.example.test:$port:127.0.0.1" -w '%{http_code}\n' "${a[@]}" | grep -c '^429$'
+}
+r_static=$(burst blog /frontend_latest/app.js 90); r_static2=$(burst blog /static/icons/x.png 90); r_norm=$(burst blog / 90)
+r_app=$(burst ha /lovelace/0 120); r_login=$(burst ha /auth/login_flow 90)
 cp "$C/site-confs/rzsense-http.conf" "$work/http.conf.1"
 bash "$work/run.sh" >"$work/r2.json" 2>>"$work/err"   # tweede ronde: niets nieuws
 # Een beleid dat nginx afkeurt (twee keer dezelfde naam kan niet, maar de agent filtert dat): kapotte ssl.conf nabootsen
@@ -111,7 +122,7 @@ r1, r2, r3, r4 = (json.load(open(f'{w}/r{i}.json')) for i in (1, 2, 3, 4))
 assert r1['kind'] == 'swag' and r1['engine'] == 'podman' and r1['ctr'] == 'swag', r1
 assert r1['state'] == 'ok' and r1['hook'] == 1 and len(r1['applied']) == 12, r1
 names = {s['name']: s for s in r1['sites']}
-assert set(names) == {'vaultwarden.*', 'portainer.*', 'blog.*'}, names
+assert set(names) == {'vaultwarden.*', 'portainer.*', 'blog.*', 'ha.*'}, names
 assert names['vaultwarden.*']['up'] == 'vaultwarden:80', names
 assert r2['state'] == 'ok' and r2['applied'] == r1['applied'], r2
 assert r3['state'] == 'error' and 'nginx -t' in r3['msg'], r3
@@ -128,6 +139,9 @@ PY
 [ "$c_nood" = 200 ] && [ "$c_door" = 200 ] && [ "$c_door2" = 403 ] && [ "$c_nood2" = 403 ] || bad+="noodlink niet goed (nood $c_nood, door $c_door, korte door $c_door2, nood op ander pad $c_nood2) | "
 [ "$c_vp1" = 403 ] && [ "$c_vp2" = 403 ] && [ "$c_vp3" = 403 ] || bad+="virtual patch niet dicht ($c_vp1/$c_vp2/$c_vp3) | "
 [ "$c_vp_ok" = 403 ] && bad+="virtual patch: ander pad onterecht dicht | "
+[ "$r_static" = 0 ] && [ "$r_static2" = 0 ] || bad+="vaste bestanden toch afgeremd ($r_static/$r_static2 keer 429) | "
+[ "$r_norm" -gt 0 ] || bad+="rate limit normaal remt niet af | "
+[ "$r_app" = 0 ] && [ "$r_login" -gt 0 ] || bad+="stand app niet goed (pagina's $r_app keer 429, inlogpad $r_login) | "
 grep -q '/\.\./etc' "$C/site-confs/rzsense-http.conf" "$work/http.conf.1" 2>/dev/null && bad+="ongeldig pad (..) in de config | "
 [ "$c_after_fail" = 200 ] || bad+="na een afgekeurd beleid werkt de site niet meer ($c_after_fail) | "
 [ "$c_adm_off" = 200 ] || bad+="na uitzetten is /admin nog dicht ($c_adm_off) | "
@@ -137,4 +151,4 @@ grep -q 'rzsense-hook' "$work/ssl.orig" && bad+="haak al in het origineel? | "
 grep -q 'Reverse proxy: beleid doorgevoerd' "$work/cache/act.log" && grep -q 'Reverse proxy: doorvoeren mislukt' "$work/cache/act.log" \
     && grep -q 'Reverse proxy: bescherming uit' "$work/cache/act.log" || bad+="logboek mist regels | "
 if [ -n "$bad" ]; then echo "✘ reverse proxy: ${bad% | } $(tail -n 5 "$work/err")"; exit 1; fi
-echo "✔ reverse proxy: SWAG in Podman herkend, sites uitgelezen, adminpad en hele site alleen LAN (ook andere schrijfwijze), bots geweerd, toegestane apparaten (proxy-tag), de noodlink en de paden met een eigen token (bevestigen, statuspagina) bereikbaar op een site die alleen LAN mag, virtual patching per site en voor alle sites (ongeldig pad geweigerd), tweede ronde niets nieuws, afgekeurd beleid teruggezet, uit = alles weg en ssl.conf als eerst, in het logboek"
+echo "✔ reverse proxy: SWAG in Podman herkend, sites uitgelezen, adminpad en hele site alleen LAN (ook andere schrijfwijze), bots geweerd, rate limit (vaste bestanden niet, stand app ruim maar inlogpad niet), toegestane apparaten (proxy-tag), de noodlink en de paden met een eigen token (bevestigen, statuspagina) bereikbaar op een site die alleen LAN mag, virtual patching per site en voor alle sites (ongeldig pad geweigerd), tweede ronde niets nieuws, afgekeurd beleid teruggezet, uit = alles weg en ssl.conf als eerst, in het logboek"

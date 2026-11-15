@@ -3,7 +3,7 @@
 // alleen vanaf je netwerk, rate limit, bots). Beheerportal › Beveiliging › Reverse proxy: welke server de proxy is.
 
 const PX_LAN = () => [['off', L('Iedereen')], ['paths', L('Adminpaden alleen mijn netwerk')], ['site', L('Hele site alleen mijn netwerk')]];
-const PX_RATE = () => [['off', L('Uit')], ['normal', L('Normaal')], ['strict', L('Streng')]];
+const PX_RATE = () => [['off', L('Uit')], ['app', L('Ruim (apps)')], ['normal', L('Normaal')], ['strict', L('Streng')]];
 const PX_STATE = () => ({ ok: ['ok', '✔ ' + L('doorgevoerd')], pending: ['wait', '⏳ ' + L('wacht op de agent')], error: ['bad', '✘ ' + L('mislukt')],
   off: ['', L('uit')], unsupported: ['wait', L('niet ondersteund')] });
 const PX_KIND = { swag: 'SWAG', npm: 'Nginx Proxy Manager', nginx: 'nginx', traefik: 'Traefik', caddy: 'Caddy', none: '–' };

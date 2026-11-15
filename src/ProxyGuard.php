@@ -12,13 +12,17 @@ declare(strict_types=1);
  * Naar de agent (alleen op een server met de rol):
  *   0 <tab> proxy <tab> on|off
  *   0 <tab> proxylan <tab> 192.168.1.0/24 10.8.0.0/24 …       (je LAN, de whitelist en extra netwerken)
- *   0 <tab> proxysite <tab> site <tab> off|paths|site <tab> /admin,/settings|- <tab> off|normal|strict <tab> 0|1
+ *   0 <tab> proxysite <tab> site <tab> off|paths|site <tab> /admin,/settings|- <tab> off|normal|strict|app <tab> 0|1
  * Terug (rapport "proxy"): soort, container, configmap, of de koppeling er staat, de stand (ok, error, off, unsupported),
  * een melding, het kenmerk van wat is doorgevoerd en de sites (naam, alle namen, de app erachter, het bestand).
  */
 final class ProxyGuard
 {
-    public const RATES = ['off', 'normal', 'strict'];
+    public const RATES = ['off', 'normal', 'strict', 'app'];
+    /** 1.273.0 (agent 1.107.0): stand "ruim (apps)" en vaste bestanden buiten de rate limit */
+    public const RATE_AGENT = '1.107.0';
+    /** Apps met een mobiele app of synchronisatie: veel verzoeken tegelijk, dus standaard de ruime stand (nooit streng) */
+    private const MOBILE_APPS = '/home-?assistant|hass|:8123\b|nextcloud|jellyfin|plex|emby|immich|vaultwarden|bitwarden|syncthing|photoprism|audiobookshelf|navidrome|frigate/';
     public const LAN_MODES = ['off', 'paths', 'site'];
 
     /** Bekende apps: adminpaden die standaard alleen vanaf het LAN mogen, of de hele site (beheerprogramma's) */
@@ -56,11 +60,14 @@ final class ProxyGuard
             return [implode("\t", [0, 'proxy', 'off'])];
         }
         $out = [implode("\t", [0, 'proxy', 'on']), implode("\t", [0, 'proxylan', implode(' ', self::lanNets())])];
+        $appRate = version_compare((string) $h['agent_version'], self::RATE_AGENT, '>=');
         foreach (self::sites($hostId, $rep) as $s) {
             if (!$s['enabled']) {
                 continue;
             }
-            $out[] = implode("\t", [0, 'proxysite', $s['site'], $s['lan_mode'], $s['lan_paths'] !== '' ? $s['lan_paths'] : '-', $s['rate'], $s['bots'] ? 1 : 0]);
+            // Een oudere agent kent "app" niet (hij zou de hele site overslaan): dan normaal
+            $rate = $s['rate'] === 'app' && !$appRate ? 'normal' : $s['rate'];
+            $out[] = implode("\t", [0, 'proxysite', $s['site'], $s['lan_mode'], $s['lan_paths'] !== '' ? $s['lan_paths'] : '-', $rate, $s['bots'] ? 1 : 0]);
         }
         // 1.272.0 (agent 1.106.0): toegestane apparaten (proxy-tag) en de noodlink komen langs, ook als de site alleen vanaf mijn netwerk mag
         if (version_compare((string) $h['agent_version'], ProxyOpen::AGENT, '>=')) {
@@ -199,6 +206,12 @@ final class ProxyGuard
         return '';
     }
 
+    /** 1.273.0: een app met een mobiele app of synchronisatie (Home Assistant, Nextcloud, Jellyfin …)? */
+    public static function mobileApp(string $site, string $up = ''): bool
+    {
+        return preg_match(self::MOBILE_APPS, strtolower($site . ' ' . $up)) === 1;
+    }
+
     public static function defaults(string $site, string $up = ''): array
     {
         $hay = strtolower($site . ' ' . $up);
@@ -219,7 +232,11 @@ final class ProxyGuard
             }
         }
         $rate = (string) setting('proxy_def_rate', 'normal');
-        return ['enabled' => true, 'lan_mode' => $mode, 'lan_paths' => $paths, 'rate' => in_array($rate, self::RATES, true) ? $rate : 'normal',
+        $rate = in_array($rate, self::RATES, true) ? $rate : 'normal';
+        if ($rate !== 'off' && self::mobileApp($site, $up)) {
+            $rate = 'app';   // 1.273.0: apps met een mobiele app laden veel tegelijk (Home Assistant: tientallen bestanden per dashboard)
+        }
+        return ['enabled' => true, 'lan_mode' => $mode, 'lan_paths' => $paths, 'rate' => $rate,
             'bots' => setting('proxy_def_bots', '1') === '1', 'custom' => false, 'waf' => 'inherit', 'waf_except' => ''];
     }
 

@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.273.0**: **apps als Home Assistant laden weer achter de proxy**: vaste bestanden tellen niet mee voor de rate limit, en een nieuwe stand *ruim (apps)*.
 - **1.272.0**: **van buiten weer binnen met je toegestane apparaten**: de reverse proxy volgt de apparaatsleutels van RzSense en de noodlink; /rz-open/ is weg.
 - **1.271.0**: **RzSense blijft van buiten bruikbaar achter de proxy**: bevestigen vanuit Pushover, de statuspagina en heartbeats werken weer, en RzSense waarschuwt als je jezelf buitensluit.
 - **1.269.0**: **proxystatistieken ook zonder rzsense.log**, en per proxyserver precies wat er nog ontbreekt als de tellingen leeg zijn.
 - **1.268.0**: **route van een aanval in het venster**: per station (firewall, proxy, WAF, Suricata, app, server erna) zie je waar een aanval stopte of doorkwam.
-- **1.267.0**: **Reverse proxy en IDS zonder dubbel werk**: de proxypagina gaat over je sites en het afstellen, alles wat je afhandelt staat bij IDS.
+
+## 1.273.0 – 2026-11-15
+### Opgelost
+- **Home Assistant (en andere apps) laden weer achter de reverse proxy.** De rate limit van de proxy telde elk bestandje mee; een dashboard van Home Assistant haalt er tientallen tegelijk op, dus van buiten kreeg je `429` op een deel ervan en in de app *Error while loading page*. Vaste bestanden (scripts, opmaak, afbeeldingen, iconen, lettertypes, `/frontend_latest/`, `/static/`) tellen nu niet meer mee. Hiervoor is **agent 1.107.0** op de proxyserver nodig.
+
+### Nieuw
+- **Rate limit *ruim (apps)*** (Reverse proxy → per site): 50 verzoeken per seconde met pieken tot 300, voor apps met een mobiele app of synchronisatie. Inlogpaden van die site houden de normale limiet. Een nieuwe site met Home Assistant, Nextcloud, Jellyfin, Plex, Immich, Vaultwarden, Syncthing en dergelijke krijgt deze stand vanzelf; het AI-advies zet zo'n app nooit op *streng*. Bestaande instellingen blijven zoals ze zijn; een agent ouder dan 1.107.0 krijgt *normaal*.
+- Nieuwe agent 1.107.0.
 
 ## 1.272.0 – 2026-11-15
 ### Opgelost

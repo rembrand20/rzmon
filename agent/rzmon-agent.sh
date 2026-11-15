@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.106.0"
+AGENT_VERSION="1.107.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -3800,7 +3800,7 @@ lap proxy
 # Alleen op een server die in RzSense de rol "reverse proxy" heeft (regel "0 <tab> proxy <tab> on|off"). De agent herkent
 # de proxy (SWAG of Nginx Proxy Manager, in Podman of Docker), leest de sites uit en voert het beleid per site door:
 #   0 <tab> proxylan <tab> netwerken                 je LAN (adminpagina's mogen alleen daarvandaan)
-#   0 <tab> proxysite <tab> site <tab> off|paths|site <tab> /pad,/pad|- <tab> off|normal|strict <tab> 0|1 (slechte bots)
+#   0 <tab> proxysite <tab> site <tab> off|paths|site <tab> /pad,/pad|- <tab> off|normal|strict|app <tab> 0|1 (slechte bots)
 #   0 <tab> proxyblock <tab> site|* <tab> /pad,/pad   (agent 1.100.0: virtual patching, paden met een bekend lek tijdelijk
 #                                                      dicht voor iedereen buiten je netwerk; * = alle sites)
 # Veilig doorvoeren:
@@ -3967,13 +3967,16 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
             px_state=error; px_msg=$(cat "$t_dir/proxy.failmsg" 2>/dev/null)
         else
             # Beleid opbouwen (alles wat binnenkomt opnieuw controleren)
+            # Agent 1.107.0: vaste bestanden (scripts, opmaak, afbeeldingen, lettertypes; /frontend_latest/ en /static/) tellen niet
+            # mee voor de rate limit: een dashboard van Home Assistant haalt er tientallen tegelijk op. Stand "app" = ruim (50/s,
+            # pieken tot 300), maar inlogpaden van zo'n site blijven onder de normale limiet (wachtwoorden raden blijft afgeremd).
             px_geo=""; px_hosts=""; px_adm=""; px_open=""; px_tag=""; px_nood=""; px_bots=""; px_rate=""; px_blk=""; px_id=0; declare -A px_seen=(); declare -A px_sid=()
             for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_cache"); do
                 [[ "$n" =~ ^[0-9a-fA-F:.]+(/[0-9]{1,3})?$ ]] && px_geo+="    $n 1;"$'\n'
             done
             while IFS=$'\t' read -r _ _ s_name s_mode s_paths s_rate s_bots; do
                 [[ "$s_name" =~ ^(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)*(\.\*)?$ ]] || continue
-                [[ "$s_mode" =~ ^(off|paths|site)$ ]] && [[ "$s_rate" =~ ^(off|normal|strict)$ ]] && [[ "$s_bots" =~ ^[01]$ ]] || continue
+                [[ "$s_mode" =~ ^(off|paths|site)$ ]] && [[ "$s_rate" =~ ^(off|normal|strict|app)$ ]] && [[ "$s_bots" =~ ^[01]$ ]] || continue
                 px_id=$((px_id + 1)); sid="s$px_id"; px_sid[$s_name]=$sid
                 # Alle namen van de site (server_name), elke naam maar één keer (anders weigert nginx de map)
                 for a in ${px_alias[$s_name]:-$s_name}; do
@@ -4071,16 +4074,31 @@ map \"\$rzs_badbot:\$rzs_bots_on:\$rzs_lan\" \$rzs_deny_bot {
 map \$rzs_site \$rzs_rate {
     default \"\";
 ${px_rate}}
-map \"\$rzs_rate:\$rzs_lan\" \$rzs_key_n {
-    default \"\";
-    \"normal:0\" \$binary_remote_addr;
+map \$uri \$rzs_static {
+    default 0;
+    \"~*\\.(js|mjs|css|map|woff2?|ttf|otf|eot|svg|png|jpe?g|gif|webp|avif|ico)\$\" 1;
+    \"~^/(frontend_latest|frontend_es5|static|hacsfiles)/\" 1;
 }
-map \"\$rzs_rate:\$rzs_lan\" \$rzs_key_s {
+map \$uri \$rzs_login {
+    default 0;
+    \"~*(^|/)(auth|login|signin|sign_in|sso|oauth2?|identity|token|wp-login\\.php)(/|\$|\\.)\" 1;
+}
+map \"\$rzs_rate:\$rzs_lan:\$rzs_static:\$rzs_login\" \$rzs_key_n {
     default \"\";
-    \"strict:0\" \$binary_remote_addr;
+    \"~^normal:0:0:\" \$binary_remote_addr;
+    \"app:0:0:1\" \$binary_remote_addr;
+}
+map \"\$rzs_rate:\$rzs_lan:\$rzs_static:\$rzs_login\" \$rzs_key_s {
+    default \"\";
+    \"~^strict:0:0:\" \$binary_remote_addr;
+}
+map \"\$rzs_rate:\$rzs_lan:\$rzs_static:\$rzs_login\" \$rzs_key_a {
+    default \"\";
+    \"app:0:0:0\" \$binary_remote_addr;
 }
 limit_req_zone \$rzs_key_n zone=rzs_normal:10m rate=20r/s;
 limit_req_zone \$rzs_key_s zone=rzs_strict:10m rate=5r/s;
+limit_req_zone \$rzs_key_a zone=rzs_app:10m rate=50r/s;
 "
             px_conf_srv="# RzSense: reverse proxy beschermen (per site). Beheerd door de RzSense-agent.
 if (\$rzs_deny_adm) { return 403; }
@@ -4088,6 +4106,7 @@ if (\$rzs_deny_blk) { return 403; }
 if (\$rzs_deny_bot) { return 403; }
 limit_req zone=rzs_normal burst=40 nodelay;
 limit_req zone=rzs_strict burst=20 nodelay;
+limit_req zone=rzs_app burst=300 nodelay;
 limit_req_status 429;
 "
             px_before=$(px_codes)
