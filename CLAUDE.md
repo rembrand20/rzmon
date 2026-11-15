@@ -34,7 +34,7 @@ RzMon en de agent hebben **elk een eigen versienummer**. Verhoog alleen het numm
 ## Overige afspraken
 - **De interface wijzig je in `public/assets/src/*.js`** (modules, op volgorde van hun nummer), nooit in `public/assets/app.js`: dat bestand wordt gebouwd met `tools/build-js.sh`. `tools/check-version.sh` en CI controleren dat het gebouwde bestand klopt, en dat er geen twee functies, `const` of `let` met dezelfde naam zijn. Een venster (`modal()`) ruimt de afhandelingen en polls van het vorige op: gebruik `addEventListener(…, { signal: modalSignal() })` op `#modal-form`/`#modal-body`, en stop een poll als `modalGen` veranderd is.
 - **De API** staat in `public/api.php` (inloggen, rechten, CSRF, de lijst `API_GET` met acties die met GET mogen) en `src/api/*.php`: `functies.php` (hulpfuncties), `agent.php`, `login.php`, en de acties per onderwerp (`10-monitoring.php` … `80-systeem.php`, elk een eigen `switch`). Een nieuwe actie zet je in het bestand van zijn onderwerp; elke actie eindigt met `out()`. Mag hij met GET (alleen lezen), zet hem dan ook in `API_GET`.
-- **De agent wijzig je in `agent/src/*.sh`** (modules, op volgorde van hun nummer), nooit in `agent/rzmon-agent.sh`: dat bestand wordt gebouwd met `tools/build-agent.sh` (ook door `tools/bump-version.sh sync`). `tools/check-version.sh` en CI controleren dat het gebouwde bestand klopt. Shellcheck draait op het gebouwde bestand.
+- **De agent wijzig je in `agent/src/*.sh`** (modules, op volgorde van hun nummer), nooit in `agent/rzmon-agent.sh`: dat bestand wordt gebouwd met `tools/build-agent.sh` (ook door `tools/bump-version.sh sync`). `tools/check-version.sh` en CI controleren dat het gebouwde bestand klopt. Shellcheck draait per module en per script, naast elkaar: `tools/shellcheck.sh` (ook in CI); het gebouwde bestand krijgt alleen `bash -n`.
 - `ha-addon/rzmon_agent/rzmon-agent.sh` en `ha-addon/rzmon_agent/CHANGELOG.md` zijn kopieën van `agent/rzmon-agent.sh` en `agent/CHANGELOG.md`. Wijzig altijd het origineel en kopieer daarna met `tools/bump-version.sh sync`.
 - Nieuwe databasekolommen gaan via `Installer::COLUMNS` (`src/Installer.php`), niet met `ADD COLUMN IF NOT EXISTS` (dat werkt niet op MySQL). Nieuwe tabellen gaan in `install/schema.sql` met `CREATE TABLE IF NOT EXISTS`. De database wordt automatisch bijgewerkt zodra `VERSION` (van RzMon) verandert; een wijziging aan de database vraagt dus altijd een nieuwe RzMon-versie.
 - `config.php` bevat wachtwoorden en wordt nooit gecommit (`.gitignore`). `tools/check-secrets.sh` (ook in CI) zoekt naar geheimen in de repo.
@@ -44,4 +44,4 @@ RzMon en de agent hebben **elk een eigen versienummer**. Verhoog alleen het numm
 - Controleer voor een commit:
   - `php -l` op de PHP-bestanden;
   - `node --check public/assets/*.js`;
-  - `shellcheck -S warning` op de shellscripts.
+  - `tools/shellcheck.sh` (shellcheck per module en script).

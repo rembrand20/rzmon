@@ -24,7 +24,8 @@ jobs:
       - name: Syntaxcontrole JavaScript
         run: |
           for f in public/assets/*.js; do node --check "$f"; done
-      - name: Shellcheck (gebouwde agent en scripts)
+      - name: Shellcheck (per module en script, naast elkaar)
+        timeout-minutes: 5
         run: |
           command -v shellcheck >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck >/dev/null; }
-          shellcheck -S warning agent/rzmon-agent.sh agent/install-agent.sh ha-addon/rzmon_agent/*.sh tools/*.sh
+          tools/shellcheck.sh

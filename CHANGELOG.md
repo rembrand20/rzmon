@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.267.0**: **Reverse proxy en IDS zonder dubbel werk**: de proxypagina gaat over je sites en het afstellen, alles wat je afhandelt staat bij IDS.
 - **1.266.0**: **IDS-pagina overzichtelijk**: één statusregel, vijf vaste tabbladen plus *Meer*, de incidentenlijst meteen bovenaan en het grote plaatje op het tabblad *Overzicht*.
 
+## 1.270.1 – 2026-11-15
+### Opgelost
+- **Controle bij elke wijziging sneller en betrouwbaarder**: shellcheck controleerde de hele agent (~7000 regels) in één keer; dat kostte zoveel geheugen dat de controle op GitHub geregeld bleef hangen. Nu gaat het per module en per script, naast elkaar (`tools/shellcheck.sh`, ~6 seconden). Geen verschil in wat RzSense of de agent doet.
+
 ## 1.270.0 – 2026-11-15
 ### Nieuw
 - **🔓 Tijdelijk toegang van buiten**: de reverse proxy zet de site van RzSense standaard op *alleen vanaf mijn netwerk*, dus op je telefoon via 5G kreeg je *403 Forbidden*. Nu kun je dan naar **`/rz-open/`** op het adres van RzSense:
