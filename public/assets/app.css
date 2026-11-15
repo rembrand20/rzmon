@@ -6227,3 +6227,28 @@ details.pxs h4 { margin: .2rem 0 .45rem; font-size: .9rem; }
 @media (min-width: 721px) { .ids-web .ids-web-t { flex-basis: auto; } }
 .av-inc { display: grid; gap: .35rem; padding: .6rem .8rem; border: 1px solid var(--border); border-radius: 10px; background: var(--card-2); }
 .av-inc code { word-break: break-all; }
+
+/* 1.268.0: route van de aanval in het incidentvenster */
+.rt { display: grid; gap: .55rem; margin: .4rem 0 .9rem; padding: .7rem .8rem; border: 1px solid var(--border); border-radius: 12px; background: var(--card-2); }
+.rt-h { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .7rem; }
+.rt-sum { font-size: .85rem; font-weight: 600; color: var(--muted); }
+.rt-sum.ok { color: var(--ok); } .rt-sum.bad { color: var(--crit); }
+.rt-strip { display: flex; align-items: stretch; gap: .25rem; overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
+.rt-ar { align-self: center; color: var(--muted); font-size: .85rem; flex: none; }
+.rt-st { flex: none; display: grid; justify-items: center; gap: .1rem; min-width: 4.6rem; padding: .35rem .45rem; border-radius: 10px; border: 1.5px solid var(--border); background: var(--card); color: var(--text); font: inherit; cursor: pointer; }
+.rt-st .rt-i { font-size: 1.05rem; line-height: 1; }
+.rt-st .rt-l { font-size: .74rem; font-weight: 600; white-space: nowrap; }
+.rt-st.on { box-shadow: 0 0 0 2px var(--primary); }
+.rt-st:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.rt-st.rt-stop { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, var(--card)); }
+.rt-st.rt-warn { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, var(--card)); }
+.rt-st.rt-bad { border-color: var(--crit); background: color-mix(in srgb, var(--crit) 13%, var(--card)); }
+.rt-st.rt-skip { opacity: .45; border-style: dashed; }
+.rt-st.rt-na { border-style: dashed; color: var(--muted); }
+.rt-d { display: grid; gap: .25rem; font-size: .88rem; }
+.rt-d p { margin: 0; }
+.rt-d ul { margin: 0; padding-left: 1.1rem; color: var(--muted); }
+.rt-d li { word-break: break-word; }
+.rt-tag { font-size: .72rem; font-weight: 700; padding: .1rem .45rem; border-radius: 999px; border: 1px solid var(--border); }
+.rt-tag.rt-stop { color: var(--ok); border-color: var(--ok); } .rt-tag.rt-warn { color: var(--warn); border-color: var(--warn); }
+.rt-tag.rt-bad { color: var(--crit); border-color: var(--crit); } .rt-tag.rt-skip, .rt-tag.rt-na, .rt-tag.rt-pass { color: var(--muted); }

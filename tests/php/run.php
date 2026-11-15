@@ -3398,5 +3398,35 @@ save_setting('ids_mode', $modeWas);
 q("DELETE FROM ids_blocks WHERE ip LIKE '203.0.113.20%'");
 q('DELETE FROM hosts WHERE id = ?', [$sh['id']]);
 
+// 1.268.0: route van een aanval in het incidentvenster
+q("INSERT INTO hosts (name, address, mode) VALUES ('ci-route', '10.0.0.90', 'agent')");
+$rh = q('SELECT * FROM hosts WHERE id = ?', [(int) db()->lastInsertId()])->fetch();
+$ri = static function (string $type, string $ip, string $title) use ($rh): array {
+    $id = Ids::raise($rh, 1, $type, "$type|$ip", $title, 'test', $ip);
+    return q('SELECT i.*, h.name AS host_name FROM ids_incidents i JOIN hosts h ON h.id = i.host_id WHERE i.id = ?', [$id])->fetch() ?: [];
+};
+$states = static fn(?array $r) => array_column($r['stations'] ?? [], 'state', 'k');
+// Brute force zonder geslaagde login: firewall doorgelaten, inloggen gestopt
+$bf = $ri('bruteforce', '203.0.113.231', 'Brute force vanaf 203.0.113.231');
+$r1 = IncidentRoute::forIncident($bf);
+$s1 = $states($r1);
+ok(($r1['kind'] ?? '') === 'login' && ($s1['fw'] ?? '') === 'pass' && ($s1['login'] ?? '') === 'stop' && isset($s1['after']), 'route: brute force zonder login = gestopt bij inloggen');
+// Al geblokkeerd vóór de aanval: firewall stopt alles, de rest is niet bereikt
+q("INSERT INTO ids_blocks (host_id, ip, reason, created_at) VALUES (?, '203.0.113.232', 'test', NOW() - INTERVAL 1 HOUR)", [$rh['id']]);
+$wa = $ri('web_payload', '203.0.113.232', 'Webaanval vanaf 203.0.113.232');
+$s2 = $states(IncidentRoute::forIncident($wa));
+ok(($s2['fw'] ?? '') === 'stop' && ($s2['app'] ?? '') === 'skip' && ($s2['waf'] ?? '') === 'skip', 'route: al geblokkeerd = gestopt bij de firewall, rest niet bereikt');
+// Een webshell op dezelfde server binnen het uur erna = verdacht
+$ri('webshell', '203.0.113.233', 'Mogelijke webshell');
+$wb = $ri('web_payload', '203.0.113.234', 'Webaanval vanaf 203.0.113.234');
+q('UPDATE ids_incidents SET created_at = NOW() - INTERVAL 5 MINUTE WHERE id = ?', [$wb['id']]);
+$wb['created_at'] = date('Y-m-d H:i:s', time() - 300);
+ok(($states(IncidentRoute::forIncident($wb))['after'] ?? '') === 'bad', 'route: webshell binnen een uur erna = verdacht');
+// Eigen netwerk: altijd door; geen IP = geen route
+ok(($states(IncidentRoute::forIncident($ri('bruteforce', '192.168.1.66', 'Brute force LAN')))['fw'] ?? '') === 'pass'
+    && IncidentRoute::forIncident(['ip' => '', 'type' => 'fim']) === null, 'route: eigen netwerk door, zonder IP geen route');
+q("DELETE FROM ids_blocks WHERE ip LIKE '203.0.113.23%'");
+q('DELETE FROM hosts WHERE id = ?', [$rh['id']]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

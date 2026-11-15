@@ -24,6 +24,8 @@ Je kunt hem draaien op elke Linux-machine met PHP 8 en MariaDB: een VM, een Rasp
 >
 > **Reverse proxy en IDS zonder dubbel werk (1.267.0):** de pagina *Reverse proxy* gaat over je sites: instellingen, score, statistieken, paden dichtzetten en de WAF afstellen per regel. Wat er gebeurde en wat je moet doen staat alleen bij *IDS*: webaanvallen en ClamAV-vondsten (met *Terugzetten* en *Definitief weghalen* in het incident). De WAF *houdt een verzoek tegen*; *IP blokkeren (firewall)* houdt alles van een IP tegen. Klik op een IP in de proxystatistieken voor zijn tijdlijn.
 >
+> **Route van de aanval (1.268.0):** in het venster van een IDS-incident met een IP-adres staat een strip met de stations die de aanval passeerde: firewall, proxy-regels, WAF, Suricata, de app en de server erna (bij inloggen: firewall, inloggen, server erna). Groen = daar gestopt, oranje = deels, rood = gelukt of verdacht, grijs = niet bereikt of geen gegevens. Klik op een station voor de details. *Server erna* kijkt een uur lang of er op die server iets verdachts gebeurde (webshell, nieuw programma, nieuwe gebruiker …).
+>
 > **Bijwerken sneller (1.221.0):** een update maakt een snelle back-up (zonder geschiedenis en logs; volledig als de database-opbouw verandert) en slaat over wat al goed staat. Na afloop staat de duur per stap in het venster.
 
 ---

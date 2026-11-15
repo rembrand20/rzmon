@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.268.0**: **route van een aanval in het venster**: per station (firewall, proxy, WAF, Suricata, app, server erna) zie je waar een aanval stopte of doorkwam.
 - **1.267.0**: **Reverse proxy en IDS zonder dubbel werk**: de proxypagina gaat over je sites en het afstellen, alles wat je afhandelt staat bij IDS.
 - **1.266.0**: **IDS-pagina overzichtelijk**: één statusregel, vijf vaste tabbladen plus *Meer*, de incidentenlijst meteen bovenaan en het grote plaatje op het tabblad *Overzicht*.
 - **1.265.0**: **status van een melding in één oogopslag**: vooraan elke melding geblokkeerd, tegengehouden, alleen gemeld of mogelijk gelukt, met chips om erop te filteren.
 - **1.264.0**: **statistieken van de reverse proxy**: bovenaan de pagina wat er gebeurde, wat er tegengehouden is en waarom, de meest aangevallen paden, sites en landen, in cijfers en percentages.
-- **1.263.0**: **agent-servers op internet kunnen erbij**: de reverse proxy laat je eigen agent-servers door, ook als RzSense alleen vanaf je LAN mag.
+
+## 1.268.0 – 2026-11-15
+### Nieuw
+- **🛤️ Route van de aanval** in het venster van elk IDS-incident met een IP-adres: een strip met stations en per station wat er met dít IP gebeurde, in kleur (groen gestopt, oranje deels, rood gelukt of verdacht, grijs niet bereikt of geen gegevens). Klik op een station voor de details. Bovenaan staat waar de aanval stopte, of waar je moet opletten.
+  - **Webaanval**: 🧱 Firewall (al geblokkeerd, op een lijst, eigen netwerk) → 🔀 Proxy-regels (403/429/444) → 🛡️ WAF → 👁 Suricata → 📦 App (gewoon antwoord = mogelijk gelukt) → 🖥️ Server erna.
+  - **Inloggen (SSH)**: Firewall → 🔑 Inloggen (alleen mislukte pogingen of gelukt) → Server erna.
+  - **Uitgaand**: Server → 🌍 Bestemming (bekend slecht adres, ongewoon land) → Server erna.
+  - **Server erna** kijkt een uur na de aanval op dezelfde server, en bij een webaanval ook op de server van de dienst achter de proxy, naar een webshell, reverse shell, nieuwe programma's, nieuwe gebruikers, malware en ransomware.
+  - Vervangt bij webaanvallen het blok *Pad van de aanval* (de sites en diensten staan nu bij het station App).
 
 ## 1.267.1 – 2026-11-15
 ### Opgelost

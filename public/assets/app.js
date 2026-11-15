@@ -12682,9 +12682,10 @@ async function incidentDialog(id, nav = null) {
     body: `<p class="small" style="margin-top:0">${sevTxt} · <b>${esc(i.host_name)}</b> · ${esc(fmtDateTime(i.created_at))}${+i.hits > 1 ? ` · ${L('{n}× gezien, laatst {t}', { n: i.hits, t: esc(fmtDateTime(i.last_seen || i.created_at)) })}` : ''}
         · ${open ? `<b class="warn-txt">${L('open')}</b>` : `✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}${i.handled_at ? ' (' + esc(fmtDateTime(i.handled_at)) + ')' : ''}`}${d.ignored ? ` · <span class="muted">${L('wordt niet meer gemeld (normaal)')}</span>` : ''}</p>
       ${i.ip ? '<div class="af-incsum" id="af-incsum"><p class="muted small">' + L('Laden…') + '</p></div>' : ''}
+      ${d.route ? routeHtml(d.route) : ''}
       ${d.explain ? explainHtml(d.explain) : i.detail ? `<p class="small inc-detail">${esc(i.detail)}</p>` : ''}
       ${inspectHtml(d.evidence || [])}
-      ${d.wpath ? webPathHtml(d.wpath) : ''}
+      ${d.wpath && !d.route ? webPathHtml(d.wpath) : ''}
       ${d.av ? avIncHtml(d.av) : ''}
       <h3 class="set-sub">💡 ${L('Wat is dit?')}</h3><p>${esc(a.what)}</p>
       ${a.risk ? `<h3 class="set-sub">⚖️ ${L('Hoe erg is het?')}</h3><p>${esc(a.risk)}</p>` : ''}
@@ -22965,4 +22966,30 @@ document.addEventListener('click', async (e) => {
   }
   const ip = e.target.closest && e.target.closest('[data-px-ip]');
   if (ip) { e.preventDefault(); ipTimeline(ip.dataset.pxIp); }
+});
+
+// 1.268.0: de route van een aanval in het venster van een incident: per station wat er met dit IP gebeurde
+const RT_STATE = () => ({ stop: L('gestopt'), pass: L('door'), warn: L('deels'), bad: L('gelukt of verdacht'), skip: L('niet bereikt'), na: L('geen gegevens') });
+function routeHtml(r) {
+  const st = r.stations || [];
+  if (!st.length) return '';
+  const bad = st.findIndex((x) => x.state === 'bad');
+  const stop = st.findIndex((x) => x.state === 'stop');
+  const sel = bad >= 0 ? bad : stop >= 0 ? stop : st.length - 1;
+  const sum = bad >= 0 ? `<span class="rt-sum bad">⚠️ ${esc(L('Let op bij: {s}', { s: st[bad].label }))}</span>`
+    : stop >= 0 ? `<span class="rt-sum ok">✅ ${esc(L('Gestopt bij: {s}', { s: st[stop].label }))}</span>`
+    : `<span class="rt-sum">👁 ${esc(L('Doorgelaten; niets verdachts gezien'))}</span>`;
+  return `<div class="rt" data-rt-box>
+    <div class="rt-h"><b>🛤️ ${L('Route van de aanval')}</b> ${sum}</div>
+    <div class="rt-strip" role="tablist" aria-label="${esc(L('Route van de aanval'))}">${st.map((x, n) => `<button type="button" role="tab" class="rt-st rt-${x.state}${n === sel ? ' on' : ''}" data-rt="${n}" aria-selected="${n === sel}" title="${esc(x.label + ': ' + (RT_STATE()[x.state] || x.state))}"><span class="rt-i">${x.icon}</span><span class="rt-l">${esc(x.label)}</span></button>`).join('<span class="rt-ar" aria-hidden="true">→</span>')}</div>
+    ${st.map((x, n) => `<div class="rt-d" data-rt-d="${n}" ${n === sel ? '' : 'hidden'}><div><b>${x.icon} ${esc(x.label)}</b> <span class="rt-tag rt-${x.state}">${esc(RT_STATE()[x.state] || x.state)}</span></div>
+      <p>${esc(x.text || '')}</p>${(x.lines || []).length ? `<ul>${x.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}</div>`).join('')}
+  </div>`;
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('[data-rt]');
+  if (!b) return;
+  const box = b.closest('[data-rt-box]');
+  $$('[data-rt]', box).forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', String(x === b)); });
+  $$('[data-rt-d]', box).forEach((x) => { x.hidden = x.dataset.rtD !== b.dataset.rt; });
 });

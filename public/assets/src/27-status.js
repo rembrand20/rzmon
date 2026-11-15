@@ -100,3 +100,29 @@ document.addEventListener('click', async (e) => {
   const ip = e.target.closest && e.target.closest('[data-px-ip]');
   if (ip) { e.preventDefault(); ipTimeline(ip.dataset.pxIp); }
 });
+
+// 1.268.0: de route van een aanval in het venster van een incident: per station wat er met dit IP gebeurde
+const RT_STATE = () => ({ stop: L('gestopt'), pass: L('door'), warn: L('deels'), bad: L('gelukt of verdacht'), skip: L('niet bereikt'), na: L('geen gegevens') });
+function routeHtml(r) {
+  const st = r.stations || [];
+  if (!st.length) return '';
+  const bad = st.findIndex((x) => x.state === 'bad');
+  const stop = st.findIndex((x) => x.state === 'stop');
+  const sel = bad >= 0 ? bad : stop >= 0 ? stop : st.length - 1;
+  const sum = bad >= 0 ? `<span class="rt-sum bad">⚠️ ${esc(L('Let op bij: {s}', { s: st[bad].label }))}</span>`
+    : stop >= 0 ? `<span class="rt-sum ok">✅ ${esc(L('Gestopt bij: {s}', { s: st[stop].label }))}</span>`
+    : `<span class="rt-sum">👁 ${esc(L('Doorgelaten; niets verdachts gezien'))}</span>`;
+  return `<div class="rt" data-rt-box>
+    <div class="rt-h"><b>🛤️ ${L('Route van de aanval')}</b> ${sum}</div>
+    <div class="rt-strip" role="tablist" aria-label="${esc(L('Route van de aanval'))}">${st.map((x, n) => `<button type="button" role="tab" class="rt-st rt-${x.state}${n === sel ? ' on' : ''}" data-rt="${n}" aria-selected="${n === sel}" title="${esc(x.label + ': ' + (RT_STATE()[x.state] || x.state))}"><span class="rt-i">${x.icon}</span><span class="rt-l">${esc(x.label)}</span></button>`).join('<span class="rt-ar" aria-hidden="true">→</span>')}</div>
+    ${st.map((x, n) => `<div class="rt-d" data-rt-d="${n}" ${n === sel ? '' : 'hidden'}><div><b>${x.icon} ${esc(x.label)}</b> <span class="rt-tag rt-${x.state}">${esc(RT_STATE()[x.state] || x.state)}</span></div>
+      <p>${esc(x.text || '')}</p>${(x.lines || []).length ? `<ul>${x.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}</div>`).join('')}
+  </div>`;
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('[data-rt]');
+  if (!b) return;
+  const box = b.closest('[data-rt-box]');
+  $$('[data-rt]', box).forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', String(x === b)); });
+  $$('[data-rt-d]', box).forEach((x) => { x.hidden = x.dataset.rtD !== b.dataset.rt; });
+});

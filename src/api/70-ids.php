@@ -540,9 +540,11 @@ switch ($action) {
         if (!$inc) {
             out(['error' => t('Incident niet gevonden')], 404);
         }
-        out(['incident' => $inc, 'advice' => IdsAdvice::forIncident($inc), 'my_ip' => client_ip(), 'evidence' => Edr::evidenceFor((int) $inc['id']), 'explain' => Protect::describe($inc),
+        $dsc = Protect::describe($inc);
+        out(['incident' => $inc, 'advice' => IdsAdvice::forIncident($inc), 'my_ip' => client_ip(), 'evidence' => Edr::evidenceFor((int) $inc['id']), 'explain' => $dsc,
             'wpath' => WebLog::path($inc),   // 1.222.0: pad van een webaanval
             'av' => Av::forIncident($inc),   // 1.267.0: ClamAV-vondst (terugzetten/weghalen)
+            'route' => IncidentRoute::forIncident($inc, $dsc['outcome'] ?? null),   // 1.268.0: route van de aanval
             'ignored' => (bool) q("SELECT 1 FROM ids_baseline WHERE host_id = ? AND kind = 'ignore' AND item = ?", [$inc['host_id'], mb_substr($inc['type'] . '|' . $inc['dkey'], 0, 255)])->fetchColumn()]);
 
     case 'ip_info':
