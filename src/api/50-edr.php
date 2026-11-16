@@ -344,7 +344,7 @@ switch ($action) {
         }
         out($hd);
 
-    // 1.180.0: Instellingen → Rapporten. Lezen, voorbeeld en "naar mij": gebruikers; instellen en versturen: beheerders
+    // 1.180.0: Instellingen → Meldingen en rapporten → Rapporten. Lezen, voorbeeld en "naar mij": gebruikers; instellen en versturen: beheerders
     case 'features':   // 1.182.0
         out(['rows' => Features::rows(), 'groups' => Features::groups()]);
 
@@ -518,7 +518,7 @@ switch ($action) {
             out(['error' => t('Niet gevonden')], 404);
         }
         if (!NetLinks::adguardOn()) {
-            out(['error' => t('AdGuard Home is niet ingesteld (Instellingen → Koppelingen → AdGuard Home)')], 422);
+            out(['error' => t('AdGuard Home is niet ingesteld (Instellingen → Agents en koppelingen → AdGuard Home)')], 422);
         }
         out(NetLinks::adguardDomains((string) $d['ip']));
 
@@ -587,7 +587,7 @@ switch ($action) {
     case 'proxy_ai_ask':
         $in = input();
         if (!ProxyAdvice::on()) {
-            out(['error' => t('AI-advies voor de reverse proxy staat uit (Instellingen → Beveiliging → Reverse proxy)')], 422);
+            out(['error' => t('AI-advies voor de reverse proxy staat uit (Instellingen → Bescherming → Reverse proxy en WAF)')], 422);
         }
         $hid = (int) ($in['host_id'] ?? 0);
         try {

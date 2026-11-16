@@ -10,7 +10,7 @@ declare(strict_types=1);
  * - c: containers (exec, start met volledige rechten).
  * Hier wordt elke gebeurtenis bewaard (Live, 3 dagen), geleerd wat een server normaal doet (Anomaly, 1.111.0) en getoetst aan de eigen regels (EdrRules) en de Sigma-regels (Sigma). Een treffer wordt
  * een IDS-incident met het bewijs erbij; in de modus Blokkeren stopt RzSense het proces, blokkeert het IP of isoleert de
- * server (per soort aan/uit, Instellingen → IDS). Alles wat RzSense zelf doet, wordt ook gemeld.
+ * server (per soort aan/uit, Instellingen → Bescherming). Alles wat RzSense zelf doet, wordt ook gemeld.
  * Aan/uit: algemeen (edr_on) en per server (hosts.edr_on); het IDS moet aan staan.
  */
 final class Edr

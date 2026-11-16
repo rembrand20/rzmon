@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Bescherming (1.115.0): wat het IDS allemaal doet, als kaarten (pagina 🛡️ IDS → Bescherming), en per incident
+ * Bescherming (1.115.0): wat het IDS allemaal doet, als kaarten (pagina 🛡️ Instellingen → Bescherming → Beschermingen), en per incident
  * de uitleg in drie delen:
  * - Waarom: de regel in gewone taal, met de drempel die werd overschreden;
  * - Trigger: de feiten die het deden afgaan (uit het incident, zonder de acties);
@@ -131,7 +131,7 @@ final class Protect
                 'acts' => ['block'], 'toggle' => ['ti_block', '1', 'IP blokkeren'],
                 'm' => static fn(array $i) => str_contains((string) $i['detail'], '🌐 ' . t('bekende aanvaller')),
                 'why' => static fn() => t('Een IP met een score van {n} of hoger (AbuseIPDB-percentage, of 80–90 bij GreyNoise, Shodan en abuse.ch).', ['n' => (int) setting('ti_block_score', '80')]),
-                'attention' => static fn() => ThreatIntel::on() && trim((string) setting('ti_abuseipdb_key', '')) === '' ? t('Nog geen AbuseIPDB-sleutel (Instellingen → IDS → Dreigingsinformatie).') : null],
+                'attention' => static fn() => ThreatIntel::on() && trim((string) setting('ti_abuseipdb_key', '')) === '' ? t('Nog geen AbuseIPDB-sleutel (Instellingen → Bescherming → Dreigingsinformatie).') : null],
             ['id' => 'ti_report', 'g' => 'ti', 'title' => 'Melden bij AbuseIPDB', 'what' => 'Wie RzSense automatisch blokkeert, gaat naar AbuseIPDB (hooguit één keer per dag per IP).', 'sev' => 0,
                 'acts' => ['report'], 'toggle' => ['ti_report', '0', 'melden'], 'm' => null,
                 'stat' => static fn() => t('{n} gemeld', ['n' => ThreatIntel::status()['reported']])],

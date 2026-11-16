@@ -62,7 +62,7 @@ const TYPES = {
   podman:  { label: L('Containers (algemeen)'), target: null, unit: null, help: L('Algehele status van Podman en/of Docker op deze server: draait het, hoeveel containers draaien er, en zijn er containers gestopt met een fout, ongezond (healthcheck) of gepauzeerd, of pods niet in orde? Vereist de agent.') },
   container: { label: L('Container (Podman/Docker)'), target: L('Container'), unit: null, ph: L('naam, of gebruiker/naam (rootless)'), help: L('Eén check per container: de status (draait, healthcheck, herstarts) altijd, en daarnaast de CPU, RAM en disk die je hieronder aanvinkt, elk met eigen drempels. Kies de naam uit de lijst die de agent meldt.') },
   log:     { label: L('Logbestand (zoeken)'), target: L('Bron'), unit: 'treffers', warn: 5, crit: 20, ph: L('/var/log/secure, journal, journal:sshd of kernel'), help: L('De agent leest de nieuwe regels van een logbestand of het systemlog en telt hoeveel er op je zoekpatroon passen in de laatste periode (Instellingen → Alarmgedrag, standaard 15 min). Kies hieronder een voorinstelling of stel zelf in.') },
-  command: { label: L('Commando'), target: null, unit: null, help: L('De agent voert een commando uit op de server, en RzSense vergelijkt de uitvoer met het antwoord dat je verwacht. Alleen als commando\'s voor deze server aan staan (Instellingen → Agents → Commando-checks).') },
+  command: { label: L('Commando'), target: null, unit: null, help: L('De agent voert een commando uit op de server, en RzSense vergelijkt de uitvoer met het antwoord dat je verwacht. Alleen als commando\'s voor deze server aan staan (Instellingen → Agents en koppelingen → Commando-checks).') },
   path:    { label: L('Pad (traceroute)'), target: L('Doel'), unit: 'ms', warn: 50, crit: 150, ph: L('IP-adres of hostnaam, bv. 1.1.1.1'), help: L('Meet vanaf deze server het pad naar een doel: vertraging, jitter en verlies per hop, de switches (UniFi en de apparaten die je hieronder opgeeft) en de doorvoer (iperf3) binnen je netwerk. Agent 1.78.0 of nieuwer, met mtr of traceroute.') },
   truenas: { label: L('TrueNAS'), target: null, unit: null, help: L('Via de agent op TrueNAS SCALE (agent 1.77.0 of nieuwer, als root): TrueNAS zelf uitgelezen met midclt, zonder API-sleutel.') },
   pve:     { label: L('Proxmox VE'), target: null, unit: null, help: L('Via de agent op een Proxmox-host (agent 1.61.0 of nieuwer, als root): de guests (VM\'s en containers), back-ups, opslag en ZFS. Kies hieronder wat je wilt bewaken.') },
@@ -84,7 +84,7 @@ const TYPES = {
   // 1.187.0: verkeer van een apparaat (uit UniFi)
   traffic: { label: L('Verkeer (UniFi)'), target: L('MAC- of IP-adres'), unit: 'Mbit/s', warn: 50, crit: 200, ph: L('leeg = adres van de server'), help: L('Hoeveel verkeer een apparaat doet, uit de tellers van UniFi (Netwerk → Verkeer per apparaat). Kies wat: de snelheid nu of de hoeveelheid vandaag. Warning en critical gaan af als het meer is dan je drempel.') },
   // 1.157.0: de internetlijn, vanaf de server van RzSense
-  internet: { label: L('Internet'), target: null, unit: 'ms', warn: 50, crit: 150, help: L('Bewaakt je internetlijn vanaf de server van RzSense. Kies wat: ping, responstijd, download of upload. De snelheidstest draait op vaste tijden; abonnement, drempels en tijden staan bij Instellingen → Monitoring → Internet.') },
+  internet: { label: L('Internet'), target: null, unit: 'ms', warn: 50, crit: 150, help: L('Bewaakt je internetlijn vanaf de server van RzSense. Kies wat: ping, responstijd, download of upload. De snelheidstest draait op vaste tijden; abonnement, drempels en tijden staan bij Instellingen → Monitoring → Internetcheck.') },
   service: { label: L('Service'),       target: L('Servicenaam'),   unit: null, ph: 'nginx', help: L('De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.') },
 };
 // Voorinstellingen voor logbestanden: bron, zoekpatroon (regex, hoofdletters maakt niet uit) en drempels
@@ -213,8 +213,8 @@ const DB_METRICS = {
 const INET_METRICS = {
   ping: { label: L('Ping (pingtijd, jitter, verlies)'), unit: 'ms', warn: 50, crit: 150, help: L('Pingt 1.1.1.1 en 8.8.8.8 (5 keer) en je router. De waarde is de beste pingtijd. Verlies van 20% of meer, of één adres weg = WARNING; geen van beide = CRITICAL, met in de melding of je router nog antwoordt (dan zit het probleem buiten).') },
   resp: { label: L('Responstijd (DNS, verbinden, eerste antwoord)'), unit: 'ms', warn: 500, crit: 2000, help: L('Hoe snel google.com en cloudflare.com antwoorden, met een nieuwe verbinding: DNS, verbinden, TLS en het eerste antwoord. Eén site weg = WARNING, allebei = CRITICAL.') },
-  down: { label: L('Download (snelheidstest)'), unit: 'Mbit/s', nothresh: true, help: L('Uit de laatste snelheidstest. Warning en critical zijn een percentage van je abonnement (Instellingen → Monitoring → Internet).') },
-  up: { label: L('Upload (snelheidstest)'), unit: 'Mbit/s', nothresh: true, help: L('Uit de laatste snelheidstest. Warning en critical zijn een percentage van je abonnement (Instellingen → Monitoring → Internet).') },
+  down: { label: L('Download (snelheidstest)'), unit: 'Mbit/s', nothresh: true, help: L('Uit de laatste snelheidstest. Warning en critical zijn een percentage van je abonnement (Instellingen → Monitoring → Internetcheck).') },
+  up: { label: L('Upload (snelheidstest)'), unit: 'Mbit/s', nothresh: true, help: L('Uit de laatste snelheidstest. Warning en critical zijn een percentage van je abonnement (Instellingen → Monitoring → Internetcheck).') },
 };
 /** 1.187.0: wat een verkeer-check meet */
 const TRAFFIC_METRICS = {
@@ -268,7 +268,7 @@ const STATUS_WORD = ['OK', 'WARNING', 'CRITICAL', L('onbekend')];
 const MDS_MQ = window.matchMedia ? window.matchMedia('(max-width: 720px)') : { matches: false, addEventListener() {} };
 let mdsData = null, mdsAt = 0, mdsAll = false;
 // 1.196.0: op een telefoon staan deze pagina's onder "Meer" (de tabbalk houdt mDS, Checks, Meldingen, IDS en Meer)
-const MORE_TABS = ['home', 'incidents', 'vulns', 'proxy', 'analytics', 'logs', 'net', 'settings'];
+const MORE_TABS = ['home', 'incidents', 'servers', 'vulns', 'updates', 'proxy', 'analytics', 'logs', 'logboek', 'compliance', 'net', 'settings'];   // 1.276.0
 
 let stats = { uptime: {}, sparks: {} };
 // Sorteren op de pagina Meldingen (per apparaat onthouden): { key: 'time'|'status'|'server'|'check'|'message'|'channels', dir: 1|-1 }
@@ -277,7 +277,8 @@ const ALERT_SORTS = { time: L('Tijd'), status: 'Status', server: 'Server', check
 const liveLoaded = {};   // wanneer meldingen en IDS voor het laatst geladen zijn (live bijwerken, 1.119.0)
 // 1.119.0: hoeveel dagen Meldingen en IDS ophalen; ouder op verzoek (knop onderaan, of zoeken)
 const histDays = { alerts: 7, ids: 2 };   // 1.217.0: IDS standaard de open incidenten en de laatste 2 dagen; ouder op verzoek
-let idsTab = (() => { try { return localStorage.getItem('rzmon-ids-tab') || 'inc'; } catch (e) { return 'inc'; } })();
+let idsTab = (() => { try { return localStorage.getItem('rzmon-ids-tab') || 'live'; } catch (e) { return 'live'; } })();
+let incSrc = 'all';   // 1.276.0: Incidenten → soort (alles, storingen, aanvallen, kwetsbaarheden)
 let accData = null, accFilter = 'all', accHost = '', accDayOpen = {}, accSsh = 'all', sshSess = null;
 let accSort = (() => { try { return JSON.parse(localStorage.getItem('rzmon-acc-sort') || 'null') || { key: '', dir: 1 }; } catch (e) { return { key: '', dir: 1 }; } })();
 // Checks onder een server in groepen (vaste volgorde); dichtgeklapte groepen per server per apparaat onthouden
@@ -666,7 +667,8 @@ function fxCurrent() {
   const tab = ($('.tab-panel:not([hidden])') || {}).id?.replace('tab-', '');
   if (tab === 'dashboard') return 'dash';
   if (tab === 'alerts') return 'alerts';
-  if (tab === 'ids') return { inc: 'ids', acc: 'acc', blk: 'blk' }[idsTab] || 'ids';
+  if (tab === 'ids') return { inc: 'ids', acc: 'acc', blk: 'blk' }[idsTab] || null;
+  if (tab === 'incidents' && incSrc === 'ids') return 'ids';   // 1.276.0: de aanvallen staan op Incidenten
   if (tab === 'vulns') return $('#vuln-tabs') ? (vulnTab === 'leak' ? 'leaks' : vulnTab === 'eol' ? 'eol' : 'vulns') : ($('#leak-list') && !$('#vuln-search') ? 'leaks' : 'vulns');
   return null;
 }
@@ -679,7 +681,8 @@ function fxQuery(page) {
 function fxSyncHash() {
   const page = fxCurrent();
   if (!page) return;
-  const tab = FX_TAB[page];
+  let tab = FX_TAB[page];
+  if (tab === 'ids/inc' && ($('.tab-panel:not([hidden])') || {}).id === 'tab-incidents') tab = 'incidents/ids';   // 1.276.0
   const plain = tab === 'dashboard' || tab === 'alerts' || (page === 'ids' && !fxActive(page)) || (page === 'vulns' && !$('#vuln-tabs') && !fxActive(page));
   history.replaceState(null, '', '#' + hashName(plain ? tab.split('/')[0] : tab) + fxQuery(page));
 }
@@ -1388,7 +1391,7 @@ function init() {
       ...Object.entries(s.errors || {}).map(([k, e]) => `<span class="warn-txt">${esc(prov[k] || k)}: ${esc(e.msg)} (${esc(fmtDateTime(e.at))})</span>`),
     ].filter(Boolean).join(' · ');
     const dn = s.dns || {};
-    $('#dns-status').innerHTML = !dn.adguard ? `<span class="warn-txt">${L('Nog geen AdGuard gekoppeld (Instellingen → Koppelingen → AdGuard).')}</span>`
+    $('#dns-status').innerHTML = !dn.adguard ? `<span class="warn-txt">${L('Nog geen AdGuard gekoppeld (Instellingen → Agents en koppelingen → AdGuard).')}</span>`
       : [dn.at ? L('Laatst gekeken {t}', { t: esc(fmtDateTime(dn.at)) }) : L('Nog niet gekeken'), L('vandaag {n} DNS-vragen, {h} verdacht', { n: (+dn.n).toLocaleString(LOCALE), h: +dn.hits }),
         dn.error ? `<span class="warn-txt">${esc(dn.error)}</span>` : ''].filter(Boolean).join(' · ');
   };
@@ -1491,12 +1494,12 @@ function init() {
     try { await api('settings_save', { [c.dataset.protToggle]: c.checked ? '1' : '0' }); toast(c.checked ? L('Aangezet') : L('Uitgezet')); loadProt(); } catch (ex) { toast(ex.message, 'err'); c.checked = !c.checked; }
   };
   $('#prot-cards').onclick = (e) => {
-    const cfg = e.target.closest('[data-ps-cfg]');   // 1.236.0: aan/uit en drempels hier (was ook Instellingen → IDS → Beschermingen)
+    const cfg = e.target.closest('[data-ps-cfg]');   // 1.236.0: aan/uit en drempels hier (was ook Instellingen → Bescherming → Beschermingen)
     if (cfg) { protCfgDialog(cfg.dataset.psCfg); return; }
     const b = e.target.closest('[data-prot-show]');
     if (!b) return;
     idsCard = b.dataset.protShow; idsFilter = 'all'; idsCat = '';
-    showTab('ids/inc');
+    showTab('incidents/ids');
   };
   $('#mitre-host').onchange = () => loadMitre();
   $('#mitre-cover').onchange = () => renderMitre();
@@ -1534,10 +1537,12 @@ function init() {
     const b = e.target.closest('[data-it]');
     if (!b) return;
     idsTab = b.dataset.it;
+    if (idsTab === 'inc' && !$('#ids-tabs [data-it="inc"]')) { showTab('incidents/ids'); return; }   // 1.276.0
     try { localStorage.setItem('rzmon-ids-tab', idsTab); } catch (ex) { /* alleen voor nu */ }
     showIdsTab();
     fxSyncHash();
   };
+  $('#ids-an-seg').onclick = $('#ids-tabs').onclick;   // 1.276.0: Analyse = Overzicht, Afwijkingen, MITRE
   $('#acc-filter').onclick = (e) => {
     const b = e.target.closest('[data-ac]');
     if (!b) return;
@@ -1578,7 +1583,7 @@ function init() {
     if (hsb) return hostSecDialog(+hsb.dataset.hostsec);
     if (e.target.closest('[data-ids-attn-more]')) { idsAttnOpen = !idsAttnOpen; return renderIdsAttention(idsData.incidents.filter((i) => i.status === 'open')); }
     const ih = e.target.closest('[data-ihost]');
-    if (ih) { const h = idsData.hosts.find((x) => +x.id === +ih.dataset.ihost); idsFilter = 'open'; idsCat = ''; $('#ids-search').value = h ? h.name : ''; showTab('ids/inc'); renderIds(); return $('#ids-incidents').scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+    if (ih) { const h = idsData.hosts.find((x) => +x.id === +ih.dataset.ihost); idsFilter = 'open'; idsCat = ''; $('#ids-search').value = h ? h.name : ''; showTab('incidents/ids'); renderIds(); return $('#ids-incidents').scrollIntoView({ block: 'start', behavior: 'smooth' }); }
     const io = e.target.closest('[data-inc]');
     if (io) return incidentDialog(+io.dataset.inc, io.dataset.incList ? io.dataset.incList.split(',').map(Number) : null);
     const b = e.target.closest('[data-ids], [data-unblock], [data-rebase]');
@@ -1789,6 +1794,15 @@ function showTab(name) {
   const qs = qi >= 0 ? name.slice(qi + 1) : '';
   if (qi >= 0) name = name.slice(0, qi);
   if (name === 'settings/blocks') name = 'ids/blk';   // 1.92.0: blokkades en whitelist staan in het IDS-tabblad
+  // 1.276.0: nieuwe indeling; oude adressen (ook in meldingen en e-mails) sturen door naar de nieuwe plek
+  const MOVED = { 'settings/agents': 'servers', 'settings/actlog': 'logboek', 'settings/changelog': 'logboek', 'settings/nis2': 'compliance',
+    'vulns/patch': 'updates', 'ids/prot': 'settings/prot', 'ids/inc': 'incidents/ids', 'settings/quiet': 'settings/rules', 'settings/hibp': 'settings/vulns' };
+  if (MOVED[name] && !(name === 'ids/inc' && document.body.dataset.role === 'readonly')) {
+    if (name === 'settings/quiet') setTab.rules = 'stil';
+    if (name === 'settings/hibp') setTab.vulns = 'datalekken';
+    name = MOVED[name];
+  }
+  if (/^incidents\/(all|check|ids|vuln)$/.test(name)) { incSrc = name.slice(10); name = 'incidents'; }
   // 1.197.0: diepe links (o.a. vanuit de Home Assistant-kaart): #net/map, #net/list, #net/disc en #dashboard/paths, /avail, /cont
   let netReq = null, monReq = null;
   if (/^net\/(map|list|disc)$/.test(name)) { netReq = name.slice(4); name = 'net'; }
@@ -1831,14 +1845,18 @@ function showTab(name) {
   document.body.classList.toggle('mds-on', name === 'mds');   // 1.195.0: geen trekken-om-te-herladen van de browser zelf
   if (name === 'analytics') loadAnalytics();
   if (name === 'logs') loadLogsPage();   // 1.211.0
-  if (name === 'incidents') loadIncidents();
+  if (name === 'incidents') { loadIncidents(); incSrcShow(); }
+  if (name === 'servers') { loadSecurity(); renderAgentUpdates(); }   // 1.276.0: de Agent Manager als pagina
+  if (name === 'updates') loadPatch();
+  if (name === 'logboek') loadActLog();
+  if (name === 'compliance') loadNis2();
   if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); if ($('#eol-list') && !$('#vuln-tabs')) loadEol(); }
   pageWaitClose();
   crumbs();   // 1.199.0
 }
 
 /** 1.199.0: kruimelpad boven elke pagina: 🏠 › pagina › tabblad (› onderdeel) en de filters die aan staan; elk stuk is een link */
-const CRUMB_DEF = { dashboard: 'dashboard/checks', net: 'net/map', ids: 'ids/inc', vulns: 'vulns/cve' };
+const CRUMB_DEF = { dashboard: 'dashboard/checks', net: 'net/map', ids: 'ids/live', vulns: 'vulns/cve' };
 function crumbText(b) {
   if (!b) return '';
   const x = b.cloneNode(true);
@@ -1856,7 +1874,9 @@ function crumbs() {
   if (tab !== 'home') parts.push({ l: tabName(tab), go: CRUMB_DEF[tab] || tab });
   if (tab === 'dashboard' && monSub !== 'checks') parts.push({ l: crumbText($(`#mon-tabs [data-msub="${monSub}"]`)), go: 'dashboard/' + monSub });   // 1.214.0: eerste subtabblad heet zelf Monitoring
   if (tab === 'net') parts.push({ l: crumbText($(`#net-tabs [data-nsub="${netSub}"]`)), go: 'net/' + netSub });
-  if (tab === 'ids') parts.push({ l: crumbText($(`#ids-tabs [data-it="${idsTab}"]`)), go: 'ids/' + idsTab });
+  if (tab === 'ids') parts.push({ l: crumbText($(`#ids-tabs [data-it="${IDS_AN.includes(idsTab) ? 'ovw' : idsTab}"]`)), go: 'ids/' + (IDS_AN.includes(idsTab) ? 'ovw' : idsTab) });
+  if (tab === 'ids' && IDS_AN.includes(idsTab) && idsTab !== 'ovw') parts.push({ l: crumbText($(`#ids-an-seg [data-it="${idsTab}"]`)), go: 'ids/' + idsTab });   // 1.276.0
+  if (tab === 'incidents' && incSrc !== 'all') parts.push({ l: crumbText($(`#inc-src [data-isrc="${incSrc}"]`)), go: 'incidents/' + incSrc });
   if (tab === 'vulns' && $('#vuln-tabs')) parts.push({ l: crumbText($(`#vuln-tabs [data-vt="${vulnTab}"]`)), go: 'vulns/' + vulnTab });
   if (tab === 'settings') {
     const f = setFind(setSection);
@@ -3116,7 +3136,7 @@ function renderNetPaths() {
     <div class="np-cols">
       <section class="ct-grp"><div class="ct-gh"><b>${L('Paden')}</b></div>
         <div class="np-pr np-th"><span>${L('Bron → doel')}</span><span>${L('Status')}</span><span>${L('Hops')}</span><span>${L('Vertraging')}</span><span>${L('Doorvoer')}</span><span>${L('Pad')}</span><span>${L('24 uur')}</span></div>${rows}</section>
-      <section class="ct-grp"><div class="ct-gh"><b>${L('Links (UniFi)')}</b><span class="small muted">${L('langzaamste eerst')}</span></div>${ports || `<p class="muted small" style="padding:.8rem 1rem">${npData.unifi === 'ok' ? L('Geen poorten gevonden.') : L('Koppel UniFi met een lokaal account (Instellingen → Koppelingen) om de switchpoorten en hun snelheid te zien.')}</p>`}</section>
+      <section class="ct-grp"><div class="ct-gh"><b>${L('Links (UniFi)')}</b><span class="small muted">${L('langzaamste eerst')}</span></div>${ports || `<p class="muted small" style="padding:.8rem 1rem">${npData.unifi === 'ok' ? L('Geen poorten gevonden.') : L('Koppel UniFi met een lokaal account (Instellingen → Agents en koppelingen) om de switchpoorten en hun snelheid te zien.')}</p>`}</section>
     </div>`;
   npFocusApply();   // 1.191.0
 }
@@ -3592,7 +3612,7 @@ document.addEventListener('click', async (e) => {
   }
 }, true);
 
-// ---- Instellingen → Koppelingen → AI-advies
+// ---- Instellingen → Systeem → AI-advies
 function aiFormVals() {
   const f = $('#settings-form');
   const out = {};
@@ -5507,7 +5527,7 @@ function smartWhy(p) {
   return why;
 }
 
-/** Instellingen → Monitoring → Advies: handmatige checks waar slim minder warnings had gegeven */
+/** Instellingen → Monitoring → Slimme drempels en advies: handmatige checks waar slim minder warnings had gegeven */
 async function loadSmartProposals() {
   const el = $('#smart-proposals');
   if (!el) return;
@@ -5871,7 +5891,7 @@ function hostForm(h, preset = null) {
       <label class="switch" ${h.mode === 'agent' || isNew ? '' : 'hidden'} id="iperf-ok-wrap"><input type="checkbox" name="iperf_ok" ${+(h.iperf_ok ?? 1) ? 'checked' : ''}><span></span> ${L('Mag doorvoertest ontvangen (iperf3)')} <span class="hint">${L('voor de pad-check van een andere server; de agent start dan kort een ontvanger die na één meting stopt')}</span></label>
       ${snmpHostFields(h.snmp)}
       ${swsOpen({ id: 'fim-host-wrap', cb: 'id="fim-host-sw"', icon: '📁', title: L('Bestanden bewaken (IDS)'), on: false, sub: `<span id="fim-host-label">${L('laden…')}</span>`, hidden: h.mode !== 'agent' })}
-        ${xpHtml(L('Extra bestanden om te bewaken, alleen op deze server.'), L('Deze paden komen bovenop de algemene lijst (<i>Instellingen → IDS → Algemeen</i>). Staat hetzelfde pad in allebei, dan geldt dit pad, bijvoorbeeld om de ernst te veranderen.'))}
+        ${xpHtml(L('Extra bestanden om te bewaken, alleen op deze server.'), L('Deze paden komen bovenop de algemene lijst (<i>Instellingen → Bescherming → IDS algemeen</i>). Staat hetzelfde pad in allebei, dan geldt dit pad, bijvoorbeeld om de ernst te veranderen.'))}
         <div id="fim-host"></div>
       </div></section>
       ${(state.templates || []).length ? `${swsOpen({ id: 'tpl-wrap', cb: null, icon: '📋', title: L('Sjablonen'), on: isNew || hostTpls(h).length > 0,
@@ -6026,7 +6046,7 @@ function featRender() {
   $$('[data-feat-st]').forEach((b) => b.classList.toggle('on', b.dataset.featSt === featF.st));
 }
 
-// ---------------------------------------------------------------- 1.180.0: Instellingen → Rapporten
+// ---------------------------------------------------------------- 1.180.0: Instellingen → Meldingen en rapporten → Rapporten
 const REP_DAYS = () => [[1, L('ma')], [2, L('di')], [3, L('wo')], [4, L('do')], [5, L('vr')], [6, L('za')], [7, L('zo')]];
 const REP_INFO = {
   all: () => L('Eén bericht met de onderdelen die je aanvinkt; standaard op de 1e van de maand over de vorige maand.'),
@@ -6057,8 +6077,8 @@ async function loadReports() {
   try { repData = await api('reports_get'); } catch (ex) { box.innerHTML = `<p class="bad small">${esc(ex.message)}</p>`; return; }
   const r = repData;
   const ro = !r.admin;
-  const need = { ai_week: r.ai ? '' : L('AI-advies staat uit (Instellingen → Koppelingen → AI-advies).'), ids_week: r.ids ? '' : L('Het IDS staat uit.'),
-    vulns: r.vulns ? '' : L('Kwetsbaarheden staat uit.'), leaks: r.hibp ? '' : L('Datalekken staat uit.'), nis2: r.nis2 ? '' : L('Het NIS2-overzicht staat uit (Instellingen → Overzicht → NIS2).') };
+  const need = { ai_week: r.ai ? '' : L('AI-advies staat uit (Instellingen → Systeem → AI-advies).'), ids_week: r.ids ? '' : L('Het IDS staat uit.'),
+    vulns: r.vulns ? '' : L('Kwetsbaarheden staat uit.'), leaks: r.hibp ? '' : L('Datalekken staat uit.'), nis2: r.nis2 ? '' : L('Het NIS2-overzicht staat uit (de pagina Compliance).') };
   const card = (m) => {
     const c = r.cfg[m.key];
     const dis = ro ? 'disabled' : '';
@@ -6096,7 +6116,7 @@ async function loadReports() {
       </div>
     </div>`;
   };
-  box.innerHTML = `${!r.smtp ? `<div class="callout">⚠️ ${L('E-mail is nog niet ingesteld (Instellingen → Meldingen → Kanalen). Zonder e-mail gaan rapporten alleen als push.')}</div>` : ''}
+  box.innerHTML = `${!r.smtp ? `<div class="callout">⚠️ ${L('E-mail is nog niet ingesteld (Instellingen → Meldingen en rapporten → Kanalen). Zonder e-mail gaan rapporten alleen als push.')}</div>` : ''}
     <div class="rep-list">${r.meta.filter((m) => m.key === 'all').map(card).join('')}${r.meta.filter((m) => m.key !== 'all').map(card).join('')}</div>`;
   $$('.rep-card', box).forEach((el) => { repWire(el); const t = $('[data-rep-f=to]', el); if (t) smartList(t, { kind: 'email', sep: ', ', sources: SL_SRC.emails, max: 20 }); });   // 1.239.0
 }
@@ -6168,7 +6188,7 @@ function snmpRootData(root) {
     auth_proto: g('snmp_auth_proto'), auth_pass: g('snmp_auth_pass'), priv_proto: g('snmp_priv_proto'), priv_pass: g('snmp_priv_pass') };
 }
 
-/** 1.178.0: Instellingen → Koppelingen → SNMP: de algemene instelling en welke apparaten hem gebruiken */
+/** 1.178.0: Instellingen → Agents en koppelingen → SNMP: de algemene instelling en welke apparaten hem gebruiken */
 async function loadSnmpGlobal() {
   const box = $('#snmp-global');
   if (!box) return;
@@ -6260,7 +6280,7 @@ function snmpFieldsInit(root, onChange = () => {}) {
 function snmpGlobalText() {
   const g = state.snmp_global;
   return g ? L('uit = de algemene instelling (v{v}{u})', { v: g.v, u: g.v === '3' && g.user ? ', ' + g.user : '' })
-    : L('nog geen algemene instelling: vul die in bij Instellingen → Koppelingen → SNMP');
+    : L('nog geen algemene instelling: vul die in bij Instellingen → Agents en koppelingen → SNMP');
 }
 
 /** Blok "📡 SNMP" in het serverformulier (1.178.0: schakelaar, en eigen instellingen of de algemene); geheimen gemaskeerd */
@@ -6270,7 +6290,7 @@ function snmpHostFields(s) {
     <label class="switch"><input type="checkbox" name="snmp_own" ${own ? 'checked' : ''}><span></span> ${L('Eigen instellingen')} <span class="hint">${esc(snmpGlobalText())}</span></label>
     <div id="snmp-fields" ${own ? '' : 'hidden'}>${snmpFieldsHtml(s || state.snmp_global)}</div>
     <div class="snmp-test-row"><button type="button" class="btn" id="snmp-test">🔍 ${L('Test SNMP')}</button><span class="small" id="snmp-test-out"></span></div>
-    ${xpHtml(L('RzSense leest dit apparaat zelf uit via SNMP.'), L('<b>Wat het doet:</b> RzSense vraagt het apparaat zelf om gegevens (UDP-poort 161), zonder agent. <b>Instellen:</b> zet SNMP aan op het apparaat en geef het een community (v2c) of een gebruiker (v3). <b>Algemeen of eigen:</b> zonder <i>Eigen instellingen</i> gebruikt dit apparaat de algemene instelling uit <i>Instellingen → Koppelingen → SNMP</i>; verander je die, dan geldt dat meteen voor alle apparaten zonder eigen instellingen.'))}
+    ${xpHtml(L('RzSense leest dit apparaat zelf uit via SNMP.'), L('<b>Wat het doet:</b> RzSense vraagt het apparaat zelf om gegevens (UDP-poort 161), zonder agent. <b>Instellen:</b> zet SNMP aan op het apparaat en geef het een community (v2c) of een gebruiker (v3). <b>Algemeen of eigen:</b> zonder <i>Eigen instellingen</i> gebruikt dit apparaat de algemene instelling uit <i>Instellingen → Agents en koppelingen → SNMP</i>; verander je die, dan geldt dat meteen voor alle apparaten zonder eigen instellingen.'))}
   </div></section>`;
 }
 
@@ -6809,7 +6829,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
         <span class="hint" id="rev-hint" style="grid-column:1/-1"></span>
       </div>
       <label class="switch"><input type="checkbox" name="info_only" ${+c.info_only ? 'checked' : ''}><span></span> ℹ️ <b>${L('Alleen info-meldingen')}</b></label>
-      ${xpHtml(L('Een info-check is nooit een storing; hij geeft alleen een ℹ️ info-melding.'), L('Bij een statuswissel komt er een ℹ️ info-melding in plaats van warning, critical of hersteld, en de check telt nooit als storing. <b>Waarheen:</b> dat staat bij de rij ℹ️ <i>Info</i> (Instellingen → Meldingen, of de eigen meldregels hieronder). Standaard staat info uit.'))}
+      ${xpHtml(L('Een info-check is nooit een storing; hij geeft alleen een ℹ️ info-melding.'), L('Bij een statuswissel komt er een ℹ️ info-melding in plaats van warning, critical of hersteld, en de check telt nooit als storing. <b>Waarheen:</b> dat staat bij de rij ℹ️ <i>Info</i> (Instellingen → Meldingen en rapporten, of de eigen meldregels hieronder). Standaard staat info uit.'))}
       ${swsOpen({ id: 'notify-wrap', cb: 'id="notify-sw"', icon: '🔔', title: L('Meldingen'), on: !!(c.notify || c.notify_fails),
         sub: `<span id="notify-mode-label">${c.notify ? L('eigen regels') : L('standaard (algemene instellingen)')}</span><span id="notify-fails-label">${c.notify_fails ? ' · ' + L('na {n}× mislukt', { n: +c.notify_fails }) : ''}</span>` })}
         <label>${L('Melden na … mislukte checks achter elkaar')} <span class="hint">${L('(leeg = standaard, nu {n})', { n: state.notify_fails || 1 })}</span>
@@ -6819,7 +6839,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
       </div></section>
       ${swsOpen({ id: 'confirm-wrap', cb: 'id="confirm-sw"', icon: '⏳', title: L('Status bevestigen'), on: c.confirm_fails != null || c.confirm_ok != null,
         sub: `<span id="confirm-label">${c.confirm_fails != null || c.confirm_ok != null ? L('eigen aantallen') : L('standaard (algemene instellingen)')}</span>` })}
-        ${xpHtml(L('Pas van status wisselen na een paar controles achter elkaar.'), L('Leeg = de algemene instelling (Instellingen → Meldingen → Wanneer melden). 1 = meteen. Warning, critical en onbekend tellen samen; is de check tussendoor één keer goed, dan begint de telling opnieuw.'))}
+        ${xpHtml(L('Pas van status wisselen na een paar controles achter elkaar.'), L('Leeg = de algemene instelling (Instellingen → Meldingen en rapporten → Wanneer melden). 1 = meteen. Warning, critical en onbekend tellen samen; is de check tussendoor één keer goed, dan begint de telling opnieuw.'))}
         <div class="conf-row">
           <label>${L('Warning of critical pas na … mislukte controles')} <span class="hint">${L('(leeg = standaard, nu {n})', { n: +state.confirm_fails > 1 ? state.confirm_fails : L('meteen') })}</span>
             <input name="confirm_fails" type="number" min="1" max="100" value="${c.confirm_fails ?? ''}" placeholder="${+state.confirm_fails || 1}" style="max-width:8rem"></label>
@@ -6829,7 +6849,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
       </div></section>
       ${swsOpen({ id: 'quiet-wrap', cb: 'id="quiet-sw"', icon: '🌙', title: L('Stille uren'), on: !!quietOwn, sub: `<span id="quiet-mode-label">${quietOwn ? esc(quietLabel(quietOwn)) : L('volgt de server') + (c.quiet_eff ? ': ' + esc(c.quiet_eff.name) : '')}</span>` })}
         <label>${L('Stille uren voor deze check')}<select id="quiet-sel">${quietOptions(quietOwn ? (quietOwn.mode === 'never' ? 'never' : quietOwn.mode === 'profile' ? 'p:' + quietOwn.id : '') : '', null)}</select></label>
-        <span class="hint">${L('Profielen maak je bij Instellingen → Meldingen → Stille uren.')}</span>
+        <span class="hint">${L('Profielen maak je bij Instellingen → Meldingen en rapporten → Wanneer melden → Stille uren.')}</span>
       </div></section>
       <div class="row3" id="thr-wrap">
         <label><span class="thr-word">${L('Warning vanaf')}</span> <span class="hint unit"></span><input name="warn_threshold" type="number" step="any" value="${c.warn_threshold ?? ''}"></label>
@@ -7164,7 +7184,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
         const m = (r.hosts.find((x) => x.id === +h.id) || {}).mode || 'off';
         cmdMode = m;
         $('#cmd-mode-info').innerHTML = m === 'off'
-          ? L('<b class="warn-txt">⚠️ Commando\'s staan voor {name} uit.</b> De check blijft onbekend tot je ze aanzet: Instellingen → Agents → Commando-checks, of per server in de Agent Manager.', { name: esc(h.name) })
+          ? L('<b class="warn-txt">⚠️ Commando\'s staan voor {name} uit.</b> De check blijft onbekend tot je ze aanzet: Instellingen → Agents en koppelingen → Commando-checks, of per server in de Agent Manager.', { name: esc(h.name) })
           : L('Commando\'s op {name}: <b>{mode}</b>.', { name: esc(h.name), mode: esc(CMD_MODES[m]) });
       }).catch(() => {});
     }
@@ -8394,7 +8414,7 @@ async function amLogs(h) {
   const limitPct = d.day_limit ? Math.min(100, Math.round(d.used_today / d.day_limit * 100)) : 0;
   const lsOn = d.sources.filter((s) => s.enabled), lsErr = lsOn.filter((s) => s.status === 'err');
   amSum('logs', !d.on ? esc(L('uit voor alle servers')) : lsOn.length ? esc(L('{n} bronnen', { n: lsOn.length })) + (lsErr.length ? ` · <b class="bad">${esc(L('{n} met een fout', { n: lsErr.length }))}</b>` : '') + ` · ${esc(fmtBytes(d.used_today))} ${esc(L('vandaag'))}` : esc(L('nog geen bronnen')), lsErr.length > 0);   // 1.246.0
-  box.innerHTML = `${d.on ? '' : `<div class="callout">⏸ ${L('Logs verzamelen staat uit voor alle servers: Instellingen → Monitoring → Logs.')}</div>`}
+  box.innerHTML = `${d.on ? '' : `<div class="callout">⏸ ${L('Logs verzamelen staat uit voor alle servers: Instellingen → Monitoring → Logs verzamelen.')}</div>`}
     ${d.sources.length ? amRow('🔎 ' + L('Zoeken in deze logs'), L('de pagina Logs, met deze server al gekozen'), `<button type="button" class="btn small-btn" id="ls-find">${L('Logs')} →</button>`) : ''}
     ${amRow(L('Versturen elke'), L('pakketje met de nieuwe regels, gecomprimeerd en versleuteld · algemeen: {n} min', { n: d.default_interval }),
       `<select id="ls-iv">${[[0, L('algemeen')], [1, '1 min'], [2, '2 min'], [5, '5 min'], [10, '10 min'], [15, '15 min'], [30, '30 min'], [60, '60 min']]
@@ -9221,7 +9241,7 @@ function agentInstructions(h, pairNow = false) {
       </section>
       ${h.mode === 'agent' && !isHaHost(h) ? `<section class="am-sec am-card need-admin" data-pk="cmd" data-pw="12" style="--c: var(--crit)"><h3 class="am-h"><i aria-hidden="true">🖥️</i>${L('Commando-checks')}</h3>
         <p class="am-lead">${L('RzSense laat de agent een commando uitvoeren en vergelijkt het antwoord')}</p>
-        ${xpHtml(L('Hier bepaal je óf en als wie de agent de commando\'s van je commando-checks uitvoert.'), L('<b>Wat het doet:</b> bij een commando-check (bijvoorbeeld <code>zpool status -x</code> of <code>systemctl is-active nginx</code>) stuurt RzSense het commando naar de agent. De agent voert het uit in een kale omgeving, zonder invoer en met een time-out, en stuurt de uitvoer en de exitcode terug. RzSense vergelijkt die met het antwoord dat je verwacht. Dit is de enige plek waar een commando dat je in RzSense typt op de server draait. <b>De drie standen:</b> <i>uit</i> (standaard): er draait niets, de checks blijven onbekend. <i>als nobody</i>: het commando draait als de gebruiker nobody, zonder rechten op je bestanden; genoeg voor de meeste checks. <i>als root</i>: het commando mag alles op de server; alleen nodig voor bijvoorbeeld SMART, Docker, Proxmox of TrueNAS-meldingen. <b>Zo stel je het in:</b> schakelaar uit = de algemene instelling (Instellingen → Agents → Commando-checks); schakelaar aan = een eigen keuze voor deze server. Ruimer maken vraagt om je wachtwoord en komt in het logboek. <b>Goed om te weten:</b> op de server zelf kun je het altijd inperken, wat RzSense ook zegt: <code>COMMANDS=0</code> (nooit) of <code>COMMANDS=nobody</code> (nooit als root) in <code>/etc/default/rzmon-agent</code>. Gebruik https naar RzSense, zodat niemand onderweg een commando kan aanpassen. Kies <i>als root</i> alleen als een check het echt nodig heeft.'))}
+        ${xpHtml(L('Hier bepaal je óf en als wie de agent de commando\'s van je commando-checks uitvoert.'), L('<b>Wat het doet:</b> bij een commando-check (bijvoorbeeld <code>zpool status -x</code> of <code>systemctl is-active nginx</code>) stuurt RzSense het commando naar de agent. De agent voert het uit in een kale omgeving, zonder invoer en met een time-out, en stuurt de uitvoer en de exitcode terug. RzSense vergelijkt die met het antwoord dat je verwacht. Dit is de enige plek waar een commando dat je in RzSense typt op de server draait. <b>De drie standen:</b> <i>uit</i> (standaard): er draait niets, de checks blijven onbekend. <i>als nobody</i>: het commando draait als de gebruiker nobody, zonder rechten op je bestanden; genoeg voor de meeste checks. <i>als root</i>: het commando mag alles op de server; alleen nodig voor bijvoorbeeld SMART, Docker, Proxmox of TrueNAS-meldingen. <b>Zo stel je het in:</b> schakelaar uit = de algemene instelling (Instellingen → Agents en koppelingen → Commando-checks); schakelaar aan = een eigen keuze voor deze server. Ruimer maken vraagt om je wachtwoord en komt in het logboek. <b>Goed om te weten:</b> op de server zelf kun je het altijd inperken, wat RzSense ook zegt: <code>COMMANDS=0</code> (nooit) of <code>COMMANDS=nobody</code> (nooit als root) in <code>/etc/default/rzmon-agent</code>. Gebruik https naar RzSense, zodat niemand onderweg een commando kan aanpassen. Kies <i>als root</i> alleen als een check het echt nodig heeft.'))}
         ${amRow(L('Commando\'s uitvoeren'), `<span id="host-commands-info">${L('laden…')}</span>`, amSw('host-cmd-own', false, 'title="' + esc(L('Eigen keuze voor deze server')) + '"'))}
         <div class="am-sub" id="host-cmd-sub" hidden>${swSeg('cmd', Object.entries(CMD_MODES), 'off')}</div>
       </section>` : ''}
@@ -9241,7 +9261,7 @@ function agentInstructions(h, pairNow = false) {
         ${amOwn('ip', '🌐 ' + L('Alleen vanaf het bekende IP-adres'), '', h.ip_lock || '', [['on', L('aan')], ['off', L('uit')]], `${L('algemeen')}: ${state.conn_ip_lock ? L('aan') : L('uit')}`)}
         ${amOwn('https', '🔒 ' + L('Alleen via https'), '', h.agent_https || '', [['on', L('aan')], ['off', L('uit')]], `${L('algemeen')}: ${state.conn_https ? L('aan') : L('uit')}`)}
         ${amRow('🌍 ' + L('Adres van RzSense'), connText(h), `<button type="button" class="btn small-btn" data-am-url>✏️ ${L('Wijzigen')}</button>`, ' am-url')}
-        ${h.agent_ip_new ? `<div class="callout">⚠️ ${L('Geweigerd vanaf het nieuwe IP-adres <code>{ip}</code>. Toestaan kan bij Instellingen → Agents → Standaardinstellingen.', { ip: esc(h.agent_ip_new) })}</div>` : ''}
+        ${h.agent_ip_new ? `<div class="callout">⚠️ ${L('Geweigerd vanaf het nieuwe IP-adres <code>{ip}</code>. Toestaan kan bij Instellingen → Agents en koppelingen → Standaard voor alle agents.', { ip: esc(h.agent_ip_new) })}</div>` : ''}
       </section>
       <section class="am-sec am-card need-admin" data-pk="snmp" data-pw="4" style="--c: var(--purple, #7a49d9)"><h3 class="am-h"><i aria-hidden="true">📡</i>SNMP</h3>
         <p class="am-lead">${L('RzSense leest het apparaat zelf uit (zonder agent)')}</p>
@@ -9746,8 +9766,8 @@ async function loadEdrHost(h, poll = false, gen = modalGen) {
   if (gen !== modalGen) return;
   const i = d.info || {};
   const lines = [];
-  if (!d.ids) lines.push(`<span class="warn-txt">⚠️ ${L('Werkt pas als het IDS aan staat (Instellingen → IDS).')}</span>`);
-  else if (!d.global) lines.push(`<span class="muted">${L('Staat voor alle servers uit (Instellingen → IDS → Endpoint-bewaking).')}</span>`);
+  if (!d.ids) lines.push(`<span class="warn-txt">⚠️ ${L('Werkt pas als het IDS aan staat (Instellingen → Bescherming).')}</span>`);
+  else if (!d.global) lines.push(`<span class="muted">${L('Staat voor alle servers uit (Instellingen → Bescherming → Endpoint-bewaking).')}</span>`);
   else if (!d.on) lines.push(`<span class="muted">${L('Uit voor deze server.')}</span>`);
   else if (!d.at) lines.push(`<span class="muted">${L('Nog geen gegevens van de agent (agent {v} of nieuwer nodig).', { v: '1.63.0' })}</span>`);
   else {
@@ -9931,7 +9951,7 @@ async function amRansom(h, body) {
     return `<label class="rs-row${last && (+last.hit || last.canary === 'alarm') ? ' rs-alarm' : ''}"><input type="checkbox" data-rs-p="${esc(p)}" ${chosen.has(p) ? 'checked' : ''}>
       <span class="grow"><code>${esc(p)}</code><br>${info}</span></label>`;
   };
-  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Ransomware herkennen staat uit voor alle servers (Instellingen → IDS → Ransomware).')}</div>` : ''}
+  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Ransomware herkennen staat uit voor alle servers (Instellingen → Bescherming → Ransomware).')}</div>` : ''}
     ${!d.agent_ok ? `<div class="callout small">${L('Agent 1.90.0 of nieuwer nodig (en als root); werk de agent bij.')}</div>` : ''}
     <div class="rs-list">${all.length ? all.map(row).join('') : `<p class="muted small">${L('Nog geen mappen gevonden. Vul hieronder zelf een map in (bv. de map van je Samba-share).')}</p>`}</div>
     <div class="rs-add"><input id="rs-new" class="mono" placeholder="/mnt/tank/gedeeld" aria-label="${esc(L('Map toevoegen'))}"><button type="button" class="btn small-btn" id="rs-add">＋ ${L('Map')}</button></div>
@@ -10216,10 +10236,13 @@ async function loadIds() {
   if (idsAgain) { idsAgain = false; loadIds(); }
 }
 
-const IDS_TABS = ['inc', 'blk', 'live', 'map', 'ovw', 'acc', 'apps', 'hunt', 'anom', 'mitre', 'prot'];
+const IDS_TABS = ['inc', 'blk', 'live', 'map', 'ovw', 'acc', 'apps', 'hunt', 'anom', 'mitre'];   // 1.276.0: Bescherming staat in de portal; Incidenten (behalve alleen lezen) op de pagina Incidenten
+const IDS_AN = ['ovw', 'anom', 'mitre'];
 function showIdsTab() {
-  if (!IDS_TABS.includes(idsTab)) idsTab = 'inc';
-  $$('#ids-tabs [data-it]').forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab));
+  if (!IDS_TABS.includes(idsTab) || (idsTab === 'inc' && !$('#ids-tabs [data-it="inc"]'))) idsTab = 'live';
+  $$('#ids-tabs [data-it]').forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab || (x.dataset.it === 'ovw' && IDS_AN.includes(idsTab))));
+  const an = $('#ids-an-seg');
+  if (an) { an.hidden = !IDS_AN.includes(idsTab); $$('[data-it]', an).forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab)); }
   $$('#tab-ids .ids-pane').forEach((x) => { x.hidden = x.dataset.pane !== idsTab; });
   const nAnom = ((idsData && idsData.incidents) || []).filter((i) => (i.type === 'chain' || i.type === 'anomaly') && i.status === 'open').length;
   $('#it-n-anom').textContent = nAnom || '';
@@ -10241,7 +10264,6 @@ function showIdsTab() {
     if (idsTab === 'mitre') loadMitre();
     if (idsTab === 'apps') { initApps(); loadApps(); }   // 1.229.0
     if (idsTab === 'hunt') { initHunt(); loadHunt(); }
-    if (idsTab === 'prot') loadProt();
     if (idsTab === 'map') { initAttackMap(); loadAttackMap(); }   // 1.149.0
   });
   crumbs();   // 1.199.0
@@ -10249,7 +10271,7 @@ function showIdsTab() {
 
 // ---------------------------------------------------------------- IDS: 🛰️ Live en 🔏 Regels (endpoint-bewaking, 1.110.0)
 let edrFeed = null, edrRules = null, ruleSrc = '';
-/* 1.236.0: de regels staan op één plek: Instellingen → IDS → Endpoint-bewaking → Regels en uitzonderingen */
+/* 1.236.0: de regels staan op één plek: Instellingen → Bescherming → Endpoint-bewaking → Regels en uitzonderingen */
 const ruleBox = () => $('#edr-rules-set');
 const ruleQ = () => $('#rule-q-set');
 const EDR_KIND_IC = { exec: '⚙️', net: '🌐', file: '📄', audit: '🔐', ctr: '📦', sur: '🦉' };
@@ -10346,7 +10368,7 @@ function lvHitOpen(e) {
     <div class="lv-box mean"><h5>${L('Wat betekent dit?')}</h5>${esc(what)}</div>
     <div class="lv-box"><h5>${L('Wat kun je doen?')}</h5>${L('1. Herken je het en deed jij (of een update) dit? Dan is het normaal.')}<br>${L('2. Niet herkend? Bekijk het incident en stop zo nodig het proces.')}
       <br><span class="muted">${blocking ? L('Modus Blokkeren: RzSense grijpt zelf in als de regel dat zegt (zie het incident).') : L('Modus Leren: RzSense greep niet in.')}</span></div>
-    <div class="lv-btns">${e.inc ? `<button type="button" class="btn small-btn primary" data-lv-inc="${e.inc}">${L('Bekijk incident')}</button>` : `<a class="btn small-btn primary" href="#ids/inc" data-goto="ids/inc">${L('Naar incidenten')}</a>`}
+    <div class="lv-btns">${e.inc ? `<button type="button" class="btn small-btn primary" data-lv-inc="${e.inc}">${L('Bekijk incident')}</button>` : `<a class="btn small-btn primary" href="#incidents/ids" data-goto="incidents/ids">${L('Naar incidenten')}</a>`}
       ${canKill ? `<button type="button" class="btn small-btn" data-lv-kill="${e.id}">⛔ ${L('Proces stoppen')}</button>` : ''}
       ${e.inc ? `<button type="button" class="btn small-btn need-admin" data-lv-normal="${e.inc}">✔ ${L('Dit is normaal')}</button>${aiBtn('ids', e.inc, true)}` : ''}</div>
     ${lvTech(e)}</div>`;
@@ -10417,7 +10439,7 @@ function renderLive() {
   const nf = (n) => (+n || 0).toLocaleString(LOCALE);
   $('#edr-n-hits').textContent = nf(sum.list.hits); $('#edr-n-all').textContent = nf(sum.list.all); $('#edr-n-own').textContent = nf(sum.list.own);
   $$('#edr-mode [data-lv-mode]').forEach((b) => { b.classList.toggle('on', b.dataset.lvMode === lvMode); b.setAttribute('aria-selected', b.dataset.lvMode === lvMode); });
-  $('#edr-hero').innerHTML = edrFeed.on ? lvHero(sum, sum.list.hits) : `<div class="lv-hero s1"><span class="big">⚠️</span><div class="lv-hero-t"><h3>${L('Endpoint-bewaking staat uit')}</h3><p>${L('Zet hem aan bij Instellingen → IDS → Endpoint-bewaking.')}</p></div></div>`;
+  $('#edr-hero').innerHTML = edrFeed.on ? lvHero(sum, sum.list.hits) : `<div class="lv-hero s1"><span class="big">⚠️</span><div class="lv-hero-t"><h3>${L('Endpoint-bewaking staat uit')}</h3><p>${L('Zet hem aan bij Instellingen → Bescherming → Endpoint-bewaking.')}</p></div></div>`;
   const order = ['exec', 'net', 'file', 'audit', 'ctr', 'sur'];
   const kinds = Object.entries(sum.kinds).filter(([k]) => k !== 'own' && k !== 'dns' && k !== 'web' && k !== 'ids').sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]));
   $('#edr-kinds').innerHTML = kinds.length ? kinds.map(([k, x]) => `<button type="button" class="lv-kind${lvKind === k ? ' on' : ''}" data-lv-kind="${k}" aria-pressed="${lvKind === k}" title="${esc(L('Laatste 24 uur · klik om alleen deze soort te tonen'))}">
@@ -10489,7 +10511,7 @@ function renderEdrRules() {
   const on = edrRules.rules.filter((r) => r.on).length;
   withMorph(() => {
     ruleBox().innerHTML = `<p class="small" style="margin-top:0"><b>${L('{on} van {n} regels aan.', { on, n: edrRules.rules.length })}</b>
-      ${edrRules.sigma_on ? '' : ` <span class="warn-txt">${L('Sigma-regels staan uit (Instellingen → IDS → Endpoint-bewaking).')}</span>`}</p>${xpHtml(L('Over de regels: van RzSense zelf en van SigmaHQ.'), L('<b>Bronnen:</b> de eigen regels van RzSense (met uitleg) en de Linux-regels van SigmaHQ (licentie DRL 1.1). <b>Uitzetten:</b> een regel uitzetten geldt voor alle servers; <i>Dit is normaal</i> bij een incident geldt voor één server.'))}
+      ${edrRules.sigma_on ? '' : ` <span class="warn-txt">${L('Sigma-regels staan uit (Instellingen → Bescherming → Endpoint-bewaking).')}</span>`}</p>${xpHtml(L('Over de regels: van RzSense zelf en van SigmaHQ.'), L('<b>Bronnen:</b> de eigen regels van RzSense (met uitleg) en de Linux-regels van SigmaHQ (licentie DRL 1.1). <b>Uitzetten:</b> een regel uitzetten geldt voor alle servers; <i>Dit is normaal</i> bij een incident geldt voor één server.'))}
       <div class="table-scroll"><table class="vuln-table rule-table"><thead><tr><th></th><th>${L('Regel')}</th><th>${L('Ernst')}</th><th>${L('Doet zelf')}</th><th>MITRE</th><th title="${esc(L('Treffers in de laatste 3 dagen'))}">${L('Treffers')}</th></tr></thead><tbody>
       ${list.map((r) => `<tr class="${r.on ? '' : 'muted'}" data-key="${esc(r.id)}"><td><label class="switch small need-admin"><input type="checkbox" data-rule="${esc(r.id)}" ${r.on ? 'checked' : ''}><span></span></label></td>
         <td><b>${esc(r.title)}</b> <span class="badge">${r.src === 'sigma' ? 'Sigma' : 'RzSense'}</span><br><span class="small muted">${esc((r.what || '').slice(0, 260))}${r.src === 'sigma' ? ` · ${esc(r.author || '')} · <a href="${esc(r.url)}" target="_blank" rel="noopener">${L('bron')}</a>` : ''}</span></td>
@@ -10701,11 +10723,11 @@ async function loadAnom() {
   try { anomData = await api('ids_anom', null, { days: anomDays, ...(host ? { host } : {}) }); } catch (ex) { $('#anom-learn').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   hostOptions($('#anom-host'));
   const d = anomData;
-  $('#anom-info').textContent = !d.on ? L('Endpoint-bewaking staat uit (Instellingen → IDS → Endpoint-bewaking)') : !d.anom ? L('Afwijkingen staan uit (Instellingen → IDS → Endpoint-bewaking)') : '';
+  $('#anom-info').textContent = !d.on ? L('Endpoint-bewaking staat uit (Instellingen → Bescherming → Endpoint-bewaking)') : !d.anom ? L('Afwijkingen staan uit (Instellingen → Bescherming → Endpoint-bewaking)') : '';
   withMorph(() => {
     $('#anom-learn').innerHTML = `<h3 class="set-sub" style="margin-top:0">🎓 ${L('Wat is normaal? (leren per server)')}</h3>
-      ${xpHtml(L('Elke server leert eerst {d} dagen wat normaal is.'), L('Elke server leert {d} dagen wat normaal is: welke programma\'s, gebruikers, verbindingen en poorten. Daarna meldt RzSense wat die server nog nooit deed. <b>Na een grote wijziging</b> (nieuwe software) kun je hem opnieuw laten leren.', { d: d.learn_days }))}
-      ${d.hosts.length ? `<div class="table-scroll"><table class="vuln-table learn-table"><thead><tr><th>Server</th><th>${L('Leren')}</th><th>${L('Geleerd')}</th><th>${L('Afwijkingen (7 dagen)')}</th><th class="need-admin"></th></tr></thead><tbody>
+      ${xpHtml(L('Elke server leert eerst {d} dagen wat normaal is.', { d: d.learn_days }), L('Elke server leert {d} dagen wat normaal is: welke programma\'s, gebruikers, verbindingen en poorten. Daarna meldt RzSense wat die server nog nooit deed. <b>Na een grote wijziging</b> (nieuwe software) kun je hem opnieuw laten leren.', { d: d.learn_days }))}
+      ${d.hosts.length ? `<div class="table-scroll"><table class="vuln-table learn-table"><thead><tr><th>Server</th><th>${L('Leren', { d: d.learn_days })}</th><th>${L('Geleerd')}</th><th>${L('Afwijkingen (7 dagen)')}</th><th class="need-admin"></th></tr></thead><tbody>
       ${d.hosts.map((h) => `<tr data-key="lh${h.id}"><td><b>${esc(h.name)}</b>${h.on ? '' : ` <span class="muted small">(${L('uit')})</span>`}</td>
         <td>${h.learning ? `<span class="cl-meter"><span class="bar"><i style="width:${h.pct}%"></i></span> <span class="small">${L('dag {n} van {d}', { n: Math.max(1, h.day), d: h.days })}</span></span>`
           : `✔ <span class="small">${L('klaar, meldt sinds {t}', { t: esc(fmtDateTime(h.until)) })}</span>`}</td>
@@ -10714,7 +10736,7 @@ async function loadAnom() {
           <button type="button" class="btn small-btn" data-learn="restart" data-h="${h.id}">↺ ${L('Opnieuw leren')}</button></td></tr>`).join('')}</tbody></table></div>`
         : `<p class="muted">${L('Nog geen servers met endpoint-bewaking (agent 1.63.0 of nieuwer, en aan in de Agent Manager).')}</p>`}`;
     $('#anom-chains').innerHTML = `<h3 class="set-sub" style="margin-top:0">🔗 ${L('Ketens')} <span class="muted small">${L('(laatste 30 dagen)')}</span></h3>
-      ${!d.chain ? `<p class="warn-txt small">${L('Ketens staan uit (Instellingen → IDS → Endpoint-bewaking).')}</p>` : ''}
+      ${!d.chain ? `<p class="warn-txt small">${L('Ketens staan uit (Instellingen → Bescherming → Endpoint-bewaking).')}</p>` : ''}
       ${d.chains.length ? d.chains.map((c) => `<div class="chain-card s${c.severity}" data-key="ch${c.id}">
         <div class="chain-head">${c.severity === 2 ? '🔴' : '🟠'} <button type="button" class="linklike" data-inc="${c.id}"><b>${esc(c.title)}</b></button>
           <span class="muted small">· ${esc(c.host)} · ${esc(fmtDateTime(c.created_at))}${c.hits > 1 ? ' · ' + L('{n}× gegroeid', { n: c.hits }) : ''} · ${c.status === 'open' ? `<b class="warn-txt">${L('open')}</b>` : '✔'}</span></div>
@@ -10781,7 +10803,7 @@ function actChips(p) {
 function explainHtml(x) {
   return `<table class="kv-table small explain"><tbody>
     ${x.outcome ? `<tr><th>${L('Status')}</th><td>${outcomePill(x.outcome)}${x.outcome.warn ? `<div class="small warn-txt">⚠️ ${esc(x.outcome.warn)}</div>` : ''}</td></tr>` : ''}
-    ${x.why ? `<tr><th>${L('Waarom')}</th><td>${esc(x.why)}${x.card ? ` <a href="#ids/prot" class="small" data-goto="ids/prot" data-prot-card="${esc(x.card.id)}">🛡️ ${esc(x.card.title)}</a>` : ''}</td></tr>` : ''}
+    ${x.why ? `<tr><th>${L('Waarom')}</th><td>${esc(x.why)}${x.card ? ` <a href="#settings/prot" class="small" data-goto="settings/prot" data-prot-card="${esc(x.card.id)}">🛡️ ${esc(x.card.title)}</a>` : ''}</td></tr>` : ''}
     ${x.trigger ? `<tr><th>${L('Trigger')}</th><td>${esc(x.trigger)}</td></tr>` : ''}
     <tr><th>${L('Actie')}</th><td>${x.actions.map((a) => `<div class="act-line ${a.ok === true ? 'ok' : a.ok === false ? 'bad' : ''}">${a.icon} ${esc(a.text)}${a.ok === true ? ' ✔' : a.ok === false ? ' ✘' : ''}</div>`).join('')}</td></tr>
   </tbody></table>`;
@@ -10794,7 +10816,7 @@ function renderProt() {
   const d = protData;
   if (!d) return;
   const block = d.mode === 'block';
-  $('#it-n-prot').textContent = d.attention || '';
+  if ($('#it-n-prot')) $('#it-n-prot').textContent = d.attention || '';
   withMorph(() => {
     $('#prot-mode').innerHTML = !d.enabled ? `<div class="prot-mode off">⚠️ ${L('Het IDS staat uit: er wordt niets bewaakt.')} <a href="#settings/ids" data-goto="settings/ids">${L('Aanzetten')}</a></div>`
       : `<div class="prot-mode ${block ? 'block' : 'learn'}">${block ? '⛔ ' + L('Modus Blokkeren: RzSense voert de acties hieronder zelf uit.') : '🎓 ' + L('Modus Leren: alles wordt alleen gemeld, RzSense grijpt nergens in.')}
@@ -10920,7 +10942,7 @@ function renderAccess() {
   const fails = d.rows.filter((r) => r.kind === 'authfail').length;
   $('#it-n-acc').textContent = d.rows.length ? d.rows.length : '';
   $('#acc-info').textContent = L('{ok} gelukt · {fail} mislukt · laatste {days} dagen', { ok: d.rows.length - fails, fail: fails, days: d.days }) + (d.truncated ? ' ' + L('(alleen de nieuwste 10.000)') : '');
-  const off = d.enabled ? '' : '<p class="warn-txt small">' + L('Toegang bijhouden staat uit: er komt niets nieuws bij. Aanzetten onder <a href="#settings/ids" data-goto="settings/ids">Instellingen → IDS → Algemeen</a>.') + '</p>';
+  const off = d.enabled ? '' : '<p class="warn-txt small">' + L('Toegang bijhouden staat uit: er komt niets nieuws bij. Aanzetten onder <a href="#settings/ids" data-goto="settings/ids">Instellingen → Bescherming → IDS algemeen</a>.') + '</p>';
   const q = $('#acc-search').value.trim().toLowerCase();
   // 1.152.0: bij SSH: Alles, Gelukt (sessies met begin, einde en duur) of Mislukt
   const sshBar = $('#acc-ssh');
@@ -11043,7 +11065,7 @@ function accIgnoreDialog(r) {
     title: '🙈 ' + L('Negeren'),
     body: `<p style="margin-top:0">${L('Wat wil je voortaan niet meer zien in <i>Toegang</i>? Ook de regels die er al staan, verdwijnen.')}</p>
       ${opts.map(([k, v, l], i) => `<label class="switch small"><input type="checkbox" name="ign${i}" value="${esc(v)}" ${opts.length === 1 || k === 'ip' ? 'checked' : ''}><span></span> ${l}</label>`).join('')}
-      ${xpHtml(L('Negeren verbergt alleen; brute-forcedetectie blijft werken.'), L('Een mislukte poging met meerdere gebruikers wordt alleen verborgen als <i>alle</i> gebruikers genegeerd worden, of het IP-adres. De lijst pas je aan bij <i>Instellingen → IDS → Algemeen → Negeren</i>. De brute-forcedetectie van het IDS blijft gewoon werken.'))}`,
+      ${xpHtml(L('Negeren verbergt alleen; brute-forcedetectie blijft werken.'), L('Een mislukte poging met meerdere gebruikers wordt alleen verborgen als <i>alle</i> gebruikers genegeerd worden, of het IP-adres. De lijst pas je aan bij <i>Instellingen → Bescherming → IDS algemeen → Negeren</i>. De brute-forcedetectie van het IDS blijft gewoon werken.'))}`,
     buttons: [{ label: '🙈 ' + L('Negeren'), cls: 'primary', submit: true }],
     onSubmit: async (d) => {
       const add = Object.keys(d).filter((k) => k.startsWith('ign')).map((k) => d[k]);
@@ -11388,7 +11410,7 @@ function renderIds() {
   fxRender('ids');
   const narrowed = !!q || !!idsCat || !!idsCard || !!idsOutcome || !!idsHost || fxActive('ids');
   $('#ids-info').textContent = L('{open} open · {n} in de laatste {days} dagen', { open: open.length, n: d.incidents.length, days: d.days });
-  $('#it-n-inc').textContent = open.length ? open.length : '';
+  if ($('#it-n-inc')) $('#it-n-inc').textContent = open.length ? open.length : '';
   const el = $('#ids-incidents');
   if (q) moreDaysWhenSearching('ids', d);
   const more = idsFilter === 'all' || q ? moreDays('ids', d) : '';   // open incidenten zijn er altijd allemaal
@@ -12649,7 +12671,7 @@ function webPathHtml(w) {
   const v = w.verdict;
   return `<h3 class="set-sub">🛤️ ${L('Pad van de aanval')}</h3><div class="wp">${rows}
     ${v ? `<div class="wp-v ${v.lvl}">${v.lvl === 'warn' ? '⚠️' : '✅'} <span>${esc(v.text)}</span></div>` : ''}
-    ${!w.full ? `<p class="small muted wp-tip">💡 ${L('Wil je ook zien welke site en welke dienst erachter werd aangevallen? Zet bij Instellingen → IDS → Netwerk en aanvallers het extra logbestand voor je reverse proxy aan.')}</p>` : ''}</div>`;
+    ${!w.full ? `<p class="small muted wp-tip">💡 ${L('Wil je ook zien welke site en welke dienst erachter werd aangevallen? Zet bij Instellingen → Bescherming → Netwerk en weblogs het extra logbestand voor je reverse proxy aan.')}</p>` : ''}</div>`;
 }
 
 /** 1.267.0: IDS → Overzicht: één kaartje webverkeer (24 uur); alles per site, pad en land staat op de pagina Reverse proxy */
@@ -12725,7 +12747,7 @@ async function incidentDialog(id, nav = null) {
     b.onclick = async (e) => {
       e.preventDefault(); e.stopPropagation();
       $('#modal').close();
-      showTab('ids/prot');
+      showTab('settings/prot');
       await loadProt();
       const c = $('#prot-' + b.dataset.protCard);
       if (c) { c.scrollIntoView({ block: 'center' }); c.classList.add('live-pulse'); }
@@ -14297,58 +14319,56 @@ function initMainTabs() {
 // [groep, icoon, naam, [[sleutel, titel, kaarten, korte omschrijving, tabbladen?], …]]
 const SET_IC = (d) => `<svg class="tab-ic set-ic" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 const SET_NAV = [
+  // 1.276.0: zeven groepen; dagelijks werk (Servers, Logboek, Compliance) staat in het hoofdmenu
   ['overzicht', SET_IC('<path d="M3 12h4l3 8 4-16 3 8h4"/>'), L('Overzicht'), [
     ['overview', L('Status en functies'), ['overview', 'features'], L('Wat er nog aandacht nodig heeft, en alle functies met wat er aan staat en waar je het instelt.'),
-      [['status', L('Status'), ['overview']], ['functies', L('Functies'), ['features']]]],   // 1.236.0: samen
-    ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzSense elke minuut uitvoert.')],
-    ['nis2', L('NIS2'), ['nis2'], L('De tien maatregelen uit de NIS2-richtlijn met wat RzSense ziet, je notities en de meldtermijnen.')]]],
+      [['status', L('Status'), ['overview']], ['functies', L('Functies'), ['features']]]],
+    ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzSense elke minuut uitvoert.')]]],
   ['checks', SET_IC('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>'), L('Monitoring'), [
     ['allchecks', L('Alle checks'), ['allchecks'], L('Alle checks van alle servers in één lijst, ook samen bewerken.')],
     ['templates', L('Sjablonen'), ['templates'], L('Vaste sets checks voor een nieuwe server.')],
-    ['internet', L('Internet'), ['internet'], L('Snelheid, ping en responstijd van je internetlijn.')],
-    ['logs', L('Logs'), ['logs'], L('Logs van je servers verzamelen: hoe vaak, hoe lang bewaren, hoeveel, maskeren en wat er binnenkomt.')],
-    ['advice', L('Advies'), ['smart', 'advice', 'smartmore', 'cleanup'], L('Slimme drempels, voorstellen en checks om op te schonen.'),
-      [['drempels', L('Slimme drempels'), ['smart']], ['voorstellen', L('Voorstellen'), ['advice', 'smartmore']], ['opschonen', L('Opschonen'), ['cleanup']]]]]],
-  ['meldingen', SET_IC('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'), L('Meldingen'), [
+    ['advice', L('Slimme drempels en advies'), ['smart', 'advice', 'smartmore', 'cleanup'], L('Slimme drempels, voorstellen en checks om op te schonen.'),
+      [['drempels', L('Slimme drempels'), ['smart']], ['voorstellen', L('Voorstellen'), ['advice', 'smartmore']], ['opschonen', L('Opschonen'), ['cleanup']]]],
+    ['internet', L('Internetcheck'), ['internet'], L('Snelheid, ping en responstijd van je internetlijn.')],
+    ['logs', L('Logs verzamelen'), ['logs'], L('Logs van je servers verzamelen: hoe vaak, hoe lang bewaren, hoeveel, maskeren en wat er binnenkomt.')]]],
+  ['meldingen', SET_IC('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'), L('Meldingen en rapporten'), [
     ['channels', L('Kanalen'), ['pushover', 'ntfy', 'email', 'webhook', 'chain'], L('Waar meldingen heen gaan: Pushover, ntfy, e-mail en webhooks.')],
-    ['quiet', L('Stille uren'), ['quiet'], L('Profielen met een naam, gekoppeld aan groepen, servers en checks.')],
-    ['rules', L('Wanneer melden'), ['confirm', 'notify', 'alarm'], L('Meldregels, stille uren en wanneer een probleem een melding wordt.')],
-    ['sysinfo', L('Systeemmeldingen'), ['sysinfo'], L('Meldingen over RzSense zelf, zoals updates en certificaten.')]]],
-  ['ids', SET_IC('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'), L('IDS'), [
-    ['ids', L('Algemeen'), ['ids'], L('Aan of uit, leren of blokkeren, brute force en honeypot.')],
-    ['ids_edr', L('Endpoint-bewaking'), ['ids_edr', 'ids_rules'], L('Processen, bestanden en netwerk op je servers; afwijkingen en aanvalsketens.'),
+    ['rules', L('Wanneer melden'), ['confirm', 'notify', 'alarm', 'quiet'], L('Wanneer een probleem een melding wordt, en wanneer het stil moet zijn.'),
+      [['wanneer', L('Wanneer melden'), ['confirm', 'notify', 'alarm']], ['stil', L('Stille uren'), ['quiet']]]],
+    ['idspush', L('IDS-pushmeldingen'), ['idspush'], L('Wanneer een aanval je telefoon laat trillen, en de dagelijkse samenvatting.')],
+    ['sysinfo', L('Systeemmeldingen'), ['sysinfo'], L('Meldingen over RzSense zelf, zoals updates en certificaten.')],
+    ['reports', L('Rapporten'), ['reports'], L('Alle overzichten die RzSense per e-mail of push verstuurt, en het Maandoverzicht.')]]],
+  ['toegang', SET_IC('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'), L('Toegang tot RzSense'), [
+    ['access', L('Inloggen'), ['access'], L('Lokaal netwerk, uitloggen en blokkeren na mislukte pogingen.')],
+    ['outside', L('Beheer van buiten'), ['https', 'outside'], L('Veilig beheren van buiten je netwerk: https, toegestane apparaten en de noodlink.')],
+    ['users', L('Gebruikers'), ['users', 'confirmpw'], L('Accounts, rollen, tweestapsverificatie en bevestigen bij acties.')]]],
+  ['bescherming', SET_IC('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'), L('Bescherming'), [
+    ['ids', L('IDS algemeen'), ['ids'], L('Aan of uit, leren of blokkeren, brute force en honeypot.')],
+    ['prot', L('Beschermingen'), ['prot'], L('Alle beschermingen van het IDS op een rij: wat aan staat, met hun drempels.')],
+    ['ids_edr', L('Endpoint-bewaking (EDR)'), ['ids_edr', 'ids_rules'], L('Processen, bestanden en netwerk op je servers; afwijkingen en aanvalsketens.'),
       [['bewaking', L('Bewaking'), ['ids_edr']], ['regels', L('Regels en uitzonderingen'), ['ids_rules']]]],
-    ['ids_ti', L('Dreigingsinformatie'), ['ids_ti', 'dnsbl'], L('Bekende aanvallers en malware opzoeken, en DNS en Suricata.')],
+    ['ids_ti', L('Dreigingsinformatie'), ['ids_ti'], L('Bekende aanvallers en malware opzoeken in openbare bronnen (threat intelligence).')],
+    ['ids_dns', L('DNS, Suricata en YARA'), ['ids_net', 'dnsbl'], L('Aanvallen in het netwerkverkeer en in nieuwe bestanden herkennen, en de blokkadelijst voor AdGuard.')],
     ['ids_ransom', L('Ransomware'), ['ransom'], L('Mappen bewaken op versleutelen, met lokaasbestanden, snapshot en stoppen.')],
     ['ids_apps', L('Programma\'s'), ['apps'], L('Welke programma\'s er draaien; onbekende vallen op na een leerperiode. Toestaan, blokkeren en stoppen.')],
     ['ids_hunt', L('Jagen op sporen'), ['hunt'], L('IP-adressen, domeinen, vingerafdrukken en paden zoeken, ook op de servers, en bewaken.')],
-    ['ids_attack', L('Netwerk en aanvallers'), ['ids_attack'], L('Blocklists, landen, uitgaand verkeer en de logs van webdiensten.')],
-    ['ids_servers', L('Per server'), ['ids_servers'], L('Welke servers het IDS gebruiken, en wat ze bewaken.')]]],
-  ['beveiliging', SET_IC('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'), L('Beveiliging'), [
-    ['access', L('Inloggen'), ['access'], L('Lokaal netwerk, uitloggen en blokkeren na mislukte pogingen.')],
-    ['outside', L('Beheer via https'), ['https', 'outside'], L('Veilig beheren van buiten je netwerk.')],
-    ['users', L('Gebruikers'), ['users', 'confirmpw'], L('Accounts, rollen, tweestapsverificatie en bevestigen bij acties.')],
-    ['vulns', L('Kwetsbaarheden'), ['vulns', 'eol', 'cvebuzz'], L('Bekende lekken in de software op je servers, en software die geen updates meer krijgt.')],
+    ['ids_attack', L('Netwerk en weblogs'), ['ids_attack'], L('Blocklists, landen, uitgaand verkeer en de logs van webdiensten.')],
+    ['ids_servers', L('IDS per server'), ['ids_servers'], L('Welke servers het IDS gebruiken, en wat ze bewaken.')],
+    ['proxy', L('Reverse proxy en WAF'), ['proxy'], L('De apps achter je reverse proxy beschermen: wie mag erbij, bots, te veel verzoeken, WAF, ClamAV en Suricata.')],
+    ['vulns', L('Kwetsbaarheden en datalekken'), ['vulns', 'eol', 'cvebuzz', 'hibp'], L('Bekende lekken en verouderde software op je servers, en datalekken met je e-mailadressen.'),
+      [['lekken', L('Kwetsbaarheden'), ['vulns', 'eol', 'cvebuzz']], ['datalekken', L('Datalekken'), ['hibp']]]],
+    ['patch', L('Updatebeleid'), ['patch'], L('Hoe updates worden geïnstalleerd: met de hand, in het onderhoudsvenster of elke dag; snapshot en Home Assistant met back-up.')],
     ['mailsec', L('E-mailbeveiliging'), ['mailsec'], L('SPF, DKIM en DMARC van je domeinen: kan iemand mailen namens jou?')],
-    ['sudo', L('Tijdelijk sudo'), ['sudo'], L('Een gebruiker voor korte tijd sudo geven op één server, met je wachtwoord en 2FA.')],
-    ['proxy', L('Reverse proxy'), ['proxy'], L('De apps achter je reverse proxy beschermen: adminpagina\'s alleen vanaf je netwerk, bots en te veel verzoeken.')],   // 1.254.0
-    ['patch', L('Updates'), ['patch'], L('Updates installeren: met de hand, in het onderhoudsvenster of elke dag; snapshot en Home Assistant met back-up.')],
-    ['hibp', L('Datalekken'), ['hibp'], L('Staan je e-mailadressen of domein in een datalek?')],
+    ['nis2set', L('NIS2'), ['nis2'], L('Het NIS2-overzicht aanzetten en je organisatie invullen. Het overzicht zelf staat op de pagina Compliance.')],
     ['netscan', L('Netwerkscan'), ['netscan'], L('Nieuwe apparaten en open poorten in je netwerk.')]]],
-  ['agents', SET_IC('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'), L('Agents'), [
-    ['agents', L('Overzicht'), ['agents'], L('Alle agents: status, versie, verbinding en wat aandacht nodig heeft.')],
-    ['agentdef', L('Standaardinstellingen'), ['agentdef', 'enc'], L('Wat voor alle agents geldt: bijwerken, ritme, versleuteling en certificaat.')],
-    ['commands', L('Commando-checks'), ['commands'], L('Eigen commando\'s die agents mogen uitvoeren.')]]],
-  ['rapporten', SET_IC('<path d="M4 4h16v16H4z"/><path d="M4 8l8 5 8-5"/>'), L('Rapporten'), [
-    ['reports', L('Rapporten'), ['reports'], L('Alle overzichten die RzSense per e-mail of push verstuurt, en het Maandoverzicht.')]]],
-  ['koppelingen', SET_IC('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>'), L('Koppelingen'), [
+  ['agents', SET_IC('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'), L('Agents en koppelingen'), [
+    ['agentdef', L('Standaard voor alle agents'), ['agentdef', 'enc'], L('Wat voor alle agents geldt: bijwerken, ritme, versleuteling en certificaat. Per server stel je het in bij Servers.')],
+    ['sudo', L('Tijdelijk sudo'), ['sudo'], L('Een gebruiker voor korte tijd sudo geven op één server, met je wachtwoord en 2FA.')],
+    ['commands', L('Commando-checks'), ['commands'], L('Eigen commando\'s die agents mogen uitvoeren.')],
     ['unifi', 'UniFi', ['unifi'], L('Namen, wifi, verkeer en weren van je apparaten uit je UniFi-controller.')],
     ['adguard', 'AdGuard Home', ['adguard'], L('Namen, DNS-verzoeken en DNS-blokkeren uit AdGuard Home, en de DNS-controle van het IDS.')],
     ['snmp', 'SNMP', ['snmp'], L('Eén SNMP-instelling voor al je apparaten, met per apparaat een uitzondering.')],
-    ['mqtt', L('Home Assistant (MQTT)'), ['mqtt'], L('Sensoren en meldingen in Home Assistant.')],
-    ['ai', L('AI-advies'), ['ai'], L('Advies van Claude, ChatGPT, Gemini, Grok of Ollama bij storingen.')],
-    ['api', L('REST API'), ['api'], L('API-sleutels voor andere toepassingen.')],
-    ['statuspage', L('Statuspagina'), ['statuspage'], L('Een openbare pagina met de status, via een geheime link.')]]],
+    ['mqtt', L('Home Assistant (MQTT)'), ['mqtt'], L('Sensoren en meldingen in Home Assistant.')]]],
   ['systeem', SET_IC('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'), L('Systeem'), [
     ['looks', L('Weergave'), ['looks'], L('De standaard weergave voor accounts die zelf nog niets kozen.')],
     ['update', L('Bijwerken'), ['update'], L('Nieuwe versies van RzSense, met of zonder automatisch bijwerken.')],
@@ -14356,7 +14376,9 @@ const SET_NAV = [
     ['db', L('Database en server'), ['dbconn', 'db', 'storage', 'dbuse', 'server', 'syscheck', 'cron'], L('Databaseverbinding, bewaartermijnen, tijdzone, PHP en de systeemcheck.'),
       [['database', L('Database'), ['dbconn', 'db', 'storage', 'dbuse']], ['server', L('Server'), ['server', 'syscheck', 'cron']]]],
     ['perf', L('Prestaties en fouten'), ['perf', 'errors'], L('Hoe snel RzSense is, hoe lang een cron-ronde duurt, de traagste checks en PHP-fouten.')],
-    ['actlog', L('Logboek'), ['actlog'], L('Alles wat de agent, RzSense en beheerders deden en wat er veranderde, met terugzetten.')],   // 1.235.0: met het Wijzigingslogboek
+    ['ai', L('AI-advies'), ['ai'], L('Advies van Claude, ChatGPT, Gemini, Grok of Ollama bij storingen.')],
+    ['api', L('REST API'), ['api'], L('API-sleutels voor andere toepassingen.')],
+    ['statuspage', L('Statuspagina'), ['statuspage'], L('Een openbare pagina met de status, via een geheime link.')],
     ['transfer', L('Exporteren en importeren'), ['transfer'], L('Servers, checks en instellingen overzetten.')]]],
 ];
 /* 1.181.0: de rol gebruiker ziet alleen deze onderdelen, om te bekijken (de rest is voor beheerders) */
@@ -14376,8 +14398,9 @@ if (document.body.dataset.role === 'user') {
   }
 }
 /** Oude adressen (vóór 1.92.0) → nieuwe plek */
-const SET_ALIAS = { netlinks: 'unifi', ids_rules: 'ids_edr', enc: 'agentdef', https: 'outside', setup: 'db', syscheck: 'db', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db', changelog: 'actlog', features: 'overview' };   // 1.120.0: samengevoegde onderdelen
-const SET_TAB_OF = { features: 'functies', ids_rules: 'regels', smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server' };   // oude adressen → tabblad op de pagina Advies
+const SET_ALIAS = { netlinks: 'unifi', ids_rules: 'ids_edr', enc: 'agentdef', https: 'outside', setup: 'db', syscheck: 'db', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db', changelog: 'actlog', features: 'overview',
+  quiet: 'rules', hibp: 'vulns', ids_prot: 'prot', dnsbl: 'ids_dns' };   // 1.276.0: nieuwe indeling   // 1.120.0: samengevoegde onderdelen
+const SET_TAB_OF = { features: 'functies', ids_rules: 'regels', smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server', quiet: 'stil', hibp: 'datalekken' };   // oude adressen → tabblad op de pagina Advies
 let setTab = {};   // per onderdeel met tabbladen: het gekozen tabblad
 let setSection = (() => { try { return localStorage.getItem('rzmon-set-section') || 'overview'; } catch (e) { return 'overview'; } })();
 let setHealthAt = 0;
@@ -14392,7 +14415,9 @@ function setFind(id) {
 
 function showSettingsSection(id, focusEl) {
   xpClose();
-  if (id === 'ids_prot') { showTab('ids/prot'); return; }   // 1.236.0: Beschermingen staan op één plek: IDS → Bescherming
+  // 1.276.0: deze onderdelen zijn eigen pagina's in het hoofdmenu geworden
+  const MAIN = { agents: 'servers', actlog: 'logboek', changelog: 'logboek', nis2: 'compliance' };
+  if (MAIN[id]) { showTab(MAIN[id]); return; }
   if (id === 'whitelist') { showTab('ids/blk'); setTimeout(() => { const c = $('#wl-card'); if (c) c.scrollIntoView({ behavior: 'smooth' }); }, 300); return; }   // 1.236.0: whitelist bij de blokkades
   if (SET_TAB_OF[id]) setTab[SET_ALIAS[id]] = SET_TAB_OF[id];
   // Gevonden via zoeken in een kaart op een ander tabblad: dat tabblad kiezen
@@ -14442,7 +14467,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'snmp') loadSnmpGlobal();   // 1.178.0
   if (setSection === 'reports') loadReports();   // 1.180.0
   if (setSection === 'overview' && cards.includes('features')) loadFeatures();   // 1.182.0; 1.236.0 tabblad van Status en functies
-  if (setSection === 'quiet') loadQuiet();   // 1.189.0
+  if (cards.includes('quiet')) loadQuiet();   // 1.189.0; 1.276.0 tabblad van Wanneer melden
   if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
   if (setSection === 'actlog') loadActLog();   // 1.226.0
   if (setSection === 'ids_ransom') loadRansomSet();   // 1.228.0
@@ -14451,7 +14476,8 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'sudo') loadSudoSet();   // 1.231.0
   if (setSection === 'nis2') loadNis2();   // 1.232.0
   if (setSection === 'proxy') loadProxyRoles();   // 1.254.0
-  if (setSection === 'ids_ti') loadDnsbl();
+  if (setSection === 'ids_dns') loadDnsbl();
+  if (setSection === 'prot') loadProt();   // 1.276.0: van de IDS-pagina naar de portal
   if (setSection === 'ids_edr' && cards.includes('ids_rules')) { loadEdrRules(); }   // 1.162.0
   if (setSection === 'db' || setSection === 'perf') loadSyscheck();   // 1.151.0: systeemcheck, cron, database, prestaties
   if (setSection === 'db') loadSetupInfo();
@@ -14687,7 +14713,7 @@ async function loadSettingsHealth() {
 }
 
 /**
- * IDS-schakelaars op één plek (1.122.0): aan/uit staat op de kaarten van IDS → Bescherming. De drempels van een kaart
+ * IDS-schakelaars op één plek (1.122.0): aan/uit staat op de kaarten van Instellingen → Bescherming → Beschermingen. De drempels van een kaart
  * staan achter ⚙️ (zelfde velden als in de instellingen, uit het instellingenformulier gekopieerd).
  */
 const PROT_CFG = {
@@ -14752,7 +14778,7 @@ async function protCfgDialog(id) {
 
 /** Groepen op Status (1.122.0): alle punten over agents samen, en alles over https samen */
 const OV_GROUPS = [
-  ['agents_all', () => L('Agents'), 'agents', ['agents', 'enc', 'ownkey', 'agent_https', 'agent_https_only', 'agent_audit', 'agent_ownkey_only', 'agent_ip', 'agent_sign']],
+  ['agents_all', () => L('Agents'), 'agentdef', ['agents', 'enc', 'ownkey', 'agent_https', 'agent_https_only', 'agent_audit', 'agent_ownkey_only', 'agent_ip', 'agent_sign']],
   ['https_all', () => L('Beheer via https'), 'outside', ['https', 'https_client', 'cert', 'dns', 'proxy_leg', 'http_login', 'split_dns', 'mfa_ext']],
 ];
 function ovGroup(items, rank) {
@@ -14818,7 +14844,7 @@ function polishSettings(root) {
     rest.forEach((n) => w.append(n));
     l.append(w);
   });
-  // IDS: aan/uit van een onderdeel staat op IDS → Bescherming (1.122.0); hier niet nog een keer
+  // IDS: aan/uit van een onderdeel staat op Instellingen → Bescherming → Beschermingen (1.122.0); hier niet nog een keer
   PROT_KEYS.forEach((k) => {
     const inp = $(`[data-sk^="ids"] label.switch > input[name="${k}"]`, root);
     const l = inp && inp.parentElement;
@@ -14833,9 +14859,9 @@ function polishSettings(root) {
     for (let n = h.nextElementSibling; n && !n.matches('h3.set-sub'); n = n.nextElementSibling) if (!n.hidden) { any = true; break; }
     h.hidden = !any;
   });
-  $$('[data-sk^="ids"]:not([data-sk="ids_servers"]):not([data-sk="ids_rules"]):not([data-sk="ids_prot"]) > h2', root).forEach((h) => {
+  $$('[data-sk^="ids"]:not([data-sk="ids_servers"]):not([data-sk="ids_rules"]):not([data-sk="ids_prot"]):not([data-sk="idspush"]) > h2', root).forEach((h) => {
     if (h.nextElementSibling && h.nextElementSibling.classList.contains('prot-hint')) return;
-    h.insertAdjacentHTML('afterend', `<div class="prot-hint">${L('Onderdelen aan- of uitzetten, en de drempels per onderdeel (⚙️), doe je op <a href="#ids/prot" data-goto="ids/prot">IDS → Bescherming</a>. Hier staan de algemene instellingen.')}</div>`);
+    h.insertAdjacentHTML('afterend', `<div class="prot-hint">${L('Onderdelen aan- of uitzetten, en de drempels per onderdeel (⚙️), doe je op <a href="#settings/prot" data-goto="settings/prot">Beschermingen</a>. Hier staan de algemene instellingen.')}</div>`);
   });
   $$('[data-sk] h2:not([data-pol]), [data-sk] h3.set-sub:not([data-pol])', root).forEach((h) => {
     h.dataset.pol = '1';
@@ -16851,7 +16877,7 @@ function showNewDbPassword(r) {
   loadDbInfo();
 }
 
-// ---------------------------------------------------------------- 🧬 Instellingen → IDS → Ransomware (1.228.0)
+// ---------------------------------------------------------------- 🧬 Instellingen → Bescherming → Ransomware (1.228.0)
 async function loadRansomSet() {
   const box = $('#ransom-hosts');
   if (!box) return;
@@ -17719,7 +17745,7 @@ function renderAnalytics() {
   // 🌐 Netwerk
   const n = d.network;
   const nk = (k2) => (NET_KIND[k2] || NET_KIND.unknown);
-  const net = !n.on ? anSec('🌐', L('Netwerk'), `<p class="muted">${L('De netwerkscan staat uit (Instellingen → Beveiliging → Netwerkscan).')}</p>`)
+  const net = !n.on ? anSec('🌐', L('Netwerk'), `<p class="muted">${L('De netwerkscan staat uit (Instellingen → Bescherming → Netwerkscan).')}</p>`)
     : anSec('🌐', L('Netwerk'), `<div class="an-grid">
     ${anBox(L('Apparaten'), `<div class="an-stats"><div><b>${n.total}</b><span>${L('totaal')}</span></div><div><b class="${n.new_open ? 'warn-txt' : ''}">${n.new_open}</b><span>${L('nog niet beoordeeld')}</span></div><div><b>${n.blocked}</b><span>${L('geweerd')}</span></div><div><b class="${n.risky.length ? 'crit-txt' : ''}">${n.risky.length}</b><span>${L('met riskante poort')}</span></div></div>
       <h4 class="acc-sub">${L('Nieuwe apparaten per dag')}</h4>${anBars(n.series.new)}`)}
@@ -17985,7 +18011,7 @@ function renderNetDisc() {
   const d = ndData, nd = netData;
   if (!d || !nd) return;
   const box = $('#net-disc');
-  if (!d.enabled) { box.innerHTML = `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Beveiliging → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`; return; }
+  if (!d.enabled) { box.innerHTML = `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Bescherming → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`; return; }
   const byId = Object.fromEntries(nd.devices.map((x) => [x.id, x]));
   const ev = ND_EV();
   const week = Date.now() - 7 * 86400e3;
@@ -18130,9 +18156,9 @@ function trTopHtml(limit = 10) {
   const pct = (a, b) => (b > 0 ? Math.round(((a - b) / b) * 100) : null);
   const cmp = (a, b) => { const p = pct(a, b); return p === null ? '' : ` <small class="${p > 0 ? 'warn-txt' : 'good-txt'}">${p > 0 ? '+' : ''}${p}% ${L('t.o.v. gisteren')}</small>`; };
   if (!st.on) {
-    return `<p class="muted small">${!st.unifi && st.setting ? L('Nog geen bron voor verkeer. Koppel UniFi (aanbevolen), zet SNMP aan op je switch, of werk de agent op je servers bij naar 1.80.0.') + ' ' + L('Koppel UniFi (Instellingen → Koppelingen → UniFi) om het verkeer per apparaat te zien.')
+    return `<p class="muted small">${!st.unifi && st.setting ? L('Nog geen bron voor verkeer. Koppel UniFi (aanbevolen), zet SNMP aan op je switch, of werk de agent op je servers bij naar 1.80.0.') + ' ' + L('Koppel UniFi (Instellingen → Agents en koppelingen → UniFi) om het verkeer per apparaat te zien.')
       : !st.account ? L('Verkeer per apparaat vraagt een lokaal UniFi-account; met alleen een API-sleutel geeft UniFi geen tellers.')
-      : !st.setting ? L('Verkeer per apparaat staat uit (Instellingen → Beveiliging → Netwerkscan).') : L('De netwerkscan staat uit.')}</p>`;
+      : !st.setting ? L('Verkeer per apparaat staat uit (Instellingen → Bescherming → Netwerkscan).') : L('De netwerkscan staat uit.')}</p>`;
   }
   if (st.error) return `<p class="warn-txt small">⚠️ ${esc(st.error)}</p>`;
   if (!rows.length) return `<p class="muted small">${L('Nog geen verkeer gemeten. Na 5 tot 10 minuten zie je hier de eerste cijfers.')}</p>`;
@@ -18226,7 +18252,7 @@ function renderNetMap() {
   const d = netData, box = $('#net-map');
   if (!box) return;
   if (!d) { box.innerHTML = `<p class="muted">${L('laden…')}</p>`; return; }
-  if (!d.enabled) { box.innerHTML = `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Beveiliging → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`; return; }
+  if (!d.enabled) { box.innerHTML = `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Bescherming → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`; return; }
   const day = Date.now() - 86400e3;
   const ts = (s) => new Date(String(s).replace(' ', 'T')).getTime();
   const devs = d.devices.filter((x) => x.status !== 'ignored');
@@ -18328,7 +18354,7 @@ function renderNetNow() {
   // Uitleg bovenaan: uit, geen netwerk, of nog nooit gescand
   const nets = d.networks || { scan: [], skip: [] };
   $('#net-banner').innerHTML = !d.enabled
-    ? `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Beveiliging → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`
+    ? `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Bescherming → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`
     : !nets.scan.length ? `<div class="v-banner">⚠️ <span>${L('Geen netwerk om te scannen: zet je netwerk (bv. 192.168.1.0/24) bij <a href="#settings/access" data-goto="settings/access">Toegang → Lokale netwerken</a>.')}</span></div>`
     : st.sweep_error ? `<div class="v-banner">⚠️ <span>${esc(st.sweep_error)}</span></div>`
     : st.links_error ? `<div class="v-banner">⚠️ <span>${esc(st.links_error)}</span> ${isAdmin() ? `<a href="#settings/netlinks" data-goto="settings/netlinks">${L('Instellingen')}</a>` : ''}</div>`
@@ -18676,7 +18702,7 @@ function renderLeaks() {
   if ($('#vt-n-leak')) $('#vt-n-leak').textContent = open.length || '';
   // Meldingen bovenaan: geen sleutel, fouten
   $('#leak-banner').innerHTML = [
-    !d.has_key ? `<div class="v-banner info">ℹ️ <span>${L('Geen API-sleutel: alleen de wachtwoorden van RzSense-accounts worden gecontroleerd. Een sleutel vul je in bij Instellingen → Beveiliging → Datalekken.')}</span></div>` : '',
+    !d.has_key ? `<div class="v-banner info">ℹ️ <span>${L('Geen API-sleutel: alleen de wachtwoorden van RzSense-accounts worden gecontroleerd. Een sleutel vul je in bij Instellingen → Bescherming → Kwetsbaarheden en datalekken.')}</span></div>` : '',
     d.last_error ? `<div class="v-banner">⚠️ <span><b>HIBP:</b> ${esc(d.last_error)}</span></div>` : '',
     d.domain_error ? `<div class="v-banner">⚠️ <span><b>${L('Domein')}:</b> ${esc(d.domain_error)}</span></div>` : '',
   ].join('');
@@ -18999,7 +19025,7 @@ function vulnBuzzHtml(d) {
     <div class="vbz-top">
       <div class="vbz-ring" style="--p:${b.score}"><div><b>${b.checked_at ? b.score : '–'}</b><small>${L('rugbaarheid')}</small></div></div>
       <div class="vbz-txt"><h3>🔥 ${L('Rugbaarheid')} ${b.checked_at && b.trend ? `<span class="vbz-trend ${b.trend > 0 ? 'up' : 'down'}">${b.trend > 0 ? '↑ +' : '↓ '}${b.trend} ${L('in 7 dagen')}</span>` : ''}</h3>
-        <p class="muted small">${b.checked_at ? L('Exploits {e}/60 · praat {t}/40 · bijgewerkt {w}', { e: b.exploit, t: b.talk, w: ago(b.checked_at) }) : b.on ? L('Nog niet bijgewerkt; dat gebeurt bij de volgende scan.') : L('Staat uit (Instellingen → Kwetsbaarheden → Rugbaarheid).')}</p>
+        <p class="muted small">${b.checked_at ? L('Exploits {e}/60 · praat {t}/40 · bijgewerkt {w}', { e: b.exploit, t: b.talk, w: ago(b.checked_at) }) : b.on ? L('Nog niet bijgewerkt; dat gebeurt bij de volgende scan.') : L('Staat uit (Instellingen → Bescherming → Kwetsbaarheden en datalekken).')}</p>
         ${spark}
         ${b.on ? `<button type="button" class="btn small-btn" data-vbuzz-now>↻ ${L('Nu bijwerken')}</button>` : ''}</div>
     </div>
@@ -20037,9 +20063,23 @@ async function loadIncidents() {
   renderIncidents();
 }
 
+/** 1.276.0: één inbox. Aanvallen = de volledige IDS-lijst (met blokkeren, uitzonderingen en bundels); de rest filtert deze lijst. */
+function incSrcShow() {
+  const host = $('#inc-ids-host');
+  if (!host) return;
+  const pane = $('.ids-pane[data-pane="inc"]');
+  if (pane && pane.parentElement !== host && document.body.dataset.role !== 'readonly') { host.append(pane); pane.hidden = false; }
+  $$('#inc-src [data-isrc]').forEach((b) => b.classList.toggle('active', b.dataset.isrc === incSrc));
+  const ids = incSrc === 'ids' && host.contains(pane);
+  host.hidden = !ids;
+  $$('#tab-incidents .pcard[data-pk="bar"], #tab-incidents .pcard[data-pk="list"]').forEach((c) => { c.hidden = ids; });
+  if (ids) loadIds();
+  else if (incData) renderIncidents();
+}
+
 function incVisible() {
   const q = ($('#inc-search').value || '').trim().toLowerCase();
-  return incData.incidents.filter((i) => (incFilter === 'all' || (incFilter === 'active' ? i.status !== 'resolved' : i.status === incFilter))
+  return incData.incidents.filter((i) => (incSrc === 'all' || incSrc === 'ids' || i.source === incSrc) && (incFilter === 'all' || (incFilter === 'active' ? i.status !== 'resolved' : i.status === incFilter))
     && (!q || [i.title, i.host || '', i.owner || '', i.detail].join(' ').toLowerCase().includes(q)));
 }
 
@@ -20054,7 +20094,8 @@ function renderIncidents() {
     <div class="kpi"><div class="kpi-lbl">${L('In behandeling')}</div><div class="kpi-val">${c.ack}</div><div class="kpi-sub">${L('met een eigenaar')}</div></div>
     <div class="kpi"><div class="kpi-lbl">${L('Opgelost (30 dagen)')}</div><div class="kpi-val ${c.resolved ? 'good-txt' : ''}">${c.resolved}</div><div class="kpi-sub">${L('vanzelf of door iemand')}</div></div>
     <div class="kpi"><div class="kpi-lbl">${L('Gemiddeld opgelost na')}</div><div class="kpi-val kpi-val-txt">${c.mttr !== null ? fmtDur(c.mttr) : '–'}</div><div class="kpi-sub">${L('laatste 30 dagen')}</div></div>`;
-  const n = (f) => incData.incidents.filter((i) => (f === 'all' ? true : f === 'active' ? i.status !== 'resolved' : i.status === f)).length;
+  if ($('#isrc-n-ids')) $('#isrc-n-ids').textContent = incData.incidents.filter((i) => i.source === 'ids' && i.status !== 'resolved').length || '';
+  const n = (f) => incData.incidents.filter((i) => (incSrc === 'all' || incSrc === 'ids' || i.source === incSrc) && (f === 'all' ? true : f === 'active' ? i.status !== 'resolved' : i.status === f)).length;
   $('#inc-filter').innerHTML = [['active', L('Nog bezig')], ['open', L('Open')], ['ack', L('In behandeling')], ['resolved', L('Opgelost')], ['all', L('Alles')]]
     .map(([k, l]) => `<button type="button" class="dchip ${incFilter === k ? 'on' : ''}" data-incf="${k}">${l} <b>${n(k)}</b></button>`).join('');
   const list = incVisible();
@@ -20083,7 +20124,7 @@ async function caseDialog(id) {
   const [ic, src] = INC_SRC[i.source] || ['•', () => i.source];
   const users = (incData && incData.users) || [];
   const KIND = { system: '⚙️', status: '🔁', owner: '👤', note: '💬' };
-  const go = i.source === 'check' ? ['dashboard', L('Naar Monitoring')] : i.source === 'ids' ? ['ids', L('Naar IDS')] : ['vulns', L('Naar Kwetsbaarheden')];
+  const go = i.source === 'check' ? ['dashboard', L('Naar Monitoring')] : i.source === 'ids' ? ['incidents/ids', L('Naar de aanvallen')] : ['vulns', L('Naar Kwetsbaarheden')];
   const { form } = modal({
     title: `${ic} ${i.title}`, wide: true,
     body: `<div style="padding:1rem 1.2rem">
@@ -20121,6 +20162,7 @@ async function caseDialog(id) {
 (function incWire() {
   if (!$('#inc-list')) return;
   $('#inc-filter').addEventListener('click', (e) => { const b = e.target.closest('[data-incf]'); if (b) { incFilter = b.dataset.incf; renderIncidents(); } });
+  $('#inc-src').addEventListener('click', (e) => { const b = e.target.closest('[data-isrc]'); if (!b) return; incSrc = b.dataset.isrc; incSrcShow(); history.replaceState(null, '', '#incidents' + (incSrc === 'all' ? '' : '/' + incSrc)); crumbs(); });
   $('#inc-search').addEventListener('input', () => renderIncidents());
   const open = (e) => { const r = e.target.closest('[data-inc]'); if (r) caseDialog(+r.dataset.inc); };
   $('#inc-list').addEventListener('click', open);
@@ -20138,7 +20180,7 @@ async function caseDialog(id) {
   };
 })();
 
-// ---------------------------------------------------------------- Internet (1.157.0): Instellingen → Monitoring → Internet
+// ---------------------------------------------------------------- Internet (1.157.0): Instellingen → Monitoring → Internetcheck
 async function loadInet() {
   const box = $('#inet-state');
   if (!box) return;
@@ -20186,7 +20228,7 @@ async function loadInet() {
 }
 // ---------------------------------------------------------------- 🧩 Onbekende programma's en 🔎 Jagen op sporen (1.229.0, agent 1.91.0)
 // IDS → Programma's (wat er draait, toestaan/blokkeren), IDS → Jagen (sporen zoeken, ook op de servers, en bewaken),
-// de kaart in de Agent Manager en Instellingen → IDS → Programma's / Jagen op sporen.
+// de kaart in de Agent Manager en Instellingen → Bescherming → Programma's / Jagen op sporen.
 const APP_ST = {
   new: () => ['⚠', L('onbekend'), 'warn'], block: () => ['⛔', L('geblokkeerd'), 'bad'], ok: () => ['✔', L('toegestaan'), 'ok'],
   learn: () => ['🎓', L('geleerd'), 'muted'], pkg: () => ['📦', L('uit een pakket'), 'muted'],
@@ -20206,7 +20248,7 @@ async function loadApps() {
   $('#it-n-apps').textContent = c.new + c.block || '';
   const learning = d.hosts.filter((h) => h.on && h.learning && h.until);
   const noAgent = d.hosts.filter((h) => h.on && !h.agent_ok).length;
-  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Onbekende programma\'s staat uit (Instellingen → IDS → Programma\'s).')}</div>` : ''}
+  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Onbekende programma\'s staat uit (Instellingen → Bescherming → Programma\'s).')}</div>` : ''}
     <div class="app-sum">${['new', 'block', 'ok', 'learn', 'pkg'].map((s) => `<button type="button" class="app-sum-b${appsOpt.status === s ? ' active' : ''}" data-app-st="${s}">${appChip(s)} <b>${c[s] || 0}</b></button>`).join('')}
       <button type="button" class="app-sum-b${appsOpt.status === '' ? ' active' : ''}" data-app-st="">${L('Zonder pakket')}</button><button type="button" class="app-sum-b${appsOpt.status === 'all' ? ' active' : ''}" data-app-st="all">${L('Alles')}</button></div>
     ${learning.length ? `<p class="muted small">🎓 ${L('Leert nog (wat nu draait wordt als normaal gezien):')} ${learning.map((h) => `${esc(h.name)} ${L('tot {d}', { d: new Date(h.until.replace(' ', 'T')).toLocaleDateString(LOCALE) })}`).join(' · ')}</p>` : ''}
@@ -20361,7 +20403,7 @@ async function amApps(h, body) {
   const c = d.counts;
   const until = d.since ? new Date(new Date(d.since.replace(' ', 'T')).getTime() + d.learn * 86400000) : null;
   amSum('apps', !d.on || !d.host_on ? esc(L('uit')) : c.new ? `<b class="warn-txt">${esc(L('{n} onbekend', { n: c.new }))}</b> · ${esc(L('{n} geblokkeerd', { n: c.block || 0 }))}` : d.learning ? esc(L('leert nog wat normaal is')) : '✔ ' + esc(L('niets onbekends')), !!(d.on && d.host_on && c.new));   // 1.246.0
-  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Onbekende programma\'s staat uit voor alle servers (Instellingen → IDS → Programma\'s).')}</div>` : ''}
+  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Onbekende programma\'s staat uit voor alle servers (Instellingen → Bescherming → Programma\'s).')}</div>` : ''}
     ${!d.agent_ok ? `<div class="callout small">${L('Agent 1.91.0 of nieuwer nodig (en als root); werk de agent bij.')}</div>` : ''}
     ${amRow('🧩 ' + L('Programma\'s bijhouden'), L('wat er draait, met vingerafdruk en pakket; na de leerperiode valt een onbekend programma op'), amSw('ap-on', d.host_on))}
     ${amRow('⛔ ' + L('Geblokkeerde programma\'s stoppen'), L('de agent stopt een programma dat je blokkeerde zodra het draait. Aanzetten vraagt je wachtwoord.'), amSw('ap-kill', d.kill))}
@@ -20390,7 +20432,7 @@ async function amApps(h, body) {
   };
 }
 
-// ---------------------------------------------------------------- Instellingen → IDS → Programma's
+// ---------------------------------------------------------------- Instellingen → Bescherming → Programma's
 async function loadAppsSet() {
   const box = $('#apps-hosts');
   if (!box) return;
@@ -20403,8 +20445,8 @@ async function loadAppsSet() {
     : `<p class="muted">${L('Nog geen servers met de agent.')}</p>`;
 }
 // ---------------------------------------------------------------- 🩹 Updates installeren (patchbeheer, 1.230.0, agent 1.92.0)
-// Kwetsbaarheden → Updates (overzicht en nu installeren), de kaart in de Agent Manager (keuze per server) en
-// Instellingen → Beveiliging → Updates. Bijwerken zelf loopt via dezelfde opdracht als "pakketten bijwerken" (Vulns),
+// de pagina Updates (overzicht en nu installeren), de kaart in de Agent Manager (keuze per server) en
+// Instellingen → Bescherming → Updatebeleid. Bijwerken zelf loopt via dezelfde opdracht als "pakketten bijwerken" (Vulns),
 // dus de voortgang is hetzelfde venster (vulnUpgradeDialog).
 const PATCH_MODE = { manual: () => L('met de hand'), window: () => L('in het onderhoudsvenster'), auto: () => L('elke dag') };
 const PATCH_KIND = { ha: () => '🏠 Home Assistant', truenas: () => '🗄️ TrueNAS', linux: () => '🐧 Linux' };
@@ -20429,7 +20471,7 @@ async function loadPatch() {
   const hs = d.hosts;
   const sec = hs.reduce((n, h) => n + (h.kind === 'linux' ? h.sec : 0), 0);
   if ($('#vt-n-patch')) $('#vt-n-patch').textContent = sec || '';
-  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Updates installeren staat uit (Instellingen → Beveiliging → Updates). Je ziet wel wat er klaarstaat.')}</div>` : ''}
+  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Updates installeren staat uit (Instellingen → Bescherming → Updatebeleid). Je ziet wel wat er klaarstaat.')}</div>` : ''}
     <div class="app-sum"><span class="app-sum-b">🛡 <b>${sec}</b> ${L('beveiligingsupdates')}</span><span class="app-sum-b">⬆ <b>${hs.reduce((n, h) => n + h.avail, 0)}</b> ${L('updates')}</span>
       <span class="app-sum-b">↻ <b>${hs.filter((h) => h.rb).length}</b> ${L('herstart nodig')}</span><span class="app-sum-b">🤖 <b>${hs.filter((h) => h.mode !== 'manual').length}</b> ${L('automatisch')}</span></div>
     ${hs.length ? `<div class="btn-row need-admin"><button type="button" class="btn small-btn primary" id="ph-bulk">⚙️ ${L('Meerdere servers instellen…')}</button>
@@ -20563,13 +20605,13 @@ async function amPatch(h, body) {
   if ($('#pt-now', box)) $('#pt-now', box).onclick = () => patchNow(d, 'security', () => amPatch(h, body));
 }
 
-// ---------------------------------------------------------------- Instellingen → Beveiliging → Updates
+// ---------------------------------------------------------------- Instellingen → Bescherming → Updatebeleid
 async function loadPatchSet() {
   const box = $('#patch-hosts');
   if (!box) return;
   let d;
   try { d = await api('patch'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  // 1.236.0: alleen een samenvatting; de lijst per server (met instellen) staat op Kwetsbaarheden → Updates
+  // 1.236.0: alleen een samenvatting; de lijst per server (met instellen) staat op de pagina Updates
   const auto = d.hosts.filter((h) => h.kind !== 'truenas' && h.mode && h.mode !== 'off').length;
   box.innerHTML = d.hosts.length ? `<p class="small">${L('{a} van {n} servers werken zichzelf automatisch bij.', { a: auto, n: d.hosts.length })}
     <a class="btn small-btn" href="#vulns/patch" data-goto="vulns/patch">${L('Per server bekijken en instellen')} →</a></p>`
@@ -20600,7 +20642,7 @@ async function amSudo(h, body) {
   try { d = await api('sudo_list', null, { host_id: h.id }); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const active = d.grants.filter((g) => ['pending', 'active'].includes(g.state) && g.left);
   amSum('sudo', !d.on ? esc(L('uit')) : active.length ? `<b class="warn-txt">${esc(L('{n} nu actief', { n: active.length }))}</b>` : esc(L('niemand heeft nu tijdelijk sudo')), active.length > 0);   // 1.246.0
-  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Tijdelijk sudo staat uit (Instellingen → Beveiliging → Tijdelijk sudo).')}</div>` : ''}
+  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Tijdelijk sudo staat uit (Instellingen → Agents en koppelingen → Tijdelijk sudo).')}</div>` : ''}
     ${!d.agent_ok ? `<div class="callout small">${L('Agent 1.93.0 of nieuwer nodig (op Linux, als root, met visudo).')}</div>` : ''}
     ${active.length ? `<p class="small"><b>${L('Nu actief')}</b></p>${sudoRows(active, false)}` : `<p class="muted small">${L('Nu heeft niemand tijdelijk sudo op deze server.')}</p>`}
     <div class="btn-row"><button type="button" class="btn primary small-btn" id="sudo-new" ${!d.on || !d.agent_ok ? 'disabled' : ''}>🔑 ${L('Tijdelijk sudo geven')}</button></div>
@@ -20997,6 +21039,7 @@ function fhScale(el, f, unit) {
   if (el.min !== '') p.min = String(+el.min / f);
   if (el.max !== '') p.max = String(+el.max / f);
   p.setAttribute('aria-label', fhUnit(unit, 2));
+  p.dataset.fh = '1';
   el.after(p);
   el.hidden = true;
   const show = () => { const v = desc.get.call(el); p.value = v === '' ? '' : String(Math.round((+v / f) * 100) / 100); };
@@ -21018,14 +21061,42 @@ function fhLongHint(lab) {
     .find((x) => !x.id && !x.querySelector('[id], a') && x.textContent.trim().length >= 40) || null;
 }
 
-/** Een veld voorzien van ⓘ (uitleg in een uitklapper) en de "≈"-regel */
+/** 1.276.0: de eerste zin van een tekst (voor de korte uitleg met de muis erover) */
+function fhFirst(t) {
+  const m = String(t || '').trim().match(/^[\s\S]{20,180}?[.!?](?=\s|$)/);
+  return (m ? m[0] : String(t || '').trim()).slice(0, 200);
+}
+/** 1.276.0: geen eigen uitleg? Dan de korte uitleg van het onderdeel waar het veld in staat (nooit een veld zonder ?) */
+function fhSection(el) {
+  let n = el;
+  while (n && n !== document.body) {
+    let p = n.previousElementSibling;
+    while (p) {
+      const x = p.matches('.xp') ? p : null;
+      if (x) return x.querySelector('.xp-s > span')?.textContent.trim() || '';
+      if (p.matches('h2, h3.set-sub')) break;
+      p = p.previousElementSibling;
+    }
+    n = n.parentElement;
+    if (n && n.matches('.set-sec, .modal-body, form, section')) {
+      const x = n.querySelector(':scope > .xp .xp-s > span');
+      if (x) return x.textContent.trim();
+    }
+  }
+  return '';
+}
+
+/** Een veld voorzien van ? (kort met de muis erover, de volledige uitleg met een klik) en de "≈"-regel */
 function fhField(el, info) {
   if (el.dataset.fh) return;
   el.dataset.fh = '1';
   const lab = el.closest('label');
   const title = el.getAttribute('title') || lab?.getAttribute('title') || '';
   const hint = fhLongHint(lab);
-  if (!info && !title && !hint) return;
+  const isSw = el.type === 'checkbox';
+  const sec = !info && !title && !hint && el.name ? fhSection(el) : '';
+  if (!info && !title && !hint && !sec) return;
+  if (sec) info = { h: sec };
   if (title) { el.removeAttribute('title'); lab?.removeAttribute('title'); }
   const long = hint ? hint.textContent.trim().replace(/^\(([\s\S]*)\)$/, '$1') : '';
   if (hint) hint.remove();
@@ -21037,12 +21108,29 @@ function fhField(el, info) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'fh-i';
-  btn.textContent = 'ⓘ';
+  btn.textContent = '?';
   btn.setAttribute('aria-label', L('Uitleg'));
   btn.setAttribute('aria-expanded', 'false');
   btn.dataset.tip = [h, extra].filter(Boolean).join(' ');   // ook vindbaar met zoeken in de instellingen
+  btn.dataset.short = fhFirst(info?.s || h || extra);   // 1.276.0: korte uitleg met de muis erover
+  // 1.276.0: de naam van het veld en de ? op één regel (de tekst vóór het veld in een .lbl-line)
+  if (lab && !isSw && !lab.querySelector(':scope > .lbl-line')) {
+    const kids = [];
+    for (const n of [...lab.childNodes]) {
+      if (n.nodeType === 1 && n.matches('input, select, textarea, br, .inline-row, .fh-eq, .slf, [data-sl]')) break;
+      kids.push(n);
+    }
+    if (kids.some((n) => n.textContent.trim())) {
+      const w = document.createElement('span');
+      w.className = 'lbl-line';
+      lab.insertBefore(w, kids[0]);
+      kids.forEach((n) => w.append(n));
+    }
+  }
   const line = lab && (lab.querySelector(':scope > .lbl-line') || lab);
-  if (line) {
+  if (isSw && lab) (lab.querySelector('.sw-txt') || lab).append(btn);   // 1.276.0: bij een schakelaar achter de tekst
+  else if (line === lab?.querySelector(':scope > .lbl-line')) line.append(btn);
+  else if (line) {
     const first = [...line.childNodes].find((n) => n.nodeType === 1 && n.matches('input,select,textarea,.hint,.muted,br,.fh-eq,.inline-row'));
     line.insertBefore(btn, first || null);
   } else shown.after(btn);
@@ -21063,6 +21151,7 @@ function fhField(el, info) {
     if (open) { open.remove(); btn.setAttribute('aria-expanded', 'false'); return; }
     const rows = [];
     if (u && fhUnit(u, 2)) rows.push([L('Eenheid'), esc(fhUnit(u, 2))]);
+    if (isSw) rows.length = 0;
     if (shown.type === 'number' && (shown.min !== '' || shown.max !== '')) rows.push([L('Bereik'), esc([shown.min !== '' ? dec(shown.min) : '…', shown.max !== '' ? dec(shown.max) : '…'].join(' – '))]);
     if (info?.z) rows.push([L('Leeg of 0'), esc(info.z)]);
     if (info?.d !== undefined) {
@@ -21090,13 +21179,240 @@ function fhField(el, info) {
 function fieldHelp(root) {
   if (!root) return;
   const reg = FH();
+  const sh = FH_SHORT();
   root.querySelectorAll('input, select, textarea').forEach((el) => {
-    if (el.type === 'hidden' || el.type === 'checkbox' || el.type === 'radio' || el.dataset.sl || el.dataset.fh) return;
-    fhField(el, el.name ? reg[el.name] : undefined);
+    if (el.type === 'hidden' || el.type === 'radio' || el.dataset.sl || el.dataset.fh) return;
+    // 1.276.0: ook schakelaars (alleen een vinkje in een label met tekst)
+    if (el.type === 'checkbox' && !(el.closest('label.switch') && el.closest('label').textContent.trim())) return;
+    const own = el.name ? reg[el.name] : undefined;
+    const s = el.name ? sh[el.name] : undefined;
+    fhField(el, own ? { ...own, s: s || own.s } : (s ? { h: s } : undefined));
   });
 }
 /** De ≈-regels opnieuw berekenen (na het laden van de waarden) */
 function fieldHelpRefresh(root) { if (root) root.querySelectorAll('[data-fh]').forEach((el) => el.fhUpd && el.fhUpd()); }
+
+/** 1.276.0: korte uitleg per veld (de ? met de muis erover); de volledige uitleg staat in FH() */
+const FH_SHORT = () => ({
+  nis2_on: L("Zet de pagina Compliance aan met de tien NIS2-maatregelen en de meldtermijnen bij een incident."),
+  nis2_org: L("De naam van je organisatie bovenaan het NIS2-rapport."),
+  nis2_csirt: L("Waar je een ernstig incident meldt; staat in het rapport en bij de meldtermijnen."),
+  pushover_enabled: L("Meldingen naar je telefoon via de Pushover-app."),
+  pushover_user: L("Je user key uit de Pushover-app (begint meestal met 'u')."),
+  pushover_token: L("Het API-token van je eigen Pushover-applicatie. Gaat nooit terug naar de browser."),
+  pushover_priority_crit: L("Hoe hard een critical binnenkomt. Emergency herhaalt tot je hem bevestigt."),
+  pushover_priority_warn: L("Hoe hard een warning binnenkomt. Laag = zonder geluid."),
+  pushover_sound: L("Het geluid van een melding; leeg = het standaardgeluid in je Pushover-app."),
+  ntfy_enabled: L("Meldingen via ntfy (eigen server of ntfy.sh), als alternatief of naast Pushover."),
+  ntfy_server: L("Het adres van de ntfy-server, bv. https://ntfy.sh of je eigen server."),
+  ntfy_topic: L("Het onderwerp waarop je app is geabonneerd. Kies iets dat niemand raadt."),
+  ntfy_token: L("Alleen nodig als je ntfy-server inloggen vraagt."),
+  confirm_fast: L("Bij twijfel kijkt RzSense na 20 seconden opnieuw, zodat een echte storing sneller bevestigd is."),
+  notify_unknown: L("Ook melden als een check geen uitslag geeft (bv. agent stil). Uit = alleen warning en critical."),
+  notify_lang: L("In welke taal meldingen en checkberichten worden geschreven, los van de taal van je scherm."),
+  notify_recovery_acked: L("Ook een herstelmelding sturen als iemand de storing al had bevestigd."),
+  esc_on: L("Een storing die niemand bevestigt, komt na een tijd nog een keer binnen, een stap hoger."),
+  esc_crit_prio: L("Hoe een onbevestigde critical opnieuw binnenkomt: hoge prioriteit of nood (herhaalt tot je bevestigt)."),
+  esc_quiet: L("Tijdens stille uren niet escaleren; daarna wel."),
+  notify_bundle_hosts: L("Gaan meerdere servers tegelijk mis, dan één melding met de waarschijnlijke oorzaak (bv. een switch)."),
+  auto_maint_enabled: L("Een check die steeds opnieuw meldt, gaat vanzelf even in onderhoud, zodat je niet overspoeld wordt."),
+  ha_webhook_enabled: L("Meldingen naar een webhook sturen, bv. een automatisering in Home Assistant."),
+  ha_webhook_url: L("Het volledige adres van de webhook (Home Assistant: …/api/webhook/<id>)."),
+  ha_webhook_verify_ssl: L("Controleert het certificaat van de webhook. Alleen uit bij een eigen (self-signed) certificaat."),
+  email_enabled: L("Meldingen en rapporten per e-mail."),
+  email_mode: L("Altijd mailen, of alleen als reserve als Pushover uit staat of mislukt."),
+  smtp_host: L("De uitgaande mailserver van je provider of mailserver, bv. smtp.provider.nl."),
+  smtp_port: L("Meestal 587 (STARTTLS) of 465 (SSL/TLS). 25 alleen binnen je eigen netwerk."),
+  smtp_security: L("Hoe de verbinding met de mailserver versleuteld wordt; past bij de poort."),
+  smtp_user: L("Gebruikersnaam voor de mailserver; leeg = zonder inloggen."),
+  smtp_pass: L("Wachtwoord voor de mailserver. Gaat nooit terug naar de browser."),
+  mail_from: L("Het afzenderadres; leeg = de gebruikersnaam."),
+  mail_to: L("Wie de meldingen en rapporten krijgt; meerdere adressen met een komma."),
+  smtp_verify_ssl: L("Controleert het certificaat van de mailserver. Alleen uit bij een eigen (self-signed) certificaat."),
+  ids_modern: L("Een ruimere IDS-pagina met kaarten en grafieken; uit = compacte lijst."),
+  af_motion: L("Hoeveel er beweegt in de Attack Flow en het Command center. Stil = niets."),
+  unifi_url: L("Het adres van je UniFi-controller of UniFi OS-apparaat."),
+  unifi_site: L("De site in de controller; bijna altijd 'default'."),
+  unifi_user: L("Een lokaal account op de controller (geen Ubiquiti-cloudaccount)."),
+  unifi_pass: L("Wachtwoord van dat account. Gaat nooit terug naar de browser."),
+  unifi_key: L("In plaats van een account: een API-sleutel (alleen lezen; apparaten weren kan dan niet)."),
+  unifi_verify_ssl: L("Controleert het certificaat van de controller. UniFi heeft standaard een eigen certificaat: dan uit."),
+  adguard_urls: L("Het adres van AdGuard Home; bij meerdere gesynchroniseerde instanties allemaal, één per regel."),
+  adguard_user: L("Gebruikersnaam van AdGuard Home."),
+  adguard_pass: L("Wachtwoord van AdGuard Home. Gaat nooit terug naar de browser."),
+  adguard_verify_ssl: L("Controleert het certificaat; alleen aan bij https met een geldig certificaat."),
+  mqtt_enabled: L("Stuurt de status van je servers en checks als sensoren naar Home Assistant (via MQTT)."),
+  mqtt_host: L("Het adres van je MQTT-broker, bv. de Mosquitto-add-on van Home Assistant."),
+  mqtt_port: L("1883 zonder versleuteling, 8883 met TLS."),
+  mqtt_tls: L("Versleutelde verbinding met de broker; past bij de poort."),
+  mqtt_user: L("Gebruikersnaam voor de broker."),
+  mqtt_pass: L("Wachtwoord voor de broker. Gaat nooit terug naar de browser."),
+  mqtt_prefix: L("Waar Home Assistant naar nieuwe apparaten luistert; standaard 'homeassistant'."),
+  mqtt_base_topic: L("Onder welk topic RzSense zijn eigen berichten zet."),
+  mqtt_verify_ssl: L("Controleert het certificaat van de broker bij TLS."),
+  ai_on: L("Advies van een AI-model bij storingen, incidenten en de reverse proxy. Je kiest zelf welk model."),
+  ai_provider: L("Welk AI-model: een cloudmodel (Claude, ChatGPT, Gemini, Grok) of Ollama op je eigen server."),
+  ai_ollama_url: L("Het adres van je Ollama-server, bv. http://192.168.1.20:11434."),
+  ai_ollama_model: L("Welk model Ollama gebruikt (bv. llama3.1). Moet op de server staan."),
+  ai_claude_key: L("Je API-sleutel van Anthropic (console.anthropic.com). Gaat nooit terug naar de browser."),
+  ai_claude_model: L("Welk Claude-model; een sneller model is goedkoper, een groter model denkt beter na."),
+  ai_openai_key: L("Je API-sleutel van OpenAI. Gaat nooit terug naar de browser."),
+  ai_openai_model: L("Welk ChatGPT-model; met ⟳ haal je de lijst op."),
+  ai_gemini_key: L("Je API-sleutel van Google AI Studio. Gaat nooit terug naar de browser."),
+  ai_gemini_model: L("Welk Gemini-model; met ⟳ haal je de lijst op."),
+  ai_grok_key: L("Je API-sleutel van xAI. Gaat nooit terug naar de browser."),
+  ai_grok_model: L("Welk Grok-model; met ⟳ haal je de lijst op."),
+  ai_auto: L("Bij een nieuwe storing vraagt RzSense zelf advies, zonder dat je op een knop drukt (binnen de daglimiet)."),
+  ai_mask: L("Namen, IP- en e-mailadressen gaan als labels naar de cloud en komen in het antwoord weer terug."),
+  ai_memory: L("Wat eerder hielp bij dezelfde storing gaat mee naar de AI, zodat het advies beter wordt."),
+  ai_cache: L("Dezelfde storing krijgt een tijd lang hetzelfde advies, zonder opnieuw te betalen."),
+  ai_fallback: L("Werkt het cloudmodel niet of is het tegoed op, dan valt RzSense terug op Ollama."),
+  ai_notify: L("Bij automatisch advies krijg je een korte melding met de waarschijnlijke oorzaak."),
+  ai_triage: L("Nieuwe IDS-incidenten krijgen een label: lijkt onschuldig, verdacht of lijkt echt."),
+  ai_report: L("Na een opgelost incident een knop voor een kort verslag (wat, hoe lang, wat hielp)."),
+  ids_block_shared: L("Wordt een aanvaller op één server geblokkeerd, dan meteen op al je servers."),
+  ids_push_mode: L("Wanneer een aanval een pushmelding geeft. Aanbevolen: alleen als je iets moet doen."),
+  ids_digest_on: L("Elke dag één stille melding met de aanvallen van de afgelopen 24 uur."),
+  ids_digest_time: L("Hoe laat de dagelijkse samenvatting komt."),
+  ids_decoy_users: L("Gebruikersnamen die niemand echt gebruikt (bv. admin, oracle). Een inlogpoging ermee = blokkeren."),
+  ids_decoy_port: L("Een poort waar niets draait. Wie hem probeert, scant je server en wordt geblokkeerd."),
+  ids_fim_exclude: L("Bestanden en mappen die vaak veranderen en geen melding moeten geven."),
+  auth_events: L("Houdt logins, sudo en su op je servers bij (IDS → Toegang)."),
+  auth_ignore: L("Gebruikers of adressen die vaak inloggen en geen melding moeten geven, bv. een back-upaccount."),
+  edr_on: L("Kijkt live mee naar processen, verbindingen en bestanden op je servers."),
+  edr_sigma: L("Gebruikt naast de eigen regels ook de open Sigma-regels (SigmaHQ)."),
+  edr_web: L("Bekijkt verdachte webverzoeken via je reverse proxy op SQL-injectie, XSS en bekende lekken."),
+  edr_kill: L("Stopt een proces meteen als een regel dat zegt (webshell, reverse shell, cryptominer)."),
+  edr_block: L("Blokkeert het IP-adres bij een webaanval met een herkende aanval erin."),
+  edr_isolate: L("Sluit een server 24 uur af van alles behalve RzSense en je LAN bij een reverse shell of miner."),
+  edr_anom: L("Meldt gedrag dat afwijkt van wat RzSense op die server als normaal heeft geleerd."),
+  edr_chain: L("Meldt combinaties van gebeurtenissen die samen op een aanval wijzen."),
+  edr_chain_act: L("Grijpt in bij zo'n keten: aanvaller blokkeren, of isoleren bij webshell of malware."),
+  ti_on: L("Zoekt IP-adressen, domeinen en bestanden op in openbare lijsten van bekende aanvallers en malware."),
+  ti_abuseipdb_key: L("Gratis sleutel van AbuseIPDB voor het opzoeken van IP-adressen (1.000 per dag)."),
+  ti_report: L("Meldt aanvallers die RzSense automatisch blokkeert aan AbuseIPDB, zodat anderen ze ook kennen."),
+  ti_greynoise: L("Zegt of een IP het hele internet scant, een bekende dienst is (Google, Shodan) of kwaadaardig."),
+  ti_greynoise_key: L("Optioneel; zonder sleutel ongeveer 50 opzoekingen per dag."),
+  ti_shodan: L("Open poorten, lekken en labels (zoals c2 of malware) van het aanvallende IP zelf."),
+  ti_circl: L("Controleert of een nieuw programma een bekend, goed bestand is."),
+  ti_tor: L("Herkent verkeer van het Tor-netwerk (dagelijkse lijst van uitgangen)."),
+  ti_tor_block: L("Blokkeert Tor-uitgangen vooraf op je servers (modus Blokkeren)."),
+  ti_feodo: L("Lijst van botnetservers; een verbinding ernaartoe is critical."),
+  ti_urlhaus: L("Domeinen met malware, voor de DNS-controle via AdGuard."),
+  ti_abusech_key: L("Gratis sleutel van abuse.ch voor MalwareBazaar en ThreatFox."),
+  ti_block: L("Blokkeert bekende aanvallers vanaf deze score (0–100), in de modus Blokkeren."),
+  ti_escalate: L("Een login vanaf een bekende aanvaller wordt meteen critical."),
+  ti_close_benign: L("Een webaanval van een onschuldige scanner (volgens GreyNoise) wordt vanzelf afgehandeld."),
+  ti_cve: L("Een webaanval op een lek dat de server echt heeft, is critical."),
+  dns_on: L("Bekijkt de DNS-verzoeken van al je apparaten via AdGuard op malware, phishing en DNS-tunnels."),
+  dns_nrd: L("Meldt domeinen die pas geregistreerd zijn; die worden vaak gebruikt voor phishing."),
+  suricata_on: L("Gebruikt de alerts van Suricata als dat op een server draait."),
+  suricata_block: L("Blokkeert de aanvaller bij een ernstig Suricata-alert (modus Blokkeren)."),
+  suricata_block_sev: L("Vanaf welke ernst Suricata blokkeert. 1 = alleen ernstig (aanbevolen)."),
+  edr_yara: L("Stuurt YARA-regels naar de agents om nieuwe bestanden op webshells, miners en malware te controleren."),
+  dnsbl_on: L("Biedt een blokkadelijst aan die je in AdGuard toevoegt, zodat apparaten foute domeinen niet bereiken."),
+  dnsbl_ti: L("Zet malwaredomeinen uit de dreigingsinformatie op de lijst."),
+  dnsbl_ioc: L("Zet de domeinen die je bij IDS → Jagen bewaakt op de lijst."),
+  dnsbl_own: L("Eigen domeinen die je wilt blokkeren."),
+  dnsbl_allow: L("Domeinen die nooit op de lijst mogen, ook als een bron ze noemt."),
+  ids_blocklists: L("Blokkeert netwerken die bekendstaan om aanvallen (Spamhaus DROP, FireHOL)."),
+  ids_geo: L("Bepaalt het land van elk IP-adres (database op je eigen server, niets gaat naar buiten)."),
+  ids_geo_allowed: L("Landen waar jij normaal vandaan inlogt; een SSH-login uit een ander land is critical."),
+  ids_outbound: L("Meldt als een server zelf verbinding maakt met een bekende aanvaller (vaak een teken van besmetting)."),
+  ids_outbound_country: L("Meldt verbindingen naar landen buiten je normale landen; per programma aan te leren."),
+  ids_outbound_block: L("Blokkeert uitgaand verkeer naar bekende aanvallers, ook vanuit containers."),
+  weblog_swag: L("Leest het log van je reverse proxy of webserver op aanvallen."),
+  weblog_ha: L("Leest het log van Home Assistant op mislukte logins."),
+  weblog_vw: L("Leest het log van Vaultwarden op mislukte logins."),
+  weblog_swag_path: L("Waar het access-log van je proxy staat; meestal vindt de agent het zelf."),
+  weblog_ha_path: L("Waar home-assistant.log staat."),
+  weblog_vw_path: L("Het logbestand of de container van Vaultwarden."),
+  wl_paths: L("Meldt meteen verzoeken naar bekende aanvalspaden (/.env, /.git/, wp-login.php)."),
+  wl_ua: L("Meldt meteen bekende scanprogramma's (sqlmap, nikto, nuclei)."),
+  wl_404: L("Meldt een adres dat veel niet-bestaande pagina's opvraagt (zoeken naar lekken)."),
+  wl_auth: L("Meldt veel geweigerde logins vanaf één adres (wachtwoorden raden)."),
+  wl_nohost: L("Meldt verzoeken zonder hostnaam: iemand scant je IP-adres."),
+  weblog_block: L("Blokkeert zo'n adres ook, op al je servers (modus Blokkeren)."),
+  ids_webshell: L("Meldt als een webserver een shell of een programma als curl of python start."),
+  ids_webshell_kill: L("Stopt dat proces meteen (modus Blokkeren)."),
+  ids_persist: L("Meldt een nieuwe dienst of timer die automatisch start (een manier om binnen te blijven)."),
+  ids_harden: L("Geeft elke server een score voor zijn instellingen; slechter = een incident."),
+  vuln_time: L("Hoe laat RzSense elke dag de software op je servers met de lijsten van lekken vergelijkt."),
+  vuln_min_severity: L("Lekken onder deze ernst worden niet getoond."),
+  proxy_on: L("De hoofdschakelaar: uit = de agent haalt alle eigen regels uit je reverse proxy."),
+  proxy_def_lan: L("Een nieuwe site met een beheerprogramma of adminpagina's is standaard alleen thuis bereikbaar."),
+  proxy_def_rate: L("Hoeveel verzoeken per seconde een nieuwe site per adres krijgt. Apps krijgen vanzelf de ruime stand."),
+  proxy_def_bots: L("Een nieuwe site weert standaard bekende aanvalstools."),
+  proxy_def_devices: L("Een nieuwe site laat standaard je toegestane apparaten van buiten door."),
+  proxy_lan_extra: L("Netwerken die ook als 'thuis' tellen, bv. je VPN."),
+  waf_on: L("Bekijkt elk verzoek naar je apps op aanvallen (CrowdSec AppSec op de proxy)."),
+  waf_share: L("Deelt aanvallers met CrowdSec en gebruikt hun lijst van bekende aanvallers."),
+  proxy_ai_on: L("AI-advies per site voor de reverse proxy."),
+  proxy_ai_auto: L("Voert de AI het advies zelf door, of beslis jij per site?"),
+  av_on: L("Scant uploads naar je apps op virussen (ClamAV op de proxyserver)."),
+  av_notify: L("Een vondst wordt een IDS-incident met melding."),
+  av_move: L("Zet een besmet bestand meteen apart (quarantaine); terugzetten kan."),
+  nids_on: L("Suricata bekijkt het verkeer tussen je proxy en je apps."),
+  nids_profile: L("Welke regels Suricata gebruikt: alleen webaanvallen, ook malware, of alles (veel lawaai)."),
+  nids_min_sev: L("Vanaf welke ernst een Suricata-melding een incident wordt."),
+  nids_iface: L("Welk netwerk Suricata bekijkt; auto = de netwerkbrug van je proxy."),
+  sudo_on: L("Laat je een gebruiker voor korte tijd sudo geven via de agent, met je wachtwoord en 2FA."),
+  patch_on: L("Laat de agent updates installeren, met de hand of automatisch in een venster."),
+  ransom_on: L("Meldt als veel bestanden in korte tijd veranderen of versleuteld lijken."),
+  ransom_min: L("Vanaf hoeveel gewijzigde bestanden per ronde het verdacht is."),
+  appctl_on: L("Leert welke programma's normaal draaien en meldt nieuwe."),
+  ioc_on: L("Zoekt naar sporen (IP's, domeinen, bestanden) op je servers en blijft ze bewaken."),
+  eol_on: L("Meldt software en besturingssystemen die geen updates meer krijgen."),
+  mailsec_on: L("Controleert SPF, DKIM en DMARC van je domeinen: kan iemand mailen namens jou?"),
+  cve_buzz_on: L("Houdt bij of er over een lek veel gepraat wordt of een exploit is (dan sneller bijwerken)."),
+  cve_github_token: L("Optioneel GitHub-token zonder rechten, voor meer opzoekingen per uur."),
+  cve_mastodon_url: L("Een Mastodon-server om berichten over lekken te zoeken."),
+  cve_mastodon_token: L("Optioneel token (alleen lezen) voor die server."),
+  cve_exploitdb: L("Kijkt of er een openbare exploit voor een lek is."),
+  cve_nuclei: L("Kijkt of scanners al naar een lek zoeken (Nuclei-templates)."),
+  net_scan: L("Scant je netwerk op apparaten en open poorten (pagina Netwerk)."),
+  net_sweep_minutes: L("Hoe vaak een snelle ronde kijkt welke apparaten er zijn."),
+  net_deep_per_day: L("Hoe vaak per dag een diepere scan poorten, namen en merk bepaalt."),
+  net_traffic: L("Houdt per apparaat bij hoeveel het downloadt en uploadt."),
+  net_traffic_swap: L("Draait download en upload om, als je controller het andersom telt."),
+  net_wan_cap_gb: L("Je datalimiet per maand; RzSense waarschuwt bij 80% en 100%."),
+  logs_on: L("Hoofdschakelaar voor het verzamelen van logs; per server kies je de bronnen."),
+  logs_mask: L("Haalt wachtwoorden, tokens en e-mailadressen uit logs voordat ze worden opgeslagen."),
+  logs_mask_extra: L("Eigen patronen om te maskeren, één per regel (reguliere expressie)."),
+  inet_down: L("De downloadsnelheid van je abonnement; een meting ver eronder geeft een melding."),
+  inet_up: L("De uploadsnelheid van je abonnement."),
+  inet_times: L("Wanneer de snelheidstest draait (bv. 03:00 en 15:00)."),
+  thresh_default: L("Hoe een nieuwe check zijn grenzen bepaalt: zelf leren, met of zonder vaste grens als vangnet."),
+  smart_sens: L("Hoe snel een slimme drempel iets afwijkends ziet. Scherp = sneller een melding."),
+  smart_auto: L("Een handmatige check gaat na 7 dagen leren vanzelf naar slim, als dat minder meldingen geeft."),
+  smart_interval: L("Bij een probleem vaker controleren; als alles een uur goed is minder vaak."),
+  anomaly_on: L("Een ℹ️-melding als een waarde zonder drempel flink anders is dan normaal."),
+  disk_jump_on: L("Een ℹ️-melding als een disk in een uur hard groeit."),
+  context_on: L("Zet in de melding wat er vlak ervoor gebeurde, zoals een update of herstart."),
+  hb_learn: L("Een heartbeat leert zijn ritme en waarschuwt als hij later is dan normaal."),
+  confirm_skip_admin: L("Beheerders bevestigen een gevaarlijke actie met een vinkje in plaats van hun wachtwoord."),
+  confirm_skip_user: L("Gebruikers bevestigen met een vinkje in plaats van hun wachtwoord."),
+  confirm_skip_readonly: L("Alleen-lezen-accounts bevestigen met een vinkje in plaats van hun wachtwoord."),
+  update_backup: L("Maakt eerst een back-up, zodat je terug kunt als een update misgaat."),
+  update_auto: L("Werkt RzSense zelf bij als er een nieuwe versie is."),
+  update_time: L("Hoe laat RzSense automatisch bijwerkt."),
+  agent_auto_update: L("Agents werken zichzelf bij naar de nieuwste versie (alleen ondertekende versies)."),
+  agent_tick: L("Hoe vaak agents rapporteren; vaker = sneller zien, iets meer belasting."),
+  cert_dirs: L("Extra mappen waarin agents naar certificaten zoeken."),
+  backup_freq: L("Hoe vaak RzSense vanzelf een back-up maakt."),
+  backup_time: L("Hoe laat de back-up wordt gemaakt."),
+  backup_weekday: L("Op welke dag de wekelijkse back-up wordt gemaakt."),
+  backup_history: L("Neemt ook alle meetgegevens mee; de back-up wordt dan veel groter."),
+  backup_pass: L("Versleutelt de back-up (AES-256). Bewaar het wachtwoord goed: zonder kun je niet terugzetten."),
+  lan_no_login: L("Op je eigen netwerk hoef je niet in te loggen."),
+  lan_as_admin: L("Op je eigen netwerk ben je zonder inloggen beheerder (anders alleen lezen)."),
+  trusted_networks: L("Welke netwerken als 'thuis' tellen voor inloggen zonder wachtwoord."),
+  trusted_proxies: L("Alleen invullen als RzSense achter een reverse proxy staat, zodat het echte IP-adres klopt."),
+  login_lock_account: L("Blokkeert het account na te veel mislukte pogingen."),
+  login_lock_ip: L("Blokkeert het IP-adres na te veel mislukte pogingen (nooit je eigen netwerk)."),
+  role: L("Wat iemand mag: beheerder (alles), gebruiker (storingen afhandelen) of alleen lezen."),
+  totp: L("Stelt meteen tweestapsverificatie in voor dit account."),
+});
 // ---------------------------------------------------------------- 1.246.0: Agent Manager als overzichtelijke lijst
 // Alle onderdelen onder elkaar, in groepen. Per regel: icoon, naam, een korte samenvatting van hoe het nu staat en
 // een status (eigen instelling, aandacht). Klik op een regel om hem open te klappen; er is er steeds één open.

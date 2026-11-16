@@ -11,7 +11,7 @@ declare(strict_types=1);
  * Met "ook op de servers" zoeken de agents (1.91.0) zelf naar de paden en vingerafdrukken (draaiende programma's en de
  * gebruikelijke plekken), één keer per opdracht.
  * Bewaakte sporen: elke 10 minuten vergelijkt RzSense wat er nieuw binnenkwam; een treffer = critical IDS-incident 'ioc'.
- * Aan/uit: ioc_on (Instellingen → IDS → Jagen of Overzicht → Functies).
+ * Aan/uit: ioc_on (Instellingen → Bescherming → Jagen of Overzicht → Functies).
  */
 final class Ioc
 {

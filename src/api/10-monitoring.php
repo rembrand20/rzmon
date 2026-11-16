@@ -432,7 +432,7 @@ switch ($action) {
             out(['error' => $e->getMessage()], 422);
         }
 
-    // 1.178.0: de algemene SNMP-instelling (Instellingen → Koppelingen → SNMP) en wie hem gebruikt
+    // 1.178.0: de algemene SNMP-instelling (Instellingen → Agents en koppelingen → SNMP) en wie hem gebruikt
     case 'snmp_global':
         $rows = [];
         foreach (q("SELECT id, name, address, snmp FROM hosts WHERE snmp IS NOT NULL AND snmp <> '' ORDER BY name") as $r) {

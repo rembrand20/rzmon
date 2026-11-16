@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Blokkadelijst voor AdGuard Home (1.231.0): RzSense maakt een filterlijst (AdGuard-formaat, ||domein^) met
  * - de malwaredomeinen uit de dreigingsinformatie (URLhaus, ThreatFox; dagelijks bijgewerkt);
  * - je eigen bewaakte domeinen (IDS → Jagen → Bewaken);
- * - domeinen die je zelf toevoegt (Instellingen → IDS → Dreigingsinformatie → AdGuard-lijst).
+ * - domeinen die je zelf toevoegt (Instellingen → Bescherming → Dreigingsinformatie → AdGuard-lijst).
  * AdGuard haalt de lijst op via een geheime URL (public/dnsbl.php?t=…), alleen vanaf het lokale netwerk. Met één knop
  * voegt RzSense hem toe aan je AdGuard-instanties (Koppelingen → AdGuard).
  * Aan/uit: dnsbl_on (standaard uit).

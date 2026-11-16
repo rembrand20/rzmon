@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Netwerkscan (1.103.0): wat er allemaal op je lokale netwerken zit (Instellingen → Toegang → Lokale netwerken).
+ * Netwerkscan (1.103.0): wat er allemaal op je lokale netwerken zit (Instellingen → Toegang tot RzSense → Inloggen).
  * - Elk uur een lichte ronde: een ping naar elk adres, daarna de ARP-tabel van de RzSense-server (MAC-adressen, ook van
  *   apparaten die niet op ping antwoorden) en de DNS-naam van nieuwe apparaten.
  * - Een paar keer per dag een diepere ronde: open poorten, NetBIOS-naam, SSDP/UPnP (merk en model), mDNS (als avahi-browse

@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * Logs van webdiensten (1.89.0, agent 1.58.0): de reverse proxy (nginx-log, bv. SWAG), Home Assistant en Vaultwarden. De agent stuurt per minuut
- * per IP een samenvatting; hier staan de scenario's (elk aan of uit bij Instellingen → IDS):
+ * per IP een samenvatting; hier staan de scenario's (elk aan of uit bij Instellingen → Bescherming):
  * - bekend aanvalspad met een foutcode (/.env, /.git/, wp-login.php, phpmyadmin …): meteen;
  * - scanner (sqlmap, nikto, nuclei …): meteen;
  * - veel 404's, veel 401/403, of verzoeken zonder (bekende) hostnaam (444) binnen de tijd;

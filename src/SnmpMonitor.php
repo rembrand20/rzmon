@@ -93,7 +93,7 @@ final class SnmpMonitor
         return class_exists('SNMP');
     }
 
-    /** 1.178.0: de algemene SNMP-instelling (Instellingen → Koppelingen → SNMP), voor apparaten zonder eigen instellingen */
+    /** 1.178.0: de algemene SNMP-instelling (Instellingen → Agents en koppelingen → SNMP), voor apparaten zonder eigen instellingen */
     public const GLOBAL_KEY = 'snmp_global';
     /** Wat een server bewaart als hij de algemene instelling volgt */
     public const USE_GLOBAL = '{"use":"global"}';
@@ -156,7 +156,7 @@ final class SnmpMonitor
             return null;
         }
         if (($in['use'] ?? '') === 'global') {
-            return self::global() === null ? t('Vul eerst de algemene SNMP-instelling in (Instellingen → Koppelingen → SNMP), of zet Eigen instellingen aan') : ['use' => 'global'];
+            return self::global() === null ? t('Vul eerst de algemene SNMP-instelling in (Instellingen → Agents en koppelingen → SNMP), of zet Eigen instellingen aan') : ['use' => 'global'];
         }
         $v = in_array($in['v'] ?? '', ['2c', '3'], true) ? $in['v'] : '2c';
         $port = (int) ($in['port'] ?? 161);

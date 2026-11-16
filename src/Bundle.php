@@ -9,7 +9,7 @@ declare(strict_types=1);
  * - alle agents zijn tegelijk stil: dan ligt het eerder aan RzSense of zijn netwerk;
  * - ze zitten in hetzelfde Proxmox-cluster.
  * De losse checks blijven gewoon zichtbaar in RzSense; Home Assistant krijgt nog steeds een bericht per check.
- * Aan/uit: Instellingen → Meldingen → Wanneer melden (notify_bundle_hosts).
+ * Aan/uit: Instellingen → Meldingen en rapporten → Wanneer melden (notify_bundle_hosts).
  */
 final class Bundle
 {

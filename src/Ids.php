@@ -23,7 +23,7 @@ final class Ids
     private const CRIT_FILES = ['#^/root/\.ssh/authorized_keys$#', '#^/etc/sudoers(\.d/.*)?$#', '#^/etc/ld\.so\.preload$#', '#^/etc/pam\.d/#'];
     // Sinds agent 1.54.0 ("fv":2) bewaakt: de eerste keer stil vastleggen (anders na de update een incident per bestand)
     private const FILES_V2 = '#^(/etc/pam\.d/|/etc/(hosts|resolv\.conf|environment)$|/var/spool/(at|cron/atjobs)/|/root/\.(bashrc|bash_profile|profile)$|/etc/systemd/user/|/root/\.config/systemd/user/|/home/[^/]+/\.config/systemd/user/)#';
-    /** Honeypot-gebruikers (1.81.0): standaard, aan te vullen bij Instellingen → IDS */
+    /** Honeypot-gebruikers (1.81.0): standaard, aan te vullen bij Instellingen → Bescherming */
     public const DECOY_USERS = 'admin test guest user oracle ubuntu pi ftp support postgres';
     // Diensten die bij elke start een willekeurige poort kiezen: alleen de naam telt
     private const RANDOM_PORT_PROCS = ['rpc.statd', 'rpc.mountd', 'rpcbind', 'rpc.rquotad', 'avahi-daemon', 'chronyd', 'dhclient', 'NetworkManager'];
@@ -994,7 +994,7 @@ final class Ids
         }
     }
 
-    /** Je eigen netwerken (Instellingen → Toegang → Lokale netwerken); console-logins (zonder IP) gelden als binnen */
+    /** Je eigen netwerken (Instellingen → Toegang tot RzSense → Inloggen); console-logins (zonder IP) gelden als binnen */
     public static function internalIp(string $ip): bool
     {
         $nets = parse_list((string) setting('trusted_networks', '')) ?: PRIVATE_NETWORKS;
@@ -1004,7 +1004,7 @@ final class Ids
     /**
      * Gewone geslaagde login (1.80.0). Van buiten je netwerk: 🔑 incident (warning, met melding), dat open blijft tot
      * "Gezien" of "Dit is normaal"; zelfde gebruiker en IP binnen 24 uur telt op. Van binnen (en aan de console): een
-     * ℹ️ systeeminfo-bericht, per kanaal aan of uit (Instellingen → Meldingen → Systeeminfo).
+     * ℹ️ systeeminfo-bericht, per kanaal aan of uit (Instellingen → Meldingen en rapporten → Systeemmeldingen).
      */
     private static function loginSeen(array $ctx, string $kind, string $user, string $ip, string $method): void
     {

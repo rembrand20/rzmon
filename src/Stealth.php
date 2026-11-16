@@ -368,7 +368,7 @@ final class Stealth
                 [hash('sha256', $key), mb_substr($name, 0, 100), $ua, now(), mb_substr($ip, 0, 45), now(), mb_substr($ip, 0, 45), $cc]);
             self::$pendingKey = $key;
             Monitor::sysInfo('device_request', null, null, '📱 ' . t('Geweigerd apparaat van buiten: {name}', ['name' => $name]),
-                fn() => t('{name} probeerde RzSense te openen vanaf {ip} en kreeg een 404. Toestaan kan bij Instellingen → Van buiten → Wachtende apparaten.',
+                fn() => t('{name} probeerde RzSense te openen vanaf {ip} en kreeg een 404. Toestaan kan bij Instellingen → Toegang tot RzSense → Beheer van buiten.',
                     ['name' => $name, 'ip' => $ip . ($cc ? " ($cc)" : '')]), $ip);
         } catch (Throwable $e) {
             error_log('RzSense: wachtend apparaat vastleggen mislukt: ' . $e->getMessage());

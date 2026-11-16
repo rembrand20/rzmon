@@ -155,7 +155,7 @@ final class Ransom
             'agent_ok' => !empty($h['agent_version']) && version_compare((string) $h['agent_version'], '1.90.0', '>=')];
     }
 
-    /** Overzicht voor Instellingen → IDS → Ransomware: per server de mappen en de laatste stand */
+    /** Overzicht voor Instellingen → Bescherming → Ransomware: per server de mappen en de laatste stand */
     public static function overview(): array
     {
         $out = [];

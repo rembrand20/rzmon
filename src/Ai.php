@@ -409,7 +409,7 @@ final class Ai
                 }
             }
         }
-        // 1.173.0: een oordeel bij nieuwe IDS-incidenten. Het weekoverzicht plant Reports (1.180.0, Instellingen → Rapporten).
+        // 1.173.0: een oordeel bij nieuwe IDS-incidenten. Het weekoverzicht plant Reports (1.180.0, Instellingen → Meldingen en rapporten → Rapporten).
         // 1.223.0: slim: eerst jouw keuze, regels en eerdere oordelen; de AI alleen voor wat dan nog onzeker is (één per soort)
         Triage::cron();
         ProxyAdvice::cron();   // 1.256.0
@@ -794,7 +794,7 @@ final class Ai
         }
         if ($kind === 'week') {
             if ((int) $r['auto'] === 1) {
-                Reports::afterAiWeek();   // 1.180.0: via de kanalen van het rapport (Instellingen → Rapporten)
+                Reports::afterAiWeek();   // 1.180.0: via de kanalen van het rapport (Instellingen → Meldingen en rapporten → Rapporten)
             }
             return;
         }

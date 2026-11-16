@@ -133,7 +133,7 @@ try {
 } catch (Throwable $e) {
     cron_err('Update-aankondiging', $e);
 }
-// Certificaat van het beheeradres: dagelijks (Instellingen → Beveiliging → Beheer via https)
+// Certificaat van het beheeradres: dagelijks (Instellingen → Toegang tot RzSense → Beheer van buiten)
 try {
     if ($msg = Https::cron()) {
         echo date('c') . " $msg\n";
@@ -186,7 +186,7 @@ try {
 } catch (Throwable $e) {
     cron_err('Agents/certificaat', $e);
 }
-// Datalekken (Have I Been Pwned): domein en e-mailadressen, dagelijks, gespreid (Instellingen → Beveiliging → Datalekken)
+// Datalekken (Have I Been Pwned): domein en e-mailadressen, dagelijks, gespreid (Instellingen → Bescherming → Kwetsbaarheden en datalekken)
 try {
     if ($msg = Hibp::cron()) {
         echo date('c') . " $msg\n";
@@ -210,7 +210,7 @@ try {
 } catch (Throwable $e) {
     cron_err('End-of-life', $e);
 }
-// Netwerkscan (1.103.0): elk uur een ronde, een paar keer per dag dieper (Instellingen → Beveiliging → Netwerkscan)
+// Netwerkscan (1.103.0): elk uur een ronde, een paar keer per dag dieper (Instellingen → Bescherming → Netwerkscan)
 try {
     if ($msg = NetScan::cron()) {
         echo date('c') . " $msg\n";

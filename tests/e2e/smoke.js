@@ -21,6 +21,16 @@ const BASE = process.env.BASE || 'http://127.0.0.1:8099';
     await pg.waitForTimeout(1500);
     console.log(`✔ tabblad ${tab}`);
   }
+  // 1.276.0: oude adressen (ook in meldingen en e-mails) komen op de nieuwe plek uit
+  const moved = { 'settings/agents': 'tab-servers', 'settings/actlog': 'tab-logboek', 'settings/nis2': 'tab-compliance', 'vulns/patch': 'tab-updates',
+    'ids/inc': 'tab-incidents', 'ids/prot': 'tab-settings', 'settings/quiet': 'tab-settings', 'settings/ids_ti': 'tab-settings' };
+  for (const [from, to] of Object.entries(moved)) {
+    await pg.evaluate((h) => showTab(h), from);
+    await pg.waitForTimeout(800);
+    const at = await pg.evaluate(() => (document.querySelector('.tab-panel:not([hidden])') || {}).id);
+    if (at !== to) errs.push(`oud adres #${from} komt uit op ${at}, verwacht ${to}`);
+  }
+  console.log(`✔ ${Object.keys(moved).length} oude adressen sturen door naar de nieuwe plek`);
   await pg.keyboard.press('Control+k');
   await pg.waitForSelector('#cmdk:not([hidden])', { timeout: 5000 });
   await pg.fill('#cmdk-in', 'instellingen');

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------- 🩹 Updates installeren (patchbeheer, 1.230.0, agent 1.92.0)
-// Kwetsbaarheden → Updates (overzicht en nu installeren), de kaart in de Agent Manager (keuze per server) en
-// Instellingen → Beveiliging → Updates. Bijwerken zelf loopt via dezelfde opdracht als "pakketten bijwerken" (Vulns),
+// de pagina Updates (overzicht en nu installeren), de kaart in de Agent Manager (keuze per server) en
+// Instellingen → Bescherming → Updatebeleid. Bijwerken zelf loopt via dezelfde opdracht als "pakketten bijwerken" (Vulns),
 // dus de voortgang is hetzelfde venster (vulnUpgradeDialog).
 const PATCH_MODE = { manual: () => L('met de hand'), window: () => L('in het onderhoudsvenster'), auto: () => L('elke dag') };
 const PATCH_KIND = { ha: () => '🏠 Home Assistant', truenas: () => '🗄️ TrueNAS', linux: () => '🐧 Linux' };
@@ -25,7 +25,7 @@ async function loadPatch() {
   const hs = d.hosts;
   const sec = hs.reduce((n, h) => n + (h.kind === 'linux' ? h.sec : 0), 0);
   if ($('#vt-n-patch')) $('#vt-n-patch').textContent = sec || '';
-  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Updates installeren staat uit (Instellingen → Beveiliging → Updates). Je ziet wel wat er klaarstaat.')}</div>` : ''}
+  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Updates installeren staat uit (Instellingen → Bescherming → Updatebeleid). Je ziet wel wat er klaarstaat.')}</div>` : ''}
     <div class="app-sum"><span class="app-sum-b">🛡 <b>${sec}</b> ${L('beveiligingsupdates')}</span><span class="app-sum-b">⬆ <b>${hs.reduce((n, h) => n + h.avail, 0)}</b> ${L('updates')}</span>
       <span class="app-sum-b">↻ <b>${hs.filter((h) => h.rb).length}</b> ${L('herstart nodig')}</span><span class="app-sum-b">🤖 <b>${hs.filter((h) => h.mode !== 'manual').length}</b> ${L('automatisch')}</span></div>
     ${hs.length ? `<div class="btn-row need-admin"><button type="button" class="btn small-btn primary" id="ph-bulk">⚙️ ${L('Meerdere servers instellen…')}</button>
@@ -159,13 +159,13 @@ async function amPatch(h, body) {
   if ($('#pt-now', box)) $('#pt-now', box).onclick = () => patchNow(d, 'security', () => amPatch(h, body));
 }
 
-// ---------------------------------------------------------------- Instellingen → Beveiliging → Updates
+// ---------------------------------------------------------------- Instellingen → Bescherming → Updatebeleid
 async function loadPatchSet() {
   const box = $('#patch-hosts');
   if (!box) return;
   let d;
   try { d = await api('patch'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  // 1.236.0: alleen een samenvatting; de lijst per server (met instellen) staat op Kwetsbaarheden → Updates
+  // 1.236.0: alleen een samenvatting; de lijst per server (met instellen) staat op de pagina Updates
   const auto = d.hosts.filter((h) => h.kind !== 'truenas' && h.mode && h.mode !== 'off').length;
   box.innerHTML = d.hosts.length ? `<p class="small">${L('{a} van {n} servers werken zichzelf automatisch bij.', { a: auto, n: d.hosts.length })}
     <a class="btn small-btn" href="#vulns/patch" data-goto="vulns/patch">${L('Per server bekijken en instellen')} →</a></p>`

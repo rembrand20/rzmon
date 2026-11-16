@@ -673,7 +673,7 @@ async function amLogs(h) {
   const limitPct = d.day_limit ? Math.min(100, Math.round(d.used_today / d.day_limit * 100)) : 0;
   const lsOn = d.sources.filter((s) => s.enabled), lsErr = lsOn.filter((s) => s.status === 'err');
   amSum('logs', !d.on ? esc(L('uit voor alle servers')) : lsOn.length ? esc(L('{n} bronnen', { n: lsOn.length })) + (lsErr.length ? ` · <b class="bad">${esc(L('{n} met een fout', { n: lsErr.length }))}</b>` : '') + ` · ${esc(fmtBytes(d.used_today))} ${esc(L('vandaag'))}` : esc(L('nog geen bronnen')), lsErr.length > 0);   // 1.246.0
-  box.innerHTML = `${d.on ? '' : `<div class="callout">⏸ ${L('Logs verzamelen staat uit voor alle servers: Instellingen → Monitoring → Logs.')}</div>`}
+  box.innerHTML = `${d.on ? '' : `<div class="callout">⏸ ${L('Logs verzamelen staat uit voor alle servers: Instellingen → Monitoring → Logs verzamelen.')}</div>`}
     ${d.sources.length ? amRow('🔎 ' + L('Zoeken in deze logs'), L('de pagina Logs, met deze server al gekozen'), `<button type="button" class="btn small-btn" id="ls-find">${L('Logs')} →</button>`) : ''}
     ${amRow(L('Versturen elke'), L('pakketje met de nieuwe regels, gecomprimeerd en versleuteld · algemeen: {n} min', { n: d.default_interval }),
       `<select id="ls-iv">${[[0, L('algemeen')], [1, '1 min'], [2, '2 min'], [5, '5 min'], [10, '10 min'], [15, '15 min'], [30, '30 min'], [60, '60 min']]
@@ -1500,7 +1500,7 @@ function agentInstructions(h, pairNow = false) {
       </section>
       ${h.mode === 'agent' && !isHaHost(h) ? `<section class="am-sec am-card need-admin" data-pk="cmd" data-pw="12" style="--c: var(--crit)"><h3 class="am-h"><i aria-hidden="true">🖥️</i>${L('Commando-checks')}</h3>
         <p class="am-lead">${L('RzSense laat de agent een commando uitvoeren en vergelijkt het antwoord')}</p>
-        ${xpHtml(L('Hier bepaal je óf en als wie de agent de commando\'s van je commando-checks uitvoert.'), L('<b>Wat het doet:</b> bij een commando-check (bijvoorbeeld <code>zpool status -x</code> of <code>systemctl is-active nginx</code>) stuurt RzSense het commando naar de agent. De agent voert het uit in een kale omgeving, zonder invoer en met een time-out, en stuurt de uitvoer en de exitcode terug. RzSense vergelijkt die met het antwoord dat je verwacht. Dit is de enige plek waar een commando dat je in RzSense typt op de server draait. <b>De drie standen:</b> <i>uit</i> (standaard): er draait niets, de checks blijven onbekend. <i>als nobody</i>: het commando draait als de gebruiker nobody, zonder rechten op je bestanden; genoeg voor de meeste checks. <i>als root</i>: het commando mag alles op de server; alleen nodig voor bijvoorbeeld SMART, Docker, Proxmox of TrueNAS-meldingen. <b>Zo stel je het in:</b> schakelaar uit = de algemene instelling (Instellingen → Agents → Commando-checks); schakelaar aan = een eigen keuze voor deze server. Ruimer maken vraagt om je wachtwoord en komt in het logboek. <b>Goed om te weten:</b> op de server zelf kun je het altijd inperken, wat RzSense ook zegt: <code>COMMANDS=0</code> (nooit) of <code>COMMANDS=nobody</code> (nooit als root) in <code>/etc/default/rzmon-agent</code>. Gebruik https naar RzSense, zodat niemand onderweg een commando kan aanpassen. Kies <i>als root</i> alleen als een check het echt nodig heeft.'))}
+        ${xpHtml(L('Hier bepaal je óf en als wie de agent de commando\'s van je commando-checks uitvoert.'), L('<b>Wat het doet:</b> bij een commando-check (bijvoorbeeld <code>zpool status -x</code> of <code>systemctl is-active nginx</code>) stuurt RzSense het commando naar de agent. De agent voert het uit in een kale omgeving, zonder invoer en met een time-out, en stuurt de uitvoer en de exitcode terug. RzSense vergelijkt die met het antwoord dat je verwacht. Dit is de enige plek waar een commando dat je in RzSense typt op de server draait. <b>De drie standen:</b> <i>uit</i> (standaard): er draait niets, de checks blijven onbekend. <i>als nobody</i>: het commando draait als de gebruiker nobody, zonder rechten op je bestanden; genoeg voor de meeste checks. <i>als root</i>: het commando mag alles op de server; alleen nodig voor bijvoorbeeld SMART, Docker, Proxmox of TrueNAS-meldingen. <b>Zo stel je het in:</b> schakelaar uit = de algemene instelling (Instellingen → Agents en koppelingen → Commando-checks); schakelaar aan = een eigen keuze voor deze server. Ruimer maken vraagt om je wachtwoord en komt in het logboek. <b>Goed om te weten:</b> op de server zelf kun je het altijd inperken, wat RzSense ook zegt: <code>COMMANDS=0</code> (nooit) of <code>COMMANDS=nobody</code> (nooit als root) in <code>/etc/default/rzmon-agent</code>. Gebruik https naar RzSense, zodat niemand onderweg een commando kan aanpassen. Kies <i>als root</i> alleen als een check het echt nodig heeft.'))}
         ${amRow(L('Commando\'s uitvoeren'), `<span id="host-commands-info">${L('laden…')}</span>`, amSw('host-cmd-own', false, 'title="' + esc(L('Eigen keuze voor deze server')) + '"'))}
         <div class="am-sub" id="host-cmd-sub" hidden>${swSeg('cmd', Object.entries(CMD_MODES), 'off')}</div>
       </section>` : ''}
@@ -1520,7 +1520,7 @@ function agentInstructions(h, pairNow = false) {
         ${amOwn('ip', '🌐 ' + L('Alleen vanaf het bekende IP-adres'), '', h.ip_lock || '', [['on', L('aan')], ['off', L('uit')]], `${L('algemeen')}: ${state.conn_ip_lock ? L('aan') : L('uit')}`)}
         ${amOwn('https', '🔒 ' + L('Alleen via https'), '', h.agent_https || '', [['on', L('aan')], ['off', L('uit')]], `${L('algemeen')}: ${state.conn_https ? L('aan') : L('uit')}`)}
         ${amRow('🌍 ' + L('Adres van RzSense'), connText(h), `<button type="button" class="btn small-btn" data-am-url>✏️ ${L('Wijzigen')}</button>`, ' am-url')}
-        ${h.agent_ip_new ? `<div class="callout">⚠️ ${L('Geweigerd vanaf het nieuwe IP-adres <code>{ip}</code>. Toestaan kan bij Instellingen → Agents → Standaardinstellingen.', { ip: esc(h.agent_ip_new) })}</div>` : ''}
+        ${h.agent_ip_new ? `<div class="callout">⚠️ ${L('Geweigerd vanaf het nieuwe IP-adres <code>{ip}</code>. Toestaan kan bij Instellingen → Agents en koppelingen → Standaard voor alle agents.', { ip: esc(h.agent_ip_new) })}</div>` : ''}
       </section>
       <section class="am-sec am-card need-admin" data-pk="snmp" data-pw="4" style="--c: var(--purple, #7a49d9)"><h3 class="am-h"><i aria-hidden="true">📡</i>SNMP</h3>
         <p class="am-lead">${L('RzSense leest het apparaat zelf uit (zonder agent)')}</p>
@@ -2025,8 +2025,8 @@ async function loadEdrHost(h, poll = false, gen = modalGen) {
   if (gen !== modalGen) return;
   const i = d.info || {};
   const lines = [];
-  if (!d.ids) lines.push(`<span class="warn-txt">⚠️ ${L('Werkt pas als het IDS aan staat (Instellingen → IDS).')}</span>`);
-  else if (!d.global) lines.push(`<span class="muted">${L('Staat voor alle servers uit (Instellingen → IDS → Endpoint-bewaking).')}</span>`);
+  if (!d.ids) lines.push(`<span class="warn-txt">⚠️ ${L('Werkt pas als het IDS aan staat (Instellingen → Bescherming).')}</span>`);
+  else if (!d.global) lines.push(`<span class="muted">${L('Staat voor alle servers uit (Instellingen → Bescherming → Endpoint-bewaking).')}</span>`);
   else if (!d.on) lines.push(`<span class="muted">${L('Uit voor deze server.')}</span>`);
   else if (!d.at) lines.push(`<span class="muted">${L('Nog geen gegevens van de agent (agent {v} of nieuwer nodig).', { v: '1.63.0' })}</span>`);
   else {
@@ -2210,7 +2210,7 @@ async function amRansom(h, body) {
     return `<label class="rs-row${last && (+last.hit || last.canary === 'alarm') ? ' rs-alarm' : ''}"><input type="checkbox" data-rs-p="${esc(p)}" ${chosen.has(p) ? 'checked' : ''}>
       <span class="grow"><code>${esc(p)}</code><br>${info}</span></label>`;
   };
-  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Ransomware herkennen staat uit voor alle servers (Instellingen → IDS → Ransomware).')}</div>` : ''}
+  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Ransomware herkennen staat uit voor alle servers (Instellingen → Bescherming → Ransomware).')}</div>` : ''}
     ${!d.agent_ok ? `<div class="callout small">${L('Agent 1.90.0 of nieuwer nodig (en als root); werk de agent bij.')}</div>` : ''}
     <div class="rs-list">${all.length ? all.map(row).join('') : `<p class="muted small">${L('Nog geen mappen gevonden. Vul hieronder zelf een map in (bv. de map van je Samba-share).')}</p>`}</div>
     <div class="rs-add"><input id="rs-new" class="mono" placeholder="/mnt/tank/gedeeld" aria-label="${esc(L('Map toevoegen'))}"><button type="button" class="btn small-btn" id="rs-add">＋ ${L('Map')}</button></div>

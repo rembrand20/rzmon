@@ -265,7 +265,7 @@ final class Https
         }
         save_setting('proxy_unknown', json_encode(['ip' => $ip, 'at' => time()]));
         Monitor::notifySystem('⚠️ ' . t('Verkeer via een onbekende proxy: {ip}', ['ip' => $ip]),
-            t('Er komen verzoeken met proxy-kopteksten (X-Forwarded-For) binnen van {ip}, maar dat adres staat niet bij Vertrouwde proxy\'s. RzSense behandelt deze bezoekers daarom als extern (2FA verplicht, nooit inloggen zonder wachtwoord). Is dit je reverse proxy (bv. SWAG)? Zet het adres dan bij Instellingen → Toegang → Reverse proxy IP\'s.', ['ip' => $ip]),
+            t('Er komen verzoeken met proxy-kopteksten (X-Forwarded-For) binnen van {ip}, maar dat adres staat niet bij Vertrouwde proxy\'s. RzSense behandelt deze bezoekers daarom als extern (2FA verplicht, nooit inloggen zonder wachtwoord). Is dit je reverse proxy (bv. SWAG)? Zet het adres dan bij Instellingen → Toegang tot RzSense → Inloggen IP\'s.', ['ip' => $ip]),
             STATUS_WARN, 'problem');
     }
 
@@ -374,7 +374,7 @@ final class Https
         // Het eigen certificaat van RzSense (agents via https op het IP-adres, en de nooddeur): ℹ️ 14 dagen vooraf, ⚠️ als het verlopen is
         $l = $s['local'];
         if ($notify && !empty($l['ok'])) {
-            $how = t('Vernieuwen: Instellingen → Agents → Standaardinstellingen → 🔐 Certificaat.');
+            $how = t('Vernieuwen: Instellingen → Agents en koppelingen → Standaard voor alle agents → 🔐 Certificaat.');
             if ($l['days'] < 0 && !$s['local_warned']) {
                 Monitor::notifySystem('⚠️ ' . t('Eigen certificaat van RzSense verlopen'), t('Het certificaat op poort 443 van RzSense is verlopen op {d}.', ['d' => date('d-m-Y', $l['to'])]) . ' ' . $how, STATUS_WARN, 'problem');
                 $s['local_warned'] = true;

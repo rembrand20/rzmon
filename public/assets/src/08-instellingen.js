@@ -753,58 +753,56 @@ function initMainTabs() {
 // [groep, icoon, naam, [[sleutel, titel, kaarten, korte omschrijving, tabbladen?], …]]
 const SET_IC = (d) => `<svg class="tab-ic set-ic" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 const SET_NAV = [
+  // 1.276.0: zeven groepen; dagelijks werk (Servers, Logboek, Compliance) staat in het hoofdmenu
   ['overzicht', SET_IC('<path d="M3 12h4l3 8 4-16 3 8h4"/>'), L('Overzicht'), [
     ['overview', L('Status en functies'), ['overview', 'features'], L('Wat er nog aandacht nodig heeft, en alle functies met wat er aan staat en waar je het instelt.'),
-      [['status', L('Status'), ['overview']], ['functies', L('Functies'), ['features']]]],   // 1.236.0: samen
-    ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzSense elke minuut uitvoert.')],
-    ['nis2', L('NIS2'), ['nis2'], L('De tien maatregelen uit de NIS2-richtlijn met wat RzSense ziet, je notities en de meldtermijnen.')]]],
+      [['status', L('Status'), ['overview']], ['functies', L('Functies'), ['features']]]],
+    ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzSense elke minuut uitvoert.')]]],
   ['checks', SET_IC('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>'), L('Monitoring'), [
     ['allchecks', L('Alle checks'), ['allchecks'], L('Alle checks van alle servers in één lijst, ook samen bewerken.')],
     ['templates', L('Sjablonen'), ['templates'], L('Vaste sets checks voor een nieuwe server.')],
-    ['internet', L('Internet'), ['internet'], L('Snelheid, ping en responstijd van je internetlijn.')],
-    ['logs', L('Logs'), ['logs'], L('Logs van je servers verzamelen: hoe vaak, hoe lang bewaren, hoeveel, maskeren en wat er binnenkomt.')],
-    ['advice', L('Advies'), ['smart', 'advice', 'smartmore', 'cleanup'], L('Slimme drempels, voorstellen en checks om op te schonen.'),
-      [['drempels', L('Slimme drempels'), ['smart']], ['voorstellen', L('Voorstellen'), ['advice', 'smartmore']], ['opschonen', L('Opschonen'), ['cleanup']]]]]],
-  ['meldingen', SET_IC('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'), L('Meldingen'), [
+    ['advice', L('Slimme drempels en advies'), ['smart', 'advice', 'smartmore', 'cleanup'], L('Slimme drempels, voorstellen en checks om op te schonen.'),
+      [['drempels', L('Slimme drempels'), ['smart']], ['voorstellen', L('Voorstellen'), ['advice', 'smartmore']], ['opschonen', L('Opschonen'), ['cleanup']]]],
+    ['internet', L('Internetcheck'), ['internet'], L('Snelheid, ping en responstijd van je internetlijn.')],
+    ['logs', L('Logs verzamelen'), ['logs'], L('Logs van je servers verzamelen: hoe vaak, hoe lang bewaren, hoeveel, maskeren en wat er binnenkomt.')]]],
+  ['meldingen', SET_IC('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'), L('Meldingen en rapporten'), [
     ['channels', L('Kanalen'), ['pushover', 'ntfy', 'email', 'webhook', 'chain'], L('Waar meldingen heen gaan: Pushover, ntfy, e-mail en webhooks.')],
-    ['quiet', L('Stille uren'), ['quiet'], L('Profielen met een naam, gekoppeld aan groepen, servers en checks.')],
-    ['rules', L('Wanneer melden'), ['confirm', 'notify', 'alarm'], L('Meldregels, stille uren en wanneer een probleem een melding wordt.')],
-    ['sysinfo', L('Systeemmeldingen'), ['sysinfo'], L('Meldingen over RzSense zelf, zoals updates en certificaten.')]]],
-  ['ids', SET_IC('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'), L('IDS'), [
-    ['ids', L('Algemeen'), ['ids'], L('Aan of uit, leren of blokkeren, brute force en honeypot.')],
-    ['ids_edr', L('Endpoint-bewaking'), ['ids_edr', 'ids_rules'], L('Processen, bestanden en netwerk op je servers; afwijkingen en aanvalsketens.'),
+    ['rules', L('Wanneer melden'), ['confirm', 'notify', 'alarm', 'quiet'], L('Wanneer een probleem een melding wordt, en wanneer het stil moet zijn.'),
+      [['wanneer', L('Wanneer melden'), ['confirm', 'notify', 'alarm']], ['stil', L('Stille uren'), ['quiet']]]],
+    ['idspush', L('IDS-pushmeldingen'), ['idspush'], L('Wanneer een aanval je telefoon laat trillen, en de dagelijkse samenvatting.')],
+    ['sysinfo', L('Systeemmeldingen'), ['sysinfo'], L('Meldingen over RzSense zelf, zoals updates en certificaten.')],
+    ['reports', L('Rapporten'), ['reports'], L('Alle overzichten die RzSense per e-mail of push verstuurt, en het Maandoverzicht.')]]],
+  ['toegang', SET_IC('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'), L('Toegang tot RzSense'), [
+    ['access', L('Inloggen'), ['access'], L('Lokaal netwerk, uitloggen en blokkeren na mislukte pogingen.')],
+    ['outside', L('Beheer van buiten'), ['https', 'outside'], L('Veilig beheren van buiten je netwerk: https, toegestane apparaten en de noodlink.')],
+    ['users', L('Gebruikers'), ['users', 'confirmpw'], L('Accounts, rollen, tweestapsverificatie en bevestigen bij acties.')]]],
+  ['bescherming', SET_IC('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'), L('Bescherming'), [
+    ['ids', L('IDS algemeen'), ['ids'], L('Aan of uit, leren of blokkeren, brute force en honeypot.')],
+    ['prot', L('Beschermingen'), ['prot'], L('Alle beschermingen van het IDS op een rij: wat aan staat, met hun drempels.')],
+    ['ids_edr', L('Endpoint-bewaking (EDR)'), ['ids_edr', 'ids_rules'], L('Processen, bestanden en netwerk op je servers; afwijkingen en aanvalsketens.'),
       [['bewaking', L('Bewaking'), ['ids_edr']], ['regels', L('Regels en uitzonderingen'), ['ids_rules']]]],
-    ['ids_ti', L('Dreigingsinformatie'), ['ids_ti', 'dnsbl'], L('Bekende aanvallers en malware opzoeken, en DNS en Suricata.')],
+    ['ids_ti', L('Dreigingsinformatie'), ['ids_ti'], L('Bekende aanvallers en malware opzoeken in openbare bronnen (threat intelligence).')],
+    ['ids_dns', L('DNS, Suricata en YARA'), ['ids_net', 'dnsbl'], L('Aanvallen in het netwerkverkeer en in nieuwe bestanden herkennen, en de blokkadelijst voor AdGuard.')],
     ['ids_ransom', L('Ransomware'), ['ransom'], L('Mappen bewaken op versleutelen, met lokaasbestanden, snapshot en stoppen.')],
     ['ids_apps', L('Programma\'s'), ['apps'], L('Welke programma\'s er draaien; onbekende vallen op na een leerperiode. Toestaan, blokkeren en stoppen.')],
     ['ids_hunt', L('Jagen op sporen'), ['hunt'], L('IP-adressen, domeinen, vingerafdrukken en paden zoeken, ook op de servers, en bewaken.')],
-    ['ids_attack', L('Netwerk en aanvallers'), ['ids_attack'], L('Blocklists, landen, uitgaand verkeer en de logs van webdiensten.')],
-    ['ids_servers', L('Per server'), ['ids_servers'], L('Welke servers het IDS gebruiken, en wat ze bewaken.')]]],
-  ['beveiliging', SET_IC('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'), L('Beveiliging'), [
-    ['access', L('Inloggen'), ['access'], L('Lokaal netwerk, uitloggen en blokkeren na mislukte pogingen.')],
-    ['outside', L('Beheer via https'), ['https', 'outside'], L('Veilig beheren van buiten je netwerk.')],
-    ['users', L('Gebruikers'), ['users', 'confirmpw'], L('Accounts, rollen, tweestapsverificatie en bevestigen bij acties.')],
-    ['vulns', L('Kwetsbaarheden'), ['vulns', 'eol', 'cvebuzz'], L('Bekende lekken in de software op je servers, en software die geen updates meer krijgt.')],
+    ['ids_attack', L('Netwerk en weblogs'), ['ids_attack'], L('Blocklists, landen, uitgaand verkeer en de logs van webdiensten.')],
+    ['ids_servers', L('IDS per server'), ['ids_servers'], L('Welke servers het IDS gebruiken, en wat ze bewaken.')],
+    ['proxy', L('Reverse proxy en WAF'), ['proxy'], L('De apps achter je reverse proxy beschermen: wie mag erbij, bots, te veel verzoeken, WAF, ClamAV en Suricata.')],
+    ['vulns', L('Kwetsbaarheden en datalekken'), ['vulns', 'eol', 'cvebuzz', 'hibp'], L('Bekende lekken en verouderde software op je servers, en datalekken met je e-mailadressen.'),
+      [['lekken', L('Kwetsbaarheden'), ['vulns', 'eol', 'cvebuzz']], ['datalekken', L('Datalekken'), ['hibp']]]],
+    ['patch', L('Updatebeleid'), ['patch'], L('Hoe updates worden geïnstalleerd: met de hand, in het onderhoudsvenster of elke dag; snapshot en Home Assistant met back-up.')],
     ['mailsec', L('E-mailbeveiliging'), ['mailsec'], L('SPF, DKIM en DMARC van je domeinen: kan iemand mailen namens jou?')],
-    ['sudo', L('Tijdelijk sudo'), ['sudo'], L('Een gebruiker voor korte tijd sudo geven op één server, met je wachtwoord en 2FA.')],
-    ['proxy', L('Reverse proxy'), ['proxy'], L('De apps achter je reverse proxy beschermen: adminpagina\'s alleen vanaf je netwerk, bots en te veel verzoeken.')],   // 1.254.0
-    ['patch', L('Updates'), ['patch'], L('Updates installeren: met de hand, in het onderhoudsvenster of elke dag; snapshot en Home Assistant met back-up.')],
-    ['hibp', L('Datalekken'), ['hibp'], L('Staan je e-mailadressen of domein in een datalek?')],
+    ['nis2set', L('NIS2'), ['nis2'], L('Het NIS2-overzicht aanzetten en je organisatie invullen. Het overzicht zelf staat op de pagina Compliance.')],
     ['netscan', L('Netwerkscan'), ['netscan'], L('Nieuwe apparaten en open poorten in je netwerk.')]]],
-  ['agents', SET_IC('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'), L('Agents'), [
-    ['agents', L('Overzicht'), ['agents'], L('Alle agents: status, versie, verbinding en wat aandacht nodig heeft.')],
-    ['agentdef', L('Standaardinstellingen'), ['agentdef', 'enc'], L('Wat voor alle agents geldt: bijwerken, ritme, versleuteling en certificaat.')],
-    ['commands', L('Commando-checks'), ['commands'], L('Eigen commando\'s die agents mogen uitvoeren.')]]],
-  ['rapporten', SET_IC('<path d="M4 4h16v16H4z"/><path d="M4 8l8 5 8-5"/>'), L('Rapporten'), [
-    ['reports', L('Rapporten'), ['reports'], L('Alle overzichten die RzSense per e-mail of push verstuurt, en het Maandoverzicht.')]]],
-  ['koppelingen', SET_IC('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>'), L('Koppelingen'), [
+  ['agents', SET_IC('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'), L('Agents en koppelingen'), [
+    ['agentdef', L('Standaard voor alle agents'), ['agentdef', 'enc'], L('Wat voor alle agents geldt: bijwerken, ritme, versleuteling en certificaat. Per server stel je het in bij Servers.')],
+    ['sudo', L('Tijdelijk sudo'), ['sudo'], L('Een gebruiker voor korte tijd sudo geven op één server, met je wachtwoord en 2FA.')],
+    ['commands', L('Commando-checks'), ['commands'], L('Eigen commando\'s die agents mogen uitvoeren.')],
     ['unifi', 'UniFi', ['unifi'], L('Namen, wifi, verkeer en weren van je apparaten uit je UniFi-controller.')],
     ['adguard', 'AdGuard Home', ['adguard'], L('Namen, DNS-verzoeken en DNS-blokkeren uit AdGuard Home, en de DNS-controle van het IDS.')],
     ['snmp', 'SNMP', ['snmp'], L('Eén SNMP-instelling voor al je apparaten, met per apparaat een uitzondering.')],
-    ['mqtt', L('Home Assistant (MQTT)'), ['mqtt'], L('Sensoren en meldingen in Home Assistant.')],
-    ['ai', L('AI-advies'), ['ai'], L('Advies van Claude, ChatGPT, Gemini, Grok of Ollama bij storingen.')],
-    ['api', L('REST API'), ['api'], L('API-sleutels voor andere toepassingen.')],
-    ['statuspage', L('Statuspagina'), ['statuspage'], L('Een openbare pagina met de status, via een geheime link.')]]],
+    ['mqtt', L('Home Assistant (MQTT)'), ['mqtt'], L('Sensoren en meldingen in Home Assistant.')]]],
   ['systeem', SET_IC('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'), L('Systeem'), [
     ['looks', L('Weergave'), ['looks'], L('De standaard weergave voor accounts die zelf nog niets kozen.')],
     ['update', L('Bijwerken'), ['update'], L('Nieuwe versies van RzSense, met of zonder automatisch bijwerken.')],
@@ -812,7 +810,9 @@ const SET_NAV = [
     ['db', L('Database en server'), ['dbconn', 'db', 'storage', 'dbuse', 'server', 'syscheck', 'cron'], L('Databaseverbinding, bewaartermijnen, tijdzone, PHP en de systeemcheck.'),
       [['database', L('Database'), ['dbconn', 'db', 'storage', 'dbuse']], ['server', L('Server'), ['server', 'syscheck', 'cron']]]],
     ['perf', L('Prestaties en fouten'), ['perf', 'errors'], L('Hoe snel RzSense is, hoe lang een cron-ronde duurt, de traagste checks en PHP-fouten.')],
-    ['actlog', L('Logboek'), ['actlog'], L('Alles wat de agent, RzSense en beheerders deden en wat er veranderde, met terugzetten.')],   // 1.235.0: met het Wijzigingslogboek
+    ['ai', L('AI-advies'), ['ai'], L('Advies van Claude, ChatGPT, Gemini, Grok of Ollama bij storingen.')],
+    ['api', L('REST API'), ['api'], L('API-sleutels voor andere toepassingen.')],
+    ['statuspage', L('Statuspagina'), ['statuspage'], L('Een openbare pagina met de status, via een geheime link.')],
     ['transfer', L('Exporteren en importeren'), ['transfer'], L('Servers, checks en instellingen overzetten.')]]],
 ];
 /* 1.181.0: de rol gebruiker ziet alleen deze onderdelen, om te bekijken (de rest is voor beheerders) */
@@ -832,8 +832,9 @@ if (document.body.dataset.role === 'user') {
   }
 }
 /** Oude adressen (vóór 1.92.0) → nieuwe plek */
-const SET_ALIAS = { netlinks: 'unifi', ids_rules: 'ids_edr', enc: 'agentdef', https: 'outside', setup: 'db', syscheck: 'db', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db', changelog: 'actlog', features: 'overview' };   // 1.120.0: samengevoegde onderdelen
-const SET_TAB_OF = { features: 'functies', ids_rules: 'regels', smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server' };   // oude adressen → tabblad op de pagina Advies
+const SET_ALIAS = { netlinks: 'unifi', ids_rules: 'ids_edr', enc: 'agentdef', https: 'outside', setup: 'db', syscheck: 'db', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db', changelog: 'actlog', features: 'overview',
+  quiet: 'rules', hibp: 'vulns', ids_prot: 'prot', dnsbl: 'ids_dns' };   // 1.276.0: nieuwe indeling   // 1.120.0: samengevoegde onderdelen
+const SET_TAB_OF = { features: 'functies', ids_rules: 'regels', smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server', quiet: 'stil', hibp: 'datalekken' };   // oude adressen → tabblad op de pagina Advies
 let setTab = {};   // per onderdeel met tabbladen: het gekozen tabblad
 let setSection = (() => { try { return localStorage.getItem('rzmon-set-section') || 'overview'; } catch (e) { return 'overview'; } })();
 let setHealthAt = 0;
@@ -848,7 +849,9 @@ function setFind(id) {
 
 function showSettingsSection(id, focusEl) {
   xpClose();
-  if (id === 'ids_prot') { showTab('ids/prot'); return; }   // 1.236.0: Beschermingen staan op één plek: IDS → Bescherming
+  // 1.276.0: deze onderdelen zijn eigen pagina's in het hoofdmenu geworden
+  const MAIN = { agents: 'servers', actlog: 'logboek', changelog: 'logboek', nis2: 'compliance' };
+  if (MAIN[id]) { showTab(MAIN[id]); return; }
   if (id === 'whitelist') { showTab('ids/blk'); setTimeout(() => { const c = $('#wl-card'); if (c) c.scrollIntoView({ behavior: 'smooth' }); }, 300); return; }   // 1.236.0: whitelist bij de blokkades
   if (SET_TAB_OF[id]) setTab[SET_ALIAS[id]] = SET_TAB_OF[id];
   // Gevonden via zoeken in een kaart op een ander tabblad: dat tabblad kiezen
@@ -898,7 +901,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'snmp') loadSnmpGlobal();   // 1.178.0
   if (setSection === 'reports') loadReports();   // 1.180.0
   if (setSection === 'overview' && cards.includes('features')) loadFeatures();   // 1.182.0; 1.236.0 tabblad van Status en functies
-  if (setSection === 'quiet') loadQuiet();   // 1.189.0
+  if (cards.includes('quiet')) loadQuiet();   // 1.189.0; 1.276.0 tabblad van Wanneer melden
   if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
   if (setSection === 'actlog') loadActLog();   // 1.226.0
   if (setSection === 'ids_ransom') loadRansomSet();   // 1.228.0
@@ -907,7 +910,8 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'sudo') loadSudoSet();   // 1.231.0
   if (setSection === 'nis2') loadNis2();   // 1.232.0
   if (setSection === 'proxy') loadProxyRoles();   // 1.254.0
-  if (setSection === 'ids_ti') loadDnsbl();
+  if (setSection === 'ids_dns') loadDnsbl();
+  if (setSection === 'prot') loadProt();   // 1.276.0: van de IDS-pagina naar de portal
   if (setSection === 'ids_edr' && cards.includes('ids_rules')) { loadEdrRules(); }   // 1.162.0
   if (setSection === 'db' || setSection === 'perf') loadSyscheck();   // 1.151.0: systeemcheck, cron, database, prestaties
   if (setSection === 'db') loadSetupInfo();
@@ -1143,7 +1147,7 @@ async function loadSettingsHealth() {
 }
 
 /**
- * IDS-schakelaars op één plek (1.122.0): aan/uit staat op de kaarten van IDS → Bescherming. De drempels van een kaart
+ * IDS-schakelaars op één plek (1.122.0): aan/uit staat op de kaarten van Instellingen → Bescherming → Beschermingen. De drempels van een kaart
  * staan achter ⚙️ (zelfde velden als in de instellingen, uit het instellingenformulier gekopieerd).
  */
 const PROT_CFG = {
@@ -1208,7 +1212,7 @@ async function protCfgDialog(id) {
 
 /** Groepen op Status (1.122.0): alle punten over agents samen, en alles over https samen */
 const OV_GROUPS = [
-  ['agents_all', () => L('Agents'), 'agents', ['agents', 'enc', 'ownkey', 'agent_https', 'agent_https_only', 'agent_audit', 'agent_ownkey_only', 'agent_ip', 'agent_sign']],
+  ['agents_all', () => L('Agents'), 'agentdef', ['agents', 'enc', 'ownkey', 'agent_https', 'agent_https_only', 'agent_audit', 'agent_ownkey_only', 'agent_ip', 'agent_sign']],
   ['https_all', () => L('Beheer via https'), 'outside', ['https', 'https_client', 'cert', 'dns', 'proxy_leg', 'http_login', 'split_dns', 'mfa_ext']],
 ];
 function ovGroup(items, rank) {
@@ -1274,7 +1278,7 @@ function polishSettings(root) {
     rest.forEach((n) => w.append(n));
     l.append(w);
   });
-  // IDS: aan/uit van een onderdeel staat op IDS → Bescherming (1.122.0); hier niet nog een keer
+  // IDS: aan/uit van een onderdeel staat op Instellingen → Bescherming → Beschermingen (1.122.0); hier niet nog een keer
   PROT_KEYS.forEach((k) => {
     const inp = $(`[data-sk^="ids"] label.switch > input[name="${k}"]`, root);
     const l = inp && inp.parentElement;
@@ -1289,9 +1293,9 @@ function polishSettings(root) {
     for (let n = h.nextElementSibling; n && !n.matches('h3.set-sub'); n = n.nextElementSibling) if (!n.hidden) { any = true; break; }
     h.hidden = !any;
   });
-  $$('[data-sk^="ids"]:not([data-sk="ids_servers"]):not([data-sk="ids_rules"]):not([data-sk="ids_prot"]) > h2', root).forEach((h) => {
+  $$('[data-sk^="ids"]:not([data-sk="ids_servers"]):not([data-sk="ids_rules"]):not([data-sk="ids_prot"]):not([data-sk="idspush"]) > h2', root).forEach((h) => {
     if (h.nextElementSibling && h.nextElementSibling.classList.contains('prot-hint')) return;
-    h.insertAdjacentHTML('afterend', `<div class="prot-hint">${L('Onderdelen aan- of uitzetten, en de drempels per onderdeel (⚙️), doe je op <a href="#ids/prot" data-goto="ids/prot">IDS → Bescherming</a>. Hier staan de algemene instellingen.')}</div>`);
+    h.insertAdjacentHTML('afterend', `<div class="prot-hint">${L('Onderdelen aan- of uitzetten, en de drempels per onderdeel (⚙️), doe je op <a href="#settings/prot" data-goto="settings/prot">Beschermingen</a>. Hier staan de algemene instellingen.')}</div>`);
   });
   $$('[data-sk] h2:not([data-pol]), [data-sk] h3.set-sub:not([data-pol])', root).forEach((h) => {
     h.dataset.pol = '1';
@@ -3307,7 +3311,7 @@ function showNewDbPassword(r) {
   loadDbInfo();
 }
 
-// ---------------------------------------------------------------- 🧬 Instellingen → IDS → Ransomware (1.228.0)
+// ---------------------------------------------------------------- 🧬 Instellingen → Bescherming → Ransomware (1.228.0)
 async function loadRansomSet() {
   const box = $('#ransom-hosts');
   if (!box) return;

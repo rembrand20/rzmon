@@ -354,7 +354,7 @@ switch ($action) {
         AgentCommands::audit($user['username'], 'Kwetsbaarheid: niet meer genegeerd', '#' . (int) ($in['id'] ?? 0));
         out(['ok' => true]);
 
-    // Kwetsbaarheden aan of uit (Instellingen → Beveiliging → Kwetsbaarheden); aan = meteen de softwarelijsten laten (her)sturen en scannen
+    // Kwetsbaarheden aan of uit (Instellingen → Bescherming → Kwetsbaarheden); aan = meteen de softwarelijsten laten (her)sturen en scannen
     case 'vuln_set':
         $on = !empty(input()['enabled']);
         save_setting('vuln_enabled', $on ? '1' : '0');
@@ -363,7 +363,7 @@ switch ($action) {
 
     case 'vuln_scan':
         if (!Vulns::enabled()) {
-            out(['error' => t('Kwetsbaarheden staat uit (Instellingen → Beveiliging → Kwetsbaarheden)')], 422);
+            out(['error' => t('Kwetsbaarheden staat uit (Instellingen → Bescherming → Kwetsbaarheden)')], 422);
         }
         session_write_close();
         q('UPDATE vuln_inventory SET scanned_at = NULL');

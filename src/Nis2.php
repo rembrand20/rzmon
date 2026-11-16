@@ -11,7 +11,7 @@ declare(strict_types=1);
  *   als een termijn dichtbij komt. Je vinkt aan wat je verstuurd hebt; alles komt in het logboek.
  * - Een NIS2-rapport (HTML, af te drukken als PDF) bij Rapporten.
  * Dit is geen juridisch advies en geen certificering: het laat zien wat RzSense technisch ziet.
- * Aan/uit: nis2_on (Instellingen → Overzicht → NIS2 of Overzicht → Functies).
+ * Aan/uit: nis2_on (de pagina Compliance of Overzicht → Functies).
  */
 final class Nis2
 {
@@ -73,7 +73,7 @@ final class Nis2
             case 'd':
                 $sign = AgentSign::status();
                 return [
-                    [$sign['valid'], $sign['valid'] ? t('Updates van de agent zijn ondertekend') : t('Updates van de agent zijn niet (goed) ondertekend'), 'settings/agents'],
+                    [$sign['valid'], $sign['valid'] ? t('Updates van de agent zijn ondertekend') : t('Updates van de agent zijn niet (goed) ondertekend'), 'servers'],
                     [Vulns::enabled(), t('Software van leveranciers wordt op bekende lekken gecontroleerd'), 'vulns'],
                     [null, t('Afspraken met leveranciers (verwerkersovereenkomst, beveiligingseisen): leg dat vast in de notitie'), null],
                 ];
@@ -82,15 +82,15 @@ final class Nis2
                 $auto = (int) q("SELECT COUNT(*) FROM hosts WHERE mode = 'agent' AND patch_mode IN ('window', 'auto')")->fetchColumn();
                 return [
                     [$kev === 0, $kev ? t('{n} actief misbruikte lekken (KEV) met een update die nog niet geïnstalleerd is', ['n' => $kev]) : t('Geen openstaande actief misbruikte lekken (KEV)'), 'vulns'],
-                    [Patch::enabled() && $auto > 0, t('{n} van {m} servers krijgen beveiligingsupdates in het onderhoudsvenster of dagelijks', ['n' => $auto, 'm' => $hosts]), 'vulns/patch'],
+                    [Patch::enabled() && $auto > 0, t('{n} van {m} servers krijgen beveiligingsupdates in het onderhoudsvenster of dagelijks', ['n' => $auto, 'm' => $hosts]), 'updates'],
                     [AppControl::enabled(), AppControl::enabled() ? t('Onbekende programma\'s worden opgemerkt') : t('Onbekende programma\'s staat uit'), 'ids/apps'],
                 ];
             case 'f':
                 $days = ActionLog::days();
                 return [
                     [Analytics::reportOn(), Analytics::reportOn() ? t('Er gaat elke maand een rapport uit') : t('Geen maandrapport ingesteld'), 'settings/reports'],
-                    [$days >= 365, t('Het logboek per server wordt {n} dagen bewaard', ['n' => $days]), 'settings/actlog'],
-                    [true, t('Het wijzigingslogboek houdt bij wie wat veranderde'), 'settings/actlog'],
+                    [$days >= 365, t('Het logboek per server wordt {n} dagen bewaard', ['n' => $days]), 'logboek'],
+                    [true, t('Het wijzigingslogboek houdt bij wie wat veranderde'), 'logboek'],
                 ];
             case 'g':
                 return [
@@ -101,7 +101,7 @@ final class Nis2
                 $ms = MailSec::enabled();
                 return [
                     [Https::on(), Https::on() ? t('Beheer van RzSense gaat via https') : t('Beheer via https staat nog niet aan'), 'settings/outside'],
-                    [true, t('Agents versturen hun rapport versleuteld'), 'settings/agents'],
+                    [true, t('Agents versturen hun rapport versleuteld'), 'servers'],
                     [$ms, $ms ? t('E-mailbeveiliging van je domein (SPF, DKIM, DMARC) wordt gecontroleerd') : t('E-mailbeveiliging staat uit'), 'settings/mailsec'],
                 ];
             case 'i':
@@ -276,7 +276,7 @@ final class Nis2
     }
 
     /**
-     * 1.234.0: het NIS2-overzicht als gepland rapport (Instellingen → Rapporten): titel, onderwerp, platte tekst,
+     * 1.234.0: het NIS2-overzicht als gepland rapport (Instellingen → Meldingen en rapporten → Rapporten): titel, onderwerp, platte tekst,
      * HTML-blok en een korte zin voor push.
      */
     public static function reportPart(): array

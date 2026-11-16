@@ -913,7 +913,7 @@ final class Insights
         }
         if ($old) {
             $out[] = self::a('agents_old', 'detect', 0, 25, 'click', t('{n} agents draaien een oudere versie', ['n' => count($old)]),
-                [implode(', ', array_slice($old, 0, 6)), t('Nieuwste versie: {v}', ['v' => AGENT_LATEST])], t('Werk de agents bij.'), [], [['k' => 'go', 'go' => 'settings/agents']]);
+                [implode(', ', array_slice($old, 0, 6)), t('Nieuwste versie: {v}', ['v' => AGENT_LATEST])], t('Werk de agents bij.'), [], [['k' => 'go', 'go' => 'servers']]);
         }
         return $out;
     }

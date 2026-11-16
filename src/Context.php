@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Oorzaak erbij zoeken (1.108.0): bij de eerste melding van een storing kijkt RzSense wat er vlak ervoor (20 minuten) op
  * die server gebeurde, en zet dat in de melding: een agent- of RzSense-update, een herstart, bijgewerkte pakketten,
  * zelf herstellen, of een wijziging in RzSense (wijzigingslogboek). Bijvoorbeeld "🕵️ Kort ervoor: 3 min eerder: Agent
- * bijgewerkt van 1.61.1 naar 1.62.0". Aan/uit: Instellingen → Monitoring → Advies (context_on).
+ * bijgewerkt van 1.61.1 naar 1.62.0". Aan/uit: Instellingen → Monitoring → Slimme drempels en advies (context_on).
  */
 final class Context
 {

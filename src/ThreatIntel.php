@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Dreigingsinformatie van internet (1.112.0, Instellingen → IDS → Dreigingsinformatie). RzSense vraagt na wat bekend is:
+ * Dreigingsinformatie van internet (1.112.0, Instellingen → Bescherming → Dreigingsinformatie). RzSense vraagt na wat bekend is:
  *
  * - per IP-adres (bij een IDS-incident of een nieuwe uitgaande verbinding):
  *   - AbuseIPDB (met je eigen API-sleutel): hoe vaak gemeld, door hoeveel mensen, soort netwerk, provider;

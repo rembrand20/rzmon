@@ -62,7 +62,7 @@ const TYPES = {
   podman:  { label: L('Containers (algemeen)'), target: null, unit: null, help: L('Algehele status van Podman en/of Docker op deze server: draait het, hoeveel containers draaien er, en zijn er containers gestopt met een fout, ongezond (healthcheck) of gepauzeerd, of pods niet in orde? Vereist de agent.') },
   container: { label: L('Container (Podman/Docker)'), target: L('Container'), unit: null, ph: L('naam, of gebruiker/naam (rootless)'), help: L('Eén check per container: de status (draait, healthcheck, herstarts) altijd, en daarnaast de CPU, RAM en disk die je hieronder aanvinkt, elk met eigen drempels. Kies de naam uit de lijst die de agent meldt.') },
   log:     { label: L('Logbestand (zoeken)'), target: L('Bron'), unit: 'treffers', warn: 5, crit: 20, ph: L('/var/log/secure, journal, journal:sshd of kernel'), help: L('De agent leest de nieuwe regels van een logbestand of het systemlog en telt hoeveel er op je zoekpatroon passen in de laatste periode (Instellingen → Alarmgedrag, standaard 15 min). Kies hieronder een voorinstelling of stel zelf in.') },
-  command: { label: L('Commando'), target: null, unit: null, help: L('De agent voert een commando uit op de server, en RzSense vergelijkt de uitvoer met het antwoord dat je verwacht. Alleen als commando\'s voor deze server aan staan (Instellingen → Agents → Commando-checks).') },
+  command: { label: L('Commando'), target: null, unit: null, help: L('De agent voert een commando uit op de server, en RzSense vergelijkt de uitvoer met het antwoord dat je verwacht. Alleen als commando\'s voor deze server aan staan (Instellingen → Agents en koppelingen → Commando-checks).') },
   path:    { label: L('Pad (traceroute)'), target: L('Doel'), unit: 'ms', warn: 50, crit: 150, ph: L('IP-adres of hostnaam, bv. 1.1.1.1'), help: L('Meet vanaf deze server het pad naar een doel: vertraging, jitter en verlies per hop, de switches (UniFi en de apparaten die je hieronder opgeeft) en de doorvoer (iperf3) binnen je netwerk. Agent 1.78.0 of nieuwer, met mtr of traceroute.') },
   truenas: { label: L('TrueNAS'), target: null, unit: null, help: L('Via de agent op TrueNAS SCALE (agent 1.77.0 of nieuwer, als root): TrueNAS zelf uitgelezen met midclt, zonder API-sleutel.') },
   pve:     { label: L('Proxmox VE'), target: null, unit: null, help: L('Via de agent op een Proxmox-host (agent 1.61.0 of nieuwer, als root): de guests (VM\'s en containers), back-ups, opslag en ZFS. Kies hieronder wat je wilt bewaken.') },
@@ -84,7 +84,7 @@ const TYPES = {
   // 1.187.0: verkeer van een apparaat (uit UniFi)
   traffic: { label: L('Verkeer (UniFi)'), target: L('MAC- of IP-adres'), unit: 'Mbit/s', warn: 50, crit: 200, ph: L('leeg = adres van de server'), help: L('Hoeveel verkeer een apparaat doet, uit de tellers van UniFi (Netwerk → Verkeer per apparaat). Kies wat: de snelheid nu of de hoeveelheid vandaag. Warning en critical gaan af als het meer is dan je drempel.') },
   // 1.157.0: de internetlijn, vanaf de server van RzSense
-  internet: { label: L('Internet'), target: null, unit: 'ms', warn: 50, crit: 150, help: L('Bewaakt je internetlijn vanaf de server van RzSense. Kies wat: ping, responstijd, download of upload. De snelheidstest draait op vaste tijden; abonnement, drempels en tijden staan bij Instellingen → Monitoring → Internet.') },
+  internet: { label: L('Internet'), target: null, unit: 'ms', warn: 50, crit: 150, help: L('Bewaakt je internetlijn vanaf de server van RzSense. Kies wat: ping, responstijd, download of upload. De snelheidstest draait op vaste tijden; abonnement, drempels en tijden staan bij Instellingen → Monitoring → Internetcheck.') },
   service: { label: L('Service'),       target: L('Servicenaam'),   unit: null, ph: 'nginx', help: L('De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.') },
 };
 // Voorinstellingen voor logbestanden: bron, zoekpatroon (regex, hoofdletters maakt niet uit) en drempels
@@ -213,8 +213,8 @@ const DB_METRICS = {
 const INET_METRICS = {
   ping: { label: L('Ping (pingtijd, jitter, verlies)'), unit: 'ms', warn: 50, crit: 150, help: L('Pingt 1.1.1.1 en 8.8.8.8 (5 keer) en je router. De waarde is de beste pingtijd. Verlies van 20% of meer, of één adres weg = WARNING; geen van beide = CRITICAL, met in de melding of je router nog antwoordt (dan zit het probleem buiten).') },
   resp: { label: L('Responstijd (DNS, verbinden, eerste antwoord)'), unit: 'ms', warn: 500, crit: 2000, help: L('Hoe snel google.com en cloudflare.com antwoorden, met een nieuwe verbinding: DNS, verbinden, TLS en het eerste antwoord. Eén site weg = WARNING, allebei = CRITICAL.') },
-  down: { label: L('Download (snelheidstest)'), unit: 'Mbit/s', nothresh: true, help: L('Uit de laatste snelheidstest. Warning en critical zijn een percentage van je abonnement (Instellingen → Monitoring → Internet).') },
-  up: { label: L('Upload (snelheidstest)'), unit: 'Mbit/s', nothresh: true, help: L('Uit de laatste snelheidstest. Warning en critical zijn een percentage van je abonnement (Instellingen → Monitoring → Internet).') },
+  down: { label: L('Download (snelheidstest)'), unit: 'Mbit/s', nothresh: true, help: L('Uit de laatste snelheidstest. Warning en critical zijn een percentage van je abonnement (Instellingen → Monitoring → Internetcheck).') },
+  up: { label: L('Upload (snelheidstest)'), unit: 'Mbit/s', nothresh: true, help: L('Uit de laatste snelheidstest. Warning en critical zijn een percentage van je abonnement (Instellingen → Monitoring → Internetcheck).') },
 };
 /** 1.187.0: wat een verkeer-check meet */
 const TRAFFIC_METRICS = {
@@ -268,7 +268,7 @@ const STATUS_WORD = ['OK', 'WARNING', 'CRITICAL', L('onbekend')];
 const MDS_MQ = window.matchMedia ? window.matchMedia('(max-width: 720px)') : { matches: false, addEventListener() {} };
 let mdsData = null, mdsAt = 0, mdsAll = false;
 // 1.196.0: op een telefoon staan deze pagina's onder "Meer" (de tabbalk houdt mDS, Checks, Meldingen, IDS en Meer)
-const MORE_TABS = ['home', 'incidents', 'vulns', 'proxy', 'analytics', 'logs', 'net', 'settings'];
+const MORE_TABS = ['home', 'incidents', 'servers', 'vulns', 'updates', 'proxy', 'analytics', 'logs', 'logboek', 'compliance', 'net', 'settings'];   // 1.276.0
 
 let stats = { uptime: {}, sparks: {} };
 // Sorteren op de pagina Meldingen (per apparaat onthouden): { key: 'time'|'status'|'server'|'check'|'message'|'channels', dir: 1|-1 }
@@ -277,7 +277,8 @@ const ALERT_SORTS = { time: L('Tijd'), status: 'Status', server: 'Server', check
 const liveLoaded = {};   // wanneer meldingen en IDS voor het laatst geladen zijn (live bijwerken, 1.119.0)
 // 1.119.0: hoeveel dagen Meldingen en IDS ophalen; ouder op verzoek (knop onderaan, of zoeken)
 const histDays = { alerts: 7, ids: 2 };   // 1.217.0: IDS standaard de open incidenten en de laatste 2 dagen; ouder op verzoek
-let idsTab = (() => { try { return localStorage.getItem('rzmon-ids-tab') || 'inc'; } catch (e) { return 'inc'; } })();
+let idsTab = (() => { try { return localStorage.getItem('rzmon-ids-tab') || 'live'; } catch (e) { return 'live'; } })();
+let incSrc = 'all';   // 1.276.0: Incidenten → soort (alles, storingen, aanvallen, kwetsbaarheden)
 let accData = null, accFilter = 'all', accHost = '', accDayOpen = {}, accSsh = 'all', sshSess = null;
 let accSort = (() => { try { return JSON.parse(localStorage.getItem('rzmon-acc-sort') || 'null') || { key: '', dir: 1 }; } catch (e) { return { key: '', dir: 1 }; } })();
 // Checks onder een server in groepen (vaste volgorde); dichtgeklapte groepen per server per apparaat onthouden
@@ -666,7 +667,8 @@ function fxCurrent() {
   const tab = ($('.tab-panel:not([hidden])') || {}).id?.replace('tab-', '');
   if (tab === 'dashboard') return 'dash';
   if (tab === 'alerts') return 'alerts';
-  if (tab === 'ids') return { inc: 'ids', acc: 'acc', blk: 'blk' }[idsTab] || 'ids';
+  if (tab === 'ids') return { inc: 'ids', acc: 'acc', blk: 'blk' }[idsTab] || null;
+  if (tab === 'incidents' && incSrc === 'ids') return 'ids';   // 1.276.0: de aanvallen staan op Incidenten
   if (tab === 'vulns') return $('#vuln-tabs') ? (vulnTab === 'leak' ? 'leaks' : vulnTab === 'eol' ? 'eol' : 'vulns') : ($('#leak-list') && !$('#vuln-search') ? 'leaks' : 'vulns');
   return null;
 }
@@ -679,7 +681,8 @@ function fxQuery(page) {
 function fxSyncHash() {
   const page = fxCurrent();
   if (!page) return;
-  const tab = FX_TAB[page];
+  let tab = FX_TAB[page];
+  if (tab === 'ids/inc' && ($('.tab-panel:not([hidden])') || {}).id === 'tab-incidents') tab = 'incidents/ids';   // 1.276.0
   const plain = tab === 'dashboard' || tab === 'alerts' || (page === 'ids' && !fxActive(page)) || (page === 'vulns' && !$('#vuln-tabs') && !fxActive(page));
   history.replaceState(null, '', '#' + hashName(plain ? tab.split('/')[0] : tab) + fxQuery(page));
 }

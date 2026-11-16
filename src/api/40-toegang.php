@@ -493,7 +493,7 @@ switch ($action) {
             out(['error' => $e->getMessage()], 422);
         }
 
-    case 'inet_state':   // 1.157.0: Instellingen → Monitoring → Internet
+    case 'inet_state':   // 1.157.0: Instellingen → Monitoring → Internetcheck
         out(Internet::state());
 
     case 'inet_install':   // het apparaat "Internet" met de vier checks

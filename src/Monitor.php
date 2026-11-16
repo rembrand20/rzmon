@@ -54,7 +54,7 @@ final class Monitor
     public const SLOW_CONFIRM_TYPES = ['disk', 'ssl', 'domain', 'heartbeat', 'path', 'smart', 'reboot'];
 
     /**
-     * Interval van een check in SQL (1.108.0, slim interval, Instellingen → Monitoring → Advies): bij een probleem
+     * Interval van een check in SQL (1.108.0, slim interval, Instellingen → Monitoring → Slimme drempels en advies): bij een probleem
      * (of een mislukte meting) sneller (smart_fast, standaard 20 s, alleen checks die RzSense zelf doet), na een uur stabiel OK
      * trager (hooguit smart_slow × het interval en nooit trager dan een uur, tenzij het interval zelf al langer is).
      */
@@ -674,7 +674,7 @@ final class Monitor
     }
 
     /**
-     * Escalatie (1.108.0, Instellingen → Meldingen → Meldregels en stille uren): na zoveel minuten open en onbevestigd de prioriteit van de herhaling,
+     * Escalatie (1.108.0, Instellingen → Meldingen en rapporten → Meldregels en stille uren): na zoveel minuten open en onbevestigd de prioriteit van de herhaling,
      * of null (uit, nog niet, of stille uren als dat zo ingesteld is). Warning → de prioriteit van critical; critical → de ingestelde.
      */
     private static function escalation(array $check, int $status, int $age): ?int

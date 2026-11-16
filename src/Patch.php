@@ -9,7 +9,7 @@ declare(strict_types=1);
  *   tijd; alleen beveiligingsupdates (standaard) of alles (1.238.1: geen snapshot meer);
  * - Home Assistant via de Supervisor (Core en add-ons, altijd met een back-up vooraf; het OS niet, dat herstart alles);
  * - nooit TrueNAS (apt maakt TrueNAS kapot), de RzSense-server zelf alleen met de hand, en nooit een herstart.
- * Aan/uit: patch_on (Instellingen → Beveiliging → Updates of Overzicht → Functies), en per server (Agent Manager).
+ * Aan/uit: patch_on (Instellingen → Bescherming → Updatebeleid of Overzicht → Functies), en per server (Agent Manager).
  */
 final class Patch
 {
@@ -114,7 +114,7 @@ final class Patch
     {
         $kind = self::kind($host);
         return match (true) {
-            !self::enabled() => t('Updates installeren staat uit (Instellingen → Beveiliging → Updates)'),
+            !self::enabled() => t('Updates installeren staat uit (Instellingen → Bescherming → Updatebeleid)'),
             $kind === 'truenas' => t('TrueNAS werk je bij met een TrueNAS-update (System → Update), nooit met apt'),
             !self::agentOk($host) => t('agent {v} of nieuwer nodig', ['v' => self::AGENT]),
             $kind === 'linux' && ($why = Vulns::upgradeBlocked($host)) !== null => $why,

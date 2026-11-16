@@ -59,4 +59,6 @@ dups=$(grep -ohE '^((async )?function|const|let|var|class) [A-Za-z0-9_$]+' publi
 if [ -z "$dups" ]; then echo "  ✔ geen dubbele namen (functies, const, let, class) in public/assets/app.js"; else echo "  ✘ dubbele namen in public/assets/app.js: $dups"; fail=1; fi
 echo "Vertaling (Engels):"
 if command -v php >/dev/null 2>&1; then php tools/check-i18n.php; else echo "  · php niet gevonden: overgeslagen"; fi
+echo "Uitleg bij velden (?):"
+if command -v php >/dev/null 2>&1; then php tools/check-fieldhelp.php || fail=1; else echo "  · php niet gevonden: overgeslagen"; fi
 exit "$fail"

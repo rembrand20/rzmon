@@ -50,7 +50,7 @@ final class OwnCert
             && !ip_in_list($ip, ['127.0.0.0/8', '::1/128', 'fe80::/10']))));
     }
 
-    /** Eigen namen en IP-adressen (Instellingen → Agents → 🔐 Certificaat) */
+    /** Eigen namen en IP-adressen (Instellingen → Agents en koppelingen → 🔐 Certificaat) */
     public static function extraNames(): array
     {
         return parse_list((string) setting('cert_extra_names', ''));

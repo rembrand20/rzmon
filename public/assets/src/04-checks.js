@@ -343,7 +343,7 @@ function smartWhy(p) {
   return why;
 }
 
-/** Instellingen → Monitoring → Advies: handmatige checks waar slim minder warnings had gegeven */
+/** Instellingen → Monitoring → Slimme drempels en advies: handmatige checks waar slim minder warnings had gegeven */
 async function loadSmartProposals() {
   const el = $('#smart-proposals');
   if (!el) return;
@@ -707,7 +707,7 @@ function hostForm(h, preset = null) {
       <label class="switch" ${h.mode === 'agent' || isNew ? '' : 'hidden'} id="iperf-ok-wrap"><input type="checkbox" name="iperf_ok" ${+(h.iperf_ok ?? 1) ? 'checked' : ''}><span></span> ${L('Mag doorvoertest ontvangen (iperf3)')} <span class="hint">${L('voor de pad-check van een andere server; de agent start dan kort een ontvanger die na één meting stopt')}</span></label>
       ${snmpHostFields(h.snmp)}
       ${swsOpen({ id: 'fim-host-wrap', cb: 'id="fim-host-sw"', icon: '📁', title: L('Bestanden bewaken (IDS)'), on: false, sub: `<span id="fim-host-label">${L('laden…')}</span>`, hidden: h.mode !== 'agent' })}
-        ${xpHtml(L('Extra bestanden om te bewaken, alleen op deze server.'), L('Deze paden komen bovenop de algemene lijst (<i>Instellingen → IDS → Algemeen</i>). Staat hetzelfde pad in allebei, dan geldt dit pad, bijvoorbeeld om de ernst te veranderen.'))}
+        ${xpHtml(L('Extra bestanden om te bewaken, alleen op deze server.'), L('Deze paden komen bovenop de algemene lijst (<i>Instellingen → Bescherming → IDS algemeen</i>). Staat hetzelfde pad in allebei, dan geldt dit pad, bijvoorbeeld om de ernst te veranderen.'))}
         <div id="fim-host"></div>
       </div></section>
       ${(state.templates || []).length ? `${swsOpen({ id: 'tpl-wrap', cb: null, icon: '📋', title: L('Sjablonen'), on: isNew || hostTpls(h).length > 0,
@@ -862,7 +862,7 @@ function featRender() {
   $$('[data-feat-st]').forEach((b) => b.classList.toggle('on', b.dataset.featSt === featF.st));
 }
 
-// ---------------------------------------------------------------- 1.180.0: Instellingen → Rapporten
+// ---------------------------------------------------------------- 1.180.0: Instellingen → Meldingen en rapporten → Rapporten
 const REP_DAYS = () => [[1, L('ma')], [2, L('di')], [3, L('wo')], [4, L('do')], [5, L('vr')], [6, L('za')], [7, L('zo')]];
 const REP_INFO = {
   all: () => L('Eén bericht met de onderdelen die je aanvinkt; standaard op de 1e van de maand over de vorige maand.'),
@@ -893,8 +893,8 @@ async function loadReports() {
   try { repData = await api('reports_get'); } catch (ex) { box.innerHTML = `<p class="bad small">${esc(ex.message)}</p>`; return; }
   const r = repData;
   const ro = !r.admin;
-  const need = { ai_week: r.ai ? '' : L('AI-advies staat uit (Instellingen → Koppelingen → AI-advies).'), ids_week: r.ids ? '' : L('Het IDS staat uit.'),
-    vulns: r.vulns ? '' : L('Kwetsbaarheden staat uit.'), leaks: r.hibp ? '' : L('Datalekken staat uit.'), nis2: r.nis2 ? '' : L('Het NIS2-overzicht staat uit (Instellingen → Overzicht → NIS2).') };
+  const need = { ai_week: r.ai ? '' : L('AI-advies staat uit (Instellingen → Systeem → AI-advies).'), ids_week: r.ids ? '' : L('Het IDS staat uit.'),
+    vulns: r.vulns ? '' : L('Kwetsbaarheden staat uit.'), leaks: r.hibp ? '' : L('Datalekken staat uit.'), nis2: r.nis2 ? '' : L('Het NIS2-overzicht staat uit (de pagina Compliance).') };
   const card = (m) => {
     const c = r.cfg[m.key];
     const dis = ro ? 'disabled' : '';
@@ -932,7 +932,7 @@ async function loadReports() {
       </div>
     </div>`;
   };
-  box.innerHTML = `${!r.smtp ? `<div class="callout">⚠️ ${L('E-mail is nog niet ingesteld (Instellingen → Meldingen → Kanalen). Zonder e-mail gaan rapporten alleen als push.')}</div>` : ''}
+  box.innerHTML = `${!r.smtp ? `<div class="callout">⚠️ ${L('E-mail is nog niet ingesteld (Instellingen → Meldingen en rapporten → Kanalen). Zonder e-mail gaan rapporten alleen als push.')}</div>` : ''}
     <div class="rep-list">${r.meta.filter((m) => m.key === 'all').map(card).join('')}${r.meta.filter((m) => m.key !== 'all').map(card).join('')}</div>`;
   $$('.rep-card', box).forEach((el) => { repWire(el); const t = $('[data-rep-f=to]', el); if (t) smartList(t, { kind: 'email', sep: ', ', sources: SL_SRC.emails, max: 20 }); });   // 1.239.0
 }
@@ -1004,7 +1004,7 @@ function snmpRootData(root) {
     auth_proto: g('snmp_auth_proto'), auth_pass: g('snmp_auth_pass'), priv_proto: g('snmp_priv_proto'), priv_pass: g('snmp_priv_pass') };
 }
 
-/** 1.178.0: Instellingen → Koppelingen → SNMP: de algemene instelling en welke apparaten hem gebruiken */
+/** 1.178.0: Instellingen → Agents en koppelingen → SNMP: de algemene instelling en welke apparaten hem gebruiken */
 async function loadSnmpGlobal() {
   const box = $('#snmp-global');
   if (!box) return;
@@ -1096,7 +1096,7 @@ function snmpFieldsInit(root, onChange = () => {}) {
 function snmpGlobalText() {
   const g = state.snmp_global;
   return g ? L('uit = de algemene instelling (v{v}{u})', { v: g.v, u: g.v === '3' && g.user ? ', ' + g.user : '' })
-    : L('nog geen algemene instelling: vul die in bij Instellingen → Koppelingen → SNMP');
+    : L('nog geen algemene instelling: vul die in bij Instellingen → Agents en koppelingen → SNMP');
 }
 
 /** Blok "📡 SNMP" in het serverformulier (1.178.0: schakelaar, en eigen instellingen of de algemene); geheimen gemaskeerd */
@@ -1106,7 +1106,7 @@ function snmpHostFields(s) {
     <label class="switch"><input type="checkbox" name="snmp_own" ${own ? 'checked' : ''}><span></span> ${L('Eigen instellingen')} <span class="hint">${esc(snmpGlobalText())}</span></label>
     <div id="snmp-fields" ${own ? '' : 'hidden'}>${snmpFieldsHtml(s || state.snmp_global)}</div>
     <div class="snmp-test-row"><button type="button" class="btn" id="snmp-test">🔍 ${L('Test SNMP')}</button><span class="small" id="snmp-test-out"></span></div>
-    ${xpHtml(L('RzSense leest dit apparaat zelf uit via SNMP.'), L('<b>Wat het doet:</b> RzSense vraagt het apparaat zelf om gegevens (UDP-poort 161), zonder agent. <b>Instellen:</b> zet SNMP aan op het apparaat en geef het een community (v2c) of een gebruiker (v3). <b>Algemeen of eigen:</b> zonder <i>Eigen instellingen</i> gebruikt dit apparaat de algemene instelling uit <i>Instellingen → Koppelingen → SNMP</i>; verander je die, dan geldt dat meteen voor alle apparaten zonder eigen instellingen.'))}
+    ${xpHtml(L('RzSense leest dit apparaat zelf uit via SNMP.'), L('<b>Wat het doet:</b> RzSense vraagt het apparaat zelf om gegevens (UDP-poort 161), zonder agent. <b>Instellen:</b> zet SNMP aan op het apparaat en geef het een community (v2c) of een gebruiker (v3). <b>Algemeen of eigen:</b> zonder <i>Eigen instellingen</i> gebruikt dit apparaat de algemene instelling uit <i>Instellingen → Agents en koppelingen → SNMP</i>; verander je die, dan geldt dat meteen voor alle apparaten zonder eigen instellingen.'))}
   </div></section>`;
 }
 
@@ -1645,7 +1645,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
         <span class="hint" id="rev-hint" style="grid-column:1/-1"></span>
       </div>
       <label class="switch"><input type="checkbox" name="info_only" ${+c.info_only ? 'checked' : ''}><span></span> ℹ️ <b>${L('Alleen info-meldingen')}</b></label>
-      ${xpHtml(L('Een info-check is nooit een storing; hij geeft alleen een ℹ️ info-melding.'), L('Bij een statuswissel komt er een ℹ️ info-melding in plaats van warning, critical of hersteld, en de check telt nooit als storing. <b>Waarheen:</b> dat staat bij de rij ℹ️ <i>Info</i> (Instellingen → Meldingen, of de eigen meldregels hieronder). Standaard staat info uit.'))}
+      ${xpHtml(L('Een info-check is nooit een storing; hij geeft alleen een ℹ️ info-melding.'), L('Bij een statuswissel komt er een ℹ️ info-melding in plaats van warning, critical of hersteld, en de check telt nooit als storing. <b>Waarheen:</b> dat staat bij de rij ℹ️ <i>Info</i> (Instellingen → Meldingen en rapporten, of de eigen meldregels hieronder). Standaard staat info uit.'))}
       ${swsOpen({ id: 'notify-wrap', cb: 'id="notify-sw"', icon: '🔔', title: L('Meldingen'), on: !!(c.notify || c.notify_fails),
         sub: `<span id="notify-mode-label">${c.notify ? L('eigen regels') : L('standaard (algemene instellingen)')}</span><span id="notify-fails-label">${c.notify_fails ? ' · ' + L('na {n}× mislukt', { n: +c.notify_fails }) : ''}</span>` })}
         <label>${L('Melden na … mislukte checks achter elkaar')} <span class="hint">${L('(leeg = standaard, nu {n})', { n: state.notify_fails || 1 })}</span>
@@ -1655,7 +1655,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
       </div></section>
       ${swsOpen({ id: 'confirm-wrap', cb: 'id="confirm-sw"', icon: '⏳', title: L('Status bevestigen'), on: c.confirm_fails != null || c.confirm_ok != null,
         sub: `<span id="confirm-label">${c.confirm_fails != null || c.confirm_ok != null ? L('eigen aantallen') : L('standaard (algemene instellingen)')}</span>` })}
-        ${xpHtml(L('Pas van status wisselen na een paar controles achter elkaar.'), L('Leeg = de algemene instelling (Instellingen → Meldingen → Wanneer melden). 1 = meteen. Warning, critical en onbekend tellen samen; is de check tussendoor één keer goed, dan begint de telling opnieuw.'))}
+        ${xpHtml(L('Pas van status wisselen na een paar controles achter elkaar.'), L('Leeg = de algemene instelling (Instellingen → Meldingen en rapporten → Wanneer melden). 1 = meteen. Warning, critical en onbekend tellen samen; is de check tussendoor één keer goed, dan begint de telling opnieuw.'))}
         <div class="conf-row">
           <label>${L('Warning of critical pas na … mislukte controles')} <span class="hint">${L('(leeg = standaard, nu {n})', { n: +state.confirm_fails > 1 ? state.confirm_fails : L('meteen') })}</span>
             <input name="confirm_fails" type="number" min="1" max="100" value="${c.confirm_fails ?? ''}" placeholder="${+state.confirm_fails || 1}" style="max-width:8rem"></label>
@@ -1665,7 +1665,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
       </div></section>
       ${swsOpen({ id: 'quiet-wrap', cb: 'id="quiet-sw"', icon: '🌙', title: L('Stille uren'), on: !!quietOwn, sub: `<span id="quiet-mode-label">${quietOwn ? esc(quietLabel(quietOwn)) : L('volgt de server') + (c.quiet_eff ? ': ' + esc(c.quiet_eff.name) : '')}</span>` })}
         <label>${L('Stille uren voor deze check')}<select id="quiet-sel">${quietOptions(quietOwn ? (quietOwn.mode === 'never' ? 'never' : quietOwn.mode === 'profile' ? 'p:' + quietOwn.id : '') : '', null)}</select></label>
-        <span class="hint">${L('Profielen maak je bij Instellingen → Meldingen → Stille uren.')}</span>
+        <span class="hint">${L('Profielen maak je bij Instellingen → Meldingen en rapporten → Wanneer melden → Stille uren.')}</span>
       </div></section>
       <div class="row3" id="thr-wrap">
         <label><span class="thr-word">${L('Warning vanaf')}</span> <span class="hint unit"></span><input name="warn_threshold" type="number" step="any" value="${c.warn_threshold ?? ''}"></label>
@@ -2000,7 +2000,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
         const m = (r.hosts.find((x) => x.id === +h.id) || {}).mode || 'off';
         cmdMode = m;
         $('#cmd-mode-info').innerHTML = m === 'off'
-          ? L('<b class="warn-txt">⚠️ Commando\'s staan voor {name} uit.</b> De check blijft onbekend tot je ze aanzet: Instellingen → Agents → Commando-checks, of per server in de Agent Manager.', { name: esc(h.name) })
+          ? L('<b class="warn-txt">⚠️ Commando\'s staan voor {name} uit.</b> De check blijft onbekend tot je ze aanzet: Instellingen → Agents en koppelingen → Commando-checks, of per server in de Agent Manager.', { name: esc(h.name) })
           : L('Commando\'s op {name}: <b>{mode}</b>.', { name: esc(h.name), mode: esc(CMD_MODES[m]) });
       }).catch(() => {});
     }

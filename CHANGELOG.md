@@ -8,11 +8,27 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.276.0**: **overzichtelijker RzSense**: nieuwe pagina's Servers, Updates, Logboek en Compliance, één inbox voor incidenten, een beheerportal in zeven groepen en een `?` met uitleg bij elk veld.
 - **1.275.0**: **rust op je telefoon**: geblokkeerde scanners geven geen pushmelding meer, wel een samenvatting om 20:00; alleen als je iets moet doen komt er meteen een melding.
 - **1.274.0**: **toegestane apparaten per site**: met één schakelaar kom je met je eigen telefoon onderweg ook bij beheerprogramma's achter de proxy.
 - **1.273.0**: **apps als Home Assistant laden weer achter de proxy**: vaste bestanden tellen niet mee voor de rate limit, en een nieuwe stand *ruim (apps)*.
 - **1.272.0**: **van buiten weer binnen met je toegestane apparaten**: de reverse proxy volgt de apparaatsleutels van RzSense en de noodlink; /rz-open/ is weg.
-- **1.271.0**: **RzSense blijft van buiten bruikbaar achter de proxy**: bevestigen vanuit Pushover, de statuspagina en heartbeats werken weer, en RzSense waarschuwt als je jezelf buitensluit.
+
+## 1.276.0 – 2026-11-16
+### Nieuw
+- **RzSense opnieuw ingedeeld: dagelijks werk in het hoofdmenu, instellen in de beheerportal.**
+  - **Hoofdmenu** in vijf groepen: *Overzicht* (Dashboard, Meldingen), *Monitoring* (Monitoring, **Servers**), *Beveiliging* (Incidenten, IDS, Kwetsbaarheden, **Updates**, Reverse proxy), *Netwerk* en *Analyse* (Analyse, Logs, **Logboek**, **Compliance**).
+  - **Servers** (nieuw): de Agent Manager staat nu in het hoofdmenu in plaats van in de beheerportal.
+  - **Updates** (nieuw): wat er per server klaarstaat en installeren, op één eigen pagina (was Kwetsbaarheden → Updates). Het beleid (vensters, snapshot) staat bij Instellingen → Bescherming → Updatebeleid.
+  - **Logboek** en **Compliance** (NIS2 met hardening) zijn eigen pagina's; aanzetten en invullen van NIS2 blijft in de portal.
+  - **Eén inbox voor incidenten**: op *Incidenten* kies je de soort (Alles, Storingen, **Aanvallen**, Kwetsbaarheden). *Aanvallen* is de volledige IDS-lijst met blokkeren, uitzonderingen en bundels; het tabblad Incidenten op de IDS-pagina is weg (behalve voor alleen-lezen-accounts).
+  - **IDS** met minder tabbladen: *Overzicht*, *Afwijkingen* en *MITRE* staan samen onder **Analyse**; *Bescherming* (alle schakelaars) staat nu in de beheerportal.
+  - **Beheerportal** in zeven groepen: Overzicht, Monitoring, **Meldingen en rapporten** (met Stille uren als tabblad, de nieuwe pagina IDS-pushmeldingen en Rapporten), **Toegang tot RzSense**, **Bescherming** (alles van het IDS, met *DNS, Suricata en YARA* los van dreigingsinformatie, reverse proxy, kwetsbaarheden en datalekken, updatebeleid, e-mailbeveiliging, netwerkscan, NIS2), **Agents en koppelingen** en **Systeem** (nu ook AI-advies, REST API en Statuspagina).
+- **Een `?` bij elk veld, ook bij schakelaars.** Beweeg je muis erover voor een korte uitleg van één zin; klik of tik voor de volledige uitleg met eenheid, bereik en aanbevolen waarde. Ruim 200 instellingen kregen een eigen uitleg; een veld zonder uitleg kan niet meer (`tools/check-fieldhelp.php`, ook in CI).
+- Alle verwijzingen in de teksten en de handleiding wijzen naar de nieuwe plekken. **Oude adressen blijven werken**, ook links in meldingen en e-mails (bv. `#settings/agents` → Servers, `#ids/inc` → Incidenten → Aanvallen, `#vulns/patch` → Updates). Instellingen zijn niet veranderd.
+
+### Opgelost
+- IDS → Analyse → Afwijkingen toonde letterlijk *{d} dagen* in plaats van het aantal leerdagen.
 
 ## 1.275.0 – 2026-11-15
 ### Nieuw

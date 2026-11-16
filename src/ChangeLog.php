@@ -7,7 +7,7 @@ declare(strict_types=1);
  *   Geheimen (wachtwoorden, tokens, sleutels) staan er nooit leesbaar in en zijn niet terug te zetten.
  * - Checks en servers: de hele rij; een verwijderde check of server komt terug met hetzelfde id (de meethistorie niet).
  * - Sjablonen: alleen ter info.
- * Bewaartermijn: Instellingen → Systeem → Logboek (changelog_days; 1.235.0: gelijk aan actlog_days, één keuze).
+ * Bewaartermijn: de pagina Logboek (changelog_days; 1.235.0: gelijk aan actlog_days, één keuze).
  */
 final class ChangeLog
 {

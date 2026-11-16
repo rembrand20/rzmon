@@ -174,7 +174,7 @@ function init() {
       ...Object.entries(s.errors || {}).map(([k, e]) => `<span class="warn-txt">${esc(prov[k] || k)}: ${esc(e.msg)} (${esc(fmtDateTime(e.at))})</span>`),
     ].filter(Boolean).join(' · ');
     const dn = s.dns || {};
-    $('#dns-status').innerHTML = !dn.adguard ? `<span class="warn-txt">${L('Nog geen AdGuard gekoppeld (Instellingen → Koppelingen → AdGuard).')}</span>`
+    $('#dns-status').innerHTML = !dn.adguard ? `<span class="warn-txt">${L('Nog geen AdGuard gekoppeld (Instellingen → Agents en koppelingen → AdGuard).')}</span>`
       : [dn.at ? L('Laatst gekeken {t}', { t: esc(fmtDateTime(dn.at)) }) : L('Nog niet gekeken'), L('vandaag {n} DNS-vragen, {h} verdacht', { n: (+dn.n).toLocaleString(LOCALE), h: +dn.hits }),
         dn.error ? `<span class="warn-txt">${esc(dn.error)}</span>` : ''].filter(Boolean).join(' · ');
   };
@@ -277,12 +277,12 @@ function init() {
     try { await api('settings_save', { [c.dataset.protToggle]: c.checked ? '1' : '0' }); toast(c.checked ? L('Aangezet') : L('Uitgezet')); loadProt(); } catch (ex) { toast(ex.message, 'err'); c.checked = !c.checked; }
   };
   $('#prot-cards').onclick = (e) => {
-    const cfg = e.target.closest('[data-ps-cfg]');   // 1.236.0: aan/uit en drempels hier (was ook Instellingen → IDS → Beschermingen)
+    const cfg = e.target.closest('[data-ps-cfg]');   // 1.236.0: aan/uit en drempels hier (was ook Instellingen → Bescherming → Beschermingen)
     if (cfg) { protCfgDialog(cfg.dataset.psCfg); return; }
     const b = e.target.closest('[data-prot-show]');
     if (!b) return;
     idsCard = b.dataset.protShow; idsFilter = 'all'; idsCat = '';
-    showTab('ids/inc');
+    showTab('incidents/ids');
   };
   $('#mitre-host').onchange = () => loadMitre();
   $('#mitre-cover').onchange = () => renderMitre();
@@ -320,10 +320,12 @@ function init() {
     const b = e.target.closest('[data-it]');
     if (!b) return;
     idsTab = b.dataset.it;
+    if (idsTab === 'inc' && !$('#ids-tabs [data-it="inc"]')) { showTab('incidents/ids'); return; }   // 1.276.0
     try { localStorage.setItem('rzmon-ids-tab', idsTab); } catch (ex) { /* alleen voor nu */ }
     showIdsTab();
     fxSyncHash();
   };
+  $('#ids-an-seg').onclick = $('#ids-tabs').onclick;   // 1.276.0: Analyse = Overzicht, Afwijkingen, MITRE
   $('#acc-filter').onclick = (e) => {
     const b = e.target.closest('[data-ac]');
     if (!b) return;
@@ -364,7 +366,7 @@ function init() {
     if (hsb) return hostSecDialog(+hsb.dataset.hostsec);
     if (e.target.closest('[data-ids-attn-more]')) { idsAttnOpen = !idsAttnOpen; return renderIdsAttention(idsData.incidents.filter((i) => i.status === 'open')); }
     const ih = e.target.closest('[data-ihost]');
-    if (ih) { const h = idsData.hosts.find((x) => +x.id === +ih.dataset.ihost); idsFilter = 'open'; idsCat = ''; $('#ids-search').value = h ? h.name : ''; showTab('ids/inc'); renderIds(); return $('#ids-incidents').scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+    if (ih) { const h = idsData.hosts.find((x) => +x.id === +ih.dataset.ihost); idsFilter = 'open'; idsCat = ''; $('#ids-search').value = h ? h.name : ''; showTab('incidents/ids'); renderIds(); return $('#ids-incidents').scrollIntoView({ block: 'start', behavior: 'smooth' }); }
     const io = e.target.closest('[data-inc]');
     if (io) return incidentDialog(+io.dataset.inc, io.dataset.incList ? io.dataset.incList.split(',').map(Number) : null);
     const b = e.target.closest('[data-ids], [data-unblock], [data-rebase]');
@@ -575,6 +577,15 @@ function showTab(name) {
   const qs = qi >= 0 ? name.slice(qi + 1) : '';
   if (qi >= 0) name = name.slice(0, qi);
   if (name === 'settings/blocks') name = 'ids/blk';   // 1.92.0: blokkades en whitelist staan in het IDS-tabblad
+  // 1.276.0: nieuwe indeling; oude adressen (ook in meldingen en e-mails) sturen door naar de nieuwe plek
+  const MOVED = { 'settings/agents': 'servers', 'settings/actlog': 'logboek', 'settings/changelog': 'logboek', 'settings/nis2': 'compliance',
+    'vulns/patch': 'updates', 'ids/prot': 'settings/prot', 'ids/inc': 'incidents/ids', 'settings/quiet': 'settings/rules', 'settings/hibp': 'settings/vulns' };
+  if (MOVED[name] && !(name === 'ids/inc' && document.body.dataset.role === 'readonly')) {
+    if (name === 'settings/quiet') setTab.rules = 'stil';
+    if (name === 'settings/hibp') setTab.vulns = 'datalekken';
+    name = MOVED[name];
+  }
+  if (/^incidents\/(all|check|ids|vuln)$/.test(name)) { incSrc = name.slice(10); name = 'incidents'; }
   // 1.197.0: diepe links (o.a. vanuit de Home Assistant-kaart): #net/map, #net/list, #net/disc en #dashboard/paths, /avail, /cont
   let netReq = null, monReq = null;
   if (/^net\/(map|list|disc)$/.test(name)) { netReq = name.slice(4); name = 'net'; }
@@ -617,14 +628,18 @@ function showTab(name) {
   document.body.classList.toggle('mds-on', name === 'mds');   // 1.195.0: geen trekken-om-te-herladen van de browser zelf
   if (name === 'analytics') loadAnalytics();
   if (name === 'logs') loadLogsPage();   // 1.211.0
-  if (name === 'incidents') loadIncidents();
+  if (name === 'incidents') { loadIncidents(); incSrcShow(); }
+  if (name === 'servers') { loadSecurity(); renderAgentUpdates(); }   // 1.276.0: de Agent Manager als pagina
+  if (name === 'updates') loadPatch();
+  if (name === 'logboek') loadActLog();
+  if (name === 'compliance') loadNis2();
   if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); if ($('#eol-list') && !$('#vuln-tabs')) loadEol(); }
   pageWaitClose();
   crumbs();   // 1.199.0
 }
 
 /** 1.199.0: kruimelpad boven elke pagina: 🏠 › pagina › tabblad (› onderdeel) en de filters die aan staan; elk stuk is een link */
-const CRUMB_DEF = { dashboard: 'dashboard/checks', net: 'net/map', ids: 'ids/inc', vulns: 'vulns/cve' };
+const CRUMB_DEF = { dashboard: 'dashboard/checks', net: 'net/map', ids: 'ids/live', vulns: 'vulns/cve' };
 function crumbText(b) {
   if (!b) return '';
   const x = b.cloneNode(true);
@@ -642,7 +657,9 @@ function crumbs() {
   if (tab !== 'home') parts.push({ l: tabName(tab), go: CRUMB_DEF[tab] || tab });
   if (tab === 'dashboard' && monSub !== 'checks') parts.push({ l: crumbText($(`#mon-tabs [data-msub="${monSub}"]`)), go: 'dashboard/' + monSub });   // 1.214.0: eerste subtabblad heet zelf Monitoring
   if (tab === 'net') parts.push({ l: crumbText($(`#net-tabs [data-nsub="${netSub}"]`)), go: 'net/' + netSub });
-  if (tab === 'ids') parts.push({ l: crumbText($(`#ids-tabs [data-it="${idsTab}"]`)), go: 'ids/' + idsTab });
+  if (tab === 'ids') parts.push({ l: crumbText($(`#ids-tabs [data-it="${IDS_AN.includes(idsTab) ? 'ovw' : idsTab}"]`)), go: 'ids/' + (IDS_AN.includes(idsTab) ? 'ovw' : idsTab) });
+  if (tab === 'ids' && IDS_AN.includes(idsTab) && idsTab !== 'ovw') parts.push({ l: crumbText($(`#ids-an-seg [data-it="${idsTab}"]`)), go: 'ids/' + idsTab });   // 1.276.0
+  if (tab === 'incidents' && incSrc !== 'all') parts.push({ l: crumbText($(`#inc-src [data-isrc="${incSrc}"]`)), go: 'incidents/' + incSrc });
   if (tab === 'vulns' && $('#vuln-tabs')) parts.push({ l: crumbText($(`#vuln-tabs [data-vt="${vulnTab}"]`)), go: 'vulns/' + vulnTab });
   if (tab === 'settings') {
     const f = setFind(setSection);

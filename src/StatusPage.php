@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Statuspagina (1.107.0): een eenvoudige pagina voor huisgenoten of klanten, via een geheime link (ook van buiten).
  * Alleen de onderdelen die je zelf kiest ("Internet", "NAS", "Plex"…), elk met een of meer checks erachter, met een
  * balk per dag over de laatste 90 dagen (uit de dagtotalen van Analyse) en een eigen mededeling. Geen IP-adressen,
- * servernamen of foutteksten. Instellingen → Koppelingen → Statuspagina.
+ * servernamen of foutteksten. Instellingen → Systeem → Statuspagina.
  */
 final class StatusPage
 {

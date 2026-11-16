@@ -1,6 +1,6 @@
 <?php
 /**
- * Statuspagina (1.107.0): /status.php?k=<geheime sleutel> (Instellingen → Koppelingen → Statuspagina).
+ * Statuspagina (1.107.0): /status.php?k=<geheime sleutel> (Instellingen → Systeem → Statuspagina).
  * Werkt ook van buiten, maar alleen met de juiste sleutel; anders een gewone 404 (niet herkenbaar als RzSense).
  */
 declare(strict_types=1);

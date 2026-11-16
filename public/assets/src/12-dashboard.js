@@ -727,9 +727,23 @@ async function loadIncidents() {
   renderIncidents();
 }
 
+/** 1.276.0: één inbox. Aanvallen = de volledige IDS-lijst (met blokkeren, uitzonderingen en bundels); de rest filtert deze lijst. */
+function incSrcShow() {
+  const host = $('#inc-ids-host');
+  if (!host) return;
+  const pane = $('.ids-pane[data-pane="inc"]');
+  if (pane && pane.parentElement !== host && document.body.dataset.role !== 'readonly') { host.append(pane); pane.hidden = false; }
+  $$('#inc-src [data-isrc]').forEach((b) => b.classList.toggle('active', b.dataset.isrc === incSrc));
+  const ids = incSrc === 'ids' && host.contains(pane);
+  host.hidden = !ids;
+  $$('#tab-incidents .pcard[data-pk="bar"], #tab-incidents .pcard[data-pk="list"]').forEach((c) => { c.hidden = ids; });
+  if (ids) loadIds();
+  else if (incData) renderIncidents();
+}
+
 function incVisible() {
   const q = ($('#inc-search').value || '').trim().toLowerCase();
-  return incData.incidents.filter((i) => (incFilter === 'all' || (incFilter === 'active' ? i.status !== 'resolved' : i.status === incFilter))
+  return incData.incidents.filter((i) => (incSrc === 'all' || incSrc === 'ids' || i.source === incSrc) && (incFilter === 'all' || (incFilter === 'active' ? i.status !== 'resolved' : i.status === incFilter))
     && (!q || [i.title, i.host || '', i.owner || '', i.detail].join(' ').toLowerCase().includes(q)));
 }
 
@@ -744,7 +758,8 @@ function renderIncidents() {
     <div class="kpi"><div class="kpi-lbl">${L('In behandeling')}</div><div class="kpi-val">${c.ack}</div><div class="kpi-sub">${L('met een eigenaar')}</div></div>
     <div class="kpi"><div class="kpi-lbl">${L('Opgelost (30 dagen)')}</div><div class="kpi-val ${c.resolved ? 'good-txt' : ''}">${c.resolved}</div><div class="kpi-sub">${L('vanzelf of door iemand')}</div></div>
     <div class="kpi"><div class="kpi-lbl">${L('Gemiddeld opgelost na')}</div><div class="kpi-val kpi-val-txt">${c.mttr !== null ? fmtDur(c.mttr) : '–'}</div><div class="kpi-sub">${L('laatste 30 dagen')}</div></div>`;
-  const n = (f) => incData.incidents.filter((i) => (f === 'all' ? true : f === 'active' ? i.status !== 'resolved' : i.status === f)).length;
+  if ($('#isrc-n-ids')) $('#isrc-n-ids').textContent = incData.incidents.filter((i) => i.source === 'ids' && i.status !== 'resolved').length || '';
+  const n = (f) => incData.incidents.filter((i) => (incSrc === 'all' || incSrc === 'ids' || i.source === incSrc) && (f === 'all' ? true : f === 'active' ? i.status !== 'resolved' : i.status === f)).length;
   $('#inc-filter').innerHTML = [['active', L('Nog bezig')], ['open', L('Open')], ['ack', L('In behandeling')], ['resolved', L('Opgelost')], ['all', L('Alles')]]
     .map(([k, l]) => `<button type="button" class="dchip ${incFilter === k ? 'on' : ''}" data-incf="${k}">${l} <b>${n(k)}</b></button>`).join('');
   const list = incVisible();
@@ -773,7 +788,7 @@ async function caseDialog(id) {
   const [ic, src] = INC_SRC[i.source] || ['•', () => i.source];
   const users = (incData && incData.users) || [];
   const KIND = { system: '⚙️', status: '🔁', owner: '👤', note: '💬' };
-  const go = i.source === 'check' ? ['dashboard', L('Naar Monitoring')] : i.source === 'ids' ? ['ids', L('Naar IDS')] : ['vulns', L('Naar Kwetsbaarheden')];
+  const go = i.source === 'check' ? ['dashboard', L('Naar Monitoring')] : i.source === 'ids' ? ['incidents/ids', L('Naar de aanvallen')] : ['vulns', L('Naar Kwetsbaarheden')];
   const { form } = modal({
     title: `${ic} ${i.title}`, wide: true,
     body: `<div style="padding:1rem 1.2rem">
@@ -811,6 +826,7 @@ async function caseDialog(id) {
 (function incWire() {
   if (!$('#inc-list')) return;
   $('#inc-filter').addEventListener('click', (e) => { const b = e.target.closest('[data-incf]'); if (b) { incFilter = b.dataset.incf; renderIncidents(); } });
+  $('#inc-src').addEventListener('click', (e) => { const b = e.target.closest('[data-isrc]'); if (!b) return; incSrc = b.dataset.isrc; incSrcShow(); history.replaceState(null, '', '#incidents' + (incSrc === 'all' ? '' : '/' + incSrc)); crumbs(); });
   $('#inc-search').addEventListener('input', () => renderIncidents());
   const open = (e) => { const r = e.target.closest('[data-inc]'); if (r) caseDialog(+r.dataset.inc); };
   $('#inc-list').addEventListener('click', open);
@@ -828,7 +844,7 @@ async function caseDialog(id) {
   };
 })();
 
-// ---------------------------------------------------------------- Internet (1.157.0): Instellingen → Monitoring → Internet
+// ---------------------------------------------------------------- Internet (1.157.0): Instellingen → Monitoring → Internetcheck
 async function loadInet() {
   const box = $('#inet-state');
   if (!box) return;

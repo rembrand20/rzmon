@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * 1.180.0: alle rapporten op één plek (Instellingen → Rapporten). Per rapport: aan/uit, hoe vaak (week of maand), de dag
+ * 1.180.0: alle rapporten op één plek (Instellingen → Meldingen en rapporten → Rapporten). Per rapport: aan/uit, hoe vaak (week of maand), de dag
  * en de tijd, de kanalen (e-mail en/of push), en "Nu versturen". Daarnaast het Maandoverzicht: één bericht met de
  * onderdelen die je kiest. E-mail is HTML (met een platte versie erbij), een push krijgt een korte samenvatting.
  * Instellingen in één JSON-instelling `reports`; bij de eerste keer overgenomen uit de oude instellingen (IDS-weekoverzicht,
@@ -562,7 +562,7 @@ final class Reports
         return '<!doctype html><html lang="' . $e(I18n::lang()) . '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' . $e($title) . '</title><style>'
             . Report::css() . self::css() . '</style></head><body><main><h1>' . $e($title) . '</h1>' . $body
             . '<footer>' . $e(t('Verstuurd door RzSense {v}', ['v' => RZMON_VERSION])) . ($base !== '' ? ' · <a href="' . $e($base) . '/">' . $e($base) . '</a>' : '') . ' · '
-            . $e(t('Instellen: Instellingen → Rapporten')) . '</footer></main></body></html>';
+            . $e(t('Instellen: Instellingen → Meldingen en rapporten → Rapporten')) . '</footer></main></body></html>';
     }
 
     private static function css(): string

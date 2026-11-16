@@ -988,7 +988,7 @@ function renderNetPaths() {
     <div class="np-cols">
       <section class="ct-grp"><div class="ct-gh"><b>${L('Paden')}</b></div>
         <div class="np-pr np-th"><span>${L('Bron → doel')}</span><span>${L('Status')}</span><span>${L('Hops')}</span><span>${L('Vertraging')}</span><span>${L('Doorvoer')}</span><span>${L('Pad')}</span><span>${L('24 uur')}</span></div>${rows}</section>
-      <section class="ct-grp"><div class="ct-gh"><b>${L('Links (UniFi)')}</b><span class="small muted">${L('langzaamste eerst')}</span></div>${ports || `<p class="muted small" style="padding:.8rem 1rem">${npData.unifi === 'ok' ? L('Geen poorten gevonden.') : L('Koppel UniFi met een lokaal account (Instellingen → Koppelingen) om de switchpoorten en hun snelheid te zien.')}</p>`}</section>
+      <section class="ct-grp"><div class="ct-gh"><b>${L('Links (UniFi)')}</b><span class="small muted">${L('langzaamste eerst')}</span></div>${ports || `<p class="muted small" style="padding:.8rem 1rem">${npData.unifi === 'ok' ? L('Geen poorten gevonden.') : L('Koppel UniFi met een lokaal account (Instellingen → Agents en koppelingen) om de switchpoorten en hun snelheid te zien.')}</p>`}</section>
     </div>`;
   npFocusApply();   // 1.191.0
 }
@@ -1464,7 +1464,7 @@ document.addEventListener('click', async (e) => {
   }
 }, true);
 
-// ---- Instellingen → Koppelingen → AI-advies
+// ---- Instellingen → Systeem → AI-advies
 function aiFormVals() {
   const f = $('#settings-form');
   const out = {};
