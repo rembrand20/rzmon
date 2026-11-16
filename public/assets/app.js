@@ -14406,7 +14406,7 @@ const SET_ALIAS = { netlinks: 'unifi', ids_rules: 'ids_edr', enc: 'agentdef', ht
   quiet: 'rules', hibp: 'vulns', ids_prot: 'prot', dnsbl: 'ids_dns' };   // 1.276.0: nieuwe indeling   // 1.120.0: samengevoegde onderdelen
 const SET_TAB_OF = { features: 'functies', ids_rules: 'regels', smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server', quiet: 'stil', hibp: 'datalekken' };   // oude adressen → tabblad op de pagina Advies
 let setTab = {};   // per onderdeel met tabbladen: het gekozen tabblad
-let setSection = (() => { try { return localStorage.getItem('rzmon-set-section') || 'overview'; } catch (e) { return 'overview'; } })();
+let setSection = (() => { try { const v = localStorage.getItem('rzmon-set-section') || 'overview'; return ['agents', 'actlog', 'changelog', 'nis2'].includes(v) ? 'overview' : v; } catch (e) { return 'overview'; } })();   // 1.277.2: onderdelen die nu eigen pagina's zijn
 let setHealthAt = 0;
 let setHealth = {};   // onderdeel → slechtste status uit "Hoe staat het ervoor?" (voor de bolletjes in de zijbalk)
 let setHealthWhy = {};   // 1.131.2: onderdeel → de punten zelf (tekst bij het bolletje)
@@ -14421,7 +14421,13 @@ function showSettingsSection(id, focusEl) {
   xpClose();
   // 1.276.0: deze onderdelen zijn eigen pagina's in het hoofdmenu geworden
   const MAIN = { agents: 'servers', actlog: 'logboek', changelog: 'logboek', nis2: 'compliance' };
-  if (MAIN[id]) { showTab(MAIN[id]); return; }
+  if (MAIN[id]) {
+    // 1.277.2: niet onthouden als laatste onderdeel, anders opent Instellingen voortaan deze pagina
+    if (setSection === id) setSection = 'overview';
+    try { if (localStorage.getItem('rzmon-set-section') === id) localStorage.setItem('rzmon-set-section', 'overview'); } catch (e) {}
+    showTab(MAIN[id]);
+    return;
+  }
   if (id === 'whitelist') { showTab('ids/blk'); setTimeout(() => { const c = $('#wl-card'); if (c) c.scrollIntoView({ behavior: 'smooth' }); }, 300); return; }   // 1.236.0: whitelist bij de blokkades
   if (SET_TAB_OF[id]) setTab[SET_ALIAS[id]] = SET_TAB_OF[id];
   // Gevonden via zoeken in een kaart op een ander tabblad: dat tabblad kiezen

@@ -31,6 +31,15 @@ const BASE = process.env.BASE || 'http://127.0.0.1:8099';
     if (at !== to) errs.push(`oud adres #${from} komt uit op ${at}, verwacht ${to}`);
   }
   console.log(`✔ ${Object.keys(moved).length} oude adressen sturen door naar de nieuwe plek`);
+  // 1.277.2: een onthouden onderdeel dat nu een eigen pagina is, mag Instellingen niet wegsturen
+  await pg.evaluate(() => { localStorage.setItem('rzmon-set-section', 'agents'); });
+  await pg.reload();
+  await pg.waitForSelector('#health .kpi', { state: 'attached', timeout: 60000 });
+  await pg.evaluate(() => showTab('settings'));
+  await pg.waitForTimeout(800);
+  const atSet = await pg.evaluate(() => (document.querySelector('.tab-panel:not([hidden])') || {}).id);
+  if (atSet !== 'tab-settings') errs.push(`Instellingen met onthouden 'agents' komt uit op ${atSet}`);
+  else console.log('✔ Instellingen opent ook met een oud onthouden onderdeel');
   // 1.277.0: elke subpagina in de zijbalk opent de juiste weergave
   let nSub = 0;
   await pg.setViewportSize({ width: 1600, height: 900 });   // breed genoeg voor de uitgeklapte zijbalk
