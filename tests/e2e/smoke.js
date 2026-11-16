@@ -31,6 +31,25 @@ const BASE = process.env.BASE || 'http://127.0.0.1:8099';
     if (at !== to) errs.push(`oud adres #${from} komt uit op ${at}, verwacht ${to}`);
   }
   console.log(`✔ ${Object.keys(moved).length} oude adressen sturen door naar de nieuwe plek`);
+  // 1.277.0: elke subpagina in de zijbalk opent de juiste weergave
+  let nSub = 0;
+  await pg.setViewportSize({ width: 1600, height: 900 });   // breed genoeg voor de uitgeklapte zijbalk
+  await pg.waitForTimeout(500);
+  for (const page of ['dashboard', 'incidents', 'ids', 'vulns', 'net', 'logs', 'analytics']) {
+    if (!(await pg.$(`#main-tabs .tab[data-tab="${page}"]`))) continue;
+    await pg.evaluate((p) => showTab(p), page);
+    await pg.waitForTimeout(1500);
+    const subs = await pg.$$eval(`.side-sub[data-sub-of="${page}"] .side-sub-i`, (x) => x.map((b) => b.dataset.sub));
+    for (const k of subs) {
+      await pg.click(`.side-sub[data-sub-of="${page}"] .side-sub-i[data-sub="${k}"]`);
+      await pg.waitForTimeout(700);
+      const ok = await pg.evaluate(([p, kk]) => { const b = document.querySelector(`.side-sub[data-sub-of="${p}"] .side-sub-i[data-sub="${kk}"]`); return !!b && b.classList.contains('active'); }, [page, k]);
+      if (!ok) errs.push(`zijbalk: ${page} › ${k} wordt niet actief`);
+      nSub++;
+    }
+  }
+  console.log(`✔ ${nSub} subpagina's in de zijbalk geopend`);
+  await pg.setViewportSize({ width: 1280, height: 900 });
   await pg.keyboard.press('Control+k');
   await pg.waitForSelector('#cmdk:not([hidden])', { timeout: 5000 });
   await pg.fill('#cmdk-in', 'instellingen');

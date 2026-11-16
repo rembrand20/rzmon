@@ -736,6 +736,7 @@ function incSrcShow() {
   $$('#inc-src [data-isrc]').forEach((b) => b.classList.toggle('active', b.dataset.isrc === incSrc));
   const ids = incSrc === 'ids' && host.contains(pane);
   host.hidden = !ids;
+  if (host.closest('.pcard')) host.closest('.pcard').hidden = !ids;   // 1.277.0: eigen blok
   $$('#tab-incidents .pcard[data-pk="bar"], #tab-incidents .pcard[data-pk="list"]').forEach((c) => { c.hidden = ids; });
   if (ids) loadIds();
   else if (incData) renderIncidents();

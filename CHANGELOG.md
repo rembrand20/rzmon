@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.277.0**: **subpagina's in de zijbalk**: elke pagina met haar onderdelen eronder, met tellers, en een menu bij de ingeklapte zijbalk.
 - **1.276.0**: **overzichtelijker RzSense**: nieuwe pagina's Servers, Updates, Logboek en Compliance, één inbox voor incidenten, een beheerportal in zeven groepen en een `?` met uitleg bij elk veld.
 - **1.275.0**: **rust op je telefoon**: geblokkeerde scanners geven geen pushmelding meer, wel een samenvatting om 20:00; alleen als je iets moet doen komt er meteen een melding.
 - **1.274.0**: **toegestane apparaten per site**: met één schakelaar kom je met je eigen telefoon onderweg ook bij beheerprogramma's achter de proxy.
 - **1.273.0**: **apps als Home Assistant laden weer achter de proxy**: vaste bestanden tellen niet mee voor de rate limit, en een nieuwe stand *ruim (apps)*.
-- **1.272.0**: **van buiten weer binnen met je toegestane apparaten**: de reverse proxy volgt de apparaatsleutels van RzSense en de noodlink; /rz-open/ is weg.
+
+## 1.277.0 – 2026-11-16
+### Nieuw
+- **Subpagina's in de zijbalk.** Pagina's met tabbladen staan in de zijbalk met hun subpagina's eronder: *Monitoring* (Checks, Containers, Netwerkpaden, Beschikbaarheid), *Incidenten* (Alles, Storingen, Aanvallen, Kwetsbaarheden), *IDS* (Blokkades, Live, Aanvalskaart, Toegang, Programma's, Jagen, Overzicht, Afwijkingen, MITRE), *Kwetsbaarheden*, *Netwerk*, *Logs* en *Analyse*.
+  - Alleen de pagina waar je bent klapt open; met het pijltje ▸ klap je een andere open zonder erheen te gaan.
+  - De tellers staan bij de subpagina (bv. *Blokkades 8*, *Afwijkingen 6*).
+  - Op een breed scherm zijn de tabbladen bovenaan de pagina dan verborgen; het kruimelpad (Start › IDS › Live) laat zien waar je bent.
+  - Ingeklapte zijbalk (alleen iconen): beweeg over een icoon voor een menu met de subpagina's; de tabbladen bovenaan blijven dan ook staan.
+  - Op een telefoon blijven de tabbladen bovenaan de pagina, zoals eerst.
+  - Adressen, oude links en Ctrl+K werken zoals voorheen.
 
 ## 1.276.0 – 2026-11-16
 ### Nieuw

@@ -4,6 +4,8 @@ RzSense is een zelf-gehoste monitoringtool voor je servers, netwerkapparaten en 
 
 Je kunt hem draaien op elke Linux-machine met PHP 8 en MariaDB: een VM, een Raspberry Pi of een NAS met Docker/LXC.
 
+> **Subpagina's in de zijbalk (1.277.0):** op een breed scherm staan de tabbladen van een pagina als subpagina's in de zijbalk, onder de pagina zelf (bv. IDS › Live, Blokkades, Aanvalskaart …), met hun tellers. Alleen de pagina waar je bent klapt open; met ▸ klap je een andere open. Ingeklapte zijbalk: beweeg over een icoon voor een menu. Op een telefoon blijven de tabbladen bovenaan de pagina.
+>
 > **Nieuwe indeling (1.276.0):** het **hoofdmenu** is voor dagelijks werk, de **beheerportal** (Instellingen) alleen voor instellen.
 > - *Hoofdmenu:* **Overzicht** (Dashboard, Meldingen) · **Monitoring** (Monitoring, **Servers** = de Agent Manager) · **Beveiliging** (**Incidenten** met de soorten Alles, Storingen, Aanvallen en Kwetsbaarheden; IDS; Kwetsbaarheden; **Updates**; Reverse proxy) · **Netwerk** · **Analyse** (Analyse, Logs, **Logboek**, **Compliance** = NIS2).
 > - *IDS:* Blokkades, Live, Aanvalskaart en **Analyse** (Overzicht, Afwijkingen, MITRE), plus Toegang, Programma's en Jagen onder *Meer*. De incidenten van het IDS staan op Incidenten → Aanvallen.

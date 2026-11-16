@@ -648,6 +648,7 @@ function crumbText(b) {
 }
 function crumbs() {
   const el = $('#crumbs');
+  if (typeof sideSub === 'function') sideSub();   // 1.277.0: de zijbalk volgt de subpagina
   if (!el) return;
   const tab = (($('.tab-panel:not([hidden])') || {}).id || '').replace('tab-', '');
   document.body.classList.toggle('crumbs-on', !!tab && tab !== 'mds');

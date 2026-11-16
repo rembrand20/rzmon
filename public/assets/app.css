@@ -6264,3 +6264,27 @@ details.pxs h4 { margin: .2rem 0 .45rem; font-size: .9rem; }
 .pxs-why .pxs-why-bad b { color: var(--crit); } .pxs-why .pxs-why-wait b { color: var(--warn); }
 .pxs-whyinfo { margin: -.2rem 0 .6rem; }
 
+
+/* ---------------------------------------------------------------- Subpagina's in de zijbalk (1.277.0) */
+.side-sub, .tab-chev { display: none; }
+.side-fly { position: fixed; z-index: 70; min-width: 210px; padding: .4rem; border: 1px solid var(--border); border-radius: 12px; background: var(--card); box-shadow: 0 10px 30px rgba(0,0,0,.18); display: flex; flex-direction: column; gap: 1px; }
+.side-fly[hidden] { display: none; }
+.side-fly-h { padding: .3rem .6rem .4rem; font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.side-sub-i { display: flex; justify-content: space-between; align-items: center; gap: .5rem; width: 100%; padding: .38rem .6rem; border: 0; border-radius: 8px; background: none; color: var(--muted); font: inherit; font-size: .86rem; font-weight: 500; text-align: left; cursor: pointer; }
+.side-sub-i:hover, .side-sub-i:focus-visible { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); outline: none; }
+.side-sub-i.active { color: var(--primary); font-weight: 600; background: color-mix(in srgb, var(--primary) 10%, transparent); }
+.side-sub-n { flex: none; min-width: 1.3rem; padding: 0 .4rem; border-radius: 999px; background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); font-size: .72rem; font-weight: 600; line-height: 1.35rem; text-align: center; }
+.side-sub-n:empty { display: none; }
+@media (min-width: 1101px) {
+  .app-top .side-sub { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 6px 1.55rem; padding-left: .55rem; border-left: 1px solid var(--border); }
+  .app-top .side-sub[hidden] { display: none; }
+  .app-top .main-tabs .tab.has-sub .tab-chev { display: inline-flex; align-items: center; justify-content: center; margin-left: auto; width: 1.4rem; height: 1.4rem; border-radius: 6px; color: var(--muted); }
+  .app-top .main-tabs .tab .tab-chev svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s ease; }
+  .app-top .main-tabs .tab.sub-open .tab-chev svg { transform: rotate(90deg); }
+  .app-top .main-tabs .tab .tab-chev:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+  .app-top .main-tabs .tab.has-sub .tab-badge { right: 2.35rem; }   /* teller vóór het pijltje */
+  body.side-mini .app-top .side-sub, body.side-mini .app-top .main-tabs .tab .tab-chev { display: none !important; }
+  /* de tabbladen bovenaan de pagina staan nu in de zijbalk */
+  body:not(.side-mini) :is(#mon-tabs, #ids-tabs, #ids-an-seg, #tab-incidents .pcard[data-pk="src"], #vuln-tabs, #net-tabs, #logs-sub, .ia-tabs) { display: none !important; }   /* ingeklapt: tabbladen blijven */
+}
+@media (prefers-reduced-motion: reduce) { .app-top .main-tabs .tab .tab-chev svg { transition: none; } }

@@ -11200,4 +11200,5 @@ return [
     'Wat voor alle agents geldt: bijwerken, ritme, versleuteling en certificaat. Per server stel je het in bij Servers.' => 'What applies to all agents: updating, rhythm, encryption and certificate. Per server you set it under Servers.',
     'Onderdelen aan- of uitzetten, en de drempels per onderdeel (⚙️), doe je op <a href="#settings/prot" data-goto="settings/prot">Beschermingen</a>. Hier staan de algemene instellingen.' => 'Turning features on or off, and the thresholds per feature (⚙️), is done under <a href="#settings/prot" data-goto="settings/prot">Protections</a>. These are the general settings.',
     'Naar de aanvallen' => 'To the attacks',
+    'Subpagina\'s tonen' => 'Show subpages',
 ];

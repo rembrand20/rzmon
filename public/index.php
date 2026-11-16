@@ -635,7 +635,8 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <button type="button" class="seg-btn" data-isrc="check">📉 <?= th('Storingen') ?></button>
         <button type="button" class="seg-btn" data-isrc="ids">🛡️ <?= th('Aanvallen') ?> <span class="it-n" id="isrc-n-ids"></span></button>
         <button type="button" class="seg-btn" data-isrc="vuln">🐞 <?= th('Kwetsbaarheden') ?></button>
-      </div><div id="inc-ids-host" hidden></div></div>
+      </div></div>
+      <div class="pcard" data-pk="atk" data-pw="12" data-pt="<?= th('Aanvallen') ?>"><div id="inc-ids-host" hidden></div></div>
       <div class="pcard" data-pk="bar" data-pw="12" data-pt="<?= th('Zoeken en filters') ?>"><div class="dash-bar">
         <input type="search" id="inc-search" placeholder="<?= th('Zoek incident, server of eigenaar…') ?>" aria-label="<?= th('Zoeken') ?>">
         <div class="dash-chips" id="inc-filter" role="group"></div>
