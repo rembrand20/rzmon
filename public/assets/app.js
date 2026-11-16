@@ -269,6 +269,9 @@ const MDS_MQ = window.matchMedia ? window.matchMedia('(max-width: 720px)') : { m
 let mdsData = null, mdsAt = 0, mdsAll = false;
 // 1.196.0: op een telefoon staan deze pagina's onder "Meer" (de tabbalk houdt mDS, Checks, Meldingen, IDS en Meer)
 const MORE_TABS = ['home', 'incidents', 'servers', 'vulns', 'updates', 'proxy', 'analytics', 'logs', 'logboek', 'compliance', 'net', 'settings'];   // 1.276.0
+/** 1.277.1: de vaste icoontjes in de balk onderaan op een telefoon (plus Meer); elke andere pagina staat alleen in Meer */
+const BAR_TABS = ['mds', 'alerts', 'dashboard', 'ids'];
+document.querySelectorAll('#main-tabs .tab[data-tab]').forEach((t) => { if (!BAR_TABS.includes(t.dataset.tab) && t.dataset.tab !== 'settings') t.classList.add('not-bar'); });
 
 let stats = { uptime: {}, sparks: {} };
 // Sorteren op de pagina Meldingen (per apparaat onthouden): { key: 'time'|'status'|'server'|'check'|'message'|'channels', dir: 1|-1 }

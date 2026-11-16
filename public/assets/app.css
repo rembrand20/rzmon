@@ -4359,10 +4359,9 @@ body.mds-on { overscroll-behavior-y: contain; }
 @keyframes mds-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .mds-sheet-p, .mds-sheet-bg { transition: none; } .mds-ptr.spin i { animation: none; } }
 
-/* 1.196.0: rustiger tabbalk op een telefoon: mDS, Checks, Meldingen, IDS en Meer; de rest in het blad "Meer" */
+/* 1.196.0: rustiger tabbalk op een telefoon: mDS, Meldingen, Monitoring, IDS en Meer; de rest in het blad "Meer" */
 @media (max-width: 720px) {
-  .main-tabs .tab[data-tab="home"], .main-tabs .tab[data-tab="incidents"], .main-tabs .tab[data-tab="vulns"],
-  .main-tabs .tab[data-tab="analytics"], .main-tabs .tab[data-tab="net"] { display: none; }
+  .main-tabs .tab.not-bar { display: none; }   /* 1.277.1: alleen BAR_TABS (+ Meer) in de balk; zie 01-basis.js */
   .main-tabs .tab-lbl, .main-tabs .tab-lbl-s { font-size: .7rem; }
 }
 .mds-more-g { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 4px 0 8px; }

@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.274.0**: **toegestane apparaten per site**: met één schakelaar kom je met je eigen telefoon onderweg ook bij beheerprogramma's achter de proxy.
 - **1.273.0**: **apps als Home Assistant laden weer achter de proxy**: vaste bestanden tellen niet mee voor de rate limit, en een nieuwe stand *ruim (apps)*.
 
+## 1.277.1 – 2026-11-16
+### Opgelost
+- **Minder icoontjes onderaan op een telefoon.** In de balk onderaan staan weer alleen *mDS*, *Meldingen*, *Monitoring*, *IDS* en *Meer*. De nieuwe pagina's (Servers, Updates, Logboek, Compliance) en de rest staan in *Meer*. Eén vaste lijst bepaalt dit, zodat een nieuwe pagina er nooit per ongeluk bij komt.
+
 ## 1.277.0 – 2026-11-16
 ### Nieuw
 - **Subpagina's in de zijbalk.** Pagina's met tabbladen staan in de zijbalk met hun subpagina's eronder: *Monitoring* (Checks, Containers, Netwerkpaden, Beschikbaarheid), *Incidenten* (Alles, Storingen, Aanvallen, Kwetsbaarheden), *IDS* (Blokkades, Live, Aanvalskaart, Toegang, Programma's, Jagen, Overzicht, Afwijkingen, MITRE), *Kwetsbaarheden*, *Netwerk*, *Logs* en *Analyse*.
