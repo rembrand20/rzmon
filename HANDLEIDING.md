@@ -4583,7 +4583,27 @@ Mislukt een automatische back-up (disk vol, map niet schrijfbaar…), dan krijg 
 - `config.php`: met het databasewachtwoord;
 - `info.txt`: versie, datum, server en het aantal rijen per tabel (niet versleuteld, bevat geen geheimen).
 
-De back-ups staan in `/var/lib/rzmon/backups`, buiten de webmap, alleen leesbaar voor root en de webserver. Een andere map kan met `'backup_dir' => '/pad'` in `config.php`. RzSense maakt de back-ups in PHP zelf: `mysqldump` is niet nodig, alleen de PHP-extensie **zip** (`php-zip`).
+De back-ups staan standaard in `/var/lib/rzmon/backups`, buiten de webmap, alleen leesbaar voor root en de webserver. RzSense maakt de back-ups in PHP zelf: `mysqldump` is niet nodig, alleen de PHP-extensie **zip** (`php-zip`).
+
+### 📁 Back-upmap kiezen (vanaf 1.280.0)
+
+Bovenaan de kaart staat de **back-upmap**: het pad, wat voor schijf het is (🌐 NFS/SMB, 💽 eigen schijf of 💽 systeemschijf) en hoeveel er vrij is. Met **✎ Wijzigen** kies je een andere map.
+
+- **Testen** laat zien op welke schijf de map ligt, hoeveel vrij is en of RzSense er kan schrijven. Systeemmappen (`/etc`, `/usr`, `/var/www` …), de map van RzSense zelf en mappen direct onder `/` worden geweigerd. Een map op de systeemschijf mag, maar geeft een waarschuwing.
+- **Opslaan** gaat via de **hulpdienst** (als root): die maakt de map aan, geeft de webserver schrijfrechten (groep `apache`, 0770), zet SELinux goed en zet de map in `config.php` (met een reservekopie van de oude). Met **Bestaande back-ups meeverhuizen** (standaard aan) gaan je huidige back-ups mee.
+- **NFS (of SMB):** koppel de share eerst zelf op de server, bijvoorbeeld in `/etc/fstab`:
+  ```
+  nas.thuis:/mnt/tank/backup  /mnt/nas  nfs4  defaults,_netdev,nofail  0 0
+  ```
+  Kies daarna een map in de share, zoals `/mnt/nas/rzsense`. RzSense onthoudt dat het een netwerkschijf is en controleert **vóór elke back-up of de share gekoppeld is**. Is de NAS weg, dan maakt RzSense geen back-up (en schrijft hij dus niet ongemerkt naar de lege map op de systeemschijf); je krijgt de gewone melding *back-up mislukt* met de reden. De hulpdienst zet voor NFS de SELinux-instelling `httpd_use_nfs` aan.
+- **NFS met root_squash** (gebruikelijk op TrueNAS en Synology): root op de RzSense-server mag dan niets op de NAS. Maak de map dan op de NAS zelf aan en geef de gebruiker `apache` (of de groep, of met *maproot/mapall* op de NAS) schrijfrechten. *Testen* laat zien of RzSense er kan schrijven.
+- Zonder hulpdienst kan het ook met de hand: `'backup_dir' => '/mnt/nas/rzsense'` (en bij een netwerkschijf `'backup_mount' => '/mnt/nas'`) in `config.php`.
+
+### Opruimen en ruimte (vanaf 1.280.0)
+
+- RzSense ruimt **ook vóór elke back-up** en **dagelijks** op, niet alleen na een gelukte back-up. Tot 1.279 kon een volle schijf daardoor vol blijven: een mislukte back-up ruimde niets op.
+- **Back-ups van een update** heten nu altijd *voor update* (ook als de database-opbouw verandert) en worden opgeruimd: de laatste 5 blijven. Tot 1.279 werd zo'n volledige back-up *handmatig* genoemd en bleef hij voor altijd staan. Die oude *handmatige* back-ups van updates kun je zelf verwijderen (🗑), of laten opruimen met *Handmatige back-ups bewaren* (een aantal).
+- **Te weinig ruimte?** Dan haalt RzSense eerst de oudste automatische, update- en herstelback-ups weg (de nieuwste van elke soort blijft). Is er dan nog te weinig, dan stopt de back-up met een duidelijke melding (*Te weinig ruimte in … : … vrij, ongeveer … nodig*). Handmatige en geüploade back-ups worden nooit vanzelf weggehaald.
 
 > Bewaar af en toe een kopie **buiten de server**: download een zip (⬇) en zet hem op je NAS of in de cloud. Een back-up op dezelfde disk helpt niet als die disk stukgaat.
 

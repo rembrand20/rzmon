@@ -152,7 +152,7 @@ switch ($action) {
             out(['done' => false, 'waiting' => is_file(Installer::HELPER_DIR . '/config.request')]);
         }
         @unlink($f);
-        out(['done' => true, 'ok' => (bool) $r['ok'], 'error' => $r['ok'] ? null : t('De hulpdienst kon config.php niet opslaan: {e}', ['e' => (string) $r['error']])]);
+        out(['done' => true, 'ok' => (bool) $r['ok'], 'note' => (string) ($r['note'] ?? ''), 'error' => $r['ok'] ? null : t('De hulpdienst kon config.php niet opslaan: {e}', ['e' => (string) $r['error']])]);
 
     case 'db_info':
         $h = Installer::HELPER_DIR;

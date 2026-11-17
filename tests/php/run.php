@@ -735,6 +735,27 @@ ok($bu['ok'] && str_ends_with((string) $bu['file'], '-update.zip') && str_contai
 foreach ([1, 2, 3, 4, 5, 6] as $d) { $mkzip("rzmon-backup-2026020$d-120000-update.zip"); }
 Backup::prune();
 ok($mine('update') === 5, 'back-ups voor een update: de laatste 5 blijven');
+// 1.280.0: ruimte maken: de oudste automatische en update-back-ups weg (de nieuwste van elke soort blijft), handmatige nooit
+foreach ([1, 2, 3] as $d) { $mkzip("rzmon-backup-2026030$d-120000-auto.zip"); }
+$nManual = $mine('manual');
+$gone = Backup::pruneForSpace(PHP_INT_MAX);   // nooit genoeg: alles wat weg mag, gaat weg
+ok($gone > 0 && $mine('auto') === 1 && $mine('update') === 1 && $mine('manual') === $nManual && is_file(Backup::dir() . '/rzmon-backup-20260303-120000-auto.zip'),
+    'ruimte maken: oudste automatische en update-back-ups weg, de nieuwste blijft, handmatige blijven');
+// 1.280.0: back-upmap: alleen een eigen, volledig pad buiten systeem- en webmappen; netwerkschijf herkennen
+$bad = 0;
+foreach (['relatief/pad', '/etc/rzmon', '/var/www/rzmon/bk', '/mnt/../etc', '/mnt', '/mnt//x', '/mnt/a b'] as $p) {
+    try { Backup::cleanDir($p); } catch (InvalidArgumentException) { $bad++; }
+}
+$mnt = Backup::mountOf('/');
+ok($bad === 7 && Backup::cleanDir('/mnt/nas/rzsense/') === '/mnt/nas/rzsense' && Backup::cleanDir('') === '' && Backup::cleanDir(Backup::DEFAULT_DIR) === ''
+    && $mnt['mount'] === '/' && in_array('nfs4', Backup::NET_FS, true)
+    && Installer::cleanConfigChanges(['backup_dir' => '/mnt/nas/rzsense', 'backup_move' => 1]) === ['backup_dir' => '/mnt/nas/rzsense', 'backup_move' => true],
+    'back-upmap: systeem-, web- en relatieve paden geweigerd; /mnt/nas/rzsense mag; koppeling herkend');
+// 1.280.0: is de netwerkschijf weg, dan geen back-up (en geen map op de systeemschijf)
+$GLOBALS['sm_config']['backup_mount'] = '/mnt/ci-niet-gekoppeld-' . getmypid();
+$noMount = Backup::problem();
+unset($GLOBALS['sm_config']['backup_mount']);
+ok($noMount !== null && str_contains($noMount, '/mnt/ci-niet-gekoppeld-') && Backup::problem() === null, 'netwerkschijf niet gekoppeld: back-ups stoppen met een duidelijke melding');
 foreach (glob(Backup::dir() . '/*') ?: [] as $f) { unlink($f); }
 foreach (glob(Backup::dir() . '/.*.sql') ?: [] as $f) { unlink($f); }
 rmdir(Backup::dir());

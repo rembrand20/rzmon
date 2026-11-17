@@ -3051,7 +3051,7 @@ async function configSaved(r, okMsg) {
     let x;
     try { x = await api('config_result', { nonce: r.nonce }); } catch (ex) { continue; }
     if (!x.done) continue;
-    if (x.ok) { toast((okMsg ? okMsg + ' · ' : '') + L('Opgeslagen door de hulpdienst')); if (typeof loadSetupInfo === 'function') loadSetupInfo(); return; }
+    if (x.ok) { toast((okMsg ? okMsg + ' · ' : '') + L('Opgeslagen door de hulpdienst') + (x.note ? ' · ' + x.note : '')); if (typeof loadSetupInfo === 'function') loadSetupInfo(); return; }
     toast(x.error || L('Mislukt'), 'err');
     configManual(r);
     return;

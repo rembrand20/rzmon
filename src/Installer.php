@@ -737,6 +737,15 @@ final class Installer
                     }
                     $out[$k] = ['host' => $host, 'port' => $port, 'name' => $name, 'user' => $user, 'pass' => $pass];
                     break;
+                case 'backup_dir':   // 1.280.0: '' = de standaardmap
+                    if (!is_string($v)) {
+                        throw new InvalidArgumentException('backup_dir');
+                    }
+                    $out[$k] = Backup::cleanDir($v);
+                    break;
+                case 'backup_move':   // 1.280.0: geen instelling: bestaande back-ups meeverhuizen
+                    $out[$k] = (bool) $v;
+                    break;
                 default:
                     throw new InvalidArgumentException((string) $k);
             }
@@ -777,6 +786,21 @@ final class Installer
         }
         try {
             $changes = self::cleanConfigChanges($j['changes']);
+            // 1.280.0: back-upmap: klaarzetten (aanmaken, rechten, SELinux), bij een netwerkschijf de koppeling onthouden
+            $note = [];
+            $move = !empty($changes['backup_move']);
+            unset($changes['backup_move']);
+            $oldDir = Backup::dir();
+            $newDir = null;
+            if (array_key_exists('backup_dir', $changes)) {
+                $newDir = $changes['backup_dir'] !== '' ? $changes['backup_dir'] : Backup::DEFAULT_DIR;
+                $m = Backup::mountOf($newDir);
+                if ($m['network'] && $m['mount'] === '/') {
+                    throw new RuntimeException('netwerkschijf niet gekoppeld');
+                }
+                $changes['backup_mount'] = $m['network'] ? $m['mount'] : '';
+                $note = Backup::prepareDir($newDir);
+            }
             $cfg = self::mergedConfig($changes);
             if (isset($changes['db'])) {
                 self::connect($cfg['db']);   // eerst testen: een database die niet werkt, komt er niet in
@@ -820,7 +844,10 @@ final class Installer
             if (function_exists('opcache_invalidate')) {
                 @opcache_invalidate($file, true);
             }
-            return ['ok' => true, 'error' => null, 'nonce' => $nonce, 'backup' => $backup];
+            if ($newDir !== null && $move) {
+                $note[] = t('{n} back-ups verhuisd', ['n' => Backup::moveAll($oldDir, $newDir)]);
+            }
+            return ['ok' => true, 'error' => null, 'nonce' => $nonce, 'backup' => $backup, 'note' => implode(' · ', $note)];
         } catch (Throwable $e) {
             return ['ok' => false, 'error' => $e->getMessage(), 'nonce' => $nonce];
         }

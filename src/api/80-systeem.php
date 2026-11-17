@@ -153,6 +153,7 @@ switch ($action) {
             'problem' => Backup::problem(),
             'fix_cmd' => Backup::fixCommand(),
             'dir' => Backup::dir(),
+            'dir_info' => Backup::dirInfo(Backup::dir()) + ['default' => Backup::dir() === Backup::DEFAULT_DIR, 'helper' => Installer::configHelper()],   // 1.280.0
             'encryption' => Backup::encryptionSupported(),
             'has_pass' => (string) setting('backup_pass', '') !== '',
             'next' => $next ? date('Y-m-d H:i:s', $next) : null,
@@ -164,6 +165,37 @@ switch ($action) {
             'cli_backup' => "sudo php $root/install/install.php --backup",
             'cli_restore' => "sudo php $root/install/install.php --restore /" . t('pad/naar') . '/rzmon-backup-….zip',
         ]);
+
+    case 'backup_dir_test':   // 1.280.0: kan RzSense hier back-ups neerzetten?
+        try {
+            $d = Backup::cleanDir((string) (input()['dir'] ?? $_GET['dir'] ?? ''));
+        } catch (InvalidArgumentException $e) {
+            out(['ok' => false, 'error' => $e->getMessage()]);
+        }
+        $i = Backup::dirInfo($d !== '' ? $d : Backup::DEFAULT_DIR);
+        $warn = [];
+        if ($i['system']) {
+            $warn[] = t('Deze map staat op de systeemschijf: een volle schijf houdt dan ook RzSense tegen');
+        }
+        if (!$i['exists']) {
+            $warn[] = $i['network'] ? t('De map bestaat nog niet; de hulpdienst maakt hem aan (kan alleen als de NAS root toelaat, anders zelf aanmaken)') : t('De map bestaat nog niet; de hulpdienst maakt hem aan');
+        } elseif (!$i['writable']) {
+            $warn[] = t('RzSense mag hier (nog) niet schrijven; de hulpdienst zet de rechten. Bij NFS: geef op de NAS de webserver (of iedereen in de groep) schrijfrechten');
+        }
+        out(['ok' => true, 'info' => $i, 'warnings' => $warn]);
+
+    case 'backup_dir_save':   // 1.280.0: back-upmap in config.php (via de hulpdienst: map klaarzetten, rechten, SELinux, verhuizen)
+        if ($method !== 'POST') {
+            out(['error' => 'POST'], 405);
+        }
+        $in = input();
+        try {
+            $r = Setup::backupDirSave((string) ($in['dir'] ?? ''), !empty($in['move']));
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+        AgentCommands::audit($user['username'], 'Back-upmap', (string) ($in['dir'] ?? '') ?: Backup::DEFAULT_DIR);
+        out($r);
 
     case 'backup_create':
         session_write_close();   // andere verzoeken van deze gebruiker niet blokkeren

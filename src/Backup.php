@@ -27,9 +27,128 @@ final class Backup
     /** Grootste zip die je mag uploaden. */
     public const MAX_UPLOAD = 2 * 1024 ** 3;
 
+    /** Bestandssystemen die over het netwerk gaan: dan moet de share gekoppeld zijn voor er geschreven wordt (1.280.0). */
+    public const NET_FS = ['nfs', 'nfs4', 'cifs', 'smb3', 'smbfs', 'fuse.sshfs', 'glusterfs', 'ceph'];
+    /** Mappen waar back-ups nooit mogen komen (1.280.0) */
+    public const FORBIDDEN = ['/bin', '/boot', '/dev', '/etc', '/lib', '/lib64', '/proc', '/root', '/run', '/sbin', '/sys', '/usr', '/var/www', '/var/lib/mysql', '/tmp'];
+
     public static function dir(): string
     {
-        return rtrim((string) config('backup_dir', self::DEFAULT_DIR), '/');
+        $d = rtrim((string) config('backup_dir', ''), '/');
+        return $d !== '' ? $d : self::DEFAULT_DIR;
+    }
+
+    /**
+     * 1.280.0: op welke koppeling (mount) ligt dit pad? Kijkt naar de diepste map die bestaat.
+     * @return array{mount: string, fs: string, network: bool}
+     */
+    public static function mountOf(string $path): array
+    {
+        $best = ['mount' => '/', 'fs' => '?'];
+        foreach (@file('/proc/mounts', FILE_IGNORE_NEW_LINES) ?: [] as $l) {
+            $f = explode(' ', $l);
+            if (count($f) < 3) {
+                continue;
+            }
+            $m = str_replace(['\\040', '\\011'], [' ', "\t"], $f[1]);
+            if (($path === $m || str_starts_with(rtrim($path, '/') . '/', rtrim($m, '/') . '/')) && strlen($m) >= strlen($best['mount'])) {
+                $best = ['mount' => $m, 'fs' => $f[2]];
+            }
+        }
+        return $best + ['network' => in_array($best['fs'], self::NET_FS, true)];
+    }
+
+    /** 1.280.0: is de netwerkschijf van de back-upmap gekoppeld? (anders zou RzSense ongemerkt op de systeemschijf schrijven) */
+    public static function mountMissing(): ?string
+    {
+        $want = rtrim((string) config('backup_mount', ''), '/');
+        if ($want === '') {
+            return null;
+        }
+        return self::mountOf(self::dir())['mount'] === $want ? null : $want;
+    }
+
+    /**
+     * 1.280.0: is dit een toegestane back-upmap? Absoluut, geen .., niet in systeemmappen of de webmap. '' = de standaard.
+     * @return string het opgeschoonde pad ('' = standaard)
+     */
+    public static function cleanDir(string $d): string
+    {
+        $d = rtrim(trim($d), '/');
+        if ($d === '' || $d === self::DEFAULT_DIR) {
+            return '';
+        }
+        if (!preg_match('#^/[A-Za-z0-9._/-]{1,200}$#', $d) || preg_match('#(^|/)\.\.?(/|$)#', $d) || str_contains($d, '//')) {
+            throw new InvalidArgumentException(t('Geef een volledig pad, zoals /mnt/nas/rzsense (letters, cijfers, . _ - en /)'));
+        }
+        $root = rtrim((string) (realpath(SM_ROOT) ?: SM_ROOT), '/');
+        foreach ([...self::FORBIDDEN, $root] as $f) {
+            if ($d === $f || str_starts_with($d . '/', $f . '/')) {
+                throw new InvalidArgumentException(t('Back-ups mogen niet in {dir}', ['dir' => $f]));
+            }
+        }
+        if (substr_count($d, '/') < 2) {
+            throw new InvalidArgumentException(t('Kies een eigen map, niet direct onder / (bijvoorbeeld /mnt/nas/rzsense)'));
+        }
+        return $d;
+    }
+
+    /** 1.280.0: wat er over een (nieuwe) back-upmap te zeggen valt, voor de knop Testen en de kaart */
+    public static function dirInfo(string $d): array
+    {
+        $m = self::mountOf($d);
+        $free = @disk_free_space(is_dir($d) ? $d : $m['mount']);
+        return ['dir' => $d, 'exists' => is_dir($d), 'writable' => is_dir($d) && is_writable($d), 'mount' => $m['mount'], 'fs' => $m['fs'], 'network' => $m['network'],
+            'system' => $m['mount'] === '/', 'free' => $free === false ? null : (int) $free, 'mount_missing' => self::mountMissing()];
+    }
+
+    /**
+     * 1.280.0 (als root, door de hulpdienst): de back-upmap klaarzetten: aanmaken, groep van de webserver, 0770 en SELinux.
+     * @return string[] opmerkingen (geen fouten)
+     */
+    public static function prepareDir(string $d): array
+    {
+        $notes = [];
+        $m = self::mountOf($d);
+        if (!is_dir($d) && !@mkdir($d, 0770, true)) {
+            throw new RuntimeException(t('Kan {dir} niet aanmaken', ['dir' => $d]) . ($m['network'] ? ' (' . t('maak de map op de NAS aan en geef de webserver schrijfrechten') . ')' : ''));
+        }
+        $grp = @filegroup(Installer::HELPER_DIR);
+        if ($grp !== false && !@chgrp($d, $grp)) {
+            $notes[] = t('Groep zetten lukte niet (bij NFS met root_squash normaal: zet de rechten op de NAS)');
+        }
+        @chmod($d, 0770);
+        if (is_executable('/usr/sbin/selinuxenabled')) {
+            $rc = 0;
+            $o = [];
+            exec('/usr/sbin/selinuxenabled 2>/dev/null', $o, $rc);
+            if ($rc === 0) {
+                if ($m['network']) {
+                    $bool = str_starts_with($m['fs'], 'nfs') ? 'httpd_use_nfs' : 'httpd_use_cifs';
+                    exec('/usr/sbin/setsebool -P ' . $bool . ' 1 2>&1', $o, $rc);
+                    $notes[] = $rc === 0 ? "SELinux: $bool aan" : t('SELinux: {b} aanzetten mislukt', ['b' => $bool]);
+                } else {
+                    exec('/usr/sbin/semanage fcontext -a -t httpd_sys_rw_content_t ' . escapeshellarg($d . '(/.*)?') . ' 2>/dev/null', $o, $rc);
+                    exec('/usr/sbin/restorecon -R ' . escapeshellarg($d) . ' 2>/dev/null || chcon -R -t httpd_sys_rw_content_t ' . escapeshellarg($d) . ' 2>/dev/null', $o, $rc);
+                }
+            }
+        }
+        return $notes;
+    }
+
+    /** 1.280.0: bestaande back-ups naar een andere map verhuizen. @return int aantal verhuisd */
+    public static function moveAll(string $from, string $to): int
+    {
+        if (rtrim($from, '/') === rtrim($to, '/') || !is_dir($from) || !is_dir($to)) {
+            return 0;
+        }
+        $n = 0;
+        foreach (glob(rtrim($from, '/') . '/rzmon-backup-*.zip') ?: [] as $f) {
+            if (preg_match(self::NAME_RE, basename($f)) && !file_exists($to . '/' . basename($f)) && @rename($f, $to . '/' . basename($f))) {
+                $n++;
+            }
+        }
+        return $n;
     }
 
     /** Wat er ontbreekt om back-ups te maken, of null als alles klaar is. */
@@ -39,6 +158,9 @@ final class Backup
             return t('De PHP-extensie zip ontbreekt');
         }
         $d = self::dir();
+        if (($mnt = self::mountMissing()) !== null) {   // 1.280.0: anders schrijven we ongemerkt naar de systeemschijf
+            return t('De netwerkschijf {m} voor de back-ups is niet gekoppeld', ['m' => $mnt]);
+        }
         if (!is_dir($d) && @mkdir($d, 0770, true) && function_exists('posix_geteuid') && posix_geteuid() === 0) {
             // Door root aangemaakt (bv. herstel op een nieuwe server): ook de webserver moet erin kunnen
             foreach (['apache', 'www-data', 'nginx', 'http'] as $g) {
@@ -64,6 +186,9 @@ final class Backup
             return is_file('/etc/redhat-release')
                 ? 'sudo dnf -y install php-zip && sudo systemctl restart php-fpm httpd'
                 : 'sudo apt install -y php-zip && sudo systemctl restart apache2';
+        }
+        if (($mnt = self::mountMissing()) !== null) {
+            return 'sudo mount ' . $mnt . '   # ' . t('of: sudo mount -a (staat de NAS in /etc/fstab?)');
         }
         if (self::dir() === self::DEFAULT_DIR) {
             return 'sudo bash ' . realpath(SM_ROOT) . '/install/install-helper.sh';   // map + SELinux in één keer
@@ -119,9 +244,18 @@ final class Backup
         @set_time_limit(0);
         ignore_user_abort(true);
         $dir = self::dir();
+        self::prune();   // 1.280.0: ook vóór een back-up opruimen (anders blijft een volle schijf vol)
+        $last = self::lastSize($history && !$lean);
+        $min = max(50 * 1024 * 1024, (int) ($last * 1.5));
         $free = @disk_free_space($dir);
-        if ($free !== false && $free < 50 * 1024 * 1024) {
-            return ['ok' => false, 'file' => null, 'size' => 0, 'error' => "Minder dan 50 MB vrij in $dir"];
+        if ($free !== false && $free < $last * 9) {
+            self::pruneForSpace($last * 9);   // de database-export staat even uitgepakt naast de zip
+            clearstatcache();
+            $free = @disk_free_space($dir);
+        }
+        if ($free !== false && $free < $min) {
+            return ['ok' => false, 'file' => null, 'size' => 0, 'error' => t('Te weinig ruimte in {dir}: {free} vrij, ongeveer {need} nodig. Verwijder oude back-ups of kies een andere back-upmap (Instellingen → Systeem → Back-up).',
+                ['dir' => $dir, 'free' => self::mb((int) $free), 'need' => self::mb($min)])];
         }
         $t = time();
         do {
@@ -306,6 +440,58 @@ final class Backup
      * Oude automatische en veiligheidsback-ups weg; handmatige alleen als je een aantal instelde (1.133.0, backup_keep_manual,
      * 0 = alles bewaren); geüploade blijven tot je ze verwijdert. @return int aantal weggehaald
      */
+    private static function mb(int $b): string
+    {
+        return $b >= 1024 ** 3 ? round($b / 1024 ** 3, 1) . ' GB' : (int) round($b / 1024 ** 2) . ' MB';
+    }
+
+    /** 1.280.0: grootte van de laatste vergelijkbare back-up (met of zonder meethistorie), 0 als er geen is */
+    private static function lastSize(bool $history): int
+    {
+        $any = 0;
+        foreach (self::list() as $b) {
+            if ($b['valid'] && $b['history'] === $history) {
+                return (int) $b['size'];
+            }
+            $any = $any ?: (int) $b['size'];
+        }
+        return $any;
+    }
+
+    /**
+     * 1.280.0: ruimte maken: de oudste automatische, update- en herstel-back-ups weg (van elke soort blijft de nieuwste),
+     * tot er $need bytes vrij is. Handmatige en geüploade blijven altijd. @return int aantal weggehaald
+     */
+    public static function pruneForSpace(int $need): int
+    {
+        $dir = self::dir();
+        $list = array_reverse(self::list());   // oudste eerst
+        $count = array_count_values(array_column($list, 'type'));
+        $n = 0;
+        foreach ($list as $b) {
+            clearstatcache();
+            $free = @disk_free_space($dir);
+            if ($free === false || $free >= $need) {
+                break;
+            }
+            if (in_array($b['type'], ['auto', 'update', 'pre-restore'], true) && $count[$b['type']] > 1 && @unlink($dir . '/' . $b['file'])) {
+                $count[$b['type']]--;
+                $n++;
+            }
+        }
+        return $n;
+    }
+
+    /** 1.280.0: hooguit eens per dag opruimen vanuit cron, ook als er geen back-up gemaakt wordt */
+    public static function pruneDaily(): void
+    {
+        if (setting('backup_pruned_on', '') === date('Y-m-d') || self::problem() !== null) {
+            return;
+        }
+        save_setting('backup_pruned_on', date('Y-m-d'));
+        self::prune();
+    }
+
     public static function prune(): int
     {
         $keep = ['auto' => max(1, (int) setting('backup_keep', 7)), 'pre-restore' => self::KEEP_PRE_RESTORE, 'update' => 5];   // 1.221.0: de laatste 5 van updates
@@ -626,6 +812,7 @@ final class Backup
     /** Vanuit cron: back-up maken als het tijd is. Mislukt hij, dan elk uur opnieuw tot het lukt. */
     public static function runScheduled(): ?string
     {
+        self::pruneDaily();   // 1.280.0
         $slot = self::lastSlot();
         if ($slot === null) {
             return null;

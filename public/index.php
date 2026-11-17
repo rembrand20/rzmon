@@ -1678,6 +1678,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <?= xp(t('Ook de meetgeschiedenis meenemen; uit geeft een veel kleinere zip.'), t('De meetresultaten achter de grafieken. Uit = een veel kleinere zip; bij terugzetten blijft de huidige geschiedenis dan staan.')) ?>
           <label><?= th('Zip-wachtwoord') ?> <span class="hint"><?= th('(minstens 8 tekens; versleutelt met AES-256)') ?></span><input name="backup_pass" type="password" autocomplete="new-password"></label>
           <?= xp(t('Bewaar dit wachtwoord goed: zonder is de back-up onbruikbaar.'), t('Het wachtwoord is nodig om een zip te openen (met 7-Zip) of terug te zetten op een andere server. <b>Bewaar het goed:</b> zonder wachtwoord is de back-up onbruikbaar. Wijzigen geldt voor nieuwe back-ups.')) ?>
+          <div class="key-row" id="backup-dir-row"></div><!-- 1.280.0 -->
           <p class="small" id="backup-status">…</p>
           <div class="btn-row">
             <button type="button" class="btn" id="backup-now"><?= th('💾 Nu back-up maken') ?></button>

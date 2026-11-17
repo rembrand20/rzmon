@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.280.0**: **back-upmap zelf kiezen**, ook op een NAS (NFS) met controle of hij gekoppeld is, en back-ups worden weer netjes opgeruimd.
 - **1.279.0**: bij **toegestane apparaten** zie je hoe er is ingelogd: met een passkey, met 2FA of alleen met een wachtwoord.
 - **1.278.0**: **🔕 altijd stil** per check, server, groep of soort apparaat (nooit een melding), en **🔀 flappen** zie je in elke weergave terug, ook nog 24 uur daarna.
 - **1.277.0**: **subpagina's in de zijbalk**: elke pagina met haar onderdelen eronder, met tellers, en een menu bij de ingeklapte zijbalk.
 - **1.276.0**: **overzichtelijker RzSense**: nieuwe pagina's Servers, Updates, Logboek en Compliance, één inbox voor incidenten, een beheerportal in zeven groepen en een `?` met uitleg bij elk veld.
-- **1.275.0**: **rust op je telefoon**: geblokkeerde scanners geven geen pushmelding meer, wel een samenvatting om 20:00; alleen als je iets moet doen komt er meteen een melding.
+
+## 1.280.0 – 2026-11-17
+### Nieuw
+- **Back-upmap zelf kiezen** (Instellingen → Systeem → Back-up → 📁 Back-upmap → Wijzigen), bijvoorbeeld een map op je NAS via NFS.
+  - *Testen* laat zien op welke schijf de map ligt, hoeveel er vrij is en of RzSense er kan schrijven; systeemmappen en de webmap worden geweigerd.
+  - De hulpdienst maakt de map aan, zet de rechten en SELinux goed (bij NFS: `httpd_use_nfs`), zet hem in `config.php` en verhuist de bestaande back-ups mee.
+  - **Netwerkschijf weg?** Dan maakt RzSense geen back-up en meldt hij het, in plaats van ongemerkt naar de systeemschijf te schrijven.
+- **Ruimte maken vóór een back-up:** bij te weinig ruimte gaan eerst de oudste automatische, update- en herstelback-ups weg (de nieuwste van elke soort blijft). Lukt het dan nog niet, dan een duidelijke melding met hoeveel er vrij en nodig is.
+
+### Opgelost
+- **Back-ups werden niet meer opgeruimd.** Een volledige back-up voor een update werd als *handmatig* opgeslagen en dus nooit opgeruimd; nu heet hij *voor update* (de laatste 5 blijven). En opruimen gebeurde alleen ná een gelukte back-up, dus een volle schijf bleef vol. Nu wordt er ook vóór elke back-up en dagelijks opgeruimd. Oude *handmatige* back-ups van eerdere updates verwijder je één keer zelf.
+- Grootte van back-ups en vrije ruimte in GB als het meer dan 1 GB is.
 
 ## 1.279.0 – 2026-11-17
 ### Nieuw

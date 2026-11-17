@@ -322,7 +322,7 @@ function showUpdateDialog(s, log, force = false) {
 // ---------------------------------------------------------------- Back-up
 let backupInfo = null;
 let backupUnlockedUntil = 0;   // downloaden zonder opnieuw te bevestigen tot dit moment
-const fmtSize = (b) => (b >= 1048576 ? `${dec((b / 1048576).toFixed(1))} MB` : `${Math.max(1, Math.round(b / 1024))} kB`);
+const fmtSize = (b) => (b >= 1073741824 ? `${dec((b / 1073741824).toFixed(1))} GB` : b >= 1048576 ? `${dec((b / 1048576).toFixed(1))} MB` : `${Math.max(1, Math.round(b / 1024))} kB`);   // 1.280.0: ook GB
 const fmtDateTime = (dt) => new Date(dt.replace(' ', 'T')).toLocaleString(LOCALE,
   { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
@@ -338,6 +338,7 @@ async function loadBackups() {
   const b = backupInfo;
   backupUnlockedUntil = Date.now() + b.unlocked * 1000 - 5000;
   ['#backup-now', '#backup-upload'].forEach((id) => ($(id).disabled = !!b.problem));
+  backupDirRow(b);   // 1.280.0: ook bij een probleem: dan kun je een andere map kiezen
   if (b.problem) {
     st.innerHTML = `<b class="warn-txt">⚠️ ${esc(b.problem)}.</b> ${L('Voer dit één keer uit op de server:')}${copyBox('cmd-backup-fix', b.fix_cmd)}`;
     wireCopy(st);
@@ -352,6 +353,7 @@ async function loadBackups() {
   if (!b.has_pass) parts.push(`<b class="warn-txt">⚠️ ${L('Geen zip-wachtwoord: back-ups worden niet versleuteld')}</b>`);
   if (!b.encryption) parts.push(`<b class="warn-txt">⚠️ ${L('Deze PHP kan geen versleutelde zip maken (libzip te oud)')}</b>`);
   st.innerHTML = parts.join(' · ');
+  backupDirRow(b);   // 1.280.0
   $('#backup-list').innerHTML = b.list.length ? b.list.map((x) => `
     <div class="key-row">
       <span class="grow"><strong>${fmtDateTime(x.at)}</strong> <span class="muted small">· ${esc(x.type_label)}</span><br>
@@ -361,6 +363,49 @@ async function loadBackups() {
       <button type="button" class="icon-btn" title="${L('Verwijderen')}" data-bk="del" data-file="${esc(x.file)}">🗑</button>
     </div>`).join('') : `<p class="muted small">${L('Nog geen back-ups.')}</p>`;
   settingsSummaries();
+}
+
+/** 1.280.0: de back-upmap: waar, wat voor schijf, hoeveel vrij, en wijzigen */
+function backupDirRow(b) {
+  const el = $('#backup-dir-row');
+  if (!el || !b.dir_info) return;
+  const i = b.dir_info;
+  const kind = i.mount_missing ? `<b class="bad">✘ ${L('netwerkschijf niet gekoppeld')}</b>` : i.network ? `🌐 ${esc(i.fs.toUpperCase())} · ${esc(i.mount)}` : i.system ? `💽 ${L('systeemschijf')}` : `💽 ${esc(i.mount)}`;
+  el.innerHTML = `<span class="grow">📁 <b>${L('Back-upmap')}</b> <code>${esc(b.dir)}</code>${b.dir_info.default ? ` <span class="muted">(${L('standaard')})</span>` : ''}<br>
+    <span class="muted small">${kind}${i.free != null ? ' · ' + L('{s} vrij', { s: fmtSize(i.free) }) : ''}</span></span>
+    <button type="button" class="btn small-btn need-admin" id="backup-dir-edit">✎ ${L('Wijzigen')}</button>`;
+  $('#backup-dir-edit').onclick = () => backupDirDialog(b);
+}
+
+function backupDirDialog(b) {
+  modal({
+    title: '📁 ' + L('Back-upmap'),
+    body: `${xpHtml(L('Waar RzSense de back-ups bewaart. Kies bij voorkeur een andere schijf of een NAS, zodat een volle back-upmap RzSense niet stillegt.'),
+      L('<b>NFS of SMB:</b> koppel de share eerst zelf op de server (in /etc/fstab of met systemd), bijvoorbeeld op /mnt/nas, en kies dan een map daarin. RzSense controleert vóór elke back-up of de share gekoppeld is; is de NAS weg, dan schrijft hij niet stiekem naar de systeemschijf maar meldt hij het. <b>De hulpdienst</b> maakt de map aan, geeft de webserver schrijfrechten en zet SELinux goed (bij NFS: httpd_use_nfs). <b>Op de NAS zelf:</b> bij NFS met root_squash moet de map al bestaan en schrijfbaar zijn voor de webserver (gebruiker apache).'))}
+      <label>${L('Map')} <span class="hint">${L('(leeg = standaard: {d})', { d: '/var/lib/rzmon/backups' })}</span><input name="dir" value="${esc(b.dir_info.default ? '' : b.dir)}" placeholder="/mnt/nas/rzsense" autocomplete="off" spellcheck="false"></label>
+      <label class="switch"><input type="checkbox" name="move" checked><span></span> ${L('Bestaande back-ups meeverhuizen')}</label>
+      <div id="bkdir-test" class="small"></div>`,
+    buttons: [{ label: '🧪 ' + L('Testen'), cls: '', onClick: async () => { await backupDirTest(); return false; } },
+      { label: L('Opslaan'), cls: 'primary', submit: true }],
+    onSubmit: async (d) => {
+      const r = await api('backup_dir_save', { dir: d.dir.trim(), move: !!d.move });
+      await configSaved(r, L('Back-upmap opgeslagen'));
+      loadBackups();
+    },
+  });
+}
+
+async function backupDirTest() {
+  const out = $('#bkdir-test');
+  const dir = ($('#modal-form [name=dir]') || {}).value || '';
+  out.innerHTML = `<span class="muted">${L('testen…')}</span>`;
+  let r;
+  try { r = await api('backup_dir_test', { dir: dir.trim() }); } catch (ex) { out.innerHTML = `<b class="bad">${esc(ex.message)}</b>`; return; }
+  if (!r.ok) { out.innerHTML = `<b class="bad">✘ ${esc(r.error)}</b>`; return; }
+  const i = r.info;
+  out.innerHTML = `<p>${i.network ? `✔ 🌐 ${L('Netwerkschijf ({fs}) op {m}', { fs: esc(i.fs.toUpperCase()), m: esc(i.mount) })}` : i.system ? `💽 ${L('Systeemschijf')}` : `✔ 💽 ${L('Eigen schijf op {m}', { m: esc(i.mount) })}`}
+    ${i.free != null ? ' · ' + L('{s} vrij', { s: fmtSize(i.free) }) : ''} · ${i.exists ? (i.writable ? '✔ ' + L('RzSense kan er schrijven') : '⚠️ ' + L('nog geen schrijfrechten')) : L('map bestaat nog niet')}</p>
+    ${r.warnings.map((w) => `<p class="warn-txt">⚠️ ${esc(w)}</p>`).join('')}`;
 }
 
 async function backupNow(e) {

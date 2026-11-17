@@ -119,6 +119,20 @@ final class Setup
         return ['ok' => true, 'written' => false] + $manual;
     }
 
+    /** 1.280.0: back-upmap opslaan. Liefst via de hulpdienst: die zet de map klaar (rechten, SELinux) en verhuist de back-ups. */
+    public static function backupDirSave(string $dir, bool $move): array
+    {
+        $changes = Installer::cleanConfigChanges(['backup_dir' => $dir, 'backup_move' => $move]);
+        $nonce = Installer::requestConfig($changes);
+        if ($nonce !== null) {
+            return ['ok' => true, 'written' => false, 'helper' => true, 'nonce' => $nonce];
+        }
+        unset($changes['backup_move']);
+        $m = Backup::mountOf($changes['backup_dir'] !== '' ? $changes['backup_dir'] : Backup::DEFAULT_DIR);
+        $changes['backup_mount'] = $m['network'] ? $m['mount'] : '';
+        return self::saveConfig($changes);
+    }
+
     public static function dbTest(array $in): array
     {
         $db = self::dbFromInput($in);

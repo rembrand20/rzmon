@@ -173,7 +173,7 @@ if (($argv[1] ?? '') === '--apply-config') {
     $r = Installer::applyConfigRequest();
     $file = Installer::HELPER_DIR . '/config.result';
     $grp = @filegroup(Installer::HELPER_DIR);
-    file_put_contents($file, json_encode(['ok' => $r['ok'], 'error' => $r['error'], 'nonce' => $r['nonce'], 'at' => time()]));
+    file_put_contents($file, json_encode(['ok' => $r['ok'], 'error' => $r['error'], 'nonce' => $r['nonce'], 'note' => $r['note'] ?? '', 'at' => time()]));
     @chmod($file, 0640);
     if ($grp !== false) {
         @chgrp($file, $grp);
@@ -183,7 +183,8 @@ if (($argv[1] ?? '') === '--apply-config') {
 if (($argv[1] ?? '') === '--backup') {
     Installer::ensureSchema();
     $snel = in_array('--snel', $argv, true);   // 1.221.0: snelle back-up voor een update
-    $r = Backup::create($snel ? 'update' : 'manual', in_array('--zonder-historie', $argv, true) || $snel ? false : null, $snel);
+    $upd = $snel || in_array('--update', $argv, true);   // 1.280.0: ook een volledige back-up voor een update telt als update (wordt opgeruimd)
+    $r = Backup::create($upd ? 'update' : 'manual', in_array('--zonder-historie', $argv, true) || $snel ? false : null, $snel);
     if (!$r['ok']) {
         fwrite(STDERR, "Mislukt: {$r['error']}\n");
         exit(1);

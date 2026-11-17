@@ -106,12 +106,12 @@ lap Ophalen
 
 if [ "$backup" = 1 ]; then
     step=backup
-    bk_args="--snel"
+    bk_args="--update --snel"
     if git -C "$DIR" diff --quiet HEAD "$commit" -- install/schema.sql src/Installer.php 2>/dev/null; then
         status running backup "Snelle back-up maken (instellingen; geschiedenis en logs blijven staan)" 20
     else
         status running backup "Volledige back-up maken (de database-opbouw verandert)" 20
-        bk_args=""
+        bk_args="--update"
     fi
     # shellcheck disable=SC2086
     if ! php "$DIR/install/install.php" --backup $bk_args >>"$LOG" 2>&1; then
