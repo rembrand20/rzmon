@@ -4,14 +4,14 @@ declare(strict_types=1);
 /**
  * 1.189.0: stille uren als profielen met een naam, te koppelen op vier niveaus. Het fijnste niveau wint:
  *   check → server → eigen groep → soort apparaat → algemeen.
- * Op elk niveau: niets (volgt het niveau erboven), een profiel, of "nooit stil".
+ * Op elk niveau: niets (volgt het niveau erboven), een profiel, "nooit stil" of (1.278.0) "altijd stil": nooit een melding.
  * Daarnaast "Nu stil" bij een server of check (tot een tijdstip): dat gaat voor alles.
  *
  * Een profiel: naam, icoon, vensters (dagen en tijden), "critical komt wel door" en eventueel een periode (datum van–tot:
  * alleen in die dagen actief; zonder vensters dan de hele dag).
  *
  * Opslag: quiet_profiles; setting quiet_global (id of leeg); quiet_groups (gkey 'grp:naam' of 'kind:groep' => 'never' of 'p:id');
- * hosts.quiet ('never', 'p:id' of NULL); checks.quiet (JSON {"mode":"profile","id":N} of {"mode":"never"}, of NULL);
+ * hosts.quiet ('never', 'mute', 'p:id' of NULL); checks.quiet (JSON {"mode":"profile","id":N}, {"mode":"never"} of {"mode":"mute"}, of NULL);
  * hosts.quiet_until en checks.quiet_until (Nu stil).
  */
 final class Quiet
@@ -96,12 +96,12 @@ final class Quiet
 
     // ------------------------------------------------------------------ koppelen
 
-    /** 'never', 'p:<id>' of null; alles wat geen bestaand profiel is, wordt null */
+    /** 'never', 'mute', 'p:<id>' of null; alles wat geen bestaand profiel is, wordt null */
     public static function cleanVal(mixed $v): ?string
     {
         $v = (string) $v;
-        if ($v === 'never') {
-            return 'never';
+        if ($v === 'never' || $v === 'mute') {
+            return $v;
         }
         return preg_match('/^p:(\d+)$/', $v, $m) && isset(self::profiles()[(int) $m[1]]) ? $v : null;
     }
@@ -157,6 +157,9 @@ final class Quiet
         if ($v === 'never') {
             return ['on' => false, 'windows' => [], 'crit' => false, 'name' => t('nooit stil'), 'src' => $src, 'profile' => null, 'never' => true];
         }
+        if ($v === 'mute') {   // 1.278.0: altijd stil, ook critical
+            return ['on' => true, 'windows' => [], 'crit' => false, 'name' => t('altijd stil'), 'icon' => '🔕', 'src' => $src, 'profile' => null, 'mute' => true];
+        }
         if (preg_match('/^p:(\d+)$/', $v, $m) && ($p = self::profiles()[(int) $m[1]] ?? null)) {
             return ['on' => true, 'windows' => $p['windows'], 'crit' => $p['crit'], 'name' => $p['name'], 'icon' => $p['icon'], 'src' => $src, 'profile' => $p['id'],
                 'date_from' => $p['date_from'], 'date_to' => $p['date_to']];
@@ -194,8 +197,8 @@ final class Quiet
         $own = json_decode((string) ($check['quiet'] ?? ''), true);
         if (is_array($own)) {
             $mode = $own['mode'] ?? '';
-            if ($mode === 'never') {
-                return self::fromVal('never', 'check');
+            if ($mode === 'never' || $mode === 'mute') {
+                return self::fromVal($mode, 'check');
             }
             if ($mode === 'profile' && ($r = self::fromVal('p:' . (int) ($own['id'] ?? 0), 'check'))) {
                 return $r;
@@ -213,6 +216,9 @@ final class Quiet
     public static function until(array $q, ?int $now = null): ?int
     {
         $now ??= time();
+        if (!empty($q['mute'])) {
+            return $now + 10 * 365 * 86400;   // altijd stil: geen einde
+        }
         if (isset($q['until'])) {
             return $now < (int) $q['until'] ? (int) $q['until'] : null;
         }
@@ -243,7 +249,7 @@ final class Quiet
     {
         $u = self::until($q);
         return ['name' => $q['name'] ?? '', 'icon' => $q['icon'] ?? '', 'src' => $q['src'] ?? '', 'profile' => $q['profile'] ?? null, 'never' => !empty($q['never']),
-            'crit' => !empty($q['crit']), 'now' => $u ? date('Y-m-d H:i:s', $u) : null, 'on' => !empty($q['on'])];
+            'mute' => !empty($q['mute']), 'crit' => !empty($q['crit']), 'now' => $u && empty($q['mute']) ? date('Y-m-d H:i:s', $u) : null, 'on' => !empty($q['on'])];
     }
 
     // ------------------------------------------------------------------ overzicht
@@ -254,7 +260,7 @@ final class Quiet
         $profiles = self::profiles();
         $use = [];
         $add = static function (?string $val, string $type, string $label, ?int $id = null) use (&$use) {
-            $k = $val === 'never' ? 'never' : (preg_match('/^p:(\d+)$/', (string) $val, $m) ? (int) $m[1] : null);
+            $k = $val === 'never' || $val === 'mute' ? $val : (preg_match('/^p:(\d+)$/', (string) $val, $m) ? (int) $m[1] : null);
             if ($k !== null) {
                 $use[$k][] = ['type' => $type, 'label' => $label, 'id' => $id];
             }
@@ -268,7 +274,7 @@ final class Quiet
         }
         foreach (q("SELECT c.id, c.name, c.quiet, h.name host FROM checks c JOIN hosts h ON h.id = c.host_id WHERE c.quiet IS NOT NULL ORDER BY h.name, c.name")->fetchAll() as $c) {
             $o = json_decode((string) $c['quiet'], true) ?: [];
-            $add(($o['mode'] ?? '') === 'never' ? 'never' : (($o['mode'] ?? '') === 'profile' ? 'p:' . (int) ($o['id'] ?? 0) : null), 'check', $c['host'] . ' – ' . $c['name'], (int) $c['id']);
+            $add(in_array($o['mode'] ?? '', ['never', 'mute'], true) ? $o['mode'] : (($o['mode'] ?? '') === 'profile' ? 'p:' . (int) ($o['id'] ?? 0) : null), 'check', $c['host'] . ' – ' . $c['name'], (int) $c['id']);
         }
         $grps = [];
         foreach ($hosts as $h) {
@@ -295,6 +301,7 @@ final class Quiet
         return [
             'profiles' => array_values(array_map(fn($p) => $p + ['used' => $use[$p['id']] ?? [], 'active' => self::until(['on' => true] + $p) !== null], $profiles)),
             'never' => $use['never'] ?? [],
+            'mute' => $use['mute'] ?? [],   // 1.278.0
             'global' => (int) setting('quiet_global', '') ?: null,
             'groups' => array_merge(
                 array_map(fn($n, $c) => ['key' => 'grp:' . $n, 'type' => 'grp', 'label' => (string) $n, 'hosts' => $c, 'val' => $g['grp:' . $n] ?? null], array_keys($grps), $grps),

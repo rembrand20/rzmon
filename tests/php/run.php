@@ -1617,6 +1617,38 @@ ok($qs === ['global', 'kind', 'grp', 'host', 'check'] && $qPastOff && !$qNever &
     && $qNow['src'] === 'check_now' && $qNowCrit && $qAfterDel === '0'
     && NotifyRules::cleanQuietOwn(['mode' => 'profile', 'id' => $qNight]) === ['mode' => 'profile', 'id' => $qNight] && NotifyRules::cleanQuietOwn(['mode' => 'profile', 'id' => 999999]) === null,
     'stille uren: algemeen, soort, eigen groep (gaat voor), server, check; periode voorbij = niet stil; nooit stil; critical door; Nu stil gaat voor alles; profiel weg = volgt weer');
+// 1.278.0: altijd stil (server of check), ook critical; nooit stil bij de check gaat voor; geen samenvatting achteraf
+Quiet::setNow('check', $qC, null);
+q('UPDATE hosts SET quiet = ? WHERE id = ?', [Quiet::cleanVal('mute'), $qH]); Quiet::reset();
+$mq = Quiet::forCheck($qCheck());
+$mSum = Quiet::summary($mq);
+$mHoldCrit = Quiet::holds($qCheck(), STATUS_CRIT);
+$mUntil = NotifyRules::quietUntil(NotifyRules::quietFor($qCheck())) !== null;
+q('UPDATE checks SET quiet = ? WHERE id = ?', [json_encode(NotifyRules::cleanQuietOwn(['mode' => 'never'])), $qC]); Quiet::reset();
+$mNeverWins = !Quiet::holds($qCheck(), STATUS_CRIT);
+q('UPDATE checks SET quiet = ? WHERE id = ?', [json_encode(NotifyRules::cleanQuietOwn(['mode' => 'mute'])), $qC]); Quiet::reset();
+$mCheck = Quiet::forCheck($qCheck());
+ok(!empty($mq['mute']) && $mq['src'] === 'host' && $mSum['mute'] && $mSum['now'] === null && $mHoldCrit && $mUntil && $mNeverWins
+    && !empty($mCheck['mute']) && $mCheck['src'] === 'check' && Quiet::cleanVal('mute') === 'mute',
+    'altijd stil: bij server en check, ook critical stil, zonder eindtijd; nooit stil bij de check gaat voor de server');
+// flappen: wisselingen tellen, begin onthouden; altijd stil: de wachtrij levert niets en er komt niets "na de stille uren"
+$mSel = (new ReflectionClass('Monitor'))->getConstant('CHECK_SELECT');
+$mProc = new ReflectionMethod('Monitor', 'process');
+$mProc->setAccessible(true);
+q('DELETE FROM results WHERE check_id = ?', [$qC]);
+foreach ([2, 0, 2, 0, 2, 0] as $st) {
+    $mProc->invoke(null, q($mSel . ' WHERE c.id = ?', [$qC])->fetch(), ['status' => $st, 'value' => null, 'message' => 'test']);
+}
+$mFl = q('SELECT flapping_since, flap_last_start, flap_changes FROM checks WHERE id = ?', [$qC])->fetch();
+q("INSERT INTO notify_queue (host_id, check_id, status, event, previous, title, message, priority, value) VALUES (?, ?, 2, 'problem', 0, 't', 'm', 0, NULL)", [$qH, $qC]);
+$mTake = new ReflectionMethod('Monitor', 'takeQueued');
+$mTake->setAccessible(true);
+$mTaken = $mTake->invoke(null, $qH);
+$mHeld = q('SELECT quiet_held FROM checks WHERE id = ?', [$qC])->fetchColumn();
+ok($mFl['flapping_since'] !== null && $mFl['flap_last_start'] !== null && (int) $mFl['flap_changes'] >= 4 && $mTaken === [] && $mHeld === null
+    && (int) q('SELECT COUNT(*) FROM notify_queue WHERE check_id = ?', [$qC])->fetchColumn() === 0,
+    'flappen: begin en aantal wisselingen bewaard; altijd stil: niets verstuurd en niets bewaard voor na de stille uren');
+q('DELETE FROM notify_queue WHERE check_id = ?', [$qC]);
 q('DELETE FROM checks WHERE id = ?', [$qC]);
 q('DELETE FROM hosts WHERE id = ?', [$qH]);
 Quiet::setGroup('kind:camera', null);

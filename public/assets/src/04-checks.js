@@ -39,7 +39,7 @@ async function checkInfo(id, live = false, more = null) {
   ];
   const tags = [
     c.notify ? '🔔 ' + L('eigen meldregels') : '🔔 ' + L('algemene meldregels'),
-    (() => { const q = c.quiet_eff; return q ? (q.never ? '🌙✕ ' + L('nooit stil') : `${esc(q.icon || '🌙')} ${esc(q.name)} (${QUIET_SRC()[q.src] || q.src})`) : ''; })(),   // 1.189.0
+    (() => { const q = c.quiet_eff; return q ? (q.never ? '🌙✕ ' + L('nooit stil') : q.mute ? '🔕 ' + L('altijd stil') + ` (${QUIET_SRC()[q.src] || q.src})` : `${esc(q.icon || '🌙')} ${esc(q.name)} (${QUIET_SRC()[q.src] || q.src})`) : ''; })(),   // 1.189.0
     c.reverse_ok != null && REVERSIBLE.includes(c.type) ? '⇄ ' + L('omgekeerd: slaagt = {a}, mislukt = {b}', { a: STATUS_WORD[c.reverse_ok], b: STATUS_WORD[c.reverse_fail ?? 0] }) : '',
     sc && sc.maintenance ? `🔧 ${esc(maintLabel(sc.maintenance))}` : '',
     c.acked_at ? '✔ ' + L('bevestigd door {who}', { who: esc(c.acked_by || '?') }) : '',
@@ -1393,7 +1393,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     if (!$('#confirm-sw').checked) { d.confirm_fails = ''; d.confirm_ok = ''; }   // 1.185.0: schakelaar uit = de algemene instellingen
     const notify = notifySw && $('#notify-own').checked && ownEditor ? ownEditor.get() : null;
     const qv = $('#quiet-sw').checked ? $('#quiet-sel').value : '';   // 1.189.0: een profiel of nooit stil
-    const quiet = qv === 'never' ? { mode: 'never' } : qv.startsWith('p:') ? { mode: 'profile', id: +qv.slice(2) } : null;
+    const quiet = qv === 'never' || qv === 'mute' ? { mode: qv } : qv.startsWith('p:') ? { mode: 'profile', id: +qv.slice(2) } : null;
     const command = d.type === 'command' ? { cmd: d.cmd, expect: d.cmd_expect, match: d.cmd_match, timeout: d.cmd_timeout, fail: d.cmd_fail } : undefined;
     const res = {};
     ['cpu', 'mem', 'disk'].forEach((k) => { res[k] = { on: !!d[`res_${k}`], warn: d[`res_${k}_warn`], crit: d[`res_${k}_crit`] }; });
@@ -1664,7 +1664,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
         </div>
       </div></section>
       ${swsOpen({ id: 'quiet-wrap', cb: 'id="quiet-sw"', icon: '🌙', title: L('Stille uren'), on: !!quietOwn, sub: `<span id="quiet-mode-label">${quietOwn ? esc(quietLabel(quietOwn)) : L('volgt de server') + (c.quiet_eff ? ': ' + esc(c.quiet_eff.name) : '')}</span>` })}
-        <label>${L('Stille uren voor deze check')}<select id="quiet-sel">${quietOptions(quietOwn ? (quietOwn.mode === 'never' ? 'never' : quietOwn.mode === 'profile' ? 'p:' + quietOwn.id : '') : '', null)}</select></label>
+        <label>${L('Stille uren voor deze check')}<select id="quiet-sel">${quietOptions(quietOwn ? (quietOwn.mode === 'never' || quietOwn.mode === 'mute' ? quietOwn.mode : quietOwn.mode === 'profile' ? 'p:' + quietOwn.id : '') : '', null)}</select></label>
         <span class="hint">${L('Profielen maak je bij Instellingen → Meldingen en rapporten → Wanneer melden → Stille uren.')}</span>
       </div></section>
       <div class="row3" id="thr-wrap">

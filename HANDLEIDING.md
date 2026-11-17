@@ -1121,7 +1121,8 @@ In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waar
 
 **Anti-flapping** (standaard aan): een check die steeds van status wisselt, bijvoorbeeld OK → CRITICAL → OK → CRITICAL, geeft geen stroom berichten.
 - Een check **flapt** bij **4 statuswisselingen binnen 30 minuten**. Je krijgt dan één melding: *"🔀 FLAPPEND: … staat te flappen (5× gewisseld in 30 min)"*.
-- Zolang hij flapt, komt er **per status hooguit één melding**: de eerste warning, de eerste critical, de eerste onbekend en het eerste herstel. Verdere wisselingen en herinneringen worden niet gemeld. Op het dashboard staat **🔀 flapt** bij de check.
+- Zolang hij flapt, komt er **per status hooguit één melding**: de eerste warning, de eerste critical, de eerste onbekend en het eerste herstel. Verdere wisselingen en herinneringen worden niet gemeld.
+- **🔀 bij de check** (1.278.0): zolang hij flapt staat **🔀 flapt** bij de check, in elke weergave: de lijst, Blox, het Command center, *Nu aandacht nodig* en mDS op je telefoon. Is hij weer stabiel, dan blijft er nog **24 uur** een vaag **🔀 flapte (5×)** staan; in de tooltip staat van wanneer tot wanneer hij flapte en hoe vaak hij wisselde. Zo zie je achteraf ook nog welke check onrustig was.
 - Is de status **15 minuten** niet veranderd, dan krijg je één melding *"STABIEL: … is 15 min OK/CRITICAL"*, en werkt alles weer normaal.
 - Ook bij flappen geldt **Melden na … mislukte checks achter elkaar**: zolang de check niet zo vaak achter elkaar mislukt, flapt hij **stil** (geen *FLAPPEND*, geen melding per status). Haalt hij het aantal wel, dan komt er één melding met *(flapt)* erbij. Is er niets gemeld en wordt hij stabiel OK, dan komt er ook geen *STABIEL*-melding.
 - De drie getallen pas je aan in het blok *Anti-flapping*, en per check in de eigen meldregels.
@@ -1177,12 +1178,18 @@ Met 3 en 3 komt een melding dus pas bij de **5e** mislukte controle op rij. Bove
 - **★ Algemeen:** kies welk profiel overal geldt (of *geen stille uren*).
 - **Koppelen en overschrijven.** Een fijnere keuze gaat voor een grovere:
   1. **🌙 Nu stil** bij de check of bij de server;
-  2. de **check** (✎ → 🌙 Stille uren: *volgt de server*, een profiel of *nooit stil*);
-  3. de **server** (✎ Bewerken → Stille uren: *volgt groep of algemeen*, een profiel of *nooit stil*);
+  2. de **check** (✎ → 🌙 Stille uren: *volgt de server*, een profiel, *nooit stil* of *altijd stil*);
+  3. de **server** (✎ Bewerken → Stille uren: *volgt groep of algemeen*, een profiel, *nooit stil* of *altijd stil*);
   4. de **eigen groep** van de server (tabel *Groepen* op de pagina Stille uren);
   5. de **soort apparaat** (bv. camera's, netwerk), in dezelfde tabel;
   6. **★ Algemeen**.
   Een eigen groep gaat dus voor de soort. *Nooit stil* betekent: altijd melden (bijvoorbeeld voor je router).
+- **🔕 Altijd stil** (1.278.0): nooit een melding voor deze check, server, groep of soort apparaat, ook niet bij critical. Handig voor een printer, een testserver of een apparaat dat vaak uit staat.
+  - Er gaat niets naar Pushover, e-mail of de Home Assistant-webhook. De check draait gewoon door: de status, de pagina Meldingen, het dashboard, Incidenten en MQTT werken zoals altijd.
+  - Er komt achteraf ook geen *Na de stille uren*-samenvatting. Zet je hem weer aan, dan meldt RzSense pas bij de volgende verandering.
+  - Een fijnere keuze gaat voor: zet je een server op 🔕, dan kun je één belangrijke check op *nooit stil* zetten.
+  - Bij de check en de server staat **🔕 stil** (in de tooltip waar het vandaan komt), zodat je niet vergeet dat iets stil staat. Op de pagina Stille uren staat een lijst *Altijd stil*.
+  - Voor veel checks tegelijk: *meerdere checks bewerken* → 🔔 Melden → Stille uren.
 - **🌙 Nu stil:** met de knop 🌙 bij een server of check zet je de meldingen meteen stil: 1 uur, 8 uur, tot morgen 07:00, of tot een tijdstip naar keuze. Dat gaat voor alles, ook voor critical. Een server die nu stil is, neemt al zijn checks mee. Met *Opheffen* ben je er eerder vanaf. Op de pagina Stille uren staat wat nu stil is.
 - Bij elke check zie je welk profiel geldt en waar het vandaan komt (🌙 met de naam; in de popup *via server*, *groep*, *soort apparaat* …).
 - **Na de update naar 1.189.0** verandert er niets: je oude algemene stille uren werden het profiel *Standaard* (en ★ Algemeen als ze aan stonden). Checks met eigen vensters kregen een profiel *Eigen: server – check*; checks met *nooit stil* bleven dat.

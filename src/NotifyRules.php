@@ -99,12 +99,13 @@ final class NotifyRules
         return Quiet::global();
     }
 
-    /** Per check: mode global (algemeen), own (eigen vensters) of never (nooit stil). */
+    /** Per check: mode global (algemeen), own (eigen vensters), never (nooit stil) of mute (altijd stil, 1.278.0). */
     public static function cleanQuietOwn(array $in): ?array
     {
         $mode = $in['mode'] ?? 'global';
         return match ($mode) {
             'never' => ['mode' => 'never'],
+            'mute' => ['mode' => 'mute'],
             'profile' => isset(Quiet::profiles()[(int) ($in['id'] ?? 0)]) ? ['mode' => 'profile', 'id' => (int) $in['id']] : null,   // 1.189.0
             'own' => ['mode' => 'own'] + self::cleanQuiet(['on' => true] + $in),
             default => null,
@@ -120,7 +121,7 @@ final class NotifyRules
     /** Valt dit moment in de stille uren? Geeft dan het einde (timestamp), anders null. */
     public static function quietUntil(array $quiet, ?int $now = null): ?int
     {
-        if (isset($quiet['until']) || !empty($quiet['date_from'])) {
+        if (isset($quiet['until']) || !empty($quiet['date_from']) || !empty($quiet['mute'])) {
             return Quiet::until($quiet, $now);   // 1.189.0: Nu stil of een periode
         }
         if (empty($quiet['on'])) {

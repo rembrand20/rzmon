@@ -2381,7 +2381,7 @@ function renderAttnCC(box, items, open, acked, ackedList, down, why, since) {
       ${sub ? '<span class="ax-tree" aria-hidden="true"></span>' : `<span class="ax-si s${c.status}">${axSvg(axIconOf(c))}</span>`}
       <span>${sub ? '' : lbl(+c.status, c)}</span>
       <span>${sub ? '' : `<button type="button" class="ax-srv" data-host="${h.id}">${axSvg('srv', 12)}<span>${esc(h.name)}</span></button>`}</span>
-      <span class="ax-chk"><b>${esc(c.name)}</b>${sub ? ` ${lbl(+c.status, c)}` : `<small class="ax-hs">${esc(h.name)}</small>`}</span>
+      <span class="ax-chk"><b>${esc(c.name)}${chkMarks(c)}</b>${sub ? ` ${lbl(+c.status, c)}` : `<small class="ax-hs">${esc(h.name)}</small>`}</span>
       <span class="ax-msg" title="${esc(c.last_message || '')}">${esc(c.last_message || '')}</span>
       <span class="ax-dur mono">${c.problem_since ? dur(c.problem_since) : ''}</span>
       <span class="ax-tl">${checkTimeline(c)}</span>
@@ -2395,7 +2395,7 @@ function renderAttnCC(box, items, open, acked, ackedList, down, why, since) {
       <span class="ax-si s${st}">${axSvg(d ? 'off' : 'warn')}</span>
       <span>${lbl(st)}</span>
       <span><button type="button" class="ax-srv" data-host="${it.h.id}">${axSvg('srv', 12)}<span>${esc(it.h.name)}</span></button></span>
-      <span class="ax-chk">${d ? `<b>${esc(cause)}</b>` : ''}<span class="ax-cnt">${L('{n} checks', { n: it.list.length })}</span><small class="ax-hs">${esc(it.h.name)}</small></span>
+      <span class="ax-chk">${d ? `<b>${esc(cause)}</b>` : ''}<span class="ax-cnt">${L('{n} checks', { n: it.list.length })}${bundleMarks(it.list)}</span><small class="ax-hs">${esc(it.h.name)}</small></span>
       <span class="ax-msg">${esc(it.list.map((c) => c.name).slice(0, 6).join(', '))}${it.list.length > 6 ? ' …' : ''}</span>
       <span class="ax-dur mono">${s0 ? dur(s0) : ''}</span>
       <span class="ax-tl">${hostTimeline(it.h)}</span>
@@ -2458,7 +2458,7 @@ function renderAttention() {
   const row = ([h, c], sub = false) => `<div class="arow${sub ? ' sub' : ''}" data-cid="${c.id}">
       <i class="adot s${c.status}"></i>
       <button type="button" class="a-srv hl-link" data-host="${h.id}">${esc(h.name)}</button>
-      <span class="a-chk">${esc(c.name)}</span>
+      <span class="a-chk">${esc(c.name)}${chkMarks(c)}</span>
       <span class="a-msg">${esc(c.last_message || '')}</span>
       ${checkTimeline(c)}
       <span class="a-since">${c.problem_since ? dur(c.problem_since) : ''}</span>
@@ -2473,7 +2473,7 @@ function renderAttention() {
     return `<div class="arow bundle${isOpen ? ' open' : ''}" data-bundle="h${it.h.id}">
       <i class="adot s${st}"></i>
       <button type="button" class="a-srv hl-link" data-host="${it.h.id}">${esc(it.h.name)}</button>
-      <span class="a-chk"><button type="button" class="link-btn" data-attn-bundle="${it.h.id}" aria-expanded="${isOpen}">${isOpen ? '▾' : '▸'} ${L('{n} checks', { n: it.list.length })}</button></span>
+      <span class="a-chk"><button type="button" class="link-btn" data-attn-bundle="${it.h.id}" aria-expanded="${isOpen}">${isOpen ? '▾' : '▸'} ${L('{n} checks', { n: it.list.length })}</button>${bundleMarks(it.list)}</span>
       <span class="a-msg"><b>${esc(cause)}</b> · ${esc(it.list.map((c) => c.name).slice(0, 5).join(', '))}${it.list.length > 5 ? ' …' : ''}</span>
       ${hostTimeline(it.h)}
       <span class="a-since">${s0 ? dur(s0) : ''}</span>
@@ -3215,7 +3215,7 @@ function renderMds() {
       <button type="button" data-mds="quiet" data-id="${c.id}" title="${esc(L('Nu stil, 1 uur'))}">🌙<small>1 u</small></button>
       <button type="button" data-mds="run" data-id="${c.id}" title="${esc(L('Nu checken'))}">↻<small>${L('Check')}</small></button></div>` : '');
   const rows = probs.slice(0, mdsAll ? 60 : 5).map(([h, c]) => `<div class="mds-p s${+c.status}${c.acked_at ? ' acked' : ''}">
-      <button type="button" class="mds-pt" data-mds="open" data-id="${c.id}"><i class="mds-dot"></i><span><b>${esc(h.name)} · ${esc(c.name)}</b><small>${esc(String(c.last_message || '').replace(/\s+/g, ' ').slice(0, 90))}</small></span>
+      <button type="button" class="mds-pt" data-mds="open" data-id="${c.id}"><i class="mds-dot"></i><span><b>${esc(h.name)} · ${esc(c.name)}${chkMarks(c)}</b><small>${esc(String(c.last_message || '').replace(/\s+/g, ' ').slice(0, 90))}</small></span>
         <span class="mds-dur">${c.acked_at ? '✔ ' : ''}${c.problem_since ? esc(dur(c.problem_since)) : ''}</span></button>${acts(c)}</div>`).join('');
   const attn = `<section class="mds-sec"><h3>${L('Nu aandacht nodig')}${probs.length > 5 ? ` <button type="button" class="mds-more" data-mds="all">${mdsAll ? L('minder') + ' ▴' : L('alle {n}', { n: probs.length }) + ' ▾'}</button>` : ''}</h3>
     ${rows || `<p class="mds-calm">✔ ${L('Niets dat aandacht vraagt')}</p>`}</section>`;
@@ -3316,7 +3316,7 @@ function mdsCheckSheet(id) {
   const st = c.maintenance ? 4 : +c.status, [v, un] = keyValue(c);
   const user = isAdmin() || isUser();
   const btn = (act, ic, lbl, cls = '') => `<button type="button" class="mds-big ${cls}" data-mds="${act}" data-id="${c.id}">${ic}<span>${lbl}</span></button>`;
-  mdsSheet(`<div class="mds-sh s${st}"><i class="mds-dot"></i><div><b>${esc(h.name)} · ${esc(c.name)}</b>
+  mdsSheet(`<div class="mds-sh s${st}"><i class="mds-dot"></i><div><b>${esc(h.name)} · ${esc(c.name)}${chkMarks(c)}</b>
       <small>${esc(STATUS_WORD[+c.status] || '?')}${c.problem_since && +c.status ? ' · ' + L('al {d}', { d: esc(dur(c.problem_since)) }) : ''}${c.acked_at ? ' · ✔ ' + L('bevestigd') : ''}</small></div></div>
     <p class="mds-msg">${esc(c.last_message || '–')}</p>
     <div class="mds-kv">${v !== '' && v !== null && v !== undefined ? `<span>${L('Waarde')}</span><b class="mono">${v}${esc(un || '')}</b>` : ''}
@@ -4549,7 +4549,7 @@ function hostParts(h) {
     .filter((c) => +c.enabled && +c.status !== 0)
     .sort((a, b) => STATUS_RANK[b.maintenance ? 4 : +b.status] - STATUS_RANK[a.maintenance ? 4 : +a.status]);
   const chips = (max) => problems.slice(0, max).map((c) =>
-    `<span class="pchip s${c.maintenance ? 4 : c.status} ${c.acked_at ? 'acked' : ''}" title="${esc(c.last_message || '')}">${c.acked_at ? '✔ ' : ''}${esc(c.name)}</span>`).join('')
+    `<span class="pchip s${c.maintenance ? 4 : c.status} ${c.acked_at ? 'acked' : ''}" title="${esc(c.last_message || '')}">${c.acked_at ? '✔ ' : ''}${esc(c.name)}${chkMarks(c)}</span>`).join('')
     + (problems.length > max ? `<span class="pchip more">+${problems.length - max}</span>` : '');
   const counts = [0, 1, 2, 3].map((s) => [s, h.checks.filter((c) => +c.enabled && !c.maintenance && +c.status === s).length])
     .filter(([, n]) => n).map(([s, n]) => `<span class="cnt s${s}" title="${STATUS[s]}">${n}</span>`).join('');
@@ -4561,7 +4561,7 @@ function hostParts(h) {
     chips,
     counts,
     lastChecked: h.checks.reduce((m, c) => (c.last_checked && (!m || c.last_checked > m) ? c.last_checked : m), null),
-    title: `${esc(h.name)} <span class="badge">${esc(h.mode)}</span>${+h.enabled ? '' : `<span class="badge">${L('uit')}</span>`}`,
+    title: `${esc(h.name)} <span class="badge">${esc(h.mode)}</span>${+h.enabled ? '' : `<span class="badge">${L('uit')}</span>`}${h.quiet_eff && h.quiet_eff.mute ? ` <span class="quiet-tag mute" title="${esc(L('Altijd stil: geen meldingen van deze server (via {via})', { via: QUIET_SRC()[h.quiet_eff.src] || h.quiet_eff.src }))}">🔕 ${L('stil')}</span>` : ''}`,
     via: parent ? ` <span class="via" title="${L('Afhankelijk van {name}: geen aparte meldingen als die onbereikbaar is', { name: esc(parent.name) })}">↳ via ${esc(parent.name)}</span>` : '',
     maint: h.maintenance ? `<span class="maint-tag">${esc(maintLabel(h.maintenance))}</span>` : '',
     cls: `card host s${hostStatus(h)} ${+h.enabled ? '' : 'disabled'} ${h.maintenance ? 'in-maint' : ''} ${openHosts.has(+h.id) || h.autoOpen ? 'open' : ''} ${ackedOnly(h) ? 'acked-only' : ''}`,
@@ -4822,7 +4822,7 @@ function ccHostCard(h) {
     const s = +c.status, [v, un] = keyValue(c), msg = (c.last_message || '').replace(/\s+/g, ' ');
     return `<div class="ccx-row s${s}${c.acked_at ? ' acked' : ''}" data-cid="${c.id}" style="--i:${Math.min(i, 12)}" role="button" tabindex="0" title="${esc(L('Klik voor de details van deze check'))}">
       <span class="ccx-st"><i></i>${esc(ccWord(c))}${c.acked_at ? ` <span class="ccx-ack" title="${esc(L('Bevestigd'))}">✔</span>` : ''}${ccPend(c)}</span>
-      <span class="ccx-cn"><span class="ccx-ti" aria-hidden="true">${checkIcon(c)}</span><span><b>${esc(c.name)}</b><small>${esc(typeOf(c).label || c.type)}</small></span></span>
+      <span class="ccx-cn"><span class="ccx-ti" aria-hidden="true">${checkIcon(c)}</span><span><b>${esc(c.name)}${chkMarks(c)}</b><small>${esc(typeOf(c).label || c.type)}</small></span></span>
       <b class="ccx-v" data-flash>${ctOf(c) || pathMini(c) || (un ? `${v}<small>${esc(un)}</small>` : '')}</b>
       <span class="ccx-msg">${esc(msg.slice(0, 220)) || '<span class="muted">–</span>'}</span>
       <span class="ccx-tl">${checkTimeline(c)}</span>
@@ -4832,7 +4832,7 @@ function ccHostCard(h) {
   const goodTiles = good.map((c, i) => {
     const s = !+c.enabled ? 'off' : c.maintenance ? 4 : +c.status, [v, un] = keyValue(c), msg = (c.last_message || '').replace(/\s+/g, ' ');
     return `<div class="ccx-ok s${s}${i >= CC_OK_SHOW ? ' more' : ''}" data-cid="${c.id}" role="button" tabindex="0" title="${esc(c.name)}: ${esc(msg)}">
-      <i class="ccx-dot"></i><span class="ccx-ok-t"><b>${esc(c.name)}${ccPend(c)}</b><small>${esc(msg.slice(0, 80)) || esc(ccWord(c))}</small></span>${keySpark(c, 22)}<b class="ccx-v" data-flash>${ctOf(c) || `${v}<small>${esc(un)}</small>`}</b></div>`;
+      <i class="ccx-dot"></i><span class="ccx-ok-t"><b>${esc(c.name)}${chkMarks(c)}${ccPend(c)}</b><small>${esc(msg.slice(0, 80)) || esc(ccWord(c))}</small></span>${keySpark(c, 22)}<b class="ccx-v" data-flash>${ctOf(c) || `${v}<small>${esc(un)}</small>`}</b></div>`;
   }).join('');
   const pathRows = paths.map((c) => {
     const s = pathSum(c), st = c.maintenance ? 4 : +c.status, quiet = (String(s.d || '').match(/h/g) || []).length;
@@ -4989,6 +4989,30 @@ function lineHeader() {
 }
 
 /** Wat een check-tegel (Blox) en een check-rij (L1nes) allebei tonen. */
+/**
+ * 1.278.0: flapt deze check, of flapte hij de laatste 24 uur? [nu?, label, uitleg] of null.
+ */
+function flapInfo(c) {
+  if (c.flapping_since) return [true, L('flapt'), L('Wisselt steeds van status sinds {t}: per status hooguit één melding tot hij stabiel is', { t: fmtUntil(c.flapping_since) })];
+  const end = c.flap_ended_at ? Date.parse(String(c.flap_ended_at).replace(' ', 'T')) : 0;
+  if (!end || Date.now() - end > 86400000) return null;
+  const n = +c.flap_changes || 0, from = c.flap_last_start ? fmtUntil(c.flap_last_start) : '?';
+  return [false, n ? L('flapte ({n}×)', { n }) : L('flapte'), L('Flapte van {a} tot {b}{n}; sindsdien stabiel', { a: from, b: fmtUntil(c.flap_ended_at), n: n ? ' · ' + L('{n}× van status gewisseld', { n }) : '' })];
+}
+/** 1.278.0: kleine tekens achter de naam van een check in elke weergave: 🔀 (flapt of flapte) en 🔕 (altijd stil) */
+function chkMarks(c) {
+  const f = flapInfo(c), q = c.quiet_eff;
+  return (f ? ` <span class="flap-tag${f[0] ? '' : ' past'}" title="${esc(f[2])}">🔀</span>` : '')
+    + (q && q.mute ? ` <span class="quiet-tag mute" title="${esc(L('Altijd stil: geen meldingen (via {via})', { via: QUIET_SRC()[q.src] || q.src }))}">🔕</span>` : '');
+}
+
+/** 1.278.0: dezelfde tekens voor een gebundelde regel (meerdere checks van één server): 🔀 als er één flapt, 🔕 als ze allemaal stil zijn */
+function bundleMarks(list) {
+  const f = list.map(flapInfo).filter(Boolean);
+  return (f.length ? ` <span class="flap-tag${f.some((x) => x[0]) ? '' : ' past'}" title="${esc(list.filter((c) => flapInfo(c)).map((c) => c.name + ': ' + flapInfo(c)[1]).join(' · '))}">🔀</span>` : '')
+    + (list.length && list.every((c) => c.quiet_eff && c.quiet_eff.mute) ? ` <span class="quiet-tag mute" title="${esc(L('Altijd stil: geen meldingen (via {via})', { via: QUIET_SRC()[list[0].quiet_eff.src] || list[0].quiet_eff.src }))}">🔕</span>` : '');
+}
+
 function checkBits(c) {
   const t = typeOf(c);
   const s = +c.status;
@@ -5017,7 +5041,7 @@ function checkBits(c) {
     + (c.notify ? ` <span class="own-notify" title="${L('Deze check heeft eigen meldregels')}">🔔</span>` : '')
     + (c.reverse_ok != null && REVERSIBLE.includes(c.type) ? ` <span class="rev-tag" title="${L('Omgekeerd: reageert het, dan {a}; reageert het niet, dan {b}', { a: STATUS_WORD[c.reverse_ok], b: STATUS_WORD[c.reverse_fail ?? 0] })}">⇄</span>` : '')
     + quietTag(c.quiet_eff)
-    + (c.flapping_since ? ` <span class="flap-tag" title="${L('Wisselt steeds van status sinds {t}: per status hooguit één melding tot hij stabiel is', { t: esc(fmtUntil(c.flapping_since)) })}">🔀 ${L('flapt')}</span>` : '');
+    + (() => { const f = flapInfo(c); return f ? ` <span class="flap-tag${f[0] ? '' : ' past'}" title="${esc(f[2])}">🔀 ${esc(f[1])}</span>` : ''; })();   // 1.278.0: ook nog 24 uur na het flappen
   const actions = `
       ${problem ? aiBtn('check', c.id) : ''}
       ${problem && !c.acked_at ? `<button class="icon-btn ack-btn need-user" title="${L('Storing bevestigen: geen meldingen meer')}" data-act="ack" data-id="${c.id}">✔</button>` : ''}
@@ -5227,7 +5251,7 @@ async function checkInfo(id, live = false, more = null) {
   ];
   const tags = [
     c.notify ? '🔔 ' + L('eigen meldregels') : '🔔 ' + L('algemene meldregels'),
-    (() => { const q = c.quiet_eff; return q ? (q.never ? '🌙✕ ' + L('nooit stil') : `${esc(q.icon || '🌙')} ${esc(q.name)} (${QUIET_SRC()[q.src] || q.src})`) : ''; })(),   // 1.189.0
+    (() => { const q = c.quiet_eff; return q ? (q.never ? '🌙✕ ' + L('nooit stil') : q.mute ? '🔕 ' + L('altijd stil') + ` (${QUIET_SRC()[q.src] || q.src})` : `${esc(q.icon || '🌙')} ${esc(q.name)} (${QUIET_SRC()[q.src] || q.src})`) : ''; })(),   // 1.189.0
     c.reverse_ok != null && REVERSIBLE.includes(c.type) ? '⇄ ' + L('omgekeerd: slaagt = {a}, mislukt = {b}', { a: STATUS_WORD[c.reverse_ok], b: STATUS_WORD[c.reverse_fail ?? 0] }) : '',
     sc && sc.maintenance ? `🔧 ${esc(maintLabel(sc.maintenance))}` : '',
     c.acked_at ? '✔ ' + L('bevestigd door {who}', { who: esc(c.acked_by || '?') }) : '',
@@ -6581,7 +6605,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     if (!$('#confirm-sw').checked) { d.confirm_fails = ''; d.confirm_ok = ''; }   // 1.185.0: schakelaar uit = de algemene instellingen
     const notify = notifySw && $('#notify-own').checked && ownEditor ? ownEditor.get() : null;
     const qv = $('#quiet-sw').checked ? $('#quiet-sel').value : '';   // 1.189.0: een profiel of nooit stil
-    const quiet = qv === 'never' ? { mode: 'never' } : qv.startsWith('p:') ? { mode: 'profile', id: +qv.slice(2) } : null;
+    const quiet = qv === 'never' || qv === 'mute' ? { mode: qv } : qv.startsWith('p:') ? { mode: 'profile', id: +qv.slice(2) } : null;
     const command = d.type === 'command' ? { cmd: d.cmd, expect: d.cmd_expect, match: d.cmd_match, timeout: d.cmd_timeout, fail: d.cmd_fail } : undefined;
     const res = {};
     ['cpu', 'mem', 'disk'].forEach((k) => { res[k] = { on: !!d[`res_${k}`], warn: d[`res_${k}_warn`], crit: d[`res_${k}_crit`] }; });
@@ -6852,7 +6876,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
         </div>
       </div></section>
       ${swsOpen({ id: 'quiet-wrap', cb: 'id="quiet-sw"', icon: '🌙', title: L('Stille uren'), on: !!quietOwn, sub: `<span id="quiet-mode-label">${quietOwn ? esc(quietLabel(quietOwn)) : L('volgt de server') + (c.quiet_eff ? ': ' + esc(c.quiet_eff.name) : '')}</span>` })}
-        <label>${L('Stille uren voor deze check')}<select id="quiet-sel">${quietOptions(quietOwn ? (quietOwn.mode === 'never' ? 'never' : quietOwn.mode === 'profile' ? 'p:' + quietOwn.id : '') : '', null)}</select></label>
+        <label>${L('Stille uren voor deze check')}<select id="quiet-sel">${quietOptions(quietOwn ? (quietOwn.mode === 'never' || quietOwn.mode === 'mute' ? quietOwn.mode : quietOwn.mode === 'profile' ? 'p:' + quietOwn.id : '') : '', null)}</select></label>
         <span class="hint">${L('Profielen maak je bij Instellingen → Meldingen en rapporten → Wanneer melden → Stille uren.')}</span>
       </div></section>
       <div class="row3" id="thr-wrap">
@@ -15405,11 +15429,13 @@ const QUIET_ICONS = ['🌙', '🏢', '🏖️', '🎄', '📺', '😴', '🔧', 
 function quietOptions(cur, followLabel) {
   const ps = state.quiet_profiles || [];
   return `${followLabel !== null ? `<option value="">${esc(followLabel)}</option>` : ''}${ps.map((p) => `<option value="p:${p.id}" ${cur === 'p:' + p.id ? 'selected' : ''}>${esc(p.icon)} ${esc(p.name)}</option>`).join('')}
-    <option value="never" ${cur === 'never' ? 'selected' : ''}>🔔 ${L('nooit stil: altijd melden')}</option>`;
+    <option value="never" ${cur === 'never' ? 'selected' : ''}>🔔 ${L('nooit stil: altijd melden')}</option>
+    <option value="mute" ${cur === 'mute' ? 'selected' : ''}>🔕 ${L('altijd stil: geen meldingen')}</option>`;   // 1.278.0
 }
 function quietLabel(q) {
   if (!q) return '';
   if (q.mode === 'never') return L('nooit stil: altijd melden');
+  if (q.mode === 'mute') return '🔕 ' + L('altijd stil: geen meldingen');
   const p = (state.quiet_profiles || []).find((x) => +x.id === +q.id);
   return p ? `${p.icon} ${p.name}` : L('eigen vensters');
 }
@@ -15417,6 +15443,7 @@ function quietLabel(q) {
 function quietTag(q) {
   if (!q) return '';
   const via = QUIET_SRC()[q.src] || q.src;
+  if (q.mute) return ` <span class="quiet-tag mute" title="${esc(L('Altijd stil: geen Pushover, e-mail of webhook, ook niet bij critical (via {via}). De status en de pagina Meldingen werken gewoon.', { via }))}">🔕 ${L('stil')}</span>`;   // 1.278.0
   if (q.now) return ` <span class="quiet-tag on" title="${esc(L('Stil tot {t}: {name} (via {via})', { t: fmtUntil(q.now), name: q.name, via }) + (q.crit ? ' · ' + L('critical komt wel door') : ''))}">🌙 ${esc(fmtUntil(q.now))}</span>`;
   if (q.src === 'check' && q.never) return ` <span class="quiet-tag" title="${L('Nooit stil: meldt ook tijdens de stille uren')}">🌙✕</span>`;
   if (q.src === 'check') return ` <span class="quiet-tag" title="${esc(L('Eigen stille uren: {name}', { name: q.name }))}">🌙</span>`;
@@ -15478,6 +15505,7 @@ async function loadQuiet() {
     <p class="muted small">${L('Een eigen groep gaat voor de soort apparaat. Een server of check met een eigen keuze gaat daar weer voor.')}</p>
     <div class="table-scroll"><table class="vuln-table qg-table"><tbody>${d.groups.filter((g) => g.hosts || g.val).map(grpRow).join('')}</tbody></table></div>
     ${d.never.length ? `<h3 class="set-sub">🔔 ${L('Nooit stil')}</h3><p class="small">${d.never.map((u) => esc(u.type === 'kind' ? (GROUP_INFO[u.label] || [0, () => u.label])[1]() : u.label)).join(' · ')}</p>` : ''}
+    ${(d.mute || []).length ? `<h3 class="set-sub">🔕 ${L('Altijd stil')}</h3><p class="small">${d.mute.map((u) => esc(u.type === 'kind' ? (GROUP_INFO[u.label] || [0, () => u.label])[1]() : u.label)).join(' · ')}</p>` : ''}
     ${d.now.length ? `<h3 class="set-sub">🌙 ${L('Nu stil')}</h3><div class="qp-list">${d.now.map((n) => `<div class="qp-row"><span class="qp-ic">${n.type === 'host' ? '🖥️' : '✅'}</span>
         <div class="qp-t"><b>${esc(n.label)}</b><small>${L('tot {t}', { t: esc(fmtUntil(n.until)) })}</small></div>
         <div class="qp-acts need-user"><button type="button" class="btn small-btn" data-qn-off="${n.type}:${n.id}">✕ ${L('Opheffen')}</button></div></div>`).join('')}</div>` : ''}`;
@@ -16188,9 +16216,10 @@ async function acBulk(kind) {
   if (kind === 'notify') return modal({ title: L('Melden voor {n} checks', { n: ids.length }),
     body: `${xpHtml(L('Wanneer deze checks een melding geven.'), L('<b>Wat het doet:</b> je zet voor alle gekozen checks in één keer hoe vaak ze mis moeten gaan voor een melding, en of ze alleen info zijn. <b>Zo stel je het in:</b> leeg laten gebruikt de algemene instelling; een eigen getal gaat daarvoor. <b>Goed om te weten:</b> <i>Alleen info</i> is handig voor checks die je wilt zien maar die nooit een storing zijn.'))}<label>${L('Melden na zoveel mislukte checks achter elkaar')} <span class="hint">${L('(leeg = de algemene instelling)')}</span><input name="fails" type="number" min="1" max="100"></label>
       <label class="switch"><input type="checkbox" name="defaults"><span></span> ${L('Eigen meldregels weghalen: de algemene meldregels gebruiken')}</label>
-      <label>${L('Alleen info (telt nooit als storing)')}<select name="info"><option value="">${L('ongewijzigd')}</option><option value="1">${L('aan')}</option><option value="0">${L('uit')}</option></select></label>`,
+      <label>${L('Alleen info (telt nooit als storing)')}<select name="info"><option value="">${L('ongewijzigd')}</option><option value="1">${L('aan')}</option><option value="0">${L('uit')}</option></select></label>
+      <label>${L('Stille uren')}<select name="quiet"><option value="-">${L('ongewijzigd')}</option>${quietOptions('-', L('volgt de server'))}</select></label>`,   // 1.278.0: o.a. 🔕 altijd stil
     buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }],
-    onSubmit: (d) => set({ notify_fails: d.fails === '' ? null : +d.fails, ...(d.info !== '' ? { info_only: d.info === '1' } : {}), ...(d.defaults ? { notify_default: true } : {}) }) });
+    onSubmit: (d) => set({ notify_fails: d.fails === '' ? null : +d.fails, ...(d.info !== '' ? { info_only: d.info === '1' } : {}), ...(d.defaults ? { notify_default: true } : {}), ...(d.quiet !== '-' ? { quiet: d.quiet } : {}) }) });
   if (kind === 'maint') return modal({ title: L('Onderhoud voor {n} checks', { n: ids.length }),
     body: `${xpHtml(L('Tijdelijk geen meldingen voor deze checks, bijvoorbeeld tijdens werk aan een server.'), L('<b>Wat het doet:</b> de checks blijven draaien, maar geven geen melding en tellen niet mee in de beschikbaarheid. <b>Zo stel je het in:</b> kies zo kort als het kan; na de tijd gaat alles vanzelf weer gewoon. <b>Goed om te weten:</b> met <i>Onderhoud beëindigen</i> stop je het meteen.'))}<label>${L('Hoe lang')}<select name="minutes">${[[60, L('1 uur')], [240, L('4 uur')], [1440, L('1 dag')], [10080, L('1 week')], [0, L('Onderhoud beëindigen')]].map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label>
       <label>${L('Reden')} <span class="hint">${L('(optioneel)')}</span><input name="reason"></label>`,

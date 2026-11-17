@@ -264,6 +264,10 @@ switch ($action) {
         if (!empty($v['notify_default'])) {
             $set['notify'] = null;   // terug naar de algemene meldregels
         }
+        if (array_key_exists('quiet', $v)) {   // 1.278.0: stille uren ('' = volgt de server, never, mute of p:<id>)
+            $qv = Quiet::cleanVal($v['quiet']);
+            $set['quiet'] = $qv === null ? null : json_encode(str_starts_with($qv, 'p:') ? ['mode' => 'profile', 'id' => (int) substr($qv, 2)] : ['mode' => $qv]);
+        }
         if (array_key_exists('warn_threshold', $v) || array_key_exists('crit_threshold', $v)) {
             // Drempels alleen voor checks van één soort (anders betekenen de getallen iets anders)
             $types = q("SELECT DISTINCT CONCAT(type, '|', COALESCE(metric, '')) FROM checks WHERE id IN ($list)")->fetchAll(PDO::FETCH_COLUMN);

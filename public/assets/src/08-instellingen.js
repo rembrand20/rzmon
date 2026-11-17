@@ -1835,11 +1835,13 @@ const QUIET_ICONS = ['🌙', '🏢', '🏖️', '🎄', '📺', '😴', '🔧', 
 function quietOptions(cur, followLabel) {
   const ps = state.quiet_profiles || [];
   return `${followLabel !== null ? `<option value="">${esc(followLabel)}</option>` : ''}${ps.map((p) => `<option value="p:${p.id}" ${cur === 'p:' + p.id ? 'selected' : ''}>${esc(p.icon)} ${esc(p.name)}</option>`).join('')}
-    <option value="never" ${cur === 'never' ? 'selected' : ''}>🔔 ${L('nooit stil: altijd melden')}</option>`;
+    <option value="never" ${cur === 'never' ? 'selected' : ''}>🔔 ${L('nooit stil: altijd melden')}</option>
+    <option value="mute" ${cur === 'mute' ? 'selected' : ''}>🔕 ${L('altijd stil: geen meldingen')}</option>`;   // 1.278.0
 }
 function quietLabel(q) {
   if (!q) return '';
   if (q.mode === 'never') return L('nooit stil: altijd melden');
+  if (q.mode === 'mute') return '🔕 ' + L('altijd stil: geen meldingen');
   const p = (state.quiet_profiles || []).find((x) => +x.id === +q.id);
   return p ? `${p.icon} ${p.name}` : L('eigen vensters');
 }
@@ -1847,6 +1849,7 @@ function quietLabel(q) {
 function quietTag(q) {
   if (!q) return '';
   const via = QUIET_SRC()[q.src] || q.src;
+  if (q.mute) return ` <span class="quiet-tag mute" title="${esc(L('Altijd stil: geen Pushover, e-mail of webhook, ook niet bij critical (via {via}). De status en de pagina Meldingen werken gewoon.', { via }))}">🔕 ${L('stil')}</span>`;   // 1.278.0
   if (q.now) return ` <span class="quiet-tag on" title="${esc(L('Stil tot {t}: {name} (via {via})', { t: fmtUntil(q.now), name: q.name, via }) + (q.crit ? ' · ' + L('critical komt wel door') : ''))}">🌙 ${esc(fmtUntil(q.now))}</span>`;
   if (q.src === 'check' && q.never) return ` <span class="quiet-tag" title="${L('Nooit stil: meldt ook tijdens de stille uren')}">🌙✕</span>`;
   if (q.src === 'check') return ` <span class="quiet-tag" title="${esc(L('Eigen stille uren: {name}', { name: q.name }))}">🌙</span>`;
@@ -1908,6 +1911,7 @@ async function loadQuiet() {
     <p class="muted small">${L('Een eigen groep gaat voor de soort apparaat. Een server of check met een eigen keuze gaat daar weer voor.')}</p>
     <div class="table-scroll"><table class="vuln-table qg-table"><tbody>${d.groups.filter((g) => g.hosts || g.val).map(grpRow).join('')}</tbody></table></div>
     ${d.never.length ? `<h3 class="set-sub">🔔 ${L('Nooit stil')}</h3><p class="small">${d.never.map((u) => esc(u.type === 'kind' ? (GROUP_INFO[u.label] || [0, () => u.label])[1]() : u.label)).join(' · ')}</p>` : ''}
+    ${(d.mute || []).length ? `<h3 class="set-sub">🔕 ${L('Altijd stil')}</h3><p class="small">${d.mute.map((u) => esc(u.type === 'kind' ? (GROUP_INFO[u.label] || [0, () => u.label])[1]() : u.label)).join(' · ')}</p>` : ''}
     ${d.now.length ? `<h3 class="set-sub">🌙 ${L('Nu stil')}</h3><div class="qp-list">${d.now.map((n) => `<div class="qp-row"><span class="qp-ic">${n.type === 'host' ? '🖥️' : '✅'}</span>
         <div class="qp-t"><b>${esc(n.label)}</b><small>${L('tot {t}', { t: esc(fmtUntil(n.until)) })}</small></div>
         <div class="qp-acts need-user"><button type="button" class="btn small-btn" data-qn-off="${n.type}:${n.id}">✕ ${L('Opheffen')}</button></div></div>`).join('')}</div>` : ''}`;
@@ -2618,9 +2622,10 @@ async function acBulk(kind) {
   if (kind === 'notify') return modal({ title: L('Melden voor {n} checks', { n: ids.length }),
     body: `${xpHtml(L('Wanneer deze checks een melding geven.'), L('<b>Wat het doet:</b> je zet voor alle gekozen checks in één keer hoe vaak ze mis moeten gaan voor een melding, en of ze alleen info zijn. <b>Zo stel je het in:</b> leeg laten gebruikt de algemene instelling; een eigen getal gaat daarvoor. <b>Goed om te weten:</b> <i>Alleen info</i> is handig voor checks die je wilt zien maar die nooit een storing zijn.'))}<label>${L('Melden na zoveel mislukte checks achter elkaar')} <span class="hint">${L('(leeg = de algemene instelling)')}</span><input name="fails" type="number" min="1" max="100"></label>
       <label class="switch"><input type="checkbox" name="defaults"><span></span> ${L('Eigen meldregels weghalen: de algemene meldregels gebruiken')}</label>
-      <label>${L('Alleen info (telt nooit als storing)')}<select name="info"><option value="">${L('ongewijzigd')}</option><option value="1">${L('aan')}</option><option value="0">${L('uit')}</option></select></label>`,
+      <label>${L('Alleen info (telt nooit als storing)')}<select name="info"><option value="">${L('ongewijzigd')}</option><option value="1">${L('aan')}</option><option value="0">${L('uit')}</option></select></label>
+      <label>${L('Stille uren')}<select name="quiet"><option value="-">${L('ongewijzigd')}</option>${quietOptions('-', L('volgt de server'))}</select></label>`,   // 1.278.0: o.a. 🔕 altijd stil
     buttons: [{ label: L('Opslaan'), cls: 'primary', submit: true }],
-    onSubmit: (d) => set({ notify_fails: d.fails === '' ? null : +d.fails, ...(d.info !== '' ? { info_only: d.info === '1' } : {}), ...(d.defaults ? { notify_default: true } : {}) }) });
+    onSubmit: (d) => set({ notify_fails: d.fails === '' ? null : +d.fails, ...(d.info !== '' ? { info_only: d.info === '1' } : {}), ...(d.defaults ? { notify_default: true } : {}), ...(d.quiet !== '-' ? { quiet: d.quiet } : {}) }) });
   if (kind === 'maint') return modal({ title: L('Onderhoud voor {n} checks', { n: ids.length }),
     body: `${xpHtml(L('Tijdelijk geen meldingen voor deze checks, bijvoorbeeld tijdens werk aan een server.'), L('<b>Wat het doet:</b> de checks blijven draaien, maar geven geen melding en tellen niet mee in de beschikbaarheid. <b>Zo stel je het in:</b> kies zo kort als het kan; na de tijd gaat alles vanzelf weer gewoon. <b>Goed om te weten:</b> met <i>Onderhoud beëindigen</i> stop je het meteen.'))}<label>${L('Hoe lang')}<select name="minutes">${[[60, L('1 uur')], [240, L('4 uur')], [1440, L('1 dag')], [10080, L('1 week')], [0, L('Onderhoud beëindigen')]].map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label>
       <label>${L('Reden')} <span class="hint">${L('(optioneel)')}</span><input name="reason"></label>`,

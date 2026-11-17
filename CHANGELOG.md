@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.278.0**: **🔕 altijd stil** per check, server, groep of soort apparaat (nooit een melding), en **🔀 flappen** zie je in elke weergave terug, ook nog 24 uur daarna.
 - **1.277.0**: **subpagina's in de zijbalk**: elke pagina met haar onderdelen eronder, met tellers, en een menu bij de ingeklapte zijbalk.
 - **1.276.0**: **overzichtelijker RzSense**: nieuwe pagina's Servers, Updates, Logboek en Compliance, één inbox voor incidenten, een beheerportal in zeven groepen en een `?` met uitleg bij elk veld.
 - **1.275.0**: **rust op je telefoon**: geblokkeerde scanners geven geen pushmelding meer, wel een samenvatting om 20:00; alleen als je iets moet doen komt er meteen een melding.
 - **1.274.0**: **toegestane apparaten per site**: met één schakelaar kom je met je eigen telefoon onderweg ook bij beheerprogramma's achter de proxy.
-- **1.273.0**: **apps als Home Assistant laden weer achter de proxy**: vaste bestanden tellen niet mee voor de rate limit, en een nieuwe stand *ruim (apps)*.
+
+## 1.278.0 – 2026-11-17
+### Nieuw
+- **🔕 Altijd stil.** In de keuzelijst *Stille uren* staat nu ook *🔕 altijd stil: geen meldingen*: bij een check, een server, een eigen groep en een soort apparaat, en bij *meerdere checks bewerken*.
+  - Geen Pushover, e-mail of webhook, ook niet bij critical, en achteraf geen *Na de stille uren*-samenvatting.
+  - De check draait gewoon door: status, de pagina Meldingen, dashboard, Incidenten en MQTT blijven werken.
+  - Een fijnere keuze gaat voor: een check op *nooit stil* meldt ook op een server die *altijd stil* is.
+  - **🔕 stil** staat bij de check en de server, met in de tooltip waar het vandaan komt; de pagina Stille uren heeft een lijst *Altijd stil*.
+- **🔀 Flappen zie je overal terug.** Een check die flapt, heeft **🔀** in elke weergave: de lijst, Blox, het Command center, *Nu aandacht nodig* en mDS op je telefoon. Na het flappen blijft er nog 24 uur een vaag **🔀 flapte (5×)** staan, met in de tooltip van wanneer tot wanneer en hoe vaak hij wisselde.
 
 ## 1.277.2 – 2026-11-16
 ### Opgelost

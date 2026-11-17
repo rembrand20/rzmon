@@ -667,9 +667,17 @@ final class Monitor
             q('UPDATE checks SET escalated = 0 WHERE id = ?', [$check['id']]);
         }
 
-        q('UPDATE checks SET notified_status = ?, notified_at = ?, flapping_since = ?, flap_notified = ?, flap_ended_at = ? WHERE id = ?', [
+        // 1.278.0: wanneer het laatste flappen begon en hoe vaak hij wisselde (blijft staan na "stabiel", voor "flapte vandaag")
+        $flapStart = $check['flap_last_start'] ?? null;
+        $flapCount = $check['flap_changes'] ?? null;
+        if ($flapEvent === 'start') {
+            [$flapStart, $flapCount] = [now(), $flapChanges];
+        } elseif ($flapping && $status !== (int) $check['status']) {
+            [$flapStart, $flapCount] = [$flapStart ?: ($check['flapping_since'] ?: now()), (int) $flapCount + 1];
+        }
+        q('UPDATE checks SET notified_status = ?, notified_at = ?, flapping_since = ?, flap_notified = ?, flap_ended_at = ?, flap_last_start = ?, flap_changes = ? WHERE id = ?', [
             $notified, $notifiedAt, $flapping ? ($check['flapping_since'] ?: now()) : null, $flapping ? implode(',', array_unique($flapSent)) : null,
-            $flapEvent === 'stable' ? date('Y-m-d H:i:s', time() - $age) : $check['flap_ended_at'], $check['id'],
+            $flapEvent === 'stable' ? date('Y-m-d H:i:s', time() - $age) : $check['flap_ended_at'], $flapStart, $flapCount === null ? null : min(65535, (int) $flapCount), $check['id'],
         ]);
     }
 
@@ -808,6 +816,9 @@ final class Monitor
                 continue;
             }
             $c = q(self::CHECK_SELECT . ' WHERE c.id = ?', [$it['check_id']])->fetch();
+            if ($c && !empty(Quiet::forCheck($c)['mute'])) {
+                continue;   // 1.278.0: altijd stil: niet versturen en ook geen samenvatting achteraf
+            }
             if ($c && Quiet::holds($c, (int) $it['status'])) {   // 1.189.0: critical komt door als het profiel dat zegt
                 // Stille uren: niet versturen. Onthouden wat de gebruiker het laatst kreeg; na afloop volgt één samenvatting.
                 q('UPDATE checks SET quiet_held = COALESCE(quiet_held, ?) WHERE id = ?', [(int) $it['previous'], $c['id']]);
@@ -833,6 +844,10 @@ final class Monitor
         $s = settings();
         $items = [];
         foreach (q(self::CHECK_SELECT . ' WHERE c.quiet_held IS NOT NULL ORDER BY h.name, c.name')->fetchAll() as $c) {
+            if (!empty(Quiet::forCheck($c)['mute'])) {   // 1.278.0: inmiddels altijd stil: niets inhalen
+                q('UPDATE checks SET quiet_held = NULL WHERE id = ?', [$c['id']]);
+                continue;
+            }
             if (NotifyRules::quietUntil(NotifyRules::quietFor($c)) !== null
                 || q('UPDATE checks SET quiet_held = NULL WHERE id = ? AND quiet_held IS NOT NULL', [$c['id']])->rowCount() !== 1) {
                 continue;   // nog stil, of een ander proces is ermee bezig
