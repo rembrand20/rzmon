@@ -93,6 +93,9 @@ final class Updater
     /** null = bijwerken vanuit RzSense kan; anders de reden. */
     public static function unavailable(): ?string
     {
+        if (rz_container()) {
+            return t('RzSense draait als container: bijwerken doe je met een nieuwe image');   // 1.281.0
+        }
         if (!is_dir(SM_ROOT . '/.git')) {
             return t('RzSense is niet met install-rocky.sh (git) geïnstalleerd; werk handmatig bij');
         }
@@ -204,9 +207,22 @@ final class Updater
     }
 
     /** Vanuit cron (elke minuut): dagelijks controleren, en eventueel automatisch bijwerken. */
+    /** 1.281.0: de commando's om de container bij te werken (Podman met quadlets, of compose) */
+    public static function containerCommands(?string $version): array
+    {
+        $img = (string) (getenv('RZMON_IMAGE') ?: 'ghcr.io/rembrand20/rzsense');
+        $tag = $version !== null && preg_match('/^\d+\.\d+\.\d+$/', $version) ? $version : 'latest';
+        return ['image' => "$img:$tag",
+            'podman' => "sudo podman pull $img:$tag && sudo systemctl restart rzsense",
+            'compose' => 'podman compose pull rzsense && podman compose up -d rzsense'];
+    }
+
     public static function cron(): ?string
     {
         $cache = self::check();
+        if (rz_container()) {
+            return null;   // 1.281.0: een container werkt zichzelf niet bij (melding in de app; zie update_info)
+        }
         if (setting('update_auto', '0') !== '1' || setting('update_pinned', '') !== '' || empty($cache['latest']) || !version_compare($cache['latest'], RZMON_VERSION, '>')) {
             return null;
         }

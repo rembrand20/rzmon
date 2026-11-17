@@ -1,0 +1,43 @@
+# 1.281.0: de container-image bouwen en op ghcr.io zetten, bij elke nieuwe versie van RzSense (VERSION op main).
+# Tags: de versie (bv. 1.281.0) en latest. Voorlopig alleen amd64 (arm64: voeg linux/arm64 toe aan platforms).
+name: Container-image
+on:
+  push:
+    branches: [main]
+    paths: [VERSION]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    name: Bouwen en publiceren
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Versie
+        id: v
+        run: |
+          v=$(tr -d '[:space:]' < VERSION)
+          echo "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error::Ongeldige VERSION: $v"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: container/Containerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/rzsense:${{ steps.v.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/rzsense:latest
+          labels: |
+            org.opencontainers.image.version=${{ steps.v.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}

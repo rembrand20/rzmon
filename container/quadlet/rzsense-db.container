@@ -1,0 +1,26 @@
+# RzSense: de database (MariaDB 11.4 LTS), los bij te werken (1.281.0).
+# Plaats in /etc/containers/systemd/ en daarna: sudo systemctl daemon-reload && sudo systemctl start rzsense-db
+# Wachtwoorden staan in /etc/rzsense/rzsense.env (alleen root mag dat bestand lezen).
+[Unit]
+Description=RzSense database (MariaDB)
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+ContainerName=rzsense-db
+Image=docker.io/library/mariadb:11.4
+EnvironmentFile=/etc/rzsense/rzsense.env
+# Alleen op deze server bereikbaar (host-netwerk, maar MariaDB luistert alleen op 127.0.0.1)
+Network=host
+Exec=--bind-address=127.0.0.1 --port=3306 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+Volume=rzsense-db:/var/lib/mysql:Z
+HealthCmd=healthcheck.sh --connect --innodb_initialized
+HealthInterval=30s
+AutoUpdate=registry
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

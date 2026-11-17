@@ -874,6 +874,8 @@ PHP-functies `exec()` en `shell_exec()` moeten toegestaan zijn; die zijn nodig v
 
 ## 5. Installatie stap voor stap
 
+> 📦 **Liever als container?** Vanaf 1.281.0 draait RzSense ook met Podman (of Docker): twee containers, RzSense en MariaDB, met quadlets voor Rocky Linux. Zie [container/README.md](container/README.md). De gewone installatie hieronder blijft bestaan.
+
 > 🐧 Dit hoofdstuk is voor **Debian en Ubuntu**. Gebruik je **Rocky Linux 10**, RHEL 10 of AlmaLinux 10? Volg dan [INSTALL-ROCKY-LINUX-10.md](INSTALL-ROCKY-LINUX-10.md), of gebruik het installatiescript `install/install-rocky.sh`, dat alles in één keer doet. Daarin staan ook SELinux en firewalld. Ga daarna verder met hoofdstuk 6 hieronder.
 
 > In de voorbeelden staat RzSense in `/var/www/rzmon` en gebruikt de webserver de gebruiker `www-data` (Debian/Ubuntu). Pas dat aan als jouw situatie anders is.

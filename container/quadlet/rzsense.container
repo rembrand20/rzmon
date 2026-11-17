@@ -1,0 +1,31 @@
+# RzSense zelf (1.281.0). Plaats in /etc/containers/systemd/ samen met rzsense-db.container, dan:
+#   sudo systemctl daemon-reload && sudo systemctl start rzsense
+# Web op poort 8080 (voor je reverse proxy, zoals SWAG), de nooddeur (https, eigen certificaat) op 8443.
+# Bijwerken: RzSense meldt in de app als er een nieuwe versie is; dan:
+#   sudo podman pull ghcr.io/rembrand20/rzsense:latest && sudo systemctl restart rzsense
+[Unit]
+Description=RzSense
+Requires=rzsense-db.service
+After=rzsense-db.service network-online.target
+Wants=network-online.target
+
+[Container]
+ContainerName=rzsense
+Image=ghcr.io/rembrand20/rzsense:latest
+EnvironmentFile=/etc/rzsense/rzsense.env
+# Host-netwerk: ping, SNMP, mtr, ARP-ontdekking en LLDP werken zoals bij een gewone installatie,
+# en de agents bereiken RzSense op het adres van deze server.
+Network=host
+AddCapability=NET_RAW
+# Niets anders dan het datavolume en /tmp is beschrijfbaar
+ReadOnly=true
+Tmpfs=/tmp:rw,size=256m,mode=1777
+Volume=rzsense-data:/var/lib/rzmon:Z
+NoNewPrivileges=true
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

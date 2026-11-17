@@ -756,6 +756,17 @@ $GLOBALS['sm_config']['backup_mount'] = '/mnt/ci-niet-gekoppeld-' . getmypid();
 $noMount = Backup::problem();
 unset($GLOBALS['sm_config']['backup_mount']);
 ok($noMount !== null && str_contains($noMount, '/mnt/ci-niet-gekoppeld-') && Backup::problem() === null, 'netwerkschijf niet gekoppeld: back-ups stoppen met een duidelijke melding');
+// 1.281.0: containermodus: geen hulpdienst, bijwerken met een nieuwe image, nooddeur op een eigen poort
+$cBefore = [rz_container(), Https::door()];
+putenv('RZMON_CONTAINER=1');
+putenv('RZMON_DOOR_PORT=8443');
+$cMode = [rz_container(), Installer::configHelper(), (string) Updater::unavailable(), Https::door(), Updater::containerCommands('1.281.0'), Updater::containerCommands('x; rm -rf /')];
+putenv('RZMON_CONTAINER');
+putenv('RZMON_DOOR_PORT');
+ok($cBefore[0] === false && !str_contains($cBefore[1], ':8443') && $cMode[0] === true && $cMode[1] === false && str_contains($cMode[2], 'container')
+    && str_contains($cMode[3], ':8443/') && $cMode[4]['image'] === 'ghcr.io/rembrand20/rzsense:1.281.0' && str_contains($cMode[4]['podman'], 'podman pull ghcr.io/rembrand20/rzsense:1.281.0')
+    && $cMode[5]['image'] === 'ghcr.io/rembrand20/rzsense:latest' && rz_container() === false,
+    'containermodus: geen hulpdienst, bijwerken met een nieuwe image (alleen een geldige versie in het commando), nooddeur op poort 8443');
 foreach (glob(Backup::dir() . '/*') ?: [] as $f) { unlink($f); }
 foreach (glob(Backup::dir() . '/.*.sql') ?: [] as $f) { unlink($f); }
 rmdir(Backup::dir());

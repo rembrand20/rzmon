@@ -27,7 +27,10 @@ async function loadUpdate(force) {
   else if (u.available) parts.push(`<b class="good-txt">${L('Nieuwe versie beschikbaar: {v}', { v: esc(u.latest) })}</b>`);
   else if (u.latest) parts.push(`<span class="good-txt">✔ ${L('Dit is de nieuwste versie.')}</span>`);
   if (u.checked_at) parts.push(`<span class="muted">${L('Gecontroleerd {ago}.', { ago: ago(u.checked_at) })}</span>`);
-  if (u.available && u.unavailable) {
+  if (u.available && u.container) {   // 1.281.0: container: zelf de nieuwe image ophalen
+    parts.push(`<br><b>${L('RzSense draait als container.')}</b> ${L('Bijwerken naar {v}: haal de nieuwe image op en start de container opnieuw (er wordt eerst vanzelf een snelle back-up gemaakt):', { v: esc(u.latest) })}`
+      + copyBox('cmd-update-podman', u.container.podman) + `<span class="muted small">${L('Met compose:')}</span>` + copyBox('cmd-update-compose', u.container.compose));
+  } else if (u.available && u.unavailable) {
     parts.push(`<br><b class="warn-txt">${L('Bijwerken vanuit RzSense kan nog niet:')}</b> ${esc(u.unavailable)}. ${L('Voer één keer uit op de server:')}`
       + copyBox('cmd-update-setup', 'curl -fsSL https://raw.githubusercontent.com/rembrand20/rzmon/main/install/install-rocky.sh -o install-rocky.sh && sudo bash install-rocky.sh'));
   }
@@ -36,6 +39,7 @@ async function loadUpdate(force) {
     ${u.notes.map((n) => `<div class="un-ver"><h3>${esc(n.version)} <span class="muted small">${esc(n.date)}</span></h3>${mdLite(n.text)}</div>`).join('')}</details>` : '';
   if (u.pinned) parts.push(`<br><span class="warn-txt">📌 ${L('Je hebt bewust versie {v} gekozen: automatisch bijwerken staat op pauze tot je weer naar de nieuwste gaat.', { v: esc(u.pinned) })}</span>`);
   st.innerHTML = parts.join(' ');
+  wireCopy(st);   // 1.281.0: kopieerknoppen (ook bij de commando's voor de container)
   $('#update-pick').hidden = !!u.unavailable || !(u.versions || []).some((v) => v.version !== u.current);
   const b = $('#update-start');
   b.hidden = !u.available || !!u.unavailable;

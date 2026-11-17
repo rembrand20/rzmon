@@ -1,0 +1,48 @@
+# RzSense in een container (1.281.0). Het opstartscript vult @WEB_PORT@ en @DOOR_PORT@ in en zet het resultaat in /tmp.
+# Draait zonder root: pid, tijdelijke bestanden en logs staan in /tmp of gaan naar stdout/stderr.
+worker_processes auto;
+pid /tmp/rzsense-nginx.pid;
+error_log /dev/stderr warn;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    types { application/manifest+json webmanifest; }
+
+    access_log off;
+    sendfile on;
+    server_tokens off;
+    client_max_body_size 64m;          # agents en uploads (back-ups gaan in stukjes van 1 MB)
+    client_body_temp_path /tmp/nginx-body;
+    fastcgi_temp_path /tmp/nginx-fastcgi;
+    proxy_temp_path /tmp/nginx-proxy;
+    uwsgi_temp_path /tmp/nginx-uwsgi;
+    scgi_temp_path /tmp/nginx-scgi;
+
+    gzip on;
+    gzip_types text/plain text/css text/javascript application/javascript application/json image/svg+xml;
+
+    # Gedeeld door de gewone poort en de nooddeur
+    map $uri $rz_static { default 0; ~^/assets/.*\.(js|css|svg|png|woff2|json)$ 1; }
+
+    # Web (achter je reverse proxy, zoals SWAG): gewone http
+    server {
+        listen @WEB_PORT@;
+        listen [::]:@WEB_PORT@;
+        include /tmp/rzsense-site.conf;
+    }
+
+    # De nooddeur: https op het IP-adres van RzSense (eigen certificaat, alleen van je eigen netwerk; RzSense controleert dat zelf)
+    server {
+        listen @DOOR_PORT@ ssl http2;          # schrijfwijze die ook nginx 1.22 (Debian bookworm) kent
+        listen [::]:@DOOR_PORT@ ssl http2;
+        ssl_certificate     @DATA@/door/door.crt;
+        ssl_certificate_key @DATA@/door/door.key;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        include /tmp/rzsense-site.conf;
+    }
+}

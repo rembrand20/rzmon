@@ -1,0 +1,37 @@
+# RzSense met compose (1.281.0): podman compose up -d  (of docker compose up -d)
+# Zet eerst rzsense.env.example als .env naast dit bestand en vul de wachtwoorden in.
+# Op Rocky raden we de quadlets aan (container/quadlet/): die starten mee met systemd.
+services:
+  rzsense-db:
+    image: docker.io/library/mariadb:11.4
+    container_name: rzsense-db
+    env_file: .env
+    network_mode: host
+    command: ["--bind-address=127.0.0.1", "--port=3306", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes:
+      - rzsense-db:/var/lib/mysql:Z
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+    restart: always
+
+  rzsense:
+    image: ghcr.io/rembrand20/rzsense:latest
+    container_name: rzsense
+    env_file: .env
+    network_mode: host
+    cap_add: [NET_RAW]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,size=256m,mode=1777
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - rzsense-data:/var/lib/rzmon:Z
+    depends_on:
+      rzsense-db:
+        condition: service_healthy
+    restart: always
+
+volumes:
+  rzsense-db:
+  rzsense-data:

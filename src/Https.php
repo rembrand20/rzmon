@@ -165,7 +165,8 @@ final class Https
     /** Link van de nooddeur */
     public static function door(): string
     {
-        return 'https://' . (self::serverIp() ?: t('<IP-adres van RzSense>')) . '/';
+        $port = rz_container() ? (int) (getenv('RZMON_DOOR_PORT') ?: 8443) : 443;   // 1.281.0: container: eigen poort
+        return 'https://' . (self::serverIp() ?: t('<IP-adres van RzSense>')) . ($port !== 443 ? ':' . $port : '') . '/';
     }
 
     // ------------------------------------------------------------------ bij elk webverzoek

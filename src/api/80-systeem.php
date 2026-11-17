@@ -87,6 +87,7 @@ switch ($action) {
             'backup' => setting('update_backup', '1') === '1',
             'source' => implode('@', Updater::source()),
             'install_dir' => SM_ROOT,
+            'container' => rz_container() ? Updater::containerCommands($cache['latest'] ?? null) : null,   // 1.281.0
         ]);
 
     case 'update_start':

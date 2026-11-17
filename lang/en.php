@@ -11251,4 +11251,8 @@ return [
     'RzSense kan er schrijven' => 'RzSense can write here',
     'nog geen schrijfrechten' => 'no write access yet',
     'map bestaat nog niet' => 'folder does not exist yet',
+    'RzSense draait als container: bijwerken doe je met een nieuwe image' => 'RzSense runs as a container: update it with a new image',
+    'RzSense draait als container.' => 'RzSense runs as a container.',
+    'Bijwerken naar {v}: haal de nieuwe image op en start de container opnieuw (er wordt eerst vanzelf een snelle back-up gemaakt):' => 'Update to {v}: pull the new image and restart the container (a quick backup is made automatically first):',
+    'Met compose:' => 'With compose:',
 ];

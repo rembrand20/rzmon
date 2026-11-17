@@ -24,6 +24,12 @@ define('RZMON_VERSION', trim((string) @file_get_contents(SM_ROOT . '/VERSION')) 
 // Nieuwste agent: eigen nummer, los van RzSense (agent/VERSION; bijwerken met tools/bump-version.sh agent …)
 define('AGENT_LATEST', trim((string) @file_get_contents(SM_ROOT . '/agent/VERSION')) ?: RZMON_VERSION);
 
+/** 1.281.0: draait RzSense als container (container/Containerfile)? Dan geen hulpdienst, geen git-updates en geen SELinux-acties. */
+function rz_container(): bool
+{
+    return getenv('RZMON_CONTAINER') === '1';
+}
+
 // Zonder config.php draait de app in setup-modus (zie public/setup.php).
 // opcache: een gewijzigde config.php (bv. nieuw databasewachtwoord via de hulpdienst, een ander
 // proces) meteen opnieuw inlezen, ook als opcache.validate_timestamps uit staat. Kost één stat().

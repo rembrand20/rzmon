@@ -163,3 +163,51 @@ jobs:
       - name: PHP-log bij een fout
         if: failure()
         run: cat /tmp/php.log || true
+
+  # 1.281.0: de container bouwen, met MariaDB opstarten (zoals de quadlets: host-netwerk) en het browserrondje erop
+  container:
+    name: Container (image + browser)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Image bouwen
+        run: docker build -f container/Containerfile -t rzsense:ci .
+      - name: MariaDB en RzSense starten
+        run: |
+          cat > /tmp/rz.env <<'ENV'
+          MARIADB_DATABASE=rzmon
+          MARIADB_USER=rzmon
+          MARIADB_PASSWORD=ci-db-wachtwoord
+          MARIADB_ROOT_PASSWORD=ci-root-wachtwoord
+          RZMON_DB_HOST=127.0.0.1
+          RZMON_DB_NAME=rzmon
+          RZMON_DB_USER=rzmon
+          RZMON_DB_PASS=ci-db-wachtwoord
+          RZMON_ADMIN_PASS=ci-geheim-123
+          RZMON_WEB_PORT=8080
+          RZMON_DOOR_PORT=8443
+          ENV
+          docker run -d --name rzsense-db --network host --env-file /tmp/rz.env mariadb:11.4 --bind-address=127.0.0.1 --port=3306
+          docker run -d --name rzsense --network host --cap-add NET_RAW --read-only --tmpfs /tmp:rw,size=256m,mode=1777 \
+            --security-opt no-new-privileges --env-file /tmp/rz.env -v rzsense-data:/var/lib/rzmon rzsense:ci
+          for i in $(seq 1 90); do curl -fsS http://127.0.0.1:8080/healthz.php >/dev/null 2>&1 && break; sleep 2; done
+          curl -fsS http://127.0.0.1:8080/healthz.php || { docker logs rzsense; exit 1; }
+          curl -fksS https://127.0.0.1:8443/healthz.php || { echo "::error title=Nooddeur::https op 8443 werkt niet"; docker logs rzsense; exit 1; }
+          docker exec rzsense ping -c1 -W2 127.0.0.1 >/dev/null || { echo "::error title=Ping::ping werkt niet in de container"; exit 1; }
+          docker exec rzsense id -un | grep -qx www-data || { echo "::error title=Gebruiker::de container draait niet als www-data"; exit 1; }
+      - name: Playwright-browser uit de cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-1.47.2-${{ runner.os }}
+      - name: Browserrondje tegen de container
+        run: |
+          npm install --no-save --silent playwright@1.47.2
+          npx playwright install --with-deps chromium >/dev/null
+          BASE=http://127.0.0.1:8080 RZ_USER=admin RZ_PASS=ci-geheim-123 node tests/e2e/smoke.js 2>&1 | tee /tmp/e2e.out
+          [ "${PIPESTATUS[0]}" = 0 ] || { echo "::error title=Browserrondje (container)::$(tail -n 15 /tmp/e2e.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
+      - name: Herstart (tweede start, zelfde versie) en logboek
+        if: always()
+        run: |
+          docker restart rzsense >/dev/null && sleep 15 && curl -fsS http://127.0.0.1:8080/healthz.php || true
+          docker logs rzsense 2>&1 | tail -n 40

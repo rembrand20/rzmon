@@ -681,6 +681,9 @@ final class Installer
     /** Kan de hulpdienst config.php voor ons opslaan? (install/install-helper.sh, rzmon-config.path) */
     public static function configHelper(): bool
     {
+        if (rz_container()) {
+            return false;   // 1.281.0
+        }
         return is_file(self::HELPER_DIR . '/config.installed') && is_writable(self::HELPER_DIR);
     }
 

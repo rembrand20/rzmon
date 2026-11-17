@@ -1,0 +1,52 @@
+# RzSense als container (1.281.0). Bouwen vanuit de hoofdmap van de repo:
+#   podman build -f container/Containerfile -t rzsense .
+# Draaien: zie container/README.md (quadlets voor Podman op Rocky, of compose.yaml).
+# Naast de gewone serverinstallatie (install/install-rocky.sh); die blijft bestaan.
+FROM docker.io/library/php:8.3-fpm-bookworm
+
+# Webserver, ping (met cap_net_raw op het programma zelf), SNMP-hulpmiddelen, ip, certificaten, tini als init
+RUN set -eux; \
+    sed -i 's#http://deb.debian.org#https://deb.debian.org#g' /etc/apt/sources.list.d/debian.sources; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends nginx-light iputils-ping iproute2 snmp libcap2-bin tini openssl ca-certificates curl \
+        libzip4 libicu72 libpng16-16 libsnmp40 \
+        libzip-dev libicu-dev libpng-dev libsnmp-dev; \
+    docker-php-ext-install -j"$(nproc)" pdo_mysql zip intl gd snmp sockets opcache; \
+    apt-get purge -y libzip-dev libicu-dev libpng-dev libsnmp-dev; \
+    apt-get autoremove -y; \
+    rm -rf /var/lib/apt/lists/* /usr/src/php*; \
+    setcap cap_net_raw+ep /bin/ping; \
+    php -m | grep -qi '^snmp$'; php -m | grep -qi '^pdo_mysql$'; php -m | grep -qi '^zip$'
+
+COPY --chown=root:root . /opt/rzsense
+COPY container/php-fpm.conf /usr/local/etc/php-fpm.d/zz-rzsense.conf
+COPY container/php.ini /usr/local/etc/php/conf.d/zz-rzsense.ini
+COPY container/entrypoint.sh /usr/local/bin/rzsense-entrypoint
+
+RUN set -eux; \
+    rm -f /usr/local/etc/php-fpm.d/www.conf /usr/local/etc/php-fpm.d/zz-docker.conf; \
+    rm -rf /opt/rzsense/.git /opt/rzsense/config.php /opt/rzsense/tests /opt/rzsense/docs-shots; \
+    chmod 0755 /usr/local/bin/rzsense-entrypoint; \
+    mkdir -p /var/lib/rzmon; chown www-data:www-data /var/lib/rzmon; chmod 0770 /var/lib/rzmon
+
+# Containermodus: geen hulpdienst, geen git-updates; config.php staat in het datavolume
+ENV RZMON_CONTAINER=1 \
+    RZMON_CONFIG=/var/lib/rzmon/config.php \
+    RZMON_WEB_PORT=8080 \
+    RZMON_DOOR_PORT=8443 \
+    RZMON_IMAGE=ghcr.io/rembrand20/rzsense
+
+VOLUME /var/lib/rzmon
+EXPOSE 8080 8443
+USER www-data
+WORKDIR /opt/rzsense
+
+HEALTHCHECK --interval=60s --timeout=10s --start-period=120s --retries=3 \
+    CMD curl -fsS -o /dev/null "http://127.0.0.1:${RZMON_WEB_PORT}/healthz.php" || exit 1
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/rzsense-entrypoint"]
+
+LABEL org.opencontainers.image.title="RzSense" \
+      org.opencontainers.image.description="RzSense (rzmon): monitoring, IDS en meldingen voor je eigen servers en netwerk" \
+      org.opencontainers.image.source="https://github.com/rembrand20/rzmon" \
+      org.opencontainers.image.licenses="GPL-3.0"

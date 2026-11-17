@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.281.0**: **RzSense als container** (Podman op Rocky), met een eigen MariaDB-container, de nooddeur op poort 8443 en een melding in de app bij een nieuwe versie.
 - **1.280.0**: **back-upmap zelf kiezen**, ook op een NAS (NFS) met controle of hij gekoppeld is, en back-ups worden weer netjes opgeruimd.
 - **1.279.0**: bij **toegestane apparaten** zie je hoe er is ingelogd: met een passkey, met 2FA of alleen met een wachtwoord.
 - **1.278.0**: **🔕 altijd stil** per check, server, groep of soort apparaat (nooit een melding), en **🔀 flappen** zie je in elke weergave terug, ook nog 24 uur daarna.
 - **1.277.0**: **subpagina's in de zijbalk**: elke pagina met haar onderdelen eronder, met tellers, en een menu bij de ingeklapte zijbalk.
-- **1.276.0**: **overzichtelijker RzSense**: nieuwe pagina's Servers, Updates, Logboek en Compliance, één inbox voor incidenten, een beheerportal in zeven groepen en een `?` met uitleg bij elk veld.
+
+## 1.281.0 – 2026-11-17
+### Nieuw
+- **RzSense als container** (Podman of Docker), **naast** de gewone serverinstallatie, die blijft bestaan. Zie [container/README.md](container/README.md).
+  - Twee containers: **RzSense** (`ghcr.io/rembrand20/rzsense`) en een eigen **MariaDB 11.4**, die je los bijwerkt. Voor Rocky Linux staan er quadlets klaar (starten mee met systemd), en er is ook een `compose.yaml`.
+  - Host-netwerk: ping, SNMP, mtr, ARP-ontdekking en LLDP werken zoals altijd. Web op poort **8080** voor je reverse proxy (SWAG), de **nooddeur** op **8443** met een eigen certificaat dat vanzelf wordt vernieuwd.
+  - Veilig opgezet: geen root, alleen-lezen bestandssysteem behalve het datavolume en `/tmp`, alleen `NET_RAW` voor ping.
+  - Bij de eerste start maakt RzSense zelf `config.php`, de database en de eerste beheerder. Bij een nieuwe versie maakt hij eerst een snelle back-up en werkt dan de database bij.
+  - **Bijwerken:** RzSense meldt in de app dat er een nieuwe versie is en toont bij *Bijwerken* de `podman pull`-commando's. Er wordt nooit vanzelf bijgewerkt.
+  - Elke nieuwe versie wordt automatisch als image gebouwd en getest (amd64; arm64 volgt later).
+- Nieuwe pagina `healthz.php` voor de gezondheidscontrole van de container (alleen "ok" of "fout").
 
 ## 1.280.1 – 2026-11-17
 ### Opgelost

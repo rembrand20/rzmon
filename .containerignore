@@ -1,0 +1,9 @@
+# Niet in de image (1.281.0)
+.git
+.github
+config.php
+config.php.tmp
+tests
+docs-shots
+node_modules
+*.log
