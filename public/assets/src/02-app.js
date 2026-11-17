@@ -579,7 +579,7 @@ function showTab(name) {
   if (name === 'settings/blocks') name = 'ids/blk';   // 1.92.0: blokkades en whitelist staan in het IDS-tabblad
   // 1.276.0: nieuwe indeling; oude adressen (ook in meldingen en e-mails) sturen door naar de nieuwe plek
   const MOVED = { 'settings/agents': 'servers', 'settings/actlog': 'logboek', 'settings/changelog': 'logboek', 'settings/nis2': 'compliance',
-    'vulns/patch': 'updates', 'ids/prot': 'settings/prot', 'ids/inc': 'incidents/ids', 'settings/quiet': 'settings/rules', 'settings/hibp': 'settings/vulns' };
+    'vulns/patch': 'updates', 'ids/prot': 'settings/prot', 'settings/quiet': 'settings/rules', 'settings/hibp': 'settings/vulns' };
   if (MOVED[name] && !(name === 'ids/inc' && document.body.dataset.role === 'readonly')) {
     if (name === 'settings/quiet') setTab.rules = 'stil';
     if (name === 'settings/hibp') setTab.vulns = 'datalekken';

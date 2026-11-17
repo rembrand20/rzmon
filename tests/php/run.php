@@ -1649,6 +1649,15 @@ ok($mFl['flapping_since'] !== null && $mFl['flap_last_start'] !== null && (int) 
     && (int) q('SELECT COUNT(*) FROM notify_queue WHERE check_id = ?', [$qC])->fetchColumn() === 0,
     'flappen: begin en aantal wisselingen bewaard; altijd stil: niets verstuurd en niets bewaard voor na de stille uren');
 q('DELETE FROM notify_queue WHERE check_id = ?', [$qC]);
+// 1.278.1: isoleren gaat altijd via alle kanalen, ook tijdens stille uren; een gewone systeemmelding wacht
+Quiet::reset();
+Monitor::sysInfo('sec', $qH, 'Q-host', 'T-gewoon', fn() => 'gewoon');
+$isoPlain = (string) q("SELECT message FROM alerts WHERE title = 'T-gewoon' ORDER BY id DESC LIMIT 1")->fetchColumn();
+Monitor::sysInfo('isolate', $qH, 'Q-host', 'T-iso', fn() => 'iso', force: 1);
+$isoForced = (string) q("SELECT message FROM alerts WHERE title = 'T-iso' ORDER BY id DESC LIMIT 1")->fetchColumn();
+ok(NotifyRules::quietUntil(NotifyRules::quietGlobal()) !== null && str_contains($isoPlain, t('stille uren')) && $isoForced !== '' && !str_contains($isoForced, t('stille uren')),
+    'isoleren: altijd via alle kanalen, ook tijdens stille uren (een gewone systeemmelding wacht)');
+q("DELETE FROM alerts WHERE title IN ('T-gewoon', 'T-iso')");
 q('DELETE FROM checks WHERE id = ?', [$qC]);
 q('DELETE FROM hosts WHERE id = ?', [$qH]);
 Quiet::setGroup('kind:camera', null);

@@ -281,6 +281,7 @@ const liveLoaded = {};   // wanneer meldingen en IDS voor het laatst geladen zij
 // 1.119.0: hoeveel dagen Meldingen en IDS ophalen; ouder op verzoek (knop onderaan, of zoeken)
 const histDays = { alerts: 7, ids: 2 };   // 1.217.0: IDS standaard de open incidenten en de laatste 2 dagen; ouder op verzoek
 let idsTab = (() => { try { return localStorage.getItem('rzmon-ids-tab') || 'live'; } catch (e) { return 'live'; } })();
+let incPaneHome = null;   // 1.278.1: waar de lijst Aanvallen op de IDS-pagina hoort
 let incSrc = 'all';   // 1.276.0: Incidenten → soort (alles, storingen, aanvallen, kwetsbaarheden)
 let accData = null, accFilter = 'all', accHost = '', accDayOpen = {}, accSsh = 'all', sshSess = null;
 let accSort = (() => { try { return JSON.parse(localStorage.getItem('rzmon-acc-sort') || 'null') || { key: '', dir: 1 }; } catch (e) { return { key: '', dir: 1 }; } })();
@@ -1799,7 +1800,7 @@ function showTab(name) {
   if (name === 'settings/blocks') name = 'ids/blk';   // 1.92.0: blokkades en whitelist staan in het IDS-tabblad
   // 1.276.0: nieuwe indeling; oude adressen (ook in meldingen en e-mails) sturen door naar de nieuwe plek
   const MOVED = { 'settings/agents': 'servers', 'settings/actlog': 'logboek', 'settings/changelog': 'logboek', 'settings/nis2': 'compliance',
-    'vulns/patch': 'updates', 'ids/prot': 'settings/prot', 'ids/inc': 'incidents/ids', 'settings/quiet': 'settings/rules', 'settings/hibp': 'settings/vulns' };
+    'vulns/patch': 'updates', 'ids/prot': 'settings/prot', 'settings/quiet': 'settings/rules', 'settings/hibp': 'settings/vulns' };
   if (MOVED[name] && !(name === 'ids/inc' && document.body.dataset.role === 'readonly')) {
     if (name === 'settings/quiet') setTab.rules = 'stil';
     if (name === 'settings/hibp') setTab.vulns = 'datalekken';
@@ -10264,13 +10265,16 @@ async function loadIds() {
   if (idsAgain) { idsAgain = false; loadIds(); }
 }
 
-const IDS_TABS = ['inc', 'blk', 'live', 'map', 'ovw', 'acc', 'apps', 'hunt', 'anom', 'mitre'];   // 1.276.0: Bescherming staat in de portal; Incidenten (behalve alleen lezen) op de pagina Incidenten
+const IDS_TABS = ['inc', 'blk', 'live', 'map', 'ovw', 'acc', 'apps', 'hunt', 'anom', 'mitre'];   // 1.276.0: Bescherming staat in de portal; 1.278.1: Aanvallen (inc) staat hier én bij Incidenten
 const IDS_AN = ['ovw', 'anom', 'mitre'];
 function showIdsTab() {
   if (!IDS_TABS.includes(idsTab) || (idsTab === 'inc' && !$('#ids-tabs [data-it="inc"]'))) idsTab = 'live';
   $$('#ids-tabs [data-it]').forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab || (x.dataset.it === 'ovw' && IDS_AN.includes(idsTab))));
   const an = $('#ids-an-seg');
   if (an) { an.hidden = !IDS_AN.includes(idsTab); $$('[data-it]', an).forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab)); }
+  // 1.278.1: de lijst Aanvallen is één en dezelfde; hij verhuist naar de pagina waar je hem bekijkt
+  const incPane = $('.ids-pane[data-pane="inc"]');
+  if (idsTab === 'inc' && incPane && incPaneHome && incPane.parentElement !== incPaneHome && !$('#tab-ids').hidden) incPaneHome.append(incPane);   // alleen als je echt op de IDS-pagina bent
   $$('#tab-ids .ids-pane').forEach((x) => { x.hidden = x.dataset.pane !== idsTab; });
   const nAnom = ((idsData && idsData.incidents) || []).filter((i) => (i.type === 'chain' || i.type === 'anomaly') && i.status === 'open').length;
   $('#it-n-anom').textContent = nAnom || '';
@@ -11438,7 +11442,7 @@ function renderIds() {
   fxRender('ids');
   const narrowed = !!q || !!idsCat || !!idsCard || !!idsOutcome || !!idsHost || fxActive('ids');
   $('#ids-info').textContent = L('{open} open · {n} in de laatste {days} dagen', { open: open.length, n: d.incidents.length, days: d.days });
-  if ($('#it-n-inc')) $('#it-n-inc').textContent = open.length ? open.length : '';
+  if ($('#it-n-inc')) { const nAct = open.filter((i) => +i.severity === 2).length; $('#it-n-inc').textContent = nAct || ''; }   // 1.278.1: zelfde als het icoon IDS (actie nodig)
   const el = $('#ids-incidents');
   if (q) moreDaysWhenSearching('ids', d);
   const more = idsFilter === 'all' || q ? moreDays('ids', d) : '';   // open incidenten zijn er altijd allemaal
@@ -11832,13 +11836,16 @@ function afMotion(d) {
 const afFD = (d = amData) => (d && d.flow ? { ...d, ...d.flow, live: { ...(d.live || {}), ...d.flow.live } } : d);
 const afOld = (s) => !!s && s.live === false;
 
-/** 1.172.0: banner bovenaan als een server geïsoleerd is: groot op de IDS-pagina, smal op Dashboard en Monitoring */
+/** 1.172.0: banner bovenaan als een server geïsoleerd is: groot op de IDS-pagina, smal op Dashboard en Monitoring; 1.278.1: op een telefoon één regel */
+let isoOpen = false;
 const ISO_PAGES = { ids: 'big', home: 'slim', dashboard: 'slim' };
 function renderIsoBanner(tab) {
   const el = $('#iso-banner');
   if (!el || !state) return;
   tab = tab || (($('.tab-panel:not([hidden])') || {}).id || '').replace('tab-', '');
-  const list = state.isolated || [], size = ISO_PAGES[tab];
+  const list = state.isolated || [];
+  document.body.classList.toggle('iso-on', !!list.length);   // 1.278.1: zijbalk (en balk onderaan) rood omrand zolang er een server geïsoleerd is
+  const size = ISO_PAGES[tab] && MDS_MQ.matches ? 'mini' : ISO_PAGES[tab];   // 1.278.1: op een telefoon één regel (tik = details), zodat de tabbladen in beeld blijven
   el.hidden = !list.length || !size;
   if (el.hidden) { el.innerHTML = ''; el.dataset.key = ''; return; }
   const stTxt = (s) => (s === 'active' ? ['ok', L('actief op de server')] : /^(fout|error)/.test(s) ? ['bad', s] : s === 'off' ? ['warn', L('nog niet actief')] : ['warn', s || L('wacht op de agent')]);
@@ -11857,11 +11864,12 @@ function renderIsoBanner(tab) {
       <div class="iso-acts">${size === 'slim' ? `<button type="button" class="iso-btn ghost" data-iso-go>${L('Bekijk')}</button>` : ''}
         <button type="button" class="iso-btn need-admin" data-iso-un="${x.id}" data-iso-name="${esc(x.name)}">🔓 ${L('Opheffen')}</button></div></div>`;
   }).join('');
-  el.className = 'iso-banner ' + size;
+  el.className = 'iso-banner ' + size + (size === 'mini' && isoOpen ? ' open' : '');
   el.innerHTML = `<div class="iso-scan" aria-hidden="true"></div><div class="iso-grid" aria-hidden="true"></div>
     <div class="iso-head"><span class="iso-ic" aria-hidden="true"><i></i>🧱</span>
-      <div><div class="iso-kick"><i class="af-blink"></i>${esc(list.length === 1 ? L('Server in isolatie') : L('{n} servers in isolatie', { n: list.length }))}</div>
+      <div><div class="iso-kick"><i class="af-blink"></i>${esc(list.length === 1 ? L('Server in isolatie') : L('{n} servers in isolatie', { n: list.length }))}${size === 'mini' ? `<span class="iso-names">: ${esc(list.map((x) => x.name).join(', '))}</span>` : ''}</div>
       ${size === 'big' ? `<div class="iso-mut small">${L('Al het verkeer van en naar deze server is geblokkeerd. Alleen RzSense, je lokale netwerken en het IP-adres van wie isoleerde kunnen er nog bij.')}</div>` : ''}</div></div>
+    ${size === 'mini' ? `<button type="button" class="iso-btn ghost iso-more" data-iso-more aria-expanded="${isoOpen}">${isoOpen ? L('Minder') : L('Details')}</button>` : ''}
     <div class="iso-rows">${rows}</div>`;
   isoTick();
 }
@@ -11891,6 +11899,7 @@ function initIsoBanner() {
   if (!el) return;
   el.addEventListener('click', async (e) => {
     const un = e.target.closest('[data-iso-un]'), go = e.target.closest('[data-iso-go]');
+    if (e.target.closest('[data-iso-more]')) { isoOpen = !isoOpen; el.dataset.key = ''; renderIsoBanner(); return; }   // 1.278.1
     if (go) { showTab('ids'); return; }
     if (!un) return;
     try { await isoLift(+un.dataset.isoUn, un.dataset.isoName); } catch (ex) { toast(ex.message, 'err'); }
@@ -15595,10 +15604,11 @@ function renderSysinfo() {
     <th>${L('Push-geluid')}</th><th></th></tr></thead><tbody>
     ${SYSINFO_ROWS.map(([group, rows]) => `<tr class="si-group"><td colspan="7">${esc(group)}</td></tr>` + rows.map(([k, label]) => {
       const c = sysinfoCfg[k] || {};
-      return `<tr data-si="${k}"><td>${esc(label)}${k === 'sec' ? `<div class="muted small">${L('ook tijdens stille uren')}</div>` : ''}</td>
+      const iso = k === 'isolate';   // 1.278.1: isoleren gaat altijd via alle kanalen
+      return `<tr data-si="${k}"><td>${esc(label)}${k === 'sec' ? `<div class="muted small">${L('ook tijdens stille uren')}</div>` : ''}${iso ? `<div class="muted small">${L('altijd via alle kanalen, ook tijdens stille uren')}</div>` : ''}</td>
         ${SYSINFO_CH.map(([ch]) => {
-          const fixed = k === 'sec' && ch === 'page';   // de telling per IP staat op de meldingenpagina
-          return `<td class="si-ch"><input type="checkbox" data-ch="${ch}" ${c[ch] || fixed ? 'checked' : ''} ${fixed ? `disabled title="${esc(L('Altijd: hier telt RzSense de pogingen per IP'))}"` : ''}></td>`;
+          const fixed = (k === 'sec' && ch === 'page') || iso;   // de telling per IP staat op de meldingenpagina
+          return `<td class="si-ch"><input type="checkbox" data-ch="${ch}" ${c[ch] || fixed ? 'checked' : ''} ${fixed ? `disabled title="${esc(iso ? L('Een geïsoleerde server meldt RzSense altijd via alle kanalen') : L('Altijd: hier telt RzSense de pogingen per IP'))}"` : ''}></td>`;
         }).join('')}
         <td><select data-prio ${c.pushover ? '' : 'disabled'}><option value="-1" ${+c.prio < 0 ? 'selected' : ''}>🔕 ${L('stil')}</option><option value="0" ${+c.prio >= 0 ? 'selected' : ''}>🔔 ${L('normaal')}</option></select></td>
         <td><button type="button" class="icon-btn" data-si-test title="${esc(L('Testmelding sturen naar de aangevinkte kanalen'))}">🧪</button></td></tr>`;
@@ -20107,6 +20117,7 @@ function incSrcShow() {
   const host = $('#inc-ids-host');
   if (!host) return;
   const pane = $('.ids-pane[data-pane="inc"]');
+  if (pane && !incPaneHome) incPaneHome = pane.parentElement;   // 1.278.1: om hem terug te zetten op de IDS-pagina
   if (pane && pane.parentElement !== host && document.body.dataset.role !== 'readonly') { host.append(pane); pane.hidden = false; }
   $$('#inc-src [data-isrc]').forEach((b) => b.classList.toggle('active', b.dataset.isrc === incSrc));
   const ids = incSrc === 'ids' && host.contains(pane);

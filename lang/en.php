@@ -11211,4 +11211,9 @@ return [
     'altijd stil: geen meldingen' => 'always quiet: no notifications',
     'Altijd stil: geen Pushover, e-mail of webhook, ook niet bij critical (via {via}). De status en de pagina Meldingen werken gewoon.' => 'Always quiet: no Pushover, e-mail or webhook, not even for critical (via {via}). The status and the Notifications page keep working.',
     'Altijd stil' => 'Always quiet',
+    '🚨 Aanvallen' => '🚨 Attacks',
+    '🛡 Bescherming' => '🛡 Protection',
+    'altijd via alle kanalen, ook tijdens stille uren' => 'always via all channels, also during quiet hours',
+    'Een geïsoleerde server meldt RzSense altijd via alle kanalen' => 'RzSense always reports an isolated server via all channels',
+    'Minder' => 'Less',
 ];

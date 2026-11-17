@@ -2001,10 +2001,11 @@ function renderSysinfo() {
     <th>${L('Push-geluid')}</th><th></th></tr></thead><tbody>
     ${SYSINFO_ROWS.map(([group, rows]) => `<tr class="si-group"><td colspan="7">${esc(group)}</td></tr>` + rows.map(([k, label]) => {
       const c = sysinfoCfg[k] || {};
-      return `<tr data-si="${k}"><td>${esc(label)}${k === 'sec' ? `<div class="muted small">${L('ook tijdens stille uren')}</div>` : ''}</td>
+      const iso = k === 'isolate';   // 1.278.1: isoleren gaat altijd via alle kanalen
+      return `<tr data-si="${k}"><td>${esc(label)}${k === 'sec' ? `<div class="muted small">${L('ook tijdens stille uren')}</div>` : ''}${iso ? `<div class="muted small">${L('altijd via alle kanalen, ook tijdens stille uren')}</div>` : ''}</td>
         ${SYSINFO_CH.map(([ch]) => {
-          const fixed = k === 'sec' && ch === 'page';   // de telling per IP staat op de meldingenpagina
-          return `<td class="si-ch"><input type="checkbox" data-ch="${ch}" ${c[ch] || fixed ? 'checked' : ''} ${fixed ? `disabled title="${esc(L('Altijd: hier telt RzSense de pogingen per IP'))}"` : ''}></td>`;
+          const fixed = (k === 'sec' && ch === 'page') || iso;   // de telling per IP staat op de meldingenpagina
+          return `<td class="si-ch"><input type="checkbox" data-ch="${ch}" ${c[ch] || fixed ? 'checked' : ''} ${fixed ? `disabled title="${esc(iso ? L('Een geïsoleerde server meldt RzSense altijd via alle kanalen') : L('Altijd: hier telt RzSense de pogingen per IP'))}"` : ''}></td>`;
         }).join('')}
         <td><select data-prio ${c.pushover ? '' : 'disabled'}><option value="-1" ${+c.prio < 0 ? 'selected' : ''}>🔕 ${L('stil')}</option><option value="0" ${+c.prio >= 0 ? 'selected' : ''}>🔔 ${L('normaal')}</option></select></td>
         <td><button type="button" class="icon-btn" data-si-test title="${esc(L('Testmelding sturen naar de aangevinkte kanalen'))}">🧪</button></td></tr>`;

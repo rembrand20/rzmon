@@ -342,7 +342,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       </div></div>
       <!-- 1.266.0: overzichtelijk: één statusregel (hierboven), direct de tabbladen; analyse staat op 📊 Overzicht -->
       <div class="subtabs ids-tabs" role="tablist" aria-label="IDS" id="ids-tabs">
-        <?php if ($role === 'readonly'): ?><button type="button" class="seg-btn" data-it="inc"><?= th('⚠️ Incidenten') ?> <span class="it-n" id="it-n-inc"></span></button><?php endif; ?>
+        <button type="button" class="seg-btn" data-it="inc"><?= th('🚨 Aanvallen') ?> <span class="it-n" id="it-n-inc"></span></button><!-- 1.278.1: weer op de IDS-pagina (zelfde lijst als Incidenten → Aanvallen) -->
         <button type="button" class="seg-btn" data-it="blk"><?= th('⛔ Blokkades') ?> <span class="it-n" id="it-n-blk"></span></button>
         <button type="button" class="seg-btn" data-it="live"><?= th('🛰️ Live') ?></button>
         <button type="button" class="seg-btn" data-it="map"><?= th('🗺️ Aanvalskaart') ?></button>
@@ -353,6 +353,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
             <button type="button" class="seg-btn" role="menuitem" data-it="acc"><?= th('🔑 Toegang') ?> <span class="it-n" id="it-n-acc"></span></button>
             <button type="button" class="seg-btn" role="menuitem" data-it="apps"><?= th('🧩 Programma\'s') ?> <span class="it-n" id="it-n-apps"></span></button>
             <button type="button" class="seg-btn" role="menuitem" data-it="hunt"><?= th('🔎 Jagen') ?></button>
+            <?php if ($role === 'admin' || $role === 'user'): ?><button type="button" class="seg-btn" role="menuitem" data-goto="settings/prot"><?= th('🛡 Bescherming') ?> ›</button><?php endif; ?>
           </div>
         </div>
       </div>

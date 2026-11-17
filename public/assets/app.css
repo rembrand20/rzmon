@@ -6289,3 +6289,23 @@ details.pxs h4 { margin: .2rem 0 .45rem; font-size: .9rem; }
   body:not(.side-mini) :is(#mon-tabs, #ids-tabs, #ids-an-seg, #tab-incidents .pcard[data-pk="src"], #vuln-tabs, #net-tabs, #logs-sub, .ia-tabs) { display: none !important; }   /* ingeklapt: tabbladen blijven */
 }
 @media (prefers-reduced-motion: reduce) { .app-top .main-tabs .tab .tab-chev svg { transition: none; } }
+
+/* 1.278.1: een server in isolatie: de zijbalk (computer) en de balk onderaan (telefoon) rood omrand */
+@media (min-width: 1101px) {
+  body.iso-on .topbar.app-top { border-right: 0; box-shadow: inset 0 0 0 2px var(--crit), 0 0 18px color-mix(in srgb, var(--crit) 35%, transparent); }
+}
+@media (max-width: 720px) {
+  body.iso-on .main-tabs { box-shadow: 0 0 0 2px var(--crit), 0 -4px 16px color-mix(in srgb, var(--crit) 30%, transparent); }
+}
+/* 1.278.1: telefoon: de isolatiebalk als één regel; Details klapt de servers (met Opheffen) open */
+.iso-banner.mini { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 12px; margin-bottom: 12px; border-radius: 12px; }
+.iso-banner.mini .iso-scan, .iso-banner.mini .iso-grid { display: none; }
+.iso-banner.mini .iso-head { flex: 1 1 0; min-width: 0; padding: 0; gap: 8px; }
+.iso-banner.mini .iso-ic { width: 26px; height: 26px; font-size: 13px; }
+.iso-banner.mini .iso-kick { display: block; font-size: .8rem; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.iso-banner.mini .iso-names { text-transform: none; letter-spacing: 0; font-weight: 600; }
+.iso-banner.mini .iso-more { padding: 4px 10px; font-size: .8rem; }
+.iso-banner.mini .iso-rows { display: none; flex-basis: 100%; padding: 4px 0 0; }
+.iso-banner.mini.open .iso-rows { display: block; }
+.iso-banner.mini .iso-head > div { min-width: 0; overflow: hidden; }
+.iso-banner.mini .iso-more { flex: 0 0 auto; }

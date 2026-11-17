@@ -732,6 +732,7 @@ function incSrcShow() {
   const host = $('#inc-ids-host');
   if (!host) return;
   const pane = $('.ids-pane[data-pane="inc"]');
+  if (pane && !incPaneHome) incPaneHome = pane.parentElement;   // 1.278.1: om hem terug te zetten op de IDS-pagina
   if (pane && pane.parentElement !== host && document.body.dataset.role !== 'readonly') { host.append(pane); pane.hidden = false; }
   $$('#inc-src [data-isrc]').forEach((b) => b.classList.toggle('active', b.dataset.isrc === incSrc));
   const ids = incSrc === 'ids' && host.contains(pane);

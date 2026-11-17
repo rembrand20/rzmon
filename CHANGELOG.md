@@ -14,6 +14,16 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.275.0**: **rust op je telefoon**: geblokkeerde scanners geven geen pushmelding meer, wel een samenvatting om 20:00; alleen als je iets moet doen komt er meteen een melding.
 - **1.274.0**: **toegestane apparaten per site**: met één schakelaar kom je met je eigen telefoon onderweg ook bij beheerprogramma's achter de proxy.
 
+## 1.278.1 – 2026-11-17
+### Nieuw
+- **Een geïsoleerde server wordt altijd gemeld, via alle kanalen.** Pushover (met hoge prioriteit), e-mail, de Home Assistant-webhook en de pagina Meldingen, ook tijdens stille uren. Ook het opheffen gaat via alle kanalen. Voorheen ging deze melding standaard alleen naar de pagina Meldingen.
+- **Rode zijbalk bij isolatie.** Zolang er een server geïsoleerd is, is de zijbalk rood omrand (op een telefoon de balk onderaan).
+- **🚨 Aanvallen weer op de IDS-pagina**, als eerste tabblad en als subpagina in de zijbalk. Het is dezelfde lijst als Incidenten → Aanvallen; de teller is dezelfde als op het icoon IDS (actie nodig).
+- **🛡 Bescherming** staat in *Meer ▾* op de IDS-pagina (een link naar de instellingen).
+
+### Opgelost
+- Op een telefoon vielen de tabbladen van de IDS-pagina onder de grote isolatiebalk weg. De balk is daar nu één regel met *Details*; zo blijven de tabbladen in beeld.
+
 ## 1.278.0 – 2026-11-17
 ### Nieuw
 - **🔕 Altijd stil.** In de keuzelijst *Stille uren* staat nu ook *🔕 altijd stil: geen meldingen*: bij een check, een server, een eigen groep en een soort apparaat, en bij *meerdere checks bewerken*.

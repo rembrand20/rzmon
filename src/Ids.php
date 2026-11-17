@@ -115,7 +115,7 @@ final class Ids
         $name = (string) q('SELECT name FROM hosts WHERE id = ?', [$hostId])->fetchColumn();
         ActionLog::by($by, $hostId, 'isolate', t('Isoleren gevraagd'), t('tot {t}', ['t' => $until]) . ($reason !== '' ? ' · ' . $reason : '') . ($byIp !== '' ? ' · ' . t('toegestaan: {ip}', ['ip' => $byIp]) : ''));
         Monitor::sysInfo('isolate', $hostId, $name, '🧱 ' . t('Server geïsoleerd: {name}', ['name' => $name]),
-            fn() => t('{name} is geïsoleerd door {by}: alleen RzSense, je LAN en {ip} kunnen er nog bij, tot {t}', ['name' => $name, 'by' => $by, 'ip' => $byIp, 't' => date('d-m H:i', strtotime($until))]));
+            fn() => t('{name} is geïsoleerd door {by}: alleen RzSense, je LAN en {ip} kunnen er nog bij, tot {t}', ['name' => $name, 'by' => $by, 'ip' => $byIp, 't' => date('d-m H:i', strtotime($until))]), force: 1);   // 1.278.1: altijd via alle kanalen, hoge prioriteit
     }
 
     public static function unisolate(int $hostId, string $by): void
@@ -123,7 +123,7 @@ final class Ids
         q('UPDATE hosts SET isolate_until = NULL, isolate_state = ? WHERE id = ?', ['wordt opgeheven', $hostId]);
         $name = (string) q('SELECT name FROM hosts WHERE id = ?', [$hostId])->fetchColumn();
         ActionLog::by($by, $hostId, 'isolate', t('Isolatie opheffen gevraagd'));
-        Monitor::sysInfo('isolate', $hostId, $name, '🔓 ' . t('Isolatie opgeheven: {name}', ['name' => $name]), fn() => t('{name} is weer gewoon bereikbaar (door {by})', ['name' => $name, 'by' => $by]));
+        Monitor::sysInfo('isolate', $hostId, $name, '🔓 ' . t('Isolatie opgeheven: {name}', ['name' => $name]), fn() => t('{name} is weer gewoon bereikbaar (door {by})', ['name' => $name, 'by' => $by]), force: 0);   // 1.278.1: ook altijd via alle kanalen
     }
 
     /** 1.172.0: servers die nu geïsoleerd zijn (voor de banner bovenaan de pagina) */

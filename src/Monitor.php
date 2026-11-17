@@ -1067,20 +1067,24 @@ final class Monitor
      * Systeeminfo (geen check) versturen volgens zijn eigen rij bij Instellingen → 🔔 Meldingen → ℹ️ Systeeminfo:
      * Pushover (stil of normaal), e-mail, Home Assistant en de meldingenpagina. Tijdens stille uren gaat er niets naar
      * buiten, maar komt de melding wel op de pagina (als die aangevinkt is). $cfg/$test: voor de testknop.
+     * $force (1.278.1, isoleren): altijd via alle kanalen, ook tijdens stille uren, met minstens deze Pushover-prioriteit.
      */
     public static function sysInfo(string $event, ?int $hostId, ?string $hostName, string $title, callable $message, ?string $ip = null, ?array $detail = null,
-        bool $pageOnly = false, ?array $cfg = null, bool $test = false): void
+        bool $pageOnly = false, ?array $cfg = null, bool $test = false, ?int $force = null): void
     {
         try {
-            I18n::forNotify(function () use ($event, $hostId, $hostName, $title, $message, $ip, $detail, $pageOnly, $cfg, $test) {
+            I18n::forNotify(function () use ($event, $hostId, $hostName, $title, $message, $ip, $detail, $pageOnly, $cfg, $test, $force) {
                 $c = $cfg ?? (NotifyRules::sysinfo()[$event] ?? null);
+                if ($force !== null) {
+                    $c = ['pushover' => true, 'email' => true, 'webhook' => true, NotifyRules::PAGE => true, 'prio' => max($force, (int) ($c['prio'] ?? -1))];
+                }
                 if (!$c) {
                     return;
                 }
                 if ($pageOnly) {
                     $c['pushover'] = $c['email'] = $c['webhook'] = false;
                 }
-                $hold = !$test && ($c['pushover'] || $c['email'] || $c['webhook']) && NotifyRules::quietUntil(NotifyRules::quietGlobal()) !== null ? t('stille uren') : null;
+                $hold = !$test && $force === null && ($c['pushover'] || $c['email'] || $c['webhook']) && NotifyRules::quietUntil(NotifyRules::quietGlobal()) !== null ? t('stille uren') : null;
                 self::sendInfo(null, $hostId, $title, $message(), true, $c, $hold, $hostName, false, $ip, $detail, (int) ($c['prio'] ?? -1));
             });
         } catch (Throwable) {
