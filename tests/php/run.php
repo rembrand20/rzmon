@@ -2586,7 +2586,11 @@ $st = db()->prepare('INSERT INTO agent_data (host_id, metric, value, updated_at)
 $rowP = q('SELECT * FROM hosts WHERE id = ?', [$hp])->fetch();
 ok(Patch::agentLines($hp) === ["0\tpatch\t1"] && Patch::kind($rowP) === 'linux', 'updates: aan voor de agent (Linux)');
 Patch::fromAgent($rowP, ['patch' => ['mgr' => 'dpkg', 'avail' => 2, 'sec' => 1, 'rb' => 1, 'list' => [['libssl3', '3.0.13-4', 1], ['vim', '9.1.1', 0], ['; rm -rf /', '1', 1]]]], $st, now());
+// 1.281.3: het rapport komt eens per uur mee; het opruimen na een gewoon rapport mag het niet weggooien
+q("UPDATE agent_data SET updated_at = NOW() - INTERVAL 1 MINUTE WHERE host_id = ? AND metric = 'patch'", [$hp]);
+Paths::cleanAgentData($hp, now());
 $inf = Patch::info(q('SELECT * FROM hosts WHERE id = ?', [$hp])->fetch());
+ok($inf['at'] !== null, 'updates: het rapport blijft na het opruimen van een volgend agentrapport');
 ok($inf['avail'] === 2 && $inf['sec'] === 1 && $inf['rb'] && count($inf['list']) === 2 && $inf['mode'] === 'manual' && $inf['scope'] === 'security' && !isset($inf['snap']),
     'updates: klaarstaande updates opgeslagen (rare pakketnaam eruit), standaard met de hand, alleen beveiliging, geen snapshot (1.238.1)');
 ok(Patch::request($rowP, 'security', 'ci') === true, 'updates: beveiligingsupdates gevraagd');

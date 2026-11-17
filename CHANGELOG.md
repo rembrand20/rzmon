@@ -14,6 +14,12 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.278.0**: **🔕 altijd stil** per check, server, groep of soort apparaat (nooit een melding), en **🔀 flappen** zie je in elke weergave terug, ook nog 24 uur daarna.
 - **1.277.0**: **subpagina's in de zijbalk**: elke pagina met haar onderdelen eronder, met tellers, en een menu bij de ingeklapte zijbalk.
 
+## 1.281.3 – 2026-11-17
+### Opgelost
+- **Updates: "wacht op het eerste rapport" en automatisch bijwerken deed niets.** De agent stuurt eens per uur (Home Assistant: elk kwartier) mee welke updates er klaarstaan, maar dat rapport werd bij het volgende gewone agentrapport, een minuut later, weer opgeruimd. Daardoor zag RzSense nooit updates en sloeg het automatisch bijwerken elke keer over. Het rapport blijft nu staan; binnen een uur na het bijwerken van RzSense staat de kolom *Klaar* goed.
+- **Updates: "Laatst" klopte niet.** De tijd werd ook gezet als er niets gebeurde omdat het rapport ontbrak. Zonder rapport telt het niet meer als gedaan, en probeert RzSense het later in het tijdvak opnieuw.
+- Zelf herstellen: het geheugen van al verwerkte herstelacties werd ook te vroeg opgeruimd.
+
 ## 1.281.2 – 2026-11-17
 ### Opgelost
 - Het bouwen van de container-image van 1.281.1 stopte bij de nieuwe controle van PHP-FPM (gebruiker van de pool ontbrak). Gebruik `1.281.2` of nieuwer (`latest`).

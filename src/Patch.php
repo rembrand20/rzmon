@@ -200,8 +200,11 @@ final class Patch
             if (!self::due($h)) {
                 continue;
             }
-            q('UPDATE hosts SET patch_last = ? WHERE id = ?', [now(), $h['id']]);
             $a = self::avail((int) $h['id']);
+            if (empty($a['at'])) {
+                continue;   // 1.281.3: nog geen rapport van de agent: niet als gedaan tellen, later in het tijdvak opnieuw
+            }
+            q('UPDATE hosts SET patch_last = ? WHERE id = ?', [now(), $h['id']]);
             $count = self::kind($h) === 'ha' ? count(array_filter((array) ($a['list'] ?? []), static fn($x) => ($x[0] ?? '') !== 'os'))
                 : (($h['patch_scope'] ?? 'security') === 'all' ? (int) ($a['avail'] ?? 0) : (int) ($a['sec'] ?? 0));
             if (!$count) {
