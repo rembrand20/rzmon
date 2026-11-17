@@ -24,7 +24,8 @@ COPY container/php.ini /usr/local/etc/php/conf.d/zz-rzsense.ini
 COPY container/entrypoint.sh /usr/local/bin/rzsense-entrypoint
 
 RUN set -eux; \
-    rm -f /usr/local/etc/php-fpm.d/www.conf /usr/local/etc/php-fpm.d/zz-docker.conf; \
+    find /usr/local/etc/php-fpm.d -type f ! -name zz-rzsense.conf -delete; \
+    php-fpm -t; \
     rm -rf /opt/rzsense/.git /opt/rzsense/config.php /opt/rzsense/tests /opt/rzsense/docs-shots; \
     chmod 0755 /usr/local/bin/rzsense-entrypoint; \
     mkdir -p /var/lib/rzmon; chown www-data:www-data /var/lib/rzmon; chmod 0770 /var/lib/rzmon

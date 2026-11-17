@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.278.0**: **🔕 altijd stil** per check, server, groep of soort apparaat (nooit een melding), en **🔀 flappen** zie je in elke weergave terug, ook nog 24 uur daarna.
 - **1.277.0**: **subpagina's in de zijbalk**: elke pagina met haar onderdelen eronder, met tellers, en een menu bij de ingeklapte zijbalk.
 
+## 1.281.1 – 2026-11-17
+### Opgelost
+- **Container startte niet:** PHP-FPM weigerde te starten door een standaardinstelling uit de PHP-image. Die wordt nu weggehaald en de instelling wordt al bij het bouwen gecontroleerd. Gebruik `1.281.1` of nieuwer (`latest`).
+
 ## 1.281.0 – 2026-11-17
 ### Nieuw
 - **RzSense als container** (Podman of Docker), **naast** de gewone serverinstallatie, die blijft bestaan. Zie [container/README.md](container/README.md).
