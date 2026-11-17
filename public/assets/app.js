@@ -15014,10 +15014,10 @@ async function loadAccount() {
 /** Tabellen met apparaten en passkeys; admin: van iedereen (met de gebruiker erbij) */
 function accessTables(devices, passkeys, admin, current = null) {
   const cc = (x) => (x ? ccTag(x) : '');
-  const dev = devices.length ? `<div class="table-scroll"><table class="vuln-table"><thead><tr>${admin ? `<th>${L('Gebruiker')}</th>` : ''}<th>${L('Apparaat')}</th><th>${L('Toegestaan')}</th><th>${L('Laatst gezien')}</th><th>${L('Passkeys')}</th><th></th></tr></thead><tbody>
+  const dev = devices.length ? `<div class="table-scroll"><table class="vuln-table"><thead><tr>${admin ? `<th>${L('Gebruiker')}</th>` : ''}<th>${L('Apparaat')}</th><th>${L('Toegestaan')}</th><th>${L('Laatst gezien')}</th><th>${L('Inloggen')}</th><th>${L('Passkeys')}</th><th></th></tr></thead><tbody>
     ${devices.map((d) => `<tr>${admin ? `<td>${esc(d.username)}</td>` : ''}<td>${devIcon(d.name)} <b>${esc(d.name)}</b>${d.current || +d.id === current ? ` <span class="badge">${L('dit apparaat')}</span>` : ''}</td>
       <td class="small">${esc(fmtDateTime(d.created_at))}<br><span class="muted mono">${esc(d.created_ip || '')}</span></td>
-      <td class="small">${esc(ago(d.last_seen))}<br><span class="muted mono">${esc(d.last_ip || '')}</span>${cc(d.last_cc)}</td><td class="small">${+d.passkeys ? '🗝️ ' + d.passkeys : '–'}</td>
+      <td class="small">${esc(ago(d.last_seen))}<br><span class="muted mono">${esc(d.last_ip || '')}</span>${cc(d.last_cc)}</td><td class="small">${devHow(d)}</td><td class="small">${+d.passkeys ? '🗝️ ' + d.passkeys : '–'}</td>
       <td class="nowrap"><button type="button" class="icon-btn" data-acc-ren="dev:${d.id}" title="${esc(L('Hernoemen'))}">✎</button> <button type="button" class="icon-btn" data-acc-del="dev:${d.id}" title="${esc(L('Intrekken: kan RzSense niet meer van buiten openen'))}">✕</button></td></tr>`).join('')}</tbody></table></div>`
     : `<p class="muted small">${L('Nog geen apparaten toegestaan.')}</p>`;
   const pk = passkeys.length ? `<div class="table-scroll"><table class="vuln-table"><thead><tr>${admin ? `<th>${L('Gebruiker')}</th>` : ''}<th>${L('Passkey')}</th><th>${L('Domein')}</th><th>${L('Aangemaakt')}</th><th>${L('Laatst gebruikt')}</th><th></th></tr></thead><tbody>
@@ -15435,6 +15435,13 @@ function quietEditor(el, cfg, withSwitch) {
 const QUIET_SRC = () => ({ global: L('algemeen'), kind: L('soort apparaat'), grp: L('groep'), host: L('server'), check: L('deze check'), host_now: L('Nu stil (server)'), check_now: L('Nu stil') });
 const QUIET_ICONS = ['🌙', '🏢', '🏖️', '🎄', '📺', '😴', '🔧', '🌃'];
 /** Keuzelijst: volgt (leeg), elk profiel, nooit stil */
+/** 1.279.0: hoe er het laatst is ingelogd op een toegestaan apparaat */
+function devHow(d) {
+  const m = { passkey: ['ok', '🗝️', L('Passkey')], '2fa': ['ok', '🔐', L('2FA')], password: ['warn', '🔑', L('alleen wachtwoord')] }[d.last_how];
+  if (!m) return `<span class="muted" title="${esc(L('Nog niet ingelogd sinds RzSense dit bijhoudt (1.279.0)'))}">–</span>`;
+  return `<span class="how-tag ${m[0]}" title="${esc(L('Laatst ingelogd {t}', { t: fmtDateTime(d.last_login) }))}">${m[1]} ${esc(m[2])}</span><br><span class="muted">${esc(ago(d.last_login))}</span>`;
+}
+
 function quietOptions(cur, followLabel) {
   const ps = state.quiet_profiles || [];
   return `${followLabel !== null ? `<option value="">${esc(followLabel)}</option>` : ''}${ps.map((p) => `<option value="p:${p.id}" ${cur === 'p:' + p.id ? 'selected' : ''}>${esc(p.icon)} ${esc(p.name)}</option>`).join('')}

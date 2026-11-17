@@ -11216,4 +11216,8 @@ return [
     'altijd via alle kanalen, ook tijdens stille uren' => 'always via all channels, also during quiet hours',
     'Een geïsoleerde server meldt RzSense altijd via alle kanalen' => 'RzSense always reports an isolated server via all channels',
     'Minder' => 'Less',
+    '2FA' => '2FA',
+    'alleen wachtwoord' => 'password only',
+    'Nog niet ingelogd sinds RzSense dit bijhoudt (1.279.0)' => 'Not signed in since RzSense started tracking this (1.279.0)',
+    'Laatst ingelogd {t}' => 'Last signed in {t}',
 ];

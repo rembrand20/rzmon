@@ -6309,3 +6309,7 @@ details.pxs h4 { margin: .2rem 0 .45rem; font-size: .9rem; }
 .iso-banner.mini.open .iso-rows { display: block; }
 .iso-banner.mini .iso-head > div { min-width: 0; overflow: hidden; }
 .iso-banner.mini .iso-more { flex: 0 0 auto; }
+/* 1.279.0: hoe er is ingelogd op een toegestaan apparaat */
+.how-tag { display: inline-block; font-weight: 600; padding: .05rem .45rem; border-radius: 99px; white-space: nowrap; }
+.how-tag.ok { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
+.how-tag.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }

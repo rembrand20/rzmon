@@ -244,7 +244,13 @@ function finish_login(array $u, bool $remember = false, string $how = 'wachtwoor
     if ($remember) {
         remember_create((int) $u['id']);
     }
-    session_track($_SESSION['user'], match ($how) { 'wachtwoord' => 'password', 'passkey' => 'passkey', default => '2fa' });
+    $method = match ($how) { 'wachtwoord' => 'password', 'passkey' => 'passkey', default => '2fa' };
+    session_track($_SESSION['user'], $method);
+    // 1.279.0: bij een toegestaan apparaat onthouden hoe er is ingelogd (wachtwoord, 2FA of passkey)
+    $dev = Stealth::device();
+    if ($dev !== null && (int) $dev['user_id'] === (int) $u['id']) {
+        q('UPDATE trusted_devices SET last_how = ?, last_login = ? WHERE id = ?', [$method, now(), (int) $dev['id']]);
+    }
 }
 
 // ------------------------------------------------------------------ onthoud mij op dit apparaat

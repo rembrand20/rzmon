@@ -3947,6 +3947,7 @@ Ook onthouden apparaten zonder actieve sessie staan erin (💤 *onthouden, nu ni
   - Na *Toestaan* krijgt dat apparaat bij zijn volgende bezoek het inlogscherm, alleen voor die gebruiker, met 2FA als die aan staat. Een ander apparaat vanaf hetzelfde IP blijft een 404 krijgen.
   - Scanners, bots en `curl` komen niet op de lijst. Per IP hooguit 3 nieuwe per uur, hooguit 100 wachtend tegelijk; een wachtend apparaat vervalt na 7 dagen.
   - Alles komt in het logboek.
+- **Hoe er is ingelogd** (vanaf 1.279.0): de tabel *Toegestane apparaten* heeft een kolom **Inloggen**: 🗝️ *Passkey*, 🔐 *2FA* of 🔑 *alleen wachtwoord* (oranje), met wanneer dat was. Het gaat om de laatste keer dat er op dat apparaat echt is ingelogd; automatisch weer binnenkomen met *Onthoud mij* telt niet. Een apparaat dat nog niet is ingelogd sinds deze versie toont *–*. Zie je bij een apparaat van buiten *alleen wachtwoord*, zet dan 2FA aan of maak een passkey.
 - **🗝️ Passkeys**: bij *Mijn account → Passkey aanmaken* (met je wachtwoord).
   - Daarna log je in met **Inloggen met een passkey**: Face ID, vingerafdruk of pincode, zonder wachtwoord en 2FA-code. Wachtwoord met 2FA blijft de reserve.
   - De geheime sleutel blijft op je telefoon; RzSense bewaart alleen de openbare sleutel. Een passkey werkt alleen op het echte domein: op een nep-site (`rzrnon.jouwdomein.nl`) biedt je telefoon hem niet eens aan.

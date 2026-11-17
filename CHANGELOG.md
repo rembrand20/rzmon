@@ -8,11 +8,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.279.0**: bij **toegestane apparaten** zie je hoe er is ingelogd: met een passkey, met 2FA of alleen met een wachtwoord.
 - **1.278.0**: **🔕 altijd stil** per check, server, groep of soort apparaat (nooit een melding), en **🔀 flappen** zie je in elke weergave terug, ook nog 24 uur daarna.
 - **1.277.0**: **subpagina's in de zijbalk**: elke pagina met haar onderdelen eronder, met tellers, en een menu bij de ingeklapte zijbalk.
 - **1.276.0**: **overzichtelijker RzSense**: nieuwe pagina's Servers, Updates, Logboek en Compliance, één inbox voor incidenten, een beheerportal in zeven groepen en een `?` met uitleg bij elk veld.
 - **1.275.0**: **rust op je telefoon**: geblokkeerde scanners geven geen pushmelding meer, wel een samenvatting om 20:00; alleen als je iets moet doen komt er meteen een melding.
-- **1.274.0**: **toegestane apparaten per site**: met één schakelaar kom je met je eigen telefoon onderweg ook bij beheerprogramma's achter de proxy.
+
+## 1.279.0 – 2026-11-17
+### Nieuw
+- **Toegestane apparaten: zien hoe er is ingelogd.** De tabel heeft een kolom *Inloggen*: 🗝️ Passkey, 🔐 2FA of 🔑 alleen wachtwoord (oranje), met wanneer. Het telt de laatste echte login op dat apparaat; automatisch binnenkomen met *Onthoud mij* telt niet mee. Apparaten die nog niet zijn ingelogd sinds deze versie tonen *–*.
 
 ## 1.278.1 – 2026-11-17
 ### Nieuw

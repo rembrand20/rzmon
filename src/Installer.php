@@ -157,6 +157,8 @@ final class Installer
         ['checks', 'quiet', 'VARCHAR(1000) NULL'],         // stille uren voor deze check (JSON: mode global/own/never), anders algemeen
         ['checks', 'quiet_held', 'TINYINT NULL'],          // meldingen tegengehouden door stille uren: status die de gebruiker het laatst kreeg
         ['checks', 'flap_ended_at', 'DATETIME NULL'],      // weer stabiel: wisselingen van daarvoor tellen niet meer mee
+        ['trusted_devices', 'last_how', 'VARCHAR(20) NULL'],     // 1.279.0: hoe er het laatst is ingelogd op dit apparaat (password, 2fa, passkey)
+        ['trusted_devices', 'last_login', 'DATETIME NULL'],      // 1.279.0: wanneer
         ['checks', 'flap_last_start', 'DATETIME NULL'],    // 1.278.0: begin van het laatste flappen (voor "flapte vandaag")
         ['checks', 'flap_changes', 'SMALLINT UNSIGNED NULL'],   // 1.278.0: aantal wisselingen tijdens het laatste flappen
         // Omgekeerde status: slaagt de check, dan deze status (NULL = normaal); mislukt hij, dan reverse_fail

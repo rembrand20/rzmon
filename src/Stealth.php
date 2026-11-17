@@ -315,7 +315,7 @@ final class Stealth
     public static function devices(?int $userId): array
     {
         $cur = self::device();
-        $rows = q('SELECT d.id, d.user_id, u.username, d.name, d.created_at, d.created_ip, d.last_seen, d.last_ip, d.last_cc,
+        $rows = q('SELECT d.id, d.user_id, u.username, d.name, d.created_at, d.created_ip, d.last_seen, d.last_ip, d.last_cc, d.last_how, d.last_login,
                           (SELECT COUNT(*) FROM passkeys p WHERE p.device_id = d.id) AS passkeys
                    FROM trusted_devices d JOIN users u ON u.id = d.user_id' . ($userId !== null ? ' WHERE d.user_id = ?' : '') . ' ORDER BY u.username, d.last_seen DESC',
             $userId !== null ? [$userId] : [])->fetchAll();
