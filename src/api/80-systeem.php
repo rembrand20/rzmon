@@ -185,7 +185,7 @@ switch ($action) {
         out(['ok' => true, 'info' => $i, 'warnings' => $warn]);
 
     case 'backup_dir_save':   // 1.280.0: back-upmap in config.php (via de hulpdienst: map klaarzetten, rechten, SELinux, verhuizen)
-        if ($method !== 'POST') {
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
             out(['error' => 'POST'], 405);
         }
         $in = input();

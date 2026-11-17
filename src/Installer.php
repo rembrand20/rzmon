@@ -772,7 +772,7 @@ final class Installer
     /**
      * Hulpdienst (root): het verzoek uitvoeren. Controleert alles opnieuw, test bij een databasewijziging eerst de
      * verbinding, maakt een reservekopie van config.php en schrijft het nieuwe bestand met dezelfde eigenaar en rechten.
-     * @return array{ok: bool, error: ?string, nonce: string, backup?: string}
+     * @return array{ok: bool, error: ?string, nonce: string, backup?: string, note?: string}
      */
     public static function applyConfigRequest(): array
     {

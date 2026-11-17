@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.277.0**: **subpagina's in de zijbalk**: elke pagina met haar onderdelen eronder, met tellers, en een menu bij de ingeklapte zijbalk.
 - **1.276.0**: **overzichtelijker RzSense**: nieuwe pagina's Servers, Updates, Logboek en Compliance, één inbox voor incidenten, een beheerportal in zeven groepen en een `?` met uitleg bij elk veld.
 
+## 1.280.1 – 2026-11-17
+### Opgelost
+- Twee kleine meldingen van de automatische codecontrole (PHPStan) bij de back-upmap uit 1.280.0; voor jou verandert er niets.
+
 ## 1.280.0 – 2026-11-17
 ### Nieuw
 - **Back-upmap zelf kiezen** (Instellingen → Systeem → Back-up → 📁 Back-upmap → Wijzigen), bijvoorbeeld een map op je NAS via NFS.
