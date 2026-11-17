@@ -51,7 +51,7 @@ sudo podman pull ghcr.io/rembrand20/rzsense:latest && sudo systemctl restart rzs
 
 Bij het starten van een nieuwe versie maakt RzSense eerst een **snelle back-up** (in het datavolume) en werkt daarna de database bij. **MariaDB** werk je los bij: `sudo podman pull docker.io/library/mariadb:11.4 && sudo systemctl restart rzsense-db`.
 
-Een bepaalde versie vastzetten: zet in `rzsense.container` `Image=ghcr.io/rembrand20/rzsense:1.281.1`.
+Een bepaalde versie vastzetten: zet in `rzsense.container` `Image=ghcr.io/rembrand20/rzsense:1.281.2`.
 
 ## Verhuizen van een gewone installatie
 
