@@ -89,7 +89,7 @@ final class Heartbeat
 
     // ------------------------------------------------------------------ cron (5 velden, lokale tijd)
 
-    /** @return array<int, array<int, true>>|null per veld de toegestane waarden; null = ongeldig */
+    /** @return array<int|string, array<int, true>|bool>|null per veld (0-4) de toegestane waarden, plus dom_any/dow_any; null = ongeldig */
     public static function parseCron(string $cron): ?array
     {
         $f = explode(' ', trim($cron));
@@ -107,7 +107,7 @@ final class Heartbeat
                 }
                 $a = $m[1] === '*' ? $lo : (int) $m[2];
                 $b = $m[1] === '*' ? $hi : (isset($m[3]) && $m[3] !== '' ? (int) $m[3] : $a);
-                $step = isset($m[4]) && $m[4] !== '' ? (int) $m[4] : 1;
+                $step = isset($m[4]) ? (int) $m[4] : 1;
                 if ($m[1] !== '*' && (!isset($m[3]) || $m[3] === '') && $step > 1) {
                     $b = $hi;   // "5/15" = vanaf 5 elke 15
                 }

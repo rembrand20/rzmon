@@ -355,7 +355,11 @@ switch ($action) {
                 out(['error' => t('Bovenliggende server bestaat niet')], 422);
             }
             // Geen kringen: de parent mag niet (indirect) onder deze server hangen
-            for ($p = $parent, $i = 0; $p !== null && $i < 50; $i++) {
+            $p = $parent;
+            foreach (range(1, 50) as $_) {   // hooguit 50 stappen omhoog
+                if ($p === null) {
+                    break;
+                }
                 if (!empty($in['id']) && $p === (int) $in['id']) {
                     out(['error' => t('Een server kan niet van zichzelf afhankelijk zijn (ook niet via een andere server)')], 422);
                 }

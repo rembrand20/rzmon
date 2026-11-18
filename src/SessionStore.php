@@ -37,7 +37,7 @@ final class SessionStore implements SessionHandlerInterface
         return true;
     }
 
-    public function read(string $id): string|false
+    public function read(string $id): string
     {
         $this->lock = 'rzs_' . sha1($id);
         q('SELECT GET_LOCK(?, 10)', [$this->lock]);
@@ -57,7 +57,7 @@ final class SessionStore implements SessionHandlerInterface
         return true;
     }
 
-    public function gc(int $max_lifetime): int|false
+    public function gc(int $max_lifetime): int
     {
         return self::purge();
     }

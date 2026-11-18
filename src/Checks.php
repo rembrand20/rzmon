@@ -1139,7 +1139,7 @@ final class Checks
             $raise(STATUS_CRIT, t('poort {p} neemt geen verbindingen aan', ['p' => implode(', ', $d['ports_fail'])]));
         }
         // Test die bij de dienst past (HTTP, database, SSH, mail, DNS, tijd…)
-        if (isset($d['probe_rc']) && $d['probe_rc'] !== null) {
+        if (isset($d['probe_rc'])) {
             $rc = (int) $d['probe_rc'];
             if ($rc === 0) {
                 $info[] = AgentText::tr((string) $d['probe_msg']);
@@ -1162,7 +1162,7 @@ final class Checks
             }
         }
         // Eigen test op de server (/etc/rzmon-agent/tests/<service>), in Nagios-stijl: 0/1/2
-        if (isset($d['custom_rc']) && $d['custom_rc'] !== null) {
+        if (isset($d['custom_rc'])) {
             $rc = (int) $d['custom_rc'];
             $msg = t('eigen test') . ': ' . ($d['custom_msg'] !== '' ? AgentText::tr((string) $d['custom_msg']) : "exitcode $rc");
             if ($rc === 0) {
@@ -1185,7 +1185,7 @@ final class Checks
             $info[] = t('{n}× herstart in het afgelopen uur', ['n' => $restarts]);
         }
         // Foutregels in het systeemlog van het laatste kwartier
-        if (isset($d['log_errors']) && $d['log_errors'] !== null) {
+        if (isset($d['log_errors'])) {
             if ((int) $d['log_errors'] > 0) {
                 $raise(STATUS_WARN, t('{n} fout(en) in log (15 min)', ['n' => $d['log_errors']]) . ': ' . mb_substr((string) $d['log_last'], 0, 120));
             } else {

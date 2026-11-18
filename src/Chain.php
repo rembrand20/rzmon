@@ -237,7 +237,8 @@ final class Chain
             $w[] = 'host_id = ?';
             $p[] = $hostId;
         }
-        $seen = [];   // tactiek => techniek ('' = zonder) => [n, last, hosts]
+        /** @var array<string, array<string, array{n: int, last: string, score: int, hosts: list<int>}>> $seen tactiek => techniek ('' = zonder) */
+        $seen = [];
         foreach (q('SELECT tactics, techs, COUNT(*) AS n, MAX(at) AS last, GROUP_CONCAT(DISTINCT host_id) AS hosts, MAX(score) AS score
                     FROM ids_signals WHERE ' . implode(' AND ', $w) . ' GROUP BY tactics, techs', $p)->fetchAll() as $r) {
             $tac = array_filter(explode(',', $r['tactics']));
@@ -245,10 +246,9 @@ final class Chain
             foreach ($techs as $tech) {
                 $own = $tech !== '' ? array_intersect($tac, Mitre::tech($tech)['tactics'] ?? []) : [];
                 foreach (($own ?: $tac) as $ta) {
-                    $x = &$seen[$ta][$tech];
-                    $x = ['n' => ($x['n'] ?? 0) + (int) $r['n'], 'last' => max($x['last'] ?? '', $r['last']), 'score' => max($x['score'] ?? 0, (int) $r['score']),
-                        'hosts' => array_values(array_unique(array_merge($x['hosts'] ?? [], array_map('intval', explode(',', (string) $r['hosts'])))))];
-                    unset($x);
+                    $x = $seen[$ta][$tech] ?? ['n' => 0, 'last' => '', 'score' => 0, 'hosts' => []];
+                    $seen[$ta][$tech] = ['n' => $x['n'] + (int) $r['n'], 'last' => max($x['last'], (string) $r['last']), 'score' => max($x['score'], (int) $r['score']),
+                        'hosts' => array_values(array_unique(array_merge($x['hosts'], array_map('intval', explode(',', (string) $r['hosts'])))))];
                 }
             }
         }

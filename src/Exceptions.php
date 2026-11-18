@@ -128,8 +128,7 @@ final class Exceptions
                     'user' => strcasecmp($w, $v) === 0,
                     'cmd', 'text' => stripos($v, $w) !== false,
                     'ip' => @inet_pton($v) !== false && ip_in_list($v, [$w]),
-                    'port' => $w === $v,
-                    default => false,
+                    default => $w === $v,   // 'port'
                 };
                 if ($ok) {
                     break;
@@ -466,16 +465,15 @@ final class Exceptions
             }
             $target = $type === 'edr' ? 'edr' : 'ids';
             $id = substr(sha1($target . '|' . $rule . '|' . json_encode($cond)), 0, 12);
-            $o = &$out[$id];
             $title = in_array($type, ['out_country', 'outbound'], true) ? t('Uitgaand naar elk land: {p}', ['p' => $f['program'] ?? '?'])
                 : ($type === 'rootlogin' ? t('Root-login via SSH vanaf {ip}', ['ip' => $r['ip']]) : (string) $r['title']);
-            $o ??= ['id' => $id, 'target' => $target, 'rule' => $rule, 'cond' => $cond, 'title' => $title,
+            $o = $out[$id] ?? ['id' => $id, 'target' => $target, 'rule' => $rule, 'cond' => $cond, 'title' => $title,
                 'hits' => 0, 'n' => 0, 'hosts' => [], 'last' => ''];
             $o['hits'] += (int) $r['hits'];
             $o['n'] += (int) $r['n'];
             $o['hosts'][(int) $r['host_id']] = $r['host'];
             $o['last'] = max($o['last'], (string) $r['last']);
-            unset($o);
+            $out[$id] = $o;
         }
         $res = [];
         foreach ($out as $o) {

@@ -91,7 +91,7 @@ final class NetLinks
         }
         // Wachtwoord fout: klassiek "api.err.Invalid" (400), UniFi OS 401/403 met een eigen melding (niet LoginRequired)
         $wrong = (($tried['classic'][0] ?? 0) === 400 && str_contains($msgs, 'invalid'))
-            || (in_array($tried['unifios'][0] ?? 0, [401, 403], true) && ($tried['unifios'][1] ?? '') !== '' && !str_contains(strtolower($tried['unifios'][1]), 'loginrequired'));
+            || (in_array($tried['unifios'][0] ?? 0, [401, 403], true) && $tried['unifios'][1] !== '' && !str_contains(strtolower($tried['unifios'][1]), 'loginrequired'));
         $detail = implode(' · ', array_map(fn($m, $r) => "$m: HTTP {$r[0]}" . ($r[1] !== '' ? " {$r[1]}" : ''), array_keys($tried), $tried));
         return ($wrong ? t('UniFi: gebruikersnaam of wachtwoord klopt niet (gebruik een lokaal account, zonder 2FA)') : t('UniFi: inloggen lukt niet; klopt het adres (met poort, bv. :8443)?'))
             . " ($detail)";
@@ -478,11 +478,8 @@ final class NetLinks
                     continue;
                 }
                 $isBlocked = str_starts_with((string) ($q['reason'] ?? ''), 'Filtered');
-                $d = &$dom[$name];
-                $d['n'] = ($d['n'] ?? 0) + 1;
-                $d['blocked'] = ($d['blocked'] ?? false) || $isBlocked;
-                $d['last'] = max((string) ($d['last'] ?? ''), (string) ($q['time'] ?? ''));
-                unset($d);
+                $d = $dom[$name] ?? ['n' => 0, 'blocked' => false, 'last' => ''];
+                $dom[$name] = ['n' => $d['n'] + 1, 'blocked' => $d['blocked'] || $isBlocked, 'last' => max($d['last'], (string) ($q['time'] ?? ''))];
                 $total++;
                 $blocked += (int) $isBlocked;
                 $first = $first === null || ($q['time'] ?? '') < $first ? (string) ($q['time'] ?? '') : $first;

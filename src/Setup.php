@@ -72,7 +72,7 @@ final class Setup
     public static function cronLine(): string
     {
         // Onder php-fpm/mod_php is PHP_BINARY niet de CLI; dan het standaardpad gebruiken
-        $phpBin = PHP_BINARY && preg_match('/^php[\d.]*$/', basename(PHP_BINARY)) ? PHP_BINARY : '/usr/bin/php';
+        $phpBin = PHP_BINARY !== '' && preg_match('/^php[\d.]*$/', basename(PHP_BINARY)) ? PHP_BINARY : '/usr/bin/php';   // @phpstan-ignore notIdentical.alwaysTrue (leeg bij sommige SAPI's)
         $runAs = self::runAs();
         return "echo '* * * * * " . ($runAs !== '?' ? $runAs : 'www-data') . " $phpBin " . realpath(SM_ROOT) . "/cron/run.php >/dev/null 2>&1' | sudo tee /etc/cron.d/rzmon";
     }

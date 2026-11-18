@@ -824,7 +824,7 @@ final class SnmpMonitor
             $parts[$k] = ($parts[$k] ?? 0) + (int) $v['sta'];
         }
         $split = implode(' · ', array_map(fn($k, $x) => "$k: $x", array_keys($parts), $parts));
-        return self::res(self::level($n, $check, false), $n, sprintf(t('%d client(s) verbonden'), $n) . ($split !== '' ? " ($split)" : ''));
+        return self::res(self::level($n, $check, false), $n, sprintf(t('%d client(s) verbonden'), $n) . " ($split)");
     }
 
     /** Het AP zelf: isolated (geen bekabelde verbinding) = CRITICAL; model, firmware en uplink; ℹ️ bij nieuwe firmware */
@@ -964,7 +964,7 @@ final class SnmpMonitor
         $cur = ['p' => array_sum(array_map(fn($v) => (float) $v['txp'], $sel)), 'r' => array_sum(array_map(fn($v) => (float) $v['retry'], $sel)), 'n' => count($sel)];
         $prev = self::state((int) $check['id']);
         self::saveState((int) $check['id'], $cur);
-        $ccqTxt = $ccq !== null ? ' · CCQ ' . $ccq . '%' : ($w === 0 ? ' · ' . t('geen clients') : '');
+        $ccqTxt = $ccq !== null ? ' · CCQ ' . $ccq . '%' : ' · ' . t('geen clients');
         if (!$prev || (int) ($prev['n'] ?? 0) !== $cur['n']) {
             return self::res(STATUS_OK, null, "\"$want\"$ccqTxt · " . t('herhalingen volgen na de volgende meting'));
         }

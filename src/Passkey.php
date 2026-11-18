@@ -225,7 +225,7 @@ final class Passkey
                 default => throw new RuntimeException('cbor: niet ondersteund'),
             };
         }
-        $len = match (true) {
+        $len = (int) match (true) {
             $ai < 24 => $ai,
             $ai === 24 => ord($d[$o]),
             $ai === 25 => unpack('n', substr($d, $o, 2))[1],

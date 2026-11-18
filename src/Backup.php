@@ -202,7 +202,8 @@ final class Backup
 
     public static function encryptionSupported(): bool
     {
-        return class_exists('ZipArchive') && defined('ZipArchive::EM_AES_256') && method_exists('ZipArchive', 'setEncryptionName');
+        // setEncryptionName bestaat alleen als PHP met een libzip met versleuteling gebouwd is
+        return class_exists('ZipArchive') && defined('ZipArchive::EM_AES_256') && method_exists('ZipArchive', 'setEncryptionName');   // @phpstan-ignore function.alreadyNarrowedType
     }
 
     /** Volledig pad van een back-up uit de lijst, of null (ook bij een ongeldige naam). */
@@ -221,7 +222,7 @@ final class Backup
      * Back-up maken.
      * @param string $type auto | manual | pre-restore
      * @param bool|null $history meethistorie meenemen (null = volgens de instelling)
-     * @return array{ok: bool, file: ?string, size: int, error: ?string}
+     * @return array{ok: bool, file: ?string, size: int, error: ?string, busy?: bool}
      */
     public static function create(string $type = 'manual', ?bool $history = null, bool $lean = false): array
     {
@@ -411,7 +412,7 @@ final class Backup
             }
             $st = $zip->statName('database.sql');
             $valid = $st !== false;
-            $encrypted = $valid && ($st['encryption_method'] ?? 0) !== 0;
+            $encrypted = $valid && $st['encryption_method'] !== 0;
             $zip->close();
         }
         $at = DateTime::createFromFormat('Ymd-His', $m[1]);
@@ -651,7 +652,7 @@ final class Backup
             return ['ok' => false, 'error' => t('{file} ontbreekt in de back-up', ['file' => $name])];
         }
         $in = false;
-        if (($st['encryption_method'] ?? 0) !== 0) {
+        if ($st['encryption_method'] !== 0) {
             $tries = array_values(array_unique(array_filter([(string) $password, is_configured() ? (string) self::settingSafe('backup_pass') : ''], 'strlen')));
             foreach ($tries as $pw) {
                 $zip->setPassword($pw);

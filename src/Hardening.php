@@ -281,6 +281,10 @@ final class Hardening
 
     public static function ignore(int $hostId, string $item, bool $on): bool
     {
-        return isset(self::ITEMS[$item]) && q('UPDATE ids_hardening SET ignored = ? WHERE host_id = ? AND item = ?', [$on ? 1 : 0, $hostId, $item])->rowCount() >= 0;
+        if (!isset(self::ITEMS[$item])) {
+            return false;
+        }
+        q('UPDATE ids_hardening SET ignored = ? WHERE host_id = ? AND item = ?', [$on ? 1 : 0, $hostId, $item]);
+        return true;
     }
 }

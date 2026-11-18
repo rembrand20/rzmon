@@ -446,7 +446,7 @@ function agent_tests_text(int $hostId, bool $secure = false): string
     array_push($out, ...Waf::agentLines($hostId));   // 1.255.0: WAF op de reverse proxy (agent 1.98.0)
     array_push($out, ...Av::agentLines($hostId));
     array_push($out, ...Nids::agentLines($hostId));   // 1.260.0: Suricata op het proxynetwerk (agent 1.101.0)   // 1.257.0: ClamAV op de reverse proxy (agent 1.99.0)
-    return $out ? implode("\n", $out) . "\n" : '';
+    return implode("\n", $out) . "\n";
 }
 
 /** Kenmerk van die lijst: verandert het, dan haalt de agent hem meteen opnieuw op. */

@@ -186,7 +186,7 @@ switch ($action) {
         }
         q('INSERT INTO alerts (check_id, status, title, message, sent_ok, kind, created_at) VALUES (NULL, 0, ?, ?, 1, ?, ?)', [$title, $body, 'info', now()]);
         $res['page'] = ['ok' => true];
-        out(['channels' => array_map(static fn($r) => $r === null ? null : ['ok' => (bool) ($r['ok'] ?? false), 'error' => (string) ($r['error'] ?? '')], $res)]);
+        out(['channels' => array_map(static fn($r) => $r === null ? null : ['ok' => $r['ok'], 'error' => (string) ($r['error'] ?? '')], $res)]);
 
     case 'cleanup':   // 1.96.0: opschoonadvies
         out(['items' => Cleanup::advice()]);

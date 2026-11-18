@@ -230,13 +230,6 @@ final class IpIntel
         q('CREATE TABLE ip_geo_new LIKE ip_geo');
         $batch = [];
         $n = 0;
-        $flush = static function () use (&$batch, &$n) {
-            if ($batch) {
-                q('INSERT INTO ip_geo_new (fam, start_ip, end_ip, cc) VALUES ' . implode(',', array_fill(0, count($batch), '(?, ?, ?, ?)')), array_merge(...$batch));
-                $n += count($batch);
-                $batch = [];
-            }
-        };
         while (($line = gzgets($gz, 200)) !== false) {
             $p = str_getcsv(trim($line), ',', '"', '');
             if (count($p) < 3 || !preg_match('/^[A-Z]{2}$/', $p[2])) {
@@ -249,10 +242,11 @@ final class IpIntel
             }
             $batch[] = [strlen($a) === 4 ? 4 : 6, $a, $b, $p[2]];
             if (count($batch) >= 1000) {
-                $flush();
+                $n += self::geoInsert($batch);
+                $batch = [];
             }
         }
-        $flush();
+        $n += self::geoInsert($batch);
         gzclose($gz);
         @unlink($tmp);
         if ($n < 1000) {
@@ -268,6 +262,15 @@ final class IpIntel
     }
 
     /** Stand voor de instellingen */
+    /** Een stapel regels in ip_geo_new zetten; geeft het aantal terug */
+    private static function geoInsert(array $batch): int
+    {
+        if ($batch) {
+            q('INSERT INTO ip_geo_new (fam, start_ip, end_ip, cc) VALUES ' . implode(',', array_fill(0, count($batch), '(?, ?, ?, ?)')), array_merge(...$batch));
+        }
+        return count($batch);
+    }
+
     public static function status(): array
     {
         $st = json_decode((string) setting('ipintel_state', ''), true) ?: [];

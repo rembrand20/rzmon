@@ -225,8 +225,8 @@ final class IdsAdvice
             case 'revshell':
             case 'webshell':
                 $a['what'] = match ($type) {
-                    'revshell' => t('Een shell ({proc}) heeft een verbinding naar buiten ({ip}). Bij een "reverse shell" maakt de gehackte server zelf contact met de aanvaller, zodat die commando\'s kan geven.', ['proc' => $parts[0] ?? '?', 'ip' => $ip ?? '?']),
-                    'webshell' => t('De webserver ({web}) start een programma ({tool}). Een website hoort dat bijna nooit te doen; een webshell (een kwaadaardig script op de website) wel.', ['web' => $parts[0] ?? '?', 'tool' => $parts[1] ?? '?']),
+                    'revshell' => t('Een shell ({proc}) heeft een verbinding naar buiten ({ip}). Bij een "reverse shell" maakt de gehackte server zelf contact met de aanvaller, zodat die commando\'s kan geven.', ['proc' => $parts[0], 'ip' => $ip ?? '?']),
+                    'webshell' => t('De webserver ({web}) start een programma ({tool}). Een website hoort dat bijna nooit te doen; een webshell (een kwaadaardig script op de website) wel.', ['web' => $parts[0], 'tool' => $parts[1] ?? '?']),
                     default => t('Er draait een verdacht programma: {path} (vanuit /tmp, /dev/shm, een verwijderd bestand of alleen in het geheugen). Malware verstopt zich zo.', ['path' => $key]),
                 };
                 $a['risk'] = $type === 'webshell'
@@ -243,7 +243,7 @@ final class IdsAdvice
             case 'out_bad':
             case 'out_country':
                 $a['ask'] = $type !== 'out_bad';
-                $proc = $parts[0] ?? '?';
+                $proc = $parts[0];
                 $a['what'] = match ($type) {
                     'out_bad' => t('{proc} maakt verbinding met {ip}, een adres op een lijst van bekende aanvallers.', ['proc' => $proc, 'ip' => $ip ?? '?']),
                     'out_country' => t('{proc} maakt verbinding met een land dat niet bij je normale landen staat.', ['proc' => $proc]),
@@ -424,7 +424,7 @@ final class IdsAdvice
     }
 
     /** Eigenaar van het IP-adres via RDAP (de opvolger van whois), via rdap.org naar het juiste register. Hooguit ~5 s. */
-    private static function rdap(string $ip): ?array
+    private static function rdap(string $ip): array
     {
         $ch = curl_init('https://rdap.org/ip/' . rawurlencode($ip));
         curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3, CURLOPT_CONNECTTIMEOUT => 2,

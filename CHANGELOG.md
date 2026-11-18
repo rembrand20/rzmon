@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.281.0**: **RzSense als container** (Podman op Rocky), met een eigen MariaDB-container, de nooddeur op poort 8443 en een melding in de app bij een nieuwe versie.
 - **1.280.0**: **back-upmap zelf kiezen**, ook op een NAS (NFS) met controle of hij gekoppeld is, en back-ups worden weer netjes opgeruimd.
 
+## 1.284.2 – 2026-11-18
+### Opgelost
+- **Code opgeschoond** met de automatische controle (PHPStan, niveau 4). De 38 oude meldingen zijn weg en de lijst met uitzonderingen (baseline) is leeg, dus elke nieuwe melding maakt de controle voortaan rood. Het ging om overbodige controles en standaardwaarden voor velden die er altijd zijn. Op een paar plekken is code zonder verwijzingen (`&`) herschreven: de landenlijst (DB-IP), de MITRE-dekking, voorstellen voor uitzonderingen en de AdGuard-domeinen per client. Voor jou verandert er niets.
+
 ## 1.284.1 – 2026-11-18
 ### Opgelost
 - De automatische codecontrole (PHPStan) keurde 1.284.0 af door een ontbrekende beschrijving in de code. Voor jou verandert er niets.

@@ -82,7 +82,7 @@ final class Updater
             if (!preg_match('/^(\d+\.\d+\.\d+)\s*(?:[–-]\s*(\S+))?\s*\n(.*)$/su', $sec, $m) || !version_compare($m[1], RZMON_VERSION, '>')) {
                 continue;
             }
-            $out[] = ['version' => $m[1], 'date' => $m[2] ?? '', 'text' => mb_substr(trim($m[3]), 0, 4000)];
+            $out[] = ['version' => $m[1], 'date' => $m[2], 'text' => mb_substr(trim($m[3]), 0, 4000)];
             if (count($out) >= 15) {
                 break;
             }

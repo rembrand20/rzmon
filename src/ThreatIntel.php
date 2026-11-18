@@ -39,7 +39,6 @@ final class ThreatIntel
     private const DAILY = ['abuse' => 900, 'greynoise' => 45, 'shodan' => 2000, 'circl' => 2000, 'bazaar' => 2000, 'report' => 900];
     /** AbuseIPDB-categorieën bij melden (https://www.abuseipdb.com/categories) */
     private const REPORT_CAT = ['ssh' => [18, 22], 'web' => [21], 'scan' => [14], 'other' => [15]];
-    private static array $mem = [];
 
     public static function on(): bool
     {
@@ -159,7 +158,7 @@ final class ThreatIntel
             if ($a['reports'] > 0) {
                 $why[] = t('AbuseIPDB {s}% ({n} meldingen van {u} mensen)', ['s' => $a['score'], 'n' => $a['reports'], 'u' => $a['users']]);
             }
-            $benign = $benign || $a['white'];
+            $benign = (bool) $a['white'];
         }
         if (isset($d['gn'])) {
             $g = $d['gn'];

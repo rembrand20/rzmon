@@ -180,7 +180,7 @@ function in_tx(callable $fn): mixed
         $pdo->commit();
         return $r;
     } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
+        if ($pdo->inTransaction()) {   // @phpstan-ignore if.alwaysFalse (een DDL-opdracht of commit() kan hem al gesloten hebben)
             $pdo->rollBack();
         }
         throw $e;
