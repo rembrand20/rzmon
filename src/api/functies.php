@@ -312,8 +312,8 @@ function agent_url_report(array $host, array $in, ?string $agentVersion, bool $e
  */
 function agent_enc_fields(array $host, ?string $agentVersion): array
 {
-    if (!$agentVersion || version_compare($agentVersion, AgentCrypto::AGENT_MIN, '<')) {
-        return [];   // oudere agent: kan nog niet versleutelen
+    if (!$agentVersion || version_compare($agentVersion, AgentCrypto::AGENT_MIN, '<') || Reserve::active()) {
+        return [];   // oudere agent: kan nog niet versleutelen; 1.287.0: een actieve reserve geeft geen sleutels of vingerafdrukken
     }
     if (AgentCrypto::hostMode($host) === 'off') {
         return ['enc' => 'off'];
@@ -464,7 +464,7 @@ function agent_tests_rev(int $hostId, bool $secure = false): string
 function agent_update_instruction(int $hostId, ?string $version, array $in): ?array
 {
     $via = (string) ($in['update']['via'] ?? '');
-    if ($via === 'test') {
+    if ($via === 'test' || Reserve::active()) {   // 1.287.0: niet bijwerken via een reserve die het werk overnam
         return null;   // verbindingstest (rzmon-agent-setup --test): niets veranderen
     }
     $via = in_array($via, ['systemd', 'direct', 'off', 'ha', 'none', 'relay', 'relaysd'], true) ? $via : null;   // null: agent van vóór 1.19.0

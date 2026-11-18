@@ -4732,7 +4732,7 @@ Opnieuw `install-rocky.sh` draaien doet beide ook.
 ### 13.x Reserve-RzSense 🛟 (vanaf 1.286.0)
 Een **reserve** is een tweede RzSense, het liefst op een andere machine (bijvoorbeeld als container), die een kopie bijhoudt van je hoofdserver. Valt de hoofdserver weg, dan kan de reserve het werk overnemen.
 
-**In deze versie** houdt de reserve alleen de kopie bij. Automatisch overnemen, met een melding via je kanalen, en daarna de geschiedenis terugsturen naar de hoofdserver komen in de volgende versies.
+Vanaf **1.287.0** neemt de reserve het werk ook automatisch over, met een melding via je kanalen (zie *Overnemen en teruggeven* hieronder). De geschiedenis van die periode terugsturen naar de hoofdserver komt in een volgende versie.
 
 **Koppelen:**
 1. Installeer RzSense een tweede keer, bijvoorbeeld als container op een andere machine (zie `container/README.md`), en log in.
@@ -4760,6 +4760,15 @@ Een **reserve** is een tweede RzSense, het liefst op een andere machine (bijvoor
 **Goed om te weten:**
 - Gebruik je de bescherming van de reverse proxy met *alleen vanaf mijn netwerk*? Dan komt de reserve er na het eerste contact vanzelf bij. Komt hij van buiten je netwerk, koppel hem dan eerst vanuit je netwerk, of zet zijn adres bij de vertrouwde netwerken.
 - Ontkoppelen kan op beide kanten (**✕ Ontkoppelen**). Op de hoofdserver gaan dan ook de kopieën weg.
+
+#### Overnemen en teruggeven (vanaf 1.287.0, agent 1.111.0)
+- **Adres voor de agents:** de hoofdserver geeft zijn agents het adres van de reserve mee, versleuteld. Standaard is dat het adres dat de reserve zelf meldt. Bij *Adres voor de agents* zet je een ander adres, bijvoorbeeld de reserve via SWAG. Het adres moet een geldig certificaat hebben. Op de pagina zie je hoeveel agents de reserve al kennen, en hoeveel je nog moet bijwerken (agent 1.111.0 of nieuwer).
+- **Wanneer de agent de reserve probeert:** alleen als hij de hoofdserver én zijn gewone reserve-adres (bijvoorbeeld de relay of het adres voor buiten) niet bereikt. Dat gaat altijd versleuteld met zijn eigen sleutel. Elk rapport probeert eerst weer de hoofdserver.
+- **Wanneer de reserve overneemt:** als de hoofdserver voor de reserve zelf al **minstens 5 minuten** onbereikbaar is, **én** er een echt rapport van een bekende agent binnenkomt. Zo werken er nooit twee tegelijk. Ziet de reserve de hoofdserver nog, dan antwoordt hij *"later"* (503), en houdt de agent zijn metingen vast. Die komen later alsnog binnen.
+- **Bij het overnemen** krijg je de melding *🛟 Reserve-RzSense heeft het werk overgenomen*, via je eigen kanalen (de reserve heeft dezelfde instellingen). Daarna doet de reserve alles wat de hoofdserver deed: checks, meldingen, rapporten. Bovenaan staat dan een oranje balk.
+- **Op een actieve reserve verandert niets aan de agents:** geen nieuwe sleutels, geen nieuwe adressen of vingerafdrukken en geen updates. Ook neemt hij geen kopieën van de hoofdserver aan.
+- **Teruggeven:** bereikt de reserve de hoofdserver **twee minuten achter elkaar**, dan gaat hij terug naar stand-by. Je krijgt de melding *✅ Hoofdserver is terug*. De agents gaan vanzelf terug.
+- **De geschiedenis van die periode** (metingen en meldingen) staat dan nog alleen op de reserve. Daarom zet de reserve geen volledige kopie meer terug tot die geschiedenis terug is bij de hoofdserver. Dat terugsturen, in stukken van hooguit 50 MB, komt in de volgende versie. Op beide pagina's staat bij *Overgenomen* wanneer het gebeurde.
 
 ## 14. Beveiligingschecklist
 

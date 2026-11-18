@@ -6322,3 +6322,6 @@ details.pxs h4 { margin: .2rem 0 .45rem; font-size: .9rem; }
 /* 1.286.0: reserve-RzSense in stand-by */
 .reserve-banner { margin: 0 0 16px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--card, transparent); font-size: .92rem; }
 .rs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.reserve-banner.active { border-color: var(--warn, #d97706); }
+.rs-agent-url { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.rs-agent-url input { min-width: 260px; }

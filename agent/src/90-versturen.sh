@@ -193,6 +193,20 @@ if [ -n "$MONITOR_URL_FALLBACK" ] && { [[ " 6 7 28 35 52 56 60 " == *" $rc "* ]]
     rc=$?
     h_code=${resp##*$'\n'}; resp=${resp%$'\n'*}
 fi
+# Agent 1.111.0: ook het reserve-adres niet? Dan de reserve-RzSense (een tweede RzSense die het werk overneemt). Alleen
+# versleuteld met de eigen sleutel. Is de reserve nog stand-by (de hoofdserver is er voor hem nog), dan zegt hij 503 en gaat
+# de meting in de wachtrij; zodra hij het werk overneemt, komt de wachtrij mee.
+if [ -n "$MONITOR_URL_RESERVE" ] && [ -n "$kid" ] && [ -n "$seal_n" ] && { [[ " 6 7 28 35 52 56 60 " == *" $rc "* ]] || { [ "$rc" = 22 ] && [[ " 502 503 504 " == *" $h_code "* ]]; }; }; then
+    echo "RzSense niet bereikbaar (curl $rc${h_code:+, HTTP $h_code}); via de reserve-RzSense $MONITOR_URL_RESERVE" >&2
+    if seal "$body_file" "$payload_file.enc"; then
+        spec_tls "$MONITOR_URL_RESERVE" "$reserve_spec"
+        rs_opts=(-fsS -m 20 -X POST "${s_tls[@]}"); fb_used=2
+        resp=$(curl "${rs_opts[@]}" -H "X-Agent-Reserve: 1" -H "Content-Type: application/json" "${auth[@]}" --data-binary "@$send_file" \
+            -w '\n%{http_code}' "$MONITOR_URL_RESERVE/api.php?action=agent")
+        rc=$?
+        h_code=${resp##*$'\n'}; resp=${resp%$'\n'*}
+    fi
+fi
 # Geweigerd met de algemene sleutel van RzSense (bv. ouder dan de wisseltijd)? Na 3 keer die sleutel weggooien:
 # dan gaat het volgende rapport onversleuteld (of met ENC_KEY). De eigen sleutel gooit de agent nooit weg; staat
 # versleutelen uit (enc.off) en weigert RzSense het token, dan staat het weer aan: de volgende keer met de sleutel.
@@ -229,9 +243,9 @@ if mkdir -p "$st_dir" 2>/dev/null && [ -w "$st_dir" ]; then
     st_rcv=$(sed -n 's/.*"received":{\([^}]*\)}.*/\1/p' <<<"$resp" | head -c 300)
     (umask 077; printf 'time=%s\nrc=%s\nhttp=%s\nms=%s\nsend_ms=%s\nbytes=%s\nsent=%s\nenc=%s\nvia=%s\nerror=%s\nreceived=%s\nparts=%s\ngz=%s\n' \
         "$st_now" "$rc" "${h_code:-}" "$st_ms" "$st_sms" "$(wc -c <"$payload_file")" "$(wc -c <"$send_file")" "$( [ -n "$seal_n" ] && echo 1 || echo 0)" \
-        "$( [ "$fb_used" = 1 ] && echo fallback || echo primary)" "$st_err" "$st_rcv" "$parts" "$gz_sent" >"$st_dir/last") 2>/dev/null
+        "$( [ "$fb_used" = 2 ] && echo reserve || { [ "$fb_used" = 1 ] && echo fallback || echo primary; })" "$st_err" "$st_rcv" "$parts" "$gz_sent" >"$st_dir/last") 2>/dev/null
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$st_now" "$rc" "${h_code:-}" "$st_ms" "$(wc -c <"$send_file")" "$( [ -n "$seal_n" ] && echo 1 || echo 0)" \
-        "$( [ "$fb_used" = 1 ] && echo fallback || echo primary)" >>"$st_dir/history" 2>/dev/null
+        "$( [ "$fb_used" = 2 ] && echo reserve || { [ "$fb_used" = 1 ] && echo fallback || echo primary; })" >>"$st_dir/history" 2>/dev/null
     [ "$(wc -l 2>/dev/null <"$st_dir/history")" -gt 30 ] && { tail -n 30 "$st_dir/history" >"$st_dir/history.tmp" && mv -f "$st_dir/history.tmp" "$st_dir/history"; }
     if [ -n "$st_err" ]; then
         printf '%s\t%s\n' "$st_now" "$st_err" >>"$st_dir/errors" 2>/dev/null
@@ -276,7 +290,7 @@ sed -E 's/"(agent_key|enc_key)":"[0-9a-f]{64}"/"\1":"…"/g' <<<"$resp"
 if [ "$rc" -eq 0 ]; then
     # Versleuteling: eigen sleutel en vingerafdruk van RzSense bewaren (alleen uit een versleuteld antwoord), de
     # algemene sleutel (agent 1.49), of stoppen als het voor deze server uit staat
-    if [ -n "$seal_n" ]; then
+    if [ -n "$seal_n" ] && [ "$fb_used" != 2 ]; then   # agent 1.111.0: van de reserve-RzSense geen sleutel, vingerafdruk of adressen
         store_key "$resp" && rm -f "$t_dir/enc.off"
         store_pin "$resp"
         # Per adres hoe het gecontroleerd wordt (RzSense 1.78.0): alleen voor het gewone en het reserve-adres
@@ -285,13 +299,19 @@ if [ "$rc" -eq 0 ]; then
             while [[ "$p_rest" =~ \"([^\"]+)\":\"([^\"]*)\" ]]; do
                 p_u=${BASH_REMATCH[1]//\\/}; p_s=${BASH_REMATCH[2]//\\/}
                 p_rest=${p_rest#*"${BASH_REMATCH[0]}"}
-                [ "$p_u" = "$MONITOR_URL" ] || [ "$p_u" = "$MONITOR_URL_FALLBACK" ] || continue
+                [ "$p_u" = "$MONITOR_URL" ] || [ "$p_u" = "$MONITOR_URL_FALLBACK" ] || [ "$p_u" = "$MONITOR_URL_RESERVE" ] || continue
                 [ "$(url_spec "$p_u")" = "$p_s" ] || p_args+=("$p_u" "$p_s")
             done
             [ ${#p_args[@]} -gt 0 ] && url_pins_put "${p_args[@]}"
         fi
+        # Agent 1.111.0: het adres van de reserve-RzSense ("" = er is er geen meer)
+        if [[ "$resp" =~ \"reserve\":\{\"url\":\"([^\"]*)\",\"pin\":\"([^\"]*)\"\} ]]; then
+            reserve_put "$(sed 's#\\/#/#g' <<<"${BASH_REMATCH[1]}")" "${BASH_REMATCH[2]//\\/}"
+        fi
     fi
-    if [[ "$resp" =~ \"enc_key\":\"([0-9a-f]{64})\" ]] && [ -n "$seal_n" ]; then
+    if [ "$fb_used" = 2 ]; then
+        :   # agent 1.111.0: de reserve-RzSense verandert de versleuteling niet
+    elif [[ "$resp" =~ \"enc_key\":\"([0-9a-f]{64})\" ]] && [ -n "$seal_n" ]; then
         (umask 077; printf '%s\n' "${BASH_REMATCH[1]}" >"$enc_file.tmp" && mv -f "$enc_file.tmp" "$enc_file") && rm -f "$t_dir/enc.off"
     elif [[ "$resp" =~ \"enc\":\"off\" ]]; then
         rm -f "$enc_file"; : >"$t_dir/enc.off"
@@ -306,7 +326,7 @@ if [ "$rc" -eq 0 ]; then
     fi
     # Uitkomst van een overstap is doorgegeven; vraagt RzSense om naar een ander adres over te stappen (alleen versleuteld)?
     [ -n "$url_result" ] && rm -f "$k_dir/url.result"
-    if [ -n "$seal_n" ] && [[ "$resp" =~ \"url_set\":\{\"url\":\"([^\"]+)\",\"fallback\":\"([^\"]*)\"(,\"pin\":\"([^\"]*)\",\"fb_pin\":\"([^\"]*)\")?\} ]]; then
+    if [ -n "$seal_n" ] && [ "$fb_used" != 2 ] && [[ "$resp" =~ \"url_set\":\{\"url\":\"([^\"]+)\",\"fallback\":\"([^\"]*)\"(,\"pin\":\"([^\"]*)\",\"fb_pin\":\"([^\"]*)\")?\} ]]; then
         url_switch "$(sed 's#\\/#/#g' <<<"${BASH_REMATCH[1]}")" "$(sed 's#\\/#/#g' <<<"${BASH_REMATCH[2]}")" "${BASH_REMATCH[4]//\\/}" "${BASH_REMATCH[5]//\\/}"
     fi
     # Uitkomst is doorgegeven; vraagt RzSense om bij te werken?

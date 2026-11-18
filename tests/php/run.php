@@ -3911,6 +3911,37 @@ ok(setting('pushover_user') === 'kopie-waarde' && setting('trusted_proxies') ===
 ok(in_array('reserve_key', SECRET_SETTINGS, true) && SettingsMeta::skipTransfer('reserve_key') && SettingsMeta::isBookkeeping('reserve_seen'), 'reserve: sleutel geheim, niet exporteren, niet in het logboek');
 Reserve::unpair();
 ok(Reserve::role() === '' && !Reserve::standby() && !glob(Reserve::dir() . '/snap-*.zip'), 'reserve: ontkoppelen haalt sleutel en kopieën weg');
+// 1.287.0: overnemen en teruggeven
+save_setting('reserve_role', 'primary');
+save_setting('reserve_key', bin2hex(random_bytes(32)));
+save_setting('reserve_url', 'http://reserve.ci.lan');
+$rf = Reserve::agentField('1.111.0');
+ok($rf === ['url' => 'http://reserve.ci.lan', 'pin' => '-'] && Reserve::agentField('1.110.0') === null, 'reserve: agents (1.111.0+) krijgen het adres van de reserve (http = gewone controle)');
+ok(Reserve::setAgentUrl('ftp://x') !== null && Reserve::setAgentUrl('http://reserve2.ci.lan/') === null && Reserve::agentField('1.111.0')['url'] === 'http://reserve2.ci.lan',
+    'reserve: eigen adres voor de agents');
+save_setting('reserve_role', 'reserve');
+save_setting('reserve_primary_url', 'http://127.0.0.1:1');
+ok(Reserve::agentField('1.111.0') === null && Reserve::standby() && !Reserve::active(), 'reserve: een reserve geeft zelf geen reserve-adres; stand-by');
+save_setting('reserve_snap_at', (string) time());
+save_setting('reserve_primary_down_since', date('Y-m-d H:i:s', time() - Reserve::TAKEOVER_AFTER - 30));
+Reserve::agentArrived(true);
+ok(Reserve::active() && !Reserve::standby() && setting('reserve_notify') === 'takeover', 'reserve: hoofdserver 5 minuten weg + versleuteld rapport = overnemen');
+ok(agent_enc_fields(['id' => 1, 'agent_key' => str_repeat('a', 64), 'enc' => 'on'], AGENT_LATEST) === [] && agent_update_instruction(1, '1.0.0', ['update' => ['via' => 'systemd']]) === null,
+    'reserve: actief = geen nieuwe sleutels, vingerafdrukken of updates naar de agents');
+$rsAl = (int) q("SELECT COUNT(*) FROM alerts WHERE kind = 'system'")->fetchColumn();
+ok(Reserve::activeCron() === false && Reserve::active() && setting('reserve_notify') === ''
+    && (int) q("SELECT COUNT(*) FROM alerts WHERE kind = 'system'")->fetchColumn() === $rsAl + 1, 'reserve: melding van het overnemen; hoofdserver nog weg = actief blijven');
+save_setting('reserve_state', '');
+save_setting('reserve_hold_full', '1');
+save_setting('reserve_full_at', '0');
+$rsM = ['full' => ['id' => 'full-x.zip', 'size' => 1, 'sha' => 'x', 'at' => time()], 'snap' => null];
+$rsDl = (new ReflectionMethod('Reserve', 'download'))->invoke(null, $rsM, random_bytes(32), 'http://127.0.0.1:1');
+ok($rsDl === null && setting('reserve_dl', '') === '', 'reserve: geen volledige kopie terugzetten zolang de geschiedenis van een overname hier staat');
+save_setting('reserve_hold_full', '');
+foreach (['reserve_primary_down_since', 'reserve_snap_at', 'reserve_notify', 'reserve_active_since', 'reserve_active_down'] as $k) {
+    save_setting($k, '');
+}
+Reserve::unpair();
 $GLOBALS['sm_config']['backup_dir'] = $rsBkOld;
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");

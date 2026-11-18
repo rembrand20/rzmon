@@ -57,6 +57,17 @@ if (Reserve::standby()) {
     exit(0);
 }
 
+// 1.287.0: een reserve die het werk overnam: eerst contact met de hoofdserver. Is die terug, dan nu stoppen
+try {
+    if (Reserve::activeCron()) {
+        echo date('c') . " Reserve: hoofdserver is terug, weer stand-by\n";
+        save_setting('cron_last_run', now());
+        exit(0);
+    }
+} catch (Throwable $e) {
+    cron_err('Reserve', $e);
+}
+
 $force = in_array('--force', $argv, true);
 Perf::lap('start');   // snelheidsmeter (1.119.0): de duur van elk onderdeel
 $n = Monitor::runDue($force);

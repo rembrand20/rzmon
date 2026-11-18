@@ -15,8 +15,14 @@ declare(strict_types=1);
  *   zonder geschiedenis en logs) en één keer per nacht een volledige kopie (met geschiedenis).
  * - Op de reserve blijven eigen dingen staan: sessies, onthouden apparaten en passkeys (horen bij zijn eigen adres), en
  *   de instellingen voor zijn eigen adres, proxy, https, toegang, back-ups en updates.
- * - Een reserve in stand-by doet verder niets: geen checks, geen meldingen, geen rapporten. Hij neemt nog niets over;
- *   dat komt in 1.287.0.
+ * - Een reserve in stand-by doet verder niets: geen checks, geen meldingen, geen rapporten.
+ * - 1.287.0: overnemen. De hoofdserver geeft zijn agents (1.111.0+) het adres van de reserve. Een agent die de hoofdserver
+ *   en zijn reserve-adres niet bereikt, probeert de reserve. Die neemt het werk over als de hoofdserver voor hem zelf al
+ *   minstens 5 minuten onbereikbaar is én er een echt (versleuteld) rapport van een bekende agent binnenkomt. Zo nemen er
+ *   nooit twee tegelijk het werk: ziet de reserve de hoofdserver nog, dan zegt hij 503 en houdt de agent zijn metingen vast.
+ *   Overnemen en teruggeven gaan met een melding via je kanalen. Is de hoofdserver twee minuten achter elkaar weer
+ *   bereikbaar, dan gaat de reserve terug naar stand-by en gaan de agents vanzelf terug. Op een actieve reserve
+ *   verandert niets aan de agents: geen nieuwe sleutels, adressen of updates.
  */
 final class Reserve
 {
@@ -28,6 +34,12 @@ final class Reserve
     private const MAX_SKEW = 300;
     private const CODE_TTL = 3600;
     private const UA = 'RzSense-reserve';
+    /** Zo lang moet de hoofdserver onbereikbaar zijn voor de reserve overneemt */
+    public const TAKEOVER_AFTER = 300;
+    /** Zo vaak achter elkaar moet de hoofdserver weer antwoorden voor de reserve teruggeeft (1 per minuut) */
+    private const BACK_AFTER = 2;
+    /** Agent met het reserve-adres */
+    public const AGENT_MIN = '1.111.0';
 
     /** Tabellen die bij de reserve van hemzelf blijven (nooit overschreven) */
     public const LOCAL_TABLES = ['php_sessions', 'agent_nonces', 'remember_tokens', 'user_sessions', 'trusted_devices', 'passkeys', 'jobs', 'rate_hits',
@@ -48,10 +60,129 @@ final class Reserve
         return in_array($r, ['primary', 'reserve'], true) ? $r : '';
     }
 
-    /** Deze RzSense is een reserve die (nog) niets overneemt: dan doet de cron alleen het bijhouden */
+    /** Deze RzSense is een reserve die (nu) niets overneemt: dan doet de cron alleen het bijhouden */
     public static function standby(): bool
     {
-        return self::role() === 'reserve' && (string) setting('reserve_key', '') !== '';
+        return self::role() === 'reserve' && (string) setting('reserve_key', '') !== '' && setting('reserve_state', '') !== 'active';
+    }
+
+    /** 1.287.0: deze reserve doet nu het werk van de hoofdserver */
+    public static function active(): bool
+    {
+        return self::role() === 'reserve' && (string) setting('reserve_key', '') !== '' && setting('reserve_state', '') === 'active';
+    }
+
+    // ------------------------------------------------------------------ 1.287.0: overnemen en teruggeven
+
+    /** Op de reserve, aan het begin van elk agentverzoek: in stand-by alleen een rapport (dat beslist na het aanmelden) */
+    public static function gate(string $action): void
+    {
+        if (self::role() !== 'reserve' || self::active() || $action === 'agent' || $action === 'ping') {
+            return;
+        }
+        self::busy();
+    }
+
+    /** Op de reserve, na een geldig aangemeld rapport van een agent: overnemen, of 503 (de hoofdserver is er nog) */
+    public static function agentArrived(bool $encrypted): void
+    {
+        if (self::role() !== 'reserve' || self::active()) {
+            return;
+        }
+        $down = (string) setting('reserve_primary_down_since', '');
+        if ($encrypted && self::key() !== '' && (int) setting('reserve_snap_at', '0') > 0 && $down !== '' && strtotime($down) <= time() - self::TAKEOVER_AFTER) {
+            self::activate($down);
+            return;
+        }
+        self::busy();
+    }
+
+    /** "Ik ben stand-by": de agent houdt zijn metingen vast en probeert het de volgende keer weer bij de hoofdserver */
+    private static function busy(): never
+    {
+        http_response_code(503);
+        header('Content-Type: application/json; charset=utf-8');
+        header('Retry-After: 60');
+        echo '{"error":"reserve stand-by"}';
+        exit;
+    }
+
+    private static function activate(string $downSince): void
+    {
+        save_setting('reserve_state', 'active');
+        save_setting('reserve_active_since', now());
+        save_setting('reserve_active_down', $downSince);
+        save_setting('reserve_back_ok', '0');
+        save_setting('reserve_notify', 'takeover');   // de melding gaat in de cron (niet dit rapport laten wachten)
+    }
+
+    /**
+     * Op een actieve reserve, elke minuut: de melding van het overnemen, en contact met de hoofdserver. Antwoordt die
+     * BACK_AFTER keer achter elkaar, dan teruggeven. Geeft true als de reserve nu weer stand-by is (dan geen checks meer).
+     */
+    public static function activeCron(): bool
+    {
+        if (!self::active()) {
+            return false;
+        }
+        $base = (string) setting('reserve_primary_url', '');
+        if (setting('reserve_notify', '') === 'takeover') {
+            save_setting('reserve_notify', '');
+            $since = (string) setting('reserve_active_down', '');
+            I18n::forNotify(static fn() => Monitor::notifySystem('🛟 ' . t('Reserve-RzSense heeft het werk overgenomen'),
+                t('De hoofdserver {url} is sinds {t} niet bereikbaar. De agents rapporteren nu aan de reserve; checks en meldingen lopen hier door.',
+                    ['url' => $base, 't' => $since !== '' ? date('d-m-Y H:i', (int) strtotime($since)) : '?']), STATUS_CRIT, 'system'));
+        }
+        $r = self::call($base, 'hello', ['version' => RZMON_VERSION, 'url' => public_url(), 'status' => self::localStatus()], self::key(), 20);
+        if (!$r['ok']) {
+            save_setting('reserve_back_ok', '0');
+            save_setting('reserve_error', mb_substr((string) $r['error'], 0, 300));
+            return false;
+        }
+        save_setting('reserve_primary_seen', now());
+        $n = (int) setting('reserve_back_ok', '0') + 1;
+        save_setting('reserve_back_ok', (string) $n);
+        if ($n < self::BACK_AFTER) {
+            return false;
+        }
+        self::deactivate($base);
+        return true;
+    }
+
+    private static function deactivate(string $base): void
+    {
+        $from = (string) setting('reserve_active_since', '');
+        $to = now();
+        $periods = json_decode((string) setting('reserve_periods', '[]'), true) ?: [];
+        $periods[] = ['from' => $from, 'to' => $to, 'sent' => false];
+        save_setting('reserve_periods', (string) json_encode(array_slice($periods, -20)));
+        // De geschiedenis van deze periode staat alleen hier: geen volledige kopie terugzetten tot hij terug is (1.288.0)
+        save_setting('reserve_hold_full', '1');
+        save_setting('reserve_state', '');
+        save_setting('reserve_active_since', '');
+        save_setting('reserve_back_ok', '0');
+        save_setting('reserve_primary_down_since', '');
+        save_setting('reserve_error', '');
+        I18n::forNotify(static fn() => Monitor::notifySystem('✅ ' . t('Hoofdserver is terug'),
+            t('{url} is weer bereikbaar. De reserve deed het werk van {from} tot {to} en is weer stand-by; de agents gaan vanzelf terug.',
+                ['url' => $base, 'from' => $from !== '' ? date('d-m-Y H:i', (int) strtotime($from)) : '?', 'to' => date('d-m-Y H:i')]), STATUS_OK, 'system'));
+    }
+
+    /**
+     * Op de hoofdserver: het adres van de reserve voor een agent (in het versleutelde antwoord), of null (niets sturen).
+     * @return array{url: string, pin: string}|null
+     */
+    public static function agentField(?string $agentVersion): ?array
+    {
+        if (!$agentVersion || version_compare($agentVersion, self::AGENT_MIN, '<') || self::role() === 'reserve') {
+            return null;
+        }
+        $url = rtrim((string) (setting('reserve_agent_url', '') ?: setting('reserve_url', '')), '/');
+        if (self::role() !== 'primary' || self::key() === '' || $url === '' || !AgentCrypto::validUrl($url)) {
+            return ['url' => '', 'pin' => ''];   // geen reserve (meer): de agent haalt het adres weg
+        }
+        $spec = AgentCrypto::urlSpec($url);
+        return $spec === null ? null : ['url' => $url, 'pin' => $spec];
     }
 
     public static function dir(): string
@@ -258,7 +389,7 @@ final class Reserve
     public static function unpair(): void
     {
         foreach (['reserve_key', 'reserve_role', 'reserve_url', 'reserve_version', 'reserve_seen', 'reserve_snap', 'reserve_full', 'reserve_primary_url',
-            'reserve_dl', 'reserve_error', 'reserve_status', 'reserve_pair_code'] as $k) {
+            'reserve_dl', 'reserve_error', 'reserve_status', 'reserve_pair_code', 'reserve_state', 'reserve_active_since', 'reserve_notify', 'reserve_agent_url'] as $k) {
             save_setting($k, '');
         }
         foreach (glob(self::dir() . '/*') ?: [] as $f) {
@@ -381,7 +512,8 @@ final class Reserve
         $dl = json_decode((string) setting('reserve_dl', ''), true);
         return ['snap_at' => (int) setting('reserve_snap_at', '0'), 'full_at' => (int) setting('reserve_full_at', '0'),
             'dl' => is_array($dl) ? ['kind' => $dl['kind'] ?? '', 'off' => (int) ($dl['off'] ?? 0), 'size' => (int) ($dl['size'] ?? 0)] : null,
-            'apply_error' => (string) setting('reserve_apply_error', '')];
+            'apply_error' => (string) setting('reserve_apply_error', ''), 'state' => self::active() ? 'active' : 'standby',
+            'active_since' => (string) setting('reserve_active_since', ''), 'periods' => json_decode((string) setting('reserve_periods', '[]'), true) ?: []];
     }
 
     /** @param array<string, mixed> $m wat de hoofdserver heeft */
@@ -397,6 +529,9 @@ final class Reserve
             $pick = null;
             foreach (['full', 'snap'] as $k) {
                 $i = $m[$k] ?? null;
+                if ($k === 'full' && setting('reserve_hold_full', '') === '1') {
+                    continue;   // 1.287.0: de geschiedenis van een overname staat nog alleen hier
+                }
                 if ($pick === null && is_array($i) && (int) $i['at'] > (int) setting("reserve_{$k}_at", '0')) {
                     $pick = ['kind' => $k, 'id' => (string) $i['id'], 'size' => (int) $i['size'], 'sha' => (string) $i['sha'], 'at' => (int) $i['at'], 'off' => 0];
                 }
@@ -479,7 +614,10 @@ final class Reserve
                 'seen' => (string) setting('reserve_seen', ''), 'paired_at' => (string) setting('reserve_paired_at', ''),
                 'snap' => self::fileInfo('snap'), 'full' => self::fileInfo('full'), 'build_error' => (string) setting('reserve_build_error', ''),
                 'status' => is_array($st) ? ['snap_at' => $ts($st['snap_at'] ?? 0), 'full_at' => $ts($st['full_at'] ?? 0), 'dl' => $st['dl'] ?? null,
-                    'apply_error' => (string) ($st['apply_error'] ?? '')] : null, 'full_hour' => (int) setting('reserve_full_hour', '3')];
+                    'apply_error' => (string) ($st['apply_error'] ?? ''), 'state' => (string) ($st['state'] ?? 'standby'),
+                    'active_since' => (string) ($st['active_since'] ?? ''), 'periods' => (array) ($st['periods'] ?? [])] : null,
+                'full_hour' => (int) setting('reserve_full_hour', '3'), 'agent_url' => (string) setting('reserve_agent_url', ''),
+                'agents' => self::agentCount()];
             foreach (['snap', 'full'] as $k) {
                 if ($o[$k] !== null) {
                     $o[$k]['at'] = $ts($o[$k]['at']);
@@ -493,12 +631,35 @@ final class Reserve
                 'apply_error' => (string) setting('reserve_apply_error', ''),
                 'snap_at' => $ts(setting('reserve_snap_at', '0')), 'full_at' => $ts(setting('reserve_full_at', '0')),
                 'snap_applied' => (string) setting('reserve_snap_applied', ''), 'full_applied' => (string) setting('reserve_full_applied', ''),
-                'dl' => is_array($dl) ? ['kind' => $dl['kind'], 'off' => (int) $dl['off'], 'size' => (int) $dl['size']] : null];
+                'dl' => is_array($dl) ? ['kind' => $dl['kind'], 'off' => (int) $dl['off'], 'size' => (int) $dl['size']] : null,
+                'state' => self::active() ? 'active' : 'standby', 'active_since' => (string) setting('reserve_active_since', ''),
+                'periods' => json_decode((string) setting('reserve_periods', '[]'), true) ?: [], 'hold_full' => setting('reserve_hold_full', '') === '1'];
         } else {
             $until = (int) setting('reserve_pair_until', '0');
             $o['code_until'] = $until > time() && setting('reserve_pair_code', '') !== '' ? date('c', $until) : null;
         }
         return $o;
+    }
+
+    /** @return array{ready: int, old: int} agents die het adres van de reserve kennen (1.111.0+) en oudere */
+    private static function agentCount(): array
+    {
+        $ready = $old = 0;
+        foreach (q("SELECT agent_version FROM hosts WHERE mode = 'agent' AND agent_version IS NOT NULL AND agent_version <> ''")->fetchAll(PDO::FETCH_COLUMN) as $v) {
+            version_compare((string) $v, self::AGENT_MIN, '>=') ? $ready++ : $old++;
+        }
+        return ['ready' => $ready, 'old' => $old];
+    }
+
+    /** Hoofdserver: het adres waarop agents de reserve bereiken (leeg = wat de reserve zelf meldt) */
+    public static function setAgentUrl(string $url): ?string
+    {
+        $url = rtrim(trim($url), '/');
+        if ($url !== '' && !AgentCrypto::validUrl($url)) {
+            return t('Ongeldig adres');
+        }
+        save_setting('reserve_agent_url', $url);
+        return null;
     }
 
     private static function mb(int $b): string

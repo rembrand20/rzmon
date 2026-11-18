@@ -5,6 +5,14 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.111.0 – 2026-11-18
+- **Reserve-RzSense** (RzSense 1.287.0): RzSense geeft de agent het adres van de reserve mee. Bereikt de agent zijn RzSense niet, ook niet via het reserve-adres, dan probeert hij de reserve. Dat gaat alleen versleuteld met zijn eigen sleutel.
+  - Is de reserve nog stand-by (hij ziet de hoofdserver nog), dan zegt hij "later" en houdt de agent zijn metingen vast, zoals altijd als RzSense even weg is.
+  - Neemt de reserve het werk over, dan komen de metingen daar binnen, ook de bewaarde.
+  - Elk rapport probeert eerst weer het gewone adres, dus de agent gaat vanzelf terug als de hoofdserver terug is.
+  - Van de reserve neemt de agent nooit een sleutel, vingerafdruk of nieuw adres over.
+- `rzmon-agent-setup --status` toont "🛟 de reserve-RzSense" als een rapport via de reserve ging.
+
 ## 1.110.0 – 2026-11-18
 - **Losse relay-agent** (`rzmon-agent-relay`, RzSense 1.283.0): de relay draait nu ook zonder container, als eigen agent op een Linux-server met systemd. Hij draait als gebruiker `rzrelay`, niet als root, naast een gewone agent. Hij meldt dat hij een losse agent is, zodat RzSense hem bij de juiste server zet.
 - **Bijwerken van de losse relay-agent** met de knop in RzSense of automatisch: de agent zet alleen een verzoek neer, en een kleine root-dienst haalt de nieuwe versie op en installeert alleen als de handtekening van de ontwikkelaar klopt.

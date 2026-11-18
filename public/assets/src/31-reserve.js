@@ -1,9 +1,12 @@
 // ---------------------------------------------------------------- 🛟 Reserve-RzSense (1.286.0)
 // Instellingen → Systeem → Reserve-RzSense. Op de hoofdserver: koppelcode en de toestand van de reserve. Op een nieuwe
 // RzSense: koppelen als reserve. Op de reserve: wanneer de laatste kopieën binnenkwamen.
+// 1.287.0: het adres van de reserve voor de agents, en wanneer de reserve het werk overnam.
 
 const rsWhen = (dt) => (dt ? `${esc(fmtDateTime(dt))} <span class="muted">(${esc(ago(dt))})</span>` : `<span class="muted">${L('nog niet')}</span>`);
 const rsRow = (label, val) => `<div class="acct-field"><span class="acct-lbl">${label}</span><span class="acct-ctl">${val}</span></div>`;
+/** De perioden waarin de reserve het werk deed (1.287.0) */
+const rsPeriods = (list) => (list && list.length ? rsRow(L('Overgenomen'), list.slice(-5).reverse().map((x) => `${esc(fmtDateTime(x.from))} – ${esc(fmtDateTime(x.to))}${x.sent ? '' : ` <span class="muted">(${L('geschiedenis nog hier')})</span>`}`).join('<br>')) : '');
 
 async function loadReserveSet() {
   const box = $('#reserve-body');
@@ -32,11 +35,18 @@ function rsPrimary(d) {
   const st = d.status || {};
   const dl = st.dl && st.dl.size ? L('haalt nu de {k} op: {p}%', { k: st.dl.kind === 'full' ? L('volledige kopie') : L('kleine kopie'), p: Math.floor((st.dl.off / st.dl.size) * 100) }) : '';
   const late = !d.seen || Date.now() - new Date(d.seen.replace(' ', 'T')).getTime() > 5 * 60000;
-  return `${rsRow(L('Reserve'), `<b>${esc(d.reserve_url || '?')}</b> · RzSense ${esc(d.reserve_version || '?')}${d.reserve_version && d.reserve_version !== d.version ? ` <span class="warn-txt">(${L('hier {v}', { v: esc(d.version) })})</span>` : ''}`)}
+  const ag = d.agents || { ready: 0, old: 0 };
+  return `${st.state === 'active' ? `<p class="warn-txt"><b>🛟 ${L('De reserve doet nu het werk (sinds {t}).', { t: esc(fmtDateTime(st.active_since)) })}</b> ${L('Zodra hij deze server twee minuten achter elkaar bereikt, geeft hij het terug.')}</p>` : ''}
+    ${rsRow(L('Reserve'), `<b>${esc(d.reserve_url || '?')}</b> · RzSense ${esc(d.reserve_version || '?')}${d.reserve_version && d.reserve_version !== d.version ? ` <span class="warn-txt">(${L('hier {v}', { v: esc(d.version) })})</span>` : ''}`)}
     ${rsRow(L('Laatste contact'), `${late ? '⚠ ' : '✔ '}${rsWhen(d.seen)}`)}
+    ${rsRow(L('Adres voor de agents'), `<span class="rs-agent-url"><input id="rs-agent-url" type="url" spellcheck="false" value="${esc(d.agent_url)}" placeholder="${esc(d.reserve_url || 'https://reserve.voorbeeld.nl')}">
+      <button type="button" class="btn small-btn" id="rs-agent-save">${L('Opslaan')}</button></span>
+      <br><span class="muted small">${L('Leeg = het adres dat de reserve zelf meldt. Gebruik een adres met een geldig certificaat (bv. via SWAG).')}
+      ${L('{n} agent(s) kennen de reserve', { n: ag.ready })}${ag.old ? ' · <span class="warn-txt">' + L('{n} agent(s) eerst bijwerken (1.111.0 of nieuwer)', { n: ag.old }) + '</span>' : ''}</span>`)}
     ${rsRow(L('Kleine kopie (elke 15 min)'), d.snap ? `${rsWhen(d.snap.at)} · ${esc(fmtBytes(d.snap.size))}` : `<span class="muted">${L('nog niet')}</span>`)}
     ${rsRow(L('Volledige kopie (elke nacht)'), d.full ? `${rsWhen(d.full.at)} · ${esc(fmtBytes(d.full.size))}` : `<span class="muted">${L('nog niet')}</span>`)}
     ${rsRow(L('Bij de reserve'), `${L('kleine kopie van {a}', { a: st.snap_at ? esc(fmtDateTime(st.snap_at)) : L('nog geen') })} · ${L('volledige van {a}', { a: st.full_at ? esc(fmtDateTime(st.full_at)) : L('nog geen') })}${dl ? ' · ' + esc(dl) : ''}`)}
+    ${rsPeriods(st.periods)}
     ${d.build_error ? `<p class="form-error">${esc(d.build_error)}</p>` : ''}${st.apply_error ? `<p class="form-error">${L('Reserve')}: ${esc(st.apply_error)}</p>` : ''}
     <div class="btn-row"><button type="button" class="btn" id="rs-now">📦 ${L('Nu een kleine kopie maken')}</button>
       <button type="button" class="btn" id="rs-code">🔑 ${L('Nieuwe koppelcode')}</button>
@@ -45,11 +55,13 @@ function rsPrimary(d) {
 
 function rsReserve(d) {
   const dl = d.dl && d.dl.size ? `${d.dl.kind === 'full' ? L('volledige kopie') : L('kleine kopie')}: ${Math.floor((d.dl.off / d.dl.size) * 100)}% (${esc(fmtBytes(d.dl.off))} / ${esc(fmtBytes(d.dl.size))})` : '';
-  return `${rsRow(L('Hoofdserver'), `<b>${esc(d.primary_url)}</b> · RzSense ${esc(d.primary_version || '?')}`)}
+  return `${d.state === 'active' ? `<p class="warn-txt"><b>🛟 ${L('Deze reserve doet nu het werk van de hoofdserver (sinds {t}).', { t: esc(fmtDateTime(d.active_since)) })}</b> ${L('Checks en meldingen lopen hier. Is de hoofdserver twee minuten achter elkaar bereikbaar, dan geeft de reserve het terug.')}</p>` : ''}
+    ${rsRow(L('Hoofdserver'), `<b>${esc(d.primary_url)}</b> · RzSense ${esc(d.primary_version || '?')}`)}
     ${rsRow(L('Laatste contact'), `${d.down_since ? '⚠ ' : '✔ '}${rsWhen(d.primary_seen)}${d.down_since ? ` · <span class="warn-txt">${L('onbereikbaar sinds {t}', { t: esc(fmtDateTime(d.down_since)) })}</span>` : ''}`)}
     ${rsRow(L('Kleine kopie'), `${d.snap_at ? esc(fmtDateTime(d.snap_at)) : `<span class="muted">${L('nog niet')}</span>`}${d.snap_applied ? ` · ${L('teruggezet {t}', { t: esc(ago(d.snap_applied)) })}` : ''}`)}
     ${rsRow(L('Volledige kopie'), `${d.full_at ? esc(fmtDateTime(d.full_at)) : `<span class="muted">${L('nog niet')}</span>`}${d.full_applied ? ` · ${L('teruggezet {t}', { t: esc(ago(d.full_applied)) })}` : ''}`)}
     ${dl ? rsRow(L('Bezig'), esc(dl)) : ''}
+    ${rsPeriods(d.periods)}${d.hold_full ? `<p class="muted small">${L('Volledige kopieën worden niet teruggezet zolang de geschiedenis van een overname alleen hier staat.')}</p>` : ''}
     ${d.error ? `<p class="form-error">${esc(d.error)}</p>` : ''}${d.apply_error ? `<p class="form-error">${esc(d.apply_error)}</p>` : ''}
     <div class="btn-row"><button type="button" class="btn" id="rs-now">↻ ${L('Nu bijwerken')}</button>
       <button type="button" class="btn danger" id="rs-unpair">✕ ${L('Ontkoppelen')}</button></div>`;
@@ -77,6 +89,11 @@ function rsEvents(box, d) {
     pair.disabled = true;
     try { await api('reserve_pair', { url, code: c, confirm: pw }); toast(L('Gekoppeld: de eerste kopie komt binnen een paar minuten')); } catch (ex) { toast(ex.message, 'err'); }
     pair.disabled = false;
+    loadReserveSet();
+  };
+  const asv = $('#rs-agent-save', box);
+  if (asv) asv.onclick = async () => {
+    try { await api('reserve_agent_url', { url: $('#rs-agent-url', box).value.trim() }); toast(L('Opgeslagen: de agents krijgen het adres bij hun volgende rapport')); } catch (ex) { toast(ex.message, 'err'); }
     loadReserveSet();
   };
   const now = $('#rs-now', box);

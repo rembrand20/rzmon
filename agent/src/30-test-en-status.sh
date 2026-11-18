@@ -286,7 +286,7 @@ if [ "${STATUS-0}" = 1 ]; then
         else
             sl "Laatste rapport:" "✘ $(dt "$l_t") ($(ago_s "$l_t")): $(st_get error)"
         fi
-        sl "Verstuurd:" "$(kb "$(st_get bytes)") ($( [ "$(st_get enc)" = 1 ] && echo "🔒 versleuteld $(kb "$(st_get sent)")" || echo "⚠️ onversleuteld")), via $( [ "$(st_get via)" = fallback ] && echo "⚠️ het reserve-adres" || echo "het gewone adres")"
+        sl "Verstuurd:" "$(kb "$(st_get bytes)") ($( [ "$(st_get enc)" = 1 ] && echo "🔒 versleuteld $(kb "$(st_get sent)")" || echo "⚠️ onversleuteld")), via $(case "$(st_get via)" in fallback) echo "⚠️ het reserve-adres" ;; reserve) echo "🛟 de reserve-RzSense" ;; *) echo "het gewone adres" ;; esac)"
         rv=$(st_get received | tr -d '"' | tr ',' '\n' | awk -F: '{ n = $1; sub(/^disks$/, "disks", n); sub(/^ports$/, "poorten", n); sub(/^certs$/, "certificaten", n)
             printf "%s%s %s", (NR > 1 ? ", " : ""), $2, n }')
         [ -n "$rv" ] && sl "RzSense ontving:" "$rv"
@@ -310,7 +310,7 @@ if [ "${STATUS-0}" = 1 ]; then
         echo "  Laatste contacten:"
         tail -n 10 "$st_dir/history" | tac 2>/dev/null | while IFS=$'\t' read -r h_t h_rc h_c h_ms h_b h_e h_v; do
             printf '    %s  %s  %6s ms  %9s  %s%s\n' "$(dt "$h_t")" "$( [ "$h_rc" = 0 ] && echo "✔ $h_c" || echo "✘ ${h_c:-curl $h_rc}")" "$h_ms" "$(kb "$h_b")" \
-                "$( [ "$h_e" = 1 ] && echo 🔒 || echo ⚠️)" "$( [ "$h_v" = fallback ] && echo ' via reserve-adres')"
+                "$( [ "$h_e" = 1 ] && echo 🔒 || echo ⚠️)" "$(case "$h_v" in fallback) echo ' via reserve-adres' ;; reserve) echo ' via reserve-RzSense' ;; esac)"
         done
     fi
     if [ -s "$st_dir/errors" ]; then

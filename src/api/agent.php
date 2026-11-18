@@ -19,6 +19,10 @@ if ($action === 'ping') {
     out(['ok' => true, 'app' => 'RzMon', 'agent_version' => AGENT_LATEST, 'version' => RZMON_VERSION, 'configured' => is_configured(), 'time' => date('c')]);
 }
 // 1.139.0: handtekening (ed25519, base64) van de agent en het installatiescript, gemaakt in GitHub; de agent controleert hem
+// 1.287.0: een reserve in stand-by neemt alleen na een geldig rapport het werk over; al het andere: 503
+if (str_starts_with($action, 'agent') && is_configured()) {
+    Reserve::gate($action);
+}
 if ($action === 'agent_script_sig' || $action === 'agent_install_sig') {
     if (!Stealth::scriptAllowed()) {
         Stealth::notFound();
@@ -164,6 +168,7 @@ if ($action === 'agent_logs') {
 if ($action === 'agent') {
     $host = agent_host();
     $encrypted = agent_body($host);
+    Reserve::agentArrived($encrypted);   // 1.287.0: op een reserve: overnemen, of 503
     $in = input();
     if (!$in) {
         // Agent 1.20.0–1.20.3 zette servicenamen als systemd-fsck@dev-disk-by\x2duuid… ongewijzigd in de JSON.
@@ -577,8 +582,11 @@ if ($action === 'agent') {
         error_log('RzSense: update-aankondiging: ' . $e->getMessage());
     }
     $resp += agent_enc_fields($host, $agentVersion);
-    if ($u = agent_url_report($host, $in, $agentVersion, $encrypted)) {
+    if (!Reserve::active() && ($u = agent_url_report($host, $in, $agentVersion, $encrypted))) {   // 1.287.0: een actieve reserve verandert geen adressen
         $resp['url_set'] = $u;
+    }
+    if ($encrypted && ($rf = Reserve::agentField($agentVersion)) !== null) {
+        $resp['reserve'] = $rf;   // 1.287.0 (agent 1.111.0): het adres van de reserve-RzSense
     }
     // Verbindingscontrole (1.100.0): instellingen op de server, SERVICES omzetten, ⚠️/✅ bij een wisseling; de uitkomst
     // gaat mee terug voor rzmon-agent-setup --status

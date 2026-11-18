@@ -34,6 +34,13 @@ switch ($action) {
         }
         out(['ok' => true] + Reserve::overview());
 
+    case 'reserve_agent_url':
+        // 1.287.0: het adres waarop de agents de reserve bereiken
+        if ($err = Reserve::setAgentUrl((string) (input()['url'] ?? ''))) {
+            out(['error' => $err], 422);
+        }
+        out(['ok' => true]);
+
     case 'reserve_unpair':
         $confirm('ONTKOPPELEN');
         Reserve::unpair();

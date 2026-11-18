@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.287.0**: de **reserve-RzSense neemt het werk over** als de hoofdserver 5 minuten weg is en de agents bij hem aankloppen, met een melding, en geeft het vanzelf terug.
 - **1.286.0**: **reserve-RzSense**: een tweede RzSense (bv. een container op een andere machine) houdt versleuteld een kopie bij van je hoofdserver: elke 15 minuten klein, elke nacht volledig.
 - **1.285.0**: **Web Push**: meldingen rechtstreeks op je iPhone, Android of computer, zonder extra app, versleuteld tot op je apparaat en met een knop om te bevestigen.
 - **1.284.0**: meldingen ook naar **Discord, Slack en Microsoft Teams**, met kleur per status, een knop om te bevestigen en een eigen filter per kanaal.
 - **1.283.0**: **relay als losse agent** (`rzmon-agent-relay`) naast de container: niet als root, bij de server getoond en bij te werken met de knop, ondertekend.
-- **1.282.0**: **netwerken en relays**: servers in een netwerk zonder verbinding met RzSense rapporteren via een relay-container, versleuteld van agent tot RzSense, met één melding als de relay wegvalt.
+
+## 1.287.0 – 2026-11-18
+### Nieuw
+- **Reserve-RzSense neemt het werk over** (stap 2 van 3; agent 1.111.0 nodig). Zie HANDLEIDING hoofdstuk 13, *Overnemen en teruggeven*.
+  - De hoofdserver geeft zijn agents het adres van de reserve mee, versleuteld. Op de pagina kies je zelf een adres (bv. via SWAG) en zie je hoeveel agents het al kennen.
+  - Een agent die de hoofdserver en zijn gewone reserve-adres niet bereikt, probeert de reserve.
+  - De reserve **neemt over** als de hoofdserver voor hem zelf al 5 minuten weg is én er een echt, versleuteld rapport van een bekende agent binnenkomt. Ziet hij de hoofdserver nog, dan zegt hij "later" en houdt de agent zijn metingen vast. Zo werken er nooit twee tegelijk.
+  - **Meldingen** via je eigen kanalen: *🛟 Reserve-RzSense heeft het werk overgenomen* en *✅ Hoofdserver is terug*.
+  - **Teruggeven** gaat vanzelf: bereikt de reserve de hoofdserver twee minuten achter elkaar, dan gaat hij terug naar stand-by en gaan de agents terug.
+  - Een actieve reserve verandert niets aan de agents: geen nieuwe sleutels, adressen, vingerafdrukken of updates.
+  - De periode van een overname staat op beide pagina's. Tot de geschiedenis daarvan terug is bij de hoofdserver (volgende versie), zet de reserve geen volledige kopie terug.
+- Nieuwe agent 1.111.0 (kent het adres van de reserve).
 
 ## 1.286.1 – 2026-11-18
 ### Opgelost

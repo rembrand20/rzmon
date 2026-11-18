@@ -133,11 +133,27 @@ MONITOR_URL_FALLBACK=${MONITOR_URL_FALLBACK%/}
 [ "$MONITOR_URL_FALLBACK" = "$MONITOR_URL" ] && MONITOR_URL_FALLBACK=""
 url_result=$(head -c 500 "$k_dir/url.result" 2>/dev/null | tr -d '\n')
 
+spec_re='^(-|sha256//[A-Za-z0-9+/=]{40,64}(;sha256//[A-Za-z0-9+/=]{40,64})?)$'
+# Reserve-RzSense (agent 1.111.0, RzSense 1.287.0): een tweede RzSense die het werk overneemt als de hoofdserver wegvalt.
+# Alleen RzSense zet dit adres (uit een versleuteld antwoord), in $k_dir/reserve: "adres controle". De agent probeert het
+# pas als het gewone adres en het reserve-adres allebei niet bereikbaar zijn, en alleen versleuteld met zijn eigen sleutel.
+MONITOR_URL_RESERVE=""; reserve_spec=""
+if [ -r "$k_dir/reserve" ]; then read -r MONITOR_URL_RESERVE reserve_spec _ <"$k_dir/reserve" || true; fi
+[[ "$MONITOR_URL_RESERVE" =~ ^https?://[^[:space:]\"]+$ ]] || MONITOR_URL_RESERVE=""
+[[ "$reserve_spec" =~ $spec_re ]] || reserve_spec=""
+MONITOR_URL_RESERVE=${MONITOR_URL_RESERVE%/}
+if [ "$MONITOR_URL_RESERVE" = "$MONITOR_URL" ] || [ "$MONITOR_URL_RESERVE" = "$MONITOR_URL_FALLBACK" ]; then MONITOR_URL_RESERVE=""; fi
+reserve_put() {  # reserve_put <adres> <controle>: bewaren; leeg adres = weghalen
+    local u=${1%/} s=$2
+    if [ -z "$u" ]; then rm -f "$k_dir/reserve"; return 0; fi
+    [[ "$u" =~ ^https?://[^[:space:]\"]+$ ]] && [[ "$s" =~ $spec_re ]] || return 0
+    [ "$(cat "$k_dir/reserve" 2>/dev/null)" = "$u $s" ] || (umask 077; printf '%s %s\n' "$u" "$s" >"$k_dir/reserve.tmp" && mv -f "$k_dir/reserve.tmp" "$k_dir/reserve")
+}
+
 # Controle per adres (agent 1.53.0, RzSense 1.78.0): in $k_dir/url.pins staat per adres hoe het certificaat gecontroleerd
 # wordt: "-" = gewoon (geldig certificaat, of http), "sha256//…" = alleen het eigen certificaat van RzSense (vastzetten;
 # met een klaargezet nieuw certificaat twee vingerafdrukken, "sha256//A;sha256//B"). RzSense geeft dit door in elk
 # versleuteld antwoord. Geen regel voor een adres: zoals vroeger (de vingerafdruk uit $k_dir/pin, of INSECURE).
-spec_re='^(-|sha256//[A-Za-z0-9+/=]{40,64}(;sha256//[A-Za-z0-9+/=]{40,64})?)$'
 url_spec() { [ -n "$1" ] && [ -r "$k_dir/url.pins" ] && awk -v u="$1" '$1 == u { print $2; exit }' "$k_dir/url.pins"; }
 url_pins_put() {  # url_pins_put <adres> <controle> […]: deze adressen bijwerken, de andere bewaren (hooguit 6)
     local f="$k_dir/url.pins" keep="" add="" a
