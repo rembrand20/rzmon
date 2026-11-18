@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.282.0**: **netwerken en relays**: servers in een netwerk zonder verbinding met RzSense rapporteren via een relay-container, versleuteld van agent tot RzSense, met één melding als de relay wegvalt.
 - **1.281.0**: **RzSense als container** (Podman op Rocky), met een eigen MariaDB-container, de nooddeur op poort 8443 en een melding in de app bij een nieuwe versie.
 
+## 1.285.1 – 2026-11-18
+### Opgelost
+- De automatische codecontrole (PHPStan) staat nu op **niveau 6**. Op dat niveau moet de code ook beschrijven wat er in een lijst zit (bijvoorbeeld "een lijst met getallen"). De 1792 bestaande plekken staan in de baseline en werken we in stukjes weg; nieuwe code moet het meteen goed doen. Voor jou verandert er niets.
+
 ## 1.285.0 – 2026-11-18
 ### Nieuw
 - **Web Push**: meldingen rechtstreeks op je telefoon, tablet of computer, zonder Pushover of ntfy. Zie HANDLEIDING 6.1d.

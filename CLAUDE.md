@@ -39,7 +39,7 @@ RzMon en de agent hebben **elk een eigen versienummer**. Verhoog alleen het numm
 - Nieuwe databasekolommen gaan via `Installer::COLUMNS` (`src/Installer.php`), niet met `ADD COLUMN IF NOT EXISTS` (dat werkt niet op MySQL). Nieuwe tabellen gaan in `install/schema.sql` met `CREATE TABLE IF NOT EXISTS`. De database wordt automatisch bijgewerkt zodra `VERSION` (van RzMon) verandert; een wijziging aan de database vraagt dus altijd een nieuwe RzMon-versie.
 - `config.php` bevat wachtwoorden en wordt nooit gecommit (`.gitignore`). `tools/check-secrets.sh` (ook in CI) zoekt naar geheimen in de repo.
 - Geen inline scripts of `onclick=` e.d.: de Content-Security-Policy blokkeert ze. Een eigen inline `<script>` krijgt `nonce="<?= csp_nonce() ?>"`.
-- PHPStan draait in CI op niveau 4 met `phpstan-baseline.neon`. Los je iets uit de baseline op, maak hem dan opnieuw met de workflow *PHPStan-baseline maken* (het log bevat de nieuwe baseline).
+- PHPStan draait in CI op niveau 6 met `phpstan-baseline.neon` (de oude meldingen van niveau 6; nieuwe code moet de typen van arrays aangeven, bv. `@param array<string, mixed> $x`). Los je iets uit de baseline op, maak hem dan opnieuw met de workflow *PHPStan-baseline maken* (het log bevat de nieuwe baseline).
 - Licentie: GPL-3.0 (`LICENSE`).
 - Controleer voor een commit:
   - `php -l` op de PHP-bestanden;
