@@ -766,7 +766,7 @@ const SET_NAV = [
     ['internet', L('Internetcheck'), ['internet'], L('Snelheid, ping en responstijd van je internetlijn.')],
     ['logs', L('Logs verzamelen'), ['logs'], L('Logs van je servers verzamelen: hoe vaak, hoe lang bewaren, hoeveel, maskeren en wat er binnenkomt.')]]],
   ['meldingen', SET_IC('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'), L('Meldingen en rapporten'), [
-    ['channels', L('Kanalen'), ['pushover', 'ntfy', 'email', 'webhook', 'chat', 'chain'], L('Waar meldingen heen gaan: Pushover, ntfy, e-mail, webhooks, Discord, Slack en Teams.')],
+    ['channels', L('Kanalen'), ['pushover', 'ntfy', 'webpush', 'email', 'webhook', 'chat', 'chain'], L('Waar meldingen heen gaan: Pushover, ntfy, Web Push, e-mail, webhooks, Discord, Slack en Teams.')],
     ['rules', L('Wanneer melden'), ['confirm', 'notify', 'alarm', 'quiet'], L('Wanneer een probleem een melding wordt, en wanneer het stil moet zijn.'),
       [['wanneer', L('Wanneer melden'), ['confirm', 'notify', 'alarm']], ['stil', L('Stille uren'), ['quiet']]]],
     ['idspush', L('IDS-pushmeldingen'), ['idspush'], L('Wanneer een aanval je telefoon laat trillen, en de dagelijkse samenvatting.')],
@@ -1403,6 +1403,7 @@ async function loadAccount() {
     } catch (ex) { toast(ex.message, 'err'); }
   };
   loadAccountOutside();
+  wpAccount();   // 1.285.0
   $('#acct-logins-body').innerHTML = logins.length ? `<div class="table-scroll"><table class="vuln-table"><thead><tr><th>${L('Wanneer')}</th><th>IP</th><th>${L('Hoe')}</th><th>${L('Apparaat')}</th></tr></thead><tbody>
     ${logins.map((x) => `<tr class="${+x.ok ? '' : 'bad-row'}"><td class="small">${esc(fmtDateTime(x.created_at))}</td><td class="mono small">${esc(x.ip)}</td>
       <td class="small">${+x.ok ? esc(L(x.how)) : `<span class="bad">✘ ${esc(L(x.how))}</span>`}</td><td class="small">${esc(x.device || '–')}</td></tr>`).join('')}</tbody></table></div>`
@@ -1649,9 +1650,11 @@ async function loadSettings() {
   });
   const parse = (v) => { try { return JSON.parse(v || '{}') || {}; } catch (e) { return {}; } };
   notifyGlobal = notifyEditor($('#notify-editor'), { rules: parse(s.notify_rules), channels: parse(s.notify_channels), flap: parse(s.notify_flap) },
-    { push_enabled: s.pushover_enabled === '1' || s.ntfy_enabled === '1', email_enabled: s.email_enabled === '1', ha_webhook_enabled: s.ha_webhook_enabled === '1' });
+    { push_enabled: s.pushover_enabled === '1' || s.ntfy_enabled === '1' || s.webpush_active === '1', email_enabled: s.email_enabled === '1', ha_webhook_enabled: s.ha_webhook_enabled === '1' });
   sysinfoCfg = parse(s.sysinfo);
+  wpActive = s.webpush_active === '1';
   renderSysinfo();
+  wpAdmin();   // 1.285.0
   vulnExcludeEditor();
   $('#vuln-enabled').checked = s.vuln_enabled === '1';
   $('#ids-enabled').checked = s.ids_enabled === '1';
@@ -2001,11 +2004,12 @@ const SYSINFO_ROWS = [
 const SYSINFO_CH = [['pushover', '📲 Push', 'push'], ['email', '📧 ' + L('E-mail'), 'email_enabled'], ['webhook', '🏠 Home Assistant', 'ha_webhook_enabled'], ['page', '📄 ' + L('Meldingenpagina'), null]];
 let sysinfoCfg = null;
 
+let wpActive = false;   // 1.285.0: er zijn apparaten aangemeld voor Web Push
 function renderSysinfo() {
   const t = $('#sysinfo');
   if (!t || !sysinfoCfg) return;
   const f = $('#settings-form');
-  const off = (k) => (k === 'push' ? !f.pushover_enabled.checked && !f.ntfy_enabled.checked : k && f[k] && !f[k].checked);   // kanaal staat helemaal uit
+  const off = (k) => (k === 'push' ? !f.pushover_enabled.checked && !f.ntfy_enabled.checked && !(wpActive && f.webpush_enabled && f.webpush_enabled.checked) : k && f[k] && !f[k].checked);   // kanaal staat helemaal uit
   t.innerHTML = `<thead><tr><th>${L('Melding')}</th>${SYSINFO_CH.map(([, l, k]) => `<th class="si-ch">${l}${off(k) ? ` <span class="muted small">(${L('uit')})</span>` : ''}</th>`).join('')}
     <th>${L('Push-geluid')}</th><th></th></tr></thead><tbody>
     ${SYSINFO_ROWS.map(([group, rows]) => `<tr class="si-group"><td colspan="7">${esc(group)}</td></tr>` + rows.map(([k, label]) => {
@@ -2046,7 +2050,7 @@ function initSysinfo() {
     b.disabled = false;
   });
   // Kanaal aan/uit (Pushover, ntfy, e-mail, webhook): "(uit)" in de kop bijwerken
-  ['pushover_enabled', 'ntfy_enabled', 'email_enabled', 'ha_webhook_enabled'].forEach((k) => $('#settings-form')[k] && $('#settings-form')[k].addEventListener('change', renderSysinfo));
+  ['pushover_enabled', 'ntfy_enabled', 'webpush_enabled', 'email_enabled', 'ha_webhook_enabled'].forEach((k) => $('#settings-form')[k] && $('#settings-form')[k].addEventListener('change', renderSysinfo));
 }
 
 function settingsData() {
@@ -2841,7 +2845,7 @@ function initSystemTools() {
       $('#chain-out').innerHTML = `<p class="muted">${L('Bezig…')}</p>`;
       try {
         const r = (await api('chain_test', {})).channels;
-        const names = { pushover: '📲 Pushover', ntfy: '📣 ntfy', email: '📧 ' + L('E-mail'), webhook: '🏠 ' + L('Home Assistant-webhook'), mqtt: '📡 MQTT', page: '📄 ' + L('Meldingenpagina') };
+        const names = { pushover: '📲 Pushover', ntfy: '📣 ntfy', webpush: '📱 Web Push', email: '📧 ' + L('E-mail'), webhook: '🏠 ' + L('Home Assistant-webhook'), chat: '💬 Discord/Slack/Teams', mqtt: '📡 MQTT', page: '📄 ' + L('Meldingenpagina') };
         $('#chain-out').innerHTML = `<ul class="checklist" style="margin-top:.8rem">${Object.entries(names).map(([k, l]) => {
           const c = r[k];
           return `<li class="${c === null ? 'warn' : c.ok ? 'ok' : 'bad'}"><span class="ic">${c === null ? '–' : c.ok ? '✓' : '✕'}</span><span><strong>${esc(l)}</strong><br>

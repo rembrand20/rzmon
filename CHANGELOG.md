@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.285.0**: **Web Push**: meldingen rechtstreeks op je iPhone, Android of computer, zonder extra app, versleuteld tot op je apparaat en met een knop om te bevestigen.
 - **1.284.0**: meldingen ook naar **Discord, Slack en Microsoft Teams**, met kleur per status, een knop om te bevestigen en een eigen filter per kanaal.
 - **1.283.0**: **relay als losse agent** (`rzmon-agent-relay`) naast de container: niet als root, bij de server getoond en bij te werken met de knop, ondertekend.
 - **1.282.0**: **netwerken en relays**: servers in een netwerk zonder verbinding met RzSense rapporteren via een relay-container, versleuteld van agent tot RzSense, met één melding als de relay wegvalt.
 - **1.281.0**: **RzSense als container** (Podman op Rocky), met een eigen MariaDB-container, de nooddeur op poort 8443 en een melding in de app bij een nieuwe versie.
-- **1.280.0**: **back-upmap zelf kiezen**, ook op een NAS (NFS) met controle of hij gekoppeld is, en back-ups worden weer netjes opgeruimd.
+
+## 1.285.0 – 2026-11-18
+### Nieuw
+- **Web Push**: meldingen rechtstreeks op je telefoon, tablet of computer, zonder Pushover of ntfy. Zie HANDLEIDING 6.1d.
+  - **Aanmelden** doet elke gebruiker zelf: *👤 Mijn account → Meldingen op dit apparaat*. Op een iPhone of iPad (iOS 16.4+) zet je RzSense eerst op het beginscherm en meld je je daar aan.
+  - Hoort bij het kanaal **📲 Push** (naast Pushover en ntfy), dus meldregels, stille uren en prioriteit gelden ook hier. Bij een storing staat er een knop **✔ Bevestigen** onder de melding; *stil* geeft een melding zonder geluid, *emergency* een melding die blijft staan.
+  - Beheerders zien alle apparaten bij *Instellingen → Kanalen → Web Push*, met test, verwijderen en een hoofdschakelaar. *Meldketen testen* test Web Push (en Discord/Slack/Teams) nu ook.
+  - **Veilig:** versleuteld van RzSense tot je apparaat (RFC 8291) en ondertekend met een eigen sleutel (VAPID). RzSense stuurt alleen naar de pushdiensten van Google, Apple, Mozilla en Microsoft, met een gecontroleerd certificaat. Er gaat geen e-mailadres of domein van jou mee. De geheime sleutel en de adressen van de apparaten gaan nooit naar de browser.
+  - Een afgemeld of verlopen apparaat haalt RzSense vanzelf van de lijst.
+  - **Nodig:** RzSense via https met een echt certificaat (bijvoorbeeld via SWAG).
 
 ## 1.284.3 – 2026-11-18
 ### Opgelost

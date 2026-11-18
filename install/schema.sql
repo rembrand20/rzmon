@@ -1799,3 +1799,24 @@ INSERT IGNORE INTO settings (name, value) VALUES
     ('chat_discord_on', '0'), ('chat_discord_url', ''), ('chat_discord_min', 'warn'), ('chat_discord_recovery', '1'), ('chat_discord_info', '0'), ('chat_discord_ids', '0'),
     ('chat_slack_on', '0'), ('chat_slack_url', ''), ('chat_slack_min', 'warn'), ('chat_slack_recovery', '1'), ('chat_slack_info', '0'), ('chat_slack_ids', '0'),
     ('chat_teams_on', '0'), ('chat_teams_url', ''), ('chat_teams_min', 'warn'), ('chat_teams_recovery', '1'), ('chat_teams_info', '0'), ('chat_teams_ids', '0');
+
+-- 1.285.0: Web Push. Eén rij per aangemeld apparaat (browser) van een gebruiker. endpoint = het adres bij de pushdienst
+-- van dat apparaat (Google, Apple, Mozilla, Microsoft); p256dh en auth = de sleutels van het apparaat (base64url).
+CREATE TABLE IF NOT EXISTS webpush_subs (
+    id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id       INT UNSIGNED  NOT NULL,
+    endpoint      VARCHAR(1000) NOT NULL,
+    ep_hash       CHAR(64)      NOT NULL,
+    p256dh        VARCHAR(128)  NOT NULL,
+    auth          VARCHAR(64)   NOT NULL,
+    name          VARCHAR(100)  NOT NULL DEFAULT '',
+    created_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_ok       DATETIME      NULL,
+    last_error    VARCHAR(250)  NULL,
+    last_error_at DATETIME      NULL,
+    fails         INT UNSIGNED  NOT NULL DEFAULT 0,
+    UNIQUE KEY uq_wp_ep (ep_hash),
+    KEY idx_wp_user (user_id),
+    CONSTRAINT fk_wp_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('webpush_enabled', '1');

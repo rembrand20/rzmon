@@ -671,7 +671,7 @@ Is de zijbalk ingeklapt tot iconen, of is het scherm smaller, dan blijft het zoa
 - **Instellingen** (alleen beheerders): links een **zijbalk** met de groepen (vanaf 1.92.0):
   - **✅ Overzicht**: Hoe staat het ervoor? · Verbindingen en taken;
   - **🧩 Checks**: Sjablonen · Alle checks · Opschoonadvies (vanaf 1.94.0);
-  - **🔔 Meldingen**: Kanalen (Pushover, ntfy, e-mail, Home Assistant-webhook, Discord, Slack en Teams) · Meldregels en stille uren · Alarmgedrag · Systeeminfo;
+  - **🔔 Meldingen**: Kanalen (Pushover, ntfy, Web Push, e-mail, Home Assistant-webhook, Discord, Slack en Teams) · Meldregels en stille uren · Alarmgedrag · Systeeminfo;
   - **🛡️ Beveiliging**: IDS: detectie · IDS: aanvallers en verkeer · IDS: servers · Kwetsbaarheden · Datalekken;
   - **🔐 Toegang**: Inloggen · Van buiten (https, onzichtbaar van buiten, apparaten en passkeys) · Gebruikers;
   - **🖥️ Agents**: Agents (één tabel met alle agents, bijwerken, ritme, laatste en volgende contact) · Beveiligde verbinding · Commando-checks;
@@ -1113,6 +1113,31 @@ Meldingen kunnen ook als bericht in een chatkanaal van je team komen. Elk berich
 **Wanneer?** Een chatkanaal volgt de keuze voor **📲 Push** in de meldregels (6.2): stille uren, *🔕 altijd stil*, melden na N keer, flappen, escaleren en bundelen gelden dus ook hier. Het filter hierboven komt daar nog bij. In het meldingenoverzicht zie je bij elke melding een **💬** als hij naar een chatkanaal ging (of rood als dat mislukte).
 
 **Veilig:** de webhook-URL is een geheim. Wie hem kent, kan in je kanaal schrijven. Hij blijft daarom in RzSense en gaat nooit naar de browser. RzSense stuurt alleen naar de echte adressen van de dienst (`discord.com`, `hooks.slack.com`, `*.logic.azure.com`, `*.powerplatform.com`, `*.webhook.office.com`), via https met een gecontroleerd certificaat, en volgt geen doorverwijzingen. In Discord werken `@everyone` en `@rollen` uit de tekst van een melding nooit.
+
+### 6.1d Web Push: meldingen op je telefoon zonder extra app 📱 (vanaf 1.285.0)
+Met Web Push komen de meldingen van RzSense rechtstreeks op je telefoon, tablet of computer. Je hebt er geen Pushover of ntfy voor nodig.
+
+**Nodig:** RzSense via **https met een echt certificaat**, bijvoorbeeld via SWAG. Via `http://` of met een eigen (self-signed) certificaat staat een browser Web Push niet toe.
+
+**Aanmelden** (elke gebruiker doet dit zelf, per apparaat):
+- **Android, Windows, Mac, Linux:** open RzSense in Chrome, Edge of Firefox → **👤 Mijn account → Meldingen op dit apparaat** → **🔔 Meldingen op dit apparaat aanzetten** → *Toestaan*.
+- **iPhone en iPad** (iOS/iPadOS 16.4 of nieuwer): open RzSense in Safari → **Deel (□↑) → Zet op beginscherm**. Open RzSense daarna **vanaf het beginscherm**, en meld je daar aan zoals hierboven. In Safari zelf kan het niet; dat is een regel van Apple.
+- Klik daarna op **🧪 Test** bij je apparaat.
+
+**Wat je krijgt:** de meldingen van het kanaal **📲 Push**. De meldregels (6.2), stille uren en prioriteit gelden dus ook hier. Bij een storing staat er een knop **✔ Bevestigen** onder de melding (op Android en computers; op een iPhone tik je op de melding en bevestig je op de pagina die opent). Prioriteit *stil* geeft een melding zonder geluid. *Emergency* geeft een melding die blijft staan tot je hem wegtikt.
+
+**Beheer:** bij **Instellingen → Meldingen en rapporten → Kanalen → Web Push** zie je alle apparaten van alle gebruikers, met **🧪 Test** en **✕ Verwijderen**. Daar staat ook de hoofdschakelaar. Bij *Meldketen testen* staat Web Push er nu bij.
+
+**Veilig:**
+- Elk bericht is **versleuteld van RzSense tot je apparaat** (RFC 8291). Google, Apple, Mozilla of Microsoft bezorgen het, maar kunnen het niet lezen.
+- RzSense ondertekent elk bericht met een eigen sleutel (VAPID). De geheime helft blijft in RzSense.
+- RzSense stuurt alleen naar de pushdiensten van Google, Apple, Mozilla en Microsoft, via https met een gecontroleerd certificaat.
+- Er gaat geen e-mailadres en geen domein van jou mee.
+
+**Goed om te weten:**
+- Een apparaat dat zich afmeldt of de app verwijdert, haalt RzSense vanzelf van de lijst.
+- Herstel je een back-up op een nieuwe server, of krijgt RzSense een nieuwe sleutel? Meld je apparaten dan opnieuw aan. De lijst toont *HTTP 403* bij zo'n apparaat.
+- Gebruik je *Van buiten alleen op toegestane apparaten*? Zet je telefoon daar dan ook op, anders werkt de bevestig-knop onderweg niet.
 
 ### 6.2 Meldingen 🔔
 In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waarheen** een melding gaat:

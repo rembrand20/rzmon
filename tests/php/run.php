@@ -3779,5 +3779,74 @@ foreach (['min' => 'warn', 'recovery' => '1', 'info' => '0', 'ids' => '0'] as $k
     save_setting("chat_discord_$k", $v);
 }
 
+section('Web Push (1.285.0)');
+ok(WebPush::validEndpoint('https://fcm.googleapis.com/fcm/send/abc') && WebPush::validEndpoint('https://web.push.apple.com/QGx')
+    && WebPush::validEndpoint('https://updates.push.services.mozilla.com/wpush/v2/x') && WebPush::validEndpoint('https://wns2-db5p.notify.windows.com/w/?token=x'),
+    'webpush: adressen van Google, Apple, Mozilla en Microsoft');
+ok(!WebPush::validEndpoint('http://fcm.googleapis.com/fcm/send/abc') && !WebPush::validEndpoint('https://push.apple.com.evil.nl/x')
+    && !WebPush::validEndpoint('https://127.0.0.1/x') && !WebPush::validEndpoint('https://fcm.googleapis.com:8443/x') && !WebPush::validEndpoint('https://u:p@fcm.googleapis.com/x')
+    && !WebPush::validEndpoint('https://evil.example/fcm.googleapis.com'), 'webpush: geen http, eigen server, poort of inlog (het adres komt uit de browser)');
+// RFC 8291, bijlage A: precies dezelfde versleutelde tekst
+$wb = fn($x) => WebPush::unb64u($x);
+// de sleutel van de afzender uit de testvector (openbaar, uit de RFC), rechtstreeks uit het getal d
+$asKeyV = openssl_pkey_new(['ec' => ['curve_name' => 'prime256v1', 'd' => $wb('yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw')]]);
+ok($asKeyV !== false && WebPush::b64u(WebPush::rawPublic($asKeyV)) === 'BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8', 'webpush: sleutel uit de testvector');
+$encV = WebPush::encrypt('When I grow up, I want to be a watermelon', $wb('BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4'),
+    $wb('BTBZMqHH6r4Tts7J_aSIgg'), $asKeyV, $wb('DGv6ra1nlYgDCS1FRnbzlw'));
+ok(WebPush::b64u($encV) === 'DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN',
+    'webpush: versleuteling gelijk aan RFC 8291 (testvector)');
+// Zelf ontsleutelen zoals de browser
+$uaK = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'prime256v1']);
+$uaPub = WebPush::rawPublic($uaK);
+$uaAuth = random_bytes(16);
+$enc = WebPush::encrypt('{"t":"💾 vol"}', $uaPub, $uaAuth);
+$asP = substr($enc, 21, 65);
+$ikmT = hash_hkdf('sha256', (string) openssl_pkey_derive(WebPush::publicFromRaw($asP), $uaK, 32), 32, "WebPush: info\0" . $uaPub . $asP, $uaAuth);
+$ctT = substr($enc, 86);
+$ptT = openssl_decrypt(substr($ctT, 0, -16), 'aes-128-gcm', hash_hkdf('sha256', $ikmT, 16, "Content-Encoding: aes128gcm\0", substr($enc, 0, 16)), OPENSSL_RAW_DATA,
+    hash_hkdf('sha256', $ikmT, 12, "Content-Encoding: nonce\0", substr($enc, 0, 16)), substr($ctT, -16));
+ok($ptT === "{\"t\":\"💾 vol\"}\x02" && substr($enc, 0, 16) !== substr(WebPush::encrypt('x', $uaPub, $uaAuth), 0, 16), 'webpush: het apparaat kan het lezen; elk bericht een nieuwe salt');
+// VAPID: JWT met ES256, te controleren met de publieke sleutel
+$vh = WebPush::vapidHeader('https://fcm.googleapis.com/fcm/send/abc', 1000);
+ok((bool) preg_match('/^vapid t=([\w-]+)\.([\w-]+)\.([\w-]+), k=([\w-]+)$/', $vh, $vm), 'webpush: VAPID-kop met token en sleutel');
+$vClaims = json_decode(WebPush::unb64u($vm[2]), true);
+$vSig = WebPush::unb64u($vm[3]);
+$vInt = fn($x) => (ord(ltrim($x, "\0")[0] ?? "\0") & 0x80 ? "\0" : '') . ltrim($x, "\0");
+[$vr, $vs] = [$vInt(substr($vSig, 0, 32)), $vInt(substr($vSig, 32))];
+$vDer = "\x30" . chr(4 + strlen($vr) + strlen($vs)) . "\x02" . chr(strlen($vr)) . $vr . "\x02" . chr(strlen($vs)) . $vs;
+$vPub = WebPush::publicFromRaw(WebPush::unb64u($vm[4]));
+ok($vClaims['aud'] === 'https://fcm.googleapis.com' && $vClaims['exp'] === 1000 + 43200 && !str_contains((string) $vClaims['sub'], '@')
+    && $vm[4] === WebPush::publicKey() && $vPub !== null && openssl_verify("$vm[1].$vm[2]", $vDer, $vPub, OPENSSL_ALGO_SHA256) === 1,
+    'webpush: handtekening klopt, geen e-mailadres van de gebruiker, publieke sleutel = die van de browser');
+ok(in_array('webpush_vapid_private', SECRET_SETTINGS, true) && str_contains((string) setting('webpush_vapid_private', ''), 'PRIVATE KEY'), 'webpush: geheime sleutel bewaard als geheim');
+// Apparaten
+$wpUid = (int) q("SELECT id FROM users WHERE username = 'admin'")->fetchColumn();
+q("INSERT INTO users (username, password_hash, role) VALUES ('wp-ander', 'x', 'user')");
+$wpOther = (int) db()->lastInsertId();
+$wpSub = ['endpoint' => 'https://fcm.googleapis.com/fcm/send/test1', 'keys' => ['p256dh' => WebPush::b64u($uaPub), 'auth' => WebPush::b64u($uaAuth)]];
+ok(WebPush::subscribe($wpUid, ['endpoint' => 'https://evil.example/x'] + $wpSub, 'x') !== null
+    && WebPush::subscribe($wpUid, ['endpoint' => $wpSub['endpoint'], 'keys' => ['p256dh' => 'abc', 'auth' => 'abc']], 'x') !== null
+    && WebPush::subscribe(0, $wpSub, 'x') !== null, 'webpush: vreemde pushdienst, kapotte sleutels en LAN-login zonder account geweigerd');
+ok(WebPush::subscribe($wpUid, $wpSub, "Pixel\x07 8") === null && WebPush::subscribe($wpUid, $wpSub, 'Pixel 8') === null
+    && (int) q('SELECT COUNT(*) FROM webpush_subs')->fetchColumn() === 1 && WebPush::enabled(), 'webpush: aanmelden, twee keer = één apparaat');
+WebPush::subscribe($wpOther, ['endpoint' => 'https://web.push.apple.com/test2'] + $wpSub, 'iPhone');
+$wpMine = WebPush::devices($wpUid, $wpSub['endpoint']);
+$wpAll = WebPush::devices(null);
+ok(count($wpMine) === 1 && $wpMine[0]['this'] && $wpMine[0]['service'] === 'Google' && $wpMine[0]['name'] === 'Pixel 8' && !isset($wpMine[0]['endpoint'])
+    && count($wpAll) === 2 && !str_contains(json_encode($wpAll), 'googleapis'), 'webpush: eigen apparaten, dit apparaat gemarkeerd, adres en sleutels niet naar de browser');
+$wpIdOther = (int) q('SELECT id FROM webpush_subs WHERE user_id = ?', [$wpOther])->fetchColumn();
+ok(!WebPush::delete($wpIdOther, $wpUid, false) && WebPush::delete($wpIdOther, $wpUid, true), 'webpush: een gebruiker verwijdert alleen zijn eigen apparaat, een beheerder elk');
+$wpPl = json_decode(WebPush::payload('Schijf vol', str_repeat('🔥', 2000), 1, ['url' => 'https://rz.example/ack.php?c=1&t=x']), true);
+ok(strlen(WebPush::payload('Schijf vol', str_repeat('🔥', 2000), 1, [])) <= 3000 && $wpPl['a'] === 'https://rz.example/ack.php?c=1&t=x' && $wpPl['u'] === $wpPl['a']
+    && !$wpPl['q'] && !$wpPl['r'] && json_decode(WebPush::payload('x', 'y', -1, []), true)['q'] && !isset(json_decode(WebPush::payload('x', 'y', 2, []), true)['a']),
+    'webpush: klein genoeg, bevestig-knop, stil bij prioriteit -1');
+q('DELETE FROM users WHERE id = ?', [$wpOther]);
+ok(str_contains(Push::names(), 'Web Push') && Push::enabled(), 'webpush: hoort bij het kanaal Push');
+save_setting('webpush_enabled', '0');
+ok(!WebPush::enabled() && !str_contains(Push::names(), 'Web Push'), 'webpush: hoofdschakelaar uit');
+save_setting('webpush_enabled', '1');
+q('DELETE FROM webpush_subs');
+ok(!WebPush::enabled() && WebPush::send('x', 'y')['ok'] === false, 'webpush: zonder apparaten niets te versturen');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

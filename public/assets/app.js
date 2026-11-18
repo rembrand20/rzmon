@@ -14390,7 +14390,7 @@ const SET_NAV = [
     ['internet', L('Internetcheck'), ['internet'], L('Snelheid, ping en responstijd van je internetlijn.')],
     ['logs', L('Logs verzamelen'), ['logs'], L('Logs van je servers verzamelen: hoe vaak, hoe lang bewaren, hoeveel, maskeren en wat er binnenkomt.')]]],
   ['meldingen', SET_IC('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'), L('Meldingen en rapporten'), [
-    ['channels', L('Kanalen'), ['pushover', 'ntfy', 'email', 'webhook', 'chat', 'chain'], L('Waar meldingen heen gaan: Pushover, ntfy, e-mail, webhooks, Discord, Slack en Teams.')],
+    ['channels', L('Kanalen'), ['pushover', 'ntfy', 'webpush', 'email', 'webhook', 'chat', 'chain'], L('Waar meldingen heen gaan: Pushover, ntfy, Web Push, e-mail, webhooks, Discord, Slack en Teams.')],
     ['rules', L('Wanneer melden'), ['confirm', 'notify', 'alarm', 'quiet'], L('Wanneer een probleem een melding wordt, en wanneer het stil moet zijn.'),
       [['wanneer', L('Wanneer melden'), ['confirm', 'notify', 'alarm']], ['stil', L('Stille uren'), ['quiet']]]],
     ['idspush', L('IDS-pushmeldingen'), ['idspush'], L('Wanneer een aanval je telefoon laat trillen, en de dagelijkse samenvatting.')],
@@ -15027,6 +15027,7 @@ async function loadAccount() {
     } catch (ex) { toast(ex.message, 'err'); }
   };
   loadAccountOutside();
+  wpAccount();   // 1.285.0
   $('#acct-logins-body').innerHTML = logins.length ? `<div class="table-scroll"><table class="vuln-table"><thead><tr><th>${L('Wanneer')}</th><th>IP</th><th>${L('Hoe')}</th><th>${L('Apparaat')}</th></tr></thead><tbody>
     ${logins.map((x) => `<tr class="${+x.ok ? '' : 'bad-row'}"><td class="small">${esc(fmtDateTime(x.created_at))}</td><td class="mono small">${esc(x.ip)}</td>
       <td class="small">${+x.ok ? esc(L(x.how)) : `<span class="bad">✘ ${esc(L(x.how))}</span>`}</td><td class="small">${esc(x.device || '–')}</td></tr>`).join('')}</tbody></table></div>`
@@ -15273,9 +15274,11 @@ async function loadSettings() {
   });
   const parse = (v) => { try { return JSON.parse(v || '{}') || {}; } catch (e) { return {}; } };
   notifyGlobal = notifyEditor($('#notify-editor'), { rules: parse(s.notify_rules), channels: parse(s.notify_channels), flap: parse(s.notify_flap) },
-    { push_enabled: s.pushover_enabled === '1' || s.ntfy_enabled === '1', email_enabled: s.email_enabled === '1', ha_webhook_enabled: s.ha_webhook_enabled === '1' });
+    { push_enabled: s.pushover_enabled === '1' || s.ntfy_enabled === '1' || s.webpush_active === '1', email_enabled: s.email_enabled === '1', ha_webhook_enabled: s.ha_webhook_enabled === '1' });
   sysinfoCfg = parse(s.sysinfo);
+  wpActive = s.webpush_active === '1';
   renderSysinfo();
+  wpAdmin();   // 1.285.0
   vulnExcludeEditor();
   $('#vuln-enabled').checked = s.vuln_enabled === '1';
   $('#ids-enabled').checked = s.ids_enabled === '1';
@@ -15625,11 +15628,12 @@ const SYSINFO_ROWS = [
 const SYSINFO_CH = [['pushover', '📲 Push', 'push'], ['email', '📧 ' + L('E-mail'), 'email_enabled'], ['webhook', '🏠 Home Assistant', 'ha_webhook_enabled'], ['page', '📄 ' + L('Meldingenpagina'), null]];
 let sysinfoCfg = null;
 
+let wpActive = false;   // 1.285.0: er zijn apparaten aangemeld voor Web Push
 function renderSysinfo() {
   const t = $('#sysinfo');
   if (!t || !sysinfoCfg) return;
   const f = $('#settings-form');
-  const off = (k) => (k === 'push' ? !f.pushover_enabled.checked && !f.ntfy_enabled.checked : k && f[k] && !f[k].checked);   // kanaal staat helemaal uit
+  const off = (k) => (k === 'push' ? !f.pushover_enabled.checked && !f.ntfy_enabled.checked && !(wpActive && f.webpush_enabled && f.webpush_enabled.checked) : k && f[k] && !f[k].checked);   // kanaal staat helemaal uit
   t.innerHTML = `<thead><tr><th>${L('Melding')}</th>${SYSINFO_CH.map(([, l, k]) => `<th class="si-ch">${l}${off(k) ? ` <span class="muted small">(${L('uit')})</span>` : ''}</th>`).join('')}
     <th>${L('Push-geluid')}</th><th></th></tr></thead><tbody>
     ${SYSINFO_ROWS.map(([group, rows]) => `<tr class="si-group"><td colspan="7">${esc(group)}</td></tr>` + rows.map(([k, label]) => {
@@ -15670,7 +15674,7 @@ function initSysinfo() {
     b.disabled = false;
   });
   // Kanaal aan/uit (Pushover, ntfy, e-mail, webhook): "(uit)" in de kop bijwerken
-  ['pushover_enabled', 'ntfy_enabled', 'email_enabled', 'ha_webhook_enabled'].forEach((k) => $('#settings-form')[k] && $('#settings-form')[k].addEventListener('change', renderSysinfo));
+  ['pushover_enabled', 'ntfy_enabled', 'webpush_enabled', 'email_enabled', 'ha_webhook_enabled'].forEach((k) => $('#settings-form')[k] && $('#settings-form')[k].addEventListener('change', renderSysinfo));
 }
 
 function settingsData() {
@@ -16465,7 +16469,7 @@ function initSystemTools() {
       $('#chain-out').innerHTML = `<p class="muted">${L('Bezig…')}</p>`;
       try {
         const r = (await api('chain_test', {})).channels;
-        const names = { pushover: '📲 Pushover', ntfy: '📣 ntfy', email: '📧 ' + L('E-mail'), webhook: '🏠 ' + L('Home Assistant-webhook'), mqtt: '📡 MQTT', page: '📄 ' + L('Meldingenpagina') };
+        const names = { pushover: '📲 Pushover', ntfy: '📣 ntfy', webpush: '📱 Web Push', email: '📧 ' + L('E-mail'), webhook: '🏠 ' + L('Home Assistant-webhook'), chat: '💬 Discord/Slack/Teams', mqtt: '📡 MQTT', page: '📄 ' + L('Meldingenpagina') };
         $('#chain-out').innerHTML = `<ul class="checklist" style="margin-top:.8rem">${Object.entries(names).map(([k, l]) => {
           const c = r[k];
           return `<li class="${c === null ? 'warn' : c.ok ? 'ok' : 'bad'}"><span class="ic">${c === null ? '–' : c.ok ? '✓' : '✕'}</span><span><strong>${esc(l)}</strong><br>
@@ -21337,6 +21341,7 @@ const FH_SHORT = () => ({
   ntfy_server: L("Het adres van de ntfy-server, bv. https://ntfy.sh of je eigen server."),
   ntfy_topic: L("Het onderwerp waarop je app is geabonneerd. Kies iets dat niemand raadt."),
   ntfy_token: L("Alleen nodig als je ntfy-server inloggen vraagt."),
+  webpush_enabled: L("Meldingen van Push ook naar de telefoons en computers die bij Mijn account zijn aangemeld. Uit = niemand krijgt Web Push."),
   confirm_fast: L("Bij twijfel kijkt RzSense na 20 seconden opnieuw, zodat een echte storing sneller bevestigd is."),
   notify_unknown: L("Ook melden als een check geen uitslag geeft (bv. agent stil). Uit = alleen warning en critical."),
   notify_lang: L("In welke taal meldingen en checkberichten worden geschreven, los van de taal van je scherm."),
@@ -23838,4 +23843,134 @@ async function amRelay(h, body) {
       } catch (ex) { toast(ex.message, 'err'); }
     }
   };
+}
+// ---------------------------------------------------------------- 📱 Web Push (1.285.0)
+// Meldingen rechtstreeks op telefoon of computer. Mijn account: dit apparaat aanmelden en je eigen apparaten.
+// Instellingen → Kanalen: de hoofdschakelaar en alle apparaten (beheerder). De service worker staat in /sw.js.
+
+const WP_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const wpStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+/** Waarom Web Push in deze browser (nog) niet kan, of null */
+function wpBlocker() {
+  if (!window.isSecureContext) return L('Web Push werkt alleen via https met een echt certificaat, bijvoorbeeld via SWAG. Open RzSense via dat adres.');
+  if (WP_IOS && !wpStandalone()) return L('Op een iPhone of iPad: tik op Deel (□↑) → <b>Zet op beginscherm</b>, open RzSense vanaf het beginscherm en meld je daar aan. Nodig: iOS 16.4 of nieuwer.');
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return L('Deze browser kan geen pushmeldingen ontvangen.');
+  if (Notification.permission === 'denied') return L('Meldingen voor RzSense zijn geblokkeerd in deze browser. Zet ze aan bij de site-instellingen (het slotje naast het adres) en probeer het opnieuw.');
+  return null;
+}
+
+/** Een naam voor dit apparaat, bv. "iPhone · Safari" */
+function wpGuessName() {
+  const ua = navigator.userAgent;
+  const dev = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) || WP_IOS ? 'iPad' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : L('Apparaat');
+  const br = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : '';
+  return br ? `${dev} · ${br}` : dev;
+}
+
+async function wpRegistration() {
+  if (!('serviceWorker' in navigator)) return null;
+  return (await navigator.serviceWorker.getRegistration('./')) || null;
+}
+
+/** Het abonnement van deze browser (of null) */
+async function wpCurrent() {
+  try {
+    const reg = await wpRegistration();
+    return reg ? await reg.pushManager.getSubscription() : null;
+  } catch (e) { return null; }
+}
+
+function wpKeyBytes(b64) {
+  const s = atob((b64 + '==='.slice((b64.length + 3) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(s, (c) => c.charCodeAt(0));
+}
+
+async function wpSubscribe(name) {
+  if (Notification.permission !== 'granted' && (await Notification.requestPermission()) !== 'granted') throw new Error(L('Je hebt meldingen niet toegestaan.'));
+  const { key } = await api('webpush_key', {});
+  const reg = await navigator.serviceWorker.register('sw.js', { scope: './' });
+  await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  // Andere sleutel van RzSense (bv. na herstel van een back-up)? Dan opnieuw aanmelden
+  if (sub && sub.options && sub.options.applicationServerKey) {
+    const cur = new Uint8Array(sub.options.applicationServerKey), want = wpKeyBytes(key);
+    if (cur.length !== want.length || cur.some((v, i) => v !== want[i])) { await sub.unsubscribe(); sub = null; }
+  }
+  // De browser vraagt een adres aan bij zijn pushdienst; antwoordt die niet (bv. geblokkeerd netwerk), dan na 30 s een duidelijke fout
+  sub = sub || await Promise.race([reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: wpKeyBytes(key) }),
+    new Promise((_, no) => setTimeout(() => no(new Error(L('De pushdienst van deze browser antwoordt niet. Staat het netwerk verbindingen naar Google, Apple of Mozilla toe?'))), 30000))]);
+  await api('webpush_subscribe', { sub: sub.toJSON(), name });
+}
+
+async function wpUnsubscribe() {
+  const sub = await wpCurrent();
+  if (!sub) return;
+  try { await api('webpush_unsubscribe', { endpoint: sub.endpoint }); } finally { await sub.unsubscribe(); }
+}
+
+/** Lijst met apparaten; all = alle gebruikers (beheerder) */
+function wpList(devs, all) {
+  if (!devs.length) return `<p class="muted small">${all ? L('Nog geen apparaten aangemeld. Elke gebruiker meldt zijn eigen telefoon aan bij <b>Mijn account</b>.') : L('Nog geen apparaten aangemeld.')}</p>`;
+  return `<table class="vuln-table small wp-list"><thead><tr>${all ? `<th>${L('Gebruiker')}</th>` : ''}<th>${L('Apparaat')}</th><th>${L('Dienst')}</th><th>${L('Laatst gelukt')}</th><th></th></tr></thead><tbody>${devs.map((d) => `<tr>
+    ${all ? `<td>${esc(d.user)}</td>` : ''}<td>${esc(d.name || '#' + d.id)}${d.this ? ` <span class="u-tag ok">${L('dit apparaat')}</span>` : ''}${d.last_error ? `<br><span class="warn-txt small">⚠ ${esc(d.last_error)}</span>` : ''}</td>
+    <td>${esc(d.service)}</td><td class="muted small">${d.last_ok ? esc(ago(d.last_ok)) : L('nog niet')}</td>
+    <td class="nowrap"><button type="button" class="btn small-btn" data-wp-test="${d.id}">🧪 ${L('Test')}</button> <button type="button" class="btn small-btn danger" data-wp-del="${d.id}" title="${esc(L('Verwijderen'))}">✕</button></td></tr>`).join('')}</tbody></table>`;
+}
+
+function wpListEvents(box, after) {
+  box.querySelectorAll('[data-wp-test]').forEach((b) => (b.onclick = async () => {
+    b.disabled = true;
+    try { await api('webpush_test', { id: +b.dataset.wpTest }); toast(L('Testbericht verstuurd') + ' 📱'); } catch (ex) { toast(ex.message, 'err'); }
+    b.disabled = false;
+    after();
+  }));
+  box.querySelectorAll('[data-wp-del]').forEach((b) => (b.onclick = async () => {
+    try {
+      const sub = await wpCurrent();
+      await api('webpush_delete', { id: +b.dataset.wpDel });
+      // Was het dit apparaat? Dan ook in de browser afmelden
+      if (sub && b.closest('tr').querySelector('.u-tag.ok')) await sub.unsubscribe();
+      toast(L('Apparaat verwijderd'));
+    } catch (ex) { toast(ex.message, 'err'); }
+    after();
+  }));
+}
+
+/** Mijn account: dit apparaat en je eigen apparaten */
+async function wpAccount() {
+  const box = $('#acct-push-body');
+  if (!box) return;
+  const block = wpBlocker();
+  const sub = block ? null : await wpCurrent();
+  let r;
+  try { r = await api('webpush_devices', { endpoint: sub ? sub.endpoint : '' }); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const here = sub && r.devices.some((d) => d.this);
+  box.innerHTML = `${!r.enabled ? `<p class="warn-txt small">⚠ ${L('Een beheerder heeft Web Push uitgezet (Instellingen → Kanalen). Je kunt je apparaat wel aanmelden.')}</p>` : ''}
+    ${block ? `<p class="muted small">${block}</p>` : here
+      ? `<p><span class="good-txt">✔ ${L('Dit apparaat krijgt meldingen')}</span></p><div class="btn-row"><button type="button" class="btn" id="wp-off">🔕 ${L('Dit apparaat afmelden')}</button></div>`
+      : `<label>${L('Naam van dit apparaat')}<input id="wp-name" maxlength="100" value="${esc(wpGuessName())}"></label>
+         <div class="btn-row"><button type="button" class="btn primary" id="wp-on">🔔 ${L('Meldingen op dit apparaat aanzetten')}</button></div>`}
+    <h3 class="small" style="margin-top:1rem">${L('Je apparaten')}</h3>${wpList(r.devices, false)}`;
+  if ($('#wp-on')) $('#wp-on').onclick = async (e) => {
+    e.target.disabled = true;
+    try { await wpSubscribe($('#wp-name').value.trim() || wpGuessName()); toast(L('Dit apparaat krijgt nu meldingen') + ' 🔔'); } catch (ex) { toast(ex.message, 'err'); }
+    wpAccount();
+  };
+  if ($('#wp-off')) $('#wp-off').onclick = async () => {
+    try { await wpUnsubscribe(); toast(L('Dit apparaat is afgemeld')); } catch (ex) { toast(ex.message, 'err'); }
+    wpAccount();
+  };
+  wpListEvents(box, wpAccount);
+}
+
+/** Instellingen → Kanalen: alle apparaten (beheerder) */
+async function wpAdmin() {
+  const box = $('#wp-admin-body');
+  if (!box) return;
+  const sub = wpBlocker() ? null : await wpCurrent();
+  let r;
+  try { r = await api('webpush_devices', { all: 1, endpoint: sub ? sub.endpoint : '' }); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  box.innerHTML = wpList(r.devices, true);
+  wpListEvents(box, wpAdmin);
 }

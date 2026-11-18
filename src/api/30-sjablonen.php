@@ -5,6 +5,8 @@ declare(strict_types=1);
 // Alleen via api.php: de variabelen hieronder (gebruiker, rechten, bevestigen …) komen daarvandaan.
 /**
  * @var string $action
+ * @var array<string, mixed> $user
+ * @var bool $isAdmin
  * @var callable(string): void $confirm
  * @var callable(array<string, mixed>, bool=): array{array<string, mixed>, bool} $checkCols
  */
@@ -171,7 +173,12 @@ switch ($action) {
         $body = t('Als je dit ziet, werkt dit kanaal. Verstuurd op {time}.', ['time' => date('d-m-Y H:i:s')]);
         $res['pushover'] = setting('pushover_enabled', '0') === '1' ? Pushover::send($title, $body, 0) : null;
         $res['ntfy'] = setting('ntfy_enabled', '0') === '1' ? Ntfy::send($title, $body, 0) : null;
+        $res['webpush'] = WebPush::enabled() ? WebPush::send($title, $body, 0) : null;   // 1.285.0
         $res['email'] = setting('email_enabled', '0') === '1' ? Mailer::send($title, $body) : null;
+        $res['chat'] = Chat::enabled() ? Chat::send($title, $body, STATUS_OK, 'test', public_url(), null, false, array_keys(Chat::KINDS)) : null;   // 1.284.0
+        if ($res['chat'] !== null) {
+            $res['chat'] = ['ok' => (bool) $res['chat']['ok'], 'error' => implode('; ', $res['chat']['errors'])];
+        }
         if (setting('ha_webhook_enabled', '0') === '1') {
             $fake = ['id' => 0, 'hid' => 0, 'host_name' => 'RzSense', 'name' => t('Testmelding'), 'type' => 'ping', 'target' => ''];
             $res['webhook'] = Webhook::send(Monitor::webhookPayload($fake, ['value' => null], STATUS_OK, $title, $body, 'test', STATUS_OK));
@@ -342,6 +349,7 @@ switch ($action) {
         }
         unset($s['ack_secret'], $s[SnmpMonitor::GLOBAL_KEY], $s['path_unifi_cache'], $s['mqtt_topics'], $s['mqtt_hash'], $s['stats_cache'], $s['update_cache']);
         $s['alerts_days'] = (string) Monitor::alertDays();
+        $s['webpush_active'] = WebPush::enabled() ? '1' : '0';   // 1.285.0: er zijn apparaten aangemeld (geen formulierveld)
         $s['db_growth'] = Retention::growth();   // 1.136.0: grootte van de database en groei per dag (geen formulierveld)
         $s['sysinfo'] = json_encode(NotifyRules::sysinfo());
         out($s);
@@ -355,7 +363,7 @@ switch ($action) {
         $allowed = ['sysinfo', 'pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
             'pushover_sound', 'ntfy_enabled', 'ntfy_server', 'ntfy_topic', 'ntfy_token', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'cert_dirs', 'retention_days', 'alerts_days', 'hourly_days', 'daily_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_fim', 'ids_fim_exclude', 'ids_decoy_users', 'ids_decoy_port', 'ids_block_shared', 'ids_weekly', 'ids_weekly_day', 'ids_weekly_time', 'ids_blocklists', 'ids_geo', 'ids_geo_allowed', 'ids_webshell', 'ids_webshell_kill', 'ids_persist', 'ids_outbound', 'ids_outbound_country', 'ids_outbound_block', 'ids_harden', 'weblog_swag', 'weblog_swag_path', 'weblog_ha', 'weblog_ha_path', 'weblog_vw', 'weblog_vw_path', 'weblog_block', 'wl_paths', 'wl_ua', 'wl_404', 'wl_404_n', 'wl_auth', 'wl_auth_n', 'wl_nohost', 'wl_nohost_n', 'wl_ha_n', 'wl_vw_n', 'wl_minutes',
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
-            'chat_discord_on', 'chat_discord_url', 'chat_discord_min', 'chat_discord_recovery', 'chat_discord_info', 'chat_discord_ids',
+            'webpush_enabled', 'chat_discord_on', 'chat_discord_url', 'chat_discord_min', 'chat_discord_recovery', 'chat_discord_info', 'chat_discord_ids',
             'chat_slack_on', 'chat_slack_url', 'chat_slack_min', 'chat_slack_recovery', 'chat_slack_info', 'chat_slack_ids',
             'chat_teams_on', 'chat_teams_url', 'chat_teams_min', 'chat_teams_recovery', 'chat_teams_info', 'chat_teams_ids',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
@@ -752,6 +760,51 @@ switch ($action) {
         session_write_close();
         $res = Chat::test($kind, (string) ($in["chat_{$kind}_url"] ?? ''));
         out($res + ['message' => $res['ok'] ? t('Testbericht verstuurd naar {k}', ['k' => Chat::KINDS[$kind] ?? $kind]) : null], $res['ok'] ? 200 : 422);
+
+    // ---------------------------------------------------------------- 1.285.0: Web Push (eigen apparaten; beheerders zien alles)
+    case 'webpush_key':
+        try {
+            out(['key' => WebPush::publicKey(), 'enabled' => setting('webpush_enabled', '1') === '1']);
+        } catch (Throwable $e) {
+            out(['error' => $e->getMessage()], 500);
+        }
+
+    case 'webpush_subscribe':
+        $in = input();
+        $err = WebPush::subscribe((int) $user['id'], (array) ($in['sub'] ?? []), (string) ($in['name'] ?? ''));
+        if ($err !== null) {
+            out(['error' => $err], 422);
+        }
+        out(['ok' => true, 'devices' => WebPush::devices((int) $user['id'], (string) ($in['sub']['endpoint'] ?? ''))]);
+
+    case 'webpush_unsubscribe':
+        $in = input();
+        WebPush::unsubscribeEndpoint((int) $user['id'], (string) ($in['endpoint'] ?? ''));
+        out(['ok' => true]);
+
+    case 'webpush_devices':
+        $in = input();
+        $all = !empty($in['all']) && $isAdmin;
+        out(['devices' => WebPush::devices($all ? null : (int) $user['id'], (string) ($in['endpoint'] ?? '')), 'enabled' => setting('webpush_enabled', '1') === '1',
+            'https' => Https::isHttps()]);
+
+    case 'webpush_delete':
+        $in = input();
+        if (!WebPush::delete((int) ($in['id'] ?? 0), (int) $user['id'], $isAdmin)) {
+            out(['error' => t('Apparaat niet gevonden')], 404);
+        }
+        out(['ok' => true]);
+
+    case 'webpush_test':
+        $in = input();
+        $id = (int) ($in['id'] ?? 0);
+        $own = (int) q('SELECT user_id FROM webpush_subs WHERE id = ?', [$id])->fetchColumn();
+        if (!$own || ($own !== (int) $user['id'] && !$isAdmin)) {
+            out(['error' => t('Apparaat niet gevonden')], 404);
+        }
+        session_write_close();
+        $res = WebPush::send('🧪 RzSense test', t('Als je dit leest werkt Web Push op dit apparaat! 🎉'), 0, [], $id);
+        out($res + ['message' => $res['ok'] ? t('Testbericht verstuurd') : null], $res['ok'] ? 200 : 422);
 
     case 'ntfy_test':
         // Test met de (nog niet opgeslagen) waarden uit het formulier; een gemaskeerd token = het opgeslagen token

@@ -278,6 +278,7 @@ const FH_SHORT = () => ({
   ntfy_server: L("Het adres van de ntfy-server, bv. https://ntfy.sh of je eigen server."),
   ntfy_topic: L("Het onderwerp waarop je app is geabonneerd. Kies iets dat niemand raadt."),
   ntfy_token: L("Alleen nodig als je ntfy-server inloggen vraagt."),
+  webpush_enabled: L("Meldingen van Push ook naar de telefoons en computers die bij Mijn account zijn aangemeld. Uit = niemand krijgt Web Push."),
   confirm_fast: L("Bij twijfel kijkt RzSense na 20 seconden opnieuw, zodat een echte storing sneller bevestigd is."),
   notify_unknown: L("Ook melden als een check geen uitslag geeft (bv. agent stil). Uit = alleen warning en critical."),
   notify_lang: L("In welke taal meldingen en checkberichten worden geschreven, los van de taal van je scherm."),

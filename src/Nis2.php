@@ -55,7 +55,7 @@ final class Nis2
                 ];
             case 'b':
                 $old = (int) q("SELECT COUNT(*) FROM ids_incidents WHERE status = 'open' AND severity >= 2 AND created_at < NOW() - INTERVAL 24 HOUR")->fetchColumn();
-                $chan = setting('pushover_enabled', '0') === '1' || setting('email_enabled', '0') === '1' || setting('ntfy_enabled', '0') === '1';
+                $chan = setting('pushover_enabled', '0') === '1' || setting('email_enabled', '0') === '1' || setting('ntfy_enabled', '0') === '1' || WebPush::enabled();
                 return [
                     [Ids::enabled(), Ids::enabled() ? t('IDS en endpoint-bewaking staan aan') : t('Het IDS staat uit'), 'ids'],
                     [$chan, $chan ? t('Meldingen gaan naar Pushover, ntfy of e-mail') : t('Geen meldkanaal (Pushover, ntfy of e-mail) ingesteld'), 'settings/channels'],
