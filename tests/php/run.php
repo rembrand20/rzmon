@@ -3849,6 +3849,9 @@ q('DELETE FROM webpush_subs');
 ok(!WebPush::enabled() && WebPush::send('x', 'y')['ok'] === false, 'webpush: zonder apparaten niets te versturen');
 
 section('Reserve-RzSense (1.286.0)');
+$rsBkOld = $GLOBALS['sm_config']['backup_dir'] ?? null;
+$GLOBALS['sm_config']['backup_dir'] = sys_get_temp_dir() . '/rzmon-ci-rs-' . getmypid();   // eigen lege map (in CI is de standaardmap niet schrijfbaar)
+@mkdir(Backup::dir(), 0700, true);
 $rk = random_bytes(32);
 $rbox = Reserve::seal('geheim 🛟', $rk);
 ok(Reserve::open($rbox, $rk) === 'geheim 🛟' && Reserve::open($rbox, random_bytes(32)) === null && Reserve::open(substr($rbox, 0, -1) . 'x', $rk) === null,
@@ -3908,6 +3911,7 @@ ok(setting('pushover_user') === 'kopie-waarde' && setting('trusted_proxies') ===
 ok(in_array('reserve_key', SECRET_SETTINGS, true) && SettingsMeta::skipTransfer('reserve_key') && SettingsMeta::isBookkeeping('reserve_seen'), 'reserve: sleutel geheim, niet exporteren, niet in het logboek');
 Reserve::unpair();
 ok(Reserve::role() === '' && !Reserve::standby() && !glob(Reserve::dir() . '/snap-*.zip'), 'reserve: ontkoppelen haalt sleutel en kopieën weg');
+$GLOBALS['sm_config']['backup_dir'] = $rsBkOld;
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

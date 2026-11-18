@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.283.0**: **relay als losse agent** (`rzmon-agent-relay`) naast de container: niet als root, bij de server getoond en bij te werken met de knop, ondertekend.
 - **1.282.0**: **netwerken en relays**: servers in een netwerk zonder verbinding met RzSense rapporteren via een relay-container, versleuteld van agent tot RzSense, met één melding als de relay wegvalt.
 
+## 1.286.1 – 2026-11-18
+### Opgelost
+- De automatische tests van de reserve-RzSense gebruiken nu een eigen tijdelijke map, zoals de andere back-uptests. In GitHub Actions was de standaardmap niet schrijfbaar. Voor jou verandert er niets.
+
 ## 1.286.0 – 2026-11-18
 ### Nieuw
 - **Reserve-RzSense** (stap 1 van 3): een tweede RzSense, bijvoorbeeld een container op een andere machine, houdt een kopie bij van je hoofdserver. *Instellingen → Systeem → Reserve-RzSense*; zie HANDLEIDING hoofdstuk 13.
