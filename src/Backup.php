@@ -653,7 +653,7 @@ final class Backup
         }
         $in = false;
         if ($st['encryption_method'] !== 0) {
-            $tries = array_values(array_unique(array_filter([(string) $password, is_configured() ? (string) self::settingSafe('backup_pass') : ''], 'strlen')));
+            $tries = array_values(array_unique(array_filter([(string) $password, is_configured() ? (string) self::settingSafe('backup_pass') : ''], static fn(string $s): bool => $s !== '')));
             foreach ($tries as $pw) {
                 $zip->setPassword($pw);
                 if ($in = $zip->getStream($name)) {

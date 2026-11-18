@@ -33,7 +33,7 @@ jobs:
           # onclick=, onload= … in HTML of in de HTML die app.js en setup.js maken
           if grep -nE '\son(click|change|input|submit|load|error|key[a-z]+|mouse[a-z]+|focus|blur)=["'"'"']' public/*.php public/assets/app.js public/assets/setup.js; then bad=1; fi
           [ "$bad" = 0 ] && echo "✔ geen inline scripts zonder nonce" || { echo "::error title=CSP::inline script of event-handler gevonden (zie hierboven)"; exit 1; }
-      - name: PHPStan (niveau 0)
+      - name: PHPStan (niveau uit phpstan.neon)
         run: |
           curl -fsSL -o /tmp/phpstan.phar https://github.com/phpstan/phpstan/releases/download/2.1.17/phpstan.phar
           php /tmp/phpstan.phar analyse --no-progress --memory-limit=1G

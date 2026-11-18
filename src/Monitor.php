@@ -784,7 +784,7 @@ final class Monitor
             return;   // nog even wachten op meer meldingen
         }
         // 1.107.0: gaan er meerdere servers tegelijk mis, dan één bericht voor allemaal, met de waarschijnlijke oorzaak
-        if ($win > 0 && Bundle::on() && count(array_filter($groups, static fn($h) => (int) $h['problem'])) >= 2) {
+        if ($win > 0 && Bundle::on() && count(array_filter($groups, static fn($h) => (int) $h['problem'] !== 0)) >= 2) {
             $items = [];
             foreach ($groups as $h) {
                 array_push($items, ...self::takeQueued((int) $h['host_id']));

@@ -74,7 +74,7 @@ final class MailSec
         if (!is_array($r)) {
             return [];
         }
-        return array_values(array_map(static fn($x) => (string) ($x['txt'] ?? implode('', (array) ($x['entries'] ?? []))), $r));
+        return array_map(static fn($x) => (string) ($x['txt'] ?? implode('', (array) ($x['entries'] ?? []))), $r);
     }
 
     /**

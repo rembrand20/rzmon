@@ -196,8 +196,8 @@ final class Ioc
                 json_encode($r, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)]);
         $id = (int) db()->lastInsertId();
         $asked = 0;
-        $sha = array_values(array_column(array_filter($p['iocs'], static fn($i) => $i['kind'] === 'sha'), 'value'));
-        $path = array_values(array_column(array_filter($p['iocs'], static fn($i) => $i['kind'] === 'path'), 'value'));
+        $sha = array_column(array_filter($p['iocs'], static fn($i) => $i['kind'] === 'sha'), 'value');
+        $path = array_column(array_filter($p['iocs'], static fn($i) => $i['kind'] === 'path'), 'value');
         if ($agents && ($sha || $path)) {
             $req = json_encode(['id' => $id, 'at' => time(), 'sha' => array_slice($sha, 0, 500), 'path' => array_slice($path, 0, 200)], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             foreach (q("SELECT id, agent_version FROM hosts WHERE mode = 'agent' AND enabled = 1")->fetchAll() as $h) {

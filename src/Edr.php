@@ -361,7 +361,7 @@ final class Edr
                     'CommandLine' => (string) ($ev['cmd'] ?? '')];
                 break;
         }
-        $f['_raw'] = implode(' ', array_filter(array_map(static fn($v) => is_array($v) ? implode(' ', $v) : (string) $v, $f), 'strlen'));
+        $f['_raw'] = implode(' ', array_filter(array_map(static fn($v) => is_array($v) ? implode(' ', $v) : (string) $v, $f), static fn(string $s): bool => $s !== ''));
         return $f;
     }
 

@@ -7,7 +7,7 @@ on:
     inputs:
       levels:
         description: 'Niveaus (spaties ertussen)'
-        default: '2 3 4'
+        default: '6'
 
 permissions:
   contents: read

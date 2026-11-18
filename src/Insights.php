@@ -476,7 +476,7 @@ final class Insights
             $out[] = self::a("updates_behind|$hid", 'vulns', count($pk) >= 15 ? 1 : 0, 30 + min(30, count($pk)), $act ? 'click' : '10',
                 t('{h}: {n} pakketten hebben al meer dan 2 weken een beveiligingsupdate', ['h' => $c['hosts'][$hid]['name'], 'n' => count($pk)]),
                 [t('Onder andere {p}', ['p' => implode(', ', array_slice(array_keys($pk), 0, 6))]), t('Hoe langer een bekende kwetsbaarheid openstaat, hoe groter de kans dat iemand hem vindt')],
-                t('Werk de server bij, of zet automatische beveiligingsupdates aan.'), [self::cmd($c, $hid, array_slice(array_keys($pk), 0, 30))], array_values(array_filter([$act])),
+                t('Werk de server bij, of zet automatische beveiligingsupdates aan.'), [self::cmd($c, $hid, array_slice(array_keys($pk), 0, 30))], array_filter([$act]),
                 ['host_id' => $hid, 'host' => $c['hosts'][$hid]['name']]);
         }
         foreach ($c['inv'] as $hid => $i) {

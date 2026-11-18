@@ -1,5 +1,5 @@
-# PHPStan: statische controle van de PHP-code in GitHub Actions (workflow Beveiliging). Niveau 4 sinds 1.145.0;
-# sinds 1.284.2 zonder oude meldingen (de baseline is leeg).
+# PHPStan: statische controle van de PHP-code in GitHub Actions (workflow Beveiliging). Niveau 4 sinds 1.145.0,
+# zonder oude meldingen sinds 1.284.2, niveau 5 sinds 1.284.3 (de baseline is leeg).
 # Wat er al was staat in phpstan-baseline.neon: alleen NIEUWE meldingen maken CI rood. Iets uit de baseline opgelost?
 # Maak hem opnieuw met de workflow "PHPStan-baseline maken" (anders meldt PHPStan dat een regel niet meer nodig is).
 # Lokaal: php phpstan.phar analyse --memory-limit=1G
@@ -7,7 +7,7 @@ includes:
     - phpstan-baseline.neon
 
 parameters:
-    level: 4
+    level: 5
     paths:
         - src
         - public

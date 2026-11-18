@@ -55,7 +55,7 @@ final class AgentCrypto
         if (preg_match('/^[0-9a-f]{64}$/', $old) && (int) setting('enc_key_old_until', '0') > time()) {
             $keys[] = $old;
         }
-        return array_values($keys);
+        return $keys;
     }
 
     /** Kort kenmerk van een sleutel (geen geheim): zo weet RzSense met welke sleutel de agent werkt */
