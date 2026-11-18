@@ -6,7 +6,7 @@ const BASE = process.env.BASE || 'http://127.0.0.1:8099';
   const errs = [];
   const b = await chromium.launch();
   const pg = await (await b.newContext({ locale: 'nl-NL', viewport: { width: 1280, height: 900 } })).newPage();
-  pg.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
+  pg.on('pageerror', (e) => errs.push('pageerror: ' + e.message + (e.stack ? ' @ ' + String(e.stack).split('\n').slice(1, 4).map((s) => s.trim()).join(' < ') : '')));
   pg.on('console', (m) => { if (m.type() === 'error' && !/favicon/.test(m.text())) errs.push('console: ' + m.text()); });
   await pg.goto(BASE + '/?login=1');
   await pg.fill('#login-form [name=username]', process.env.RZ_USER || 'admin');

@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.285.0**: **Web Push**: meldingen rechtstreeks op je iPhone, Android of computer, zonder extra app, versleuteld tot op je apparaat en met een knop om te bevestigen.
 - **1.284.0**: meldingen ook naar **Discord, Slack en Microsoft Teams**, met kleur per status, een knop om te bevestigen en een eigen filter per kanaal.
 
+## 1.288.1 – 2026-11-18
+### Opgelost
+- De automatische browsertest laat bij een fout in de pagina nu ook zien waar die zit (de eerste regels van de stacktrace). Voor jou verandert er niets.
+
 ## 1.288.0 – 2026-11-18
 ### Nieuw
 - **Geschiedenis van een overname terug naar de hoofdserver** (stap 3 van 3). Zie HANDLEIDING hoofdstuk 13, *Overnemen en teruggeven*.
