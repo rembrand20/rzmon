@@ -42,6 +42,7 @@ function initVulns() {
 }
 
 async function loadVulns() {
+  if (!$('#vuln-hosts')) return;   // 1.288.2: kwetsbaarhedenscan uit: dan staat dit deel niet op de pagina
   try {
     vulnData = await api('vulns');
     keepOpen($('#vuln-hosts'), renderVulns);

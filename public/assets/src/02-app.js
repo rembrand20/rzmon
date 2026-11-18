@@ -762,7 +762,7 @@ async function refresh(live = false, what = null) {
     const stale = (k) => !what || what[k] || Date.now() - (liveLoaded[k] || 0) > 300000;
     if (!$('#tab-alerts').hidden && stale('alerts')) { liveLoaded.alerts = Date.now(); loadAlerts(); }
     if (!$('#tab-ids').hidden && stale('ids')) { liveLoaded.ids = Date.now(); loadIds(); }
-    if ($('#tab-vulns') && !$('#tab-vulns').hidden) loadVulns();
+    if ($('#tab-vulns') && !$('#tab-vulns').hidden && $('#vuln-hosts')) loadVulns();   // 1.288.2: alleen als de scan aan staat (anders alleen Verouderd/Datalekken)
     if (live && $('#tab-net') && !$('#tab-net').hidden) loadNet();
     // 1.134.0: Dashboard: servers en checks meteen, de rest (trends, IDS, CVE's) hooguit eens per minuut
     if (!$('#tab-home').hidden) { if (Date.now() - hmAt > 60000) loadHome(); else renderHome(); }

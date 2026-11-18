@@ -156,6 +156,8 @@ jobs:
       - name: Browserrondje
         run: |
           (cd public && php -S 127.0.0.1:8099 >/tmp/php.log 2>&1 &)
+          # 1.288.2: de cron draait mee, zoals in een echte installatie (live updates tijdens het rondje vingen zo een fout)
+          (for i in $(seq 1 60); do php cron/run.php >>/tmp/cron.log 2>&1; sleep 15; done &)
           npm install --no-save --silent playwright@1.47.2
           npx playwright install --with-deps chromium >/dev/null
           BASE=http://127.0.0.1:8099 RZ_USER=admin RZ_PASS=ci-geheim-123 node tests/e2e/smoke.js 2>&1 | tee /tmp/e2e.out

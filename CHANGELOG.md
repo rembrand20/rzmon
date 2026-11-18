@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.285.0**: **Web Push**: meldingen rechtstreeks op je iPhone, Android of computer, zonder extra app, versleuteld tot op je apparaat en met een knop om te bevestigen.
 - **1.284.0**: meldingen ook naar **Discord, Slack en Microsoft Teams**, met kleur per status, een knop om te bevestigen en een eigen filter per kanaal.
 
+## 1.288.2 – 2026-11-18
+### Opgelost
+- **Foutmelding in de browser op het tabblad Kwetsbaarheden.** Kwam er een live update binnen terwijl je op dat tabblad stond, dan laadde RzSense de kwetsbaarheden opnieuw, ook als de kwetsbaarhedenscan uit stond (het tabblad is er dan alleen voor *Verouderd* of *Datalekken*). Dat gaf een fout in de pagina. Dat was de wisselvallige fout in de automatische browsertest.
+- De automatische browsertest draait nu met de cron erbij, zoals in een echte installatie. Zo komen fouten bij live updates eerder boven.
+
 ## 1.288.1 – 2026-11-18
 ### Opgelost
 - De automatische browsertest laat bij een fout in de pagina nu ook zien waar die zit (de eerste regels van de stacktrace). Voor jou verandert er niets.
