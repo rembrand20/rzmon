@@ -4729,6 +4729,38 @@ Opnieuw `install-rocky.sh` draaien doet beide ook.
 
 ---
 
+### 13.x Reserve-RzSense 🛟 (vanaf 1.286.0)
+Een **reserve** is een tweede RzSense, het liefst op een andere machine (bijvoorbeeld als container), die een kopie bijhoudt van je hoofdserver. Valt de hoofdserver weg, dan kan de reserve het werk overnemen.
+
+**In deze versie** houdt de reserve alleen de kopie bij. Automatisch overnemen, met een melding via je kanalen, en daarna de geschiedenis terugsturen naar de hoofdserver komen in de volgende versies.
+
+**Koppelen:**
+1. Installeer RzSense een tweede keer, bijvoorbeeld als container op een andere machine (zie `container/README.md`), en log in.
+2. Op de **hoofdserver**: *Instellingen → Systeem → Reserve-RzSense* → **🔑 Koppelcode maken** (met je wachtwoord). De code is 1 uur geldig en werkt één keer.
+3. Op de **reserve**, op dezelfde pagina: vul het adres van de hoofdserver in (bijvoorbeeld je SWAG-adres) en de code → **🛟 Koppelen als reserve**.
+4. Binnen een paar minuten komt de eerste volledige kopie binnen. Daarna log je op de reserve in met je **account van de hoofdserver**.
+
+**Hoe het bijhouden werkt:**
+- De **reserve doet het werk**: elke minuut vraagt hij aan de hoofdserver hoe het gaat. Dat is meteen de controle of de hoofdserver bereikbaar is. De hoofdserver hoeft de reserve dus niet te kunnen bereiken.
+- **Elke 15 minuten** maakt de hoofdserver een kleine kopie: servers, checks, agentsleutels, instellingen (ook de meldkanalen) en gebruikers. De geschiedenis, logs en meldingen zitten daar niet in.
+- **Elke nacht om 3 uur** komt er een volledige kopie, met de geschiedenis. Direct na het koppelen komt er meteen één.
+- De reserve haalt de kopieën rustig op, in stukken van 16 MB (hooguit 3 per minuut). Hij controleert elke kopie (SHA-256) voor hij hem terugzet.
+- **Wat bij de reserve van hemzelf blijft:**
+  - sessies, onthouden apparaten en passkeys (die horen bij zijn eigen adres);
+  - de instellingen voor zijn eigen adres, proxy, https, toegang van buiten, back-ups en updates.
+- Een reserve in **stand-by doet verder niets**: geen checks, geen meldingen, geen rapporten. Bovenaan staat een balk *Dit is de reserve van …*. Wat je op de reserve verandert, wordt bij de volgende kopie overschreven.
+- Heeft de reserve een **oudere versie** dan de hoofdserver, dan zet hij niets terug tot hij is bijgewerkt (nieuwe image). Hij laat dat op de pagina zien.
+
+**Veilig:**
+- Na het koppelen delen de twee een sleutel die alleen zij kennen. Elk verzoek is ondertekend en elk antwoord versleuteld, bovenop https.
+- Een verzoek telt maar één keer en is 5 minuten geldig.
+- Een verkeerde code of sleutel krijgt een gewone 404.
+- De sleutel is geheim: hij staat niet in de export van instellingen en niet in het wijzigingslogboek.
+
+**Goed om te weten:**
+- Gebruik je de bescherming van de reverse proxy met *alleen vanaf mijn netwerk*? Dan komt de reserve er na het eerste contact vanzelf bij. Komt hij van buiten je netwerk, koppel hem dan eerst vanuit je netwerk, of zet zijn adres bij de vertrouwde netwerken.
+- Ontkoppelen kan op beide kanten (**✕ Ontkoppelen**). Op de hoofdserver gaan dan ook de kopieën weg.
+
 ## 14. Beveiligingschecklist
 
 - [ ] De document root is `public/`. Controleer dat `http://<server>/config.php` een **404** geeft.

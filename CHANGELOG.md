@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.286.0**: **reserve-RzSense**: een tweede RzSense (bv. een container op een andere machine) houdt versleuteld een kopie bij van je hoofdserver: elke 15 minuten klein, elke nacht volledig.
 - **1.285.0**: **Web Push**: meldingen rechtstreeks op je iPhone, Android of computer, zonder extra app, versleuteld tot op je apparaat en met een knop om te bevestigen.
 - **1.284.0**: meldingen ook naar **Discord, Slack en Microsoft Teams**, met kleur per status, een knop om te bevestigen en een eigen filter per kanaal.
 - **1.283.0**: **relay als losse agent** (`rzmon-agent-relay`) naast de container: niet als root, bij de server getoond en bij te werken met de knop, ondertekend.
 - **1.282.0**: **netwerken en relays**: servers in een netwerk zonder verbinding met RzSense rapporteren via een relay-container, versleuteld van agent tot RzSense, met één melding als de relay wegvalt.
-- **1.281.0**: **RzSense als container** (Podman op Rocky), met een eigen MariaDB-container, de nooddeur op poort 8443 en een melding in de app bij een nieuwe versie.
+
+## 1.286.0 – 2026-11-18
+### Nieuw
+- **Reserve-RzSense** (stap 1 van 3): een tweede RzSense, bijvoorbeeld een container op een andere machine, houdt een kopie bij van je hoofdserver. *Instellingen → Systeem → Reserve-RzSense*; zie HANDLEIDING hoofdstuk 13.
+  - **Koppelen** met een koppelcode van de hoofdserver: 20 tekens, 1 uur geldig, werkt één keer, met je wachtwoord.
+  - De **reserve haalt** elke minuut de status op (meteen de controle of de hoofdserver bereikbaar is), elke 15 minuten een kleine kopie (servers, checks, agentsleutels, instellingen, gebruikers) en elke nacht een volledige met de geschiedenis. Rustig, in stukken van 16 MB, gecontroleerd met SHA-256.
+  - De reserve houdt zijn **eigen** sessies, passkeys, onthouden apparaten en de instellingen voor zijn eigen adres, proxy, https, toegang, back-ups en updates.
+  - Een reserve in stand-by **doet verder niets** (geen checks, meldingen of rapporten) en laat bovenaan zien dat hij de reserve is. Een oudere reserve zet geen kopie van een nieuwere hoofdserver terug.
+  - **Veilig:** elk verzoek ondertekend en elk antwoord versleuteld met een gedeelde sleutel (bovenop https), elk verzoek maar één keer geldig. Een verkeerde sleutel krijgt een gewone 404. De sleutel staat niet in de export van instellingen en niet in het wijzigingslogboek.
+  - De bescherming van de reverse proxy (*alleen vanaf mijn netwerk*) laat de reserve door.
+  - Automatisch overnemen (met een melding) en de geschiedenis terugsturen komen in de volgende versies.
 
 ## 1.285.1 – 2026-11-18
 ### Opgelost

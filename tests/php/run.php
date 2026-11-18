@@ -3848,5 +3848,66 @@ save_setting('webpush_enabled', '1');
 q('DELETE FROM webpush_subs');
 ok(!WebPush::enabled() && WebPush::send('x', 'y')['ok'] === false, 'webpush: zonder apparaten niets te versturen');
 
+section('Reserve-RzSense (1.286.0)');
+$rk = random_bytes(32);
+$rbox = Reserve::seal('geheim 🛟', $rk);
+ok(Reserve::open($rbox, $rk) === 'geheim 🛟' && Reserve::open($rbox, random_bytes(32)) === null && Reserve::open(substr($rbox, 0, -1) . 'x', $rk) === null,
+    'reserve: versleuteld, alleen met de juiste sleutel, niet te veranderen');
+ok(Reserve::codeKey('abcde-fghjk-lmnpq-rstuv') === Reserve::codeKey('ABCDEFGHJKLMNPQRSTUV') && Reserve::codeKey('ABCDEFGHJKLMNPQRSTUV') !== Reserve::codeKey('ABCDEFGHJKLMNPQRSTUW'),
+    'reserve: koppelcode met of zonder streepjes en kleine letters');
+$rCode = Reserve::newCode();
+ok((bool) preg_match('/^([A-Z2-9]{5}-){3}[A-Z2-9]{5}$/', $rCode) && (int) setting('reserve_pair_until') > time() + 3500, 'reserve: code van 20 tekens, 1 uur geldig');
+$rTs = time();
+$rN = bin2hex(random_bytes(16));
+$rBody = (string) json_encode(['url' => 'https://reserve.example', 'version' => RZMON_VERSION]);
+$rH = fn(string $key, string $op, string $body, int $ts, string $n) => ['x-rz-reserve-ts' => (string) $ts, 'x-rz-reserve-nonce' => $n, 'x-rz-reserve-sig' => Reserve::sign($key, $op, $ts, $n, $body)];
+ok(Reserve::handle('pair', $rBody, $rH(Reserve::codeKey('AAAAABBBBBCCCCCDDDDD'), 'pair', $rBody, $rTs, $rN)) === null
+    && Reserve::handle('pair', $rBody, $rH(Reserve::codeKey($rCode), 'pair', $rBody, $rTs - 900, $rN)) === null, 'reserve: verkeerde code of oud verzoek = niets (404)');
+$rRes = Reserve::handle('pair', $rBody, $rH(Reserve::codeKey($rCode), 'pair', $rBody, $rTs, $rN));
+$rJ = $rRes !== null ? json_decode((string) Reserve::open($rRes, Reserve::codeKey($rCode)), true) : null;
+ok(is_array($rJ) && $rJ['key'] === setting('reserve_key') && Reserve::role() === 'primary' && setting('reserve_url') === 'https://reserve.example' && setting('reserve_pair_code') === '',
+    'reserve: koppelen geeft de sleutel (versleuteld met de code), code daarna weg');
+ok(Reserve::handle('pair', $rBody, $rH(Reserve::codeKey($rCode), 'pair', $rBody, $rTs, bin2hex(random_bytes(16)))) === null, 'reserve: een code werkt maar één keer');
+$rKey = (string) hex2bin((string) setting('reserve_key'));
+$rN2 = bin2hex(random_bytes(16));
+$rHello = Reserve::handle('hello', '{"version":"9.9.9"}', $rH($rKey, 'hello', '{"version":"9.9.9"}', time(), $rN2));
+$rM = $rHello !== null ? json_decode((string) Reserve::open($rHello, $rKey), true) : null;
+ok(is_array($rM) && $rM['version'] === RZMON_VERSION && array_key_exists('snap', $rM) && setting('reserve_version') === '9.9.9', 'reserve: contact, met wat er klaarstaat');
+ok(Reserve::handle('hello', '{"version":"9.9.9"}', $rH($rKey, 'hello', '{"version":"9.9.9"}', time(), $rN2)) === null
+    && Reserve::handle('hello', '{"version":"1"}', $rH($rKey, 'hello', '{"version":"9.9.9"}', time(), bin2hex(random_bytes(16)))) === null,
+    'reserve: hetzelfde verzoek twee keer of een veranderd verzoek = niets');
+ok(str_contains(Reserve::build('snap'), 'klaar'), 'reserve: kleine kopie maken');
+$rSnap = json_decode((string) setting('reserve_snap'), true);
+$rZip = Reserve::dir() . '/' . $rSnap['id'];
+$rN3 = bin2hex(random_bytes(16));
+$rCb = (string) json_encode(['id' => $rSnap['id'], 'off' => 0]);
+$rChunk = Reserve::open((string) Reserve::handle('chunk', $rCb, $rH($rKey, 'chunk', $rCb, time(), $rN3)), $rKey);
+$rBad = (string) json_encode(['id' => '../../config.php', 'off' => 0]);
+ok($rChunk !== null && hash('sha256', $rChunk) === $rSnap['sha'] && strlen($rChunk) === $rSnap['size']
+    && Reserve::open((string) Reserve::handle('chunk', $rBad, $rH($rKey, 'chunk', $rBad, time(), bin2hex(random_bytes(16)))), $rKey) === '',
+    'reserve: kopie ophalen klopt (SHA-256), geen andere bestanden');
+$rTmpSql = sys_get_temp_dir() . '/rz-test-snap.sql';
+Backup::extract($rZip, 'database.sql', $rTmpSql);
+$rSql = (string) file_get_contents($rTmpSql);
+@unlink($rTmpSql);
+ok(str_contains($rSql, '-- php_sessions: zonder gegevens') && str_contains($rSql, '-- results: zonder gegevens') && str_contains($rSql, '-- alerts: zonder gegevens')
+    && str_contains($rSql, 'INSERT INTO `hosts`') && str_contains($rSql, 'INSERT INTO `settings`'), 'reserve: kleine kopie zonder sessies, geschiedenis en meldingen, met servers en instellingen');
+// Terugzetten (zoals op de reserve): eigen instellingen en sessies blijven, de rest wordt die van de kopie
+save_setting('trusted_proxies', '10.1.1.1');
+save_setting('pushover_user', 'kopie-waarde');
+$rSnap2 = Reserve::build('snap');
+$rZip2 = Reserve::dir() . '/' . json_decode((string) setting('reserve_snap'), true)['id'];
+save_setting('pushover_user', 'na-de-kopie');
+save_setting('trusted_proxies', '10.2.2.2');
+save_setting('reserve_role', 'reserve');
+q("INSERT INTO php_sessions (id, data, updated_at) VALUES ('rs-test', 'x', ?)", [time()]);
+ok(Reserve::apply($rZip2, '') === null, 'reserve: kopie terugzetten');
+ok(setting('pushover_user') === 'kopie-waarde' && setting('trusted_proxies') === '10.2.2.2' && Reserve::role() === 'reserve'
+    && (int) q("SELECT COUNT(*) FROM php_sessions WHERE id = 'rs-test'")->fetchColumn() === 1 && Reserve::standby(),
+    'reserve: instellingen van de kopie, maar eigen proxy, rol en sessies blijven');
+ok(in_array('reserve_key', SECRET_SETTINGS, true) && SettingsMeta::skipTransfer('reserve_key') && SettingsMeta::isBookkeeping('reserve_seen'), 'reserve: sleutel geheim, niet exporteren, niet in het logboek');
+Reserve::unpair();
+ok(Reserve::role() === '' && !Reserve::standby() && !glob(Reserve::dir() . '/snap-*.zip'), 'reserve: ontkoppelen haalt sleutel en kopieën weg');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

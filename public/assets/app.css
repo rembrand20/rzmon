@@ -6318,3 +6318,7 @@ details.pxs h4 { margin: .2rem 0 .45rem; font-size: .9rem; }
 .chat-kinds { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 10px; }
 .chat-kind { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px 12px; margin: 0; min-width: 0; }
 .chat-kind legend { font-weight: 600; padding: 0 6px; }
+
+/* 1.286.0: reserve-RzSense in stand-by */
+.reserve-banner { margin: 0 0 16px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--card, transparent); font-size: .92rem; }
+.rs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }

@@ -12,6 +12,39 @@ declare(strict_types=1);
 defined('RZ_API') || exit;
 
 switch ($action) {
+    // ---------------------------------------------------------------- 1.286.0: reserve-RzSense
+    case 'reserve_overview':
+        out(Reserve::overview());
+
+    case 'reserve_code':
+        // Hoofdserver: koppelcode voor een reserve (een nieuwe code maakt een oude ongeldig)
+        if (Reserve::role() === 'reserve') {
+            out(['error' => t('Deze RzSense is zelf een reserve')], 422);
+        }
+        $confirm('RESERVE');
+        out(['code' => Reserve::newCode(), 'url' => public_url(), 'until' => date('c', time() + 3600)]);
+
+    case 'reserve_pair':
+        // Reserve: koppelen met de hoofdserver. Daarna wordt deze database elke 15 minuten overschreven.
+        $confirm('RESERVE');
+        session_write_close();
+        $in = input();
+        if ($err = Reserve::pair((string) ($in['url'] ?? ''), (string) ($in['code'] ?? ''))) {
+            out(['error' => $err], 422);
+        }
+        out(['ok' => true] + Reserve::overview());
+
+    case 'reserve_unpair':
+        $confirm('ONTKOPPELEN');
+        Reserve::unpair();
+        out(['ok' => true] + Reserve::overview());
+
+    case 'reserve_now':
+        // Hoofdserver: nu een kleine kopie maken; reserve: nu contact en ophalen
+        session_write_close();
+        $msg = Reserve::role() === 'primary' ? Reserve::build('snap') : (Reserve::standby() ? Reserve::reserveCron() : null);
+        out(['ok' => true, 'message' => $msg] + Reserve::overview());
+
     // ---------------------------------------------------------- Commando's op agents
     // 1.252.0: voortgang van een lange taak (netwerkscan, poortscan) en stoppen
     case 'job_status':

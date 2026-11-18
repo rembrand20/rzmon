@@ -120,7 +120,11 @@ final class ProxyGuard
             }
         }
         $out = $ok ? array_slice(array_values($ok), 0, 50) : PRIVATE_NETWORKS;
-        $agents = class_exists('Ids') ? array_slice(array_values(array_diff(Ids::agentIps(), $out)), 0, 30) : [];
+        $mine = class_exists('Ids') ? Ids::agentIps() : [];
+        if (Reserve::role() === 'primary' && filter_var((string) setting('reserve_ip', ''), FILTER_VALIDATE_IP)) {
+            $mine[] = (string) setting('reserve_ip', '');   // 1.286.0: de reserve-RzSense haalt zijn kopieën via de proxy
+        }
+        $agents = array_slice(array_values(array_unique(array_diff($mine, $out))), 0, 30);
         return array_merge($out, array_values(array_filter($agents, [self::class, 'validNet'])));
     }
 

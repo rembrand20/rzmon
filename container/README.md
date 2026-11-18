@@ -60,6 +60,10 @@ Een bepaalde versie vastzetten: zet in `rzsense.container` `Image=ghcr.io/rembra
 3. *Instellingen → Systeem → Back-up* → **⬆ Zip uploaden** → **↺ Terugzetten**. `config.php` uit de zip wordt in een container niet overgenomen: de container houdt zijn eigen database-instellingen.
 4. Werkt alles, zet dan de oude installatie uit. Wijzigt het adres van RzSense, zet dan bij de agents het nieuwe adres (*Servers → adres wisselen*).
 
+## Als reserve van je hoofdserver (vanaf 1.286.0)
+
+Een container op een andere machine is een goede **reserve-RzSense**: hij houdt een kopie bij van je hoofdserver. Start hem zoals hierboven en log in. Maak op de hoofdserver bij *Instellingen → Systeem → Reserve-RzSense* een koppelcode, en vul die met het adres van de hoofdserver in op dezelfde pagina van de container. Zie HANDLEIDING, hoofdstuk 13 (*Reserve-RzSense*). Houd de reserve op dezelfde versie als de hoofdserver of nieuwer: een oudere reserve zet geen kopieën terug.
+
 ## Wat in een container anders is
 
 - **Geen hulpdienst en geen git-updates:** bijwerken gaat met een nieuwe image. `config.php` staat in het datavolume en RzSense mag het zelf aanpassen.

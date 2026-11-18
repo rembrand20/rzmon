@@ -239,17 +239,45 @@ final class Backup
         }
     }
 
-    /** @param string|null $keepSql database-export hier bewaren (voor terugdraaien bij een mislukt herstel) */
-    private static function make(string $type, bool $history, ?string $keepSql = null, bool $lean = false): array
+    /**
+     * 1.286.0: export voor de reserve-RzSense: een zip op $dest (niet in de lijst met back-ups), zonder de tabellen in $skip
+     * (die blijven bij de reserve zoals ze zijn).
+     * @param list<string> $skip
+     * @return array{ok: bool, file: ?string, size: int, error: ?string, busy?: bool}
+     */
+    public static function export(string $dest, bool $history, bool $lean, array $skip): array
+    {
+        if ($p = self::problem()) {
+            return ['ok' => false, 'file' => null, 'size' => 0, 'error' => $p];
+        }
+        if (!self::lock()) {
+            return ['ok' => false, 'file' => null, 'size' => 0, 'busy' => true, 'error' => t('Er loopt al een back-up of herstel; probeer het zo opnieuw')];
+        }
+        try {
+            return self::make('auto', $history, null, $lean, $dest, $skip);
+        } finally {
+            self::unlock();
+        }
+    }
+
+    /**
+     * @param string|null $keepSql database-export hier bewaren (voor terugdraaien bij een mislukt herstel)
+     * @param string|null $dest 1.286.0: de zip hier neerzetten (reserve) in plaats van in de back-upmap
+     * @param list<string> $skip 1.286.0: deze tabellen niet meenemen
+     * @return array{ok: bool, file: ?string, size: int, error: ?string}
+     */
+    private static function make(string $type, bool $history, ?string $keepSql = null, bool $lean = false, ?string $dest = null, array $skip = []): array
     {
         @set_time_limit(0);
         ignore_user_abort(true);
-        $dir = self::dir();
-        self::prune();   // 1.280.0: ook vóór een back-up opruimen (anders blijft een volle schijf vol)
+        $dir = $dest !== null ? dirname($dest) : self::dir();
+        if ($dest === null) {
+            self::prune();   // 1.280.0: ook vóór een back-up opruimen (anders blijft een volle schijf vol)
+        }
         $last = self::lastSize($history && !$lean);
         $min = max(50 * 1024 * 1024, (int) ($last * 1.5));
         $free = @disk_free_space($dir);
-        if ($free !== false && $free < $last * 9) {
+        if ($free !== false && $free < $last * 9 && $dest === null) {
             self::pruneForSpace($last * 9);   // de database-export staat even uitgepakt naast de zip
             clearstatcache();
             $free = @disk_free_space($dir);
@@ -260,12 +288,12 @@ final class Backup
         }
         $t = time();
         do {
-            $file = sprintf('rzmon-backup-%s-%s.zip', date('Ymd-His', $t++), $type);
-        } while (file_exists("$dir/$file"));
+            $file = $dest !== null ? basename($dest) : sprintf('rzmon-backup-%s-%s.zip', date('Ymd-His', $t++), $type);
+        } while ($dest === null && file_exists("$dir/$file"));
         $sql = "$dir/.$file.sql";
         $tmp = "$dir/.$file.tmp";
         try {
-            $tables = self::dump($sql, $history, $lean);
+            $tables = self::dump($sql, $history, $lean, $skip);
             $pass = (string) setting('backup_pass', '');
             if ($pass !== '' && !self::encryptionSupported()) {
                 throw new RuntimeException(t('Deze PHP kan geen versleutelde zip maken (libzip te oud)'));
@@ -302,16 +330,19 @@ final class Backup
             }
         }
         self::own("$dir/$file");
-        self::prune();
+        if ($dest === null) {
+            self::prune();
+        }
         return ['ok' => true, 'file' => $file, 'size' => (int) filesize("$dir/$file"), 'error' => null];
     }
 
     /**
      * Database naar een SQL-bestand: per tabel DROP + CREATE + INSERTs (200 rijen per regel).
      * Elke INSERT staat op één regel (regeleinden in teksten worden \n), zodat herstellen regel voor regel kan.
+     * @param list<string> $skip 1.286.0: deze tabellen niet (reserve)
      * @return array<string, int|null> rijen per tabel (null = zonder gegevens)
      */
-    private static function dump(string $file, bool $history, bool $lean = false): array
+    private static function dump(string $file, bool $history, bool $lean = false, array $skip = []): array
     {
         $pdo = self::pdo();
         $pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false);   // grote tabellen niet in het geheugen
@@ -323,7 +354,8 @@ final class Backup
         $tables = $pdo->query("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'")->fetchAll(PDO::FETCH_COLUMN);
         $counts = [];
         foreach ($tables as $t) {
-            if ((!$history && in_array($t, self::HISTORY_TABLES, true)) || ($lean && (in_array($t, self::UPDATE_SKIP, true) || preg_match('/^logd_\d{8}$/', (string) $t)))) {
+            if ((!$history && in_array($t, self::HISTORY_TABLES, true)) || ($lean && (in_array($t, self::UPDATE_SKIP, true) || preg_match('/^logd_\d{8}$/', (string) $t)))
+                || in_array($t, $skip, true)) {
                 // Tabel blijft bij herstellen staan zoals hij is
                 fwrite($fh, "-- $t: zonder gegevens (meethistorie niet meegenomen)\n");
                 $counts[$t] = null;
@@ -575,9 +607,10 @@ final class Backup
      * Database terugzetten uit een back-up. Eerst wordt een veiligheidsback-up gemaakt (met historie).
      * De back-upinstellingen (schema, wachtwoord) blijven zoals ze nu zijn.
      * config.php wordt hier niet teruggezet: dat kan alleen als root (install.php --restore --with-config).
+     * @param list<string> $keep 1.286.0: instellingen die blijven zoals ze zijn (met % = begint met)
      * @return array{ok: bool, error: ?string, safety: ?string, need_password?: bool}
      */
-    public static function restore(string $path, ?string $password = null, bool $safety = true): array
+    public static function restore(string $path, ?string $password = null, bool $safety = true, array $keep = ['backup\\_%']): array
     {
         if ($p = self::problem()) {
             return ['ok' => false, 'error' => $p, 'safety' => null];
@@ -606,7 +639,8 @@ final class Backup
                 $safe = $s['file'];
             }
             try {
-                $keepSettings = q("SELECT name, value FROM settings WHERE name LIKE 'backup\\_%'")->fetchAll();
+                $keep = $keep ?: ['backup\\_%'];
+                $keepSettings = q('SELECT name, value FROM settings WHERE ' . implode(' OR ', array_fill(0, count($keep), 'name LIKE ?')), $keep)->fetchAll();
             } catch (PDOException) {
                 $keepSettings = [];   // lege database (nieuwe server)
             }

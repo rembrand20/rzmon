@@ -226,6 +226,9 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
   <button type="button" class="cc-tvexit" id="cc-tvexit" hidden><?= th('✕ TV-modus uit') ?></button>
   <main class="container">
     <div class="iso-banner" id="iso-banner" role="alert" hidden></div><!-- 1.172.0: server in isolatie -->
+<?php if (Reserve::standby()): ?>
+    <div class="reserve-banner" role="status">🛟 <?= t('Dit is de <b>reserve</b> van {url} (stand-by). Hij houdt een kopie bij en doet verder niets; wat je hier verandert, wordt bij de volgende kopie overschreven.', ['url' => htmlspecialchars((string) setting('reserve_primary_url', ''))]) ?></div>
+<?php endif; ?>
     <header class="crumbs ph" id="crumbs" hidden></header><!-- 1.199.0 kruimelpad; 1.216.0: paginakop met titel, samenvatting en een altijd klikbaar pad -->
     <!-- 1.194.0: mDS, alleen op een telefoon -->
     <section id="tab-mds" class="tab-panel" role="tabpanel" aria-label="<?= th('Mobile device summary') ?>" hidden><div id="mds" class="mds"></div></section>
@@ -1685,6 +1688,11 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           </div>
         </div>
 
+        <div data-sk="reserve" class="card" id="reserve-card" data-nodirty>
+          <h2>🛟 <?= th('Reserve-RzSense') ?></h2>
+          <?= xp(t('Een tweede RzSense, bijvoorbeeld een container op een andere machine, die een kopie bijhoudt van deze RzSense.'), t('<b>Hoe het werkt:</b> de reserve vraagt elke minuut aan de hoofdserver hoe het gaat, en haalt de kopieën op: elke 15 minuten een kleine kopie (servers, checks, agentsleutels, instellingen, gebruikers) en elke nacht een volledige met de geschiedenis. Rustig, in stukken van 16 MB. Alles is versleuteld met een sleutel die alleen deze twee kennen. <b>Zo stel je het in:</b> 1. Installeer RzSense een tweede keer (container) op een andere machine. 2. Klik hier, op de hoofdserver, op <i>Koppelcode maken</i>. 3. Open de reserve, ga naar deze pagina en vul het adres van de hoofdserver en de code in. <b>Goed om te weten:</b> na de eerste kopie log je op de reserve in met je account van de hoofdserver. Een reserve in stand-by doet verder niets: geen checks en geen meldingen. Automatisch overnemen als de hoofdserver wegvalt, komt in een volgende versie.')) ?>
+          <div id="reserve-body"><p class="muted"><?= th('Laden…') ?></p></div>
+        </div>
         <div data-sk="backup" class="card" id="backup-card">
           <h2><?= th('💾 Back-up') ?></h2>
           <?= xp(t('Automatische back-ups van de hele database en config.php.'), t('<b>Wat het is:</b> een zip met de hele database (servers, checks, instellingen, gebruikers) en <code>config.php</code>. <b>Waar:</b> de back-ups staan op deze server, buiten de webmap. <b>Goed om te weten:</b> download er af en toe een, zodat je ook een kopie hebt als de server zelf stuk gaat.')) ?>

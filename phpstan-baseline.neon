@@ -1291,12 +1291,6 @@ parameters:
 			path: src/Backup.php
 
 		-
-			message: '#^Method Backup\:\:make\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Backup.php
-
-		-
 			message: '#^Method Backup\:\:readConfig\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1

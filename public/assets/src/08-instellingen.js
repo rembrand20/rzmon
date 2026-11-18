@@ -808,6 +808,7 @@ const SET_NAV = [
     ['looks', L('Weergave'), ['looks'], L('De standaard weergave voor accounts die zelf nog niets kozen.')],
     ['update', L('Bijwerken'), ['update'], L('Nieuwe versies van RzSense, met of zonder automatisch bijwerken.')],
     ['backup', L('Back-up'), ['backup'], L('Automatische back-ups en terugzetten.')],
+    ['reserve', L('Reserve-RzSense'), ['reserve'], L('Een tweede RzSense die een kopie bijhoudt van deze, op een andere machine.')],
     ['db', L('Database en server'), ['dbconn', 'db', 'storage', 'dbuse', 'server', 'syscheck', 'cron'], L('Databaseverbinding, bewaartermijnen, tijdzone, PHP en de systeemcheck.'),
       [['database', L('Database'), ['dbconn', 'db', 'storage', 'dbuse']], ['server', L('Server'), ['server', 'syscheck', 'cron']]]],
     ['perf', L('Prestaties en fouten'), ['perf', 'errors'], L('Hoe snel RzSense is, hoe lang een cron-ronde duurt, de traagste checks en PHP-fouten.')],
@@ -916,6 +917,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'patch') loadPatchSet();   // 1.230.0
   if (setSection === 'sudo') loadSudoSet();   // 1.231.0
   if (setSection === 'relays') loadRelaySet();   // 1.282.0
+  if (setSection === 'reserve') loadReserveSet();   // 1.286.0
   if (setSection === 'nis2') loadNis2();   // 1.232.0
   if (setSection === 'proxy') loadProxyRoles();   // 1.254.0
   if (setSection === 'ids_dns') loadDnsbl();

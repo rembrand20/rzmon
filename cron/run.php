@@ -44,6 +44,19 @@ if ($err = Installer::ensureSchema()) {
 // Geen gebruiker: berichten (checks, meldingen, back-ups, IDS) in de taal van meldingen
 I18n::set(I18n::notifyLang());
 
+// 1.286.0: een reserve-RzSense in stand-by doet niets anders dan bijhouden: geen checks, meldingen of rapporten
+if (Reserve::standby()) {
+    try {
+        if ($msg = Reserve::reserveCron()) {
+            echo date('c') . " $msg\n";
+        }
+    } catch (Throwable $e) {
+        cron_err('Reserve', $e);
+    }
+    save_setting('cron_last_run', now());
+    exit(0);
+}
+
 $force = in_array('--force', $argv, true);
 Perf::lap('start');   // snelheidsmeter (1.119.0): de duur van elk onderdeel
 $n = Monitor::runDue($force);
@@ -108,6 +121,14 @@ if ($tail !== false && !flock($tail, LOCK_EX | LOCK_NB)) {
 Perf::lap('blokkades');
 if ($msg = Backup::runScheduled()) {
     echo date('c') . " $msg\n";
+}
+// 1.286.0: kopieën voor de reserve-RzSense (elke 15 minuten klein, 's nachts volledig)
+try {
+    if ($msg = Reserve::primaryCron()) {
+        echo date('c') . " $msg\n";
+    }
+} catch (Throwable $e) {
+    cron_err('Reserve', $e);
 }
 Perf::lap('backup');
 // Internet (1.157.0): de snelheidstest op de ingestelde tijden (standaard 4× per dag)
