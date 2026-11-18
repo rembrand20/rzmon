@@ -1657,14 +1657,26 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
     let r;
     try { r = await api('agent_pair_code', { id: h.id }); } catch (ex) { toast(ex.message, 'err'); return; }
     const copyLine = (txt) => `<div class="copy-line"><pre class="code">${esc(txt)}</pre><button type="button" class="btn" data-copy-text="${esc(txt)}">${L('Kopieer')}</button></div>`;
-    const head = `<div class="pair-code"><span class="muted small">${L('Koppelcode')}</span> <b class="mono">${esc(r.code)}</b> <span class="pair-status muted small"></span></div>`;
-    const ha = `monitor_url: ${base}\npair_code: ${r.code}${r.pin && base.startsWith('https') ? `\npin: ${r.pin}` : ''}`;
-    $$('[data-pair-pane]', body).forEach((p) => {
-      const k = p.dataset.pairPane;
-      p.innerHTML = head + (k === 'ha' ? copyLine(ha) : copyLine(pairCommand(base, r, k === 'truenas' ? ' --truenas' : '')))
-        + `<p class="muted small">${k === 'ha' ? L('Opslaan en de add-on (her)starten. In het logboek moet <code>Gekoppeld met RzSense</code> staan.')
-          : L('Het commando controleert eerst het installatiescript en de agent (SHA-256)')}${r.pin && base.startsWith('https') ? ' · 📌 ' + L('alleen het certificaat van deze RzSense') : ''}${base.startsWith('https') && !String(state.base_url || '').startsWith('https') ? ' · 🔒 ' + L('agents mogen alleen via https: daarom {url}', { url: `<code>${esc(base)}</code>` }) : ''}</p>`;
-    });
+    // 1.282.0: verbinden via een relay (netwerk zonder verbinding met RzSense): adres en certificaat van de relay
+    const relays = r.relay_host ? [] : (r.relays || []);
+    const fill = (viaId) => {
+      const rl = relays.find((x) => x.id === viaId);
+      const b = rl ? rl.url : base;
+      const rr = rl ? { ...r, pin: rl.pin } : r;
+      const viaSel = relays.length ? `<label class="small">${L('Verbinden via')} <select data-pair-via>
+          <option value="0">${esc(L('rechtstreeks met RzSense'))}</option>${relays.map((x) => `<option value="${x.id}" ${x.id === viaId ? 'selected' : ''}>🛰️ ${esc(x.name)}</option>`).join('')}</select></label>` : '';
+      const head = `<div class="pair-code"><span class="muted small">${L('Koppelcode')}</span> <b class="mono">${esc(r.code)}</b> <span class="pair-status muted small"></span></div>${viaSel}`;
+      const ha = `monitor_url: ${b}\npair_code: ${r.code}${rr.pin && b.startsWith('https') ? `\npin: ${rr.pin}` : ''}`;
+      $$('[data-pair-pane]', body).forEach((p) => {
+        const k = p.dataset.pairPane;
+        p.innerHTML = head + (k === 'ha' ? copyLine(ha) : copyLine(pairCommand(b, rr, k === 'truenas' ? ' --truenas' : '')))
+          + `<p class="muted small">${k === 'ha' ? L('Opslaan en de add-on (her)starten. In het logboek moet <code>Gekoppeld met RzSense</code> staan.')
+            : L('Het commando controleert eerst het installatiescript en de agent (SHA-256)')}${rl ? ' · 🛰️ ' + L('via relay {n}: alleen het certificaat van die relay', { n: esc(rl.name) })
+            : (r.pin && b.startsWith('https') ? ' · 📌 ' + L('alleen het certificaat van deze RzSense') : '')}${!rl && b.startsWith('https') && !String(state.base_url || '').startsWith('https') ? ' · 🔒 ' + L('agents mogen alleen via https: daarom {url}', { url: `<code>${esc(b)}</code>` }) : ''}</p>`;
+      });
+      $$('[data-pair-via]', body).forEach((s) => { s.onchange = () => fill(+s.value); });
+    };
+    fill(relays.some((x) => x.id === r.via_default) ? r.via_default : 0);
     const until = Date.now() + r.minutes * 60000;
     const gen = modalGen, tok = ++pairTok;   // 1.224.4: alleen dit venster en de laatste koppelcode
     const tick = async () => {

@@ -91,7 +91,8 @@ if ($action === 'agent_pair') {
     AgentCommands::audit('agent', 'Agent gekoppeld', "{$host['name']} vanaf $ip (agent $ver)");
     Monitor::sysInfo('agent_connect', (int) $host['id'], (string) $host['name'], 'ℹ️ ' . t('Agent gekoppeld: {name}', ['name' => $host['name']]),
         fn() => t('Agent op {name} is gekoppeld met een koppelcode en heeft een eigen sleutel', ['name' => $host['name']]) . " · IP $ip · agent $ver", $ip);
-    out(['ok' => true, 'host' => $host['name'], 'agent_key' => $key, 'pin' => AgentCrypto::pin(false, true, $host) ?? '',
+    $viaRelay = Relay::current();   // 1.282.0: gekoppeld via een relay: de vingerafdruk van de relay
+    out(['ok' => true, 'host' => $host['name'], 'agent_key' => $key, 'pin' => $viaRelay !== null ? Relay::pin($viaRelay['id']) : (AgentCrypto::pin(false, true, $host) ?? ''),
         'agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh')]);
 }
 
@@ -511,6 +512,8 @@ if ($action === 'agent') {
     AppControl::fromAgent($host, $in, $st, $now);   // 1.229.0: programma's (agent 1.91.0)
     Ioc::fromAgent($host, $in);   // 1.229.0: jagen op sporen
     Patch::fromAgent($host, $in, $st, $now);   // 1.230.0: updates (agent 1.92.0)
+    Relay::fromAgent($host, $in);   // 1.282.0: de relay-container (agent 1.109.0)
+    Relay::noteVia($host);          // 1.282.0: rechtstreeks of via een relay binnengekomen
     Sudo::fromAgent($host, $in);   // 1.231.0: tijdelijk sudo (agent 1.93.0)
     ProxyGuard::fromAgent($host, $in);   // 1.254.0: reverse proxy (agent 1.97.0)
     Waf::fromAgent($host, $in);   // 1.255.0: WAF (agent 1.98.0)

@@ -1053,7 +1053,9 @@ final class Checks
         }
         if (strtotime($host['agent_seen']) < time() - agent_stale_seconds(isset($host['agent_tick']) ? (int) $host['agent_tick'] : null)
             && !UpdateHold::covers((string) $host['agent_seen'])) {   // 1.205.0: tijdens een update van RzSense is stil normaal
-            return self::result(STATUS_CRIT, null, t('Agent stil sinds {t}', ['t' => date('d-m-Y H:i:s', strtotime((string) $host['agent_seen']))]));
+            $behind = !empty($host['id']) ? Relay::behind((int) $host['id']) : 0;   // 1.282.0: een relay: hoeveel agents erachter
+            return self::result(STATUS_CRIT, null, t('Agent stil sinds {t}', ['t' => date('d-m-Y H:i:s', strtotime((string) $host['agent_seen']))])
+                . ($behind ? ' · ' . t('relay: meldingen van {n} agents erachter worden onderdrukt', ['n' => $behind]) : ''));
         }
         return null;
     }

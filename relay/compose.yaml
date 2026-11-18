@@ -1,0 +1,19 @@
+# RzSense Relay met compose (RzSense 1.282.0): podman compose up -d  (of docker compose up -d)
+# Zet eerst relay.env.example als .env naast dit bestand en vul het adres van RzSense en de koppelcode in.
+services:
+  rzsense-relay:
+    image: ghcr.io/rembrand20/rzsense-relay:latest
+    container_name: rzsense-relay
+    env_file: .env
+    network_mode: host
+    cap_add: [NET_RAW]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,size=64m,mode=1777
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - rzsense-relay:/data
+    restart: always
+
+volumes:
+  rzsense-relay:

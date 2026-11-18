@@ -109,6 +109,9 @@ final class Stealth
         if ($k !== '' && hash_equals(self::dlKey(), $k)) {
             return true;
         }
+        if (Relay::current() !== null) {
+            return true;   // 1.282.0: via een bekende relay (ondertekend)
+        }
         $ip = client_ip();
         foreach (q("SELECT agent_ips FROM hosts WHERE mode = 'agent' AND agent_ips IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN) as $ips) {
             if (in_array($ip, preg_split('/\s+/', trim((string) $ips)), true)) {

@@ -1,0 +1,27 @@
+# RzSense Relay (RzSense 1.282.0). Plaats in /etc/containers/systemd/, met /etc/rzsense/relay.env, dan:
+#   sudo systemctl daemon-reload && sudo systemctl start rzsense-relay
+# De agents in dit netwerk verbinden met https://<adres van deze server>:8444; de relay stuurt ze door naar RzSense.
+# Bijwerken: RzSense meldt in de app als er een nieuwe versie is; dan:
+#   sudo podman pull ghcr.io/rembrand20/rzsense-relay:latest && sudo systemctl restart rzsense-relay
+[Unit]
+Description=RzSense Relay
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+ContainerName=rzsense-relay
+Image=ghcr.io/rembrand20/rzsense-relay:latest
+EnvironmentFile=/etc/rzsense/relay.env
+# Host-netwerk: de relay ziet de echte adressen van de agents, en kan in dit netwerk pingen en meten
+Network=host
+AddCapability=NET_RAW
+ReadOnly=true
+Tmpfs=/tmp:rw,size=64m,mode=1777
+Volume=rzsense-relay:/data:Z
+NoNewPrivileges=true
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

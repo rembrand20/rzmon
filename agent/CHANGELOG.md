@@ -5,6 +5,10 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.109.0 – 2026-11-18
+- **RzSense Relay**: de agent kan in de nieuwe relay-container draaien (RzSense 1.282.0). Daar geeft hij het doorstuurprogramma door uit welke netwerken het verkeer mag aannemen, naar welk adres van RzSense (met de controle van het certificaat), en een sleutel om het IP-adres van de agents mee te ondertekenen (afgeleid van de eigen sleutel). Hij meldt de vingerafdruk van het certificaat van de relay, de poort, de adressen en hoe druk de relay het heeft. In de container werkt de agent zichzelf niet bij: dat gaat met een nieuwe image.
+- Gewone agents hoeven niets: een agent vanaf 1.53.0 kan al via een relay rapporteren.
+
 ## 1.108.0 – 2026-11-15
 - **Toegestane apparaten van RzSense per site**: zet je in RzSense bij een site *Toegestane apparaten* aan, dan laat de proxy je toegestane apparaten (hun eigen tag) daar van buiten door, ook als de site alleen vanaf je eigen netwerk mag, en zonder rate limit. Dichtgezette paden (virtual patching), de WAF, de IDS-blokkades en het inloggen bij de app blijven gewoon gelden. Alleen de tags van apparaten tellen, niet die van een noodlink.
 

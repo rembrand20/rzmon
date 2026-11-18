@@ -320,6 +320,40 @@ switch ($action) {
         save_setting('agent_pin_at', '0');   // vingerafdruk opnieuw bepalen
         out(['ok' => true]);
 
+    // ---------- 1.282.0: Netwerken en relays (beheerportal → Verbindingen) ----------
+    case 'relay_overview':
+        out(Relay::overview());
+
+    case 'relay_net_save':
+        $r = Relay::saveNetwork(input(), (string) $user['username']);
+        is_string($r) ? out(['error' => $r], 422) : out(['ok' => true, 'id' => $r]);
+
+    case 'relay_net_delete':
+        Relay::deleteNetwork((int) (input()['id'] ?? 0), (string) $user['username']) ? out(['ok' => true]) : out(['error' => t('Netwerk niet gevonden')], 404);
+
+    case 'relay_host_net':
+        $in = input();
+        ($e = Relay::setNet((int) ($in['host_id'] ?? 0), (int) ($in['net_id'] ?? 0), (string) $user['username'])) === null ? out(['ok' => true]) : out(['error' => $e], 422);
+
+    case 'relay_apply':
+        $ids = array_values(array_filter(array_map('intval', (array) (input()['ids'] ?? []))));
+        out(['ok' => true, 'n' => Relay::apply($ids, (string) $user['username'])]);
+
+    // Nieuwe relay: een server met een koppelcode voor de relay-container
+    case 'relay_create':
+        $r = Relay::create((string) (input()['name'] ?? ''), (string) $user['username']);
+        if (is_string($r)) {
+            out(['error' => $r], 422);
+        }
+        out(['ok' => true, 'id' => $r]);
+
+    case 'relay_save':
+        $in = input();
+        ($e = Relay::saveRelay((int) ($in['id'] ?? 0), $in, (string) $user['username'])) === null ? out(['ok' => true]) : out(['error' => $e], 422);
+
+    case 'relay_disable':
+        Relay::disable((int) (input()['id'] ?? 0), (string) $user['username']) ? out(['ok' => true]) : out(['error' => t('Relay niet gevonden')], 404);
+
     // Koppelcode voor een server (15 minuten geldig) en wat er nodig is voor het installatiecommando
     case 'agent_pair_code':
         $id = (int) (input()['id'] ?? 0);
@@ -336,8 +370,23 @@ switch ($action) {
         if ($pin === '' && AgentCrypto::pinOn($ph)) {
             $pin = AgentCrypto::pin(true, true, $ph) ?? '';
         }
+        // 1.282.0: relays waarlangs de agent kan koppelen (met adres en certificaat), en die van zijn netwerk voorop
+        $relays = [];
+        foreach (Relay::overview()['relays'] as $rl) {
+            if ($rl['url'] !== '' && $rl['pin'] !== '' && $rl['enabled'] && $rl['id'] !== $id) {
+                $relays[] = ['id' => $rl['id'], 'name' => $rl['name'], 'url' => $rl['url'], 'pin' => $rl['pin']];
+            }
+        }
+        $viaDefault = null;
+        foreach (Relay::plan() as $pl) {
+            if ($pl['id'] === $id && $pl['net']) {
+                $n = array_values(array_filter(Relay::networks(), static fn($x) => $x['id'] === $pl['net']['id']))[0] ?? null;
+                $viaDefault = $n['relay_id'] ?? null;
+            }
+        }
         out($p + ['setup_sha256' => Stealth::installSha(), 'agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh'),
-            'pin' => $pin, 'minutes' => AgentCrypto::PAIR_MINUTES]);
+            'pin' => $pin, 'minutes' => AgentCrypto::PAIR_MINUTES, 'relays' => $relays, 'via_default' => $viaDefault,
+            'relay_host' => (bool) q('SELECT relay_on FROM hosts WHERE id = ?', [$id])->fetchColumn()]);
 
     // Per server: certificaat vastzetten en vast IP-adres ('' = algemene instelling, on, off).
     // Uitzetten (waar het nu geldt) maakt de verbinding minder veilig: dan om je wachtwoord vragen.

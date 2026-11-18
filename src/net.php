@@ -92,6 +92,10 @@ function parse_list(?string $text): array
  */
 function client_ip(?array $trustedProxies = null): string
 {
+    // 1.282.0: via een RzSense Relay (ondertekend): het adres van de agent achter de relay
+    if (!empty($_SERVER['HTTP_X_RZ_RELAY']) && class_exists('Relay') && ($relay = Relay::current()) !== null) {
+        return $relay['for'];
+    }
     $ip = $_SERVER['REMOTE_ADDR'] ?? '';
     $trustedProxies ??= is_configured() ? parse_list((string) setting('trusted_proxies', '')) : [];
     if ($trustedProxies && ip_in_list($ip, $trustedProxies) && !empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {

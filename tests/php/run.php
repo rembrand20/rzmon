@@ -3634,5 +3634,84 @@ q('DELETE FROM vuln_findings WHERE host_id = ?', [$ph['id']]);
 q('DELETE FROM hosts WHERE id = ?', [$ph['id']]);
 save_setting('proxy_on', $pOnWas);
 
+// 1.282.0: RzSense Relay: handtekening en doorgegeven IP, netwerken, overstappen, pin per adres, onderdrukken
+section('Relay');
+$rlKey = bin2hex(random_bytes(32));
+$rlKid = substr(hash_hmac('sha256', 'id', (string) hex2bin($rlKey)), 0, 16);
+q("INSERT INTO hosts (name, address, mode, enabled, relay_on, relay_port, agent_key, agent_key_id, agent_key_seen, agent_seen) VALUES ('ci-relay', '', 'agent', 1, 0, 8444, ?, ?, 1, NOW())", [$rlKey, $rlKid]);
+$rlId = (int) db()->lastInsertId();
+$rlHost = q('SELECT * FROM hosts WHERE id = ?', [$rlId])->fetch();
+$rlPin = base64_encode(hash('sha256', 'ci-relay-spki', true));
+Relay::fromAgent($rlHost, ['relay' => ['pin' => $rlPin, 'port' => 8444, 'ips' => ['192.168.50.10', 'nonsense'], 'ver' => '1.0', 'st' => ['req' => 5, 'up' => 'https://rz.example.lan']]]);
+$rd = Relay::data($rlId);
+ok((int) q('SELECT relay_on FROM hosts WHERE id = ?', [$rlId])->fetchColumn() === 1 && $rd['pin'] === $rlPin && $rd['ips'] === ['192.168.50.10'] && $rd['st']['req'] === 5,
+    'relay: de relay-container meldt zich (pin, poort, alleen geldige adressen)');
+$rlSign = static function (string $for, int $ts, string $target, string $key) {
+    $_SERVER['HTTP_X_RZ_RELAY'] = substr(hash_hmac('sha256', 'id', (string) hex2bin($key)), 0, 16);
+    $_SERVER['HTTP_X_RZ_RELAY_FOR'] = $for;
+    $_SERVER['HTTP_X_RZ_RELAY_TS'] = (string) $ts;
+    $_SERVER['REQUEST_METHOD'] = 'POST';
+    $_SERVER['SCRIPT_NAME'] = '/sub/api.php';
+    $_SERVER['QUERY_STRING'] = 'action=agent';
+    $_SERVER['HTTP_X_RZ_RELAY_SIG'] = hash_hmac('sha256', Relay::message((string) $ts, $for, 'POST', $target, hash('sha256', '')), (string) hex2bin(Relay::signKey($key)));
+    Relay::reset();
+};
+$_SERVER['REMOTE_ADDR'] = '203.0.113.9';
+$rlSign('192.168.50.21', time(), 'api.php?action=agent', $rlKey);
+$cur = Relay::current();
+ok($cur !== null && $cur['id'] === $rlId && client_ip() === '192.168.50.21', 'relay: geldige handtekening → het IP van de agent achter de relay telt (ook als RzSense in een submap staat)');
+$rlSign('192.168.50.21', time(), 'api.php?action=agent_tests', $rlKey);
+ok(Relay::current() === null && client_ip() === '203.0.113.9', 'relay: handtekening voor een ander verzoek → genegeerd, gewoon het adres van de verbinding');
+$rlSign('192.168.50.21', time() - 900, 'api.php?action=agent', $rlKey);
+ok(Relay::current() === null, 'relay: te oude handtekening (klok of herhaling) → genegeerd');
+$rlSign('192.168.50.21', time(), 'api.php?action=agent', bin2hex(random_bytes(32)));
+ok(Relay::current() === null, 'relay: onbekende sleutel → genegeerd');
+q('UPDATE hosts SET relay_on = 0 WHERE id = ?', [$rlId]);
+$rlSign('192.168.50.21', time(), 'api.php?action=agent', $rlKey);
+ok(Relay::current() === null, 'relay: server die geen relay is, mag geen IP doorgeven');
+q('UPDATE hosts SET relay_on = 1 WHERE id = ?', [$rlId]);
+ok(str_contains(Relay::saveNetwork(['name' => 'Kelder', 'cidrs' => '192.168.50.0/24, 10.0.0.0/33'], 'ci'), '10.0.0.0/33')
+    && is_string(Relay::saveNetwork(['name' => '', 'cidrs' => '192.168.50.0/24'], 'ci')), 'relay: ongeldige adresreeks of lege naam geweigerd');
+$netId = Relay::saveNetwork(['name' => 'Kelder', 'cidrs' => '192.168.50.0/24 fd50::/64', 'relay_id' => $rlId, 'relay_fb_id' => $rlId], 'ci');
+ok(is_int($netId) && Relay::networks()[0]['relay_fb_id'] === null, 'relay: netwerk opgeslagen; reserve-relay gelijk aan de relay valt weg');
+ok(Relay::agentLines($rlId) === ["0\trelay\t8444\t192.168.50.0/24,fd50::/64"], 'relay: de relay krijgt zijn poort en de netwerken waar hij verkeer uit mag aannemen');
+q("INSERT INTO hosts (name, address, mode, enabled, agent_version, agent_key_seen, agent_url, agent_seen) VALUES ('ci-achter', '192.168.50.21', 'agent', 1, '1.108.0', 1, 'https://rz.example.lan', NOW())");
+$rbId = (int) db()->lastInsertId();
+$pl = array_column(Relay::plan(), null, 'id');
+ok($pl[$rbId]['net']['name'] === 'Kelder' && $pl[$rbId]['net']['auto'] && $pl[$rbId]['state'] === 'no_url' && $pl[$rlId]['state'] === 'ok',
+    'relay: server valt vanzelf in het netwerk op zijn IP; zolang de relay geen adres heeft, geen overstap');
+ok(Relay::saveRelay($rlId, ['url' => 'http://192.168.50.10:8444'], 'ci') !== null && Relay::saveRelay($rlId, ['url' => 'https://192.168.50.10:8444/', 'port' => 8444], 'ci') === null,
+    'relay: adres moet https zijn');
+$pl = array_column(Relay::plan(), null, 'id');
+ok($pl[$rbId]['state'] === 'switch' && $pl[$rbId]['want'] === 'https://192.168.50.10:8444' && $pl[$rbId]['want_fb'] === 'https://rz.example.lan',
+    'relay: agent moet overstappen naar de relay, met zijn rechtstreekse adres als reserve');
+ok(Relay::apply([], 'ci') === 1, 'relay: overstap klaargezet');
+$hb = q('SELECT agent_url_want, agent_url_want_fb, relay_direct_url FROM hosts WHERE id = ?', [$rbId])->fetch();
+ok($hb['agent_url_want'] === 'https://192.168.50.10:8444' && $hb['relay_direct_url'] === 'https://rz.example.lan', 'relay: nieuw adres klaar, rechtstreeks adres onthouden');
+ok(AgentCrypto::urlSpec('https://192.168.50.10:8444') === "sha256//$rlPin" && Relay::pinForUrl('https://elders.example') === null,
+    'relay: adres van de relay wordt vastgezet op het certificaat van de relay');
+// Agent stapte over: komt nu via de relay binnen
+q("UPDATE hosts SET agent_url = 'https://192.168.50.10:8444', agent_url_want = NULL WHERE id = ?", [$rbId]);
+$rlSign('192.168.50.21', time(), 'api.php?action=agent', $rlKey);
+Relay::noteVia(['id' => $rbId]);
+ok((int) q('SELECT relay_via FROM hosts WHERE id = ?', [$rbId])->fetchColumn() === $rlId && Relay::behind($rlId) === 1 && Relay::downFor($rbId) === null,
+    'relay: agent komt via de relay binnen, relay is er');
+q('UPDATE hosts SET agent_seen = NOW() - INTERVAL 2 HOUR WHERE id = ?', [$rlId]);
+ok((Relay::downFor($rbId)['id'] ?? 0) === $rlId && (Monitor::upstreamDown($rbId)['name'] ?? '') === 'ci-relay', 'relay weg → meldingen van de agent erachter onderdrukt');
+$stale = Checks::agentStale(q('SELECT * FROM hosts WHERE id = ?', [$rlId])->fetch());
+ok($stale !== null && str_contains($stale['message'], '1 agents'), 'relay weg: de melding van de relay noemt de agents erachter');
+// Netwerk zonder relay: terug naar het rechtstreekse adres
+Relay::saveNetwork(['id' => $netId, 'name' => 'Kelder', 'cidrs' => '192.168.50.0/24', 'relay_id' => 0], 'ci');
+$pl = array_column(Relay::plan(), null, 'id');
+ok($pl[$rbId]['state'] === 'switch' && $pl[$rbId]['want'] === 'https://rz.example.lan', 'relay: netwerk zonder relay → terug naar het rechtstreekse adres');
+ok(Relay::setNet($rbId, 999999, 'ci') !== null && Relay::setNet($rbId, $netId, 'ci') === null && array_column(Relay::plan(), null, 'id')[$rbId]['net']['auto'] === false,
+    'relay: netwerk zelf kiezen');
+ok(Relay::deleteNetwork($netId, 'ci') && q('SELECT net_id FROM hosts WHERE id = ?', [$rbId])->fetchColumn() === null, 'relay: netwerk verwijderd, servers weer vanzelf');
+foreach (['HTTP_X_RZ_RELAY', 'HTTP_X_RZ_RELAY_FOR', 'HTTP_X_RZ_RELAY_TS', 'HTTP_X_RZ_RELAY_SIG', 'QUERY_STRING'] as $k) {
+    unset($_SERVER[$k]);
+}
+Relay::reset();
+q('DELETE FROM hosts WHERE id IN (?, ?)', [$rbId, $rlId]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

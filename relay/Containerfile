@@ -1,0 +1,31 @@
+# RzSense Relay (RzSense 1.282.0): de agent plus een doorstuurprogramma voor de agents in een netwerk zonder
+# verbinding met RzSense. Bouwen vanuit de map van de repository:
+#   podman build -f relay/Containerfile -t localhost/rzsense-relay .
+FROM docker.io/library/debian:bookworm-slim
+
+RUN set -eux; \
+    sed -i 's#http://deb.debian.org#https://deb.debian.org#g' /etc/apt/sources.list.d/debian.sources; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends bash ca-certificates curl openssl python3 iproute2 iputils-ping procps \
+        tini gawk findutils hostname snmp dnsutils libcap2-bin; \
+    rm -rf /var/lib/apt/lists/*; \
+    setcap cap_net_raw+ep /bin/ping; \
+    useradd --system --uid 10001 --home-dir /data --shell /usr/sbin/nologin rzrelay; \
+    mkdir -p /data /opt/rzsense-relay; chown rzrelay:rzrelay /data
+
+COPY agent/rzmon-agent.sh agent/VERSION relay/relay.py relay/entrypoint.sh /opt/rzsense-relay/
+RUN chmod 0755 /opt/rzsense-relay/entrypoint.sh /opt/rzsense-relay/rzmon-agent.sh; \
+    python3 -m py_compile /opt/rzsense-relay/relay.py; bash -n /opt/rzsense-relay/rzmon-agent.sh
+
+ENV RELAY_PORT=8444 \
+    RELAY_DATA=/data
+VOLUME /data
+USER rzrelay
+EXPOSE 8444
+HEALTHCHECK --interval=60s --timeout=10s --start-period=30s CMD curl -s -o /dev/null --cacert /data/relay/tls.crt "https://127.0.0.1:${RELAY_PORT}/" || exit 1
+ENTRYPOINT ["/usr/bin/tini", "--", "/opt/rzsense-relay/entrypoint.sh"]
+
+LABEL org.opencontainers.image.title="RzSense Relay" \
+      org.opencontainers.image.description="Stuurt agents in een ander netwerk door naar RzSense" \
+      org.opencontainers.image.source="https://github.com/rembrand20/rzmon" \
+      org.opencontainers.image.licenses="GPL-3.0"

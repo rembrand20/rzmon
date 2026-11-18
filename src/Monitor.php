@@ -300,6 +300,10 @@ final class Monitor
     /** Eerste onbereikbare server boven deze server in de keten, of null. */
     public static function upstreamDown(int $hostId): ?array
     {
+        // 1.282.0: de relay waarlangs deze agent binnenkomt is weg: dat is al gemeld (bij de relay zelf)
+        if (($relay = Relay::downFor($hostId)) !== null) {
+            return $relay;
+        }
         $seen = [$hostId => true];
         $current = $hostId;
         for ($i = 0; $i < 20; $i++) {

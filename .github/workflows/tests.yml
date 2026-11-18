@@ -206,6 +206,37 @@ jobs:
           npx playwright install --with-deps chromium >/dev/null
           BASE=http://127.0.0.1:8080 RZ_USER=admin RZ_PASS=ci-geheim-123 node tests/e2e/smoke.js 2>&1 | tee /tmp/e2e.out
           [ "${PIPESTATUS[0]}" = 0 ] || { echo "::error title=Browserrondje (container)::$(tail -n 15 /tmp/e2e.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
+      - name: Relay (1.282.0) - agent, relay en RzSense in containers
+        run: |
+          docker build -f relay/Containerfile -t rzsense-relay:ci .
+          rz() { docker exec rzsense php -r "require '/opt/rzsense/src/bootstrap.php'; $1"; }
+          fail() { echo "::error title=Relay::$1"; docker logs rzsense-relay 2>&1 | tail -n 30; exit 1; }
+          read -r RID CODE < <(rz '$id = Relay::create("ci-relay", "ci"); $p = AgentCrypto::pairCreate($id); echo $id, " ", $p["code"], "\n";')
+          docker run -d --name rzsense-relay --network host --cap-add NET_RAW --read-only --tmpfs /tmp:rw,size=64m,mode=1777 \
+            --security-opt no-new-privileges -e MONITOR_URL=http://127.0.0.1:8080 -e PAIR_CODE="$CODE" -e RELAY_TICK=10 \
+            -v relay-data:/data rzsense-relay:ci
+          # 1. de relay koppelt en meldt het certificaat
+          PIN=""
+          for i in $(seq 1 40); do PIN=$(rz "echo Relay::pin($RID);"); [ -n "$PIN" ] && break; sleep 3; done
+          [ -n "$PIN" ] || fail "de relay meldt zich niet bij RzSense"
+          docker exec rzsense-relay id -un | grep -qx rzrelay || fail "de relay draait niet als rzrelay"
+          rcode() { curl -s -o /dev/null -w '%{http_code}' -k --pinnedpubkey "sha256//$PIN" "https://127.0.0.1:8444/api.php?action=$1"; }
+          # 2. zonder netwerk weigert de relay alles; daarna alleen agentverkeer
+          [ "$(rcode ping)" = 403 ] || fail "zonder netwerk niet geweigerd"
+          rz "Relay::saveNetwork(['name' => 'CI', 'cidrs' => '127.0.0.0/8', 'relay_id' => $RID], 'ci'); Relay::saveRelay($RID, ['url' => 'https://127.0.0.1:8444', 'port' => 8444], 'ci');"
+          for i in $(seq 1 40); do [ "$(rcode ping)" = 200 ] && break; sleep 3; done
+          [ "$(rcode ping)" = 200 ] || fail "met netwerk geen doorgang"
+          [ "$(rcode state)" = 404 ] || fail "niet-agentverkeer werd doorgestuurd"
+          # 3. een agent koppelt en rapporteert via de relay
+          read -r AID CODE2 < <(rz 'q("INSERT INTO hosts (name, address, mode, enabled) VALUES (\"ci-achter\", \"127.0.0.1\", \"agent\", 1)"); $id = (int) db()->lastInsertId(); $p = AgentCrypto::pairCreate($id); echo $id, " ", $p["code"], "\n";')
+          mkdir -p /tmp/ach
+          AGENT_DIR=/tmp/ach CACHE_DIRECTORY=/tmp/ach/cache REMOTE_UPDATE=0 MONITOR_URL=https://127.0.0.1:8444 PIN="$PIN" PAIR_CODE="$CODE2" \
+            bash agent/rzmon-agent.sh >/tmp/ach.log 2>&1 || true
+          v=$(rz "echo q('SELECT CONCAT(IFNULL(relay_via, 0), \" \", IF(agent_seen IS NULL, 0, 1), \" \", agent_key_seen) FROM hosts WHERE id = $AID')->fetchColumn();")
+          [ "$v" = "$RID 1 1" ] || { tail -n 20 /tmp/ach.log; fail "agent achter de relay: $v (verwacht: $RID 1 1)"; }
+          echo "✔ agent → relay → RzSense: gekoppeld en gerapporteerd via relay $RID"
+          docker logs rzsense-relay 2>&1 | tail -n 8
+
       - name: Herstart (tweede start, zelfde versie) en logboek
         if: always()
         run: |

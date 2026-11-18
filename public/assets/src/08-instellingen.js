@@ -797,6 +797,7 @@ const SET_NAV = [
     ['netscan', L('Netwerkscan'), ['netscan'], L('Nieuwe apparaten en open poorten in je netwerk.')]]],
   ['agents', SET_IC('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'), L('Agents en koppelingen'), [
     ['agentdef', L('Standaard voor alle agents'), ['agentdef', 'enc'], L('Wat voor alle agents geldt: bijwerken, ritme, versleuteling en certificaat. Per server stel je het in bij Servers.')],
+    ['relays', L('Netwerken en relays'), ['relays'], L('Servers in een ander netwerk via een relay laten rapporteren: welke relay, welke netwerken, welke servers.')],
     ['sudo', L('Tijdelijk sudo'), ['sudo'], L('Een gebruiker voor korte tijd sudo geven op één server, met je wachtwoord en 2FA.')],
     ['commands', L('Commando-checks'), ['commands'], L('Eigen commando\'s die agents mogen uitvoeren.')],
     ['unifi', 'UniFi', ['unifi'], L('Namen, wifi, verkeer en weren van je apparaten uit je UniFi-controller.')],
@@ -914,6 +915,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'ids_apps') loadAppsSet();   // 1.229.0
   if (setSection === 'patch') loadPatchSet();   // 1.230.0
   if (setSection === 'sudo') loadSudoSet();   // 1.231.0
+  if (setSection === 'relays') loadRelaySet();   // 1.282.0
   if (setSection === 'nis2') loadNis2();   // 1.232.0
   if (setSection === 'proxy') loadProxyRoles();   // 1.254.0
   if (setSection === 'ids_dns') loadDnsbl();

@@ -377,7 +377,15 @@ final class Installer
         ['ids_incidents', 'tri_src', 'CHAR(1) NULL'],       // u = jij, r = regel, h = eerder oordeel, a = AI
         ['ids_incidents', 'tri_why', 'VARCHAR(255) NULL'],
         ['ids_incidents', 'tri_fp', 'CHAR(16) NULL'],
-        ['ids_incidents', 'tri_at', 'DATETIME NULL'],   // 1.222.0: pad van een webaanval (sites en diensten, JSON)   // 1.177.0: mag doorvoertest (iperf3) ontvangen   // 1.176.0: containerstatus running/failed/stopped/paused (voor het label)
+        ['ids_incidents', 'tri_at', 'DATETIME NULL'],
+        // 1.282.0: relays (RzSense Relay in een ander netwerk) en netwerken
+        ['hosts', 'relay_on', 'TINYINT(1) NOT NULL DEFAULT 0'],          // deze server is een relay (de relay-container meldt zich zo)
+        ['hosts', 'relay_url', 'VARCHAR(255) NULL'],                     // adres waarop de agents achter de relay hem bereiken
+        ['hosts', 'relay_port', 'SMALLINT UNSIGNED NULL'],               // poort van de relay (leeg = 8444)
+        ['hosts', 'relay_via', 'INT UNSIGNED NULL'],                     // deze agent kwam het laatst binnen via deze relay
+        ['hosts', 'relay_via_at', 'DATETIME NULL'],
+        ['hosts', 'relay_direct_url', 'VARCHAR(255) NULL'],              // adres van vóór de overstap naar een relay (om terug te gaan)
+        ['hosts', 'net_id', 'INT UNSIGNED NULL'],                        // netwerk (relay_networks); leeg = vanzelf op IP-adres   // 1.222.0: pad van een webaanval (sites en diensten, JSON)   // 1.177.0: mag doorvoertest (iperf3) ontvangen   // 1.176.0: containerstatus running/failed/stopped/paused (voor het label)
     ];
 
     private static function migrate(PDO $pdo): void

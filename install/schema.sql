@@ -1778,3 +1778,18 @@ CREATE TABLE IF NOT EXISTS proxy_tags (
     CONSTRAINT fk_ptag_dev FOREIGN KEY (device_id) REFERENCES trusted_devices(id) ON DELETE CASCADE,
     CONSTRAINT fk_ptag_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.282.0: netwerken en relays. Een netwerk zonder verbinding met RzSense krijgt een relay (RzSense Relay, een container
+-- met de agent erin): de agents daar rapporteren via de relay, en de relay doet de checks in dat netwerk.
+CREATE TABLE IF NOT EXISTS relay_networks (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name        VARCHAR(80)   NOT NULL,
+    cidrs       VARCHAR(1000) NOT NULL DEFAULT '',
+    relay_id    INT UNSIGNED  NULL,
+    relay_fb_id INT UNSIGNED  NULL,
+    note        VARCHAR(255)  NOT NULL DEFAULT '',
+    created_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME      NULL,
+    CONSTRAINT fk_rn_relay FOREIGN KEY (relay_id) REFERENCES hosts(id) ON DELETE SET NULL,
+    CONSTRAINT fk_rn_relay_fb FOREIGN KEY (relay_fb_id) REFERENCES hosts(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

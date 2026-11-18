@@ -3813,6 +3813,32 @@ Valt RzSense zelf uit, dan krijg je van RzSense niets meer, en denk je dat alles
 5. **Duurt het te lang** (standaard **5 minuten**, in te stellen bij *Instellingen → RzSense bijwerken*, 5–60), dan geeft de waakhond alsnog alarm: *⚠️ RzSense onbereikbaar tijdens update*. Het herstelbericht komt alleen als je eerst het alarm kreeg.
 - **Veilig:** de agent gelooft *update bezig* alleen uit een **versleuteld antwoord van RzSense zelf**; een foutpagina of proxy kan de waakhond niet stilzetten. Agents zonder versleuteling of ouder dan 1.82.0 doen wat ze altijd deden; het update-venster noemt ze. Een nieuwe agent installeert zich pas na de vrijgave.
 
+### 8.15 Netwerken en relays 🛰️ (vanaf 1.282.0, agent 1.109.0)
+Heb je servers in een netwerk dat **geen verbinding met RzSense** heeft, zoals een tweede vestiging, een apart VLAN of een klant? Zet daar dan een **relay** neer:
+
+```
+agent op server ──▶ relay ──▶ RzSense   (en het antwoord dezelfde weg terug)
+```
+
+De relay is een kleine container (**RzSense Relay**) op een machine in dat netwerk. De agents daar sturen hun rapporten naar de relay, en de relay stuurt ze door naar RzSense, via internet (SWAG), een VPN of een eigen route.
+
+**Instellen** (*Beheer → Agents en koppelingen → Netwerken en relays*):
+1. **＋ Relay toevoegen**, dan **📦 Installeren**: het commando voor Podman (quadlet), Docker of compose staat er met de koppelcode al in. Voer het uit op de machine in dat netwerk. De relay maakt zijn eigen certificaat, koppelt zich en staat binnen een minuut op 🟢 *online*.
+2. **🌐 Adres** van de relay: waarop de agents in dat netwerk hem bereiken, bijvoorbeeld `https://192.168.50.10:8444`. De relay meldt zelf zijn adressen; je kiest er een.
+3. **＋ Netwerk toevoegen**: een naam, de adresreeks(en) (bijvoorbeeld `192.168.50.0/24`), *Via* de relay, en eventueel een **reserve-relay**.
+4. **Servers**: servers met een adres in die reeks vallen vanzelf in het netwerk. Je kunt een server ook zelf in een netwerk zetten. Vink aan wie moet overstappen en klik **↪ Adressen toepassen**. De agent test het adres van de relay eerst (met het certificaat van de relay) en stapt pas over als dat lukt. Zijn rechtstreekse adres wordt zijn **reserve-adres**.
+5. **Nieuwe servers** in dat netwerk: in de Agent Manager → *Installeren* staat **Verbinden via**. Kies de relay, dan wijst het commando naar de relay en zet het het certificaat van de relay vast.
+
+**Veilig:**
+- De rapporten zijn **versleuteld van de agent tot RzSense**; de relay kan ze niet lezen of veranderen.
+- De relay stuurt **alleen agentverkeer** door (rapporten, koppelen, de agent ophalen), en alleen van afzenders in de netwerken die via hem gaan. Zonder netwerk laat hij niemand door.
+- Het **echte IP-adres** van de agent geeft de relay ondertekend door, dus het IP-slot blijft werken. Een verzoek dat niet goed is ondertekend, telt gewoon met het adres waarvan het komt.
+- De container draait niet als root, alleen-lezen, met alleen `NET_RAW`.
+
+**Valt een relay weg**, dan krijg je één melding: *Agent stil* van de relay, met *meldingen van N agents erachter worden onderdrukt*. De agents erachter bewaren hun metingen en sturen ze na. Haal je een relay weg (*Geen relay meer*), dan gaan zijn netwerken over op hun reserve-relay of rechtstreeks. Met *Adressen toepassen* gaan de agents dan terug naar hun rechtstreekse adres.
+
+**Bijwerken** gaat met een nieuwe image: `sudo podman pull ghcr.io/rembrand20/rzsense-relay:latest && sudo systemctl restart rzsense-relay`. Meer in [relay/README.md](relay/README.md). Home Assistant en TrueNAS als app, en checks die de relay zelf in zijn netwerk uitvoert (ping, HTTP, SNMP …), volgen in een volgende versie.
+
 ## 9. Agent op Home Assistant OS
 
 Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De agent draait daarom als **add-on**.

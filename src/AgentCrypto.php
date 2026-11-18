@@ -455,6 +455,9 @@ final class AgentCrypto
     /** Hoe de agent dit adres moet controleren: "-" (gewoon), "sha256//…" (vastzetten), of null (onbekend: niets doorgeven) */
     public static function urlSpec(string $url, bool $probe = true): ?string
     {
+        if (($rp = Relay::pinForUrl($url)) !== null) {
+            return $rp;   // 1.282.0: adres van een relay: alleen het certificaat van die relay
+        }
         $k = self::urlTrust($url, false, $probe)['kind'];
         if ($k === 'http' || $k === 'ca') {
             return '-';

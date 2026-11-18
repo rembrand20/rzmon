@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.282.0**: **netwerken en relays**: servers in een netwerk zonder verbinding met RzSense rapporteren via een relay-container, versleuteld van agent tot RzSense, met één melding als de relay wegvalt.
 - **1.281.0**: **RzSense als container** (Podman op Rocky), met een eigen MariaDB-container, de nooddeur op poort 8443 en een melding in de app bij een nieuwe versie.
 - **1.280.0**: **back-upmap zelf kiezen**, ook op een NAS (NFS) met controle of hij gekoppeld is, en back-ups worden weer netjes opgeruimd.
 - **1.279.0**: bij **toegestane apparaten** zie je hoe er is ingelogd: met een passkey, met 2FA of alleen met een wachtwoord.
 - **1.278.0**: **🔕 altijd stil** per check, server, groep of soort apparaat (nooit een melding), en **🔀 flappen** zie je in elke weergave terug, ook nog 24 uur daarna.
-- **1.277.0**: **subpagina's in de zijbalk**: elke pagina met haar onderdelen eronder, met tellers, en een menu bij de ingeklapte zijbalk.
+
+## 1.282.0 – 2026-11-18
+### Nieuw
+- **Netwerken en relays** (Beheer → Agents en koppelingen → Netwerken en relays): servers in een netwerk **zonder verbinding met RzSense** rapporteren via een **relay**: agent op server → relay → RzSense, en het antwoord dezelfde weg terug. Zie [relay/README.md](relay/README.md) en hoofdstuk 8.15 van de handleiding.
+  - **RzSense Relay** is een container (`ghcr.io/rembrand20/rzsense-relay`) met de agent erin en een klein https-programma op poort 8444. Installeren met Podman (quadlet), Docker of compose; het commando met de koppelcode staat in RzSense. De relay bereikt RzSense via internet (SWAG), een VPN of een eigen route.
+  - **Veilig**: de rapporten blijven versleuteld van de agent tot RzSense, en de relay kan ze niet lezen. Hij stuurt alleen agentverkeer door, en alleen uit de netwerken die via hem gaan. Het echte IP-adres van de agent geeft hij ondertekend door, dus het IP-slot blijft werken. De agents zetten het certificaat van de relay vast.
+  - **Netwerken**: adresreeksen met een relay en een reserve-relay. Servers vallen er vanzelf in op hun IP-adres, of je zet ze er zelf in. **Adressen toepassen** laat de agents overstappen; elke agent test de relay eerst, en zijn rechtstreekse adres wordt het reserve-adres.
+  - **Nieuwe servers** koppel je meteen via de relay: Agent Manager → Installeren → *Verbinden via*.
+  - **Valt een relay weg**, dan krijg je één melding bij de relay ("meldingen van N agents erachter worden onderdrukt"), niet een melding per agent.
+- Nieuwe agent 1.109.0 (alleen nodig in de relay-container; andere agents vanaf 1.53.0 werken al via een relay).
+- Elke nieuwe agent bouwt ook een nieuwe relay-image, en die wordt getest: agent → relay → RzSense, in containers.
 
 ## 1.281.3 – 2026-11-17
 ### Opgelost

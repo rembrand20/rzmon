@@ -333,6 +333,12 @@ function agent_enc_fields(array $host, ?string $agentVersion): array
             $out['agent_key'] = AgentCrypto::newHostKey((int) $host['id'], true);     // vernieuwen; de huidige nog 24 uur geldig
         }
         // Zag de agent een ander certificaat? Dan opnieuw bepalen, niet uit de cache
+        // 1.282.0: via een relay praat de agent met het certificaat van de relay; die gaat dan mee (de agent zet het per adres vast)
+        $relay = Relay::current();
+        if ($relay !== null) {
+            $rp = Relay::pin($relay['id']);
+            return $out + ($rp !== '' ? ['pin' => $rp] : []);
+        }
         $pin = AgentCrypto::pin(!empty($_SERVER['HTTP_X_AGENT_PIN_FAIL']), true, $host);
         if ($pin !== null) {
             $out['pin'] = $pin;
@@ -434,6 +440,7 @@ function agent_tests_text(int $hostId, bool $secure = false): string
     array_push($out, ...Ransom::agentLines($hostId));   // 1.228.0: ransomware herkennen (agent 1.90.0)
     array_push($out, ...AppControl::agentLines($hostId), ...Ioc::agentLines($hostId));   // 1.229.0: programma's en jagen (agent 1.91.0)
     array_push($out, ...Patch::agentLines($hostId));   // 1.230.0: updates (agent 1.92.0)
+    array_push($out, ...Relay::agentLines($hostId));   // 1.282.0: relay-container (agent 1.109.0)
     array_push($out, ...Sudo::agentLines($hostId));   // 1.231.0: tijdelijk sudo (agent 1.93.0)
     array_push($out, ...ProxyGuard::agentLines($hostId));   // 1.254.0: reverse proxy beschermen (agent 1.97.0)
     array_push($out, ...Waf::agentLines($hostId));   // 1.255.0: WAF op de reverse proxy (agent 1.98.0)
@@ -460,7 +467,7 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
     if ($via === 'test') {
         return null;   // verbindingstest (rzmon-agent-setup --test): niets veranderen
     }
-    $via = in_array($via, ['systemd', 'direct', 'off', 'ha', 'none'], true) ? $via : null;   // null: agent van vóór 1.19.0
+    $via = in_array($via, ['systemd', 'direct', 'off', 'ha', 'none', 'relay'], true) ? $via : null;   // null: agent van vóór 1.19.0
     $h = q('SELECT id, name, info_agent, agent_update_req, agent_update_sent, agent_update_status FROM hosts WHERE id = ?', [$hostId])->fetch();
     $status = null;
     $req = $h['agent_update_req'];
