@@ -73,6 +73,7 @@ function al2Deliv(x) {
   if (+x.sent_ok) out.push(ch(true, 'Push')); else if (/Pushover|ntfy/.test(why || '')) out.push(ch(false, 'Push'));
   if (x.email_ok !== null && x.email_ok !== undefined) out.push(ch(+x.email_ok, L('E-mail')));
   if (x.webhook_ok !== null && x.webhook_ok !== undefined) out.push(ch(+x.webhook_ok, 'Home Assistant'));
+  if (x.chat_ok !== null && x.chat_ok !== undefined) out.push(ch(+x.chat_ok, 'Chat'));
   if (!out.length) out.push(`<span class="muted">🔕 ${esc(why && /stil/i.test(why) ? L('stille uren: niet verstuurd') : L('niet verstuurd: alleen op deze pagina'))}</span>`);
   return out.join(' ') + (why && out.length && !/stil/i.test(why) ? ` <span class="bad small">${esc(why)}</span>` : '');
 }

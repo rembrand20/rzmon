@@ -17,7 +17,8 @@ final class Notify
      *  - anchor: deel na het adres van RzSense voor de link (bv. '#ids'); push_opts vervangt de link (bv. de bevestig-link)
      *  - webhook: een eigen payload; anders een standaard-payload (+ webhook_extra)
      *  - webhook_filter: "alleen CRITICAL en herstel" (Instellingen → Home Assistant) toepassen; standaard als channels null is
-     * @return array{push: ?bool, email: ?bool, webhook: ?bool, errors: list<string>, receipt: ?string}
+     *  - ids: true = een IDS-melding (Discord/Slack/Teams alleen als daar "ook IDS" aan staat)
+     * @return array{push: ?bool, email: ?bool, webhook: ?bool, chat: ?bool, errors: list<string>, receipt: ?string}
      */
     public static function send(string $title, string $message, array $o = []): array
     {
@@ -25,7 +26,7 @@ final class Notify
         $status = (int) ($o['status'] ?? STATUS_OK);
         $event = (string) ($o['event'] ?? 'info');
         $base = public_url();
-        $out = ['push' => null, 'email' => null, 'webhook' => null, 'errors' => [], 'receipt' => null];
+        $out = ['push' => null, 'email' => null, 'webhook' => null, 'chat' => null, 'errors' => [], 'receipt' => null];
 
         if (Push::enabled() && ($ch === null || !empty($ch['pushover']))) {
             $opts = $o['push_opts'] ?? ($base !== '' ? ['url' => $base . '/' . ltrim((string) ($o['anchor'] ?? ''), '/'), 'url_title' => t('Open RzSense')] : []);
@@ -47,6 +48,14 @@ final class Notify
             if (!$r['ok']) {
                 $out['errors'][] = 'E-mail: ' . $r['error'];
             }
+        }
+
+        // 1.284.0: Discord, Slack en Teams volgen de beslissing voor push (of 'chat' als die apart is meegegeven), met hun eigen filter
+        if (Chat::enabled() && ($ch === null || !empty($ch['chat'] ?? $ch['pushover'] ?? false))) {
+            $link = (string) (($o['push_opts']['url'] ?? '') ?: ($base !== '' ? $base . '/' . ltrim((string) ($o['anchor'] ?? ''), '/') : ''));
+            $r = Chat::send($title, $message, $status, $event, $link, $o['host'] ?? null, !empty($o['ids']));
+            $out['chat'] = $r['ok'];
+            array_push($out['errors'], ...$r['errors']);
         }
 
         $filter = $o['webhook_filter'] ?? ($ch === null);

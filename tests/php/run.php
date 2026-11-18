@@ -3740,5 +3740,44 @@ foreach (['HTTP_X_RZ_RELAY', 'HTTP_X_RZ_RELAY_FOR', 'HTTP_X_RZ_RELAY_TS', 'HTTP_
 Relay::reset();
 q('DELETE FROM hosts WHERE id IN (?, ?)', [$rbId, $rlId]);
 
+section('Discord, Slack en Teams (1.284.0)');
+ok(Chat::validUrl('discord', 'https://discord.com/api/webhooks/1/abc') && Chat::validUrl('slack', 'https://hooks.slack.com/services/T/B/x')
+    && Chat::validUrl('teams', 'https://prod-01.westeurope.logic.azure.com:443/workflows/x/triggers/manual/paths/invoke?sig=y'), 'chat: echte webhook-adressen zijn goed');
+ok(!Chat::validUrl('discord', 'http://discord.com/api/webhooks/1/abc') && !Chat::validUrl('discord', 'https://discord.com.evil.nl/api/webhooks/1')
+    && !Chat::validUrl('slack', 'https://user:pw@hooks.slack.com/services/x') && !Chat::validUrl('teams', 'https://logic.azure.com/x')
+    && !Chat::validUrl('teams', 'https://evil.com/.logic.azure.com/x') && !Chat::validUrl('slack', 'https://hooks.slack.com:8443/services/x')
+    && !Chat::validUrl('slack', 'https://discord.com/api/webhooks/1') && !Chat::validUrl('matrix', 'https://hooks.slack.com/x'), 'chat: geen http, vreemde host, inlog, poort of verkeerde dienst');
+save_setting('chat_slack_on', '1');
+save_setting('chat_slack_url', 'https://evil.example/hook');
+ok(!Chat::on('slack') && !Chat::enabled(), 'chat: een ongeldige URL telt als uit');
+save_setting('chat_slack_on', '0');
+save_setting('chat_slack_url', '');
+foreach (['min' => 'warn', 'recovery' => '1', 'info' => '0', 'ids' => '0'] as $k => $v) {
+    save_setting("chat_discord_$k", $v);
+}
+ok(Chat::wants('discord', STATUS_WARN, 'problem') && Chat::wants('discord', STATUS_CRIT, 'problem') && Chat::wants('discord', STATUS_OK, 'recovery')
+    && !Chat::wants('discord', STATUS_OK, 'info') && !Chat::wants('discord', STATUS_WARN, 'system') && !Chat::wants('discord', STATUS_CRIT, 'problem', true), 'chat: standaardfilter');
+save_setting('chat_discord_min', 'crit');
+save_setting('chat_discord_recovery', '0');
+save_setting('chat_discord_info', '1');
+save_setting('chat_discord_ids', '1');
+ok(!Chat::wants('discord', STATUS_WARN, 'problem') && Chat::wants('discord', STATUS_CRIT, 'problem') && !Chat::wants('discord', STATUS_OK, 'recovery')
+    && Chat::wants('discord', STATUS_OK, 'info') && Chat::wants('discord', STATUS_CRIT, 'problem', true) && !Chat::wants('discord', STATUS_WARN, 'problem', true), 'chat: alleen critical, info en IDS aan');
+$pd = Chat::payload('discord', 'Schijf vol', 'nog 2% @everyone', STATUS_CRIT, 'https://rz.example/ack?x', 'web1');
+ok($pd['allowed_mentions'] === ['parse' => []] && $pd['embeds'][0]['color'] === 0xdc2626 && str_contains(json_encode($pd), 'web1'), 'chat: Discord-embed met kleur, server, zonder @everyone');
+$ps = Chat::payload('slack', 'Schijf <vol>', 'a & b', STATUS_WARN, '', null);
+ok($ps['blocks'][1]['text']['text'] === 'a &amp; b' && count($ps['blocks']) === 3 && $ps['blocks'][0]['type'] === 'header', 'chat: Slack-blocks, tekst ge-escaped, geen knop zonder link');
+$pt = Chat::payload('teams', 'Weer OK', 'klaar', STATUS_OK, 'https://rz.example/', 'db1');
+ok($pt['attachments'][0]['contentType'] === 'application/vnd.microsoft.card.adaptive' && $pt['attachments'][0]['content']['body'][0]['color'] === 'Good'
+    && $pt['attachments'][0]['content']['actions'][0]['url'] === 'https://rz.example/', 'chat: Teams Adaptive Card met knop');
+$sn = Chat::send('x', 'y', STATUS_CRIT, 'problem', '');
+ok($sn['ok'] === null && $sn['errors'] === [], 'chat: geen kanaal aan = niets verstuurd');
+ok(Chat::test('slack', 'https://evil.example/x')['ok'] === false && Chat::test('irc', '')['ok'] === false, 'chat: test weigert vreemde URL en onbekend kanaal');
+ok(in_array('chat_teams_url', SECRET_SETTINGS, true), 'chat: webhook-URL is geheim');
+ok(array_key_exists('chat', Notify::send('t', 'm', ['channels' => ['pushover' => false, 'email' => false, 'webhook' => false], 'status' => STATUS_WARN, 'event' => 'problem'])), 'chat: Notify geeft chat terug');
+foreach (['min' => 'warn', 'recovery' => '1', 'info' => '0', 'ids' => '0'] as $k => $v) {
+    save_setting("chat_discord_$k", $v);
+}
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

@@ -1793,3 +1793,9 @@ CREATE TABLE IF NOT EXISTS relay_networks (
     CONSTRAINT fk_rn_relay FOREIGN KEY (relay_id) REFERENCES hosts(id) ON DELETE SET NULL,
     CONSTRAINT fk_rn_relay_fb FOREIGN KEY (relay_fb_id) REFERENCES hosts(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.284.0: Discord, Slack en Microsoft Teams (uit; herstel standaard mee, info en IDS niet)
+INSERT IGNORE INTO settings (name, value) VALUES
+    ('chat_discord_on', '0'), ('chat_discord_url', ''), ('chat_discord_min', 'warn'), ('chat_discord_recovery', '1'), ('chat_discord_info', '0'), ('chat_discord_ids', '0'),
+    ('chat_slack_on', '0'), ('chat_slack_url', ''), ('chat_slack_min', 'warn'), ('chat_slack_recovery', '1'), ('chat_slack_info', '0'), ('chat_slack_ids', '0'),
+    ('chat_teams_on', '0'), ('chat_teams_url', ''), ('chat_teams_min', 'warn'), ('chat_teams_recovery', '1'), ('chat_teams_info', '0'), ('chat_teams_ids', '0');

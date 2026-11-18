@@ -154,9 +154,9 @@ final class IdsPush
         $title = '🛡️ ' . t('IDS: samenvatting van vandaag');
         $text = self::digestText($g);
         $n = Notify::send($title, $text, ['channels' => ['pushover' => true, 'email' => false, 'webhook' => false], 'status' => $g['open'] || $g['other'] ? STATUS_WARN : STATUS_OK,
-            'event' => 'info', 'anchor' => '#ids', 'prio' => -1]);
-        q("INSERT INTO alerts (check_id, status, title, message, sent_ok, kind) VALUES (NULL, ?, ?, ?, ?, 'ids')",
-            [$g['open'] || $g['other'] ? STATUS_WARN : STATUS_OK, mb_substr($title, 0, 250), mb_substr($text, 0, 1000), $n['push'] ? 1 : 0]);
+            'event' => 'info', 'anchor' => '#ids', 'prio' => -1, 'ids' => true]);
+        q("INSERT INTO alerts (check_id, status, title, message, sent_ok, chat_ok, kind) VALUES (NULL, ?, ?, ?, ?, ?, 'ids')",
+            [$g['open'] || $g['other'] ? STATUS_WARN : STATUS_OK, mb_substr($title, 0, 250), mb_substr($text, 0, 1000), $n['push'] ? 1 : 0, Notify::flag($n['chat'])]);
         return "IDS-samenvatting verstuurd ({$g['n']} incidenten)";
     }
 }

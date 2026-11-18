@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.284.0**: meldingen ook naar **Discord, Slack en Microsoft Teams**, met kleur per status, een knop om te bevestigen en een eigen filter per kanaal.
 - **1.283.0**: **relay als losse agent** (`rzmon-agent-relay`) naast de container: niet als root, bij de server getoond en bij te werken met de knop, ondertekend.
 - **1.282.0**: **netwerken en relays**: servers in een netwerk zonder verbinding met RzSense rapporteren via een relay-container, versleuteld van agent tot RzSense, met één melding als de relay wegvalt.
 - **1.281.0**: **RzSense als container** (Podman op Rocky), met een eigen MariaDB-container, de nooddeur op poort 8443 en een melding in de app bij een nieuwe versie.
 - **1.280.0**: **back-upmap zelf kiezen**, ook op een NAS (NFS) met controle of hij gekoppeld is, en back-ups worden weer netjes opgeruimd.
-- **1.279.0**: bij **toegestane apparaten** zie je hoe er is ingelogd: met een passkey, met 2FA of alleen met een wachtwoord.
+
+## 1.284.0 – 2026-11-18
+### Nieuw
+- **Discord, Slack en Microsoft Teams** als meldkanaal (*Instellingen → Meldingen en rapporten → Kanalen*). Zie HANDLEIDING 6.1c.
+  - Elk bericht heeft een kleur per status, de server, de tijd en een knop: *Bevestigen* bij een storing, anders *Open RzSense*. Discord krijgt een embed, Slack blocks en Teams een Adaptive Card (Workflows-webhook).
+  - Een chatkanaal volgt de keuze voor push in de meldregels, dus stille uren, melden na N keer, bundelen en escaleren gelden ook hier. Per kanaal kies je daarbovenop: *warning en critical* of *alleen critical*, en of herstel, info/systeemmeldingen en IDS-meldingen mee moeten.
+  - Met **💬 Testbericht** per kanaal, ook voordat je opslaat.
+  - Bij elke melding zie je een 💬 als hij naar een chatkanaal ging, of rood als dat mislukte.
+  - **Veilig:** de webhook-URL is geheim en gaat nooit naar de browser. RzSense stuurt alleen naar de adressen van de dienst zelf (https, gecontroleerd certificaat, geen doorverwijzingen). In Discord werken `@everyone` en `@rollen` uit een melding nooit.
 
 ## 1.283.0 – 2026-11-18
 ### Nieuw

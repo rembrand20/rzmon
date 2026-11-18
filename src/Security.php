@@ -259,8 +259,8 @@ final class Security
                 $c = NotifyRules::sysinfo()['sec'];
                 $n = Notify::send($title, $msg, ['channels' => $c, 'prio' => (int) $c['prio'], 'status' => STATUS_WARN, 'event' => 'unauthorized', 'anchor' => '#alerts',
                     'webhook_extra' => ['ip' => $ip]]);   // 1.235.0: via Notify
-                q("INSERT INTO alerts (check_id, status, title, message, sent_ok, email_ok, webhook_ok, kind, ip, detail) VALUES (NULL, ?, ?, ?, ?, ?, ?, 'sec', ?, ?)", [
-                    STATUS_WARN, mb_substr($title, 0, 250), mb_substr($msg . Notify::errText($n['errors']), 0, 1000), $n['push'] ? 1 : 0, Notify::flag($n['email']), Notify::flag($n['webhook']), Notify::ip($ip),
+                q("INSERT INTO alerts (check_id, status, title, message, sent_ok, email_ok, webhook_ok, chat_ok, kind, ip, detail) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, 'sec', ?, ?)", [
+                    STATUS_WARN, mb_substr($title, 0, 250), mb_substr($msg . Notify::errText($n['errors']), 0, 1000), $n['push'] ? 1 : 0, Notify::flag($n['email']), Notify::flag($n['webhook']), Notify::flag($n['chat']), Notify::ip($ip),
                     json_encode(['key' => $key, 'what' => $what, 'n' => 1, 'last' => now()], JSON_UNESCAPED_UNICODE)]);
             });
         } catch (Throwable) {

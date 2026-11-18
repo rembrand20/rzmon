@@ -472,6 +472,7 @@ function init() {
   $('#webhook-test').onclick = testWebhook;
   $('#email-test').onclick = (e) => testChannel(e, 'email_test', L('Testmail verstuurd 📧'), L('E-mail'));
   $('#mqtt-test').onclick = (e) => testChannel(e, 'mqtt_test', null, 'MQTT');
+  for (const b of $$('.chat-test')) b.onclick = (e) => testChannel(e, 'chat_test', null, b.closest('fieldset').querySelector('legend').textContent, { kind: b.dataset.kind });   // 1.284.0
   $('#maint-all').onclick = () => maintenanceDialog('all', 0, L('alle servers'), state.maintenance);
   initIsoBanner();   // 1.172.0
   $('#maint-banner').addEventListener('click', (e) => e.target.closest('[data-maint-end]') && endMaintenance('all', 0));

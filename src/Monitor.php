@@ -942,7 +942,7 @@ final class Monitor
         // Push en e-mail: één bericht; Home Assistant krijgt hieronder een bericht per check
         $n = Notify::send($title, $body, ['channels' => ['pushover' => $channels['pushover'], 'email' => $channels['email'], 'webhook' => false], 'prio' => $prio,
             'status' => $worst, 'mail_extra' => $acks ? t('Bevestigen (geen meldingen meer voor die storing):') . "\n" . implode("\n", $acks) : '']);
-        [$pushover, $email, $errors] = [$n['push'], $n['email'], $n['errors']];
+        [$pushover, $email, $errors, $chat] = [$n['push'], $n['email'], $n['errors'], $n['chat']];
         if ($n['receipt']) {
             foreach ($items as $x) {
                 if ((int) $x['item']['status'] === STATUS_CRIT) {
@@ -959,10 +959,10 @@ final class Monitor
                 $r = Webhook::send(self::webhookPayload($c, ['value' => $it['value']], $st, $it['title'], $it['message'], $it['event'], (int) $it['previous']));
                 $hook = $r['ok'];
             }
-            q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok, email_ok, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [
+            q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok, email_ok, chat_ok, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [
                 $c['id'], $st, mb_substr($it['title'], 0, 250),
                 mb_substr($it['message'] . ' (' . t('gebundeld') . ": $title)" . Notify::errText($errors), 0, 1000),
-                $pushover ? 1 : 0, Notify::flag($hook), Notify::flag($email), 'notify',
+                $pushover ? 1 : 0, Notify::flag($hook), Notify::flag($email), Notify::flag($chat), 'notify',
             ]);
             if (in_array($it['event'], ['problem', 'reminder'], true)) {
                 self::autoMaintenance($c, ['value' => $it['value']], $st, sprintf('%s – %s', $c['host_name'], $c['name']));
@@ -1009,12 +1009,12 @@ final class Monitor
             q('UPDATE checks SET pushover_receipt = ? WHERE id = ?', [$n['receipt'], $check['id']]);   // Emergency: later nagaan of hij in de Pushover-app bevestigd is
         }
         $errors = $n['errors'];
-        if ($n['push'] === null && $n['webhook'] === null && $n['email'] === null) {
+        if ($n['push'] === null && $n['webhook'] === null && $n['email'] === null && $n['chat'] === null) {
             $errors[] = t('geen meldkanaal ingeschakeld');
         }
-        q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok, email_ok, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [
+        q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok, email_ok, chat_ok, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [
             $check['id'], $status, mb_substr($title, 0, 250), mb_substr($message . Notify::errText($errors), 0, 1000),
-            $n['push'] ? 1 : 0, Notify::flag($n['webhook']), Notify::flag($n['email']), $kind,
+            $n['push'] ? 1 : 0, Notify::flag($n['webhook']), Notify::flag($n['email']), Notify::flag($n['chat']), $kind,
         ]);
     }
 
@@ -1031,9 +1031,9 @@ final class Monitor
     {
         $n = Notify::send($title, $message, ['prio' => $status === STATUS_OK ? 0 : min(1, (int) setting('pushover_priority_crit', 1)),   // geen emergency: niets te bevestigen
             'status' => $status, 'event' => $event]);
-        q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok, email_ok, kind) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)', [
+        q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok, email_ok, chat_ok, kind) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)', [
             $status, mb_substr($title, 0, 250), mb_substr($message . Notify::errText($n['errors']), 0, 1000),
-            $n['push'] ? 1 : 0, Notify::flag($n['webhook']), Notify::flag($n['email']), 'system',
+            $n['push'] ? 1 : 0, Notify::flag($n['webhook']), Notify::flag($n['email']), Notify::flag($n['chat']), 'system',
         ]);
     }
 
@@ -1101,7 +1101,7 @@ final class Monitor
         bool $always = false, ?string $ip = null, ?array $detail = null, int $prio = -1): void
     {
         $errors = [];
-        [$pushover, $email, $webhook] = [null, null, null];
+        [$pushover, $email, $webhook, $chat] = [null, null, null, null];
         if (!$on) {
             if (!$always) {
                 $errors[] = t('info staat uit');
@@ -1111,14 +1111,14 @@ final class Monitor
         } else {
             $n = Notify::send($title, $message, ['channels' => $channels, 'prio' => $prio, 'status' => STATUS_OK, 'event' => 'info', 'host' => $hostName, 'host_id' => $hostId,   // prio -1 = stil
                 'webhook' => $check ? self::webhookPayload($check, ['value' => $check['last_value'] ?? null], STATUS_OK, $title, $message, 'info', (int) $check['status']) : null]);
-            [$pushover, $email, $webhook, $errors] = [$n['push'], $n['email'], $n['webhook'], $n['errors']];
+            [$pushover, $email, $webhook, $errors, $chat] = [$n['push'], $n['email'], $n['webhook'], $n['errors'], $n['chat']];
         }
         if (!$always && ($channels[NotifyRules::PAGE] ?? true) === false) {
             return;   // niet op de pagina Meldingen (kanaal uit)
         }
-        q('INSERT INTO alerts (check_id, host_id, status, title, message, sent_ok, webhook_ok, email_ok, kind, ip, detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+        q('INSERT INTO alerts (check_id, host_id, status, title, message, sent_ok, webhook_ok, email_ok, chat_ok, kind, ip, detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
             $check['id'] ?? null, $hostId, STATUS_OK, mb_substr($title, 0, 250), mb_substr($message . Notify::errText($errors), 0, 1000),
-            $pushover ? 1 : 0, Notify::flag($webhook), Notify::flag($email), 'info',
+            $pushover ? 1 : 0, Notify::flag($webhook), Notify::flag($email), Notify::flag($chat), 'info',
             Notify::ip($ip), $detail !== null ? json_encode($detail, JSON_UNESCAPED_UNICODE) : null,
         ]);
     }

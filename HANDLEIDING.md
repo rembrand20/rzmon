@@ -671,7 +671,7 @@ Is de zijbalk ingeklapt tot iconen, of is het scherm smaller, dan blijft het zoa
 - **Instellingen** (alleen beheerders): links een **zijbalk** met de groepen (vanaf 1.92.0):
   - **✅ Overzicht**: Hoe staat het ervoor? · Verbindingen en taken;
   - **🧩 Checks**: Sjablonen · Alle checks · Opschoonadvies (vanaf 1.94.0);
-  - **🔔 Meldingen**: Kanalen (Pushover, e-mail, Home Assistant-webhook) · Meldregels en stille uren · Alarmgedrag · Systeeminfo;
+  - **🔔 Meldingen**: Kanalen (Pushover, ntfy, e-mail, Home Assistant-webhook, Discord, Slack en Teams) · Meldregels en stille uren · Alarmgedrag · Systeeminfo;
   - **🛡️ Beveiliging**: IDS: detectie · IDS: aanvallers en verkeer · IDS: servers · Kwetsbaarheden · Datalekken;
   - **🔐 Toegang**: Inloggen · Van buiten (https, onzichtbaar van buiten, apparaten en passkeys) · Gebruikers;
   - **🖥️ Agents**: Agents (één tabel met alle agents, bijwerken, ritme, laatste en volgende contact) · Beveiligde verbinding · Commando-checks;
@@ -1097,6 +1097,22 @@ RzSense is er in het **Nederlands** en het **Engels**. Bovenaan *Instellingen* s
 De prioriteit volgt de instelling bij Pushover (*Geavanceerd*): stil = 2, normaal = 3, hoog = 4, emergency = 5. Bij een storing zit er een knop **✔ Bevestigen** onder het bericht, en tikken op het bericht opent RzSense.
 
 In de meldregels (6.2) en bij *Systeemmeldingen* heet het kanaal **📲 Push**: dat gaat naar Pushover en/of ntfy, wat aan staat. Lukt één van de twee, dan telt de melding als verstuurd; lukt de ander niet, dan staat dat bij de melding. De **🐕 waakhond** stuurt vanaf agent 1.72.0 ook naar ntfy.
+
+### 6.1c Discord, Slack en Microsoft Teams 💬 (vanaf 1.284.0)
+Meldingen kunnen ook als bericht in een chatkanaal van je team komen. Elk bericht heeft een kleur per status (groen, oranje, rood), de server, de tijd en een knop: **Bevestigen** bij een storing, anders **Open RzSense**.
+
+1. Maak in de chatdienst een **webhook**:
+   - **Discord:** kanaal → *Instellingen* → *Integraties* → *Webhooks* → *Nieuwe webhook* → *Webhook-URL kopiëren*;
+   - **Slack:** maak een app met *Incoming Webhooks* en kies het kanaal; je krijgt een adres op `hooks.slack.com`;
+   - **Microsoft Teams:** maak in het kanaal de workflow *Post to a channel when a webhook request is received* en kopieer het adres (de oude *Office 365-connectors* werken ook nog).
+2. In RzSense: **Instellingen → Meldingen en rapporten → Kanalen → Discord, Slack en Microsoft Teams**. Zet het kanaal aan, plak de URL en klik op **💬 Testbericht**.
+3. Kies per kanaal:
+   - **Welke problemen:** *warning en critical* of *alleen critical*;
+   - **Ook herstel** (standaard aan), **ook info en systeemmeldingen** en **ook IDS-meldingen** (standaard uit).
+
+**Wanneer?** Een chatkanaal volgt de keuze voor **📲 Push** in de meldregels (6.2): stille uren, *🔕 altijd stil*, melden na N keer, flappen, escaleren en bundelen gelden dus ook hier. Het filter hierboven komt daar nog bij. In het meldingenoverzicht zie je bij elke melding een **💬** als hij naar een chatkanaal ging (of rood als dat mislukte).
+
+**Veilig:** de webhook-URL is een geheim. Wie hem kent, kan in je kanaal schrijven. Hij blijft daarom in RzSense en gaat nooit naar de browser. RzSense stuurt alleen naar de echte adressen van de dienst (`discord.com`, `hooks.slack.com`, `*.logic.azure.com`, `*.powerplatform.com`, `*.webhook.office.com`), via https met een gecontroleerd certificaat, en volgt geen doorverwijzingen. In Discord werken `@everyone` en `@rollen` uit de tekst van een melding nooit.
 
 ### 6.2 Meldingen 🔔
 In *Instellingen → 🔔 Meldingen* stel je per status in **wanneer** en **waarheen** een melding gaat:

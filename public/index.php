@@ -956,6 +956,25 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <button type="button" class="btn" id="webhook-test"><?= th('🏠 Testbericht naar Home Assistant') ?></button>
         </div>
 
+        <div data-sk="chat" class="card">
+          <h2><?= th('Discord, Slack en Microsoft Teams') ?></h2>
+          <?= xp(t('Meldingen ook in een chatkanaal van je team.'), t('<b>Wat het doet:</b> RzSense plaatst meldingen als bericht in een kanaal, met een kleur per status en een knop om te bevestigen of RzSense te openen. <b>Wanneer:</b> een chatkanaal volgt de keuze voor push bij <b>🔔 Meldingen</b> (stille uren, melden na N keer, bundelen), met daarbovenop het filter hieronder. <b>Instellen:</b> Discord: kanaal → Instellingen → Integraties → Webhooks. Slack: een app met <i>Incoming Webhooks</i>. Teams: de workflow <i>Post to a channel when a webhook request is received</i>. Plak de URL hieronder. <b>Veilig:</b> de URL is geheim en blijft in RzSense; RzSense stuurt alleen naar de adressen van de dienst zelf.')) ?>
+          <div class="chat-kinds">
+<?php foreach (Chat::KINDS as $ck => $cl): ?>
+          <fieldset class="chat-kind">
+            <legend><?= htmlspecialchars($cl) ?></legend>
+            <label class="switch"><input type="checkbox" name="chat_<?= $ck ?>_on"><span></span> <?= th('Aan') ?></label>
+            <label><?= th('Webhook-URL') ?><input name="chat_<?= $ck ?>_url" type="url" autocomplete="off" spellcheck="false" placeholder="<?= htmlspecialchars(['discord' => 'https://discord.com/api/webhooks/…', 'slack' => 'https://hooks.slack.com/services/…', 'teams' => 'https://….logic.azure.com/workflows/…'][$ck]) ?>"></label>
+            <label><?= th('Welke problemen') ?><select name="chat_<?= $ck ?>_min"><option value="warn"><?= th('Warning en critical') ?></option><option value="crit"><?= th('Alleen critical') ?></option></select></label>
+            <label class="switch"><input type="checkbox" name="chat_<?= $ck ?>_recovery"><span></span> <?= th('Ook herstel (weer OK)') ?></label>
+            <label class="switch"><input type="checkbox" name="chat_<?= $ck ?>_info"><span></span> <?= th('Ook info en systeemmeldingen') ?></label>
+            <label class="switch"><input type="checkbox" name="chat_<?= $ck ?>_ids"><span></span> <?= th('Ook IDS-meldingen') ?></label>
+            <button type="button" class="btn chat-test" data-kind="<?= $ck ?>"><?= th('💬 Testbericht') ?></button>
+          </fieldset>
+<?php endforeach; ?>
+          </div>
+        </div>
+
         <div data-sk="email" class="card">
           <h2>E-mail</h2>
           <?= xp(t('Meldingen per e-mail, altijd of alleen als reserve wanneer Pushover niet werkt.'), t('<b>Wat het doet:</b> RzSense stuurt meldingen ook als e-mail, via een mailserver (SMTP) die je hieronder invult. Kies <i>altijd</i> of <i>alleen als Pushover niet werkt</i>. <b>Goed om te weten:</b> bij Gmail, Outlook en iCloud heb je een <b>app-wachtwoord</b> nodig, niet je gewone wachtwoord. Met <i>Testmail sturen</i> controleer je meteen of het werkt.')) ?>

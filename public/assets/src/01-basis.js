@@ -776,7 +776,7 @@ FX.dash = {
 };
 
 const ALERT_KINDS = { notify: () => L('Check'), system: () => L('Systeem'), info: 'Info', sec: () => L('Beveiliging'), ids: 'IDS', ack: () => L('Bevestiging'), maint: () => L('Onderhoud') };
-const ALERT_CH = { pushover: '📲 Push', email: () => '📧 ' + L('E-mail'), webhook: '🏠 Home Assistant', none: () => '🔕 ' + L('nergens heen') };
+const ALERT_CH = { pushover: '📲 Push', email: () => '📧 ' + L('E-mail'), webhook: '🏠 Home Assistant', chat: '💬 Discord/Slack/Teams', none: () => '🔕 ' + L('nergens heen') };
 /** Naar welke kanalen een melding ging (of zou gaan) */
 function alertChannels(a) {
   if (a.kind === 'auth' || a.kind === 'authfail') return ['none'];
@@ -785,6 +785,7 @@ function alertChannels(a) {
   if (+a.sent_ok || /Pushover|ntfy/.test(why)) out.push('pushover');
   if (a.email_ok !== null && a.email_ok !== undefined) out.push('email');
   if (a.webhook_ok !== null && a.webhook_ok !== undefined) out.push('webhook');
+  if (a.chat_ok !== null && a.chat_ok !== undefined) out.push('chat');   // 1.284.0
   return out.length ? out : ['none'];
 }
 FX.alerts = {

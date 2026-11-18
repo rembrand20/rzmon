@@ -53,7 +53,7 @@ final class CheckInfo
         ];
 
         // Melden
-        $last = q("SELECT created_at, status, kind, sent_ok, email_ok, webhook_ok FROM alerts WHERE check_id = ? AND kind NOT IN ('ack', 'info')
+        $last = q("SELECT created_at, status, kind, sent_ok, email_ok, webhook_ok, chat_ok FROM alerts WHERE check_id = ? AND kind NOT IN ('ack', 'info')
                    ORDER BY id DESC LIMIT 1", [$id])->fetch() ?: null;
         $st = (int) $c['status'];
         $esc = null;

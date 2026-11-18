@@ -16,6 +16,7 @@ function channelIcons(a) {
   else if (/Pushover|ntfy/.test(why)) out.push(bad(L('Push mislukt'), '📲'));
   if (a.email_ok !== null && a.email_ok !== undefined) out.push(+a.email_ok ? tip(L('Verstuurd per e-mail'), '📧') : bad(L('E-mail mislukt'), '📧'));
   if (a.webhook_ok !== null) out.push(+a.webhook_ok ? tip(L('Verstuurd naar Home Assistant'), '🏠') : bad(L('Webhook mislukt'), '🏠'));
+  if (a.chat_ok !== null && a.chat_ok !== undefined) out.push(+a.chat_ok ? tip(L('Verstuurd naar Discord, Slack of Teams'), '💬') : bad(L('Chatkanaal mislukt'), '💬'));
   // Nergens heen verstuurd (kanaal of regel staat uit): alleen op deze pagina. Geen ✉️, dat leek op een mislukte e-mail.
   if (!out.length) out.push(tip(L('Niet verstuurd: alleen op deze pagina (zie de meldregels)'), '🔕'));
   return out.join(' ');

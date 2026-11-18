@@ -136,7 +136,7 @@ switch ($action) {
         $end = null;   // de wijziging erna (nieuwste eerst), of nu
         foreach ($changes as &$ch) {
             // Meldingen die bij deze wijziging horen: tussen deze en de volgende wijziging
-            $ch['alerts'] = q("SELECT id, kind, status, title, created_at, sent_ok, email_ok, webhook_ok FROM alerts
+            $ch['alerts'] = q("SELECT id, kind, status, title, created_at, sent_ok, email_ok, webhook_ok, chat_ok FROM alerts
                                WHERE check_id = ? AND created_at >= ?" . ($end ? ' AND created_at < ?' : '') . ' ORDER BY created_at, id LIMIT 5',
                 array_merge([$id, $ch['created_at']], $end ? [$end] : []))->fetchAll();
             $ch['ended_at'] = $end;

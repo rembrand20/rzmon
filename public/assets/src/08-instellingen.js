@@ -766,7 +766,7 @@ const SET_NAV = [
     ['internet', L('Internetcheck'), ['internet'], L('Snelheid, ping en responstijd van je internetlijn.')],
     ['logs', L('Logs verzamelen'), ['logs'], L('Logs van je servers verzamelen: hoe vaak, hoe lang bewaren, hoeveel, maskeren en wat er binnenkomt.')]]],
   ['meldingen', SET_IC('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'), L('Meldingen en rapporten'), [
-    ['channels', L('Kanalen'), ['pushover', 'ntfy', 'email', 'webhook', 'chain'], L('Waar meldingen heen gaan: Pushover, ntfy, e-mail en webhooks.')],
+    ['channels', L('Kanalen'), ['pushover', 'ntfy', 'email', 'webhook', 'chat', 'chain'], L('Waar meldingen heen gaan: Pushover, ntfy, e-mail, webhooks, Discord, Slack en Teams.')],
     ['rules', L('Wanneer melden'), ['confirm', 'notify', 'alarm', 'quiet'], L('Wanneer een probleem een melding wordt, en wanneer het stil moet zijn.'),
       [['wanneer', L('Wanneer melden'), ['confirm', 'notify', 'alarm']], ['stil', L('Stille uren'), ['quiet']]]],
     ['idspush', L('IDS-pushmeldingen'), ['idspush'], L('Wanneer een aanval je telefoon laat trillen, en de dagelijkse samenvatting.')],
@@ -2091,11 +2091,11 @@ async function testWebhook(e) {
 }
 
 /** Testknop voor een meldkanaal, met de (nog niet opgeslagen) waarden uit het formulier. */
-async function testChannel(e, action, okMsg, label) {
+async function testChannel(e, action, okMsg, label, extra) {
   const b = e.target;
   b.disabled = true;
   try {
-    const r = await api(action, settingsData());
+    const r = await api(action, { ...settingsData(), ...(extra || {}) });
     toast(okMsg || r.message);
     if (action === 'mqtt_test') loadSettings();
   } catch (ex) { toast(`${label}: ${ex.message}`, 'err'); }

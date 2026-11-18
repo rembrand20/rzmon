@@ -776,7 +776,7 @@ FX.dash = {
 };
 
 const ALERT_KINDS = { notify: () => L('Check'), system: () => L('Systeem'), info: 'Info', sec: () => L('Beveiliging'), ids: 'IDS', ack: () => L('Bevestiging'), maint: () => L('Onderhoud') };
-const ALERT_CH = { pushover: '📲 Push', email: () => '📧 ' + L('E-mail'), webhook: '🏠 Home Assistant', none: () => '🔕 ' + L('nergens heen') };
+const ALERT_CH = { pushover: '📲 Push', email: () => '📧 ' + L('E-mail'), webhook: '🏠 Home Assistant', chat: '💬 Discord/Slack/Teams', none: () => '🔕 ' + L('nergens heen') };
 /** Naar welke kanalen een melding ging (of zou gaan) */
 function alertChannels(a) {
   if (a.kind === 'auth' || a.kind === 'authfail') return ['none'];
@@ -785,6 +785,7 @@ function alertChannels(a) {
   if (+a.sent_ok || /Pushover|ntfy/.test(why)) out.push('pushover');
   if (a.email_ok !== null && a.email_ok !== undefined) out.push('email');
   if (a.webhook_ok !== null && a.webhook_ok !== undefined) out.push('webhook');
+  if (a.chat_ok !== null && a.chat_ok !== undefined) out.push('chat');   // 1.284.0
   return out.length ? out : ['none'];
 }
 FX.alerts = {
@@ -1693,6 +1694,7 @@ function init() {
   $('#webhook-test').onclick = testWebhook;
   $('#email-test').onclick = (e) => testChannel(e, 'email_test', L('Testmail verstuurd 📧'), L('E-mail'));
   $('#mqtt-test').onclick = (e) => testChannel(e, 'mqtt_test', null, 'MQTT');
+  for (const b of $$('.chat-test')) b.onclick = (e) => testChannel(e, 'chat_test', null, b.closest('fieldset').querySelector('legend').textContent, { kind: b.dataset.kind });   // 1.284.0
   $('#maint-all').onclick = () => maintenanceDialog('all', 0, L('alle servers'), state.maintenance);
   initIsoBanner();   // 1.172.0
   $('#maint-banner').addEventListener('click', (e) => e.target.closest('[data-maint-end]') && endMaintenance('all', 0));
@@ -10045,6 +10047,7 @@ function channelIcons(a) {
   else if (/Pushover|ntfy/.test(why)) out.push(bad(L('Push mislukt'), '📲'));
   if (a.email_ok !== null && a.email_ok !== undefined) out.push(+a.email_ok ? tip(L('Verstuurd per e-mail'), '📧') : bad(L('E-mail mislukt'), '📧'));
   if (a.webhook_ok !== null) out.push(+a.webhook_ok ? tip(L('Verstuurd naar Home Assistant'), '🏠') : bad(L('Webhook mislukt'), '🏠'));
+  if (a.chat_ok !== null && a.chat_ok !== undefined) out.push(+a.chat_ok ? tip(L('Verstuurd naar Discord, Slack of Teams'), '💬') : bad(L('Chatkanaal mislukt'), '💬'));
   // Nergens heen verstuurd (kanaal of regel staat uit): alleen op deze pagina. Geen ✉️, dat leek op een mislukte e-mail.
   if (!out.length) out.push(tip(L('Niet verstuurd: alleen op deze pagina (zie de meldregels)'), '🔕'));
   return out.join(' ');
@@ -13352,6 +13355,7 @@ function al2Deliv(x) {
   if (+x.sent_ok) out.push(ch(true, 'Push')); else if (/Pushover|ntfy/.test(why || '')) out.push(ch(false, 'Push'));
   if (x.email_ok !== null && x.email_ok !== undefined) out.push(ch(+x.email_ok, L('E-mail')));
   if (x.webhook_ok !== null && x.webhook_ok !== undefined) out.push(ch(+x.webhook_ok, 'Home Assistant'));
+  if (x.chat_ok !== null && x.chat_ok !== undefined) out.push(ch(+x.chat_ok, 'Chat'));
   if (!out.length) out.push(`<span class="muted">🔕 ${esc(why && /stil/i.test(why) ? L('stille uren: niet verstuurd') : L('niet verstuurd: alleen op deze pagina'))}</span>`);
   return out.join(' ') + (why && out.length && !/stil/i.test(why) ? ` <span class="bad small">${esc(why)}</span>` : '');
 }
@@ -14386,7 +14390,7 @@ const SET_NAV = [
     ['internet', L('Internetcheck'), ['internet'], L('Snelheid, ping en responstijd van je internetlijn.')],
     ['logs', L('Logs verzamelen'), ['logs'], L('Logs van je servers verzamelen: hoe vaak, hoe lang bewaren, hoeveel, maskeren en wat er binnenkomt.')]]],
   ['meldingen', SET_IC('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'), L('Meldingen en rapporten'), [
-    ['channels', L('Kanalen'), ['pushover', 'ntfy', 'email', 'webhook', 'chain'], L('Waar meldingen heen gaan: Pushover, ntfy, e-mail en webhooks.')],
+    ['channels', L('Kanalen'), ['pushover', 'ntfy', 'email', 'webhook', 'chat', 'chain'], L('Waar meldingen heen gaan: Pushover, ntfy, e-mail, webhooks, Discord, Slack en Teams.')],
     ['rules', L('Wanneer melden'), ['confirm', 'notify', 'alarm', 'quiet'], L('Wanneer een probleem een melding wordt, en wanneer het stil moet zijn.'),
       [['wanneer', L('Wanneer melden'), ['confirm', 'notify', 'alarm']], ['stil', L('Stille uren'), ['quiet']]]],
     ['idspush', L('IDS-pushmeldingen'), ['idspush'], L('Wanneer een aanval je telefoon laat trillen, en de dagelijkse samenvatting.')],
@@ -15711,11 +15715,11 @@ async function testWebhook(e) {
 }
 
 /** Testknop voor een meldkanaal, met de (nog niet opgeslagen) waarden uit het formulier. */
-async function testChannel(e, action, okMsg, label) {
+async function testChannel(e, action, okMsg, label, extra) {
   const b = e.target;
   b.disabled = true;
   try {
-    const r = await api(action, settingsData());
+    const r = await api(action, { ...settingsData(), ...(extra || {}) });
     toast(okMsg || r.message);
     if (action === 'mqtt_test') loadSettings();
   } catch (ex) { toast(`${label}: ${ex.message}`, 'err'); }
@@ -21345,6 +21349,24 @@ const FH_SHORT = () => ({
   ha_webhook_enabled: L("Meldingen naar een webhook sturen, bv. een automatisering in Home Assistant."),
   ha_webhook_url: L("Het volledige adres van de webhook (Home Assistant: …/api/webhook/<id>)."),
   ha_webhook_verify_ssl: L("Controleert het certificaat van de webhook. Alleen uit bij een eigen (self-signed) certificaat."),
+  chat_discord_on: L("Meldingen ook als bericht in een Discord-kanaal."),
+  chat_discord_url: L("Discord: kanaal → Instellingen → Integraties → Webhooks → Nieuwe webhook → URL kopiëren. De URL is geheim: wie hem kent, kan in het kanaal schrijven."),
+  chat_discord_min: L("Welke problemen in het kanaal komen: warning en critical, of alleen critical."),
+  chat_discord_recovery: L("Ook een bericht als een probleem weer opgelost is."),
+  chat_discord_info: L("Ook info- en systeemmeldingen (updates, logins, certificaten …)."),
+  chat_discord_ids: L("Ook meldingen van de inbraakdetectie (IDS) en de dagelijkse IDS-samenvatting."),
+  chat_slack_on: L("Meldingen ook als bericht in een Slack-kanaal."),
+  chat_slack_url: L("Slack: maak een app met Incoming Webhooks en kies het kanaal; je krijgt een adres op hooks.slack.com. De URL is geheim: wie hem kent, kan in het kanaal schrijven."),
+  chat_slack_min: L("Welke problemen in het kanaal komen: warning en critical, of alleen critical."),
+  chat_slack_recovery: L("Ook een bericht als een probleem weer opgelost is."),
+  chat_slack_info: L("Ook info- en systeemmeldingen (updates, logins, certificaten …)."),
+  chat_slack_ids: L("Ook meldingen van de inbraakdetectie (IDS) en de dagelijkse IDS-samenvatting."),
+  chat_teams_on: L("Meldingen ook als bericht in een Teams-kanaal."),
+  chat_teams_url: L("Teams: workflow \"Post to a channel when a webhook request is received\"; kopieer het adres van de workflow. De URL is geheim: wie hem kent, kan in het kanaal schrijven."),
+  chat_teams_min: L("Welke problemen in het kanaal komen: warning en critical, of alleen critical."),
+  chat_teams_recovery: L("Ook een bericht als een probleem weer opgelost is."),
+  chat_teams_info: L("Ook info- en systeemmeldingen (updates, logins, certificaten …)."),
+  chat_teams_ids: L("Ook meldingen van de inbraakdetectie (IDS) en de dagelijkse IDS-samenvatting."),
   email_enabled: L("Meldingen en rapporten per e-mail."),
   email_mode: L("Altijd mailen, of alleen als reserve als Pushover uit staat of mislukt."),
   smtp_host: L("De uitgaande mailserver van je provider of mailserver, bv. smtp.provider.nl."),

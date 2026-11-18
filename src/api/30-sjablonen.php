@@ -355,6 +355,9 @@ switch ($action) {
         $allowed = ['sysinfo', 'pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
             'pushover_sound', 'ntfy_enabled', 'ntfy_server', 'ntfy_topic', 'ntfy_token', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'cert_dirs', 'retention_days', 'alerts_days', 'hourly_days', 'daily_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_fim', 'ids_fim_exclude', 'ids_decoy_users', 'ids_decoy_port', 'ids_block_shared', 'ids_weekly', 'ids_weekly_day', 'ids_weekly_time', 'ids_blocklists', 'ids_geo', 'ids_geo_allowed', 'ids_webshell', 'ids_webshell_kill', 'ids_persist', 'ids_outbound', 'ids_outbound_country', 'ids_outbound_block', 'ids_harden', 'weblog_swag', 'weblog_swag_path', 'weblog_ha', 'weblog_ha_path', 'weblog_vw', 'weblog_vw_path', 'weblog_block', 'wl_paths', 'wl_ua', 'wl_404', 'wl_404_n', 'wl_auth', 'wl_auth_n', 'wl_nohost', 'wl_nohost_n', 'wl_ha_n', 'wl_vw_n', 'wl_minutes',
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
+            'chat_discord_on', 'chat_discord_url', 'chat_discord_min', 'chat_discord_recovery', 'chat_discord_info', 'chat_discord_ids',
+            'chat_slack_on', 'chat_slack_url', 'chat_slack_min', 'chat_slack_recovery', 'chat_slack_info', 'chat_slack_ids',
+            'chat_teams_on', 'chat_teams_url', 'chat_teams_min', 'chat_teams_recovery', 'chat_teams_info', 'chat_teams_ids',
             'email_enabled', 'email_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_user', 'smtp_pass', 'smtp_verify_ssl', 'mail_from', 'mail_to',
             'mqtt_enabled', 'mqtt_host', 'mqtt_port', 'mqtt_tls', 'mqtt_verify_ssl', 'mqtt_user', 'mqtt_pass', 'mqtt_prefix', 'mqtt_base_topic',
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
@@ -658,6 +661,13 @@ switch ($action) {
         if (array_key_exists('mail_to', $in) && ($bad = email_list((string) $in['mail_to'])['bad'])) {
             out(['error' => t('Ongeldig e-mailadres') . ': ' . implode(', ', array_slice($bad, 0, 3))], 422);
         }
+        // 1.284.0: webhook van Discord, Slack of Teams: alleen het echte adres van die dienst
+        foreach (Chat::KINDS as $ck => $cl) {
+            $cu = trim((string) ($in["chat_{$ck}_url"] ?? ''));
+            if ($cu !== '' && $cu !== '••••••••' && !Chat::validUrl($ck, $cu)) {
+                out(['error' => t('Geen geldige webhook-URL voor {k} (https, adres van de dienst zelf)', ['k' => $cl])], 422);
+            }
+        }
         foreach ($allowed as $k) {
             if (!array_key_exists($k, $in)) {
                 continue;
@@ -734,6 +744,14 @@ switch ($action) {
         $res = Pushover::send('🧪 RzSense test', t('Als je dit leest werkt Pushover! 🎉'), 0,
             trim((string) ($in['pushover_user'] ?? '')) ?: null, $token ?: null);
         out($res, $res['ok'] ? 200 : 422);
+
+    // 1.284.0: testbericht naar Discord, Slack of Teams (met de URL uit het formulier, of de opgeslagen)
+    case 'chat_test':
+        $in = input();
+        $kind = (string) ($in['kind'] ?? '');
+        session_write_close();
+        $res = Chat::test($kind, (string) ($in["chat_{$kind}_url"] ?? ''));
+        out($res + ['message' => $res['ok'] ? t('Testbericht verstuurd naar {k}', ['k' => Chat::KINDS[$kind] ?? $kind]) : null], $res['ok'] ? 200 : 422);
 
     case 'ntfy_test':
         // Test met de (nog niet opgeslagen) waarden uit het formulier; een gemaskeerd token = het opgeslagen token

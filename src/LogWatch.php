@@ -462,19 +462,19 @@ final class LogWatch
         $quiet = $h ? Quiet::forHost($h) : Quiet::global();
         $hold = Quiet::until($quiet) !== null && !($status === STATUS_CRIT && !empty($quiet['crit']));
         $errors = $hold ? [t('stille uren')] : [];
-        [$pushover, $email, $webhook] = [false, null, null];
+        [$pushover, $email, $webhook, $chat] = [false, null, null, null];
         if (!$hold) {   // 1.235.0: via Notify (alle kanalen; webhook met het filter "alleen critical")
             $n = Notify::send($title, $message, ['prio' => $event === 'recovery' ? 0 : ($status === STATUS_CRIT ? min(1, (int) setting('pushover_priority_crit', 1)) : ($status === STATUS_WARN ? 0 : -1)),
                 'status' => $status, 'event' => $status === STATUS_OK && $event !== 'recovery' ? 'info' : $event, 'anchor' => '#logs', 'webhook_filter' => true,
                 'host' => $hostId ? $hostName : null, 'host_id' => $hostId, 'webhook_extra' => ['log_search' => $detail['name'] ?? null]]);
-            [$pushover, $email, $webhook] = [(bool) $n['push'], $n['email'], $n['webhook']];
+            [$pushover, $email, $webhook, $chat] = [(bool) $n['push'], $n['email'], $n['webhook'], $n['chat']];
             $errors = array_merge($errors, $n['errors']);
         }
         $kind = $status === STATUS_OK && $event !== 'recovery' ? 'info' : 'logs';
-        q('INSERT INTO alerts (check_id, host_id, status, title, message, sent_ok, webhook_ok, email_ok, kind, ip, detail, log_watch) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+        q('INSERT INTO alerts (check_id, host_id, status, title, message, sent_ok, webhook_ok, email_ok, chat_ok, kind, ip, detail, log_watch) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
             $hostId, $status, mb_substr($title, 0, 250),
             mb_substr($message . Notify::errText($errors), 0, 1000),
-            $pushover ? 1 : 0, Notify::flag($webhook), Notify::flag($email), $kind, Notify::ip($ip),
+            $pushover ? 1 : 0, Notify::flag($webhook), Notify::flag($email), Notify::flag($chat), $kind, Notify::ip($ip),
             json_encode($detail, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), $key,
         ]);
         return (int) db()->lastInsertId();
