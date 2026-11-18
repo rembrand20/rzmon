@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.279.0**: bij **toegestane apparaten** zie je hoe er is ingelogd: met een passkey, met 2FA of alleen met een wachtwoord.
 - **1.278.0**: **🔕 altijd stil** per check, server, groep of soort apparaat (nooit een melding), en **🔀 flappen** zie je in elke weergave terug, ook nog 24 uur daarna.
 
+## 1.282.1 – 2026-11-18
+### Opgelost
+- De image van de **RzSense Relay** bouwde niet: de pakketbron werd vóór het installeren van de certificaten op https gezet. Apt controleert de pakketten zelf met handtekeningen. De relay-image (`ghcr.io/rembrand20/rzsense-relay:1.109.0` en `latest`) komt nu wel online.
+
 ## 1.282.0 – 2026-11-18
 ### Nieuw
 - **Netwerken en relays** (Beheer → Agents en koppelingen → Netwerken en relays): servers in een netwerk **zonder verbinding met RzSense** rapporteren via een **relay**: agent op server → relay → RzSense, en het antwoord dezelfde weg terug. Zie [relay/README.md](relay/README.md) en hoofdstuk 8.15 van de handleiding.
