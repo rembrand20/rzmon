@@ -23652,7 +23652,7 @@ async function loadRelaySet() {
     ${d.networks.length ? `<div class="table-scroll"><table class="vuln-table small"><thead><tr><th>${L('Netwerk')}</th><th>${L('Adresreeksen')}</th><th>${L('Via')}</th><th>${L('Servers')}</th><th></th></tr></thead><tbody>
       ${d.networks.map((n) => `<tr data-net="${n.id}"><td><b>${esc(n.name)}</b>${n.note ? `<br><span class="muted">${esc(n.note)}</span>` : ''}</td>
         <td><code>${esc(n.cidrs.join(', '))}</code></td>
-        <td>${n.relay_id ? `🛰️ ${esc(relayName(n.relay_id))}${n.relay_fb_id ? `<br><span class="muted">${L('reserve: {n}', { n: esc(relayName(n.relay_fb_id)) })}</span>` : ''}` : `<span class="muted">${L('rechtstreeks')}</span>`}</td>
+        <td>${n.relay_id ? `🛰️ ${esc(relayName(n.relay_id))}${n.relay_fb_id ? `<br><span class="muted">${L('reserve: {n}', { n: esc(relayName(n.relay_fb_id)) })}</span>` : ''}${n.relay_checks ? `<br><span class="muted">📡 ${L('checks via de relay')}</span>` : ''}` : `<span class="muted">${L('rechtstreeks')}</span>`}</td>
         <td>${d.hosts.filter((h) => !h.is_relay && h.net && h.net.id === n.id).length}</td>
         <td class="nowrap need-admin"><button type="button" class="btn small-btn" data-net-edit="${n.id}">✎ ${L('Bewerken')}</button>
           <button type="button" class="btn small-btn danger" data-net-del="${n.id}">${L('Verwijderen')}</button></td></tr>`).join('')}
@@ -23758,10 +23758,12 @@ function relayNetDialog(n) {
       <label>${L('Adresreeksen')} <span class="hint">${L('(bijvoorbeeld 192.168.50.0/24, 10.20.0.0/16)')}</span><input name="cidrs" required class="mono" value="${esc(n ? n.cidrs.join(', ') : '')}"></label>
       <label>${L('Via')}<select name="relay_id">${opt(n ? n.relay_id : null, L('rechtstreeks (geen relay)'))}</select></label>
       <label>${L('Reserve-relay')} <span class="hint">${L('(als de eerste weg is)')}</span><select name="relay_fb_id">${opt(n ? n.relay_fb_id : null, L('geen'))}</select></label>
+      <label class="switch"><input type="checkbox" name="relay_checks" ${n && n.relay_checks ? 'checked' : ''}><span></span> ${L('Checks via de relay (ping, TCP en HTTP)')}</label>
+      <p class="muted small" style="margin-top:-.3rem">${L('De relay voert de ping-, TCP- en HTTP-checks van de servers in dit netwerk zelf uit, ook van apparaten zonder agent (een printer, een NAS, een switch). Nodig: relay met agent {v} of nieuwer.', { v: '1.112.0' })}</p>
       <label>${L('Notitie')}<input name="note" maxlength="255" value="${esc(n ? n.note : '')}"></label></div>`,
     buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: L('Opslaan'), cls: 'primary', submit: true }],
     onSubmit: async (v) => {
-      await api('relay_net_save', { id: n ? n.id : 0, name: v.name, cidrs: v.cidrs, relay_id: +v.relay_id, relay_fb_id: +v.relay_fb_id, note: v.note });
+      await api('relay_net_save', { id: n ? n.id : 0, name: v.name, cidrs: v.cidrs, relay_id: +v.relay_id, relay_fb_id: +v.relay_fb_id, note: v.note, relay_checks: v.relay_checks ? 1 : 0 });
       toast(L('Opgeslagen'));
       loadRelaySet();
     },

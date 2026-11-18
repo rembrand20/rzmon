@@ -3740,6 +3740,55 @@ foreach (['HTTP_X_RZ_RELAY', 'HTTP_X_RZ_RELAY_FOR', 'HTTP_X_RZ_RELAY_TS', 'HTTP_
 Relay::reset();
 q('DELETE FROM hosts WHERE id IN (?, ?)', [$rbId, $rlId]);
 
+section('Checks via de relay (1.289.0)');
+q("INSERT INTO hosts (name, address, mode, enabled, relay_on, agent_version) VALUES ('rc-relay', '10.77.0.2', 'agent', 1, 1, '1.112.0')");
+$rcR = (int) db()->lastInsertId();
+q("INSERT INTO hosts (name, address, mode, enabled) VALUES ('rc-printer', '10.77.0.50', 'remote', 1)");
+$rcH = (int) db()->lastInsertId();
+$rcNet = Relay::saveNetwork(['name' => 'RC-netwerk', 'cidrs' => '10.77.0.0/24', 'relay_id' => $rcR, 'relay_checks' => 1], 'ci');
+q('UPDATE hosts SET net_id = ? WHERE id = ?', [$rcNet, $rcH]);
+$rcIds = [];
+foreach ([['ping', ''], ['tcp', '9100'], ['http', '/status'], ['dns', 'x']] as [$ty, $tg]) {
+    q('INSERT INTO checks (host_id, name, type, target, warn_threshold, crit_threshold) VALUES (?, ?, ?, ?, 100, 500)', [$rcH, "rc $ty", $ty, $tg]);
+    $rcIds[$ty] = (int) db()->lastInsertId();
+}
+$rcLines = array_values(array_filter(Relay::agentLines($rcR), static fn($l) => str_contains($l, "\trchk\t")));
+ok($rcLines === ["{$rcIds['ping']}\trchk\tping\t10.77.0.50", "{$rcIds['tcp']}\trchk\ttcp\t10.77.0.50\t9100", "{$rcIds['http']}\trchk\thttp\thttp://10.77.0.50/status\t1"],
+    'relay-checks: ping, TCP en HTTP naar de relay (andere soorten niet)');
+q("UPDATE hosts SET agent_version = '1.111.0' WHERE id = ?", [$rcR]);
+ok(!array_filter(Relay::agentLines($rcR), static fn($l) => str_contains($l, "\trchk\t")), 'relay-checks: een oudere relay-agent krijgt ze niet');
+q("UPDATE hosts SET agent_version = '1.112.0' WHERE id = ?", [$rcR]);
+ok(!Relay::safeTarget('-f') && !Relay::safeTarget('a b') && Relay::safeTarget('nas.lan') && !Relay::safeUrl('http://x/ a') && !Relay::safeUrl("http://x/\t1") && Relay::safeUrl('https://nas.lan:5001/api?x=1'),
+    'relay-checks: geen opties, spaties of tabs in doelen');
+$rcHost = q('SELECT * FROM hosts WHERE id = ?', [$rcH])->fetch();
+$rcCk = static fn(string $ty) => q('SELECT * FROM checks WHERE id = ?', [$rcIds[$ty]])->fetch();
+$rcRun = static fn(string $ty) => Checks::run($rcCk($ty), $rcHost);
+ok($rcRun('ping')['status'] === STATUS_UNKNOWN && str_contains($rcRun('ping')['message'], 'rc-relay'), 'relay-checks: nog geen uitkomst = onbekend (met de naam van de relay)');
+$rcRelayRow = ['id' => $rcR, 'name' => 'rc-relay'];   // zoals agent_host(): niet alle kolommen
+$rcN = Relay::checkResults($rcRelayRow, [
+    ['id' => $rcIds['ping'], 't' => 'ping', 'loss' => 0, 'ms' => 4.2],
+    ['id' => $rcIds['tcp'], 't' => 'tcp', 'ok' => 0, 'err' => 'geen verbinding'],
+    ['id' => $rcIds['http'], 't' => 'http', 'code' => 200, 'ms' => 650],
+    ['id' => $rcIds['dns'], 't' => 'ping', 'loss' => 0, 'ms' => 1],      // geen relay-check
+    ['id' => $rcIds['http'] + 999, 't' => 'http', 'code' => 200],       // bestaat niet
+]);
+ok($rcN === 3, 'relay-checks: alleen uitkomsten van checks die de relay moest doen');
+$rp = $rcRun('ping');
+$rt = $rcRun('tcp');
+$rh = $rcRun('http');
+ok($rp['status'] === STATUS_OK && (float) $rp['value'] === 4.2 && $rt['status'] === STATUS_CRIT && str_contains($rt['message'], '9100')
+    && $rh['status'] === STATUS_CRIT && (float) $rh['value'] === 650.0 && str_contains($rh['message'], 'via relay rc-relay'),
+    'relay-checks: zelfde drempels als gewoon (650 ms > critical 500), met "via relay"');
+Relay::checkResults($rcRelayRow, [['id' => $rcIds['ping'], 't' => 'ping', 'loss' => 100, 'err' => 'ping ontbreekt'], ['id' => $rcIds['http'], 't' => 'http', 'code' => 503, 'ms' => 20]]);
+ok(str_contains($rcRun('ping')['message'], 'ping ontbreekt') && $rcRun('ping')['status'] === STATUS_CRIT && $rcRun('http')['message'] === 'HTTP 503 · via relay rc-relay',
+    'relay-checks: reden van een mislukte ping, HTTP-fout');
+q("UPDATE agent_data SET updated_at = NOW() - INTERVAL 10 MINUTE WHERE host_id = ? AND metric LIKE 'rchk:%'", [$rcR]);
+ok($rcRun('ping')['status'] === STATUS_UNKNOWN, 'relay-checks: oude uitkomst (relay stil) = onbekend');
+Relay::saveNetwork(['id' => $rcNet, 'name' => 'RC-netwerk', 'cidrs' => '10.77.0.0/24', 'relay_id' => $rcR, 'relay_checks' => 0], 'ci');
+ok(Relay::checkVia($rcCk('ping'), $rcHost) === null && Relay::relayChecks($rcR) === [], 'relay-checks: uit = RzSense doet ze weer zelf');
+q('DELETE FROM hosts WHERE id IN (?, ?)', [$rcH, $rcR]);
+q('DELETE FROM relay_networks WHERE id = ?', [$rcNet]);
+
 section('Discord, Slack en Teams (1.284.0)');
 ok(Chat::validUrl('discord', 'https://discord.com/api/webhooks/1/abc') && Chat::validUrl('slack', 'https://hooks.slack.com/services/T/B/x')
     && Chat::validUrl('teams', 'https://prod-01.westeurope.logic.azure.com:443/workflows/x/triggers/manual/paths/invoke?sig=y'), 'chat: echte webhook-adressen zijn goed');

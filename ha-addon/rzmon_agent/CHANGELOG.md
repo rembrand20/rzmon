@@ -5,6 +5,13 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.112.0 – 2026-11-18
+- **Checks via de relay** (RzSense 1.289.0): een relay voert nu zelf de ping-, TCP- en HTTP-checks uit voor de servers en apparaten in zijn netwerk, als dat in RzSense aan staat bij het netwerk. Dat werkt ook voor apparaten zonder agent, zoals een printer, NAS of switch.
+  - De checks lopen elke ronde naast elkaar, elk met een eigen tijdslimiet (ping 10 s, TCP 5 s, HTTP 15 s), hooguit 64.
+  - De uitkomst gaat mee in het rapport.
+  - Alleen adressen en URL's zonder opties of spaties; nooit via een shell.
+  - Mislukt een ping omdat ping ontbreekt, dan zegt de relay dat erbij.
+
 ## 1.111.0 – 2026-11-18
 - **Reserve-RzSense** (RzSense 1.287.0): RzSense geeft de agent het adres van de reserve mee. Bereikt de agent zijn RzSense niet, ook niet via het reserve-adres, dan probeert hij de reserve. Dat gaat alleen versleuteld met zijn eigen sleutel.
   - Is de reserve nog stand-by (hij ziet de hoofdserver nog), dan zegt hij "later" en houdt de agent zijn metingen vast, zoals altijd als RzSense even weg is.

@@ -19,6 +19,10 @@ final class Checks
         if ($host['mode'] !== 'agent' && in_array($check['type'], ['podman', 'container', 'log', 'command'], true)) {
             return self::result(STATUS_UNKNOWN, null, t('Deze check werkt via de agent: zet de server op type "Remote met agent" en installeer de agent'));
         }
+        // 1.289.0: in een netwerk achter een relay met "checks via de relay": de uitkomst van die relay
+        if (($via = Relay::checkVia($check, $host)) !== null) {
+            return Relay::checkResult($check, $via);
+        }
         try {
             return match ($check['type']) {
                 'ping' => self::ping($check, $host),

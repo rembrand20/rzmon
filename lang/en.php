@@ -11517,4 +11517,9 @@ return [
     'komt binnen ({n} delen)' => 'arriving ({n} parts)',
     'Geschiedenis terugsturen' => 'Sending the history back',
     'deel {i} van {n} verstuurd ({r} rijen)' => 'part {i} of {n} sent ({r} rows)',
+    'via relay {r}' => 'via relay {r}',
+    'Nog geen uitkomst van de relay (de relay voert deze check uit vanaf agent {v})' => 'No result from the relay yet (the relay runs this check from agent {v})',
+    'checks via de relay' => 'checks via the relay',
+    'Checks via de relay (ping, TCP en HTTP)' => 'Checks via the relay (ping, TCP and HTTP)',
+    'De relay voert de ping-, TCP- en HTTP-checks van de servers in dit netwerk zelf uit, ook van apparaten zonder agent (een printer, een NAS, een switch). Nodig: relay met agent {v} of nieuwer.' => 'The relay runs the ping, TCP and HTTP checks of the servers in this network itself, also for devices without an agent (a printer, a NAS, a switch). Requires: relay with agent {v} or newer.',
 ];

@@ -535,6 +535,7 @@ if ($action === 'agent') {
     Patch::fromAgent($host, $in, $st, $now);   // 1.230.0: updates (agent 1.92.0)
     Relay::fromAgent($host, $in);   // 1.282.0: de relay-container (agent 1.109.0)
     Relay::noteMid($host, $in);     // 1.283.0: machine-id (gehasht), om een losse relay-agent bij zijn server te zetten
+    Relay::checkResults($host, $in['rchk'] ?? null);   // 1.289.0: uitkomsten van de checks die de relay voor zijn netwerk deed
     Relay::noteVia($host);          // 1.282.0: rechtstreeks of via een relay binnengekomen
     Sudo::fromAgent($host, $in);   // 1.231.0: tijdelijk sudo (agent 1.93.0)
     ProxyGuard::fromAgent($host, $in);   // 1.254.0: reverse proxy (agent 1.97.0)

@@ -70,6 +70,10 @@ Zet in de firewall van die machine poort 8444 open voor de agents in dat netwerk
 3. **Servers:** bestaande agents in dat netwerk vallen er vanzelf in (op IP-adres), of je zet ze er zelf in. Klik op **↪ Adressen toepassen**. Elke agent test de relay eerst; zijn rechtstreekse adres wordt het reserve-adres.
 4. **Nieuwe servers** in dat netwerk koppel je meteen via de relay: Agent Manager → Installeren → *Verbinden via* de relay.
 
+## Checks via de relay (vanaf 1.289.0, agent 1.112.0)
+
+Zet bij een netwerk in RzSense **📡 Checks via de relay** aan. Dan doet de relay de ping-, TCP- en HTTP-checks van de servers en apparaten in dat netwerk (ook zonder agent: printer, NAS, switch) en stuurt hij de uitkomst mee. RzSense doet ze dan niet meer zelf. Zie HANDLEIDING 8.15.
+
 ## Valt de relay weg?
 
 Dan krijg je **één melding** (*Agent stil* van de relay, met hoeveel agents erachter zitten). De meldingen van de agents erachter worden onderdrukt. Die agents bewaren hun metingen en sturen ze na als de relay terug is.
@@ -87,4 +91,4 @@ De relay heeft het versienummer van de agent.
 podman build -f relay/Containerfile -t localhost/rzsense-relay .
 ```
 
-Home Assistant en TrueNAS als app, en checks die de relay zelf uitvoert in zijn netwerk (ping, HTTP, SNMP …), volgen in een volgende versie.
+Home Assistant en TrueNAS als app volgen in een volgende versie.

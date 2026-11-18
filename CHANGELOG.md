@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.289.0**: **checks via de relay**: de relay doet zelf ping, TCP en HTTP in zijn netwerk, ook voor apparaten zonder agent.
 - **1.288.0**: na een overname gaat de **geschiedenis van de reserve vanzelf terug** naar de hoofdserver, rustig en in delen, zonder dubbele rijen.
 - **1.287.0**: de **reserve-RzSense neemt het werk over** als de hoofdserver 5 minuten weg is en de agents bij hem aankloppen, met een melding, en geeft het vanzelf terug.
 - **1.286.0**: **reserve-RzSense**: een tweede RzSense (bv. een container op een andere machine) houdt versleuteld een kopie bij van je hoofdserver: elke 15 minuten klein, elke nacht volledig.
 - **1.285.0**: **Web Push**: meldingen rechtstreeks op je iPhone, Android of computer, zonder extra app, versleuteld tot op je apparaat en met een knop om te bevestigen.
-- **1.284.0**: meldingen ook naar **Discord, Slack en Microsoft Teams**, met kleur per status, een knop om te bevestigen en een eigen filter per kanaal.
+
+## 1.289.0 – 2026-11-18
+### Nieuw
+- **Checks via de relay** (agent 1.112.0 nodig op de relay). Zet bij een netwerk *📡 Checks via de relay* aan: de relay voert dan zelf de ping-, TCP- en HTTP-checks uit van de servers in dat netwerk, ook van apparaten zonder agent (printer, NAS, switch). Zie HANDLEIDING 8.15.
+  - RzSense gebruikt de uitkomst van de relay, met dezelfde drempels en teksten als anders, plus *via relay …*.
+  - De relay doet ze elke ronde, naast elkaar, elk met een eigen tijdslimiet, hooguit 64 per relay. Een oude uitkomst (relay stil) telt als *onbekend*.
+  - Veilig: alleen adressen en URL's zonder opties, spaties of tabs, nooit via een shell. RzSense neemt alleen uitkomsten aan van checks die die relay echt moest doen.
+- Nieuwe agent 1.112.0.
 
 ## 1.288.2 – 2026-11-18
 ### Opgelost

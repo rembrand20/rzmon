@@ -3886,6 +3886,13 @@ De relay draait op een machine in dat netwerk. De agents daar sturen hun rapport
 
 Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De agent draait daarom als **add-on**.
 
+**Checks via de relay** (vanaf 1.289.0, relay met agent 1.112.0):
+- Zet bij een netwerk **📡 Checks via de relay (ping, TCP en HTTP)** aan. De relay voert dan de ping-, TCP- en HTTP-checks van alle servers in dat netwerk zelf uit, ook van apparaten zonder agent, zoals een printer, NAS of switch.
+- RzSense doet die checks dan niet meer zelf, want hij kan dat netwerk meestal niet bereiken. Hij gebruikt de uitkomst van de relay, met dezelfde drempels en teksten, plus *via relay …*.
+- De relay doet ze elke ronde (standaard elke minuut), naast elkaar, elk met een eigen tijdslimiet, hooguit 64 per relay. Een uitkomst die ouder is dan 3 rondes (de relay is stil) telt als *onbekend*. Bij een stille relay krijg je toch al één melding van de relay zelf.
+- HTTP: GET met doorverwijzingen (hooguit 5) en de controle van het certificaat zoals ingesteld bij de check. Controle van de inhoud (tekst of JSON) en de vervaldatum van het certificaat doet de relay (nog) niet.
+- Veilig: de relay krijgt alleen adressen en URL's zonder opties, spaties of tabs, en voert ze nooit via een shell uit.
+
 ### Wat wordt er bewaakt?
 | Check in RzSense | Betekenis |
 |---|---|

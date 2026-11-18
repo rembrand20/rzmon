@@ -222,12 +222,151 @@ final class Relay
     /** Regel voor de agent in de relay-container: "0 <tab> relay <tab> poort <tab> netwerken" (leeg netwerk = '-') */
     public static function agentLines(int $hostId): array
     {
-        $h = q('SELECT relay_on, relay_port FROM hosts WHERE id = ?', [$hostId])->fetch();
+        $h = q('SELECT relay_on, relay_port, agent_version FROM hosts WHERE id = ?', [$hostId])->fetch();
         if (!$h || !(int) $h['relay_on']) {
             return [];
         }
         $allow = self::allowFor($hostId);
-        return ["0\trelay\t" . ((int) $h['relay_port'] ?: self::PORT) . "\t" . ($allow ? implode(',', $allow) : '-')];
+        $out = ["0\trelay\t" . ((int) $h['relay_port'] ?: self::PORT) . "\t" . ($allow ? implode(',', $allow) : '-')];
+        if (version_compare((string) $h['agent_version'], self::CHECKS_AGENT, '>=')) {
+            foreach (self::relayChecks($hostId) as $c) {
+                $out[] = implode("\t", [$c['id'], 'rchk', $c['kind'], ...$c['args']]);
+            }
+        }
+        return $out;
+    }
+
+    // ------------------------------------------------------------------ 1.289.0: checks door de relay
+
+    /** Agent die checks voor zijn netwerk uitvoert */
+    public const CHECKS_AGENT = '1.112.0';
+    /** Zoveel checks per relay (de relay doet ze elke ronde, naast elkaar) */
+    public const CHECKS_MAX = 64;
+    private const CHECK_TYPES = ['ping', 'tcp', 'http'];
+
+    /** Is dit een adres of naam die de relay veilig kan gebruiken? (geen opties, geen spaties) */
+    public static function safeTarget(string $t): bool
+    {
+        return (bool) preg_match('/^[A-Za-z0-9][A-Za-z0-9.:_-]{0,252}$/', $t);
+    }
+
+    public static function safeUrl(string $u): bool
+    {
+        return strlen($u) <= 500 && (bool) preg_match('#^https?://[A-Za-z0-9][A-Za-z0-9.:_-]*(/[^\s"\'\\\\<>`]*)?$#', $u);
+    }
+
+    /**
+     * De checks die deze relay uitvoert: ping, TCP en HTTP van de servers in zijn netwerken waar "checks via de relay" aan staat.
+     * @return list<array{id: int, kind: string, args: list<string>}>
+     */
+    public static function relayChecks(int $relayId): array
+    {
+        $out = [];
+        foreach (q("SELECT c.id, c.type, c.target, c.verify_ssl, h.address FROM checks c JOIN hosts h ON h.id = c.host_id
+                    JOIN relay_networks n ON n.id = h.net_id
+                    WHERE n.relay_checks = 1 AND n.relay_id = ? AND c.enabled = 1 AND h.enabled = 1 AND h.id <> ? AND c.type IN ('ping', 'tcp', 'http')
+                    ORDER BY c.id LIMIT " . self::CHECKS_MAX, [$relayId, $relayId])->fetchAll() as $c) {
+            $addr = trim((string) $c['address']);
+            if ($c['type'] === 'http') {
+                $url = trim((string) $c['target']);
+                if ($url === '' || $url[0] === '/') {
+                    $url = 'http://' . $addr . ($url ?: '/');
+                }
+                if (self::safeUrl($url)) {
+                    $out[] = ['id' => (int) $c['id'], 'kind' => 'http', 'args' => [$url, (int) ($c['verify_ssl'] ?? 1) === 1 ? '1' : '0']];
+                }
+            } elseif (self::safeTarget($addr)) {
+                $port = (int) $c['target'];
+                if ($c['type'] === 'ping') {
+                    $out[] = ['id' => (int) $c['id'], 'kind' => 'ping', 'args' => [$addr]];
+                } elseif ($port >= 1 && $port <= 65535) {
+                    $out[] = ['id' => (int) $c['id'], 'kind' => 'tcp', 'args' => [$addr, (string) $port]];
+                }
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Gaat deze check door een relay? Dan die relay (id, naam, tick), anders null.
+     * @param array<string, mixed> $check
+     * @param array<string, mixed> $host
+     * @return array{id: int, name: string, tick: int}|null
+     */
+    public static function checkVia(array $check, array $host): ?array
+    {
+        if (!in_array($check['type'] ?? '', self::CHECK_TYPES, true) || empty($host['net_id'])) {
+            return null;
+        }
+        $r = q('SELECT r.id, r.name, r.agent_tick FROM relay_networks n JOIN hosts r ON r.id = n.relay_id AND r.relay_on = 1
+                WHERE n.id = ? AND n.relay_checks = 1 AND r.id <> ?', [(int) $host['net_id'], (int) $host['id']])->fetch();
+        return $r ? ['id' => (int) $r['id'], 'name' => (string) $r['name'], 'tick' => agent_tick((int) ($r['agent_tick'] ?? 0) ?: null)] : null;
+    }
+
+    /**
+     * Uitkomsten van de relay bewaren (alleen voor checks die hij echt moet doen)
+     * @param array<string, mixed> $relay
+     */
+    public static function checkResults(array $relay, mixed $list): int
+    {
+        // De rij van agent_host() heeft niet alle kolommen: zelf kijken of dit een relay is
+        if (!is_array($list) || !$list || !(int) q('SELECT relay_on FROM hosts WHERE id = ?', [(int) ($relay['id'] ?? 0)])->fetchColumn()) {
+            return 0;
+        }
+        $mine = array_column(self::relayChecks((int) $relay['id']), 'kind', 'id');
+        $n = 0;
+        foreach (array_slice($list, 0, self::CHECKS_MAX) as $r) {
+            $id = (int) ($r['id'] ?? 0);
+            if (!is_array($r) || !isset($mine[$id]) || ($r['t'] ?? '') !== $mine[$id]) {
+                continue;
+            }
+            $v = ['t' => $mine[$id], 'ok' => !empty($r['ok']), 'ms' => isset($r['ms']) && is_numeric($r['ms']) ? round((float) $r['ms'], 2) : null,
+                'loss' => isset($r['loss']) && is_numeric($r['loss']) ? max(0.0, min(100.0, (float) $r['loss'])) : null,
+                'code' => (int) ($r['code'] ?? 0), 'err' => mb_substr(preg_replace('/[^\P{C}]/u', '', (string) ($r['err'] ?? '')) ?? '', 0, 200)];
+            q('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)',
+                [(int) $relay['id'], "rchk:$id", (string) json_encode($v), now()]);
+            $n++;
+        }
+        return $n;
+    }
+
+    /**
+     * De uitkomst van de relay als uitkomst van de check (zelfde drempels en teksten als wanneer RzSense het zelf doet)
+     * @param array<string, mixed> $check
+     * @param array{id: int, name: string, tick: int} $via
+     * @return array<string, mixed>
+     */
+    public static function checkResult(array $check, array $via): array
+    {
+        $row = q('SELECT value, updated_at FROM agent_data WHERE host_id = ? AND metric = ?', [$via['id'], 'rchk:' . (int) $check['id']])->fetch();
+        $by = ' · ' . t('via relay {r}', ['r' => $via['name']]);
+        if (!$row || strtotime((string) $row['updated_at']) < time() - max(180, 3 * $via['tick'])) {
+            return Checks::result(STATUS_UNKNOWN, null, t('Nog geen uitkomst van de relay (de relay voert deze check uit vanaf agent {v})', ['v' => self::CHECKS_AGENT]) . $by);
+        }
+        $r = json_decode((string) $row['value'], true) ?: [];
+        $ms = isset($r['ms']) ? (float) $r['ms'] : null;
+        switch ($check['type']) {
+            case 'ping':
+                $loss = (float) ($r['loss'] ?? 100);
+                if ($loss >= 100) {
+                    return Checks::result(STATUS_CRIT, null, ($r['err'] ? t('Ping mislukt') . ': ' . $r['err'] : t('Host reageert niet (100% packet loss)')) . $by);
+                }
+                $st = $ms !== null ? Checks::threshold($ms, $check) : STATUS_OK;
+                return Checks::result($loss > 0 ? max($st, STATUS_WARN) : $st, $ms, sprintf(t('%s ms gemiddeld, %s%% packet loss'), $ms !== null ? round($ms, 1) : '?', $loss) . $by);
+            case 'tcp':
+                $port = (int) $check['target'];
+                return empty($r['ok']) ? Checks::result(STATUS_CRIT, null, t('Poort {port} onbereikbaar', ['port' => $port]) . ($r['err'] ? ': ' . $r['err'] : '') . $by)
+                    : Checks::result(Checks::threshold((float) $ms, $check), $ms, sprintf(t('Poort %d open (%.1f ms)'), $port, (float) $ms) . $by);
+            default:
+                $code = (int) ($r['code'] ?? 0);
+                if ($code === 0) {
+                    return Checks::result(STATUS_CRIT, null, t('Geen antwoord') . ($r['err'] ? ': ' . $r['err'] : '') . $by);
+                }
+                if ($code >= 400) {
+                    return Checks::result(STATUS_CRIT, $ms, "HTTP $code" . $by);
+                }
+                return Checks::result(Checks::threshold((float) $ms, $check), $ms, sprintf(t('HTTP %d in %.0f ms'), $code, (float) $ms) . $by);
+        }
     }
 
     /** Is de relay van deze server weg (agent stil)? Dan [id, name]: de meldingen van deze server worden onderdrukt */
@@ -277,7 +416,7 @@ final class Relay
         return array_map(static fn($n) => [
             'id' => (int) $n['id'], 'name' => (string) $n['name'], 'cidrs' => self::cidrList((string) $n['cidrs']),
             'relay_id' => $n['relay_id'] !== null ? (int) $n['relay_id'] : null, 'relay_fb_id' => $n['relay_fb_id'] !== null ? (int) $n['relay_fb_id'] : null,
-            'note' => (string) $n['note'],
+            'note' => (string) $n['note'], 'relay_checks' => !empty($n['relay_checks']),
         ], q('SELECT * FROM relay_networks ORDER BY name')->fetchAll());
     }
 
@@ -312,15 +451,16 @@ final class Relay
             $fb = null;
         }
         $note = mb_substr(trim((string) ($in['note'] ?? '')), 0, 255);
+        $checks = !empty($in['relay_checks']) && $relay !== null ? 1 : 0;   // 1.289.0
         if ($id) {
             if (!q('SELECT COUNT(*) FROM relay_networks WHERE id = ?', [$id])->fetchColumn()) {
                 return t('Netwerk niet gevonden');
             }
-            q('UPDATE relay_networks SET name = ?, cidrs = ?, relay_id = ?, relay_fb_id = ?, note = ?, updated_at = ? WHERE id = ?',
-                [$name, implode(' ', $cidrs), $relay, $fb, $note, now(), $id]);
+            q('UPDATE relay_networks SET name = ?, cidrs = ?, relay_id = ?, relay_fb_id = ?, note = ?, relay_checks = ?, updated_at = ? WHERE id = ?',
+                [$name, implode(' ', $cidrs), $relay, $fb, $note, $checks, now(), $id]);
         } else {
-            q('INSERT INTO relay_networks (name, cidrs, relay_id, relay_fb_id, note, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-                [$name, implode(' ', $cidrs), $relay, $fb, $note, now()]);
+            q('INSERT INTO relay_networks (name, cidrs, relay_id, relay_fb_id, note, relay_checks, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [$name, implode(' ', $cidrs), $relay, $fb, $note, $checks, now()]);
             $id = (int) db()->lastInsertId();
         }
         ActionLog::add(null, 'rzsense', 'settings', t('Netwerk opgeslagen: {n}', ['n' => $name]), implode(', ', $cidrs) . ' · ' . ($relay ? t('via relay') : t('rechtstreeks')), true, '', null, $by);
