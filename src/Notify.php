@@ -11,7 +11,7 @@ declare(strict_types=1);
 final class Notify
 {
     /**
-     * @param array{channels?: ?array, prio?: int, status?: int, event?: string, anchor?: string, push_opts?: array, mail_extra?: string,
+     * @param array{channels?: ?array, prio?: int, status?: int, event?: string, anchor?: string, push_opts?: array, mail_extra?: string, ids?: bool,
      *     webhook?: ?array, webhook_extra?: array, webhook_filter?: bool, host?: ?string, host_id?: ?int} $o
      *  - channels: ['pushover' => bool, 'email' => bool, 'webhook' => bool]; null = alle ingeschakelde kanalen
      *  - anchor: deel na het adres van RzSense voor de link (bv. '#ids'); push_opts vervangt de link (bv. de bevestig-link)

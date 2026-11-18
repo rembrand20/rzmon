@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.281.0**: **RzSense als container** (Podman op Rocky), met een eigen MariaDB-container, de nooddeur op poort 8443 en een melding in de app bij een nieuwe versie.
 - **1.280.0**: **back-upmap zelf kiezen**, ook op een NAS (NFS) met controle of hij gekoppeld is, en back-ups worden weer netjes opgeruimd.
 
+## 1.284.1 – 2026-11-18
+### Opgelost
+- De automatische codecontrole (PHPStan) keurde 1.284.0 af door een ontbrekende beschrijving in de code. Voor jou verandert er niets.
+
 ## 1.284.0 – 2026-11-18
 ### Nieuw
 - **Discord, Slack en Microsoft Teams** als meldkanaal (*Instellingen → Meldingen en rapporten → Kanalen*). Zie HANDLEIDING 6.1c.
