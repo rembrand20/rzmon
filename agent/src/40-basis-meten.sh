@@ -70,6 +70,9 @@ lap() { local t; t=$(now_ms); [ -n "$lap_name" ] && laps+="\"$lap_name\":$(( t -
 lap disk
 disks=""
 hostname=$(hostname)
+# Agent 1.110.0: machine-id, gehasht (niet de id zelf): zo hoort een losse relay-agent bij de server waar hij op draait
+mid=""
+[ -r /etc/machine-id ] && mid=$(head -c 64 /etc/machine-id | tr -dc '0-9a-f' | sha256sum | cut -c1-32)
 if [ "$HA_MODE" = 1 ]; then
     # In de add-on-container is df onbruikbaar (bind mounts); de Supervisor kent de data-partitie (GB)
     host_info=$(sv /host/info)

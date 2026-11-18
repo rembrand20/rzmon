@@ -7,7 +7,12 @@ agent op server ──▶ relay ──▶ RzSense
                 ◀──       ◀──   (het antwoord dezelfde weg terug)
 ```
 
-De relay is een kleine container (`ghcr.io/rembrand20/rzsense-relay`) op een machine in dat andere netwerk. Er draaien twee dingen in:
+De relay draait op een machine in dat andere netwerk. Dat kan op twee manieren, met precies dezelfde onderdelen:
+
+- **Als losse agent** (`rzmon-agent-relay`, vanaf 1.283.0), op een Linux-server met systemd. Hij staat los van een gewone `rzmon-agent` op dezelfde server, maar wordt in RzSense wel bij die server getoond.
+- **Als container** (`ghcr.io/rembrand20/rzsense-relay`), met Podman of Docker.
+
+In beide gevallen draaien er twee dingen:
 
 - **Het doorstuurprogramma** (`relay.py`, Python 3): https op poort **8444**, met een eigen certificaat. Het stuurt verkeer van de agents door naar RzSense.
 - **De agent** (dezelfde als op je servers, in relaymodus). Hij koppelt de relay met RzSense, geeft het doorstuurprogramma zijn instellingen door en meldt hoe het gaat.
@@ -21,7 +26,25 @@ De relay is een kleine container (`ghcr.io/rembrand20/rzsense-relay`) op een mac
 - **Certificaat vastgezet:** de agents achter de relay accepteren alleen het certificaat van die relay. De relay controleert RzSense zoals een agent dat doet.
 - **Zonder root:** de container draait als `rzrelay`, alleen-lezen, met alleen `NET_RAW` (voor ping), en kent een limiet per afzender en op de grootte van een bericht.
 
-## Installeren
+## Installeren als losse agent (rzmon-agent-relay)
+
+In RzSense: *Agent Manager* van de server → kaart **🛰️ Relay op deze server** → **Relay op deze server installeren**. Of via *Netwerken en relays* → **＋ Relay toevoegen**, met *Op welke server*. Je krijgt dan een commando, bijvoorbeeld:
+
+```bash
+curl -fsSL 'https://rzsense…/api.php?action=agent_relay_file&f=install' -o rzmon-relay-install.sh \
+  && echo '<sha256>  rzmon-relay-install.sh' | sha256sum -c - \
+  && sudo bash rzmon-relay-install.sh --url 'https://rzsense…' --pair 'XXXX-…' --agent-sha '<sha256>' --port 8444
+```
+
+- **Nodig:** Linux met systemd en Python 3.7 of nieuwer. Dat zijn Rocky, Alma, Debian, Ubuntu en Proxmox.
+- **Draait als** gebruiker `rzrelay`, niet als root. De dienst `rzmon-agent-relay.service` is afgeschermd door systemd: alleen-lezen systeem, alleen zijn eigen map `/var/lib/rzmon-agent-relay`, en alleen `CAP_NET_RAW` (voor ping).
+- **Instellingen:** `/etc/default/rzmon-agent-relay`.
+- **Firewall:** firewalld of ufw krijgt de poort erbij; de relay laat zelf alleen de netwerken uit RzSense door.
+- **Beheer:** `sudo rzmon-agent-relay-setup --status`, `--update` en `--uninstall` (met `-y` ook de sleutels en instellingen).
+- **Ondertekend:** het installatiescript, de agent, het doorstuurprogramma en het startscript zijn ondertekend door de ontwikkelaar. Bij bijwerken installeert de setup alleen als de handtekening klopt.
+- **Bijwerken** gaat met de knop in RzSense of automatisch, net als je gewone agents. De relay draait niet als root en zet daarom alleen een verzoek neer; een kleine root-dienst (`rzmon-agent-relay-update.path`) haalt de nieuwe versie op en controleert hem.
+
+## Installeren als container
 
 Het makkelijkst gaat het in RzSense: *Beheer → Agents en koppelingen → Netwerken en relays* → **＋ Relay toevoegen** → **📦 Installeren**. Daar staat het commando met de koppelcode al ingevuld. Met de hand:
 
@@ -53,11 +76,10 @@ Dan krijg je **één melding** (*Agent stil* van de relay, met hoeveel agents er
 
 ## Bijwerken
 
-```bash
-sudo podman pull ghcr.io/rembrand20/rzsense-relay:latest && sudo systemctl restart rzsense-relay
-```
+- **Losse agent:** met de knop in RzSense of automatisch, net als je gewone agents. Met de hand: `sudo rzmon-agent-relay-setup --update`.
+- **Container:** `sudo podman pull ghcr.io/rembrand20/rzsense-relay:latest && sudo systemctl restart rzsense-relay`. De agent in de container werkt zichzelf niet bij; dat gaat met een nieuwe image.
 
-De relay heeft het versienummer van de agent erin. De agent in de container werkt zichzelf niet bij; dat gaat met een nieuwe image.
+De relay heeft het versienummer van de agent.
 
 ## Zelf bouwen
 

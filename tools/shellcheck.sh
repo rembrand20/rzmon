@@ -15,7 +15,7 @@ trap 'rm -f "$out"' EXIT
 # 1. De modules van de agent (bash; samen vormen ze één script)
 printf '%s\0' agent/src/[0-9][0-9]-*.sh | xargs -0 -P "$jobs" -n 1 shellcheck -S warning -s bash -e SC2034,SC2154 -f gcc >>"$out" 2>&1
 # 2. De andere scripts: installer, add-on (niet de kopie van de agent), hulpscripts
-others=(agent/install-agent.sh tools/*.sh container/*.sh relay/*.sh)   # 1.281.0: ook de container
+others=(agent/install-agent.sh agent/install-relay.sh tools/*.sh container/*.sh relay/*.sh)   # 1.281.0: ook de container
 for f in ha-addon/rzmon_agent/*.sh; do [ "$(basename "$f")" = rzmon-agent.sh ] || others+=("$f"); done
 printf '%s\0' "${others[@]}" | xargs -0 -P "$jobs" -n 1 shellcheck -S warning -f gcc >>"$out" 2>&1
 # 3. Het gebouwde bestand: alleen de syntax (licht)

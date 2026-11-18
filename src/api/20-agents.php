@@ -341,7 +341,8 @@ switch ($action) {
 
     // Nieuwe relay: een server met een koppelcode voor de relay-container
     case 'relay_create':
-        $r = Relay::create((string) (input()['name'] ?? ''), (string) $user['username']);
+        $in = input();
+        $r = Relay::create((string) ($in['name'] ?? ''), (string) $user['username'], (int) ($in['relay_of'] ?? 0) ?: null);
         if (is_string($r)) {
             out(['error' => $r], 422);
         }
@@ -386,7 +387,7 @@ switch ($action) {
         }
         out($p + ['setup_sha256' => Stealth::installSha(), 'agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh'),
             'pin' => $pin, 'minutes' => AgentCrypto::PAIR_MINUTES, 'relays' => $relays, 'via_default' => $viaDefault,
-            'relay_host' => (bool) q('SELECT relay_on FROM hosts WHERE id = ?', [$id])->fetchColumn()]);
+            'relay_host' => (bool) q('SELECT relay_on FROM hosts WHERE id = ?', [$id])->fetchColumn(), 'relay_setup_sha256' => Stealth::relayInstallSha()]);
 
     // Per server: certificaat vastzetten en vast IP-adres ('' = algemene instelling, on, off).
     // Uitzetten (waar het nu geldt) maakt de verbinding minder veilig: dan om je wachtwoord vragen.

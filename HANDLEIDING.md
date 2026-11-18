@@ -3820,10 +3820,12 @@ Heb je servers in een netwerk dat **geen verbinding met RzSense** heeft, zoals e
 agent op server ──▶ relay ──▶ RzSense   (en het antwoord dezelfde weg terug)
 ```
 
-De relay is een kleine container (**RzSense Relay**) op een machine in dat netwerk. De agents daar sturen hun rapporten naar de relay, en de relay stuurt ze door naar RzSense, via internet (SWAG), een VPN of een eigen route.
+De relay draait op een machine in dat netwerk. De agents daar sturen hun rapporten naar de relay, en de relay stuurt ze door naar RzSense, via internet (SWAG), een VPN of een eigen route. Er zijn twee manieren:
+- **Losse agent** (`rzmon-agent-relay`, vanaf 1.283.0): op een Linux-server met systemd en Python 3.7+. Hij draait als gebruiker `rzrelay` (niet als root), naast een gewone agent als die er is. In RzSense staat hij **bij die server**: in de Agent Manager op de kaart *🛰️ Relay op deze server*, niet als eigen regel. Bijwerken gaat met de knop of automatisch, zoals bij je gewone agents, en alleen met een geldige handtekening van de ontwikkelaar.
+- **Container** (**RzSense Relay**, `ghcr.io/rembrand20/rzsense-relay`): met Podman of Docker. Bijwerken met een nieuwe image.
 
 **Instellen** (*Beheer → Agents en koppelingen → Netwerken en relays*):
-1. **＋ Relay toevoegen**, dan **📦 Installeren**: het commando voor Podman (quadlet), Docker of compose staat er met de koppelcode al in. Voer het uit op de machine in dat netwerk. De relay maakt zijn eigen certificaat, koppelt zich en staat binnen een minuut op 🟢 *online*.
+1. **＋ Relay toevoegen** (bij een losse agent kies je *Op welke server*), of in de Agent Manager van die server **Relay op deze server installeren**. Dan **📦 Installeren**: het commando voor de losse agent, Podman (quadlet), Docker of compose staat er met de koppelcode al in. Voer het uit op de machine in dat netwerk. De relay maakt zijn eigen certificaat, koppelt zich en staat binnen een minuut op 🟢 *online*. Beheer van de losse agent: `sudo rzmon-agent-relay-setup --status | --update | --uninstall`.
 2. **🌐 Adres** van de relay: waarop de agents in dat netwerk hem bereiken, bijvoorbeeld `https://192.168.50.10:8444`. De relay meldt zelf zijn adressen; je kiest er een.
 3. **＋ Netwerk toevoegen**: een naam, de adresreeks(en) (bijvoorbeeld `192.168.50.0/24`), *Via* de relay, en eventueel een **reserve-relay**.
 4. **Servers**: servers met een adres in die reeks vallen vanzelf in het netwerk. Je kunt een server ook zelf in een netwerk zetten. Vink aan wie moet overstappen en klik **↪ Adressen toepassen**. De agent test het adres van de relay eerst (met het certificaat van de relay) en stapt pas over als dat lukt. Zijn rechtstreekse adres wordt zijn **reserve-adres**.

@@ -51,7 +51,7 @@ final class Patch
             return [];
         }
         $h = q('SELECT * FROM hosts WHERE id = ?', [$hostId])->fetch();
-        return $h && self::kind($h) !== 'truenas' ? ["0\tpatch\t1"] : [];
+        return $h && self::kind($h) !== 'truenas' && !(int) ($h['relay_on'] ?? 0) ? ["0\tpatch\t1"] : [];   // 1.283.0: niet in een relay
     }
 
     /** Wat de agent meldt: de klaarstaande updates, en de uitkomst van Home Assistant bijwerken */
@@ -235,7 +235,7 @@ final class Patch
 
     public static function overview(): array
     {
-        return ['on' => self::enabled(), 'hosts' => array_map([self::class, 'info'], q("SELECT * FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll())];
+        return ['on' => self::enabled(), 'hosts' => array_map([self::class, 'info'], q("SELECT * FROM hosts WHERE mode = 'agent' AND relay_on = 0 ORDER BY name")->fetchAll())];
     }
 
     /** Keuze per server opslaan (Agent Manager / Updates) */

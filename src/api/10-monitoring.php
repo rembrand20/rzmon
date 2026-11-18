@@ -26,7 +26,8 @@ switch ($action) {
     case 'state':
         $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime, info_agent, enc, enc_seen, watchdog, watchdog_min,
                     agent_key_seen, agent_key_at, agent_ip_new, pin_mode, ip_lock, agent_https, agent_conn, agent_fb_at, agent_url, agent_url_fb, agent_url_want, agent_url_status, agent_url_at, agent_url_pin, agent_url_fb_pin,
-                    enabled, maintenance_until, maintenance_reason, snmp, kind, kind_auto, grp, agent_beats, edr_on, edr_info, iperf_ok, quiet, quiet_until FROM hosts ORDER BY name')->fetchAll();
+                    enabled, maintenance_until, maintenance_reason, snmp, kind, kind_auto, grp, agent_beats, edr_on, edr_info, iperf_ok, quiet, quiet_until FROM hosts
+                    WHERE NOT (relay_on = 1 AND relay_of IS NOT NULL) ORDER BY name')->fetchAll();   // 1.283.0: een losse relay-agent staat bij zijn server
         $checks = q('SELECT c.*, h.maintenance_until AS host_maintenance_until, h.maintenance_reason AS host_maintenance_reason
                      FROM checks c JOIN hosts h ON h.id = c.host_id ORDER BY c.name')->fetchAll();
         $global = Monitor::globalMaintenance();

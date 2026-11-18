@@ -5,7 +5,7 @@
 
 /** Groepen en hun onderdelen (data-pk van de oude kaarten) */
 const AM_GROUPS = () => [
-  ['conn', L('Verbinding en agent'), ['run', 'conn', 'maint']],
+  ['conn', L('Verbinding en agent'), ['run', 'conn', 'maint', 'relay']],
   ['prot', L('Bescherming'), ['sec', 'ransom', 'apps']],
   ['rights', L('Rechten op de server'), ['cmd', 'sudo'], () => xpHtml(L('Alles wat op deze server als root kan gebeuren, bij elkaar.'), L('<b>Commando-checks:</b> RzSense laat de agent een commando uitvoeren dat jij in een check hebt gezet, en vergelijkt het antwoord. Staat dit op <i>als root</i>, dan mag zo\'n commando alles; de regel krijgt dan een waarschuwing. <b>Tijdelijk sudo:</b> RzSense voert niets uit, maar geeft een gebruiker op de server voor korte tijd sudo, zodat die zelf iets als root kan doen. Het gaat vanzelf weer weg. <b>Wat verder als root draait:</b> zelf herstellen (alleen een service of container herstarten, of een script dat je zelf in <code>/etc/rzmon-agent/heal.d/</code> zet), updates installeren (de pakketbeheerder van de server) en de diagnose voor AI-advies (een vaste lijst die alleen leest). Daarbij kan RzSense geen eigen commando meesturen. <b>Op de server zelf</b> heb je altijd het laatste woord: <code>COMMANDS=0</code>, <code>SUDO_JIT=0</code> of <code>HEAL=0</code> in <code>/etc/default/rzmon-agent</code>.'), 'am-grp-xp')],
   ['upd', L('Updates'), ['patch']],
@@ -19,7 +19,8 @@ function amHidden(h) {
   const out = new Set();
   if (h.mode !== 'agent') ['run', 'sec', 'notify', 'conn', 'maint'].forEach((k) => out.add(k));
   if (h.mode === 'agent' && !h.snmp) out.add('snmp');
-  if (h.mode === 'agent' && isHaHost(h)) ['ransom', 'sudo', 'cmd'].forEach((k) => out.add(k));
+  if (h.mode === 'agent' && isHaHost(h)) ['ransom', 'sudo', 'cmd', 'relay'].forEach((k) => out.add(k));
+  if (h.mode !== 'agent') out.add('relay');
   return out;
 }
 

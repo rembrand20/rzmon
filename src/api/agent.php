@@ -33,6 +33,22 @@ if ($action === 'agent_script_sig' || $action === 'agent_install_sig') {
     echo trim((string) file_get_contents($f));
     exit;
 }
+// 1.283.0: de losse relay-agent: installatiescript, doorstuurprogramma en startscript, met hun handtekening
+if ($action === 'agent_relay_file' || $action === 'agent_relay_sig') {
+    if (!Stealth::scriptAllowed()) {
+        Stealth::notFound();
+    }
+    $rf = ['install' => 'agent/install-relay.sh', 'relay' => 'relay/relay.py', 'run' => 'relay/entrypoint.sh'][(string) ($_GET['f'] ?? '')] ?? null;
+    $path = $rf !== null ? SM_ROOT . '/' . $rf . ($action === 'agent_relay_sig' ? '.sig' : '') : '';
+    if ($rf === null || !is_file($path)) {
+        http_response_code(404);
+        exit;
+    }
+    header('Content-Type: text/plain; charset=utf-8');
+    header('Cache-Control: no-store');
+    echo $action === 'agent_relay_file' && $rf === 'agent/install-relay.sh' && is_configured() ? Stealth::relayInstallScript() : (string) file_get_contents($path);
+    exit;
+}
 if ($action === 'agent_script' || $action === 'agent_install') {
     // Van buiten (niet herkenbaar): alleen voor bekende agents of met de downloadsleutel uit de installatiecommando's
     if (!Stealth::scriptAllowed()) {
@@ -513,6 +529,7 @@ if ($action === 'agent') {
     Ioc::fromAgent($host, $in);   // 1.229.0: jagen op sporen
     Patch::fromAgent($host, $in, $st, $now);   // 1.230.0: updates (agent 1.92.0)
     Relay::fromAgent($host, $in);   // 1.282.0: de relay-container (agent 1.109.0)
+    Relay::noteMid($host, $in);     // 1.283.0: machine-id (gehasht), om een losse relay-agent bij zijn server te zetten
     Relay::noteVia($host);          // 1.282.0: rechtstreeks of via een relay binnengekomen
     Sudo::fromAgent($host, $in);   // 1.231.0: tijdelijk sudo (agent 1.93.0)
     ProxyGuard::fromAgent($host, $in);   // 1.254.0: reverse proxy (agent 1.97.0)

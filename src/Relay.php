@@ -115,7 +115,10 @@ final class Relay
             $st[$k] = max(0, (int) (($r['st'] ?? [])[$k] ?? 0));
         }
         $up = (string) (($r['st'] ?? [])['up'] ?? '');
+        $kind = in_array($r['kind'] ?? '', ['container', 'agent'], true) ? (string) $r['kind'] : 'container';
+        $mid = preg_match('/^[0-9a-f]{16,64}$/', (string) ($r['mid'] ?? '')) ? (string) $r['mid'] : '';
         $data = [
+            'kind' => $kind, 'mid' => $mid,
             'pin' => preg_match('~^[A-Za-z0-9+/]{43}=$~', (string) ($r['pin'] ?? '')) ? (string) $r['pin'] : '',
             'port' => max(1, min(65535, (int) ($r['port'] ?? self::PORT))),
             'ips' => $ips,
@@ -126,11 +129,44 @@ final class Relay
         ];
         q('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)',
             [$host['id'], 'relay', json_encode($data, JSON_UNESCAPED_SLASHES), now()]);
-        $h = q('SELECT relay_on, relay_port, relay_url FROM hosts WHERE id = ?', [$host['id']])->fetch();
+        $h = q('SELECT relay_on, relay_port, relay_url, relay_of, relay_kind FROM hosts WHERE id = ?', [$host['id']])->fetch();
         if ($h && !(int) $h['relay_on']) {
-            // Een relay-container meldt zich: vanaf nu is dit een relay
+            // Een relay meldt zich: vanaf nu is dit een relay
             q('UPDATE hosts SET relay_on = 1, relay_port = COALESCE(relay_port, ?) WHERE id = ?', [$data['port'], $host['id']]);
             ActionLog::add((int) $host['id'], 'agent', 'agent', t('Relay aangemeld'), t('poort {p}', ['p' => $data['port']]), true);
+        }
+        if ($h && ((string) $h['relay_kind'] !== $kind || (int) $h['relay_port'] !== $data['port'])) {
+            q('UPDATE hosts SET relay_kind = ?, relay_port = ? WHERE id = ?', [$kind, $data['port'], $host['id']]);
+        }
+        // 1.283.0: losse relay-agent: bij welke server hoort hij? Die met dezelfde machine (machine-id, gehasht)
+        if ($h && $h['relay_of'] === null && $kind === 'agent' && $mid !== '') {
+            $srv = q("SELECT h.id FROM hosts h JOIN agent_data d ON d.host_id = h.id AND d.metric = 'mid'
+                      WHERE d.value = ? AND h.id <> ? AND h.relay_on = 0 AND h.mode = 'agent' LIMIT 1", [$mid, $host['id']])->fetchColumn();
+            if ($srv !== false) {
+                q('UPDATE hosts SET relay_of = ? WHERE id = ?', [(int) $srv, $host['id']]);
+            }
+        }
+        self::ensureCheck((int) $host['id']);
+    }
+
+    /** 1.283.0: machine-id (gehasht) van een gewone agent, om een losse relay-agent op dezelfde server te herkennen */
+    public static function noteMid(array $host, array $in): void
+    {
+        $mid = (string) ($in['mid'] ?? '');
+        if (preg_match('/^[0-9a-f]{16,64}$/', $mid) && !isset($in['relay'])) {
+            q('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)',
+                [$host['id'], 'mid', $mid, now()]);
+        }
+    }
+
+    /**
+     * 1.283.0: een relay heeft minstens één check, anders komt er geen melding als hij wegvalt ("agent stil" komt van de
+     * checks van een server). Een CPU-check met ruime drempels: wordt de agent stil, dan wordt hij critical.
+     */
+    public static function ensureCheck(int $hostId): void
+    {
+        if (!q('SELECT COUNT(*) FROM checks WHERE host_id = ?', [$hostId])->fetchColumn()) {
+            q("INSERT INTO checks (host_id, type, name, warn_threshold, crit_threshold) VALUES (?, 'cpu', ?, 95, 99)", [$hostId, t('Relay')]);
         }
     }
 
@@ -418,7 +454,7 @@ final class Relay
     // ------------------------------------------------------------------ relays beheren
 
     /** Nieuwe relay: een server van het type agent, die zich met de koppelcode uit het installatiecommando meldt */
-    public static function create(string $name, string $by): int|string
+    public static function create(string $name, string $by, ?int $relayOf = null): int|string
     {
         $name = trim($name);
         if ($name === '' || mb_strlen($name) > 100) {
@@ -427,8 +463,14 @@ final class Relay
         if (q('SELECT COUNT(*) FROM hosts WHERE name = ?', [$name])->fetchColumn()) {
             return t('Er is al een server met deze naam');
         }
-        q("INSERT INTO hosts (name, address, mode, enabled, relay_on, relay_port) VALUES (?, '', 'agent', 1, 1, ?)", [$name, self::PORT]);
+        if ($relayOf !== null && !q("SELECT COUNT(*) FROM hosts WHERE id = ? AND relay_on = 0", [$relayOf])->fetchColumn()) {
+            return t('Server niet gevonden');
+        }
+        $addr = $relayOf !== null ? (string) q('SELECT address FROM hosts WHERE id = ?', [$relayOf])->fetchColumn() : '';
+        q("INSERT INTO hosts (name, address, mode, enabled, relay_on, relay_port, relay_of, relay_kind) VALUES (?, ?, 'agent', 1, 1, ?, ?, ?)",
+            [$name, $addr, self::PORT, $relayOf, $relayOf !== null ? 'agent' : null]);
         $id = (int) db()->lastInsertId();
+        self::ensureCheck($id);
         ActionLog::add($id, 'rzsense', 'agent', t('Relay toegevoegd'), $name, true, '', null, $by);
         return $id;
     }
@@ -471,14 +513,18 @@ final class Relay
     public static function overview(): array
     {
         $relays = [];
-        foreach (q("SELECT id, name, enabled, agent_seen, agent_tick, agent_version, agent_ip, agent_key_seen, relay_url, relay_port FROM hosts WHERE relay_on = 1 ORDER BY name")->fetchAll() as $r) {
+        foreach (q("SELECT h.id, h.name, h.enabled, h.agent_seen, h.agent_tick, h.agent_version, h.agent_ip, h.agent_key_seen, h.relay_url, h.relay_port, h.relay_of, h.relay_kind,
+                           h.agent_update_status, s.name AS of_name
+                    FROM hosts h LEFT JOIN hosts s ON s.id = h.relay_of WHERE h.relay_on = 1 ORDER BY h.name")->fetchAll() as $r) {
             $d = self::data((int) $r['id']);
             $stale = $r['agent_seen'] === null || strtotime((string) $r['agent_seen']) < time() - agent_stale_seconds($r['agent_tick'] !== null ? (int) $r['agent_tick'] : null);
             $relays[] = ['id' => (int) $r['id'], 'name' => (string) $r['name'], 'enabled' => (int) $r['enabled'], 'seen' => $r['agent_seen'], 'down' => $stale,
                 'paired' => (int) $r['agent_key_seen'] === 1, 'version' => (string) $r['agent_version'], 'agent_ip' => (string) $r['agent_ip'],
                 'url' => (string) $r['relay_url'], 'port' => (int) $r['relay_port'] ?: self::PORT, 'pin' => (string) ($d['pin'] ?? ''), 'ips' => (array) ($d['ips'] ?? []),
-                'st' => (array) ($d['st'] ?? []), 'relay_ver' => (string) ($d['ver'] ?? ''), 'allow' => self::allowFor((int) $r['id']), 'behind' => self::behind((int) $r['id'])];
+                'st' => (array) ($d['st'] ?? []), 'relay_ver' => (string) ($d['ver'] ?? ''), 'allow' => self::allowFor((int) $r['id']), 'behind' => self::behind((int) $r['id']),
+                'kind' => (string) ($r['relay_kind'] ?? ($d['kind'] ?? '')), 'relay_of' => $r['relay_of'] !== null ? (int) $r['relay_of'] : null, 'of_name' => (string) ($r['of_name'] ?? ''),
+                'outdated' => $r['agent_version'] && version_compare((string) $r['agent_version'], AGENT_LATEST, '<'), 'update_status' => (string) ($r['agent_update_status'] ?? '')];
         }
-        return ['networks' => self::networks(), 'relays' => $relays, 'hosts' => self::plan(), 'port' => self::PORT, 'agent_min' => AgentCrypto::PINURL_MIN];
+        return ['networks' => self::networks(), 'relays' => $relays, 'hosts' => self::plan(), 'port' => self::PORT, 'agent_min' => AgentCrypto::PINURL_MIN, 'latest' => AGENT_LATEST];
     }
 }

@@ -8,6 +8,8 @@ if [ "$TEST" = 1 ]; then
     upd_via="test"   # verbindingstest: RzSense stuurt dan geen update-opdracht
 elif [ "$HA_MODE" = 1 ]; then
     upd_via=ha
+elif [ "${RELAY_MODE-}" = 1 ] && [ "${RELAY_KIND-}" = agent ] && [[ "${RELAY_UPDATE_REQ-}" == /* ]]; then
+    upd_via=relaysd   # agent 1.110.0: losse relay-agent: een kleine root-dienst werkt bij (rzmon-agent-relay-setup --update)
 elif [ "${RELAY_MODE-}" = 1 ]; then
     upd_via=relay   # agent 1.109.0: in de RzSense Relay-container: bijwerken met een nieuwe image
 elif [ "$REMOTE_UPDATE" != 1 ]; then
@@ -46,8 +48,16 @@ remote_update() {  # remote_update <antwoord van RzSense>
     want=$(sed -n 's/.*"update":[[:space:]]*{[^}]*"version":[[:space:]]*"\([0-9.]*\)".*/\1/p' <<<"$1")
     sha_a=$(sed -n 's/.*"update":[[:space:]]*{[^}]*"agent_sha256":[[:space:]]*"\([0-9a-f]\{64\}\)".*/\1/p' <<<"$1")
     sha_s=$(sed -n 's/.*"update":[[:space:]]*{[^}]*"setup_sha256":[[:space:]]*"\([0-9a-f]\{64\}\)".*/\1/p' <<<"$1")
-    case "$upd_via" in systemd|direct) ;; *) return 0 ;; esac
+    case "$upd_via" in systemd|direct|relaysd) ;; *) return 0 ;; esac
     [ -n "$want" ] && [ -n "$sha_a" ] && [ -n "$sha_s" ] || return 0
+    if [ "$upd_via" = relaysd ]; then
+        # Losse relay-agent (draait niet als root): alleen het verzoek neerzetten. De root-dienst (path-unit) haalt de nieuwe
+        # versie bij RzSense, controleert de controlegetallen en de handtekening van de ontwikkelaar, en installeert pas dan.
+        [[ "$want" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 0
+        [ -e "$RELAY_UPDATE_REQ" ] && return 0
+        (umask 077; printf '%s %s %s\n' "$want" "$sha_a" "$sha_s" >"$RELAY_UPDATE_REQ.tmp" && mv -f "$RELAY_UPDATE_REQ.tmp" "$RELAY_UPDATE_REQ") 2>/dev/null
+        return 0
+    fi
     # Agent 1.87.0: nooit terug naar een oudere versie (ook niet als die netjes ondertekend is: die kan een bekende fout hebben)
     if [ "$want" != "$AGENT_VERSION" ] && [ "$(printf '%s\n%s\n' "$want" "$AGENT_VERSION" | sort -V | tail -1)" = "$AGENT_VERSION" ]; then
         printf 'error %s\n' "versie $want is ouder dan $AGENT_VERSION: niet teruggezet" >"$upd_dir/update.result" 2>/dev/null

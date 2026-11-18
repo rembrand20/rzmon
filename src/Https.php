@@ -21,7 +21,7 @@ final class Https
     private const PROXY_HEADERS = ['HTTP_X_FORWARDED_FOR', 'HTTP_X_FORWARDED_PROTO', 'HTTP_X_FORWARDED_HOST', 'HTTP_X_REAL_IP', 'HTTP_FORWARDED'];
     /** Verzoeken van agents (en de downloads voor het installeren): nooit doorsturen, ook niet bij "alleen https" */
     private const AGENT_ACTIONS = ['ping', 'agent', 'agent_tests', 'agent_check', 'agent_pair', 'agent_pkg_progress', 'agent_logs', 'agent_script', 'agent_install',
-        'agent_script_sig', 'agent_install_sig'];   // 1.263.3: ook de handtekeningen (anders 302 en weigert de agent de update)
+        'agent_script_sig', 'agent_install_sig', 'agent_relay_file', 'agent_relay_sig'];   // 1.283.0: losse relay-agent; 1.263.3: ook de handtekeningen (anders 302 en weigert de agent de update)
 
     // ------------------------------------------------------------------ het verzoek
 

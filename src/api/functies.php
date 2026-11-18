@@ -467,7 +467,7 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
     if ($via === 'test') {
         return null;   // verbindingstest (rzmon-agent-setup --test): niets veranderen
     }
-    $via = in_array($via, ['systemd', 'direct', 'off', 'ha', 'none', 'relay'], true) ? $via : null;   // null: agent van vóór 1.19.0
+    $via = in_array($via, ['systemd', 'direct', 'off', 'ha', 'none', 'relay', 'relaysd'], true) ? $via : null;   // null: agent van vóór 1.19.0
     $h = q('SELECT id, name, info_agent, agent_update_req, agent_update_sent, agent_update_status FROM hosts WHERE id = ?', [$hostId])->fetch();
     $status = null;
     $req = $h['agent_update_req'];
@@ -506,11 +506,11 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
     $wanted = ($req !== null && $sent === null) || ($req === null && $outdated && setting('agent_auto_update', '0') === '1'
         && isset($GLOBALS['agent_seal']) && ($sent === null || strtotime($sent) < time() - 6 * 3600));   // automatisch: hooguit elke 6 uur een poging
     $instruction = null;
-    if ($wanted && in_array($via, ['systemd', 'direct'], true)) {
+    if ($wanted && in_array($via, ['systemd', 'direct', 'relaysd'], true)) {
         $instruction = [
             'version' => AGENT_LATEST,
             'agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh'),
-            'setup_sha256' => Stealth::installSha(),
+            'setup_sha256' => $via === 'relaysd' ? Stealth::relayInstallSha() : Stealth::installSha(),   // 1.283.0: losse relay-agent
         ];
         $sent = now();
         $req ??= now();
@@ -521,6 +521,7 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
         $status = '✘ ' . match ($via) {
             'off' => t('Bijwerken op afstand staat uit op deze server (REMOTE_UPDATE=0 in /etc/default/rzmon-agent)'),
             'ha' => t('Home Assistant-add-on: bijwerken via de add-on winkel'),
+            'relay' => t('RzSense Relay in een container: bijwerken met een nieuwe image (podman pull)'),
             'none' => t('De agent kan zichzelf hier niet bijwerken (geen root of rzmon-agent-setup ontbreekt): sudo rzmon-agent-setup --update'),
             default => t('Deze agent kent bijwerken op afstand nog niet. Werk hem één keer bij op de server: sudo rzmon-agent-setup --update'),
         };

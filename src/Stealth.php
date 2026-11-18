@@ -93,6 +93,18 @@ final class Stealth
         return str_replace("\nDL_KEY=''\n", "\nDL_KEY='" . self::dlKey() . "'\n", $s);
     }
 
+    /** 1.283.0: het installatiescript van de losse relay-agent, ook met de downloadsleutel */
+    public static function relayInstallScript(): string
+    {
+        $s = (string) file_get_contents(SM_ROOT . '/agent/install-relay.sh');
+        return str_replace("\nDL_KEY=''\n", "\nDL_KEY='" . self::dlKey() . "'\n", $s);
+    }
+
+    public static function relayInstallSha(): string
+    {
+        return hash('sha256', self::relayInstallScript());
+    }
+
     /** SHA-256 van dat script (voor de controle in de installatiecommando's en bij bijwerken) */
     public static function installSha(): string
     {

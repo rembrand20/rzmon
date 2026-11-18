@@ -5,6 +5,11 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.110.0 – 2026-11-18
+- **Losse relay-agent** (`rzmon-agent-relay`, RzSense 1.283.0): de relay draait nu ook zonder container, als eigen agent op een Linux-server met systemd. Hij draait als gebruiker `rzrelay`, niet als root, naast een gewone agent. Hij meldt dat hij een losse agent is, zodat RzSense hem bij de juiste server zet.
+- **Bijwerken van de losse relay-agent** met de knop in RzSense of automatisch: de agent zet alleen een verzoek neer, en een kleine root-dienst haalt de nieuwe versie op en installeert alleen als de handtekening van de ontwikkelaar klopt.
+- De agent stuurt een **gehashte machine-id** mee (niet de id zelf), zodat RzSense een losse relay-agent bij de server op dezelfde machine kan zetten.
+
 ## 1.109.0 – 2026-11-18
 - **RzSense Relay**: de agent kan in de nieuwe relay-container draaien (RzSense 1.282.0). Daar geeft hij het doorstuurprogramma door uit welke netwerken het verkeer mag aannemen, naar welk adres van RzSense (met de controle van het certificaat), en een sleutel om het IP-adres van de agents mee te ondertekenen (afgeleid van de eigen sleutel). Hij meldt de vingerafdruk van het certificaat van de relay, de poort, de adressen en hoe druk de relay het heeft. In de container werkt de agent zichzelf niet bij: dat gaat met een nieuwe image.
 - Gewone agents hoeven niets: een agent vanaf 1.53.0 kan al via een relay rapporteren.

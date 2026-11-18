@@ -237,6 +237,43 @@ jobs:
           echo "✔ agent → relay → RzSense: gekoppeld en gerapporteerd via relay $RID"
           docker logs rzsense-relay 2>&1 | tail -n 8
 
+      - name: Losse relay-agent (1.283.0) - rzmon-agent-relay met systemd
+        run: |
+          rz() { docker exec rzsense php -r "require '/opt/rzsense/src/bootstrap.php'; $1"; }
+          fail() { echo "::error title=Losse relay-agent::$1"; sudo journalctl -u rzmon-agent-relay -n 30 --no-pager || true; sudo tail -n 20 /var/lib/rzmon-agent-relay/agent-last.log || true; exit 1; }
+          read -r RID CODE < <(rz '$id = Relay::create("ci-relay-agent", "ci"); $p = AgentCrypto::pairCreate($id); echo $id, " ", $p["code"], "\n";')
+          # Uit deze map (de handtekeningen maakt GitHub pas na de push): installeren zoals het commando uit RzSense
+          sudo bash agent/install-relay.sh --src "$PWD" --url http://127.0.0.1:8080 --pair "$CODE" --port 8446 --yes
+          systemctl is-active --quiet rzmon-agent-relay || fail "de dienst draait niet"
+          [ "$(systemctl show -p User --value rzmon-agent-relay)" = rzrelay ] || fail "de dienst draait niet als rzrelay"
+          PIN=""
+          for i in $(seq 1 40); do PIN=$(rz "echo Relay::pin($RID);"); [ -n "$PIN" ] && break; sleep 3; done
+          [ -n "$PIN" ] || fail "de losse relay-agent meldt zich niet"
+          [ "$(rz "echo q('SELECT relay_kind FROM hosts WHERE id = $RID')->fetchColumn();")" = agent ] || fail "soort is niet 'agent'"
+          ps -o user= -C python3 | grep -qx rzrelay || fail "relay.py draait niet als rzrelay"
+          # Doorsturen: netwerk, adres, en een agent die via deze relay koppelt en rapporteert
+          rz "Relay::saveNetwork(['name' => 'CI2', 'cidrs' => '127.0.0.0/8', 'relay_id' => $RID], 'ci'); Relay::saveRelay($RID, ['url' => 'https://127.0.0.1:8446', 'port' => 8446], 'ci');"
+          rcode() { curl -s -o /dev/null -w '%{http_code}' -k --pinnedpubkey "sha256//$PIN" "https://127.0.0.1:8446/api.php?action=$1"; }
+          for i in $(seq 1 40); do [ "$(rcode ping)" = 200 ] && break; sleep 3; done
+          [ "$(rcode ping)" = 200 ] || fail "geen doorgang via de losse relay-agent"
+          read -r AID CODE2 < <(rz 'q("INSERT INTO hosts (name, address, mode, enabled) VALUES (\"ci-achter2\", \"127.0.0.1\", \"agent\", 1)"); $id = (int) db()->lastInsertId(); $p = AgentCrypto::pairCreate($id); echo $id, " ", $p["code"], "\n";')
+          mkdir -p /tmp/ach2
+          AGENT_DIR=/tmp/ach2 CACHE_DIRECTORY=/tmp/ach2/cache REMOTE_UPDATE=0 MONITOR_URL=https://127.0.0.1:8446 PIN="$PIN" PAIR_CODE="$CODE2" \
+            bash agent/rzmon-agent.sh >/tmp/ach2.log 2>&1 || true
+          [ "$(rz "echo q('SELECT relay_via FROM hosts WHERE id = $AID')->fetchColumn();")" = "$RID" ] || { tail -n 20 /tmp/ach2.log; fail "agent kwam niet via de losse relay-agent binnen"; }
+          # Bijwerken: knop in RzSense → de relay zet een verzoek neer → de root-dienst installeert (hier zonder handtekening: die maakt GitHub pas na de push)
+          echo 'UPDATE_UNSIGNED="1"' | sudo tee -a /etc/default/rzmon-agent-relay >/dev/null
+          rz "q('UPDATE hosts SET agent_update_req = NOW(), agent_update_sent = NULL WHERE id = $RID');"
+          st=""
+          for i in $(seq 1 60); do st=$(rz "echo q('SELECT agent_update_status FROM hosts WHERE id = $RID')->fetchColumn();"); case "$st" in ✔*|✘*) break ;; esac; sleep 3; done
+          case "$st" in ✔*) echo "✔ bijwerken via de root-dienst: $st" ;; *) sudo journalctl -u rzmon-agent-relay-update -n 20 --no-pager || true; fail "bijwerken: $st" ;; esac
+          sudo rzmon-agent-relay-setup --status
+          # Verwijderen
+          sudo rzmon-agent-relay-setup --uninstall -y
+          ! systemctl is-active --quiet rzmon-agent-relay || fail "de dienst draait nog na verwijderen"
+          [ ! -e /opt/rzmon-agent-relay ] && ! id rzrelay >/dev/null 2>&1 || fail "verwijderen liet iets achter"
+          echo "✔ losse relay-agent: installeren, koppelen, doorsturen, bijwerken en verwijderen"
+
       - name: Herstart (tweede start, zelfde versie) en logboek
         if: always()
         run: |

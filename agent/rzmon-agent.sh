@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.109.0"
+AGENT_VERSION="1.110.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -1530,6 +1530,9 @@ lap() { local t; t=$(now_ms); [ -n "$lap_name" ] && laps+="\"$lap_name\":$(( t -
 lap disk
 disks=""
 hostname=$(hostname)
+# Agent 1.110.0: machine-id, gehasht (niet de id zelf): zo hoort een losse relay-agent bij de server waar hij op draait
+mid=""
+[ -r /etc/machine-id ] && mid=$(head -c 64 /etc/machine-id | tr -dc '0-9a-f' | sha256sum | cut -c1-32)
 if [ "$HA_MODE" = 1 ]; then
     # In de add-on-container is df onbruikbaar (bind mounts); de Supervisor kent de data-partitie (GB)
     host_info=$(sv /host/info)
@@ -3773,7 +3776,8 @@ if [ "${RELAY_MODE-}" = 1 ] && [ -n "${RELAY_DIR-}" ] && [ -d "$RELAY_DIR" ] && 
     rl_st=$(head -c 2000 "$RELAY_DIR/stats.json" 2>/dev/null)
     [[ "$rl_st" =~ ^\{[-a-zA-Z0-9_:\",./\ ]*\}$ ]] || rl_st="{}"
     [ -n "$(find "$RELAY_DIR/stats.json" -mmin +2 2>/dev/null)" ] && rl_st="{}"   # doorstuurprogramma loopt niet meer
-    relay_json="{\"pin\":\"$rl_pin\",\"port\":${RELAY_PORT:-8444},\"ips\":[${rl_ips%,}],\"ver\":\"$AGENT_VERSION\",\"allow\":\"$rl_allow\",\"st\":$rl_st}"
+    rl_kind=container; [ "${RELAY_KIND-}" = agent ] && rl_kind=agent   # agent 1.110.0: losse relay-agent (rzmon-agent-relay)
+    relay_json="{\"kind\":\"$rl_kind\",\"mid\":\"${mid-}\",\"pin\":\"$rl_pin\",\"port\":${RELAY_PORT:-8444},\"ips\":[${rl_ips%,}],\"ver\":\"$AGENT_VERSION\",\"allow\":\"$rl_allow\",\"st\":$rl_st}"
 fi
 # ---------------------------------------------------------------- Tijdelijk sudo (agent 1.93.0)
 lap sudo
@@ -5727,6 +5731,8 @@ if [ "$TEST" = 1 ]; then
     upd_via="test"   # verbindingstest: RzSense stuurt dan geen update-opdracht
 elif [ "$HA_MODE" = 1 ]; then
     upd_via=ha
+elif [ "${RELAY_MODE-}" = 1 ] && [ "${RELAY_KIND-}" = agent ] && [[ "${RELAY_UPDATE_REQ-}" == /* ]]; then
+    upd_via=relaysd   # agent 1.110.0: losse relay-agent: een kleine root-dienst werkt bij (rzmon-agent-relay-setup --update)
 elif [ "${RELAY_MODE-}" = 1 ]; then
     upd_via=relay   # agent 1.109.0: in de RzSense Relay-container: bijwerken met een nieuwe image
 elif [ "$REMOTE_UPDATE" != 1 ]; then
@@ -5765,8 +5771,16 @@ remote_update() {  # remote_update <antwoord van RzSense>
     want=$(sed -n 's/.*"update":[[:space:]]*{[^}]*"version":[[:space:]]*"\([0-9.]*\)".*/\1/p' <<<"$1")
     sha_a=$(sed -n 's/.*"update":[[:space:]]*{[^}]*"agent_sha256":[[:space:]]*"\([0-9a-f]\{64\}\)".*/\1/p' <<<"$1")
     sha_s=$(sed -n 's/.*"update":[[:space:]]*{[^}]*"setup_sha256":[[:space:]]*"\([0-9a-f]\{64\}\)".*/\1/p' <<<"$1")
-    case "$upd_via" in systemd|direct) ;; *) return 0 ;; esac
+    case "$upd_via" in systemd|direct|relaysd) ;; *) return 0 ;; esac
     [ -n "$want" ] && [ -n "$sha_a" ] && [ -n "$sha_s" ] || return 0
+    if [ "$upd_via" = relaysd ]; then
+        # Losse relay-agent (draait niet als root): alleen het verzoek neerzetten. De root-dienst (path-unit) haalt de nieuwe
+        # versie bij RzSense, controleert de controlegetallen en de handtekening van de ontwikkelaar, en installeert pas dan.
+        [[ "$want" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 0
+        [ -e "$RELAY_UPDATE_REQ" ] && return 0
+        (umask 077; printf '%s %s %s\n' "$want" "$sha_a" "$sha_s" >"$RELAY_UPDATE_REQ.tmp" && mv -f "$RELAY_UPDATE_REQ.tmp" "$RELAY_UPDATE_REQ") 2>/dev/null
+        return 0
+    fi
     # Agent 1.87.0: nooit terug naar een oudere versie (ook niet als die netjes ondertekend is: die kan een bekende fout hebben)
     if [ "$want" != "$AGENT_VERSION" ] && [ "$(printf '%s\n%s\n' "$want" "$AGENT_VERSION" | sort -V | tail -1)" = "$AGENT_VERSION" ]; then
         printf 'error %s\n' "versie $want is ouder dan $AGENT_VERSION: niet teruggezet" >"$upd_dir/update.result" 2>/dev/null
@@ -6191,7 +6205,7 @@ if [ -n "$hold_id" ] && [ "$hold_since" -gt 0 ]; then
     [ "$TEST" != 1 ] && [ "${HOLD_JITTER:-1}" != 0 ] && sleep $(( RANDOM % 25 ))
 fi
 run_ms=$(( $(now_ms) - run_t0 ))
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json}${truenas_json:+,\"truenas\":$truenas_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],${logscan_json:+\"log_scan\":$logscan_json,}${logbrowse_json:+\"log_browse\":$logbrowse_json,}${proxy_json:+\"proxy\":$proxy_json,}${waf_json:+\"waf\":$waf_json,}${av_json:+\"av\":$av_json,}${nids_json:+\"nids\":$nids_json,}\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${act_json:+,\"act\":[$act_json]}${ransom_json:+,\"ransom\":$ransom_json}${apps_json:+,\"apps\":$apps_json}${ioc_json:+,\"ioc\":$ioc_json}${patch_json:+,\"patch\":$patch_json}${relay_json:+,\"relay\":$relay_json}${ha_upd_json:+,\"ha_upd_result\":$ha_upd_json}${sudo_json:+,\"sudo\":[${sudo_json%,}]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json}${path_json:+,\"path\":$path_json}${db_json:+,\"db\":$db_json}${iperfs_json:+,\"iperfs\":$iperfs_json}${selftest_json:+,\"selftest\":$selftest_json}${nic_json:+,\"nic\":$nic_json}${hold_json:+,\"hold\":$hold_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json}${truenas_json:+,\"truenas\":$truenas_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],${logscan_json:+\"log_scan\":$logscan_json,}${logbrowse_json:+\"log_browse\":$logbrowse_json,}${proxy_json:+\"proxy\":$proxy_json,}${waf_json:+\"waf\":$waf_json,}${av_json:+\"av\":$av_json,}${nids_json:+\"nids\":$nids_json,}\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${act_json:+,\"act\":[$act_json]}${ransom_json:+,\"ransom\":$ransom_json}${apps_json:+,\"apps\":$apps_json}${ioc_json:+,\"ioc\":$ioc_json}${patch_json:+,\"patch\":$patch_json}${relay_json:+,\"relay\":$relay_json}${mid:+,\"mid\":\"$mid\"}${ha_upd_json:+,\"ha_upd_result\":$ha_upd_json}${sudo_json:+,\"sudo\":[${sudo_json%,}]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json}${path_json:+,\"path\":$path_json}${db_json:+,\"db\":$db_json}${iperfs_json:+,\"iperfs\":$iperfs_json}${selftest_json:+,\"selftest\":$selftest_json}${nic_json:+,\"nic\":$nic_json}${hold_json:+,\"hold\":$hold_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
 
 # Agent 1.66.1: 50 seconden wachten op RzSense (was 20): een druk bezette RzSense verwerkt een groot rapport soms trager;
 # na 20 seconden gaf de agent het op en kreeg hij het antwoord (opdrachten, instellingen, "softwarelijst ontvangen") nooit

@@ -8,11 +8,25 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.283.0**: **relay als losse agent** (`rzmon-agent-relay`) naast de container: niet als root, bij de server getoond en bij te werken met de knop, ondertekend.
 - **1.282.0**: **netwerken en relays**: servers in een netwerk zonder verbinding met RzSense rapporteren via een relay-container, versleuteld van agent tot RzSense, met één melding als de relay wegvalt.
 - **1.281.0**: **RzSense als container** (Podman op Rocky), met een eigen MariaDB-container, de nooddeur op poort 8443 en een melding in de app bij een nieuwe versie.
 - **1.280.0**: **back-upmap zelf kiezen**, ook op een NAS (NFS) met controle of hij gekoppeld is, en back-ups worden weer netjes opgeruimd.
 - **1.279.0**: bij **toegestane apparaten** zie je hoe er is ingelogd: met een passkey, met 2FA of alleen met een wachtwoord.
-- **1.278.0**: **🔕 altijd stil** per check, server, groep of soort apparaat (nooit een melding), en **🔀 flappen** zie je in elke weergave terug, ook nog 24 uur daarna.
+
+## 1.283.0 – 2026-11-18
+### Nieuw
+- **RzSense Relay als losse agent** (`rzmon-agent-relay`): naast de container nu ook rechtstreeks op een Linux-server met systemd en Python 3.7+ (Rocky, Alma, Debian, Ubuntu, Proxmox). Zie [relay/README.md](relay/README.md).
+  - **Installeren** met één commando uit RzSense (nieuw tabblad *🐧 Losse agent* bij *📦 Installeren*). Het installatiescript is ondertekend en wordt eerst gecontroleerd (SHA-256).
+  - **Veilig:** de dienst draait als gebruiker `rzrelay` (niet root), afgeschermd door systemd, met alleen `CAP_NET_RAW`. Hij staat los van een gewone agent op dezelfde server, met eigen sleutel en eigen mappen. De firewall (firewalld/ufw) gaat alleen open voor zijn poort.
+  - **Bij de server getoond:** draait er ook een gewone agent op die machine, dan staat de relay in de Agent Manager van die server (nieuwe kaart *🛰️ Relay op deze server*, ook om hem daar te installeren), niet als eigen regel in de lijsten.
+  - **Bijwerken** met de knop of automatisch, net als je gewone agents. De relay zet alleen een verzoek neer; een kleine root-dienst installeert, en alleen met een geldige handtekening van de ontwikkelaar.
+  - Beheer op de server: `sudo rzmon-agent-relay-setup --status | --update | --uninstall`.
+- Netwerken en relays: bij elke relay staat of het een **📦 container** of een **🐧 losse agent** is (en op welke server), met **⬆ Bijwerken** als er een nieuwe versie is.
+- Nieuwe agent 1.110.0 (nodig voor de losse relay-agent; de container krijgt hem met een nieuwe image).
+
+### Opgelost
+- **Een relay gaf geen melding als hij wegviel.** *Agent stil* komt van de checks van een server, en een relay had er geen. Elke relay krijgt nu vanzelf een check *Relay*, ook de relays van 1.282.
 
 ## 1.282.1 – 2026-11-18
 ### Opgelost

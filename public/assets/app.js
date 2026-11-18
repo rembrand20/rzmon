@@ -9312,6 +9312,10 @@ function agentInstructions(h, pairNow = false) {
         <p class="am-lead">${L('Welke updates er klaarstaan, en wanneer de agent ze installeert')}</p>
         <div id="am-patch"><p class="muted">${L('Laden…')}</p></div>
       </section>` : ''}
+      ${h.mode === 'agent' ? `<section class="am-sec am-card need-admin" data-pk="relay" data-pw="12" style="--c: var(--info, #2563eb)"><h3 class="am-h"><i aria-hidden="true">🛰️</i>${L('Relay op deze server')}</h3>
+        <p class="am-lead">${L('Agents in een ander netwerk via deze server laten rapporteren (losse agent rzmon-agent-relay)')}</p>
+        <div id="am-relay"><p class="muted">${L('Laden…')}</p></div>
+      </section>` : ''}
       ${h.mode === 'agent' ? `<section class="am-sec am-card need-admin" data-pk="sudo" data-pw="12" style="--c: var(--crit)"><h3 class="am-h"><i aria-hidden="true">🔑</i>${L('Tijdelijk sudo')}</h3>
         <p class="am-lead">${L('Een gebruiker voor korte tijd sudo geven; gaat vanzelf weer weg')}</p>
         ${xpHtml(L('Hier geef je een mens op de server tijdelijk root-rechten. RzSense voert zelf niets uit.'), L('<b>Wat het doet:</b> moet iemand even iets als root doen (een dienst herstarten, een update), dan geef je die gebruiker hier voor 15 minuten tot 4 uur sudo, in plaats van altijd. De agent zet het bestand <code>/etc/sudoers.d/rzsense-jit-&lt;gebruiker&gt;</code> neer (eerst gecontroleerd met <code>visudo</code>) en een systemd-timer die het op tijd weer weghaalt, ook als de agent stopt. Andere sudo-regels raakt hij niet aan. <b>Zo stel je het in:</b> kies de gebruiker (root kan niet), hoe lang en waarom, en bevestig met je wachtwoord en je 2FA-code. Met <i>Intrekken</i> haal je het eerder weg. <b>Verschil met commando-checks:</b> bij commando-checks voert de agent een commando uit RzSense uit; bij tijdelijk sudo voert RzSense niets uit, maar logt een persoon zelf in met <code>sudo</code>. <b>Goed om te weten:</b> elke aanvraag staat met reden in het logboek. Uitzetten op de server zelf: <code>SUDO_JIT=0</code> in <code>/etc/default/rzmon-agent</code>.'))}
@@ -9422,6 +9426,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   if (h.mode === 'agent') amApps(h, body);   // 1.229.0
   if (h.mode === 'agent') amPatch(h, body);   // 1.230.0
   if (isAdmin() && h.mode === 'agent') amSudo(h, body);   // 1.231.0
+  if (isAdmin() && h.mode === 'agent') amRelay(h, body);   // 1.283.0
   // Koppelcode: één code voor alle drie de manieren; daarna wachten tot de agent gekoppeld is
   const makePair = async () => {
     let r;
@@ -21541,7 +21546,7 @@ const FH_SHORT = () => ({
 
 /** Groepen en hun onderdelen (data-pk van de oude kaarten) */
 const AM_GROUPS = () => [
-  ['conn', L('Verbinding en agent'), ['run', 'conn', 'maint']],
+  ['conn', L('Verbinding en agent'), ['run', 'conn', 'maint', 'relay']],
   ['prot', L('Bescherming'), ['sec', 'ransom', 'apps']],
   ['rights', L('Rechten op de server'), ['cmd', 'sudo'], () => xpHtml(L('Alles wat op deze server als root kan gebeuren, bij elkaar.'), L('<b>Commando-checks:</b> RzSense laat de agent een commando uitvoeren dat jij in een check hebt gezet, en vergelijkt het antwoord. Staat dit op <i>als root</i>, dan mag zo\'n commando alles; de regel krijgt dan een waarschuwing. <b>Tijdelijk sudo:</b> RzSense voert niets uit, maar geeft een gebruiker op de server voor korte tijd sudo, zodat die zelf iets als root kan doen. Het gaat vanzelf weer weg. <b>Wat verder als root draait:</b> zelf herstellen (alleen een service of container herstarten, of een script dat je zelf in <code>/etc/rzmon-agent/heal.d/</code> zet), updates installeren (de pakketbeheerder van de server) en de diagnose voor AI-advies (een vaste lijst die alleen leest). Daarbij kan RzSense geen eigen commando meesturen. <b>Op de server zelf</b> heb je altijd het laatste woord: <code>COMMANDS=0</code>, <code>SUDO_JIT=0</code> of <code>HEAL=0</code> in <code>/etc/default/rzmon-agent</code>.'), 'am-grp-xp')],
   ['upd', L('Updates'), ['patch']],
@@ -21555,7 +21560,8 @@ function amHidden(h) {
   const out = new Set();
   if (h.mode !== 'agent') ['run', 'sec', 'notify', 'conn', 'maint'].forEach((k) => out.add(k));
   if (h.mode === 'agent' && !h.snmp) out.add('snmp');
-  if (h.mode === 'agent' && isHaHost(h)) ['ransom', 'sudo', 'cmd'].forEach((k) => out.add(k));
+  if (h.mode === 'agent' && isHaHost(h)) ['ransom', 'sudo', 'cmd', 'relay'].forEach((k) => out.add(k));
+  if (h.mode !== 'agent') out.add('relay');
   return out;
 }
 
@@ -23596,7 +23602,11 @@ async function loadRelaySet() {
     <h3 class="set-sub">${L('Relays')}</h3>
     ${d.relays.length ? `<div class="table-scroll"><table class="vuln-table small"><thead><tr><th>${L('Relay')}</th><th>${L('Status')}</th><th>${L('Adres voor de agents')}</th><th>${L('Netwerken')}</th><th>${L('Verkeer')}</th><th></th></tr></thead><tbody>
       ${d.relays.map((r) => `<tr data-relay="${r.id}">
-        <td><b>${esc(r.name)}</b><br><span class="muted">${r.relay_ver ? 'relay ' + esc(r.relay_ver) : L('nog niet gemeld')}</span></td>
+        <td><b>${esc(r.name)}</b><br><span class="muted">${r.kind === 'agent' ? '🐧 ' + (r.of_name ? esc(L('losse agent op {s}', { s: r.of_name })) : esc(L('losse agent'))) : r.kind === 'container' ? '📦 ' + esc(L('container')) : ''}
+          ${r.relay_ver ? ' · ' + esc(r.relay_ver) : ' · ' + L('nog niet gemeld')}</span>
+          ${r.outdated && r.kind === 'agent' ? `<br><button type="button" class="linkish small need-admin" data-relay-upd="${r.id}">⬆ ${L('Bijwerken naar {v}', { v: esc(relayData.latest) })}</button>` : ''}
+          ${r.outdated && r.kind === 'container' ? `<br><span class="warn-txt small">⬆ ${esc(L('nieuwe image: podman pull'))}</span>` : ''}
+          ${r.update_status && r.kind === 'agent' ? `<br><span class="muted small">${esc(r.update_status)}</span>` : ''}</td>
         <td>${!r.paired ? `<span class="warn-txt">⏳ ${L('nog niet gekoppeld')}</span>` : r.down ? `<b class="danger-txt">🔴 ${L('weg')}</b>` : `<span class="good-txt">🟢 ${L('online')}</span>`}
           ${r.seen ? `<br><span class="muted">${agoSpan(r.seen)}</span>` : ''}</td>
         <td>${r.url ? `<code>${esc(r.url)}</code>` : `<span class="warn-txt">${L('nog geen adres')}</span>`}<br><span class="muted">📌 ${relayPinShort(r.pin)}${r.ips.length ? ' · ' + esc(r.ips.slice(0, 3).join(', ')) : ''}</span></td>
@@ -23654,6 +23664,10 @@ async function relayClick(e) {
   }
   if (t('[data-relay-url]')) return relayUrlDialog(relayData.relays.find((r) => r.id === +t('[data-relay-url]').dataset.relayUrl));
   if (t('[data-relay-install]')) return relayInstall(relayData.relays.find((r) => r.id === +t('[data-relay-install]').dataset.relayInstall));
+  if (t('[data-relay-upd]')) {
+    try { await api('agent_update', { id: +t('[data-relay-upd]').dataset.relayUpd }); toast(L('De relay wordt bijgewerkt bij zijn volgende rapport')); loadRelaySet(); } catch (ex) { toast(ex.message, 'err'); }
+    return;
+  }
   if (t('[data-relay-off]')) {
     const r = relayData.relays.find((x) => x.id === +t('[data-relay-off]').dataset.relayOff);
     if (!r || !confirm(L('{n} is dan geen relay meer. Netwerken die hem gebruiken gaan over op hun reserve-relay, of rechtstreeks. Doorgaan?', { n: r.name }))) return;
@@ -23672,12 +23686,14 @@ function relayNew() {
     title: '🛰️ ' + L('Relay toevoegen'),
     body: `<div style="padding:1rem 1.2rem">${xpHtml(L('Een relay is een kleine container in een ander netwerk. De agents daar praten met de relay, en de relay met RzSense.'),
       L('<b>Wat het doet:</b> de relay stuurt alleen agentverkeer door, en alleen uit de netwerken die je hier aan hem koppelt. De rapporten blijven versleuteld van de agent tot RzSense: de relay kan ze niet lezen. <b>Zo stel je het in:</b> geef de relay een naam, installeer de container met het commando dat je zo krijgt, zet daarna zijn adres (bijvoorbeeld https://192.168.50.10:8444) en maak een netwerk dat via deze relay gaat. <b>Goed om te weten:</b> de relay moet RzSense kunnen bereiken: via internet (SWAG), een VPN of een eigen route.'))}
-      <label>${L('Naam')}<input name="name" required maxlength="100" placeholder="${esc(L('bijvoorbeeld Relay kantoor'))}"></label></div>`,
+      <label>${L('Naam')}<input name="name" required maxlength="100" placeholder="${esc(L('bijvoorbeeld Relay kantoor'))}"></label>
+      <label>${L('Op welke server')} <span class="hint">${L('(losse agent op een server die je al bewaakt; leeg = eigen regel, bijvoorbeeld een container)')}</span>
+        <select name="relay_of"><option value="0">${esc(L('geen (eigen regel)'))}</option>${relayData.hosts.filter((h) => !h.is_relay && !relayData.relays.some((x) => x.relay_of === h.id)).map((h) => `<option value="${h.id}">${esc(h.name)}</option>`).join('')}</select></label></div>`,
     buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: L('Toevoegen'), cls: 'primary', submit: true }],
     onSubmit: async (v) => {
-      const r = await api('relay_create', { name: v.name });
+      const r = await api('relay_create', { name: v.name, relay_of: +v.relay_of });
       await loadRelaySet();
-      relayInstall(relayData.relays.find((x) => x.id === r.id));
+      relayInstall(relayData.relays.find((x) => x.id === r.id), +v.relay_of ? 'native' : '');
     },
   });
 }
@@ -23723,7 +23739,7 @@ function relayNetDialog(n) {
 }
 
 /** Installatiecommando's voor de relay-container (Podman met quadlet, Docker, compose), met een verse koppelcode */
-async function relayInstall(r) {
+async function relayInstall(r, first = '') {
   if (!r) return;
   let p;
   try { p = await api('agent_pair_code', { id: r.id }); } catch (ex) { toast(ex.message, 'err'); return; }
@@ -23737,14 +23753,22 @@ async function relayInstall(r) {
   const docker = `docker run -d --name rzsense-relay --restart always --network host --cap-add NET_RAW --read-only --tmpfs /tmp \\\n  --security-opt no-new-privileges `
     + env.split('\n').map((l) => `-e '${l}'`).join(' ') + ` \\\n  -v rzsense-relay:/data ${RELAY_IMAGE}`;
   const compose = `# .env naast compose.yaml (${raw}/compose.yaml)\n${env}`;
+  // 1.283.0: losse agent (rzmon-agent-relay): ondertekend installatiescript, eerst controleren (SHA-256)
+  const curlPin = pin ? ` -k --pinnedpubkey 'sha256//${pin}'` : '';
+  const native = `curl -fsSL${curlPin} '${base}/api.php?action=agent_relay_file&f=install${dlArg()}' -o rzmon-relay-install.sh`
+    + ` && echo '${p.relay_setup_sha256}  rzmon-relay-install.sh' | sha256sum -c -`
+    + ` && sudo bash rzmon-relay-install.sh --url '${base}' --pair '${p.code}' --agent-sha '${p.agent_sha256}'${pin ? ` --pin '${pin}'` : ''} --port ${r.port}`;
+  const tab = first || (r.kind === 'container' ? 'podman' : 'native');
   modal({
     title: '📦 ' + L('{n} installeren', { n: r.name }),
     wide: true,
-    body: `<div style="padding:1rem 1.2rem">${xpHtml(L('Installeer de relay-container op een machine in het andere netwerk. Hij koppelt zich met de koppelcode.'),
-      L('<b>Wat het doet:</b> de container maakt zijn eigen certificaat, koppelt zich met RzSense en meldt zich hier. <b>Zo stel je het in:</b> kies hieronder Podman (aangeraden op Rocky), Docker of compose en voer het commando uit op die machine. Zet daarna het adres van de relay en maak een netwerk. <b>Goed om te weten:</b> de koppelcode werkt één keer en 15 minuten. De machine moet RzSense kunnen bereiken op het adres hieronder; anders zet je in <code>MONITOR_URL</code> het adres dat daar wél werkt (bijvoorbeeld via je VPN). Home Assistant en TrueNAS als app volgen in een volgende versie.'))}
+    body: `<div style="padding:1rem 1.2rem">${xpHtml(L('Installeer de relay op een machine in het andere netwerk: als losse agent of als container. Hij koppelt zich met de koppelcode.'),
+      L('<b>Wat het doet:</b> de relay maakt zijn eigen certificaat, koppelt zich met RzSense en meldt zich hier. <b>Zo stel je het in:</b> kies hieronder de losse agent (rzmon-agent-relay, met systemd), Podman (aangeraden op Rocky), Docker of compose en voer het commando uit op die machine. Zet daarna het adres van de relay en maak een netwerk. <b>Goed om te weten:</b> de koppelcode werkt één keer en 15 minuten. De machine moet RzSense kunnen bereiken op het adres hieronder; anders zet je in <code>MONITOR_URL</code> het adres dat daar wél werkt (bijvoorbeeld via je VPN). Home Assistant en TrueNAS als app volgen in een volgende versie.'))}
       <p><span class="muted small">${L('Koppelcode')}</span> <b class="mono">${esc(p.code)}</b> <span class="muted small">· ${L('{m} minuten geldig', { m: p.minutes })}</span></p>
-      <div class="seg" role="tablist"><button type="button" class="seg-btn active" data-rseg="podman">Podman (quadlet)</button><button type="button" class="seg-btn" data-rseg="docker">Docker</button><button type="button" class="seg-btn" data-rseg="compose">Compose</button></div>
-      <div data-rpane="podman">${copyBox('rl-podman', podman)}</div>
+      <div class="seg" role="tablist">${[['native', '🐧 ' + L('Losse agent')], ['podman', 'Podman (quadlet)'], ['docker', 'Docker'], ['compose', 'Compose']]
+        .map(([k, l]) => `<button type="button" class="seg-btn ${k === tab ? 'active' : ''}" data-rseg="${k}">${esc(l)}</button>`).join('')}</div>
+      <div data-rpane="native" ${tab === 'native' ? '' : 'hidden'}>${copyBox('rl-native', native)}<p class="muted small">${L('Linux met systemd en Python 3.7+ (Rocky, Alma, Debian, Ubuntu, Proxmox). Draait als gebruiker rzrelay, niet als root; naast een gewone agent mag. Daarna: sudo rzmon-agent-relay-setup --status')}</p></div>
+      <div data-rpane="podman" ${tab === 'podman' ? '' : 'hidden'}>${copyBox('rl-podman', podman)}</div>
       <div data-rpane="docker" hidden>${copyBox('rl-docker', docker)}</div>
       <div data-rpane="compose" hidden>${copyBox('rl-compose', compose)}<p class="muted small">${L('Dan: podman compose up -d (of docker compose up -d)')}</p></div>
       <p class="muted small">${L('Open in de firewall van die machine poort {p} voor de agents in dat netwerk.', { p: r.port })}${pin ? ' · 📌 ' + L('alleen het certificaat van deze RzSense') : ''}</p></div>`,
@@ -23758,4 +23782,38 @@ async function relayInstall(r) {
     $$('[data-rseg]', body).forEach((x) => x.classList.toggle('active', x === b));
     $$('[data-rpane]', body).forEach((x) => { x.hidden = x.dataset.rpane !== b.dataset.rseg; });
   }, { signal: modalSignal() });
+}
+
+/** 1.283.0: Agent Manager → Relay op deze server (losse agent rzmon-agent-relay, bij de server getoond) */
+async function amRelay(h, body) {
+  const box = $('#am-relay', body);
+  if (!box) return;
+  let d;
+  try { d = await api('relay_overview'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  relayData = d;
+  const r = d.relays.find((x) => x.relay_of === +h.id);
+  amSum('relay', r ? (r.down ? `<b class="danger-txt">${esc(L('weg'))}</b>` : esc(L('online · {n} agents erachter', { n: r.behind }))) : esc(L('geen')), !!(r && r.down));
+  box.innerHTML = r ? `<p>${!r.paired ? `<span class="warn-txt">⏳ ${L('nog niet gekoppeld')}</span>` : r.down ? `<b class="danger-txt">🔴 ${L('weg')}</b>` : `<span class="good-txt">🟢 ${L('online')}</span>`}
+      · ${r.url ? `<code>${esc(r.url)}</code>` : `<span class="warn-txt">${L('nog geen adres')}</span>`} · ${esc(L('{n} agents erachter', { n: r.behind }))}
+      ${r.relay_ver ? ` · ${esc(r.relay_ver)}` : ''}</p>
+      <p class="muted small">${r.allow.length ? esc(L('Netwerken: {n}', { n: r.allow.join(', ') })) : esc(L('nog geen: de relay laat niemand door'))}</p>
+      <div class="btn-row need-admin">${r.outdated ? `<button type="button" class="btn small-btn" data-amr-upd="${r.id}">⬆ ${L('Bijwerken naar {v}', { v: esc(d.latest) })}</button>` : ''}
+        <button type="button" class="btn small-btn" data-amr-inst="${r.id}">📦 ${L('Installeren')}</button>
+        <button type="button" class="btn small-btn" data-goto-relays="1">🛰️ ${L('Netwerken en relays')} →</button></div>`
+    : `<p class="muted small">${L('Op deze server draait geen relay. Een relay stuurt agents in een netwerk zonder verbinding met RzSense door, en draait hier als losse agent (rzmon-agent-relay) naast de gewone agent.')}</p>
+      <div class="btn-row need-admin"><button type="button" class="btn small-btn primary" data-amr-new="1">🛰️ ${L('Relay op deze server installeren')}</button></div>`;
+  box.onclick = async (e) => {
+    if (e.target.closest('[data-goto-relays]')) { $('#modal').close(); return showTab('settings/relays'); }
+    const u = e.target.closest('[data-amr-upd]');
+    if (u) { try { await api('agent_update', { id: +u.dataset.amrUpd }); toast(L('De relay wordt bijgewerkt bij zijn volgende rapport')); amRelay(h, body); } catch (ex) { toast(ex.message, 'err'); } return; }
+    const i = e.target.closest('[data-amr-inst]');
+    if (i) return relayInstall(d.relays.find((x) => x.id === +i.dataset.amrInst), 'native');
+    if (e.target.closest('[data-amr-new]')) {
+      try {
+        const n = await api('relay_create', { name: L('{s} relay', { s: h.name }), relay_of: +h.id });
+        relayData = await api('relay_overview');
+        relayInstall(relayData.relays.find((x) => x.id === n.id), 'native');
+      } catch (ex) { toast(ex.message, 'err'); }
+    }
+  };
 }

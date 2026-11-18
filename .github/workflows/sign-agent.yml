@@ -5,7 +5,7 @@ name: Agent ondertekenen
 on:
   push:
     branches: [main]
-    paths: ['agent/rzmon-agent.sh', 'agent/install-agent.sh']
+    paths: ['agent/rzmon-agent.sh', 'agent/install-agent.sh', 'agent/install-relay.sh', 'relay/relay.py', 'relay/entrypoint.sh']   # 1.283.0: ook de losse relay-agent
   workflow_dispatch:
 permissions:
   contents: write
@@ -29,7 +29,7 @@ jobs:
           (umask 077; printf '%s\n' "$AGENT_SIGN_KEY" >"$work/key.pem")
           pub=$(sed -n 's/^AGENT_SIGN_PUB="\([A-Za-z0-9+\/=]*\)"$/\1/p' agent/rzmon-agent.sh)
           printf -- '-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----\n' "$pub" >"$work/pub.pem"
-          for f in agent/rzmon-agent.sh agent/install-agent.sh; do
+          for f in agent/rzmon-agent.sh agent/install-agent.sh agent/install-relay.sh relay/relay.py relay/entrypoint.sh; do
             openssl pkeyutl -sign -inkey "$work/key.pem" -rawin -in "$f" -out "$work/sig"
             openssl pkeyutl -verify -pubin -inkey "$work/pub.pem" -rawin -in "$f" -sigfile "$work/sig" >/dev/null \
               || { echo "::error title=Sleutels passen niet::De geheime sleutel past niet bij AGENT_SIGN_PUB in de agent"; exit 1; }
@@ -38,7 +38,7 @@ jobs:
           done
           git config user.name 'rzmon-ondertekening'
           git config user.email 'rzmon-ondertekening@users.noreply.github.com'
-          git add agent/rzmon-agent.sh.sig agent/install-agent.sh.sig
+          git add agent/rzmon-agent.sh.sig agent/install-agent.sh.sig agent/install-relay.sh.sig relay/relay.py.sig relay/entrypoint.sh.sig
           if git diff --cached --quiet; then echo "Handtekeningen ongewijzigd"; exit 0; fi
           git commit -m "Agent ondertekend [skip ci]"
           pushed=0

@@ -3707,6 +3707,33 @@ ok($pl[$rbId]['state'] === 'switch' && $pl[$rbId]['want'] === 'https://rz.exampl
 ok(Relay::setNet($rbId, 999999, 'ci') !== null && Relay::setNet($rbId, $netId, 'ci') === null && array_column(Relay::plan(), null, 'id')[$rbId]['net']['auto'] === false,
     'relay: netwerk zelf kiezen');
 ok(Relay::deleteNetwork($netId, 'ci') && q('SELECT net_id FROM hosts WHERE id = ?', [$rbId])->fetchColumn() === null, 'relay: netwerk verwijderd, servers weer vanzelf');
+// 1.283.0: losse relay-agent (rzmon-agent-relay): bij zijn server, check voor "agent stil", bijwerken via de root-dienst
+if (!function_exists('agent_update_instruction')) {
+    defined('RZ_API') || define('RZ_API', true);
+    require_once SM_ROOT . '/src/api/functies.php';
+}
+$midSrv = str_repeat('ab', 16);
+Relay::noteMid(['id' => $rbId], ['mid' => $midSrv]);
+q("INSERT INTO hosts (name, address, mode, enabled, relay_on, agent_seen, agent_version) VALUES ('ci-relay-agent', '', 'agent', 1, 0, NOW(), '1.109.0')");
+$raId = (int) db()->lastInsertId();
+Relay::fromAgent(q('SELECT * FROM hosts WHERE id = ?', [$raId])->fetch(), ['relay' => ['kind' => 'agent', 'mid' => $midSrv, 'pin' => $rlPin, 'port' => 8445]]);
+$ra = q('SELECT relay_on, relay_of, relay_kind, relay_port FROM hosts WHERE id = ?', [$raId])->fetch();
+ok((int) $ra['relay_on'] === 1 && (int) $ra['relay_of'] === $rbId && $ra['relay_kind'] === 'agent' && (int) $ra['relay_port'] === 8445,
+    'relay-agent: losse agent meldt zich en hoort bij de server met dezelfde machine');
+ok((int) q("SELECT COUNT(*) FROM checks WHERE host_id = ? AND type = 'cpu'", [$raId])->fetchColumn() === 1, 'relay-agent: krijgt een check, zodat "agent stil" een melding geeft');
+Relay::fromAgent(q('SELECT * FROM hosts WHERE id = ?', [$raId])->fetch(), ['relay' => ['kind' => 'agent', 'mid' => $midSrv, 'pin' => $rlPin, 'port' => 8445]]);
+ok((int) q('SELECT COUNT(*) FROM checks WHERE host_id = ?', [$raId])->fetchColumn() === 1, 'relay-agent: geen tweede check');
+$ovR = array_column(Relay::overview()['relays'], null, 'id');
+ok($ovR[$raId]['kind'] === 'agent' && $ovR[$raId]['of_name'] === 'ci-achter' && $ovR[$raId]['outdated'] === version_compare('1.109.0', AGENT_LATEST, '<'), 'relay-agent: overzicht noemt soort en server');
+ok(Relay::agentLines($raId) !== [] && Patch::agentLines($raId) === [], 'relay-agent: wel relayregel, geen updates installeren via de relay');
+q('UPDATE hosts SET agent_update_req = NOW(), agent_update_sent = NULL WHERE id = ?', [$raId]);
+$GLOBALS['agent_seal'] = ['x', 'y'];
+$insR = agent_update_instruction($raId, '1.109.0', ['update' => ['via' => 'relaysd']]);
+$insC = (function () use ($raId) { q('UPDATE hosts SET agent_update_req = NOW(), agent_update_sent = NULL WHERE id = ?', [$raId]); return agent_update_instruction($raId, '1.109.0', ['update' => ['via' => 'relay']]); })();
+unset($GLOBALS['agent_seal']);
+ok(($insR['setup_sha256'] ?? '') === Stealth::relayInstallSha() && $insC === null && str_contains((string) q('SELECT agent_update_status FROM hosts WHERE id = ?', [$raId])->fetchColumn(), 'podman pull'),
+    'relay-agent: bijwerken met het relay-installatiescript; in een container niet (nieuwe image)');
+q('DELETE FROM hosts WHERE id = ?', [$raId]);
 foreach (['HTTP_X_RZ_RELAY', 'HTTP_X_RZ_RELAY_FOR', 'HTTP_X_RZ_RELAY_TS', 'HTTP_X_RZ_RELAY_SIG', 'QUERY_STRING'] as $k) {
     unset($_SERVER[$k]);
 }

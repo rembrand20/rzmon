@@ -41,5 +41,6 @@ if [ "${RELAY_MODE-}" = 1 ] && [ -n "${RELAY_DIR-}" ] && [ -d "$RELAY_DIR" ] && 
     rl_st=$(head -c 2000 "$RELAY_DIR/stats.json" 2>/dev/null)
     [[ "$rl_st" =~ ^\{[-a-zA-Z0-9_:\",./\ ]*\}$ ]] || rl_st="{}"
     [ -n "$(find "$RELAY_DIR/stats.json" -mmin +2 2>/dev/null)" ] && rl_st="{}"   # doorstuurprogramma loopt niet meer
-    relay_json="{\"pin\":\"$rl_pin\",\"port\":${RELAY_PORT:-8444},\"ips\":[${rl_ips%,}],\"ver\":\"$AGENT_VERSION\",\"allow\":\"$rl_allow\",\"st\":$rl_st}"
+    rl_kind=container; [ "${RELAY_KIND-}" = agent ] && rl_kind=agent   # agent 1.110.0: losse relay-agent (rzmon-agent-relay)
+    relay_json="{\"kind\":\"$rl_kind\",\"mid\":\"${mid-}\",\"pin\":\"$rl_pin\",\"port\":${RELAY_PORT:-8444},\"ips\":[${rl_ips%,}],\"ver\":\"$AGENT_VERSION\",\"allow\":\"$rl_allow\",\"st\":$rl_st}"
 fi

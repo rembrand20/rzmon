@@ -1542,6 +1542,10 @@ function agentInstructions(h, pairNow = false) {
         <p class="am-lead">${L('Welke updates er klaarstaan, en wanneer de agent ze installeert')}</p>
         <div id="am-patch"><p class="muted">${L('Laden…')}</p></div>
       </section>` : ''}
+      ${h.mode === 'agent' ? `<section class="am-sec am-card need-admin" data-pk="relay" data-pw="12" style="--c: var(--info, #2563eb)"><h3 class="am-h"><i aria-hidden="true">🛰️</i>${L('Relay op deze server')}</h3>
+        <p class="am-lead">${L('Agents in een ander netwerk via deze server laten rapporteren (losse agent rzmon-agent-relay)')}</p>
+        <div id="am-relay"><p class="muted">${L('Laden…')}</p></div>
+      </section>` : ''}
       ${h.mode === 'agent' ? `<section class="am-sec am-card need-admin" data-pk="sudo" data-pw="12" style="--c: var(--crit)"><h3 class="am-h"><i aria-hidden="true">🔑</i>${L('Tijdelijk sudo')}</h3>
         <p class="am-lead">${L('Een gebruiker voor korte tijd sudo geven; gaat vanzelf weer weg')}</p>
         ${xpHtml(L('Hier geef je een mens op de server tijdelijk root-rechten. RzSense voert zelf niets uit.'), L('<b>Wat het doet:</b> moet iemand even iets als root doen (een dienst herstarten, een update), dan geef je die gebruiker hier voor 15 minuten tot 4 uur sudo, in plaats van altijd. De agent zet het bestand <code>/etc/sudoers.d/rzsense-jit-&lt;gebruiker&gt;</code> neer (eerst gecontroleerd met <code>visudo</code>) en een systemd-timer die het op tijd weer weghaalt, ook als de agent stopt. Andere sudo-regels raakt hij niet aan. <b>Zo stel je het in:</b> kies de gebruiker (root kan niet), hoe lang en waarom, en bevestig met je wachtwoord en je 2FA-code. Met <i>Intrekken</i> haal je het eerder weg. <b>Verschil met commando-checks:</b> bij commando-checks voert de agent een commando uit RzSense uit; bij tijdelijk sudo voert RzSense niets uit, maar logt een persoon zelf in met <code>sudo</code>. <b>Goed om te weten:</b> elke aanvraag staat met reden in het logboek. Uitzetten op de server zelf: <code>SUDO_JIT=0</code> in <code>/etc/default/rzmon-agent</code>.'))}
@@ -1652,6 +1656,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   if (h.mode === 'agent') amApps(h, body);   // 1.229.0
   if (h.mode === 'agent') amPatch(h, body);   // 1.230.0
   if (isAdmin() && h.mode === 'agent') amSudo(h, body);   // 1.231.0
+  if (isAdmin() && h.mode === 'agent') amRelay(h, body);   // 1.283.0
   // Koppelcode: één code voor alle drie de manieren; daarna wachten tot de agent gekoppeld is
   const makePair = async () => {
     let r;
