@@ -23984,7 +23984,10 @@ async function wpAdmin() {
 const rsWhen = (dt) => (dt ? `${esc(fmtDateTime(dt))} <span class="muted">(${esc(ago(dt))})</span>` : `<span class="muted">${L('nog niet')}</span>`);
 const rsRow = (label, val) => `<div class="acct-field"><span class="acct-lbl">${label}</span><span class="acct-ctl">${val}</span></div>`;
 /** De perioden waarin de reserve het werk deed (1.287.0) */
-const rsPeriods = (list) => (list && list.length ? rsRow(L('Overgenomen'), list.slice(-5).reverse().map((x) => `${esc(fmtDateTime(x.from))} – ${esc(fmtDateTime(x.to))}${x.sent ? '' : ` <span class="muted">(${L('geschiedenis nog hier')})</span>`}`).join('<br>')) : '');
+const rsPeriods = (list) => (list && list.length ? rsRow(L('Overgenomen'), list.slice(-5).reverse().map((x) => `${esc(fmtDateTime(x.from))} – ${esc(fmtDateTime(x.to))}${x.sent ? ` <span class="muted">(${L('geschiedenis terug: {n} rijen', { n: x.rows || 0 })})</span>` : ` <span class="muted">(${L('geschiedenis nog hier')})</span>`}`).join('<br>')) : '');
+/** 1.288.0: geschiedenis van een overname bij de hoofdserver: binnen en ingelezen */
+const rsHistIn = (list) => (list && list.length ? rsRow(L('Geschiedenis van de reserve'), list.slice(-3).reverse().map((x) => `${esc(fmtDateTime(x.from))} – ${esc(fmtDateTime(x.to))}: ${x.finished
+  ? L('ingelezen, {a} rijen toegevoegd', { a: x.added }) : x.complete ? L('inlezen: deel {i} van {n} ({a} rijen toegevoegd)', { i: Math.min(x.pos[0], x.parts), n: x.parts, a: x.added }) : L('komt binnen ({n} delen)', { n: x.parts })}`).join('<br>')) : '');
 
 async function loadReserveSet() {
   const box = $('#reserve-body');
@@ -24024,7 +24027,7 @@ function rsPrimary(d) {
     ${rsRow(L('Kleine kopie (elke 15 min)'), d.snap ? `${rsWhen(d.snap.at)} · ${esc(fmtBytes(d.snap.size))}` : `<span class="muted">${L('nog niet')}</span>`)}
     ${rsRow(L('Volledige kopie (elke nacht)'), d.full ? `${rsWhen(d.full.at)} · ${esc(fmtBytes(d.full.size))}` : `<span class="muted">${L('nog niet')}</span>`)}
     ${rsRow(L('Bij de reserve'), `${L('kleine kopie van {a}', { a: st.snap_at ? esc(fmtDateTime(st.snap_at)) : L('nog geen') })} · ${L('volledige van {a}', { a: st.full_at ? esc(fmtDateTime(st.full_at)) : L('nog geen') })}${dl ? ' · ' + esc(dl) : ''}`)}
-    ${rsPeriods(st.periods)}
+    ${rsPeriods(st.periods)}${rsHistIn(d.hist_in)}
     ${d.build_error ? `<p class="form-error">${esc(d.build_error)}</p>` : ''}${st.apply_error ? `<p class="form-error">${L('Reserve')}: ${esc(st.apply_error)}</p>` : ''}
     <div class="btn-row"><button type="button" class="btn" id="rs-now">📦 ${L('Nu een kleine kopie maken')}</button>
       <button type="button" class="btn" id="rs-code">🔑 ${L('Nieuwe koppelcode')}</button>
@@ -24039,7 +24042,7 @@ function rsReserve(d) {
     ${rsRow(L('Kleine kopie'), `${d.snap_at ? esc(fmtDateTime(d.snap_at)) : `<span class="muted">${L('nog niet')}</span>`}${d.snap_applied ? ` · ${L('teruggezet {t}', { t: esc(ago(d.snap_applied)) })}` : ''}`)}
     ${rsRow(L('Volledige kopie'), `${d.full_at ? esc(fmtDateTime(d.full_at)) : `<span class="muted">${L('nog niet')}</span>`}${d.full_applied ? ` · ${L('teruggezet {t}', { t: esc(ago(d.full_applied)) })}` : ''}`)}
     ${dl ? rsRow(L('Bezig'), esc(dl)) : ''}
-    ${rsPeriods(d.periods)}${d.hold_full ? `<p class="muted small">${L('Volledige kopieën worden niet teruggezet zolang de geschiedenis van een overname alleen hier staat.')}</p>` : ''}
+    ${rsPeriods(d.periods)}${d.hist ? rsRow(L('Geschiedenis terugsturen'), esc(L('deel {i} van {n} verstuurd ({r} rijen)', { i: d.hist.next, n: d.hist.parts, r: d.hist.rows }))) : ''}${d.hold_full ? `<p class="muted small">${L('Volledige kopieën worden niet teruggezet zolang de geschiedenis van een overname alleen hier staat.')}</p>` : ''}
     ${d.error ? `<p class="form-error">${esc(d.error)}</p>` : ''}${d.apply_error ? `<p class="form-error">${esc(d.apply_error)}</p>` : ''}
     <div class="btn-row"><button type="button" class="btn" id="rs-now">↻ ${L('Nu bijwerken')}</button>
       <button type="button" class="btn danger" id="rs-unpair">✕ ${L('Ontkoppelen')}</button></div>`;

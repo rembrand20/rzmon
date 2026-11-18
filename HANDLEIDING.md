@@ -4732,7 +4732,7 @@ Opnieuw `install-rocky.sh` draaien doet beide ook.
 ### 13.x Reserve-RzSense 🛟 (vanaf 1.286.0)
 Een **reserve** is een tweede RzSense, het liefst op een andere machine (bijvoorbeeld als container), die een kopie bijhoudt van je hoofdserver. Valt de hoofdserver weg, dan kan de reserve het werk overnemen.
 
-Vanaf **1.287.0** neemt de reserve het werk ook automatisch over, met een melding via je kanalen (zie *Overnemen en teruggeven* hieronder). De geschiedenis van die periode terugsturen naar de hoofdserver komt in een volgende versie.
+Vanaf **1.287.0** neemt de reserve het werk ook automatisch over, met een melding via je kanalen (zie *Overnemen en teruggeven* hieronder). Vanaf **1.288.0** gaat de geschiedenis van die periode daarna vanzelf terug naar de hoofdserver.
 
 **Koppelen:**
 1. Installeer RzSense een tweede keer, bijvoorbeeld als container op een andere machine (zie `container/README.md`), en log in.
@@ -4768,7 +4768,12 @@ Vanaf **1.287.0** neemt de reserve het werk ook automatisch over, met een meldin
 - **Bij het overnemen** krijg je de melding *🛟 Reserve-RzSense heeft het werk overgenomen*, via je eigen kanalen (de reserve heeft dezelfde instellingen). Daarna doet de reserve alles wat de hoofdserver deed: checks, meldingen, rapporten. Bovenaan staat dan een oranje balk.
 - **Op een actieve reserve verandert niets aan de agents:** geen nieuwe sleutels, geen nieuwe adressen of vingerafdrukken en geen updates. Ook neemt hij geen kopieën van de hoofdserver aan.
 - **Teruggeven:** bereikt de reserve de hoofdserver **twee minuten achter elkaar**, dan gaat hij terug naar stand-by. Je krijgt de melding *✅ Hoofdserver is terug*. De agents gaan vanzelf terug.
-- **De geschiedenis van die periode** (metingen en meldingen) staat dan nog alleen op de reserve. Daarom zet de reserve geen volledige kopie meer terug tot die geschiedenis terug is bij de hoofdserver. Dat terugsturen, in stukken van hooguit 50 MB, komt in de volgende versie. Op beide pagina's staat bij *Overgenomen* wanneer het gebeurde.
+- **De geschiedenis van die periode** (metingen, statuswisselingen, meldingen, EDR- en SSH-gebeurtenissen) staat dan nog alleen op de reserve. Vanaf 1.288.0 gaat die vanzelf terug:
+  - de reserve pakt hem in, in gecomprimeerde delen (hooguit 32 MB onverpakt, ruim onder de 50 MB), met de 10 minuten van vóór het overnemen erbij (de metingen die agents vasthielden);
+  - hij stuurt **één deel per minuut** naar de hoofdserver, versleuteld en ondertekend;
+  - de hoofdserver leest ze rustig in, in zijn eigen cron: hooguit 30 seconden per minuut, in porties van 500 rijen. Wat hij al had, blijft staan; er komen geen dubbele rijen. Checks of servers die er niet meer zijn, slaat hij over;
+  - daarna rekent hij de uren van die periode opnieuw uit voor de grafieken, en meldt hij *✅ Geschiedenis van de reserve is terug*.
+  Een grote periode kan zo een uur of twee duren; dat is de bedoeling, zodat het niets van de hoofdserver of de agents vraagt. Tot alles terug is, zet de reserve geen volledige kopie terug. Op beide pagina's zie je de voortgang.
 
 ## 14. Beveiligingschecklist
 

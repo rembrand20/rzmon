@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.288.0**: na een overname gaat de **geschiedenis van de reserve vanzelf terug** naar de hoofdserver, rustig en in delen, zonder dubbele rijen.
 - **1.287.0**: de **reserve-RzSense neemt het werk over** als de hoofdserver 5 minuten weg is en de agents bij hem aankloppen, met een melding, en geeft het vanzelf terug.
 - **1.286.0**: **reserve-RzSense**: een tweede RzSense (bv. een container op een andere machine) houdt versleuteld een kopie bij van je hoofdserver: elke 15 minuten klein, elke nacht volledig.
 - **1.285.0**: **Web Push**: meldingen rechtstreeks op je iPhone, Android of computer, zonder extra app, versleuteld tot op je apparaat en met een knop om te bevestigen.
 - **1.284.0**: meldingen ook naar **Discord, Slack en Microsoft Teams**, met kleur per status, een knop om te bevestigen en een eigen filter per kanaal.
-- **1.283.0**: **relay als losse agent** (`rzmon-agent-relay`) naast de container: niet als root, bij de server getoond en bij te werken met de knop, ondertekend.
+
+## 1.288.0 – 2026-11-18
+### Nieuw
+- **Geschiedenis van een overname terug naar de hoofdserver** (stap 3 van 3). Zie HANDLEIDING hoofdstuk 13, *Overnemen en teruggeven*.
+  - Na het teruggeven pakt de reserve de metingen, statuswisselingen, meldingen en de EDR- en SSH-gebeurtenissen van die periode in. De 10 minuten ervoor gaan mee, met de metingen die agents vasthielden. Het gaat in gecomprimeerde delen van hooguit 32 MB onverpakt, ruim onder de 50 MB.
+  - Hij stuurt één deel per minuut, versleuteld en ondertekend. Mislukt er een, dan probeert hij het de minuut erna opnieuw; mist de hoofdserver een deel, dan stuurt hij alleen dat opnieuw.
+  - De hoofdserver leest rustig in: hooguit 30 seconden per minuut, in porties van 500 rijen, zonder dubbele rijen. Daarna rekent hij de uren opnieuw uit voor de grafieken en meldt hij *✅ Geschiedenis van de reserve is terug*.
+  - Is alles terug, dan zet de reserve weer volledige kopieën terug. De voortgang staat op beide pagina's.
 
 ## 1.287.0 – 2026-11-18
 ### Nieuw

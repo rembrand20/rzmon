@@ -3942,6 +3942,48 @@ foreach (['reserve_primary_down_since', 'reserve_snap_at', 'reserve_notify', 're
     save_setting($k, '');
 }
 Reserve::unpair();
+// 1.288.0: de geschiedenis van een overname terug
+$rhCheck = (int) q('SELECT MIN(id) FROM checks')->fetchColumn();
+$rhFrom = date('Y-m-d H:i:s', time() - 7200);
+$rhTo = date('Y-m-d H:i:s', time() - 3600);
+for ($i = 0; $i < 300; $i++) {
+    q('INSERT INTO results (check_id, status, value, created_at) VALUES (?, 0, ?, ?)', [$rhCheck, $i, date('Y-m-d H:i:s', strtotime($rhFrom) + 60 + $i * 10)]);
+}
+q("INSERT INTO alerts (check_id, status, title, message, sent_ok, kind, created_at) VALUES (NULL, 2, 'rh-test', 'tijdens de overname', 0, 'system', ?)", [date('Y-m-d H:i:s', strtotime($rhFrom) + 120)]);
+ReserveHistory::$partBytes = 8000;
+$rhParts = ReserveHistory::export(['from' => $rhFrom, 'to' => $rhTo], 'abcdef0123456789');
+ReserveHistory::$partBytes = ReserveHistory::PART_BYTES;
+ok(count($rhParts) > 2 && array_sum(array_column($rhParts, 'rows')) >= 301 && max(array_column($rhParts, 'size')) < ReserveHistory::MAX_PART, 'geschiedenis: in meerdere delen ingepakt');
+// Op de "hoofdserver" (dezelfde database): de metingen van de overname ontbreken daar nog
+q('DELETE FROM results WHERE check_id = ? AND created_at BETWEEN ? AND ?', [$rhCheck, $rhFrom, $rhTo]);
+q("DELETE FROM alerts WHERE title = 'rh-test'");
+q('INSERT INTO results (check_id, status, value, created_at) VALUES (?, 0, 1, ?)', [$rhCheck, date('Y-m-d H:i:s', strtotime($rhFrom) + 60)]);   // eentje had hij al
+save_setting('reserve_hist_in', '{}');
+$rhOk = true;
+foreach ($rhParts as $i => $part) {
+    $data = (string) file_get_contents(Reserve::dir() . '/' . $part['file']);
+    $rhOk = $rhOk && (ReserveHistory::receive(['pid' => 'abcdef0123456789', 'part' => $i + 1, 'parts' => count($rhParts), 'from' => $rhFrom, 'to' => $rhTo, 'sha' => $part['sha']], $data)['ok'] ?? false);
+}
+ok($rhOk && ReserveHistory::receive(['pid' => '../x', 'part' => 1, 'parts' => 1, 'from' => $rhFrom, 'to' => $rhTo, 'sha' => hash('sha256', 'x')], 'x') === null
+    && ReserveHistory::receive(['pid' => 'abcdef0123456789', 'part' => 1, 'parts' => 1, 'from' => $rhFrom, 'to' => $rhTo, 'sha' => 'fout'], 'x') === null,
+    'geschiedenis: delen aangenomen; vreemde naam of verkeerde controle geweigerd');
+ok(ReserveHistory::done('abcdef0123456789', count($rhParts) + 1)['missing'] === [count($rhParts) + 1] && ReserveHistory::done('abcdef0123456789', count($rhParts))['ok'],
+    'geschiedenis: een ontbrekend deel wordt genoemd; compleet = ok');
+save_setting('hourly_rolled', date('Y-m-d H:00:00'));
+$rhAl = (int) q("SELECT COUNT(*) FROM alerts WHERE kind = 'system'")->fetchColumn();
+$rhMsg = ReserveHistory::importStep();
+$rhJob = array_values(ReserveHistory::inbox())[0];
+ok($rhMsg !== null && !empty($rhJob['finished']) && $rhJob['added'] === 300 && (int) q('SELECT COUNT(*) FROM results WHERE check_id = ? AND created_at BETWEEN ? AND ?', [$rhCheck, $rhFrom, $rhTo])->fetchColumn() === 300
+    && (int) q("SELECT COUNT(*) FROM alerts WHERE title = 'rh-test'")->fetchColumn() === 1, 'geschiedenis: ingelezen zonder dubbele rijen (wat er al was, blijft)');
+ok(setting('hourly_rolled') <= date('Y-m-d H:00:00', strtotime($rhFrom)) && (int) q("SELECT COUNT(*) FROM alerts WHERE kind = 'system'")->fetchColumn() === $rhAl + 2
+    && !glob(Reserve::dir() . '/in-abcdef0123456789-*'), 'geschiedenis: uren opnieuw samenvatten, de melding van de reserve en een eigen melding, de delen weg');
+ok(ReserveHistory::insertNew('results', [['check_id' => 999999, 'status' => 0, 'value' => 1, 'created_at' => $rhFrom]]) === 0
+    && ReserveHistory::insertNew('results', [['check_id' => $rhCheck, 'status' => 0, 'value' => 1, 'created_at' => $rhFrom, 'kwaad' => 'x']]) === 1,
+    'geschiedenis: check die niet meer bestaat overgeslagen, onbekende kolommen genegeerd');
+foreach ($rhParts as $part) {
+    @unlink(Reserve::dir() . '/' . $part['file']);
+}
+save_setting('reserve_hist_in', '{}');
 $GLOBALS['sm_config']['backup_dir'] = $rsBkOld;
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");

@@ -154,7 +154,7 @@ final class Reserve
         $from = (string) setting('reserve_active_since', '');
         $to = now();
         $periods = json_decode((string) setting('reserve_periods', '[]'), true) ?: [];
-        $periods[] = ['from' => $from, 'to' => $to, 'sent' => false];
+        $periods[] = ['from' => $from, 'to' => $to, 'down' => (string) setting('reserve_active_down', ''), 'sent' => false];
         save_setting('reserve_periods', (string) json_encode(array_slice($periods, -20)));
         // De geschiedenis van deze periode staat alleen hier: geen volledige kopie terugzetten tot hij terug is (1.288.0)
         save_setting('reserve_hold_full', '1');
@@ -292,6 +292,20 @@ final class Reserve
             return self::seal((string) json_encode(['version' => RZMON_VERSION, 'url' => public_url(), 'time' => time(),
                 'snap' => self::fileInfo('snap'), 'full' => self::fileInfo('full'), 'pass' => (string) setting('backup_pass', '')]), $key);
         }
+        if ($op === 'hist') {
+            // 1.288.0: een deel van de geschiedenis van een overname (versleuteld: meta-regel, dan de gzip)
+            $plain = self::open($body, $key);
+            $nl = $plain === null ? false : strpos($plain, "\n");
+            if ($nl === false) {
+                return null;
+            }
+            $meta = json_decode(substr((string) $plain, 0, $nl), true);
+            $res = is_array($meta) ? ReserveHistory::receive($meta, substr((string) $plain, $nl + 1)) : null;
+            return $res === null ? null : self::seal((string) json_encode($res), $key);
+        }
+        if ($op === 'hist_done') {
+            return self::seal((string) json_encode(ReserveHistory::done((string) ($in['pid'] ?? ''), (int) ($in['parts'] ?? 0))), $key);
+        }
         if ($op === 'chunk') {
             $id = (string) ($in['id'] ?? '');
             $off = (int) ($in['off'] ?? -1);
@@ -338,11 +352,15 @@ final class Reserve
      */
     public static function primaryCron(): ?string
     {
-        if (self::role() !== 'primary' || self::key() === '' || strtotime((string) setting('reserve_seen', '')) < time() - 86400) {
+        if (self::role() !== 'primary' || self::key() === '') {
             return null;
         }
+        $hist = ReserveHistory::importStep();   // 1.288.0: geschiedenis van een overname rustig inlezen
+        if (strtotime((string) setting('reserve_seen', '')) < time() - 86400) {
+            return $hist;
+        }
         if (setting('reserve_build_error', '') !== '' && strtotime((string) setting('reserve_build_try', '')) > time() - 600) {
-            return null;   // mislukt: pas na 10 minuten opnieuw
+            return $hist;   // mislukt: pas na 10 minuten opnieuw
         }
         save_setting('reserve_build_try', now());
         $out = [];
@@ -355,6 +373,9 @@ final class Reserve
         if ($full === null ? (int) date('G') === $hour || (int) setting('reserve_full_first', '1') === 1 : $full['at'] < time() - 22 * 3600 && (int) date('G') === $hour) {
             save_setting('reserve_full_first', '0');   // na het koppelen meteen één volledige kopie, daarna 's nachts
             $out[] = self::build('full');
+        }
+        if ($hist !== null) {
+            $out[] = $hist;
         }
         return $out ? implode('; ', $out) : null;
     }
@@ -389,11 +410,12 @@ final class Reserve
     public static function unpair(): void
     {
         foreach (['reserve_key', 'reserve_role', 'reserve_url', 'reserve_version', 'reserve_seen', 'reserve_snap', 'reserve_full', 'reserve_primary_url',
-            'reserve_dl', 'reserve_error', 'reserve_status', 'reserve_pair_code', 'reserve_state', 'reserve_active_since', 'reserve_notify', 'reserve_agent_url'] as $k) {
+            'reserve_dl', 'reserve_error', 'reserve_status', 'reserve_pair_code', 'reserve_state', 'reserve_active_since', 'reserve_notify', 'reserve_agent_url',
+            'reserve_hist', 'reserve_hist_in', 'reserve_periods', 'reserve_hold_full'] as $k) {
             save_setting($k, '');
         }
         foreach (glob(self::dir() . '/*') ?: [] as $f) {
-            if (is_file($f) && preg_match('/^(snap|full)-[\w-]+\.zip(\.part)?$/', basename($f))) {
+            if (is_file($f) && preg_match('/^((snap|full)-[\w-]+\.zip(\.part)?|(in|out)-[0-9a-f]{16}-\d{3}\.jsonl\.gz)$/', basename($f))) {
                 @unlink($f);
             }
         }
@@ -404,11 +426,12 @@ final class Reserve
     /**
      * Een verzoek aan de hoofdserver.
      * @param array<string, mixed> $data
+     * @param string|null $raw 1.288.0: in plaats van $data deze (al versleutelde) inhoud
      * @return array{ok: bool, body: ?string, error: ?string, code: int}
      */
-    private static function call(string $base, string $op, array $data, string $key, int $timeout = 30): array
+    private static function call(string $base, string $op, array $data, string $key, int $timeout = 30, ?string $raw = null): array
     {
-        $body = (string) json_encode($data, JSON_UNESCAPED_SLASHES);
+        $body = $raw ?? (string) json_encode($data, JSON_UNESCAPED_SLASHES);
         $ts = time();
         $nonce = bin2hex(random_bytes(16));
         $url = rtrim($base, '/') . '/api.php?action=agent_reserve&op=' . rawurlencode($op);
@@ -419,7 +442,7 @@ final class Reserve
         curl_setopt_array($ch, [
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => $body,
-            CURLOPT_HTTPHEADER => ['Content-Type: application/json', "X-Rz-Reserve-Ts: $ts", "X-Rz-Reserve-Nonce: $nonce",
+            CURLOPT_HTTPHEADER => ['Content-Type: ' . ($raw !== null ? 'application/octet-stream' : 'application/json'), "X-Rz-Reserve-Ts: $ts", "X-Rz-Reserve-Nonce: $nonce",
                 'X-Rz-Reserve-Sig: ' . self::sign($key, $op, $ts, $nonce, $body)],
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT => $timeout,
@@ -503,7 +526,12 @@ final class Reserve
             return null;
         }
         save_setting('reserve_error', '');
-        return self::download($m, $key, $base);
+        // 1.288.0: eerst de geschiedenis van een overname terug, dan pas kopieën ophalen
+        $hist = ReserveHistory::reserveStep(static fn(string $op, string $meta, string $data) => $op === 'hist'
+            ? self::call($base, 'hist', [], $key, 120, self::seal($meta . "\n" . $data, $key))
+            : self::call($base, $op, json_decode($meta, true) ?: [], $key, 30));
+        $dl = self::download($m, $key, $base);
+        return $hist !== null && $dl !== null ? "$hist; $dl" : ($hist ?? $dl);
     }
 
     /** @return array<string, mixed> wat de reserve aan de hoofdserver laat zien */
@@ -617,7 +645,7 @@ final class Reserve
                     'apply_error' => (string) ($st['apply_error'] ?? ''), 'state' => (string) ($st['state'] ?? 'standby'),
                     'active_since' => (string) ($st['active_since'] ?? ''), 'periods' => (array) ($st['periods'] ?? [])] : null,
                 'full_hour' => (int) setting('reserve_full_hour', '3'), 'agent_url' => (string) setting('reserve_agent_url', ''),
-                'agents' => self::agentCount()];
+                'agents' => self::agentCount(), 'hist_in' => array_values(ReserveHistory::inbox())];
             foreach (['snap', 'full'] as $k) {
                 if ($o[$k] !== null) {
                     $o[$k]['at'] = $ts($o[$k]['at']);
@@ -633,12 +661,20 @@ final class Reserve
                 'snap_applied' => (string) setting('reserve_snap_applied', ''), 'full_applied' => (string) setting('reserve_full_applied', ''),
                 'dl' => is_array($dl) ? ['kind' => $dl['kind'], 'off' => (int) $dl['off'], 'size' => (int) $dl['size']] : null,
                 'state' => self::active() ? 'active' : 'standby', 'active_since' => (string) setting('reserve_active_since', ''),
-                'periods' => json_decode((string) setting('reserve_periods', '[]'), true) ?: [], 'hold_full' => setting('reserve_hold_full', '') === '1'];
+                'periods' => json_decode((string) setting('reserve_periods', '[]'), true) ?: [], 'hold_full' => setting('reserve_hold_full', '') === '1',
+                'hist' => self::histOut()];
         } else {
             $until = (int) setting('reserve_pair_until', '0');
             $o['code_until'] = $until > time() && setting('reserve_pair_code', '') !== '' ? date('c', $until) : null;
         }
         return $o;
+    }
+
+    /** @return array{parts: int, next: int, rows: int}|null de geschiedenis die de reserve nu terugstuurt */
+    private static function histOut(): ?array
+    {
+        $st = json_decode((string) setting('reserve_hist', ''), true);
+        return is_array($st) ? ['parts' => count($st['parts'] ?? []), 'next' => (int) ($st['next'] ?? 0), 'rows' => (int) ($st['rows'] ?? 0)] : null;
     }
 
     /** @return array{ready: int, old: int} agents die het adres van de reserve kennen (1.111.0+) en oudere */
