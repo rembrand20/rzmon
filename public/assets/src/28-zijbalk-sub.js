@@ -17,7 +17,7 @@ const SUBNAV = {
   logs: { items: () => [['search', L('Zoeken')], ['watch', L('Vaste zoekacties'), '#lp-w-n'], ['in', L('Binnenkomst')]], sel: (k) => `#logs-sub [data-lp-sub="${k}"]`, cur: () => LP.sub },
   analytics: {
     items: () => [['trends', L('Trends')], ['attacks', L('Aanvallen')], ['surface', L('Blootstelling')], ['rel', L('Betrouwbaarheid')], ['cap', L('Capaciteit')], ['net', L('Netwerk')], ['bk', L('Back-ups')], ['noise', L('Meldingen en ruis')]],
-    sel: (k) => `.ia-tabs [data-ia-tab="${k}"]`, cur: () => iaTab,
+    set: (k) => anSubSet(k), cur: () => iaTab,   // 1.290.1: zelf kiezen, niet wachten op de knop (de pagina kan traag laden)
   },
 };
 let sideOpen = '';   // met ▸ opengeklapt (naast de pagina waar je bent)
@@ -57,7 +57,7 @@ function sideSub() {
 }
 
 /** Een knop klikken zodra hij er is (Logs en Analyse bouwen hun tabbladen pas bij het openen) */
-function sideClickWhenReady(sel, tries = 40) {
+function sideClickWhenReady(sel, tries = 150) {   // 1.290.1: tot 15 s (een volle database laadt trager)
   const b = $(sel);
   if (b) { b.click(); return; }
   if (tries > 0) setTimeout(() => sideClickWhenReady(sel, tries - 1), 100);
@@ -67,6 +67,7 @@ function sideSubGo(page, k) {
   const c = SUBNAV[page];
   sideFlyHide();
   if (c.go) showTab(c.go(k));
+  else if (c.set) c.set(k);
   else { if (currentTab() !== page) showTab(page); sideClickWhenReady(c.sel(k)); }
   setTimeout(sideSub, 60);
 }

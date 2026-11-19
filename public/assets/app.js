@@ -17649,12 +17649,14 @@ function iaSurface() {
 
 /** De hele pagina: score, adviezen, en de analyses als tabbladen (de bestaande onderdelen van Analyse blijven) */
 function iaRender(p) {
-  if (!iaData || iaData.error) return `${iaData && iaData.error ? `<p class="form-error">${esc(iaData.error)}</p>` : ''}${p.kpis}${p.qual}${p.rel}${p.cap}${p.sec}${p.net}${p.bk}${p.noise}`;
+  if (!iaData) return `${p.kpis}${p.qual}${p.rel}${p.cap}${p.sec}${p.net}${p.bk}${p.noise}`;
+  // 1.290.1: lukte het laden van de adviezen niet, dan toch de tabbladen (de zijbalk en de knoppen werken daarmee), met de fout erboven
+  const err = iaData.error ? `<p class="form-error">${esc(iaData.error)}</p>` : '';
   if (iaTab === 'trends' && !tnData) tnLoad();   // 1.224.0: pas laden als je het tabblad opent
   const tabs = [['trends', '📉 ' + L('Trends'), tnRender()], ['attacks', '⚔️ ' + L('Aanvallen'), iaAttacks(p.sec)], ['surface', '🎯 ' + L('Blootstelling'), iaSurface()], ['rel', '🟢 ' + L('Betrouwbaarheid'), p.kpis + p.rel],
     ['cap', '📈 ' + L('Capaciteit'), p.cap], ['net', '🌐 ' + L('Netwerk'), p.net], ['bk', '💾 ' + L('Back-ups'), p.bk], ['noise', '🔔 ' + L('Meldingen en ruis'), p.noise + p.qual]];
   if (!tabs.some((t) => t[0] === iaTab)) iaTab = 'trends';
-  return `${iaTop()}${iaList()}
+  return `${err || iaTop() + iaList()}
     <section class="ia-sec"><div class="ia-sec-h"><div><h2>${esc(L('Analyses'))}</h2><span class="muted small">${esc(L('de patronen achter de adviezen'))}</span></div>
       <div class="seg ia-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" class="seg-btn ${k === iaTab ? 'active' : ''}" role="tab" aria-selected="${k === iaTab}" data-ia-tab="${k}">${esc(l)}</button>`).join('')}</div></div>
       <div class="ia-pane">${tabs.find((t) => t[0] === iaTab)[2]}</div></section>`;
@@ -17724,6 +17726,14 @@ function initAnalytics() {
   };
   $('#an-report').onclick = (e) => { const g = e.target.closest('a[data-goto]'); if (g) { e.preventDefault(); showTab(g.dataset.goto); } };   // 1.180.0
 
+}
+
+/** 1.290.1: een analyse kiezen (tabblad of zijbalk), ook als de pagina nog laadt: dan opent hij straks op die analyse */
+function anSubSet(k) {
+  iaTab = k;
+  try { localStorage.setItem('rzmon-an-tab', iaTab); } catch (ex) { /* alleen nu */ }
+  if (currentTab() !== 'analytics') showTab('analytics');
+  else if (anData) renderAnalytics();
 }
 
 async function loadAnalytics(fresh = false) {
@@ -23505,7 +23515,7 @@ const SUBNAV = {
   logs: { items: () => [['search', L('Zoeken')], ['watch', L('Vaste zoekacties'), '#lp-w-n'], ['in', L('Binnenkomst')]], sel: (k) => `#logs-sub [data-lp-sub="${k}"]`, cur: () => LP.sub },
   analytics: {
     items: () => [['trends', L('Trends')], ['attacks', L('Aanvallen')], ['surface', L('Blootstelling')], ['rel', L('Betrouwbaarheid')], ['cap', L('Capaciteit')], ['net', L('Netwerk')], ['bk', L('Back-ups')], ['noise', L('Meldingen en ruis')]],
-    sel: (k) => `.ia-tabs [data-ia-tab="${k}"]`, cur: () => iaTab,
+    set: (k) => anSubSet(k), cur: () => iaTab,   // 1.290.1: zelf kiezen, niet wachten op de knop (de pagina kan traag laden)
   },
 };
 let sideOpen = '';   // met ▸ opengeklapt (naast de pagina waar je bent)
@@ -23545,7 +23555,7 @@ function sideSub() {
 }
 
 /** Een knop klikken zodra hij er is (Logs en Analyse bouwen hun tabbladen pas bij het openen) */
-function sideClickWhenReady(sel, tries = 40) {
+function sideClickWhenReady(sel, tries = 150) {   // 1.290.1: tot 15 s (een volle database laadt trager)
   const b = $(sel);
   if (b) { b.click(); return; }
   if (tries > 0) setTimeout(() => sideClickWhenReady(sel, tries - 1), 100);
@@ -23555,6 +23565,7 @@ function sideSubGo(page, k) {
   const c = SUBNAV[page];
   sideFlyHide();
   if (c.go) showTab(c.go(k));
+  else if (c.set) c.set(k);
   else { if (currentTab() !== page) showTab(page); sideClickWhenReady(c.sel(k)); }
   setTimeout(sideSub, 60);
 }

@@ -14,6 +14,13 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.287.0**: de **reserve-RzSense neemt het werk over** als de hoofdserver 5 minuten weg is en de agents bij hem aankloppen, met een melding, en geeft het vanzelf terug.
 - **1.286.0**: **reserve-RzSense**: een tweede RzSense (bv. een container op een andere machine) houdt versleuteld een kopie bij van je hoofdserver: elke 15 minuten klein, elke nacht volledig.
 
+## 1.290.1 – 2026-11-19
+### Opgelost
+- **De onderdelen van Analyse in de zijbalk (Trends, Aanvallen, Blootstelling …) deden niets.**
+  - Laadde de pagina langer dan 4 seconden, wat bij veel gegevens gebeurt, dan gaf de zijbalk het op.
+  - Lukte het laden van de adviezen niet, dan stonden er geen tabbladen, en werkte ook geen enkele knop.
+  - Nu kiest de zijbalk de analyse zelf, ook als de pagina nog laadt. Bij een fout blijven de tabbladen staan, met de fout erboven.
+
 ## 1.290.0 – 2026-11-19
 ### Nieuw
 - **Van buitenaf (aanvalsoppervlak):** wat staat er van je netwerk open op internet? *Instellingen → Bescherming → Van buitenaf*. Zie HANDLEIDING 8.12i.
