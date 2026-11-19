@@ -426,7 +426,7 @@ final class NetChecks
     }
 
     /** Het publieke IP van de internetlijn van RzSense zelf (Cloudflare), 15 minuten bewaard; null = onbekend */
-    private static function ownPublicIp(): ?string
+    public static function ownPublicIp(): ?string
     {
         $c = json_decode((string) setting('own_public_ip', ''), true);
         if (is_array($c) && (int) ($c['at'] ?? 0) > time() - 900) {

@@ -3529,6 +3529,31 @@ Elke site krijgt een score van 0 tot 100 (A ≥ 85, B ≥ 70, C ≥ 50, D daaron
 
 Een site die helemaal alleen vanaf je netwerk bereikbaar is, krijgt voor lekken en uploads de volle punten.
 
+### 8.12i Van buitenaf: je aanvalsoppervlak 🌍 (vanaf 1.290.0)
+Wat staat er van je netwerk open op internet? Dat bekijk je bij *Instellingen → Bescherming → Van buitenaf*.
+
+**Doelen:**
+- **Automatisch** (aan of uit): je eigen publieke IP-adres en de domeinen van je reverse proxy (SWAG).
+- **Zelf toevoegen:** openbare IP-adressen en domeinen, hooguit 50. Adressen uit je eigen netwerk kunnen niet; RzSense scant alleen wat van jou is.
+
+**Bronnen** (elk aan of uit):
+- **Shodan InternetDB** (gratis, zonder sleutel): wat Shodan de afgelopen weken van buiten zag, met open poorten, software (CPE), bekende kwetsbaarheden (CVE) en labels. Alleen je publieke IP-adressen gaan naar Shodan, niets anders.
+- **Vanuit RzSense zelf:** RzSense maakt naar elke poort een verbinding (geen aanval, er gaan geen gegevens heen). Standaard zijn dat de 89 bekendste poorten; je kunt ook een eigen lijst of reeksen opgeven (hooguit 2000). Dit gaat meestal via je router "rondje terug", dus het is niet altijd wat een aanvaller ziet.
+- Een **meetpunt buiten je netwerk** (een agent op een VPS of een andere locatie) volgt in een volgende versie. Dat is de eerlijkste blik van buitenaf.
+
+**Wat je krijgt:**
+- Een lijst **Open op internet**: adres, poort, dienst, welke bron het zag, en sinds wanneer. Risicovolle diensten zijn rood: SSH, RDP, databases, Home Assistant, Proxmox, Docker API, Redis …
+- **✔ Hoort zo:** keur goed wat zo hoort, bijvoorbeeld 443 voor je reverse proxy. Dat geldt dan voor al je adressen.
+- **Wat Shodan ziet:** software, labels en bekende kwetsbaarheden per IP-adres.
+- **Weer dicht:** wat de laatste 30 dagen dicht ging.
+
+**Meldingen** (aan of uit):
+- De eerste scan is de beginstand: je krijgt één overzicht, geen alarm per poort.
+- Daarna krijg je een melding bij elke **nieuwe** poort die niet verwacht is. Een risicovolle dienst is **critical**, de rest warning.
+- Ziet Shodan nieuwe kwetsbaarheden bij je IP, dan krijg je ook een melding.
+
+**Hoe vaak:** instelbaar van elk uur tot elke week; standaard elke 24 uur. Met **🔍 Nu bekijken** doe je het meteen.
+
 ### 8.13 Kwetsbaarheden 🐞
 Welke software staat er op je servers, en welke bekende kwetsbaarheden (CVE's) horen daarbij? Standaard uit; aanzetten bij *Instellingen → 🐞 Kwetsbaarheden*. Daarna staat er een tabblad **🐞 Kwetsbaarheden** in de bovenbalk (voor beheerders en gebruikers, niet voor *alleen lezen*).
 

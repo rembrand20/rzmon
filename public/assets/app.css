@@ -6325,3 +6325,5 @@ details.pxs h4 { margin: .2rem 0 .45rem; font-size: .9rem; }
 .reserve-banner.active { border-color: var(--warn, #d97706); }
 .rs-agent-url { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .rs-agent-url input { min-width: 260px; }
+.exp-sets { display: grid; gap: 4px; margin-bottom: .6rem; }
+.exp-risky td { background: color-mix(in srgb, var(--bad, #dc2626) 8%, transparent); }

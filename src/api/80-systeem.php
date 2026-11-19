@@ -12,6 +12,52 @@ declare(strict_types=1);
 defined('RZ_API') || exit;
 
 switch ($action) {
+    // ---------------------------------------------------------------- 1.290.0: van buitenaf (aanvalsoppervlak)
+    case 'exposure_overview':
+        out(Exposure::overview());
+
+    case 'exposure_save':
+        $in = input();
+        foreach (['exposure_on', 'exposure_shodan', 'exposure_self', 'exposure_auto', 'exposure_notify'] as $k) {
+            if (isset($in[$k])) {
+                save_setting($k, !empty($in[$k]) ? '1' : '0');
+            }
+        }
+        if (isset($in['exposure_hours'])) {
+            $h = (int) $in['exposure_hours'];
+            save_setting('exposure_hours', (string) (in_array($h, [1, 3, 6, 12, 24, 72, 168], true) ? $h : 24));
+        }
+        if (isset($in['exposure_ports'])) {
+            $spec = mb_substr(trim((string) $in['exposure_ports']), 0, 500);
+            if ($spec !== '' && !preg_match('/^[\d\s,;-]+$/', $spec)) {
+                out(['error' => t('Poorten als getallen en reeksen, bijvoorbeeld 1-1024, 8000-8999')], 422);
+            }
+            save_setting('exposure_ports', $spec);
+        }
+        out(['ok' => true] + Exposure::overview());
+
+    case 'exposure_target_add':
+        $in = input();
+        if ($err = Exposure::addTarget((string) ($in['value'] ?? ''), (string) ($in['note'] ?? ''), (string) $user['username'])) {
+            out(['error' => $err], 422);
+        }
+        out(['ok' => true] + Exposure::overview());
+
+    case 'exposure_target_delete':
+        q('DELETE FROM exposure_targets WHERE id = ?', [(int) (input()['id'] ?? 0)]);
+        out(['ok' => true] + Exposure::overview());
+
+    case 'exposure_expected':
+        $in = input();
+        if ($err = Exposure::setExpected((string) ($in['ip'] ?? ''), (int) ($in['port'] ?? 0), !empty($in['on']), (string) $user['username'], (string) ($in['note'] ?? ''))) {
+            out(['error' => $err], 422);
+        }
+        out(['ok' => true] + Exposure::overview());
+
+    case 'exposure_run':
+        session_write_close();
+        out(['ok' => true, 'message' => Exposure::run()] + Exposure::overview());
+
     // ---------------------------------------------------------------- 1.286.0: reserve-RzSense
     case 'reserve_overview':
         out(Reserve::overview());

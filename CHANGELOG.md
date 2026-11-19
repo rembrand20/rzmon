@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.290.0**: **van buitenaf**: wat staat er van je netwerk open op internet (Shodan en vanuit RzSense), met een melding als er iets nieuws open gaat.
 - **1.289.0**: **checks via de relay**: de relay doet zelf ping, TCP en HTTP in zijn netwerk, ook voor apparaten zonder agent.
 - **1.288.0**: na een overname gaat de **geschiedenis van de reserve vanzelf terug** naar de hoofdserver, rustig en in delen, zonder dubbele rijen.
 - **1.287.0**: de **reserve-RzSense neemt het werk over** als de hoofdserver 5 minuten weg is en de agents bij hem aankloppen, met een melding, en geeft het vanzelf terug.
 - **1.286.0**: **reserve-RzSense**: een tweede RzSense (bv. een container op een andere machine) houdt versleuteld een kopie bij van je hoofdserver: elke 15 minuten klein, elke nacht volledig.
-- **1.285.0**: **Web Push**: meldingen rechtstreeks op je iPhone, Android of computer, zonder extra app, versleuteld tot op je apparaat en met een knop om te bevestigen.
+
+## 1.290.0 – 2026-11-19
+### Nieuw
+- **Van buitenaf (aanvalsoppervlak):** wat staat er van je netwerk open op internet? *Instellingen → Bescherming → Van buitenaf*. Zie HANDLEIDING 8.12i.
+  - **Doelen:** automatisch je publieke IP en de domeinen van je reverse proxy (aan of uit), plus wat je zelf toevoegt. Alleen openbare adressen.
+  - **Bronnen**, elk aan of uit: **Shodan InternetDB** (gratis; alleen je publieke IP-adressen gaan daarheen) en **vanuit RzSense zelf** (de 89 bekendste poorten of je eigen lijst).
+  - **Overzicht:** open poorten met dienst, bron en sinds wanneer; risicovolle diensten in rood; wat Shodan aan software en kwetsbaarheden ziet. Met **✔ Hoort zo** keur je goed wat zo hoort.
+  - **Meldingen:** de eerste scan is de beginstand. Daarna krijg je een melding bij elke nieuwe, onverwachte poort; een risicovolle dienst (SSH, RDP, databases, Home Assistant, Proxmox …) is critical. Ook nieuwe kwetsbaarheden die Shodan ziet, worden gemeld.
+  - **Hoe vaak** is instelbaar, van elk uur tot elke week (standaard elke 24 uur), en met *Nu bekijken* doe je het meteen.
+  - Een meetpunt buiten je netwerk (agent op een VPS of andere locatie) volgt in een volgende versie.
 
 ## 1.289.0 – 2026-11-18
 ### Nieuw

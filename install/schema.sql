@@ -1820,3 +1820,39 @@ CREATE TABLE IF NOT EXISTS webpush_subs (
     CONSTRAINT fk_wp_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('webpush_enabled', '1');
+
+-- 1.290.0: van buitenaf (aanvalsoppervlak). Per adres, poort en bron (shodan, self, agent) wat er open staat.
+CREATE TABLE IF NOT EXISTS exposure (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    ip         VARCHAR(45)       NOT NULL,
+    port       SMALLINT UNSIGNED NOT NULL,
+    source     VARCHAR(10)       NOT NULL,
+    names      VARCHAR(500)      NOT NULL DEFAULT '',
+    first_seen DATETIME          NOT NULL,
+    last_seen  DATETIME          NOT NULL,
+    gone_at    DATETIME          NULL,
+    UNIQUE KEY uq_exposure (ip, port, source),
+    KEY idx_exposure_open (gone_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- Zelf toegevoegde doelen (openbare IP-adressen en domeinen)
+CREATE TABLE IF NOT EXISTS exposure_targets (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    value      VARCHAR(253)  NOT NULL,
+    kind       VARCHAR(10)   NOT NULL,
+    enabled    TINYINT(1)    NOT NULL DEFAULT 1,
+    note       VARCHAR(200)  NOT NULL DEFAULT '',
+    created_by VARCHAR(100)  NOT NULL DEFAULT '',
+    created_at DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_exposure_target (value)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- Goedgekeurd: deze poort hoort open te staan (ip '*' = op elk adres)
+CREATE TABLE IF NOT EXISTS exposure_ok (
+    ip         VARCHAR(45)       NOT NULL,
+    port       SMALLINT UNSIGNED NOT NULL,
+    note       VARCHAR(200)      NOT NULL DEFAULT '',
+    created_by VARCHAR(100)      NOT NULL DEFAULT '',
+    created_at DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (ip, port)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('exposure_on', '0'), ('exposure_shodan', '0'), ('exposure_self', '0'), ('exposure_auto', '1'),
+    ('exposure_hours', '24'), ('exposure_ports', ''), ('exposure_notify', '1');

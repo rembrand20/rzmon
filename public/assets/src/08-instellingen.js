@@ -789,6 +789,7 @@ const SET_NAV = [
     ['ids_attack', L('Netwerk en weblogs'), ['ids_attack'], L('Blocklists, landen, uitgaand verkeer en de logs van webdiensten.')],
     ['ids_servers', L('IDS per server'), ['ids_servers'], L('Welke servers het IDS gebruiken, en wat ze bewaken.')],
     ['proxy', L('Reverse proxy en WAF'), ['proxy'], L('De apps achter je reverse proxy beschermen: wie mag erbij, bots, te veel verzoeken, WAF, ClamAV en Suricata.')],
+    ['exposure', L('Van buitenaf'), ['exposure'], L('Wat er van je netwerk open staat op internet: je publieke IP en je domeinen, met een melding als er iets nieuws open gaat.')],
     ['vulns', L('Kwetsbaarheden en datalekken'), ['vulns', 'eol', 'cvebuzz', 'hibp'], L('Bekende lekken en verouderde software op je servers, en datalekken met je e-mailadressen.'),
       [['lekken', L('Kwetsbaarheden'), ['vulns', 'eol', 'cvebuzz']], ['datalekken', L('Datalekken'), ['hibp']]]],
     ['patch', L('Updatebeleid'), ['patch'], L('Hoe updates worden geïnstalleerd: met de hand, in het onderhoudsvenster of elke dag; snapshot en Home Assistant met back-up.')],
@@ -918,6 +919,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'sudo') loadSudoSet();   // 1.231.0
   if (setSection === 'relays') loadRelaySet();   // 1.282.0
   if (setSection === 'reserve') loadReserveSet();   // 1.286.0
+  if (setSection === 'exposure') loadExposure();   // 1.290.0
   if (setSection === 'nis2') loadNis2();   // 1.232.0
   if (setSection === 'proxy') loadProxyRoles();   // 1.254.0
   if (setSection === 'ids_dns') loadDnsbl();

@@ -3789,6 +3789,40 @@ ok(Relay::checkVia($rcCk('ping'), $rcHost) === null && Relay::relayChecks($rcR) 
 q('DELETE FROM hosts WHERE id IN (?, ?)', [$rcH, $rcR]);
 q('DELETE FROM relay_networks WHERE id = ?', [$rcNet]);
 
+section('Van buitenaf (1.290.0)');
+ok(Exposure::addTarget('192.168.1.10', '', 'ci') !== null && Exposure::addTarget('niet geldig', '', 'ci') !== null && Exposure::addTarget('8.8.4.4', 'test', 'ci') === null
+    && Exposure::addTarget('Thuis.Voorbeeld.NL', '', 'ci') === null && (int) q("SELECT COUNT(*) FROM exposure_targets WHERE value = 'thuis.voorbeeld.nl'")->fetchColumn() === 1,
+    'van buitenaf: alleen openbare adressen en geldige domeinen als doel');
+ok(Exposure::portList('') === Exposure::TOP && Exposure::portList('22, 80-82, x, 70000') === [22, 80, 81, 82] && count(Exposure::portList('1-65535')) === 2000,
+    'van buitenaf: poorten als lijst en reeksen, hooguit 2000');
+$exS = Exposure::parseShodan('{"ports":[443,22,0],"cpes":["cpe:/a:openbsd:openssh:8.2"],"vulns":["CVE-2023-38408","bad"],"tags":["self-signed"],"hostnames":[]}');
+ok($exS['ports'] === [443, 22] && $exS['vulns'] === ['CVE-2023-38408'] && $exS['tags'] === ['self-signed'], 'van buitenaf: antwoord van Shodan netjes ingelezen');
+$exIps = ['8.8.4.4' => ['thuis.voorbeeld.nl']];
+save_setting('exposure_baseline', '');
+$exAl = static fn() => (int) q("SELECT COUNT(*) FROM alerts WHERE kind = 'system' AND title LIKE '%Van buitenaf%'")->fetchColumn();
+$exA0 = $exAl();
+$exNew = Exposure::store(['shodan' => ['8.8.4.4' => [443, 22]]], $exIps);
+(new ReflectionMethod('Exposure', 'alert'))->invoke(null, $exNew, [], $exIps);
+ok(count($exNew) === 2 && $exAl() === $exA0 + 1 && setting('exposure_baseline') !== '', 'van buitenaf: de eerste scan is de beginstand (één overzicht)');
+Exposure::setExpected('*', 443, true, 'ci');
+$exNew = Exposure::store(['shodan' => ['8.8.4.4' => [443, 22]], 'self' => ['8.8.4.4' => [443, 8123, 9999]]], $exIps);
+ok(array_column($exNew, 'port') === [8123, 9999], 'van buitenaf: alleen echt nieuwe poorten (ook als een tweede bron ze ziet)');
+(new ReflectionMethod('Exposure', 'alert'))->invoke(null, $exNew, [], $exIps);
+$exLast = q("SELECT status, message FROM alerts WHERE kind = 'system' ORDER BY id DESC LIMIT 1")->fetch();
+ok($exAl() === $exA0 + 2 && (int) $exLast['status'] === STATUS_CRIT && str_contains($exLast['message'], '8123') && str_contains($exLast['message'], 'Home Assistant')
+    && str_contains($exLast['message'], '9999'), 'van buitenaf: melding bij nieuwe poorten; Home Assistant open = critical');
+$exOv = Exposure::overview();
+$exRow = array_column($exOv['rows'], null, 'port');
+ok($exRow[443]['expected'] && !$exRow[22]['expected'] && $exRow[22]['risky'] && $exRow[443]['sources'] === ['self', 'shodan'], 'van buitenaf: overzicht met verwacht, risicovol en bronnen');
+Exposure::store(['self' => ['8.8.4.4' => [443]]], $exIps);
+$exOv = Exposure::overview();
+ok(!in_array(8123, array_column($exOv['rows'], 'port'), true) && in_array(22, array_column($exOv['rows'], 'port'), true)
+    && in_array(8123, array_map('intval', array_column($exOv['gone'], 'port')), true), 'van buitenaf: weer dicht = weg (per bron), bij "weer dicht"');
+$exA2 = $exAl();
+(new ReflectionMethod('Exposure', 'alert'))->invoke(null, [], ['8.8.4.4' => ['new_vulns' => ['CVE-2024-6387'], 'first' => false]], $exIps);
+ok($exAl() === $exA2 + 1, 'van buitenaf: melding bij nieuwe kwetsbaarheden die Shodan ziet');
+q('DELETE FROM exposure'); q('DELETE FROM exposure_ok'); q('DELETE FROM exposure_targets');
+
 section('Discord, Slack en Teams (1.284.0)');
 ok(Chat::validUrl('discord', 'https://discord.com/api/webhooks/1/abc') && Chat::validUrl('slack', 'https://hooks.slack.com/services/T/B/x')
     && Chat::validUrl('teams', 'https://prod-01.westeurope.logic.azure.com:443/workflows/x/triggers/manual/paths/invoke?sig=y'), 'chat: echte webhook-adressen zijn goed');

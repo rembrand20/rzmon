@@ -133,6 +133,14 @@ Perf::lap('blokkades');
 if ($msg = Backup::runScheduled()) {
     echo date('c') . " $msg\n";
 }
+// 1.290.0: van buitenaf (aanvalsoppervlak), als het tijd is
+try {
+    if ($msg = Exposure::cron()) {
+        echo date('c') . " $msg\n";
+    }
+} catch (Throwable $e) {
+    cron_err('Van buitenaf', $e);
+}
 // 1.286.0: kopieën voor de reserve-RzSense (elke 15 minuten klein, 's nachts volledig)
 try {
     if ($msg = Reserve::primaryCron()) {
