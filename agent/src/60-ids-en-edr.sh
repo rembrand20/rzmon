@@ -120,10 +120,15 @@ if [ -n "$ids_mode" ]; then
     pkg_part=""
     [ -f "$i_dir/pkgdiff" ] && pkg_part=",\"pkgdiff\":[$(awk '{ gsub(/\\/, "&&"); gsub(/"/, "\\\""); printf "\"%s\",", $0 }' "$i_dir/pkgdiff" | sed 's/,$//')]"
     # Laatste pakketactiviteit (dnf/apt): bestanden die dan veranderen zijn waarschijnlijk de update
-    pkg_t=0
-    for f in /var/log/dnf.rpm.log /var/log/dnf5.log /var/log/dpkg.log /var/log/apt/history.log; do
+    # Agent 1.115.0: ook dnf.log en het downloaden (librepo), en "nu bezig" als dnf, yum, rpm of apt draait (dan is het
+    # downloaden van de mirrors ook al een update, voordat er iets in dnf.rpm.log staat)
+    pkg_t=0; pkg_busy=0
+    for f in /var/log/dnf.rpm.log /var/log/dnf.log /var/log/dnf.librepo.log /var/log/dnf5.log /var/log/yum.log /var/log/dpkg.log /var/log/apt/history.log /var/log/apt/term.log; do
         [ -f "$f" ] && t=$(stat -c %Y "$f") && [ "$t" -gt "$pkg_t" ] && pkg_t=$t
     done
+    if command -v pgrep >/dev/null 2>&1 && pgrep -x 'dnf|dnf5|dnf-3|yum|rpm|microdnf|dnf-automatic|apt|apt-get|aptitude|dpkg|unattended-upgr|zypper|apk' >/dev/null 2>&1; then
+        pkg_busy=1; pkg_t=$(date +%s)
+    fi
     # 6. Verdachte processen: uit /tmp, /dev/shm of /var/tmp, zonder bestand (memfd), of programma verwijderd
     procs_json=""; n_procs=0
     for p in /proc/[0-9]*; do
@@ -274,7 +279,7 @@ if [ -n "$ids_mode" ]; then
                     names = names (names == "" ? "" : ",") a[1]; if (!pid) pid = a[2]; rest = substr(rest, RSTART + RLENGTH) }
                 if (names != "") print names "\t" pid "\t" $3 "\t" $4 }' | head -n 200)
     fi
-    ids_json="\"ids\":{\"mode\":\"$ids_mode\",\"fv\":2,\"files\":{${files_json%,}},\"users\":[${users_json%,}],\"groups\":{${groups_json%,}},\"modules\":[${mods_json%,}]${suid_part}${pkg_part},\"pkg\":$pkg_t,\"procs\":[${procs_json%,}],\"conns\":[${conns_json%,}],\"web\":[${web_json%,}],\"out\":[${out_json%,}],\"killed\":[${killed_json%,}]${units_part}${hard_part},"
+    ids_json="\"ids\":{\"mode\":\"$ids_mode\",\"fv\":2,\"files\":{${files_json%,}},\"users\":[${users_json%,}],\"groups\":{${groups_json%,}},\"modules\":[${mods_json%,}]${suid_part}${pkg_part},\"pkg\":$pkg_t,\"pkg_busy\":$pkg_busy,\"procs\":[${procs_json%,}],\"conns\":[${conns_json%,}],\"web\":[${web_json%,}],\"out\":[${out_json%,}],\"killed\":[${killed_json%,}]${units_part}${hard_part},"
 
     # 8. Bestanden bewaken (regel "0 <tab> fim <tab> base64" met e <tab> epoch, p <tab> ernst <tab> pad, x <tab> uitsluiten).
     #    Elke run een snelle controle (grootte, tijd, rechten, eigenaar); alleen bij een verschil een nieuwe hash.

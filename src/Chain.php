@@ -205,8 +205,17 @@ final class Chain
                     }
                 }
                 if ($c['isolate'] && setting('edr_isolate', '1') === '1' && !q('SELECT 1 FROM hosts WHERE id = ? AND isolate_until > NOW()', [$hid])->fetchColumn()) {
-                    Ids::isolate($hid, 24, 'RzSense (' . t('automatisch') . ')', '', t('Aanvalsketen: {what}', ['what' => t($sc['title'])]));
-                    $done[] = t('server geïsoleerd (24 uur)');
+                    // 1.295.0: meteen, eerst vragen (aangeraden) of alleen melden; tijdens onderhoud nooit, tijdens een update eerst vragen
+                    $isoMode = IsoAsk::mode($hid);
+                    if ($isoMode === 'now') {
+                        Ids::isolate($hid, 24, 'RzSense (' . t('automatisch') . ')', '', t('Aanvalsketen: {what}', ['what' => t($sc['title'])]));
+                        $done[] = t('server geïsoleerd (24 uur)');
+                    } elseif ($isoMode === 'ask') {
+                        $askIso = true;
+                        $done[] = t('isoleren gevraagd (binnen {m} min bevestigen)', ['m' => IsoAsk::waitMinutes()]);
+                    } else {
+                        $done[] = UpdateWindow::maintenance($hid) ? t('niet geïsoleerd: server in onderhoud') : t('niet geïsoleerd: alleen melden');
+                    }
                 }
             } else {
                 $done[] = t('modus Leren: RzSense greep niet in');
@@ -217,6 +226,9 @@ final class Chain
         $detail = $line . ($done ? ' · ⛔ ' . implode(', ', $done) : '');
         $ip = $c['ips'][0] ?? (array_values(array_filter(array_column($steps, 'ip')))[0] ?? null);
         $inc = Ids::raise($host, $c['sev'], 'chain', $c['key'], t('Keten: {what}', ['what' => t($sc['title'])]), $detail, $ip);
+        if (!empty($askIso)) {
+            IsoAsk::open($host, $inc ?: null, t('Aanvalsketen: {what}', ['what' => t($sc['title'])]));
+        }
         if ($inc) {
             q("DELETE FROM ids_evidence WHERE incident_id = ? AND kind = 'chain'", [$inc]);
             Edr::evidence($inc, 'chain', ['scenario' => $id, '_done' => $done, 'steps' => array_map(static fn($s) => ['id' => (int) $s['id'], 'at' => $s['at'], 'src' => $s['src'],

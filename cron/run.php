@@ -102,6 +102,11 @@ try {
 } catch (Throwable $e) {
     cron_err('Logs (vaste zoekacties)', $e);
 }
+try {
+    IsoAsk::cron();   // 1.295.0: vragen om te isoleren waarop niemand reageerde: na de wachttijd alsnog
+} catch (Throwable $e) {
+    cron_err('Isoleren', $e);
+}
 // Verlopen blokkades (inlogbeveiliging) opheffen, met een ℹ️-melding
 try {
     Security::expire();

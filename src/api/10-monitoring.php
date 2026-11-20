@@ -74,7 +74,7 @@ switch ($action) {
         $lastRun = q('SELECT MAX(last_checked) FROM checks')->fetchColumn();
         out(['hosts' => $hosts, 'badges' => tab_badges($user, $hosts, (string) ($_GET['seen'] ?? '')), 'last_run' => $lastRun, 'user' => $user['username'],
              'base_url' => config('base_url', ''), 'snmp_global' => ($sg = SnmpMonitor::global()) ? array_intersect_key($sg, array_flip(['v', 'port', 'user', 'level', 'auth_proto', 'priv_proto'])) : null, 'agent_https_only' => setting('agent_https_only', '0') === '1', 'lan_session' => is_lan_session(), 'maintenance' => $global,
-             'version' => RZMON_VERSION, 'agent_latest' => AGENT_LATEST, 'edr_note_hide' => json_decode((string) setting('edr_note_hide', '{}'), true) ?: (object) [], 'role' => $user['role'], 'user_id' => $user['id'], 'ai' => Ai::stateInfo($user), 'isolated' => Ids::isolated(), 'health' => Health::current(), 'health_groups' => Health::groups(),
+             'version' => RZMON_VERSION, 'agent_latest' => AGENT_LATEST, 'edr_note_hide' => json_decode((string) setting('edr_note_hide', '{}'), true) ?: (object) [], 'role' => $user['role'], 'user_id' => $user['id'], 'ai' => Ai::stateInfo($user), 'isolated' => Ids::isolated(), 'iso_ask' => IsoAsk::pending(), 'health' => Health::current(), 'health_groups' => Health::groups(),
              'agent_tick' => agent_tick(null), 'now_ts' => time(), 'confirm' => Confirm::state($user),   // 1.206.0
              // Sjablonen (1.94.0): item → naam van het sjabloon, en welke sjablonen per server
              'templates' => q('SELECT id, name FROM check_templates ORDER BY name')->fetchAll(),

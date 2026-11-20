@@ -371,7 +371,7 @@ switch ($action) {
             'disk_forecast_days', 'auto_maint_enabled', 'auto_maint_after', 'log_window', 'agent_auto_update',
             'backup_freq', 'backup_time', 'backup_weekday', 'backup_keep', 'backup_keep_manual', 'backup_history', 'backup_pass',
             'notify_rules', 'notify_channels', 'notify_unknown', 'notify_group_seconds', 'notify_bundle_hosts', 'notify_fails', 'notify_flap', 'notify_quiet', 'notify_lang',
-            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'edr_on', 'edr_kill', 'edr_block', 'edr_isolate', 'edr_sigma', 'edr_web', 'edr_anom', 'edr_learn_days', 'edr_anom_min', 'edr_chain', 'edr_chain_min', 'edr_chain_act', 'ti_on', 'ti_abuseipdb_key', 'ti_greynoise', 'ti_greynoise_key', 'ti_shodan', 'ti_circl', 'ti_tor', 'ti_tor_block', 'ti_urlhaus', 'ti_feodo', 'ti_abusech_key', 'ti_block', 'ti_block_score', 'ti_escalate', 'ti_close_benign', 'ti_report', 'ti_cve', 'dns_on', 'suricata_on', 'suricata_block', 'suricata_block_sev', 'edr_yara', 'ids_modern', 'af_motion', 'smart_auto', 'alert_auto', 'inet_down', 'inet_up', 'inet_warn_pct', 'inet_crit_pct', 'inet_times', 'inet_speed_mb', 'perf_on', 'edr_note_hide', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
+            'vuln_time', 'vuln_min_severity', 'vuln_exclude', 'net_scan', 'net_sweep_minutes', 'net_deep_per_day', 'thresh_default', 'smart_sens', 'esc_on', 'esc_warn_min', 'esc_crit_min', 'esc_crit_prio', 'esc_quiet', 'smart_interval', 'smart_fast', 'smart_slow', 'anomaly_on', 'disk_jump_on', 'disk_jump_pct', 'context_on', 'hb_learn', 'edr_on', 'edr_kill', 'edr_block', 'edr_isolate', 'edr_sigma', 'edr_web', 'edr_anom', 'edr_learn_days', 'edr_anom_min', 'edr_chain', 'edr_chain_min', 'edr_chain_act', 'edr_iso_mode', 'edr_iso_wait', 'edr_iso_after', 'edr_upd_quiet', 'ti_on', 'ti_abuseipdb_key', 'ti_greynoise', 'ti_greynoise_key', 'ti_shodan', 'ti_circl', 'ti_tor', 'ti_tor_block', 'ti_urlhaus', 'ti_feodo', 'ti_abusech_key', 'ti_block', 'ti_block_score', 'ti_escalate', 'ti_close_benign', 'ti_report', 'ti_cve', 'dns_on', 'suricata_on', 'suricata_block', 'suricata_block_sev', 'edr_yara', 'ids_modern', 'af_motion', 'smart_auto', 'alert_auto', 'inet_down', 'inet_up', 'inet_warn_pct', 'inet_crit_pct', 'inet_times', 'inet_speed_mb', 'perf_on', 'edr_note_hide', 'unifi_url', 'unifi_site', 'unifi_user', 'unifi_pass', 'unifi_key', 'unifi_verify_ssl', 'adguard_urls', 'adguard_user', 'adguard_pass', 'adguard_verify_ssl',
             'update_auto', 'update_time', 'update_backup', 'update_hold_min', 'confirm_skip_admin', 'confirm_skip_user', 'confirm_skip_readonly', 'confirm_grace_min',
             'ai_on', 'ai_provider', 'ai_auto', 'ai_daily', 'ai_mask', 'ai_timeout', 'ai_max_tokens', 'ai_ollama_url', 'ai_ollama_key',
             'cve_buzz_on', 'cve_buzz_alert', 'cve_github_token', 'cve_mastodon_url', 'cve_mastodon_token', 'cve_exploitdb', 'cve_nuclei',   // 1.179.0
@@ -474,7 +474,7 @@ switch ($action) {
             $in['notify_channels'] = json_encode(array_replace(NotifyRules::defaults()['channels'],
                 NotifyRules::cleanChannels((array) (is_string($in['notify_channels']) ? json_decode($in['notify_channels'], true) : $in['notify_channels']))));
         }
-        foreach (['esc_warn_min' => [0, 1440], 'esc_crit_min' => [0, 1440], 'esc_crit_prio' => [-1, 2], 'smart_fast' => [10, 300], 'smart_slow' => [1, 10], 'disk_jump_pct' => [1, 50], 'edr_learn_days' => [1, 90], 'edr_anom_min' => [1, 100], 'edr_chain_min' => [5, 1440], 'ti_block_score' => [10, 100],
+        foreach (['esc_warn_min' => [0, 1440], 'esc_crit_min' => [0, 1440], 'esc_crit_prio' => [-1, 2], 'smart_fast' => [10, 300], 'smart_slow' => [1, 10], 'disk_jump_pct' => [1, 50], 'edr_learn_days' => [1, 90], 'edr_anom_min' => [1, 100], 'edr_chain_min' => [5, 1440], 'edr_iso_wait' => [1, 120], 'edr_upd_quiet' => [0, 120], 'ti_block_score' => [10, 100],
             'inet_down' => [1, 100000], 'inet_up' => [1, 100000], 'inet_warn_pct' => [1, 100], 'inet_crit_pct' => [1, 100], 'inet_speed_mb' => [10, 2000]] as $k => [$lo, $hi]) {
             if (isset($in[$k])) {
                 $in[$k] = (string) max($lo, min($hi, (int) $in[$k]));
@@ -485,6 +485,12 @@ switch ($action) {
         }
         if (isset($in['thresh_default']) && !in_array($in['thresh_default'], Smart::MODES, true)) {
             $in['thresh_default'] = 'guard';
+        }
+        if (isset($in['edr_iso_mode']) && !in_array($in['edr_iso_mode'], IsoAsk::MODES, true)) {   // 1.295.0
+            $in['edr_iso_mode'] = 'ask';
+        }
+        if (isset($in['edr_iso_after']) && !in_array($in['edr_iso_after'], ['isolate', 'notify'], true)) {
+            $in['edr_iso_after'] = 'isolate';
         }
         if (isset($in['smart_sens']) && !in_array($in['smart_sens'], Smart::SENS, true)) {
             $in['smart_sens'] = 'normal';

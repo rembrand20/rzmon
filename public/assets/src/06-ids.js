@@ -1829,6 +1829,7 @@ const afOld = (s) => !!s && s.live === false;
 let isoOpen = false;
 const ISO_PAGES = { ids: 'big', home: 'slim', dashboard: 'slim' };
 function renderIsoBanner(tab) {
+  renderIsoAsk();   // 1.295.0
   const el = $('#iso-banner');
   if (!el || !state) return;
   tab = tab || (($('.tab-panel:not([hidden])') || {}).id || '').replace('tab-', '');
@@ -1862,9 +1863,27 @@ function renderIsoBanner(tab) {
     <div class="iso-rows">${rows}</div>`;
   isoTick();
 }
+/** 1.295.0: een keten vraagt om te isoleren (eerst vragen): op elke pagina, met Nu isoleren en Hoort zo, en de afteller */
+function renderIsoAsk() {
+  const el = $('#iso-ask');
+  if (!el || !state) return;
+  const list = state.iso_ask || [];
+  el.hidden = !list.length;
+  const key = list.map((x) => x.id).join(',');
+  if (el.dataset.key === key) return;
+  el.dataset.key = key;
+  el.innerHTML = list.map((x) => `<div class="iso-ask-row">
+      <span class="iso-ask-ic" aria-hidden="true">⚠️</span>
+      <div class="iso-ask-txt"><b>${esc(L('{name} isoleren?', { name: x.name }))}</b><span>${esc(x.reason)}</span>
+        <span class="muted small">${esc(x.after === 'notify' ? L('Zonder keuze: alleen gemeld over') : L('Zonder keuze: geïsoleerd over'))} <b class="mono" data-iso-cd="${esc(x.deadline)}">–</b></span></div>
+      <div class="iso-ask-acts need-admin"><button type="button" class="btn danger" data-isoq="isolate:${x.id}">🧱 ${L('Nu isoleren')}</button>
+        <button type="button" class="btn" data-isoq="dismiss:${x.id}">${L('Hoort zo')}</button>
+        <button type="button" class="btn ghost" data-iso-go>${L('Bekijk')}</button></div></div>`).join('');
+  isoTick();
+}
 /** Afteller in de banner (elke seconde) */
 function isoTick() {
-  $$('#iso-banner [data-iso-cd]').forEach((b) => {
+  $$('#iso-banner [data-iso-cd], #iso-ask [data-iso-cd]').forEach((b) => {
     let s = Math.max(0, Math.round((new Date(b.dataset.isoCd.replace(' ', 'T')) - Date.now()) / 1000));
     const d = Math.floor(s / 86400);
     s %= 86400;
@@ -1872,7 +1891,7 @@ function isoTick() {
     b.textContent = (d ? d + 'd ' : '') + `${Math.floor(s / 3600)}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}`;
   });
 }
-setInterval(() => { const el = document.getElementById('iso-banner'); if (!document.hidden && el && !el.hidden) isoTick(); }, 1000);
+setInterval(() => { const el = document.getElementById('iso-banner'), a = document.getElementById('iso-ask'); if (!document.hidden && ((el && !el.hidden) || (a && !a.hidden))) isoTick(); }, 1000);
 /** Isolatie opheffen (met je wachtwoord): vanuit de banner en vanuit Hardening en isoleren */
 async function isoLift(hostId, name) {
   const pw = await askConfirm({ title: L('Isolatie van {name} opheffen?', { name }), danger: true, word: 'OPHEFFEN', ok: '🔓 ' + L('Opheffen'),
@@ -1884,6 +1903,25 @@ async function isoLift(hostId, name) {
   return true;
 }
 function initIsoBanner() {
+  const ask = $('#iso-ask');
+  if (ask) ask.addEventListener('click', async (e) => {   // 1.295.0
+    if (e.target.closest('[data-iso-go]')) { showTab('ids'); return; }
+    const b = e.target.closest('[data-isoq]');
+    if (!b) return;
+    const [what, id] = b.dataset.isoq.split(':');
+    try {
+      let confirm = '';
+      if (what === 'dismiss') {
+        confirm = await askConfirm({ title: L('Niet isoleren?'), word: 'HOORT ZO', ok: L('Hoort zo'),
+          text: L('De server blijft gewoon bereikbaar. Doe dit alleen als je weet wat er gebeurde (bijvoorbeeld een update of je eigen werk).') });
+        if (confirm === null) return;
+      }
+      await api('iso_ask_decide', { id: +id, what, confirm });
+      toast(what === 'isolate' ? L('De server wordt geïsoleerd') : L('Genoteerd: niet geïsoleerd'));
+      ask.dataset.key = '';
+      refresh();
+    } catch (ex) { toast(ex.message, 'err'); }
+  });
   const el = $('#iso-banner');
   if (!el) return;
   el.addEventListener('click', async (e) => {

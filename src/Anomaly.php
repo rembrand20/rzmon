@@ -105,6 +105,11 @@ final class Anomaly
     public static function observe(array $host, string $kind, array $ev, string $sig, bool $hit, string $at): void
     {
         $hid = (int) $host['id'];
+        // 1.295.0: een update is geen aanval. Tijdelijke mappen van dracut, rpm, dnf en apt tellen nooit als nieuw bestand;
+        // programma's en verbindingen van het pakketbeheer (en wat het start) niet tijdens een update en kort erna.
+        if (($kind === 'file' && UpdateWindow::isPkgPath((string) ($ev['path'] ?? ''))) || (UpdateWindow::isPkgEvent($ev) && UpdateWindow::active($hid))) {
+            return;
+        }
         $hr = substr($at, 0, 13) . ':00:00';
         $letter = array_search($kind, Edr::KINDS, true) ?: '?';
         self::$hourly[$hid][$letter][$hr] = (self::$hourly[$hid][$letter][$hr] ?? 0) + 1;

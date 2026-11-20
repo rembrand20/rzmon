@@ -1781,6 +1781,22 @@ CREATE TABLE IF NOT EXISTS proxy_tags (
 
 -- 1.282.0: netwerken en relays. Een netwerk zonder verbinding met RzSense krijgt een relay (RzSense Relay, een container
 -- met de agent erin): de agents daar rapporteren via de relay, en de relay doet de checks in dat netwerk.
+-- 1.295.0: isoleren bij een keten: eerst vragen (Nu isoleren / Hoort zo), anders na de wachttijd alsnog
+CREATE TABLE IF NOT EXISTS iso_ask (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    host_id     INT UNSIGNED NOT NULL,
+    incident_id INT UNSIGNED NULL,
+    reason      VARCHAR(255) NOT NULL DEFAULT '',
+    created_at  DATETIME     NOT NULL,
+    deadline    DATETIME     NOT NULL,
+    state       VARCHAR(10)  NOT NULL DEFAULT 'open',
+    decided_by  VARCHAR(64)  NULL,
+    decided_at  DATETIME     NULL,
+    INDEX idx_iso_ask (state, deadline),
+    CONSTRAINT fk_iso_ask_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('edr_iso_mode', 'ask'), ('edr_iso_wait', '10'), ('edr_iso_after', 'isolate'), ('edr_upd_quiet', '15');
+
 -- 1.292.0: antwoorden van RzSense voor agents achter een relay waar RzSense ophaalt, tot de relay ze heeft
 CREATE TABLE IF NOT EXISTS relay_outbox (
     id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

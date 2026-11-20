@@ -3353,6 +3353,13 @@ body.lay-cc #tab-settings .set-off { display: none !important; }
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--ib-cr) 18%, transparent), 0 0 34px color-mix(in srgb, var(--ib-cr) 28%, transparent), var(--fx-shadow);
   animation: iso-glow 2.6s ease-in-out infinite; }
 .iso-banner > * { position: relative; z-index: 1; }
+/* 1.295.0: isoleren? (keten, eerst vragen) */
+.iso-ask { margin: 0 0 14px; border: 1px solid color-mix(in srgb, var(--warn) 55%, var(--border)); background: color-mix(in srgb, var(--warn) 10%, var(--card)); border-radius: 14px; padding: .4rem .9rem; }
+.iso-ask-row { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; padding: .45rem 0; }
+.iso-ask-row + .iso-ask-row { border-top: 1px solid var(--border); }
+.iso-ask-ic { font-size: 1.3rem; }
+.iso-ask-txt { flex: 1 1 280px; display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
+.iso-ask-acts { display: flex; flex-wrap: wrap; gap: .4rem; }
 .iso-banner .iso-grid { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .55;
   background-image: linear-gradient(var(--fx-grid) 1px, transparent 1px), linear-gradient(90deg, var(--fx-grid) 1px, transparent 1px); background-size: 22px 22px; }
 .iso-banner .iso-scan { position: absolute; inset: 0; z-index: 0; pointer-events: none;

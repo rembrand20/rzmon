@@ -632,6 +632,15 @@ switch ($action) {
         Ids::unisolate((int) (input()['host_id'] ?? 0), $user['username']);
         out(['ok' => true]);
 
+    // 1.295.0: vraag om te isoleren (keten): nu isoleren, of "hoort zo" (dat verlaagt de bescherming: met je wachtwoord)
+    case 'iso_ask_decide':
+        $in = input();
+        $what = ($in['what'] ?? '') === 'isolate' ? 'isolate' : 'dismiss';
+        if ($what === 'dismiss') {
+            $confirm('HOORT ZO');
+        }
+        ($e = IsoAsk::decide((int) ($in['id'] ?? 0), $what, (string) $user['username'], client_ip())) === null ? out(['ok' => true]) : out(['error' => $e], 409);
+
     case 'host_userlock':
         $in = input();
         $lock = !empty($in['lock']);

@@ -418,6 +418,7 @@ if ($action === 'agent') {
     }
     Perf::part('rapport:logins');
     // IDS: vergelijken met de basismeting, incidenten, brute force blokkeren
+    UpdateWindow::note($host, $in);   // 1.295.0: was er net een update (dnf, apt)? Dan is dat geen aanval
     if (is_array($in['ids'] ?? null)) {
         Ids::process($host, $in['ids'], (array) ($in['auth'] ?? []), (array) ($in['ports'] ?? []));
     }

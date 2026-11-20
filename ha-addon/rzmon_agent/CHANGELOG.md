@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.115.0 – 2026-11-20
+- **Updates herkennen** (RzSense 1.295.0): de agent geeft nu ook door of dnf, yum, rpm, apt of dpkg op dit moment draait, en kijkt ook naar `dnf.log`, het downloaden (`dnf.librepo.log`), `yum.log` en `apt/term.log`. Zo weet RzSense dat er een update bezig is, ook al tijdens het downloaden van de mirrors, en ziet het die niet aan voor een aanval.
+
 ## 1.114.0 – 2026-11-20
 - **Via een relay waar RzSense ophaalt** (RzSense 1.292.0, bijvoorbeeld in een DMZ). Zo'n relay bewaart het rapport en geeft het antwoord van RzSense pas bij een volgend rapport mee.
   - De agent onthoudt daarom de kenmerken (nonces) van zijn laatste 40 verzoeken, hooguit een dag. Hij neemt een antwoord alleen aan als het bij een daarvan hoort en met zijn eigen sleutel ondertekend is, en maar één keer.

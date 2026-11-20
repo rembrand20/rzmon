@@ -3125,6 +3125,17 @@ Bovenop de regels leert RzSense per server wat normaal is, en kijkt hij of losse
 
   - Een keten wordt een IDS-incident met **alle stappen in volgorde** (klik op een stap voor dat incident). Ingrijpen gebeurt één keer, als de keten nieuw is; *Ingrijpen bij een keten* zet je los uit.
   - *Ja, dit was ik* bij een keten: die soort keten wordt voor die server niet meer gemeld.
+  - **Isoleren bij een keten** (vanaf 1.295.0, *Instellingen → Bescherming → Endpoint-bewaking*):
+    - **Eerst vragen** (aangeraden, de standaard): je krijgt een melding met hoge prioriteit, en bovenaan RzSense staat op elke pagina een balk *"web-01 isoleren?"* met **🧱 Nu isoleren**, **Hoort zo** (met je wachtwoord, want het verlaagt de bescherming) en een afteller. Kiest niemand binnen de **wachttijd** (standaard 10 minuten), dan isoleert RzSense alsnog, of meldt het alleen, als je *Geen antwoord: dan alleen melden* kiest.
+    - **Meteen**: zoals vroeger. Tijdens een update vraagt RzSense dan toch eerst.
+    - **Alleen melden**: nooit automatisch isoleren.
+    - Staat een server in **onderhoud** (Servers → Onderhoud), dan isoleert RzSense hem nooit automatisch; de keten wordt wel gemeld.
+    - Een **reverse shell**, **cryptominer** of **ransomware** isoleert altijd meteen: die gaan niet via een keten.
+  - **Updates zijn geen aanval** (vanaf 1.295.0, agent 1.115.0). Tijdens een update met dnf, yum, rpm of apt verschijnen nieuwe programma's (bij een nieuwe kernel kopieert dracut ze naar `/var/tmp/dracut.…`), starten scriptlets van pakketten programma's, en maakt dnf nieuwe verbindingen naar de mirrors. Dat leek op *Programma binnengehaald en daarna contact naar buiten*. Nu:
+    - tellen de tijdelijke mappen van dracut, rpm, dnf en apt nooit als nieuw bestand;
+    - tellen de programma's en verbindingen van het pakketbeheer, en wat het start, tijdens een update en een kwartier erna niet als afwijking (*Rustig na een update*, instelbaar van 0 tot 120 minuten).
+    - De agent geeft door wanneer dnf of apt het laatst iets deed (hun logs). Vanaf agent 1.115.0 ook "nu bezig" als dnf, yum, rpm of apt draait, zodat ook het downloaden van de mirrors al als update telt.
+    - Een programma in `/tmp` dat niet van het pakketbeheer komt, blijft gewoon verdacht, ook tijdens een update.
 - **🧭 MITRE** (*🛡️ IDS → 🧭 MITRE*): alle meldingen van de laatste 7, 30 of 90 dagen in de matrix van [MITRE ATT&CK](https://attack.mitre.org) (versie 20): per stap van een aanval (Binnenkomen, Uitvoeren, Blijven, Rechten verhogen …) de technieken die gezien zijn, hoe vaak en hoe ernstig. Klik op een techniek voor de meldingen. **Ook wat de regels kunnen zien** toont ook de technieken die de regels herkennen maar die nog niet voorkwamen (de dekking).
 
 **🗺️ Aanvalskaart** (vanaf 1.149.0, *🛡️ IDS → 🗺️ Aanvalskaart*)

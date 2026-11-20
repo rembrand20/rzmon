@@ -227,6 +227,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
   <button type="button" class="cc-tvexit" id="cc-tvexit" hidden><?= th('✕ TV-modus uit') ?></button>
   <main class="container">
+    <div class="iso-ask" id="iso-ask" role="alert" hidden></div><!-- 1.295.0: isoleren? (keten, eerst vragen) -->
     <div class="iso-banner" id="iso-banner" role="alert" hidden></div><!-- 1.172.0: server in isolatie -->
 <?php if (Reserve::active()): ?>
     <div class="reserve-banner active" role="alert">🛟 <?= t('Deze <b>reserve</b> doet nu het werk van {url} (sinds {t}). Checks en meldingen lopen hier; zodra de hoofdserver terug is, geeft hij het terug.', ['url' => htmlspecialchars((string) setting('reserve_primary_url', '')), 't' => htmlspecialchars(date('d-m-Y H:i', (int) strtotime((string) setting('reserve_active_since', ''))))]) ?></div>
@@ -1269,6 +1270,15 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <label class="switch"><input type="checkbox" name="edr_chain"><span></span> <?= t('<b>Ketens melden</b> (combinaties die samen op een aanval wijzen)') ?></label>
           <label><?= th('Venster voor een keten (minuten)') ?> <input name="edr_chain_min" type="number" min="5" max="1440"></label>
           <label class="switch"><input type="checkbox" name="edr_chain_act"><span></span> <?= t('<b>Ingrijpen bij een keten</b> (aanvaller blokkeren; isoleren bij webshell of malware)') ?></label>
+          <div class="row">
+            <label><?= th('Isoleren bij een keten') ?>
+              <select name="edr_iso_mode"><option value="ask"><?= th('Eerst vragen (aangeraden)') ?></option><option value="now"><?= th('Meteen') ?></option><option value="notify"><?= th('Alleen melden') ?></option></select></label>
+            <label><?= th('Wachttijd (minuten)') ?> <input name="edr_iso_wait" type="number" min="1" max="120"></label>
+            <label><?= th('Geen antwoord') ?>
+              <select name="edr_iso_after"><option value="isolate"><?= th('dan toch isoleren') ?></option><option value="notify"><?= th('dan alleen melden') ?></option></select></label>
+          </div>
+          <label><?= th('Rustig na een update (minuten)') ?> <span class="muted small"><?= th('(dnf, yum, rpm of apt: hun programma\'s en verbindingen tellen dan niet als afwijking)') ?></span> <input name="edr_upd_quiet" type="number" min="0" max="120"></label>
+          <?= xp(t('Een update (dnf, apt) is geen aanval, en bij twijfel vraagt RzSense eerst.'), t('<b>Wat het doet:</b> tijdens een update met dnf, yum, rpm of apt, en een kwartier erna, tellen de programma\'s en verbindingen van het pakketbeheer niet als afwijking, en de tijdelijke mappen van dracut en rpm nooit. <b>Eerst vragen:</b> bij een keten die om isoleren vraagt, krijg je een melding en staat bovenaan RzSense een balk met <i>Nu isoleren</i> en <i>Hoort zo</i>. Kiest niemand binnen de wachttijd, dan isoleert RzSense alsnog (of meldt alleen). <b>Goed om te weten:</b> een reverse shell, cryptominer of ransomware isoleert altijd meteen. Staat een server in onderhoud (Servers → Onderhoud), dan isoleert RzSense hem nooit automatisch.')) ?>
           <?= xp(t('Afwijkingen (iets nieuws) en ketens (een combinatie die op een aanval lijkt).'), t('<b>Afwijking:</b> iets wat de server in de leerperiode nooit deed. Boven de ingestelde score wordt het een incident (warning). <b>Keten:</b> een combinatie die op een aanval lijkt, zoals webaanval → webshell, inloggen → achterdeur, of iets binnenhalen → contact naar buiten. Een keten is critical en gaat naar Pushover. <b>Goed om te weten:</b> ingrijpen gebeurt alleen in de modus <i>⛔ Blokkeren</i>. Alles staat op <i>🛡️ IDS → 🧬 Afwijkingen</i> en <i>🧭 MITRE</i>.')) ?>
         </div>
 

@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.295.0**: **updates zijn geen aanval meer**, en bij een aanvalsketen **vraagt RzSense eerst** of het moet isoleren.
 - **1.294.0**: **paginabreedte** per apparaat: begrensd, breed of de hele breedte van je scherm.
 - **1.293.0**: **logs zoeken in een nieuwe opbouw**: velden links (klik om te filteren), regels met hun velden, slepen over de tijdlijn en pagina's.
 - **1.292.0**: **RzSense haalt op bij de relay** (DMZ): de agents praten alleen met de relay, die nooit zelf naar RzSense belt.
 - **1.291.0**: de **agent blijft 's nachts rapporteren** als podman/docker niet antwoordt; bij elke stilte zie je de reden, en in Mijn account of je sleutel voor de proxy werkt.
-- **1.290.0**: **van buitenaf**: wat staat er van je netwerk open op internet (Shodan en vanuit RzSense), met een melding als er iets nieuws open gaat.
+
+## 1.295.0 – 2026-11-20
+### Nieuw
+- **Updates zijn geen aanval meer.** Nieuwe agent 1.115.0 (aangeraden, niet verplicht). Een dnf-update leek op *Programma binnengehaald en daarna contact naar buiten*: dracut kopieert bij een nieuwe kernel programma's naar `/var/tmp/dracut.…`, en dnf maakt nieuwe verbindingen naar de mirrors. Daardoor isoleerde RzSense de server. Zie HANDLEIDING 8.12 (Afwijkingen en ketens).
+  - De tijdelijke mappen van dracut, rpm, dnf en apt tellen nooit als nieuw bestand.
+  - De programma's en verbindingen van het pakketbeheer, en wat het start, tellen tijdens een update en een kwartier erna niet als afwijking (instelbaar).
+  - Vanaf agent 1.115.0 telt ook "dnf draait nu" als update, dus ook het downloaden.
+- **Isoleren bij een keten: eerst vragen** (de nieuwe standaard), meteen, of alleen melden.
+  - Bij *eerst vragen* krijg je een melding, en staat bovenaan RzSense een balk met **Nu isoleren**, **Hoort zo** en een afteller. Zonder keuze binnen 10 minuten (instelbaar) isoleert RzSense alsnog, of meldt het alleen.
+  - Tijdens **onderhoud** van een server isoleert RzSense nooit automatisch; tijdens een update vraagt het altijd eerst.
+  - Een reverse shell, cryptominer of ransomware isoleert nog steeds meteen.
 
 ## 1.294.0 – 2026-11-20
 ### Nieuw

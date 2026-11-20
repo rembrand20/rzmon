@@ -4079,6 +4079,48 @@ foreach ($rhParts as $part) {
 save_setting('reserve_hist_in', '{}');
 $GLOBALS['sm_config']['backup_dir'] = $rsBkOld;
 
+// 1.295.0: updates zijn geen aanval; isoleren bij een keten: eerst vragen
+section('Updates en isoleren');
+q("INSERT INTO hosts (name, address, mode, enabled) VALUES ('ci-upd', '10.0.0.91', 'agent', 1)");
+$uwH = (int) db()->lastInsertId();
+$uwHost = q('SELECT * FROM hosts WHERE id = ?', [$uwH])->fetch();
+ok(UpdateWindow::isPkgPath('/var/tmp/dracut.Ab12Cd/initramfs/usr/bin/ls') && UpdateWindow::isPkgPath('/var/tmp/rpm-tmp.XyZ123') && !UpdateWindow::isPkgPath('/tmp/.x/kworkerd')
+    && !UpdateWindow::isPkgPath('/tmp/dracut-fake/x') && UpdateWindow::isPkgEvent(['exe' => '/usr/bin/python3.9', 'comm' => 'dnf']) && UpdateWindow::isPkgEvent(['exe' => '/usr/bin/bash', 'pc' => 'rpm'])
+    && !UpdateWindow::isPkgEvent(['exe' => '/usr/bin/curl', 'pc' => 'bash']),
+    'update: tijdelijke mappen van dracut en rpm, programma\'s van het pakketbeheer (ook wat rpm start); de rest niet');
+ok(!UpdateWindow::active($uwH), 'update: zonder pakketbeheer geen update');
+UpdateWindow::note($uwHost, ['ids' => ['pkg' => time() - 60]]);
+$uwA = UpdateWindow::active($uwH);
+q("UPDATE agent_data SET value = ? WHERE host_id = ? AND metric = 'pkg_at'", [(string) (time() - 3 * 3600), $uwH]);
+$uwRef = new ReflectionProperty(UpdateWindow::class, 'at');
+$uwRef->setValue(null, []);
+ok($uwA && !UpdateWindow::active($uwH), 'update: dnf deed net iets = update bezig; drie uur geleden niet meer');
+save_setting('edr_iso_mode', 'ask');
+$uwM1 = IsoAsk::mode($uwH);
+save_setting('edr_iso_mode', 'now');
+$uwM2 = IsoAsk::mode($uwH);
+UpdateWindow::note($uwHost, ['ids' => ['pkg' => 0, 'pkg_busy' => 1]]);
+$uwM3 = IsoAsk::mode($uwH);
+q('UPDATE hosts SET maintenance_until = NOW() + INTERVAL 1 HOUR WHERE id = ?', [$uwH]);
+$uwM4 = IsoAsk::mode($uwH);
+q('UPDATE hosts SET maintenance_until = NULL WHERE id = ?', [$uwH]);
+save_setting('edr_iso_mode', 'ask');
+ok([$uwM1, $uwM2, $uwM3, $uwM4] === ['ask', 'now', 'ask', 'notify'], 'isoleren: de stand; meteen wordt eerst vragen tijdens een update; in onderhoud nooit automatisch');
+$uwQ = IsoAsk::open($uwHost, null, 'Aanvalsketen: test');
+$uwQ2 = IsoAsk::open($uwHost, null, 'Aanvalsketen: nog een');
+$uwP = IsoAsk::pending();
+$uwMine = static fn() => array_values(array_filter(IsoAsk::pending(), static fn($x) => $x['host_id'] === $uwH));
+ok(is_int($uwQ) && $uwQ2 === null && count($uwMine()) === 1 && $uwMine()[0]['name'] === 'ci-upd' && IsoAsk::decide($uwQ, 'dismiss', 'ci') === null
+    && $uwMine() === [] && is_string(IsoAsk::decide($uwQ, 'isolate', 'ci'))
+    && !q('SELECT 1 FROM hosts WHERE id = ? AND isolate_until > NOW()', [$uwH])->fetchColumn(),
+    'eerst vragen: één vraag per server, hoort zo = niet geïsoleerd, een beantwoorde vraag kan niet nog eens');
+$uwQ3 = IsoAsk::open($uwHost, null, 'Aanvalsketen: niemand reageert');
+q('UPDATE iso_ask SET deadline = NOW() - INTERVAL 1 MINUTE WHERE id = ?', [$uwQ3]);
+ok(IsoAsk::cron() >= 1 && (bool) q('SELECT 1 FROM hosts WHERE id = ? AND isolate_until > NOW()', [$uwH])->fetchColumn()
+    && q('SELECT state FROM iso_ask WHERE id = ?', [$uwQ3])->fetchColumn() === 'isolated',
+    'eerst vragen: geen antwoord binnen de wachttijd = alsnog geïsoleerd');
+q('DELETE FROM hosts WHERE id = ?', [$uwH]);
+
 // 1.293.0: velden uit logregels en zoeken op een veld
 section('Logs: velden');
 $lf1 = LogFields::extract("2026-08-19T10:04:37+01:00 S0723 syslog-ng[1038]: syslog-ng shutting down; version='4.8.2'");
