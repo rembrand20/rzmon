@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.293.0**: **logs zoeken in een nieuwe opbouw**: velden links (klik om te filteren), regels met hun velden, slepen over de tijdlijn en pagina's.
 - **1.292.0**: **RzSense haalt op bij de relay** (DMZ): de agents praten alleen met de relay, die nooit zelf naar RzSense belt.
 - **1.291.0**: de **agent blijft 's nachts rapporteren** als podman/docker niet antwoordt; bij elke stilte zie je de reden, en in Mijn account of je sleutel voor de proxy werkt.
 - **1.290.0**: **van buitenaf**: wat staat er van je netwerk open op internet (Shodan en vanuit RzSense), met een melding als er iets nieuws open gaat.
 - **1.289.0**: **checks via de relay**: de relay doet zelf ping, TCP en HTTP in zijn netwerk, ook voor apparaten zonder agent.
-- **1.288.0**: na een overname gaat de **geschiedenis van de reserve vanzelf terug** naar de hoofdserver, rustig en in delen, zonder dubbele rijen.
+
+## 1.293.0 – 2026-11-20
+### Nieuw
+- **Logs zoeken in een nieuwe opbouw**, in het thema van RzSense. Zie HANDLEIDING 8.8b.
+  - Bovenaan de zoekbalk met de periode, daaronder het aantal regels en de niveaus, dan de tijdlijn over de hele breedte. Links de velden, rechts de regels.
+  - **Velden:** RzSense haalt ze uit de regels tijdens het zoeken: programma en pid (syslog), IP-adres, gebruiker, methode, pad en status (HTTP), en elk paar `sleutel=waarde`. Per veld zie je hoeveel verschillende waarden het heeft, en met een klik de top 5. Klik op een waarde om erop te zoeken, of op − om hem uit te sluiten.
+  - **Zoeken op een veld:** `programma=sshd`, `-gebruiker=root`, `ip=203.0.113.*`. Werkt ook in vaste zoekacties.
+  - **Regels met hun velden eronder**, aanklikbaar. Met › klap je een regel open: alle velden in een tabel en de context.
+  - **Tijdlijn:** sleep over de balken om een stuk te kiezen. De tijdlijn blijft de hele periode tonen; met *Inzoomen op selectie* wordt de selectie de periode, met *Uitzoomen* een twee keer zo lange periode.
+  - **Pagina's** (25 tot 250 per pagina, tot 5000 treffers) in plaats van *Meer laden*.
 
 ## 1.292.0 – 2026-11-20
 ### Nieuw

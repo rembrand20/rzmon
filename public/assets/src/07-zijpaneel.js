@@ -154,7 +154,7 @@ async function al2LogAct(it, act) {
     return;
   }
   const t = Math.floor(al2Ts(it.first.created_at) / 1000), end = it.rec ? Math.floor(al2Ts(it.rec.created_at) / 1000) : Math.floor(Date.now() / 1000);
-  LP.q = d.q || ''; LP.hosts = d.host_id ? [+d.host_id] : []; LP.sources = []; LP.level = ''; LP.limit = 100; LP.allLv = null; LP.sub = 'search';
+  LP.q = d.q || ''; LP.hosts = d.host_id ? [+d.host_id] : []; LP.sources = []; LP.level = ''; LP.limit = 100; LP.page = 0; LP.allLv = null; LP.sub = 'search';
   LP.range = 'custom'; LP.from = t - Math.max(15, +d.win || 5) * 60 - 300; LP.to = Math.min(end + 300, Math.floor(Date.now() / 1000)); LP.hour = null;
   showTab('logs');
 }

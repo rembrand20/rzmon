@@ -4079,6 +4079,29 @@ foreach ($rhParts as $part) {
 save_setting('reserve_hist_in', '{}');
 $GLOBALS['sm_config']['backup_dir'] = $rsBkOld;
 
+// 1.293.0: velden uit logregels en zoeken op een veld
+section('Logs: velden');
+$lf1 = LogFields::extract("2026-08-19T10:04:37+01:00 S0723 syslog-ng[1038]: syslog-ng shutting down; version='4.8.2'");
+$lf2 = LogFields::extract('sshd[2911]: Failed password for invalid user admin from 203.0.113.45 port 51544 ssh2');
+$lf3 = LogFields::extract('198.51.100.7 - - [19/Aug/2026:10:02:12 +0200] "GET /wp-login.php?x=1 HTTP/1.1" 404 153 "-" "curl"');
+$lf4 = LogFields::extract('Nov 20 10:00:01 web01 kernel: [UFW BLOCK] IN=eth0 OUT= SRC=203.0.113.9 DPT=22 user=demo');
+ok(($lf1['programma'] ?? '') === 'syslog-ng' && ($lf1['pid'] ?? '') === '1038' && ($lf1['version'] ?? '') === '4.8.2'
+    && ($lf2['gebruiker'] ?? '') === 'admin' && ($lf2['ip'] ?? '') === '203.0.113.45' && ($lf2['programma'] ?? '') === 'sshd'
+    && ($lf3['pad'] ?? '') === '/wp-login.php' && ($lf3['status'] ?? '') === '404' && ($lf3['methode'] ?? '') === 'GET'
+    && ($lf4['programma'] ?? '') === 'kernel' && ($lf4['dpt'] ?? '') === '22' && !isset($lf4['out']) && !isset($lf4['user']) && ($lf4['gebruiker'] ?? '') === 'demo'
+    && LogFields::extract('http://x.example/a?b=c') === [],
+    'velden: programma en pid, gebruiker, ip, HTTP-verzoek, sleutel=waarde (niet in een URL, geen dubbele gebruiker)');
+$lq = LogStore::parseQuery('failed programma=sshd -gebruiker=root ip:203.0.113.* 10:04 server:web01');
+ok(count($lq['fields']) === 3 && $lq['fields'][1] === ['gebruiker', 'root', true] && in_array('10:04', $lq['words'], true) && $lq['hosts'] === ['web01']
+    && LogStore::lineMatch('sshd[1]: Failed password for admin from 203.0.113.45 at 10:04', $lq)
+    && !LogStore::lineMatch('sshd[1]: Failed password for root from 203.0.113.45 at 10:04', $lq)
+    && !LogStore::lineMatch('cron[1]: Failed password for admin from 203.0.113.45 at 10:04', $lq)
+    && !LogStore::lineMatch('sshd[1]: Failed password for admin from 198.51.100.1 at 10:04', $lq),
+    'zoeken op een veld: veld=waarde, -veld=waarde (uitsluiten), veld:waarde met *, gewone woorden met een dubbele punt blijven woorden');
+$lst = LogFields::stats([['server' => 'a', 'programma' => 'sshd'], ['server' => 'a', 'programma' => 'cron'], ['server' => 'b', 'programma' => 'sshd', 'x' => '1']]);
+ok(array_keys($lst) === ['server', 'programma', 'x'] && $lst['programma']['top'][0] === ['sshd', 2] && $lst['server']['n'] === 2 && $lst['x']['seen'] === 1,
+    'velden-kolom: vaste velden eerst, top van de waarden, aantal verschillende');
+
 // 1.292.0: RzSense haalt op bij de relay (DMZ)
 section('Relay: RzSense haalt op');
 $rpId = Relay::create('ci-dmz', 'ci', null, ['pull_url' => 'https://10.9.8.7:8445', 'pull_every' => 20]);

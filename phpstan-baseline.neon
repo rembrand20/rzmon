@@ -5191,12 +5191,6 @@ parameters:
 			path: src/LogStore.php
 
 		-
-			message: '#^Method LogStore\:\:search\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/LogStore.php
-
-		-
 			message: '#^Method LogStore\:\:sources\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1

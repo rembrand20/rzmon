@@ -1008,7 +1008,8 @@ switch ($action) {
         $r = LogStore::search(['q' => (string) ($in['q'] ?? ''), 'from' => (int) ($in['from'] ?? 0), 'to' => (int) ($in['to'] ?? 0),
             'hosts' => array_filter(array_map('intval', explode(',', (string) ($in['hosts'] ?? '')))),
             'sources' => array_filter(array_map('intval', explode(',', (string) ($in['sources'] ?? '')))),
-            'level' => ($in['level'] ?? '') === '' ? null : (int) $in['level'], 'limit' => $action === 'log_export' ? 5000 : (int) ($in['limit'] ?? 100)]);
+            'level' => ($in['level'] ?? '') === '' ? null : (int) $in['level'], 'limit' => $action === 'log_export' ? 5000 : (int) ($in['limit'] ?? 100), 'offset' => $action === 'log_export' ? 0 : (int) ($in['offset'] ?? 0),
+            'sfrom' => (int) ($in['sfrom'] ?? 0), 'sto' => (int) ($in['sto'] ?? 0)]);
         if (isset($r['error'])) {
             out($r, 422);
         }

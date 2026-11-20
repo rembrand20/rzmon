@@ -8607,7 +8607,7 @@ async function lwLoad() {
     if (e.target.closest('#lw-new')) return lwEdit({ q: '' });
     if (e.target.closest('#lw-lib')) return lwLibrary();   // 1.250.0
     const f = e.target.closest('[data-lw-find]');
-    if (f) { const w = LW.list.find((x) => x.id === +f.dataset.lwFind); LP.q = w.q; LP.hosts = []; LP.sources = []; LP.level = ''; LP.hour = null; LP.limit = 100; LP.allLv = null; LP.sub = 'search'; return loadLogsPage(); }
+    if (f) { const w = LW.list.find((x) => x.id === +f.dataset.lwFind); LP.q = w.q; LP.hosts = []; LP.sources = []; LP.level = ''; LP.hour = null; LP.limit = 100; LP.page = 0; LP.allLv = null; LP.sub = 'search'; return loadLogsPage(); }
     const ed = e.target.closest('[data-lw-edit]');
     if (ed) return lwEdit(LW.list.find((x) => x.id === +ed.dataset.lwEdit));
     const del = e.target.closest('[data-lw-del]');
@@ -8730,7 +8730,7 @@ async function lwTest(v) {
 }
 
 // ---------------------------------------------------------------- 1.211.0: pagina Logs (zoeken en binnenkomst)
-const LP = { q: '', range: '24h', from: 0, to: 0, level: '', hosts: [], sources: [], limit: 100, hour: null, sub: 'search', facets: null, last: null, busy: 0 };
+const LP = { q: '', range: '24h', from: 0, to: 0, level: '', hosts: [], sources: [], limit: 100, hour: null, sub: 'search', facets: null, last: null, busy: 0, page: 0, per: 50, open: new Set(), fopen: '', side: true };
 const LP_RANGES = () => [['15m', L('Laatste 15 minuten'), 900], ['1h', L('Laatste uur'), 3600], ['24h', L('Laatste 24 uur'), 86400], ['today', L('Vandaag'), 0],
   ['7d', L('Laatste 7 dagen'), 7 * 86400], ['all', L('Alles'), 365 * 86400], ['custom', L('Zelf kiezen…'), 0]];
 const LP_LV = ['debug', 'info', 'warning', 'error', 'critical'];
@@ -8738,7 +8738,7 @@ const LP_LV = ['debug', 'info', 'warning', 'error', 'critical'];
 /** Vanaf een server: de zoekpagina met server: ingevuld */
 function openLogsFor(h) {
   LP.q = h ? `server:${/\s/.test(h.name) ? h.name.split(/\s/)[0] : h.name}` : '';
-  LP.hosts = []; LP.sources = []; LP.hour = null; LP.sub = 'search';
+  LP.hosts = []; LP.sources = []; LP.hour = null; LP.sub = 'search'; LP.page = 0;
   if ($('#modal') && $('#modal').open) $('#modal').close();
   showTab('logs');
 }
@@ -8766,6 +8766,8 @@ async function loadLogsPage() {
   $('#lp-search').hidden = LP.sub !== 'search';
   $('#lp-in').hidden = LP.sub !== 'in';
   $('#lp-watch').hidden = LP.sub !== 'watch';
+  if ($('#lp-save-w')) $('#lp-save-w').hidden = LP.sub !== 'search';   // 1.293.0: alleen bij zoeken
+  $('#lp-csv').hidden = LP.sub !== 'search';
   if (LP.sub === 'in') { loadLogsOverview('#lp-in-box'); return; }
   if (LP.sub === 'watch') { lwLoad(); return; }   // 1.212.0
   if (!LW.list) api('log_watches').then((r) => { LW.list = r.watches; lwCount(); }).catch(() => {});
@@ -8781,77 +8783,174 @@ async function loadLogsPage() {
   lpChips();
 }
 
+// 1.293.0: nieuwe opbouw (zoals Splunk): zoekbalk met periode, regel met aantallen en niveaus, tijdlijn over de hele breedte
+// met selecteren door te slepen, links de velden (gekozen en gevonden in de regels), rechts de regels met hun velden eronder,
+// openklappen met alle velden, en pagina's.
+const LP_FIXED = ['server', 'bron', 'niveau', 'programma'];
+const lpSideOn = () => { try { const v = localStorage.getItem('rzmon_lp_side'); return v === null ? window.innerWidth > 900 : v === '1'; } catch (e) { return true; } };
+
 function lpBuild(el) {
   el.dataset.built = '1';
+  LP.side = lpSideOn();
+  LP.page = LP.page || 0; LP.per = LP.per || 50; LP.open = LP.open || new Set();
   el.innerHTML = `
     <div class="lp-bar"><div class="seg" id="logs-sub" role="tablist">
       <button type="button" class="seg-btn active" data-lp-sub="search" role="tab">🔎 ${L('Zoeken')}</button>
       <button type="button" class="seg-btn" data-lp-sub="watch" role="tab">🔔 ${L('Vaste zoekacties')} <b class="lp-w-n" id="lp-w-n"></b></button>
-      <button type="button" class="seg-btn" data-lp-sub="in" role="tab">📥 ${L('Binnenkomst')}</button></div></div>
-    <section id="lp-search" class="card lp-card">
+      <button type="button" class="seg-btn" data-lp-sub="in" role="tab">📥 ${L('Binnenkomst')}</button></div>
+      <span class="lp-sp"></span>
+      ${isAdmin() || isUser() ? `<button type="button" class="btn lp-save-w" id="lp-save-w" title="${esc(L('Een melding als deze zoekopdracht te vaak (of nooit) voorkomt'))}">🔔 ${L('Bewaren als melding')}</button>` : ''}
+      <button type="button" class="btn" id="lp-csv" title="${esc(L('De huidige zoekopdracht als CSV, tot 5000 regels'))}">⤓ CSV</button></div>
+    <section id="lp-search" class="lp-card lp2">
       <div class="lp-q">
         <label class="lp-in"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
-          <input id="lp-q" type="search" autocomplete="off" spellcheck="false" placeholder="${esc(L('Zoek in de logs, bv. "failed password" server:web01 -192.168.1.'))}" aria-label="${esc(L('Zoeken in logs'))}"></label>
+          <input id="lp-q" type="search" autocomplete="off" spellcheck="false" placeholder="${esc(L('Zoek in de logs, bv. "failed password" server:web01 programma=sshd -192.168.1.'))}" aria-label="${esc(L('Zoeken in logs'))}"></label>
         <select id="lp-range" aria-label="${esc(L('Periode'))}">${LP_RANGES().map(([k, t]) => `<option value="${k}">${esc(t)}</option>`).join('')}</select>
-        <button type="button" class="btn primary" id="lp-go">${L('Zoeken')}</button>
-        ${isAdmin() || isUser() ? `<button type="button" class="btn lp-save-w" id="lp-save-w" title="${esc(L('Een melding als deze zoekopdracht te vaak (of nooit) voorkomt'))}">🔔 ${L('Bewaren als melding')}</button>` : ''}
+        <button type="button" class="btn primary lp-go" id="lp-go" aria-label="${esc(L('Zoeken'))}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg></button>
       </div>
       <div class="lp-custom" id="lp-custom" hidden><label>${L('Van')} <input type="datetime-local" id="lp-from"></label><label>${L('Tot')} <input type="datetime-local" id="lp-to"></label></div>
-      <div class="lp-help small muted"><span>${L('Zo zoek je:')}</span>${['woord', '"exacte zin"', '-uitsluiten', 'server:', 'bron:', 'niveau:error', '/regex/'].map((t) => `<button type="button" class="lp-tok" data-lp-tok="${esc(t)}">${esc(t)}</button>`).join('')}
-        <span>· ${L('hoofdletters maken niet uit · alle woorden moeten erin staan')}</span></div>
-      <div class="lp-row"><div class="lp-chips" id="lp-levels" role="group" aria-label="${esc(L('Niveau'))}"></div><span class="lp-sp"></span>
-        <div class="lp-chips" id="lp-scope"></div></div>
-      <div class="lp-hist-box"><div class="lp-row"><b class="small" id="lp-total"></b><span class="muted small" id="lp-stat"></span><span class="lp-sp"></span>
-        <span class="lp-legend small muted"><span style="--c:var(--crit)">error</span><span style="--c:var(--warn)">warning</span><span style="--c:var(--primary)">info</span></span></div>
-        <div class="lp-hist" id="lp-hist" role="img"></div><div class="lp-ax" id="lp-ax"></div>
-        <p class="muted small lp-hint" id="lp-hint">${L('Klik op een balk om alleen dat tijdvak te zien; nog eens klikken heft het op.')}</p></div>
-      <div id="lp-res" class="lp-lines"></div>
-      <div class="lp-more" id="lp-more"></div>
+      <div class="lp-help small muted"><span>${L('Zo zoek je:')}</span>${['woord', '"exacte zin"', '-uitsluiten', 'server:', 'bron:', 'niveau:error', 'veld=waarde', '/regex/'].map((t) => `<button type="button" class="lp-tok" data-lp-tok="${esc(t)}">${esc(t)}</button>`).join('')}
+        <span>· ${L('alle woorden moeten erin staan · klik op een veld of waarde om erop te zoeken')}</span></div>
+      <div class="lp-status"><span><span class="good-txt" aria-hidden="true">✔</span> <b id="lp-total"></b> <span class="muted small" id="lp-stat"></span></span><span class="lp-sp"></span>
+        <div class="lp-chips" id="lp-levels" role="group" aria-label="${esc(L('Niveau'))}"></div></div>
+      <div class="lp-row"><div class="lp-chips" id="lp-scope"></div></div>
+      <div class="lp-hist-box"><div class="lp-row">
+          <button type="button" class="btn small-btn" id="lp-zout">− ${L('Uitzoomen')}</button>
+          <button type="button" class="btn small-btn" id="lp-zin">＋ ${L('Inzoomen op selectie')}</button>
+          <button type="button" class="btn small-btn" id="lp-zclr">✕ ${L('Selectie weg')}</button><span class="lp-sp"></span>
+          <span class="muted small" id="lp-hint"></span>
+          <span class="lp-legend small muted"><span style="--c:var(--crit)">error</span><span style="--c:var(--warn)">warning</span><span style="--c:var(--primary)">info</span></span></div>
+        <div class="lp-hist" id="lp-hist" role="group"></div><div class="lp-ax" id="lp-ax"></div></div>
+      <div class="lp-body${LP.side ? '' : ' no-side'}" id="lp-body">
+        <aside class="lp-fields" id="lp-fields" aria-label="${esc(L('Velden'))}"></aside>
+        <div class="lp-main">
+          <div class="lp-tools"><button type="button" class="btn small-btn" id="lp-side">${LP.side ? L('Velden verbergen') : L('Velden tonen')}</button>
+            <label class="small muted">${L('Per pagina')} <select id="lp-per">${[25, 50, 100, 250].map((n) => `<option ${n === LP.per ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+            <span class="lp-sp"></span><nav class="lp-pager" id="lp-pager" aria-label="${esc(L('Pagina\'s'))}"></nav></div>
+          <div id="lp-res" class="lp-lines"></div>
+          <div class="lp-tools"><span class="muted small" id="lp-shown"></span><span class="lp-sp"></span><nav class="lp-pager" id="lp-pager2" aria-label="${esc(L('Pagina\'s'))}"></nav></div>
+        </div>
+      </div>
     </section>
     <section id="lp-watch" class="card lp-card" hidden><div id="lp-watch-box"><p class="muted">${L('Laden…')}</p></div></section>
     <section id="lp-in" class="card lp-card" hidden><div id="lp-in-box"><p class="muted">${L('Laden…')}</p></div></section>`;
-  const go = () => { LP.q = $('#lp-q').value.trim(); LP.limit = 100; LP.hour = null; LP.allLv = null; lpSearch(); };
+  const reset = () => { LP.page = 0; LP.open = new Set(); };
+  const go = () => { LP.q = $('#lp-q').value.trim(); reset(); LP.hour = null; LP.allLv = null; lpSearch(); };
   $('#lp-go').onclick = go;
   $('#lp-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
   $('#lp-range').onchange = (e) => {
     LP.range = e.target.value; LP.hour = null;
     $('#lp-custom').hidden = LP.range !== 'custom';
-    if (LP.range !== 'custom') { LP.limit = 100; lpSearch(); }
+    if (LP.range !== 'custom') { reset(); lpSearch(); }
   };
   const cust = () => {
     const f = $('#lp-from').value, t = $('#lp-to').value;
     if (!f) return;
-    LP.from = Math.floor(new Date(f) / 1000); LP.to = t ? Math.floor(new Date(t) / 1000) : 0; LP.limit = 100; lpSearch();
+    LP.from = Math.floor(new Date(f) / 1000); LP.to = t ? Math.floor(new Date(t) / 1000) : 0; reset(); lpSearch();
   };
   $('#lp-from').onchange = cust; $('#lp-to').onchange = cust;
+  $('#lp-per').onchange = (e) => { LP.per = +e.target.value; reset(); lpSearch(); };
+  lpHistDrag($('#lp-hist'));
   el.addEventListener('click', async (e) => {
     const sub = e.target.closest('[data-lp-sub]');
     if (sub) { LP.sub = sub.dataset.lpSub; loadLogsPage(); return; }
     const tok = e.target.closest('[data-lp-tok]');
     if (tok) { const q = $('#lp-q'); q.value = (q.value + ' ' + tok.dataset.lpTok).trim(); q.focus(); return; }
     const lv = e.target.closest('[data-lp-lv]');
-    if (lv) { LP.level = lv.dataset.lpLv; LP.limit = 100; lpSearch(); return; }
+    if (lv) { LP.level = lv.dataset.lpLv; reset(); lpSearch(); return; }
     const rm = e.target.closest('[data-lp-rm]');
-    if (rm) { const [k, id] = rm.dataset.lpRm.split(':'); LP[k] = LP[k].filter((x) => x !== +id); LP.limit = 100; lpChips(); lpSearch(); return; }
-    const bar = e.target.closest('[data-lp-b]');
-    if (bar && LP.last) {
-      const i = +bar.dataset.lpB, s = LP.last.start + i * LP.last.bucket;
-      LP.hour = LP.hour && LP.hour[0] === s ? null : [s, s + LP.last.bucket - 1];
-      LP.limit = 100; lpSearch(); return;
+    if (rm) { const [k, id] = rm.dataset.lpRm.split(':'); LP[k] = LP[k].filter((x) => x !== +id); reset(); lpChips(); lpSearch(); return; }
+    if (e.target.closest('#lp-zin')) { if (LP.hour) lpSetRange(LP.hour[0], LP.hour[1]); return; }
+    if (e.target.closest('#lp-zout')) {
+      const [f, t] = lpPeriod(), span = Math.max(60, t - f), now = Math.floor(Date.now() / 1000);
+      lpSetRange(f - span / 2, Math.min(now, t + span / 2));
+      return;
     }
-    if (e.target.closest('#lp-more-btn')) { LP.limit = Math.min(1000, LP.limit + 100); lpSearch(); return; }
+    if (e.target.closest('#lp-zclr')) { LP.hour = null; reset(); lpSearch(); return; }
+    if (e.target.closest('#lp-side')) {
+      LP.side = !LP.side;
+      try { localStorage.setItem('rzmon_lp_side', LP.side ? '1' : '0'); } catch (ex) { /* alleen voor nu */ }
+      $('#lp-body').classList.toggle('no-side', !LP.side);
+      $('#lp-side').textContent = LP.side ? L('Velden verbergen') : L('Velden tonen');
+      return;
+    }
+    const pg = e.target.closest('[data-lp-pg]');
+    if (pg) { LP.page = +pg.dataset.lpPg; LP.open = new Set(); await lpSearch(); $('#lp-body').scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
+    const fo = e.target.closest('[data-lp-fopen]');
+    if (fo) { LP.fopen = LP.fopen === fo.dataset.lpFopen ? '' : fo.dataset.lpFopen; lpFields(); return; }
+    const fa = e.target.closest('[data-lp-fadd]');
+    if (fa) { const [k, v] = JSON.parse(fa.dataset.lpFadd); lpAddField(k, v, fa.dataset.neg === '1'); return; }
     if (e.target.closest('#lp-csv')) { lpCsv(); return; }
     if (e.target.closest('#lp-save-w')) { lwEdit({ q: lwQueryFromSearch() }); return; }   // 1.212.0
-    const ln = e.target.closest('.lp-ln[data-ref]');
-    if (ln && !e.target.closest('a, button')) lpContext(ln);
+    const tg = e.target.closest('[data-lp-tg]');
+    if (tg) {
+      const r = tg.closest('.lp-r'), ref = r.dataset.ref;
+      if (LP.open.has(ref)) LP.open.delete(ref); else LP.open.add(ref);
+      r.classList.toggle('open', LP.open.has(ref));
+      tg.setAttribute('aria-expanded', LP.open.has(ref) ? 'true' : 'false');
+      return;
+    }
+    const cx = e.target.closest('[data-lp-ctx]');
+    if (cx) { lpContext(cx.closest('.lp-r')); }
   });
   el.addEventListener('change', (e) => {
     const s = e.target.closest('[data-lp-add]');
     if (!s || !s.value) return;
     const k = s.dataset.lpAdd, id = +s.value;
     if (!LP[k].includes(id)) LP[k].push(id);
-    LP.limit = 100; lpChips(); lpSearch();
+    reset(); lpChips(); lpSearch();
   });
+}
+
+/** Zoomen: de periode wordt "zelf kiezen" met deze tijden */
+function lpSetRange(f, t) {
+  LP.range = 'custom'; LP.from = Math.floor(f); LP.to = Math.floor(t); LP.hour = null; LP.page = 0; LP.open = new Set();
+  $('#lp-range').value = 'custom';
+  $('#lp-custom').hidden = false;
+  const loc = (s) => { const d = new Date(s * 1000); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
+  $('#lp-from').value = loc(LP.from); $('#lp-to').value = loc(LP.to);
+  lpSearch();
+}
+
+/** Tijdlijn: klikken = één balk, slepen = een stuk; nog eens klikken op dezelfde balk heft het op */
+function lpHistDrag(box) {
+  let a = null, b = null;
+  // Welke balk: uit de positie van de muis (een lege balk heeft geen hoogte om op te klikken)
+  const idx = (e) => {
+    const n = box.children.length, r = box.getBoundingClientRect();
+    if (!n || !r.width) return null;
+    return Math.max(0, Math.min(n - 1, Math.floor((e.clientX - r.left) / r.width * n)));
+  };
+  const paint = () => $$('[data-lp-b]', box).forEach((x) => { const i = +x.dataset.lpB; x.classList.toggle('sel', a !== null && i >= Math.min(a, b) && i <= Math.max(a, b)); });
+  box.addEventListener('pointerdown', (e) => { const i = idx(e); if (i === null || !LP.last) return; a = b = i; box.setPointerCapture(e.pointerId); paint(); e.preventDefault(); });
+  box.addEventListener('pointermove', (e) => { if (a === null) return; const i = idx(e); if (i !== null && i !== b) { b = i; paint(); } });
+  box.addEventListener('pointerup', () => {
+    if (a === null || !LP.last) return;
+    const lo = Math.min(a, b), hi = Math.max(a, b), s = LP.last.start + lo * LP.last.bucket, t = LP.last.start + (hi + 1) * LP.last.bucket - 1;
+    a = b = null;
+    LP.hour = LP.hour && LP.hour[0] === s && LP.hour[1] === t ? null : [s, t];
+    LP.page = 0; LP.open = new Set(); lpSearch();
+  });
+  box.addEventListener('keydown', (e) => {   // toetsenbord: Enter of spatie op een balk
+    const x = e.target.closest('[data-lp-b]');
+    if (!x || (e.key !== 'Enter' && e.key !== ' ') || !LP.last) return;
+    e.preventDefault();
+    const s = LP.last.start + +x.dataset.lpB * LP.last.bucket;
+    LP.hour = LP.hour && LP.hour[0] === s ? null : [s, s + LP.last.bucket - 1];
+    LP.page = 0; lpSearch();
+  });
+}
+
+/** Een veld aan de zoekopdracht toevoegen (of uitsluiten) */
+function lpAddField(k, v, neg) {
+  if (k === 'niveau') { LP.level = { debug: '1', info: '1', warning: '2', error: '3', critical: '3' }[v] || ''; LP.page = 0; lpSearch(); return; }
+  const key = k === 'server' ? 'server:' : k === 'bron' ? 'bron:' : `${k}=`;
+  let val = String(v);
+  if (k === 'server' || k === 'bron') val = val.split(/\s/)[0];
+  const tok = /\s/.test(val) ? `"${val.replace(/"/g, '')}"` : (neg ? '-' : '') + key + val;
+  const q = $('#lp-q');
+  if (!q.value.split(/\s+/).includes(tok)) q.value = (q.value + ' ' + tok).trim();
+  LP.q = q.value.trim(); LP.page = 0; LP.open = new Set(); LP.allLv = null; lpSearch();
 }
 
 function lpChips() {
@@ -8867,13 +8966,44 @@ function lpChips() {
     + `<select class="lp-add" data-lp-add="sources" aria-label="${esc(L('Bron toevoegen'))}"><option value="">＋ ${L('Bron')}</option>${fs.filter((s) => !LP.sources.includes(s.id) && (!LP.hosts.length || LP.hosts.includes(s.host_id))).map((s) => `<option value="${s.id}">${esc(s.host + ' › ' + s.name)}</option>`).join('')}</select>`;
 }
 
+/** De velden-kolom: gekozen velden en wat in de regels gevonden is, met de top 5 van een open veld */
+function lpFields() {
+  const r = LP.last, box = $('#lp-fields');
+  if (!r || !box) return;
+  const fs = r.fstats || {}, names = Object.keys(fs);
+  const item = (k) => {
+    const f = fs[k], open = LP.fopen === k;
+    return `<div class="lp-f${open ? ' open' : ''}"><button type="button" class="lp-fb" data-lp-fopen="${esc(k)}" aria-expanded="${open}">
+        <span><i aria-hidden="true">${f.top.every(([v]) => /^-?\d+(\.\d+)?$/.test(v)) ? '#' : 'a'}</i> ${esc(k)}</span><span class="muted">${dec(f.n)}</span></button>
+      ${open ? `<div class="lp-fpop"><span class="muted small">${esc(L('in {n} van {m} regels · {d} waarden', { n: dec(f.seen), m: dec(r.fsample), d: dec(f.n) }))}</span>
+        ${f.top.map(([v, c]) => `<div class="lp-fv"><button type="button" class="lp-fvb" data-lp-fadd="${esc(JSON.stringify([k, v]))}" title="${esc(L('Zoeken op {k}={v}', { k, v }))}"><span>${esc(v)}</span><span class="muted">${dec(c)}</span></button>
+          <button type="button" class="lp-fx" data-lp-fadd="${esc(JSON.stringify([k, v]))}" data-neg="1" aria-label="${esc(L('Uitsluiten: {k}={v}', { k, v }))}" title="${esc(L('Uitsluiten'))}">−</button>
+          <span class="lp-fbar"><span style="width:${Math.max(3, Math.round(c / f.top[0][1] * 100))}%"></span></span></div>`).join('')}</div>` : ''}</div>`;
+  };
+  const picked = LP_FIXED.filter((k) => fs[k]), found = names.filter((k) => !LP_FIXED.includes(k));
+  box.innerHTML = r.fsample ? `<h4 class="lp-fh">${L('Gekozen')}</h4>${picked.map(item).join('')}
+      ${found.length ? `<h4 class="lp-fh">${L('Gevonden in de regels')}</h4>${found.slice(0, 20).map(item).join('')}` : ''}
+      <p class="muted small lp-fnote">${esc(L('Over de nieuwste {n} treffers. Klik op een waarde om erop te zoeken.', { n: dec(r.fsample) }))}</p>`
+    : `<p class="muted small lp-fnote">${L('Nog geen velden: geen treffers.')}</p>`;
+}
+
+/** De hele periode (zonder de selectie op de tijdlijn): de tijdlijn toont altijd alles, de selectie filtert de regels */
+function lpFull() {
+  const h = LP.hour;
+  LP.hour = null;
+  const r = lpPeriod();
+  LP.hour = h;
+  return r;
+}
+
 async function lpSearch() {
-  const [from, to] = lpPeriod();
+  const [from, to] = lpFull();
   const busy = ++LP.busy;
   $('#lp-res').classList.add('lp-loading');
   let r;
   try {
-    r = await api('log_search', null, { q: LP.q, from, to, level: LP.level, hosts: LP.hosts.join(','), sources: LP.sources.join(','), limit: LP.limit });
+    r = await api('log_search', null, { q: LP.q, from, to, level: LP.level, hosts: LP.hosts.join(','), sources: LP.sources.join(','), limit: LP.per, offset: LP.page * LP.per,
+      sfrom: LP.hour ? LP.hour[0] : '', sto: LP.hour ? LP.hour[1] : '' });
   } catch (ex) {
     if (busy !== LP.busy) return;
     $('#lp-res').classList.remove('lp-loading');
@@ -8884,38 +9014,74 @@ async function lpSearch() {
   LP.last = r;
   $('#lp-res').classList.remove('lp-loading');
   if (LP.enter) { LP.enter = false; lpEnter($('#logs-page')); }   // 1.220.1: de regels komen binnen met de animatie
-  // Niveaus (telling over de hele periode)
-  // Aantallen per niveau van de zoekopdracht zonder niveaufilter (anders staan de andere niveaus op 0)
   if (LP.level === '') LP.allLv = r.levels;
   const lv = (LP.level !== '' && LP.allLv) || r.levels, all = lv.reduce((a, b) => a + b, 0);
   $('#lp-levels').innerHTML = [['', L('Alles'), all], ['3', L('Error en erger'), lv[3] + lv[4]], ['2', 'Warning', lv[2]], ['1', 'Info', lv[0] + lv[1]]]
     .map(([k, t, n]) => `<button type="button" class="dchip ${LP.level === k ? 'on' : ''}" data-lp-lv="${k}">${esc(t)} <b>${dec(n)}</b></button>`).join('');
-  $('#lp-total').textContent = r.total === 1 ? L('1 treffer') : L('{n} treffers', { n: dec(r.total) });
-  $('#lp-stat').textContent = L('{l} regels doorzocht in {b} blokken ({s} s)', { l: dec(r.scanned), b: dec(r.blocks), s: dec((r.ms / 1000).toFixed(2)) })
+  const dt = (s) => new Date(s * 1000).toLocaleString(LOCALE, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  $('#lp-total').textContent = r.total === 1 ? L('1 regel') : L('{n} regels', { n: dec(r.total) });
+  $('#lp-stat').textContent = `(${dt(r.from)} – ${dt(r.to)}) · ` + L('{l} regels doorzocht in {s} s', { l: dec(r.scanned), s: dec((r.ms / 1000).toFixed(2)) })
     + (r.partial ? ' · ' + L('telling onvolledig: te veel om binnen 8 s te tellen, kies een kortere periode') : '');
-  // Grafiek
-  const max = Math.max(1, ...r.hist.map((b) => b[0] + b[1] + b[2]));
-  const fmt = (t) => { const d = new Date(t * 1000); return r.bucket >= 86400 ? d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' }) : r.bucket >= 3600 && to - from > 86400 ? d.toLocaleString(LOCALE, { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' }); };
-  $('#lp-hist').innerHTML = r.hist.map((b, i) => {
-    const n = b[0] + b[1] + b[2], s = r.start + i * r.bucket, sel = LP.hour && LP.hour[0] === s;
-    return `<button type="button" class="lp-b${sel ? ' sel' : ''}" data-lp-b="${i}" style="--b:${i};--h:${n ? Math.max(3, n / max * 100) : 0}%" title="${esc(fmt(s) + ': ' + L('{n} treffers', { n: dec(n) }))}"><i class="e" style="flex:${b[2]}"></i><i class="w" style="flex:${b[1]}"></i><i class="n" style="flex:${b[0]}"></i></button>`;
-  }).join('');
-  $('#lp-hist').setAttribute('aria-label', L('Treffers per tijdvak'));
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => r.start + Math.round(f * (r.hist.length - 1)) * r.bucket);
-  $('#lp-ax').innerHTML = ticks.map((t) => `<span>${esc(fmt(t))}</span>`).join('');
-  $('#lp-hint').textContent = LP.hour ? L('Alleen {t}; klik nog eens op de balk voor de hele periode.', { t: fmt(LP.hour[0]) }) : L('Klik op een balk om alleen dat tijdvak te zien; nog eens klikken heft het op.');
-  // Treffers
+  lpHist(r);
+  lpFields();
+  // Regels
   const words = r.words || [];
   const mark = (s) => {
     let h = esc(s);
     words.forEach((w) => { const e = esc(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); h = h.replace(new RegExp(e, 'gi'), (m) => `<mark>${m}</mark>`); });
     return h.replace(/••••/g, '<span class="lp-mask">••••</span>');
   };
-  $('#lp-res').innerHTML = r.hits.length ? r.hits.map((h) => lpLine(h, mark)).join('')
+  $('#lp-res').innerHTML = r.hits.length ? `<div class="lp-rh" aria-hidden="true"><span></span><span>${L('Tijd')}</span><span>${L('Regel')}</span></div>` + r.hits.map((h) => lpRow(h, mark)).join('')
     : `<p class="muted lp-empty">${(LP.facets && LP.facets.sources.length) ? L('Niets gevonden in deze periode.') : L('Nog geen logs. Kies per server welke logs hij stuurt: Agent Manager › kaart Logs.')}</p>`;
-  $$('#lp-res > .lp-ln').forEach((ln, k) => { if (k < 40) ln.style.setProperty('--i', k); });   // 1.214.0: na elkaar binnenkomen
-  $('#lp-more').innerHTML = r.hits.length ? `${r.hits.length >= r.limit && r.limit < 1000 ? `<button type="button" class="btn" id="lp-more-btn">${L('Meer laden (100)')}</button>` : ''}
-    <button type="button" class="btn" id="lp-csv">⤓ CSV</button><span class="muted small">${L('nieuwste eerst · {n} getoond', { n: dec(r.hits.length) })}</span>` : '';
+  $$('#lp-res > .lp-r').forEach((ln, k) => { if (k < 40) ln.style.setProperty('--i', k); });   // 1.214.0: na elkaar binnenkomen
+  // Pagina's
+  const max = Math.min(r.total, r.max || 5000), pages = Math.max(1, Math.ceil(max / LP.per)), p = LP.page;
+  const nums = [...new Set([0, p - 2, p - 1, p, p + 1, p + 2, pages - 1])].filter((x) => x >= 0 && x < pages).sort((x, y) => x - y);
+  const pager = pages < 2 ? '' : `<button type="button" class="lp-pg" data-lp-pg="${p - 1}" ${p ? '' : 'disabled'}>‹ ${L('Vorige')}</button>`
+    + nums.map((n, i) => `${i && n - nums[i - 1] > 1 ? '<span class="muted">…</span>' : ''}<button type="button" class="lp-pg${n === p ? ' on' : ''}" data-lp-pg="${n}" ${n === p ? 'aria-current="page"' : ''}>${n + 1}</button>`).join('')
+    + `<button type="button" class="lp-pg" data-lp-pg="${p + 1}" ${p < pages - 1 ? '' : 'disabled'}>${L('Volgende')} ›</button>`;
+  $('#lp-pager').innerHTML = pager; $('#lp-pager2').innerHTML = pager;
+  $('#lp-shown').textContent = r.hits.length ? L('nieuwste eerst · {a}–{b} van {n}', { a: dec(r.offset + 1), b: dec(r.offset + r.hits.length), n: dec(r.total) })
+    + (r.total > max ? ' · ' + L('de eerste {m} zijn te bladeren; maak de zoekopdracht kleiner voor de rest', { m: dec(max) }) : '') : '';
+}
+
+/** De tijdlijn: gestapelde balken per niveau, de selectie gemarkeerd */
+function lpHist(r) {
+  const [from, to] = [r.from, r.to];
+  const max = Math.max(1, ...r.hist.map((b) => b[0] + b[1] + b[2]));
+  const fmt = (t) => { const d = new Date(t * 1000); return r.bucket >= 86400 ? d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' }) : r.bucket >= 3600 && to - from > 86400 ? d.toLocaleString(LOCALE, { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' }); };
+  const sel = (s) => LP.hour && s >= LP.hour[0] && s <= LP.hour[1];
+  $('#lp-hist').innerHTML = r.hist.map((b, i) => {
+    const n = b[0] + b[1] + b[2], s = r.start + i * r.bucket;
+    return `<button type="button" class="lp-b${sel(s) ? ' sel' : ''}" data-lp-b="${i}" style="--b:${i};--h:${n ? Math.max(3, n / max * 100) : 0}%" title="${esc(fmt(s) + ': ' + L('{n} treffers', { n: dec(n) }))}"><i class="e" style="flex:${b[2]}"></i><i class="w" style="flex:${b[1]}"></i><i class="n" style="flex:${b[0]}"></i></button>`;
+  }).join('');
+  $('#lp-hist').setAttribute('aria-label', L('Treffers per tijdvak; sleep om een stuk te kiezen'));
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => r.start + Math.round(f * (r.hist.length - 1)) * r.bucket);
+  $('#lp-ax').innerHTML = ticks.map((t) => `<span>${esc(fmt(t))}</span>`).join('');
+  const per = r.bucket >= 86400 ? L('1 dag per balk') : r.bucket >= 3600 ? L('{n} uur per balk', { n: r.bucket / 3600 }) : L('{n} min per balk', { n: r.bucket / 60 });
+  $('#lp-hint').textContent = (LP.hour ? L('Selectie: {a} – {b}', { a: fmt(LP.hour[0]), b: fmt(LP.hour[1] + 1) }) + ' · ' : '') + per + ' · ' + L('sleep over de balken om een stuk te kiezen');
+  $('#lp-zin').disabled = !LP.hour; $('#lp-zclr').disabled = !LP.hour;
+}
+
+/** Een regel: openklappen, tijd, de tekst en de velden eronder (aanklikbaar); open: alle velden met ＋ en − */
+function lpRow(h, mark) {
+  const f = { server: h.host, bron: h.source, ...(h.fields || {}) };
+  const open = LP.open.has(h.ref);
+  const kv = (k, v) => `<button type="button" class="lp-kv" data-lp-fadd="${esc(JSON.stringify([k, v]))}" title="${esc(L('Zoeken op {k}={v}', { k, v }))}">${esc(k)} = <b>${esc(v)}</b></button>`;
+  const shown = Object.entries(f).slice(0, 8);
+  return `<div class="lp-r lv${h.level}${open ? ' open' : ''}" data-ref="${esc(h.ref || '')}">
+    <button type="button" class="lp-tg" data-lp-tg="1" aria-expanded="${open}" aria-label="${esc(L('Regel openklappen'))}"><span aria-hidden="true">›</span></button>
+    <span class="lp-t2" title="${esc(h.time)}"><b>${esc(new Date(h.ts * 1000).toLocaleDateString(LOCALE, { weekday: 'short', day: '2-digit', month: '2-digit' }))}</b><span>${esc(h.time.slice(11))}</span></span>
+    <div class="lp-c"><span class="lp-m">${h.level >= 2 ? `<span class="lp-lv lp-lv${h.level}">${LP_LV[h.level]}</span> ` : ''}${mark(h.msg)}</span>
+      <div class="lp-kvs">${shown.map(([k, v]) => kv(k, v)).join('')}</div>
+      <div class="lp-x">
+        <table class="lp-xt"><thead><tr><th>${L('Veld')}</th><th>${L('Waarde')}</th><th></th></tr></thead><tbody>
+          ${[...Object.entries(f), ['niveau', LP_LV[h.level] || '']].map(([k, v]) => `<tr><td class="muted">${esc(k)}</td><td class="mono">${esc(v)}</td>
+            <td class="nowrap"><button type="button" class="lp-fx" data-lp-fadd="${esc(JSON.stringify([k, v]))}" aria-label="${esc(L('Zoeken op {k}={v}', { k, v }))}">＋</button>
+              <button type="button" class="lp-fx" data-lp-fadd="${esc(JSON.stringify([k, v]))}" data-neg="1" aria-label="${esc(L('Uitsluiten: {k}={v}', { k, v }))}">−</button></td></tr>`).join('')}
+          <tr><td class="muted">${L('Tijd')}</td><td class="mono">${esc(h.time)}</td><td></td></tr></tbody></table>
+        ${h.ref ? `<div class="btn-row"><button type="button" class="btn small-btn" data-lp-ctx="1">${L('Context: regels ervoor en erna, en andere bronnen in dezelfde minuut')}</button></div>` : ''}
+      </div></div></div>`;
 }
 
 const lpLine = (h, mark, ctx = false) => `<div class="lp-ln lv${h.level}${ctx ? ' ctx' : ''}" ${h.ref ? `data-ref="${esc(h.ref)}" tabindex="0"` : ''}>
@@ -8926,8 +9092,8 @@ const lpLine = (h, mark, ctx = false) => `<div class="lp-ln lv${h.level}${ctx ? 
 
 async function lpContext(ln) {
   const next = ln.nextElementSibling;
-  if (next && next.classList.contains('lp-ctx')) { next.remove(); ln.classList.remove('open'); return; }
-  ln.classList.add('open');
+  if (next && next.classList.contains('lp-ctx')) { next.remove(); ln.classList.remove('ctxon'); return; }
+  ln.classList.add('ctxon');
   const box = document.createElement('div');
   box.className = 'lp-ctx';
   box.innerHTML = `<p class="muted small">${L('Laden…')}</p>`;
@@ -13444,7 +13610,7 @@ async function al2LogAct(it, act) {
     return;
   }
   const t = Math.floor(al2Ts(it.first.created_at) / 1000), end = it.rec ? Math.floor(al2Ts(it.rec.created_at) / 1000) : Math.floor(Date.now() / 1000);
-  LP.q = d.q || ''; LP.hosts = d.host_id ? [+d.host_id] : []; LP.sources = []; LP.level = ''; LP.limit = 100; LP.allLv = null; LP.sub = 'search';
+  LP.q = d.q || ''; LP.hosts = d.host_id ? [+d.host_id] : []; LP.sources = []; LP.level = ''; LP.limit = 100; LP.page = 0; LP.allLv = null; LP.sub = 'search';
   LP.range = 'custom'; LP.from = t - Math.max(15, +d.win || 5) * 60 - 300; LP.to = Math.min(end + 300, Math.floor(Date.now() / 1000)); LP.hour = null;
   showTab('logs');
 }

@@ -2643,12 +2643,23 @@ De agent verzamelt de logs die je per server kiest en stuurt ze naar RzSense, wa
 - Onderaan zie je de **opslag** (gebruikt, ongecomprimeerd, hoeveel kleiner, hoe lang de ruimte nog genoeg is) en per server **wat er vandaag binnenkwam**. Klik op een server voor zijn bronnen.
 
 **Zoeken** (vanaf 1.211.0): de pagina **📜 Logs** in de zijbalk (onder *Analyse en netwerk*), voor beheerders en gebruikers. Ook via de knop **📜 Logs** bij een server (Monitoring, Agent Manager › Logs, of Ctrl+K): dan staat die server al in de zoekbalk.
+- **Opbouw** (vanaf 1.293.0): bovenaan de zoekbalk met de periode, daaronder het aantal regels en de niveaus, dan de tijdlijn over de hele breedte. Daaronder staan links de **velden** en rechts de **regels**. De pagina volgt het thema van RzSense (donker of licht); op de telefoon staan de velden boven de regels.
 - **Zoekbalk**: losse woorden (alle moeten erin staan), `"exacte zin"`, `-uitsluiten`, `server:naam`, `bron:naam` (een deel van de naam is genoeg), `niveau:error` (of `warning`, `info`, `critical`) en `/regex/`. Hoofdletters maken niet uit. Klik op een voorbeeld onder de balk om het erbij te zetten.
+- **Zoeken op een veld** (vanaf 1.293.0): `veld=waarde`, bijvoorbeeld `programma=sshd`, `status=404` of `user=demo`. Met een `-` ervoor sluit je uit (`-gebruiker=root`), en `*` betekent "wat dan ook" (`ip=203.0.113.*`). Voor de velden die RzSense zelf herkent mag ook `veld:waarde`. Een woord met een dubbele punt dat geen veld is (zoals `10:04`) blijft een gewoon woord. Dit werkt ook in vaste zoekacties.
+- **Velden** (vanaf 1.293.0): RzSense haalt velden uit de regels, alleen tijdens het zoeken (er wordt niets extra bewaard):
+  - *gekozen*: server, bron, niveau en **programma** (met **pid**), uit syslog-regels als `sshd[2911]:`;
+  - *gevonden in de regels*: **ip** (het eerste adres), **gebruiker** (`for invalid user admin from`, `user=…`, `(root) CMD` van cron), **methode**, **pad** en **status** van een HTTP-verzoek, en elk paar `sleutel=waarde` in de regel (hooguit 10).
+  - Achter elk veld staat hoeveel verschillende waarden het heeft. Klik op een veld voor de top 5 met balkjes; klik op een waarde om erop te zoeken, of op **−** om hem uit te sluiten. De telling gaat over de nieuwste 1000 treffers.
+  - Met **Velden verbergen** heeft de lijst de hele breedte; RzSense onthoudt dat in deze browser.
 - **Periode**: laatste 15 minuten, uur, 24 uur, vandaag, 7 dagen, alles, of zelf kiezen.
 - **Filters**: per niveau (met aantallen) en met **＋ Server** of **＋ Bron**.
-- **Grafiek**: treffers per minuut (tot 3 uur), per uur (tot 3 dagen) of per 6 uur, opgedeeld in error, warning en info. Klik op een balk voor alleen dat tijdvak.
-- **Treffers**: nieuwste eerst, het gezochte woord gemarkeerd. Klik op een regel voor **3 regels ervoor en erna** uit dezelfde bron, en de regels van **andere bronnen van die server in dezelfde minuut** (bv. fail2ban naast auth.log).
-- **Meer laden** per 100 (tot 1000), en **⤓ CSV** met tot 5000 treffers (puntkomma, opent in Excel).
+- **Tijdlijn**: treffers per minuut (tot 3 uur), per uur (tot 3 dagen) of per 6 uur, opgedeeld in error, warning en info.
+  - Klik op een balk, of **sleep over de balken** (vanaf 1.293.0), voor alleen dat stuk. De tijdlijn blijft de hele periode tonen, met de selectie gemarkeerd. Nog eens klikken op dezelfde balk heft het op.
+  - **＋ Inzoomen op selectie** maakt de selectie de periode, met fijnere balken. **− Uitzoomen** maakt de periode twee keer zo lang. **✕ Selectie weg** heft de selectie op.
+- **Regels**: nieuwste eerst, met de datum en tijd, de regel (het gezochte woord gemarkeerd) en de velden eronder. Klik op een veld onder een regel om erop te zoeken.
+  - Met **›** klap je een regel open: alle velden in een tabel, met **＋** (zoeken) en **−** (uitsluiten).
+  - **Context** toont de **3 regels ervoor en erna** uit dezelfde bron, en de regels van **andere bronnen van die server in dezelfde minuut** (bv. fail2ban naast auth.log).
+- **Pagina's** (vanaf 1.293.0): 25, 50, 100 of 250 regels per pagina, tot de nieuwste 5000 treffers. **⤓ CSV** geeft tot 5000 treffers (puntkomma, opent in Excel).
 - Snel: RzSense pakt alleen de blokken uit die in de periode en bij de server en bron vallen (met *Error en erger* alleen blokken met errors). Duurt het tellen langer dan 8 seconden, dan zegt de pagina dat de telling onvolledig is; de nieuwste treffers kloppen dan wel.
 - Gemaskeerde delen (`••••`) blijven gemaskeerd: het origineel wordt nergens bewaard.
 - Het tabblad **Binnenkomst** toont hetzelfde overzicht als de beheerportal: opslag en per server wat er vandaag binnenkwam.

@@ -878,11 +878,12 @@ final class LogStore
 
     /**
      * Zoekopdracht uit elkaar halen: woorden (alle moeten erin), "exacte zin", -uitsluiten, server:, bron:, niveau:, /regex/.
-     * @return array{words: list<string>, not: list<string>, re: ?string, hosts: list<string>, sources: list<string>, level: ?int, error: ?string}
+     * 1.293.0: velden uit de regel (LogFields): programma=sshd, ip:203.0.113.5, -gebruiker=root, user=demo (* = wat dan ook).
+     * @return array{words: list<string>, not: list<string>, re: ?string, hosts: list<string>, sources: list<string>, level: ?int, error: ?string, fields: list<array{0: string, 1: string, 2: bool}>, need: list<string>}
      */
     public static function parseQuery(string $q): array
     {
-        $out = ['words' => [], 'not' => [], 're' => null, 'hosts' => [], 'sources' => [], 'level' => null, 'error' => null];
+        $out = ['words' => [], 'not' => [], 're' => null, 'hosts' => [], 'sources' => [], 'level' => null, 'error' => null, 'fields' => [], 'need' => []];
         preg_match_all('~(-?)(?:"([^"]*)"|/((?:\\\\/|[^/])+)/|(\S+))~u', $q, $m, PREG_SET_ORDER);
         foreach ($m as $t) {
             $neg = $t[1] === '-';
@@ -900,7 +901,17 @@ final class LogStore
             if ($word === '') {
                 continue;
             }
-            if (!$quoted && preg_match('/^(server|host|bron|source|niveau|level):(.+)$/iu', $word, $k)) {
+            // 1.293.0: veld=waarde (elk veld) of veld:waarde (de velden die RzSense herkent)
+            if (!$quoted && preg_match('/^([A-Za-z][\w.-]{0,30})(=|:)(.+)$/u', $word, $k) && !preg_match('/^(server|host|bron|source|niveau|level)$/i', $k[1])
+                && ($k[2] === '=' || in_array(strtolower($k[1]), LogFields::KNOWN, true))) {
+                $val = mb_strtolower(trim($k[3], '"\''));
+                $out['fields'][] = [strtolower($k[1]), $val, $neg];
+                if (!$neg && ($plain = trim(str_replace('*', ' ', $val))) !== '' && !str_contains($plain, ' ')) {
+                    $out['need'][] = $plain;   // snel voorselecteren: de waarde moet ergens in de regel staan
+                }
+                continue;
+            }
+            if (!$quoted && preg_match('/^(server|host|bron|source|niveau|level)[:=](.+)$/iu', $word, $k)) {
                 $key = strtolower($k[1]);
                 $val = mb_strtolower($k[2]);
                 if ($key === 'server' || $key === 'host') {
@@ -931,7 +942,25 @@ final class LogStore
                 return false;
             }
         }
-        return $p['re'] === null || preg_match($p['re'], $msg) === 1;
+        if ($p['re'] !== null && preg_match($p['re'], $msg) !== 1) {
+            return false;
+        }
+        if (empty($p['fields'])) {
+            return true;
+        }
+        foreach ($p['need'] ?? [] as $w) {
+            if (!str_contains($low, $w)) {
+                return false;
+            }
+        }
+        $f = LogFields::extract($msg);
+        foreach ($p['fields'] as [$k, $v, $neg]) {
+            $has = isset($f[$k]) && LogFields::valueMatch($f[$k], $v);
+            if ($has === $neg) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Servers en bronnen die bij server:/bron: horen (deel van de naam, hoofdletters maken niet uit) */
@@ -1023,7 +1052,9 @@ final class LogStore
     /**
      * Zoeken: nieuwste eerst, hooguit $limit treffers, met een telling per tijdvak en per niveau over de hele periode
      * (tot de tijd op is: dan "partial"). Alleen blokken in de periode, bij de server en bron, en met het niveau worden uitgepakt.
-     * @param array{q?: string, from?: int, to?: int, hosts?: list<int>, sources?: list<int>, level?: int|string|null, limit?: int} $in
+     * 1.293.0: met de velden per treffer, de velden-kolom (over de eerste 1000 treffers) en pagina's (offset).
+     * @param array{q?: string, from?: int, to?: int, hosts?: list<int>, sources?: list<int>, level?: int|string|null, limit?: int, offset?: int, sfrom?: int, sto?: int} $in
+     * @return array<string, mixed>
      */
     public static function search(array $in): array
     {
@@ -1031,7 +1062,14 @@ final class LogStore
         $to = (int) ($in['to'] ?? 0) ?: time();
         $from = (int) ($in['from'] ?? 0) ?: $to - 86400;
         $from = max($from, strtotime('-' . self::days() . ' days midnight'));
-        $limit = max(1, min(5000, (int) ($in['limit'] ?? 100)));
+        $offset = max(0, min(4900, (int) ($in['offset'] ?? 0)));
+        $per = max(1, min(5000, (int) ($in['limit'] ?? 100)));
+        $limit = min(5000, $offset + $per);
+        $sample = [];   // velden van de eerste treffers (de velden-kolom)
+        // 1.293.0: selectie op de tijdlijn: de tijdlijn telt de hele periode, de regels, niveaus en velden alleen de selectie
+        $sFrom = (int) ($in['sfrom'] ?? 0);
+        $sTo = (int) ($in['sto'] ?? 0);
+        $sel = $sFrom > 0 && $sTo >= $sFrom;
         $p = self::parseQuery((string) ($in['q'] ?? ''));
         if ($p['error']) {
             return ['error' => $p['error']];
@@ -1086,10 +1124,17 @@ final class LogStore
                     if (!self::lineMatch($msg, $p)) {
                         continue;
                     }
-                    $levels[$lvl]++;
                     $k = intdiv($ts - $start, $bucket);
                     if (isset($hist[$k])) {
                         $hist[$k][$lvl >= 3 ? 2 : ($lvl === 2 ? 1 : 0)]++;
+                    }
+                    if ($sel && ($ts < $sFrom || $ts > $sTo)) {
+                        continue;
+                    }
+                    $levels[$lvl]++;
+                    if (count($sample) < 1000) {
+                        $s0 = $src[(int) $b['source_id']] ?? null;
+                        $sample[] = ['server' => (string) ($s0['host'] ?? '?'), 'bron' => (string) ($s0['name'] ?? '?'), 'niveau' => ['debug', 'info', 'warning', 'error', 'critical'][$lvl] ?? 'info'] + LogFields::extract($msg);
                     }
                     if (count($hits) < $limit || $ts > $oldest) {
                         $hits[] = ['ts' => $ts, 'level' => $lvl, 'msg' => mb_substr($msg, 0, 2000), 'host_id' => (int) $b['host_id'], 'source_id' => (int) $b['source_id'],
@@ -1104,17 +1149,19 @@ final class LogStore
             }
         }
         usort($hits, static fn($x, $y) => $y['ts'] <=> $x['ts'] ?: strcmp($y['ref'], $x['ref']));
-        $hits = array_slice($hits, 0, $limit);
+        $hits = array_slice($hits, $offset, $per);
         foreach ($hits as &$h) {
             $s = $src[$h['source_id']] ?? null;
             $h['host'] = $s ? $s['host'] : '?';
             $h['source'] = $s ? $s['name'] : '?';
             $h['time'] = date('Y-m-d H:i:s', $h['ts']);
+            $h['fields'] = LogFields::extract($h['msg']);   // 1.293.0
         }
         unset($h);
         return ['hits' => $hits, 'total' => array_sum($levels), 'levels' => $levels, 'partial' => $partial, 'blocks' => $blocks, 'scanned' => $scanned,
             'ms' => (int) round((microtime(true) - $t0) * 1000), 'from' => $from, 'to' => $to, 'bucket' => $bucket, 'start' => $start, 'hist' => $hist,
-            'words' => array_values(array_filter($p['words'], static fn($w) => mb_strlen($w) >= 2)), 'limit' => $limit];
+            'words' => array_values(array_filter([...$p['words'], ...$p['need']], static fn($w) => mb_strlen($w) >= 2)), 'limit' => $per, 'offset' => $offset,
+            'fstats' => LogFields::stats($sample), 'fsample' => count($sample), 'max' => 5000];
     }
 
     /** Regels rond een treffer: 3 ervoor en erna uit dezelfde bron, en uit de andere bronnen van die server dezelfde minuut */
