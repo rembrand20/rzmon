@@ -93,7 +93,7 @@ final class LogWatch
             return $p['error'];
         }
         $mode = ($in['mode'] ?? 'many') === 'none' ? 'none' : 'many';
-        if ($mode === 'many' && !$p['words'] && !$p['re'] && $p['level'] === null && !$p['not'] && !$p['fields']) {
+        if ($mode === 'many' && !$p['words'] && !$p['re'] && $p['level'] === null && !$p['not'] && !$p['fields'] && empty($p['any'])) {
             return t('Zoek op iets: met alleen server: of bron: telt elke regel mee');
         }
         $win = (int) ($in['win'] ?? 0);

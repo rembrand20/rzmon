@@ -879,10 +879,20 @@ final class LogStore
     /**
      * Zoekopdracht uit elkaar halen: woorden (alle moeten erin), "exacte zin", -uitsluiten, server:, bron:, niveau:, /regex/.
      * 1.293.0: velden uit de regel (LogFields): programma=sshd, ip:203.0.113.5, -gebruiker=root, user=demo (* = wat dan ook).
-     * @return array{words: list<string>, not: list<string>, re: ?string, hosts: list<string>, sources: list<string>, level: ?int, error: ?string, fields: list<array{0: string, 1: string, 2: bool}>, need: list<string>}
+     * @return array{words: list<string>, not: list<string>, re: ?string, hosts: list<string>, sources: list<string>, level: ?int, error: ?string, fields: list<array{0: string, 1: string, 2: bool}>, need: list<string>, any?: list<array<string, mixed>>}
      */
     public static function parseQuery(string $q): array
     {
+        // 1.297.0: OR tussen delen van de zoekopdracht (in hoofdletters): een regel past als één van de delen past.
+        // server:, bron: en niveau: gelden dan voor de hele zoekopdracht.
+        $parts = array_values(array_filter(array_map('trim', preg_split('/"[^"]*"(*SKIP)(*FAIL)|\s+OR\s+/', trim($q)) ?: [])));   // OR tussen aanhalingstekens is gewoon tekst
+        if (count($parts) > 1) {
+            $any = array_map([self::class, 'parseQuery'], array_slice($parts, 0, 10));
+            $lv = array_values(array_filter(array_column($any, 'level'), static fn($v) => $v !== null));
+            return ['words' => array_merge(...array_column($any, 'words')), 'not' => [], 're' => null, 'hosts' => array_values(array_unique(array_merge(...array_column($any, 'hosts')))),
+                'sources' => array_values(array_unique(array_merge(...array_column($any, 'sources')))), 'level' => $lv[0] ?? null,
+                'error' => array_values(array_filter(array_column($any, 'error')))[0] ?? null, 'fields' => [], 'need' => array_merge(...array_column($any, 'need')), 'any' => $any];
+        }
         $out = ['words' => [], 'not' => [], 're' => null, 'hosts' => [], 'sources' => [], 'level' => null, 'error' => null, 'fields' => [], 'need' => []];
         preg_match_all('~(-?)(?:"([^"]*)"|/((?:\\\\/|[^/])+)/|(\S+))~u', $q, $m, PREG_SET_ORDER);
         foreach ($m as $t) {
@@ -906,7 +916,7 @@ final class LogStore
                 && ($k[2] === '=' || in_array(strtolower($k[1]), LogFields::KNOWN, true))) {
                 $val = mb_strtolower(trim($k[3], '"\''));
                 $out['fields'][] = [strtolower($k[1]), $val, $neg];
-                if (!$neg && ($plain = trim(str_replace('*', ' ', $val))) !== '' && !str_contains($plain, ' ')) {
+                if (!$neg && strtolower($k[1]) !== 'patroon' && ($plain = trim(str_replace('*', ' ', $val))) !== '' && !str_contains($plain, ' ')) {
                     $out['need'][] = $plain;   // snel voorselecteren: de waarde moet ergens in de regel staan
                 }
                 continue;
@@ -931,6 +941,14 @@ final class LogStore
     /** Past een regel op de zoekopdracht? */
     public static function lineMatch(string $msg, array $p): bool
     {
+        if (!empty($p['any'])) {   // 1.297.0: OR
+            foreach ($p['any'] as $a) {
+                if (self::lineMatch($msg, $a)) {
+                    return true;
+                }
+            }
+            return false;
+        }
         $low = mb_strtolower($msg);
         foreach ($p['words'] as $w) {
             if (!str_contains($low, $w)) {
@@ -949,13 +967,13 @@ final class LogStore
             return true;
         }
         foreach ($p['need'] ?? [] as $w) {
-            if (!str_contains($low, $w)) {
+            if (!str_contains($low, $w) && !in_array('patroon', array_column($p['fields'], 0), true)) {
                 return false;
             }
         }
         $f = LogFields::extract($msg);
         foreach ($p['fields'] as [$k, $v, $neg]) {
-            $has = isset($f[$k]) && LogFields::valueMatch($f[$k], $v);
+            $has = $k === 'patroon' ? LogFields::patternId(LogFields::pattern($msg)) === $v : isset($f[$k]) && LogFields::valueMatch($f[$k], $v);
             if ($has === $neg) {
                 return false;
             }
@@ -1053,7 +1071,7 @@ final class LogStore
      * Zoeken: nieuwste eerst, hooguit $limit treffers, met een telling per tijdvak en per niveau over de hele periode
      * (tot de tijd op is: dan "partial"). Alleen blokken in de periode, bij de server en bron, en met het niveau worden uitgepakt.
      * 1.293.0: met de velden per treffer, de velden-kolom (over de eerste 1000 treffers) en pagina's (offset).
-     * @param array{q?: string, from?: int, to?: int, hosts?: list<int>, sources?: list<int>, level?: int|string|null, limit?: int, offset?: int, sfrom?: int, sto?: int} $in
+     * @param array{q?: string, from?: int, to?: int, hosts?: list<int>, sources?: list<int>, level?: int|string|null, limit?: int, offset?: int, sfrom?: int, sto?: int, mode?: string, field?: string} $in
      * @return array<string, mixed>
      */
     public static function search(array $in): array
@@ -1066,6 +1084,14 @@ final class LogStore
         $per = max(1, min(5000, (int) ($in['limit'] ?? 100)));
         $limit = min(5000, $offset + $per);
         $sample = [];   // velden van de eerste treffers (de velden-kolom)
+        // 1.297.0: Patronen (gelijke regels gegroepeerd) of Statistiek (aantal per waarde van een veld), over alle treffers
+        $mode = in_array($in['mode'] ?? '', ['patterns', 'stats'], true) ? (string) $in['mode'] : 'hits';
+        $field = preg_match('/^[a-z][\w.-]{0,30}$/', (string) ($in['field'] ?? '')) ? strtolower((string) $in['field']) : 'programma';
+        /** @var array<string, array{n: int, first: int, last: int, lv: int, sample: string, hosts: list<string>}> $pats */
+        $pats = [];
+        /** @var array<string, int> $stat */
+        $stat = [];
+        $statNone = 0;
         // 1.293.0: selectie op de tijdlijn: de tijdlijn telt de hele periode, de regels, niveaus en velden alleen de selectie
         $sFrom = (int) ($in['sfrom'] ?? 0);
         $sTo = (int) ($in['sto'] ?? 0);
@@ -1136,6 +1162,40 @@ final class LogStore
                         $s0 = $src[(int) $b['source_id']] ?? null;
                         $sample[] = ['server' => (string) ($s0['host'] ?? '?'), 'bron' => (string) ($s0['name'] ?? '?'), 'niveau' => ['debug', 'info', 'warning', 'error', 'critical'][$lvl] ?? 'info'] + LogFields::extract($msg);
                     }
+                    if ($mode === 'patterns') {
+                        $sg = LogFields::pattern($msg);
+                        $hn = (string) ($src[(int) $b['source_id']]['host'] ?? '?');
+                        if (isset($pats[$sg])) {
+                            $pa = &$pats[$sg];
+                            $pa['n']++;
+                            $pa['first'] = min($pa['first'], $ts);
+                            if ($ts > $pa['last']) {
+                                $pa['last'] = $ts;
+                                $pa['sample'] = mb_substr($msg, 0, 400);
+                            }
+                            $pa['lv'] = max($pa['lv'], $lvl);
+                            if (count($pa['hosts']) < 3 && !in_array($hn, $pa['hosts'], true)) {
+                                $pa['hosts'][] = $hn;
+                            }
+                            unset($pa);
+                        } elseif (count($pats) < 20000) {
+                            $pats[$sg] = ['n' => 1, 'first' => $ts, 'last' => $ts, 'lv' => $lvl, 'sample' => mb_substr($msg, 0, 400), 'hosts' => [$hn]];
+                        }
+                        continue;
+                    }
+                    if ($mode === 'stats') {
+                        $s1 = $src[(int) $b['source_id']] ?? null;
+                        $v = match ($field) {
+                            'server' => (string) ($s1['host'] ?? '?'), 'bron' => (string) ($s1['name'] ?? '?'), 'niveau' => ['debug', 'info', 'warning', 'error', 'critical'][$lvl] ?? 'info',
+                            'patroon' => LogFields::pattern($msg), default => LogFields::extract($msg)[$field] ?? null,
+                        };
+                        if ($v === null) {
+                            $statNone++;
+                        } elseif (isset($stat[$v]) || count($stat) < 50000) {
+                            $stat[$v] = ($stat[$v] ?? 0) + 1;
+                        }
+                        continue;
+                    }
                     if (count($hits) < $limit || $ts > $oldest) {
                         $hits[] = ['ts' => $ts, 'level' => $lvl, 'msg' => mb_substr($msg, 0, 2000), 'host_id' => (int) $b['host_id'], 'source_id' => (int) $b['source_id'],
                             'ref' => date('Ymd', $d) . ':' . $b['id'] . ':' . $i];
@@ -1161,7 +1221,40 @@ final class LogStore
         return ['hits' => $hits, 'total' => array_sum($levels), 'levels' => $levels, 'partial' => $partial, 'blocks' => $blocks, 'scanned' => $scanned,
             'ms' => (int) round((microtime(true) - $t0) * 1000), 'from' => $from, 'to' => $to, 'bucket' => $bucket, 'start' => $start, 'hist' => $hist,
             'words' => array_values(array_filter([...$p['words'], ...$p['need']], static fn($w) => mb_strlen($w) >= 2)), 'limit' => $per, 'offset' => $offset,
-            'fstats' => LogFields::stats($sample), 'fsample' => count($sample), 'max' => 5000];
+            'fstats' => LogFields::stats($sample), 'fsample' => count($sample), 'max' => 5000, 'mode' => $mode]
+            + ($mode === 'patterns' ? ['patterns' => self::patternList($pats)] : [])
+            + ($mode === 'stats' ? ['stats' => self::statList($field, $stat, $statNone)] : []);
+    }
+
+    /**
+     * 1.297.0: de patronen, meest voorkomend eerst (hooguit 300).
+     * @param array<string, array{n: int, first: int, last: int, lv: int, sample: string, hosts: list<string>}> $pats
+     * @return list<array<string, mixed>>
+     */
+    private static function patternList(array $pats): array
+    {
+        uasort($pats, static fn($a, $b) => $b['n'] <=> $a['n']);
+        $out = [];
+        foreach (array_slice($pats, 0, 300, true) as $sig => $p) {
+            $out[] = ['id' => LogFields::patternId((string) $sig), 'sig' => (string) $sig, 'n' => $p['n'], 'first' => date('c', $p['first']),
+                'last' => date('c', $p['last']), 'lv' => $p['lv'], 'sample' => $p['sample'], 'hosts' => $p['hosts']];
+        }
+        return $out;
+    }
+
+    /**
+     * 1.297.0: aantal per waarde van een veld (hooguit 50), met hoeveel regels het veld niet hadden.
+     * @param array<string, int> $stat
+     * @return array<string, mixed>
+     */
+    private static function statList(string $field, array $stat, int $none): array
+    {
+        arsort($stat);
+        $rows = [];
+        foreach (array_slice($stat, 0, 50, true) as $v => $n) {
+            $rows[] = [(string) $v, (int) $n];
+        }
+        return ['field' => $field, 'rows' => $rows, 'distinct' => count($stat), 'none' => $none, 'total' => (int) array_sum($stat) + $none];
     }
 
     /** Regels rond een treffer: 3 ervoor en erna uit dezelfde bron, en uit de andere bronnen van die server dezelfde minuut */

@@ -14,7 +14,7 @@ declare(strict_types=1);
 final class LogFields
 {
     /** Velden die RzSense zelf herkent (zoeken kan ook met naam:waarde); de rest alleen als sleutel=waarde */
-    public const KNOWN = ['programma', 'pid', 'ip', 'gebruiker', 'methode', 'pad', 'status'];
+    public const KNOWN = ['programma', 'pid', 'ip', 'gebruiker', 'methode', 'pad', 'status', 'patroon'];
     /** Vaste velden van elke regel (niet uit de tekst) */
     public const FIXED = ['server', 'bron', 'niveau'];
     private const MAX_KV = 10;
@@ -61,6 +61,31 @@ final class LogFields
             }
         }
         return $f;
+    }
+
+    /**
+     * 1.297.0: het patroon van een regel: de tijd vooraan weg, en wat per regel verschilt (getallen, IP-adressen, ID's,
+     * namen na "user=" of "for … from") vervangen door ‹#›, ‹ip›, ‹id›, ‹naam›. Regels met hetzelfde patroon horen bij elkaar.
+     */
+    public static function pattern(string $msg): string
+    {
+        $s = mb_substr($msg, 0, 400);
+        $s = (string) preg_replace('/^\s*(?:\d{4}-\d\d-\d\d[T ][\d:.]+(?:Z|[+-]\d\d:?\d\d)?|[A-Z][a-z]{2}\s+\d{1,2}\s+\d\d:\d\d:\d\d)\s+/', '', $s);
+        $s = (string) preg_replace('~\[\d{1,2}/[A-Za-z]{3}/\d{4}:[\d:]+ [+-]\d{4}\]~', '‹tijd›', $s);
+        $s = (string) preg_replace('/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i', '‹id›', $s);
+        $s = (string) preg_replace('/(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])/', '‹ip›', $s);
+        $s = (string) preg_replace('/(?<![\w:])(?:[0-9a-f]{1,4}:){2,7}[0-9a-f]{1,4}(?![\w:])/i', '‹ip›', $s);
+        $s = (string) preg_replace('/\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{8,}\b/i', '‹id›', $s);
+        $s = (string) preg_replace('/\b((?:user|username|usr|login|client|session|sid|uid|id)=)("[^"]*"|[^\s,;]+)/i', '$1‹naam›', $s);
+        $s = (string) preg_replace('/\b(for (?:invalid user )?)(\S+)( from)\b/', '$1‹naam›$3', $s);
+        $s = (string) preg_replace('/\d+/', '‹#›', $s);
+        return trim((string) preg_replace('/\s+/', ' ', $s));
+    }
+
+    /** Kort kenmerk van een patroon (voor patroon=… in de zoekopdracht) */
+    public static function patternId(string $sig): string
+    {
+        return substr(md5($sig), 0, 8);
     }
 
     /** Past een waarde op wat je zocht? Hoofdletters maken niet uit; * = wat dan ook */

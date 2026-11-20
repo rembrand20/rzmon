@@ -2154,6 +2154,20 @@ $lsC = LogStore::context($lsS['hits'][1]['ref']);
 ok($lsC !== null && count($lsC['before']) === 3 && count($lsC['after']) === 3 && str_contains($lsC['after'][0]['msg'], 'regel 28'), 'regels eromheen: 3 ervoor en de regels erna');
 ok(LogStore::search(['q' => 'regel server:bestaatniet', 'from' => $lsNow2 - 3600])['total'] === 0, 'server: die niet bestaat geeft niets');
 
+section('Logs: patronen, statistiek en OR (1.297.0)');
+ok(LogFields::pattern('Nov 20 10:00:01 sshd[123]: Failed password for root from 10.0.0.5 port 2222')
+    === LogFields::pattern('Nov 20 11:22:33 sshd[9]: Failed password for admin from 192.168.1.9 port 51000'), 'patroon: tijd, getallen, IP en naam maken niet uit');
+ok(LogFields::pattern('sshd[1]: Failed password for root from 10.0.0.5') !== LogFields::pattern('sshd[1]: Accepted password for root from 10.0.0.5'), 'patroon: andere tekst is een ander patroon');
+ok(str_contains(LogFields::pattern('GET /x user=piet 200'), 'user=‹naam›') && strlen(LogFields::patternId('abc')) === 8, 'patroon: user= wordt ‹naam›, het kenmerk is 8 tekens');
+$lsP = LogStore::search(['q' => 'regel', 'from' => $lsNow2 - 3600, 'to' => $lsNow2 + 60, 'mode' => 'patterns']);
+ok(count($lsP['patterns']) === 2 && $lsP['patterns'][0]['n'] === 20 && $lsP['patterns'][1]['n'] === 10 && $lsP['hits'] === [], 'Patronen: 30 regels worden 2 patronen (20 en 10), meest eerst');
+$lsPid = $lsP['patterns'][1]['id'];
+ok(LogStore::search(['q' => 'patroon=' . $lsPid, 'from' => $lsNow2 - 3600, 'to' => $lsNow2 + 60])['total'] === 10, 'zoeken op patroon= vindt de regels van dat patroon');
+$lsSt = LogStore::search(['q' => 'regel', 'from' => $lsNow2 - 3600, 'to' => $lsNow2 + 60, 'mode' => 'stats', 'field' => 'niveau']);
+ok($lsSt['stats']['field'] === 'niveau' && $lsSt['stats']['total'] === 30 && $lsSt['stats']['distinct'] === 2 && $lsSt['stats']['rows'][0] === ['info', 20], 'Statistiek: aantal per waarde van een veld');
+ok(LogStore::search(['q' => '"regel 7" OR "regel 12"', 'from' => $lsNow2 - 3600, 'to' => $lsNow2 + 60])['total'] === 2, 'OR: een regel past als één van de delen past');
+ok(LogStore::parseQuery('"a OR b"')['words'] === ['a or b'], 'OR binnen aanhalingstekens is gewoon tekst');
+
 section('Vaste zoekacties op de logs (1.212.0)');
 ok(is_string(LogWatch::clean(['name' => 'x', 'q' => 'server:ci-a'])) && is_string(LogWatch::clean(['name' => '', 'q' => 'fout'])) && is_string(LogWatch::clean(['name' => 'x', 'q' => '/[kapot/'])),
     'zoekactie zonder iets om op te zoeken, zonder naam of met een kapotte regex wordt geweigerd');

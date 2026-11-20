@@ -8731,7 +8731,7 @@ async function lwTest(v) {
 }
 
 // ---------------------------------------------------------------- 1.211.0: pagina Logs (zoeken en binnenkomst)
-const LP = { q: '', range: '24h', from: 0, to: 0, level: '', hosts: [], sources: [], limit: 100, hour: null, sub: 'search', facets: null, last: null, busy: 0, page: 0, per: 50, open: new Set(), fopen: '', side: true };
+const LP = { q: '', range: '24h', from: 0, to: 0, level: '', hosts: [], sources: [], limit: 100, hour: null, sub: 'search', facets: null, last: null, busy: 0, page: 0, per: 50, open: new Set(), fopen: '', side: true, view: 'hits', field: 'programma', psort: 'most' };
 const LP_RANGES = () => [['15m', L('Laatste 15 minuten'), 900], ['1h', L('Laatste uur'), 3600], ['24h', L('Laatste 24 uur'), 86400], ['today', L('Vandaag'), 0],
   ['7d', L('Laatste 7 dagen'), 7 * 86400], ['all', L('Alles'), 365 * 86400], ['custom', L('Zelf kiezen…'), 0]];
 const LP_LV = ['debug', 'info', 'warning', 'error', 'critical'];
@@ -8810,7 +8810,7 @@ function lpBuild(el) {
         <button type="button" class="btn primary lp-go" id="lp-go" aria-label="${esc(L('Zoeken'))}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg></button>
       </div>
       <div class="lp-custom" id="lp-custom" hidden><label>${L('Van')} <input type="datetime-local" id="lp-from"></label><label>${L('Tot')} <input type="datetime-local" id="lp-to"></label></div>
-      <div class="lp-help small muted"><span>${L('Zo zoek je:')}</span>${['woord', '"exacte zin"', '-uitsluiten', 'server:', 'bron:', 'niveau:error', 'veld=waarde', '/regex/'].map((t) => `<button type="button" class="lp-tok" data-lp-tok="${esc(t)}">${esc(t)}</button>`).join('')}
+      <div class="lp-help small muted"><span>${L('Zo zoek je:')}</span>${['woord', '"exacte zin"', '-uitsluiten', 'a OR b', 'server:', 'bron:', 'niveau:error', 'veld=waarde', '/regex/'].map((t) => `<button type="button" class="lp-tok" data-lp-tok="${esc(t)}">${esc(t)}</button>`).join('')}
         <span>· ${L('alle woorden moeten erin staan · klik op een veld of waarde om erop te zoeken')}</span></div>
       <div class="lp-status"><span><span class="good-txt" aria-hidden="true">✔</span> <b id="lp-total"></b> <span class="muted small" id="lp-stat"></span></span><span class="lp-sp"></span>
         <div class="lp-chips" id="lp-levels" role="group" aria-label="${esc(L('Niveau'))}"></div></div>
@@ -8822,6 +8822,11 @@ function lpBuild(el) {
           <span class="muted small" id="lp-hint"></span>
           <span class="lp-legend small muted"><span style="--c:var(--crit)">error</span><span style="--c:var(--warn)">warning</span><span style="--c:var(--primary)">info</span></span></div>
         <div class="lp-hist" id="lp-hist" role="group"></div><div class="lp-ax" id="lp-ax"></div></div>
+      <div class="lp-views" role="tablist" aria-label="${esc(L('Weergave'))}">
+        <button type="button" role="tab" class="lp-view" data-lp-view="hits">${L('Logregels')}</button>
+        <button type="button" role="tab" class="lp-view" data-lp-view="patterns">${L('Patronen')}</button>
+        <button type="button" role="tab" class="lp-view" data-lp-view="stats">${L('Statistiek')}</button></div>
+      <div id="lp-agg" class="lp-agg" hidden></div>
       <div class="lp-body${LP.side ? '' : ' no-side'}" id="lp-body">
         <aside class="lp-fields" id="lp-fields" aria-label="${esc(L('Velden'))}"></aside>
         <div class="lp-main">
@@ -8851,6 +8856,7 @@ function lpBuild(el) {
   };
   $('#lp-from').onchange = cust; $('#lp-to').onchange = cust;
   $('#lp-per').onchange = (e) => { LP.per = +e.target.value; reset(); lpSearch(); };
+  el.addEventListener('change', (e) => { if (e.target.matches('[data-lp-sfield]')) { LP.field = e.target.value; lpSearch(); } });
   lpHistDrag($('#lp-hist'));
   el.addEventListener('click', async (e) => {
     const sub = e.target.closest('[data-lp-sub]');
@@ -8861,6 +8867,16 @@ function lpBuild(el) {
     if (lv) { LP.level = lv.dataset.lpLv; reset(); lpSearch(); return; }
     const rm = e.target.closest('[data-lp-rm]');
     if (rm) { const [k, id] = rm.dataset.lpRm.split(':'); LP[k] = LP[k].filter((x) => x !== +id); reset(); lpChips(); lpSearch(); return; }
+    const vw = e.target.closest('[data-lp-view]');   // 1.297.0: Regels, Patronen of Statistiek
+    if (vw) { LP.view = vw.dataset.lpView; LP.page = 0; lpSearch(); return; }
+    const ps = e.target.closest('[data-lp-psort]');
+    if (ps) { LP.psort = ps.dataset.lpPsort; lpAgg(LP.last); return; }
+    const pt = e.target.closest('[data-lp-pat]');
+    if (pt) { LP.view = 'hits'; lpAddField('patroon', pt.dataset.lpPat, false); return; }
+    const pw = e.target.closest('[data-lp-patw]');
+    if (pw) { lwEdit({ q: (lwQueryFromSearch() + ' patroon=' + pw.dataset.lpPatw).trim() }); return; }
+    const sv = e.target.closest('[data-lp-sv]');
+    if (sv) { const [k, v] = JSON.parse(sv.dataset.lpSv); LP.view = 'hits'; lpAddField(k, v, sv.dataset.neg === '1'); return; }
     if (e.target.closest('#lp-zin')) { if (LP.hour) lpSetRange(LP.hour[0], LP.hour[1]); return; }
     if (e.target.closest('#lp-zout')) {
       const [f, t] = lpPeriod(), span = Math.max(60, t - f), now = Math.floor(Date.now() / 1000);
@@ -8945,6 +8961,8 @@ function lpHistDrag(box) {
 /** Een veld aan de zoekopdracht toevoegen (of uitsluiten) */
 function lpAddField(k, v, neg) {
   if (k === 'niveau') { LP.level = { debug: '1', info: '1', warning: '2', error: '3', critical: '3' }[v] || ''; LP.page = 0; lpSearch(); return; }
+  if (k === 'patroon' && /‹/.test(String(v))) v = '';   // een patroon uit Statistiek: zoeken gaat via het kenmerk
+  if (k === 'patroon' && !v) return;
   const key = k === 'server' ? 'server:' : k === 'bron' ? 'bron:' : `${k}=`;
   let val = String(v);
   if (k === 'server' || k === 'bron') val = val.split(/\s/)[0];
@@ -9004,7 +9022,7 @@ async function lpSearch() {
   let r;
   try {
     r = await api('log_search', null, { q: LP.q, from, to, level: LP.level, hosts: LP.hosts.join(','), sources: LP.sources.join(','), limit: LP.per, offset: LP.page * LP.per,
-      sfrom: LP.hour ? LP.hour[0] : '', sto: LP.hour ? LP.hour[1] : '' });
+      sfrom: LP.hour ? LP.hour[0] : '', sto: LP.hour ? LP.hour[1] : '', mode: LP.view === 'hits' ? '' : LP.view, field: LP.field });
   } catch (ex) {
     if (busy !== LP.busy) return;
     $('#lp-res').classList.remove('lp-loading');
@@ -9025,6 +9043,11 @@ async function lpSearch() {
     + (r.partial ? ' · ' + L('telling onvolledig: te veel om binnen 8 s te tellen, kies een kortere periode') : '');
   lpHist(r);
   lpFields();
+  // 1.297.0: Patronen en Statistiek in plaats van de regels
+  $$('[data-lp-view]').forEach((b) => { b.classList.toggle('on', b.dataset.lpView === LP.view); b.setAttribute('aria-selected', String(b.dataset.lpView === LP.view)); });
+  $('#lp-body').hidden = LP.view !== 'hits';
+  $('#lp-agg').hidden = LP.view === 'hits';
+  if (LP.view !== 'hits') { lpAgg(r); return; }
   // Regels
   const words = r.words || [];
   const mark = (s) => {
@@ -9044,6 +9067,42 @@ async function lpSearch() {
   $('#lp-pager').innerHTML = pager; $('#lp-pager2').innerHTML = pager;
   $('#lp-shown').textContent = r.hits.length ? L('nieuwste eerst · {a}–{b} van {n}', { a: dec(r.offset + 1), b: dec(r.offset + r.hits.length), n: dec(r.total) })
     + (r.total > max ? ' · ' + L('de eerste {m} zijn te bladeren; maak de zoekopdracht kleiner voor de rest', { m: dec(max) }) : '') : '';
+}
+
+/** 1.297.0: Patronen (gelijke regels gegroepeerd) of Statistiek (aantal per waarde van een veld) */
+function lpAgg(r) {
+  const box = $('#lp-agg');
+  if (!box || !r) return;
+  const sig = (s) => esc(s).replace(/‹([^›]*)›/g, '<span class="lp-ph">‹$1›</span>');
+  const lvc = (l) => (l >= 3 ? 'var(--crit)' : l === 2 ? 'var(--warn)' : 'var(--primary)');
+  if (LP.view === 'patterns') {
+    const list = (r.patterns || []).slice();
+    if (LP.psort === 'rare') list.sort((a, b) => a.n - b.n);
+    const max = Math.max(1, ...list.map((p) => p.n));
+    box.innerHTML = `<div class="lp-agg-head"><p class="muted small">${L('Regels die alleen in getallen, adressen of namen verschillen, staan samen. Zo zie je wat er gewoon gebeurt, en wat zeldzaam is.')}</p>
+        <div class="seg" role="group" aria-label="${esc(L('Sorteren'))}"><button type="button" class="seg-btn${LP.psort === 'most' ? ' active' : ''}" data-lp-psort="most">${L('Meest')}</button>
+          <button type="button" class="seg-btn${LP.psort === 'rare' ? ' active' : ''}" data-lp-psort="rare">${L('Zeldzaamst')}</button></div></div>
+      ${list.length ? `<div class="lp-pats">${list.map((p) => `<div class="lp-pat">
+          <div class="lp-pat-n"><b>${dec(p.n)}</b><span class="lp-fbar"><span style="width:${Math.max(2, Math.round(p.n / max * 100))}%;background:${lvc(p.lv)}"></span></span></div>
+          <div class="lp-pat-m"><span class="mono">${sig(p.sig)}</span>
+            <span class="muted small">${esc(p.hosts.join(', '))} · ${esc(L('laatst {t}', { t: ago(p.last) }))}${p.n <= 3 ? ` · <b class="warn-txt">${L('zeldzaam')}</b>` : ''}</span></div>
+          <div class="lp-pat-a"><button type="button" class="btn small-btn" data-lp-pat="${esc(p.id)}">${L('Logregels')}</button>
+            ${isAdmin() || isUser() ? `<button type="button" class="btn small-btn" data-lp-patw="${esc(p.id)}" title="${esc(L('Een melding als dit patroon te vaak (of nooit) voorkomt'))}">🔔</button>` : ''}</div></div>`).join('')}</div>
+        ${(r.patterns || []).length >= 300 ? `<p class="muted small">${L('De 300 die het meest voorkomen.')}</p>` : ''}`
+      : `<p class="muted lp-empty">${L('Niets gevonden in deze periode.')}</p>`}`;
+    return;
+  }
+  const st = r.stats || { rows: [], field: LP.field, distinct: 0, none: 0, total: 0 };
+  const fields = [...new Set(['server', 'bron', 'niveau', 'programma', ...Object.keys(r.fstats || {}), 'patroon', LP.field])];
+  const tot = Math.max(1, st.total);
+  const max = Math.max(1, ...st.rows.map((x) => x[1]));
+  box.innerHTML = `<div class="lp-agg-head"><label class="lp-sfield">${L('Aantal regels per')}<select data-lp-sfield>${fields.map((f) => `<option ${f === st.field ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select></label>
+      <span class="muted small">${esc(L('{d} verschillende waarden', { d: dec(st.distinct) }))}${st.none ? ' · ' + esc(L('{n} regels zonder dit veld', { n: dec(st.none) })) : ''}</span></div>
+    ${st.rows.length ? `<div class="table-scroll"><table class="vuln-table lp-stat-t"><thead><tr><th>${esc(st.field)}</th><th>${L('Logregels')}</th><th>%</th><th></th></tr></thead><tbody>
+      ${st.rows.map(([v, n]) => `<tr><td class="mono"><button type="button" class="linkish" data-lp-sv="${esc(JSON.stringify([st.field, v]))}">${st.field === 'patroon' ? sig(v) : esc(v)}</button></td>
+        <td class="nowrap">${dec(n)}</td><td class="lp-stat-bar"><span class="lp-fbar"><span style="width:${Math.max(2, Math.round(n / max * 100))}%"></span></span> <span class="muted small">${dec((n / tot * 100).toFixed(1))}%</span></td>
+        <td class="nowrap">${st.field === 'patroon' ? '' : `<button type="button" class="lp-fx" data-lp-sv="${esc(JSON.stringify([st.field, v]))}" data-neg="1" aria-label="${esc(L('Uitsluiten: {k}={v}', { k: st.field, v }))}">−</button>`}</td></tr>`).join('')}
+    </tbody></table></div>` : `<p class="muted lp-empty">${L('Geen regels met dit veld in deze periode.')}</p>`}`;
 }
 
 /** De tijdlijn: gestapelde balken per niveau, de selectie gemarkeerd */
@@ -9137,7 +9196,7 @@ async function loadLogsOverview(sel = '#logs-ov') {
         <i style="width:${pct(o.used - o.today)}%;background:var(--primary)"></i><i style="width:${pct(o.today)}%;background:var(--warn)"></i></div>
       <div class="lg-legend small muted"><span style="--c:var(--primary)">${L('eerdere dagen')}</span><span style="--c:var(--warn)">${L('vandaag {b}', { b: fmtBytes(o.today) })}</span></div>
       <dl class="lg-kv small">
-        <dt>${L('Regels')}</dt><dd>${dec(o.rows)} · ${o.tables === 1 ? L('1 dag') : L('{n} dagen', { n: o.tables })}</dd>
+        <dt>${L('Logregels')}</dt><dd>${dec(o.rows)} · ${o.tables === 1 ? L('1 dag') : L('{n} dagen', { n: o.tables })}</dd>
         <dt>${L('Ongecomprimeerd')}</dt><dd>${fmtBytes(o.raw)}</dd>
         <dt>${L('Compressie')}</dt><dd>${o.ratio ? L('{x}× kleiner', { x: dec(o.ratio) }) : '–'}</dd>
         <dt>${L('Per dag')}</dt><dd>${o.avg_stored ? L('gem. {b} opgeslagen', { b: fmtBytes(o.avg_stored) }) : '–'}</dd>

@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.297.0**: **logs: Patronen en Statistiek**: gelijke regels gegroepeerd (zie wat zeldzaam is), aantallen per veld, en OR in de zoekopdracht.
 - **1.296.0**: **reverse proxy in een rustiger opbouw**: tabbladen, een overzicht met wat aandacht vraagt, en een zijpaneel per site.
 - **1.295.0**: **updates zijn geen aanval meer**, en bij een aanvalsketen **vraagt RzSense eerst** of het moet isoleren.
 - **1.294.0**: **paginabreedte** per apparaat: begrensd, breed of de hele breedte van je scherm.
 - **1.293.0**: **logs zoeken in een nieuwe opbouw**: velden links (klik om te filteren), regels met hun velden, slepen over de tijdlijn en pagina's.
-- **1.292.0**: **RzSense haalt op bij de relay** (DMZ): de agents praten alleen met de relay, die nooit zelf naar RzSense belt.
+
+## 1.297.0 – 2026-11-20
+### Nieuw
+- **Logs: Patronen en Statistiek.** Onder de tijdlijn staan nu drie tabbladen. Zie HANDLEIDING 8.8b.
+  - **Patronen:** regels die alleen in getallen, adressen of namen verschillen, staan samen. Sorteer op *Zeldzaamst* om te zien wat bijna nooit gebeurt. Met één klik zie je de regels van een patroon (`patroon=…`), of maak je er een melding van.
+  - **Statistiek:** het aantal regels per waarde van een veld (server, programma, ip, status …), met percentages. Klik op een waarde om erop te zoeken.
+- **OR in de zoekopdracht:** `sshd OR sudo` vindt regels die op één van de delen passen.
+
+### Opgelost
+- In Logs heette het aantal logregels in het Engels "Rules"; dat is nu "Log lines".
 
 ## 1.296.0 – 2026-11-20
 ### Nieuw
