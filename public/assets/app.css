@@ -6123,6 +6123,45 @@ button.rz-job::before, .btn.rz-job::before { content: ''; position: absolute; in
 /* 1.254.0: reverse proxy */
 .px-srv { border: 1px solid var(--border); border-radius: 14px; padding: .8rem .9rem; margin: .8rem 0; display: grid; gap: .5rem; min-width: 0; }
 .px-h { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+/* 1.296.0: Reverse proxy in een nieuwe opbouw: tabbladen, overzicht, sitelijst en een zijpaneel per site */
+.px-tabs { display: flex; flex-wrap: wrap; gap: .2rem 1.2rem; border-bottom: 1px solid var(--border); margin: .4rem 0 .6rem; }
+.px-tab { font: inherit; font-size: .92rem; font-weight: 500; padding: .55rem .1rem; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); cursor: pointer; min-height: 40px; }
+.px-tab.on { color: var(--text); border-bottom-color: var(--primary); font-weight: 600; }
+.px-tab-n { font-size: .75rem; color: var(--muted); background: var(--card-2); border-radius: 999px; padding: 0 .45rem; margin-left: .2rem; }
+.px-ov { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.px-ov-score, .px-dr-score { display: flex; align-items: baseline; gap: .4rem; }
+.px-grade { font-size: 1.8rem; font-weight: 700; line-height: 1; padding: .3rem .6rem; border-radius: 10px; background: var(--card-2); }
+.px-grade.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.px-grade.wait { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.px-grade.bad { color: var(--crit); background: color-mix(in srgb, var(--crit) 12%, transparent); }
+.px-grade-n { color: var(--muted); font-size: .9rem; }
+.px-ov-txt { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.px-attn { display: grid; gap: .4rem; }
+.px-attn-row { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .7rem; padding: .55rem .7rem; border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--border)); border-radius: 12px; background: color-mix(in srgb, var(--warn) 6%, transparent); }
+.px-attn-txt { flex: 1 1 280px; min-width: 0; font-size: .9rem; }
+.px-attn-acts { display: flex; gap: .4rem; }
+.px-tools { display: flex; flex-wrap: wrap; gap: .5rem .8rem; align-items: center; }
+.px-search { flex: 1 1 240px; max-width: 360px; margin: 0; width: auto; }
+.px-fil { display: flex; flex-wrap: wrap; gap: .3rem; }
+.px-list td { vertical-align: middle; }
+.px-site-btn { display: flex; flex-direction: column; align-items: flex-start; gap: .1rem; border: 0; background: none; color: var(--text); font: inherit; cursor: pointer; padding: 0; text-align: left; }
+.px-site-btn:hover b { color: var(--primary); }
+.px-prot { display: flex; flex-wrap: wrap; gap: .25rem; }
+.px-list .px-row:hover { background: color-mix(in srgb, var(--primary) 4%, transparent); }
+#modal.drawer { margin: 0 0 0 auto; height: 100vh; max-height: 100vh; width: min(560px, 100vw); max-width: none; border-radius: 18px 0 0 18px; }
+#modal.drawer #modal-body { max-height: calc(100vh - 8.5rem); }
+@media (max-width: 600px) { #modal.drawer { border-radius: 0; } }
+.px-dr { display: grid; gap: .9rem; }
+.px-dr-head { display: grid; gap: .5rem; }
+.px-dr-sec { display: grid; gap: .55rem; border-top: 1px solid var(--border); padding-top: .8rem; }
+.px-dr-sec h3 { margin: 0; font-size: .95rem; }
+.px-dr-ai { background: color-mix(in srgb, var(--primary) 6%, transparent); border-radius: 12px; padding: .8rem; border-top: 0; }
+.px-opt { display: flex; flex-direction: row; gap: .7rem; align-items: flex-start; padding: .6rem .75rem; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; margin: 0; font-weight: 400; }
+.px-opt input { width: auto; margin: .2rem 0 0; flex: none; }
+.px-opt small { display: block; color: var(--muted); font-size: .8rem; }
+.px-opt.on { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 7%, transparent); }
+.px-sw { display: flex; flex-direction: row; align-items: center; gap: .6rem; margin: 0; font-weight: 400; }
+.px-dr .px-tip { grid-template-columns: 7.5rem 5rem 3rem minmax(0, 1fr); }
 .px-table td { vertical-align: top; }
 .px-table tr.dim td { opacity: .55; }
 .px-table select { max-width: 15rem; }

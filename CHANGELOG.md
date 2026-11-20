@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.296.0**: **reverse proxy in een rustiger opbouw**: tabbladen, een overzicht met wat aandacht vraagt, en een zijpaneel per site.
 - **1.295.0**: **updates zijn geen aanval meer**, en bij een aanvalsketen **vraagt RzSense eerst** of het moet isoleren.
 - **1.294.0**: **paginabreedte** per apparaat: begrensd, breed of de hele breedte van je scherm.
 - **1.293.0**: **logs zoeken in een nieuwe opbouw**: velden links (klik om te filteren), regels met hun velden, slepen over de tijdlijn en pagina's.
 - **1.292.0**: **RzSense haalt op bij de relay** (DMZ): de agents praten alleen met de relay, die nooit zelf naar RzSense belt.
-- **1.291.0**: de **agent blijft 's nachts rapporteren** als podman/docker niet antwoordt; bij elke stilte zie je de reden, en in Mijn account of je sleutel voor de proxy werkt.
+
+## 1.296.0 – 2026-11-20
+### Nieuw
+- **Reverse proxy in een nieuwe, rustiger opbouw.** Zie HANDLEIDING 8.12h.
+  - Tabbladen: *Overzicht*, *Sites*, *WAF*, *Paden dicht*, *Malware-scan* en *Netwerk-IDS*, in plaats van alles onder elkaar.
+  - **Overzicht:** de score van de proxy, hoeveel sites afgeschermd zijn, en welke sites aandacht vragen, met *Advies toepassen* en *Bekijken*.
+  - **Sites:** een rustige lijst met zoeken en filters (aandacht, afgeschermd, open, uit).
+  - **Zijpaneel per site:** de score met wat hem omlaag haalt, het AI-voorstel, wie erbij mag (met uitleg per keuze), toegestane apparaten, verkeer, WAF en aan/uit. Een wijziging wordt meteen bewaard.
 
 ## 1.295.0 – 2026-11-20
 ### Nieuw

@@ -3,3 +3,4 @@ config.php
 config.php.tmp
 *.log
 .DS_Store
+__pycache__/

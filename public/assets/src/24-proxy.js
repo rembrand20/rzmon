@@ -41,88 +41,88 @@ const pxMsg = (m) => {
   return m;
 };
 
+// 1.296.0: nieuwe opbouw: tabbladen (Overzicht, Sites, WAF, Paden dicht, Malware-scan, Netwerk-IDS), een rustige sitelijst
+// met zoeken en filters, en per site een zijpaneel met alle instellingen, het AI-voorstel en de score.
+let pxTab = (() => { try { return localStorage.getItem('rzmon_px_tab') || 'overview'; } catch (e) { return 'overview'; } })();
+let pxQ = '', pxF = 'all', pxD = null, pxOpen = null;
+const PX_LAN_SHORT = () => ({ off: L('Iedereen'), paths: L('Adminpaden alleen thuis'), site: L('Alleen thuis') });
+const PX_LAN_HELP = () => ({ off: L('De hele site is van overal op internet bereikbaar.'), paths: L('De site is openbaar, maar beheerpagina\'s alleen vanaf je eigen netwerk.'),
+  site: L('Alleen je eigen netwerk (en je toegestane apparaten als je dat aanzet).') });
+const pxSafe = (s) => String(s).replace(/[^a-z0-9]/gi, '_');
+/** Vraagt deze site aandacht? Dan de reden, anders '' */
+function pxAttn(x) {
+  if (!x.enabled || x.rz) return '';
+  if (x.lan_mode === 'off' && x.score && x.score.n < 70) return L('staat open voor iedereen op internet');
+  if (x.score && x.score.n < 60) return L('score {g} {n}', { g: x.score.grade, n: x.score.n }) + (x.score.parts.find((p) => p.tip) ? ': ' + x.score.parts.find((p) => p.tip).tip : '');
+  return '';
+}
+
 async function loadProxy() {
   const box = $('#proxy-page');
   if (!box) return;
-  pxsLoad();   // 1.264.0: statistieken bovenaan
   let d;
   try { d = await api('proxy_overview'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  const st = PX_STATE();
+  pxD = d;
   const proxies = d.servers.filter((s) => s.role);
   const badge = $('#proxy-badge');
   if (badge) { const n = proxies.filter((s) => s.report && s.report.state === 'error').length; badge.textContent = n || ''; badge.hidden = !n; }
-  const head = !d.on ? `<div class="callout">⏸ ${L('De bescherming staat uit voor alle servers.')} <a href="#settings/proxy" data-goto="settings/proxy">${L('Aanzetten in de beheerportal')} →</a></div>`
-    : `<p class="small muted">${L('Mijn netwerk: {n}', { n: d.lan.map((x) => `<code>${esc(x)}</code>`).join(' ') })}</p>`;
-  const openBox = pxAccessBox(d.access);   // 1.272.0
+  const head = !d.on ? `<div class="callout">⏸ ${L('De bescherming staat uit voor alle servers.')} <a href="#settings/proxy" data-goto="settings/proxy">${L('Aanzetten in de beheerportal')} →</a></div>` : '';
+  if (!proxies.length) {
+    $('#pxs-box').hidden = true;
+    box.innerHTML = head + `<div class="callout">${L('Nog geen server met de rol reverse proxy.')} <a href="#settings/proxy" data-goto="settings/proxy">${L('Kies de server in de beheerportal')} →</a></div>`;
+    return;
+  }
+  const nSites = proxies.reduce((a, s) => a + (s.sites || []).length, 0);
+  const tabs = [['overview', L('Overzicht')], ['sites', L('Sites'), nSites], ...(d.waf && d.waf.on ? [['waf', 'WAF']] : []), ...(d.on ? [['vp', L('Paden dicht')]] : []),
+    ...(d.av && d.av.on ? [['av', L('Malware-scan')]] : []), ...(d.nids && d.nids.on ? [['nids', L('Netwerk-IDS')]] : [])];
+  if (!tabs.some(([k]) => k === pxTab)) pxTab = 'overview';
+  $('#pxs-box').hidden = pxTab !== 'overview';   // 1.264.0: de statistieken alleen bij Overzicht
+  if (pxTab === 'overview') pxsLoad();
+  const tabBar = `<nav class="px-tabs" role="tablist" aria-label="${esc(L('Onderdelen'))}">${tabs.map(([k, l, n]) => `<button type="button" role="tab" class="px-tab${k === pxTab ? ' on' : ''}" aria-selected="${k === pxTab}" data-px-tab="${k}">${esc(l)}${n !== undefined ? ` <span class="px-tab-n">${dec(n)}</span>` : ''}</button>`).join('')}</nav>`;
+  const st = PX_STATE();
+  const srvHead = (s) => {
+    const r = s.report || {};
+    const [cls, txt] = st[r.state || 'pending'] || st.pending;
+    const sync = r.state === 'ok' && !s.in_sync ? ` <span class="lf-tag wait">⏳ ${L('nieuwe wijziging wacht op de agent')}</span>` : '';
+    return `<div class="px-h"><b>${esc(s.name)}</b> <span class="muted small">${esc(PX_KIND[r.kind] || r.kind || '–')}${r.ctr ? ' · ' + esc(r.ctr) : ''}${r.engine ? ' (' + esc(r.engine) + ')' : ''}</span>
+        <span class="lf-tag ${cls}">${txt}</span>${sync}<span class="lp-sp"></span></div>
+      ${!s.agent_ok ? `<div class="callout small">⬆ ${L('Agent 1.97.0 of nieuwer nodig. Werk de agent bij in de Agent Manager.')}</div>` : ''}
+      ${r.msg ? `<p class="small ${r.state === 'error' ? 'danger-txt' : 'muted'}">${esc(pxMsg(r.msg))}</p>` : ''}`;
+  };
+  const body = proxies.map((s) => {
+    const sites = s.sites || [];
+    let inner = '';
+    if (pxTab === 'overview') inner = pxOverview(s, d);
+    else if (pxTab === 'sites') inner = pxSiteList(s, d);
+    else if (pxTab === 'waf') inner = wafPanel(s, d.waf);
+    else if (pxTab === 'vp') inner = sites.length ? vpPanel(s) : `<p class="muted small">${L('Nog geen sites.')}</p>`;
+    else if (pxTab === 'av') inner = avPanel(s);
+    else if (pxTab === 'nids') inner = `<div class="waf-box">${nidsLine(s)} <p class="small"><a href="#ids" data-goto="ids">${L('De meldingen staan bij IDS')} →</a></p></div>`;
+    return `<section class="px-srv" data-px-host="${s.id}">${srvHead(s)}${inner}</section>`;
+  }).join('');
   const anyDev = proxies.some((s) => (s.sites || []).some((x) => x.devices && !x.rz));
   const devNote = anyDev ? `<p class="small muted">📱 ${d.cookie_domain
     ? L('Toegestane apparaten gelden voor de sites onder {d}. Een apparaat krijgt de sleutel als het RzSense opent; een app met eigen cookies (zoals de Home Assistant-app) moet RzSense daarvoor één keer zelf openen.', { d: d.cookie_domain })
     : L('Toegestane apparaten gelden alleen voor sites onder hetzelfde domein als RzSense, en RzSense heeft geen domeinnaam als adres (Beheer via https).')}</p>` : '';
-  if (!proxies.length) {
-    box.innerHTML = head + `<div class="callout">${L('Nog geen server met de rol reverse proxy.')} <a href="#settings/proxy" data-goto="settings/proxy">${L('Kies de server in de beheerportal')} →</a></div>`;
-    return;
-  }
-  box.innerHTML = head + openBox + devNote + proxies.map((s) => {
-    const r = s.report || {};
-    const [cls, txt] = st[r.state || 'pending'] || st.pending;
-    const sync = r.state === 'ok' && !s.in_sync ? ` <span class="lf-tag wait">⏳ ${L('nieuwe wijziging wacht op de agent')}</span>` : '';
-    const rows = (s.sites || []).map((x) => `<tr data-px-site="${esc(x.site)}" class="${x.enabled ? '' : 'dim'}">
-        <td>${amSw('px-on-' + s.id + '-' + x.site.replace(/[^a-z0-9]/gi, '_'), x.enabled, 'data-px="enabled"')}</td>
-        <td><b>${esc(x.site)}</b>${x.names.length > 1 ? `<div class="muted small">${esc(x.names.slice(1).join(', '))}</div>` : ''}${x.up ? `<div class="muted small mono">→ ${esc(x.up)}</div>` : ''}</td>
-        <td>${pxScoreBadge(x)}</td>
-        <td><select data-px="lan_mode" aria-label="${esc(L('Wie mag erbij'))}">${PX_LAN().map(([k, l]) => `<option value="${k}" ${k === x.lan_mode ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
-          <input type="text" class="mono px-paths" data-px="lan_paths" value="${esc(x.lan_paths.replace(/,/g, ', '))}" placeholder="/admin" ${x.lan_mode === 'paths' ? '' : 'hidden'} aria-label="${esc(L('Adminpaden'))}"></td>
-        <td><select data-px="rate" aria-label="${esc(L('Rate limit'))}">${PX_RATE().map(([k, l]) => `<option value="${k}" ${k === x.rate ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></td>
-        <td>${amSw('px-bots-' + s.id + '-' + x.site.replace(/[^a-z0-9]/gi, '_'), x.bots, 'data-px="bots"')}</td>
-        <td>${x.rz ? `<span class="lf-tag ok" title="${esc(L('De site van RzSense zelf: je toegestane apparaten komen er altijd bij.'))}">✔ ${L('altijd')}</span>`
-          : amSw('px-dev-' + s.id + '-' + x.site.replace(/[^a-z0-9]/gi, '_'), x.devices, `data-px="devices" ${s.dev_agent_ok ? '' : `disabled title="${esc(L('Agent {v} of nieuwer nodig', { v: '1.108.0' }))}"`}`)}</td>
-        ${d.waf && d.waf.on ? `<td><select data-px="waf" aria-label="${esc(L('WAF'))}">${WAF_SITE().map(([k, l]) => `<option value="${k}" ${k === (x.waf || 'inherit') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>${wafSiteStats((s.waf_stats || {})[x.site])}</td>` : ''}
-        <td class="nowrap">${x.custom && x.source === 'ai' ? `<span class="lf-tag ok" title="${esc(x.ai_reason || '')}">🤖 ${L('AI')}</span> <button type="button" class="btn small-btn" data-px-reset title="${esc(L('Terug naar de standaard'))}">↺</button>` : x.custom ? `<span class="lf-tag">${L('eigen')}</span> <button type="button" class="btn small-btn" data-px-reset title="${esc(L('Terug naar de standaard'))}">↺</button>` : `<span class="lf-tag ok">${L('standaard')}</span>`}</td></tr>`
-        + pxScoreRow(x, d.waf && d.waf.on ? 9 : 8)
-        + (d.ai && d.ai.on ? pxaRow(x, ((s.ai || {}).items || {})[x.site], d.waf && d.waf.on ? 9 : 8) : '')).join('');
-    return `<section class="px-srv" data-px-host="${s.id}">
-      <div class="px-h"><b>${esc(s.name)}</b> <span class="muted small">${esc(PX_KIND[r.kind] || r.kind || '–')}${r.ctr ? ' · ' + esc(r.ctr) : ''}${r.engine ? ' (' + esc(r.engine) + ')' : ''}</span>
-        <span class="lf-tag ${cls}">${txt}</span>${sync}${pxScoreSum(s)}<span class="lp-sp"></span></div>
-      ${!s.agent_ok ? `<div class="callout small">⬆ ${L('Agent 1.97.0 of nieuwer nodig. Werk de agent bij in de Agent Manager.')}</div>` : ''}
-      ${r.msg ? `<p class="small ${r.state === 'error' ? 'danger-txt' : 'muted'}">${esc(pxMsg(r.msg))}</p>` : ''}
-      ${d.ai && d.ai.on && (s.sites || []).length ? pxaHead(s, d.ai) : ''}
-      ${(s.sites || []).length ? `<div class="table-scroll"><table class="vuln-table px-table"><thead><tr><th>${L('Aan')}</th><th>${L('Site')}</th><th>${L('Score')}</th><th>${L('Wie mag erbij')}</th><th>${L('Rate limit')}</th><th>${L('Bots weren')}</th><th title="${esc(L('Je toegestane apparaten (Mijn account → Toegestane apparaten) komen er van buiten bij, ook als de site alleen vanaf mijn netwerk mag, en zonder rate limit. De WAF, de IDS en het inloggen bij de app blijven gewoon werken.'))}">${L('Toegestane apparaten')}</th>${d.waf && d.waf.on ? `<th>${L('WAF')}</th>` : ''}<th></th></tr></thead><tbody>${rows}</tbody></table></div>`
-        : `<p class="muted small">${s.report ? L('Geen sites gevonden in de proxy.') : L('Nog geen rapport van de agent. Dat komt bij zijn volgende ronde (meestal binnen een minuut).')}</p>`}
-      ${d.waf && d.waf.on ? wafPanel(s, d.waf) : ''}
-      ${d.on && (s.sites || []).length ? vpPanel(s) : ''}
-      ${d.av && d.av.on ? avPanel(s) : ''}
-      ${d.nids && d.nids.on ? `<div class="waf-box">${nidsLine(s)} <p class="small"><a href="#ids" data-goto="ids">${L('De meldingen staan bij IDS')} →</a></p></div>` : ''}
-    </section>`;
-  }).join('');
-  // Opslaan bij elke wijziging (de agent voert het bij zijn volgende ronde door)
-  const save = async (tr, extra = {}) => {
-    const host = +tr.closest('[data-px-host]').dataset.pxHost;
-    const v = (k) => $(`[data-px="${k}"]`, tr);
-    const body = { host_id: host, site: tr.dataset.pxSite, enabled: v('enabled').checked, lan_mode: v('lan_mode').value, lan_paths: v('lan_paths').value, rate: v('rate').value, bots: v('bots').checked, ...(v('waf') ? { waf: v('waf').value } : {}), ...(v('devices') && !v('devices').disabled ? { devices: v('devices').checked } : {}), ...extra };
-    try { await api('proxy_site_save', body); toast(extra.reset ? L('Terug naar de standaard') : L('Opgeslagen; de agent voert het binnen een minuut door')); loadProxy(); }
-    catch (ex) { toast(ex.message, 'err'); }
-  };
+  box.innerHTML = head + tabBar + (pxTab === 'overview' ? pxAccessBox(d.access) + `<p class="small muted">${L('Mijn netwerk: {n}', { n: d.lan.map((x) => `<code>${esc(x)}</code>`).join(' ') })}</p>` + devNote : '') + body;
+  if (pxTab === 'sites') pxFilter();
+  if (pxOpen && $('#modal').open && $('#modal').classList.contains('drawer')) pxDrawer(pxOpen[0], pxOpen[1], true);
+  box.oninput = (e) => { if (e.target.matches('[data-px-q]')) { pxQ = e.target.value; pxFilter(); } };
   box.onchange = (e) => {
     if (e.target.matches('[data-av-sugg-pick]')) {   // voorstel kiezen = map en site invullen
       const b = e.target.closest('.av-box');
       const x = JSON.parse(b.dataset.avSugg || '[]')[+e.target.value];
       if (!x) return;
       $('[data-av-path]', b).value = x.path; $('[data-av-site]', b).value = x.site || '';
-      return;
     }
-    if (e.target.closest('.av-box, .vp-box')) return;
-    const tr = e.target.closest('[data-px-site]');
-    if (!tr) return;
-    if (e.target.dataset.px === 'lan_mode') {
-      const p = $('[data-px="lan_paths"]', tr);
-      p.hidden = e.target.value !== 'paths';
-      if (!p.hidden && !p.value.trim()) { p.focus(); return; }   // eerst een pad invullen
-    }
-    save(tr);
   };
   box.onclick = async (e) => {
-    const r = e.target.closest('[data-px-reset]');
-    if (r) save(r.closest('[data-px-site]'), { reset: 1 });
+    const tb = e.target.closest('[data-px-tab]');
+    if (tb) { pxTab = tb.dataset.pxTab; try { localStorage.setItem('rzmon_px_tab', pxTab); } catch (ex) { /* alleen voor nu */ } loadProxy(); return; }
+    const fl = e.target.closest('[data-px-f]');
+    if (fl) { pxF = fl.dataset.pxF; $$('[data-px-f]', box).forEach((b) => b.classList.toggle('on', b === fl)); pxFilter(); return; }
+    const op = e.target.closest('[data-px-open]');
+    if (op) { pxDrawer(+op.closest('[data-px-host]').dataset.pxHost, op.dataset.pxOpen); return; }
     const host = e.target.closest('[data-px-host]') ? +e.target.closest('[data-px-host]').dataset.pxHost : 0;
     const ask = e.target.closest('[data-pxa-ask]');
     if (ask) {
@@ -133,25 +133,7 @@ async function loadProxy() {
       loadProxy();
       return;
     }
-    const pa = e.target.closest('[data-pxa-apply], [data-pxa-dismiss], [data-pxa-all]');
-    if (pa) {
-      pa.disabled = true;
-      const site = pa.closest('[data-pxa-site]') ? pa.closest('[data-pxa-site]').dataset.pxaSite : '';
-      try {
-        if (pa.matches('[data-pxa-dismiss]')) { await api('proxy_ai_dismiss', { host_id: host, site }); toast(L('Voorstel genegeerd')); }
-        else { const res = await api('proxy_ai_apply', pa.matches('[data-pxa-all]') ? { host_id: host, all: 1 } : { host_id: host, site });
-          toast(L('{n} toegepast; de agent voert het binnen een minuut door', { n: res.n })); }
-      } catch (ex) { toast(ex.message, 'err'); }
-      loadProxy();
-      return;
-    }
-    const sc = e.target.closest('[data-px-score]');
-    if (sc) {
-      const tr = sc.closest('[data-px-site]');
-      const row = tr && tr.parentElement.querySelector(`.px-tip-row[data-tip-for="${CSS.escape(tr.dataset.pxSite)}"]`);
-      if (row) { row.hidden = !row.hidden; sc.setAttribute('aria-expanded', String(!row.hidden)); }
-      return;
-    }
+    if (await pxaClick(e, host)) { loadProxy(); return; }
     const vp = e.target.closest('[data-vp-sug], [data-vp-add], [data-vp-rm], [data-vp-ext]');
     if (vp) {
       const b2 = vp.closest('.vp-box');
@@ -198,13 +180,148 @@ async function loadProxy() {
     }
     const x = e.target.closest('[data-waf-ex]');
     if (x) {
-      const host = +x.closest('[data-px-host]').dataset.pxHost;
       if (!confirm(L('Regel {r} op {s} voortaan niet meer melden of tegenhouden?', { r: x.dataset.rule, s: x.dataset.site }))) return;
       x.disabled = true;
       try { await api('waf_except', { host_id: host, site: x.dataset.site, rule: x.dataset.rule }); toast(L('Uitzondering opgeslagen; de agent voert het binnen een minuut door')); loadProxy(); }
       catch (ex) { x.disabled = false; toast(ex.message, 'err'); }
     }
   };
+}
+
+/** AI-voorstel toepassen of negeren (op de pagina en in het zijpaneel). @returns {Promise<boolean>} of het een klik daarop was */
+async function pxaClick(e, host) {
+  const pa = e.target.closest('[data-pxa-apply], [data-pxa-dismiss], [data-pxa-all]');
+  if (!pa) return false;
+  pa.disabled = true;
+  const site = pa.closest('[data-pxa-site]') ? pa.closest('[data-pxa-site]').dataset.pxaSite : '';
+  try {
+    if (pa.matches('[data-pxa-dismiss]')) { await api('proxy_ai_dismiss', { host_id: host, site }); toast(L('Voorstel genegeerd')); }
+    else { const res = await api('proxy_ai_apply', pa.matches('[data-pxa-all]') ? { host_id: host, all: 1 } : { host_id: host, site });
+      toast(L('{n} toegepast; de agent voert het binnen een minuut door', { n: res.n })); }
+  } catch (ex) { toast(ex.message, 'err'); }
+  return true;
+}
+
+/** Overzicht: de score van de proxy, wat aandacht vraagt, en het AI-advies */
+function pxOverview(s, d) {
+  const sites = s.sites || [], on = sites.filter((x) => x.enabled && x.score);
+  const avg = on.length ? Math.round(on.reduce((a, x) => a + x.score.n, 0) / on.length) : null;
+  const g = avg === null ? '–' : avg >= 85 ? 'A' : avg >= 70 ? 'B' : avg >= 50 ? 'C' : 'D';
+  const home = sites.filter((x) => x.enabled && x.lan_mode !== 'off').length;
+  const attn = sites.map((x) => [x, pxAttn(x)]).filter(([, w]) => w).sort((a, b) => (a[0].score ? a[0].score.n : 0) - (b[0].score ? b[0].score.n : 0));
+  const ai = (s.ai || {}).items || {};
+  const sum = attn.length ? L('{n} sites vragen aandacht', { n: attn.length }) : L('Alle sites zijn goed beschermd');
+  return `<div class="px-ov">
+      <div class="px-ov-score"><span class="px-grade ${pxGradeCls(g)}">${esc(g)}</span>${avg !== null ? `<span class="px-grade-n">${avg}</span>` : ''}</div>
+      <div class="px-ov-txt"><b>${esc(sum)}</b><span class="muted small">${esc(L('{a} van de {n} sites zijn afgeschermd (adminpaden of de hele site alleen thuis).', { a: home, n: sites.length }))}</span></div></div>
+    ${attn.length ? `<div class="px-attn">${attn.slice(0, 8).map(([x, why]) => {
+      const it = ai[x.site], hasAi = it && it.status === 'new' && it.data && pxaChanges(x, it.data).length;
+      return `<div class="px-attn-row" data-pxa-site="${esc(x.site)}"><span class="lf-tag wait">${L('Aandacht')}</span>
+        <span class="px-attn-txt"><b>${esc(x.site)}</b> ${esc(why)}${hasAi && it.reason ? `<span class="muted small"> · 🤖 ${esc(it.reason)}</span>` : ''}</span>
+        <span class="px-attn-acts">${hasAi ? `<button type="button" class="btn small-btn primary" data-pxa-apply>${L('Advies toepassen')}</button>` : ''}
+          <button type="button" class="btn small-btn" data-px-open="${esc(x.site)}">${L('Bekijken')}</button></span></div>`;
+    }).join('')}</div>` : ''}
+    ${d.ai && d.ai.on && sites.length ? pxaHead(s, d.ai) : ''}`;
+}
+
+/** Sites: zoeken, filters en een rustige lijst; klik op een site voor het zijpaneel */
+function pxSiteList(s, d) {
+  const sites = s.sites || [];
+  if (!sites.length) return `<p class="muted small">${s.report ? L('Geen sites gevonden in de proxy.') : L('Nog geen rapport van de agent. Dat komt bij zijn volgende ronde (meestal binnen een minuut).')}</p>`;
+  const F = [['all', L('Alle')], ['attn', L('Aandacht')], ['home', L('Afgeschermd')], ['open', L('Open voor iedereen')], ['off', L('Uit')]];
+  const lan = PX_LAN_SHORT(), rate = Object.fromEntries(PX_RATE()), wafS = Object.fromEntries(WAF_SITE());
+  const rows = sites.map((x) => {
+    const prot = [x.rate !== 'off' ? `<span class="lf-tag">${esc(L('Rate: {r}', { r: rate[x.rate] || x.rate }))}</span>` : '', x.bots ? `<span class="lf-tag">${L('Bots')}</span>` : '',
+      x.devices || x.rz ? `<span class="lf-tag">📱 ${L('Apparaten')}</span>` : '', d.waf && d.waf.on ? `<span class="lf-tag ${x.waf === 'off' ? '' : 'ok'}">WAF${x.waf && x.waf !== 'inherit' ? ': ' + esc(wafS[x.waf] || x.waf) : ''}</span>` : ''].join(' ');
+    const f = [x.enabled ? '' : 'off', pxAttn(x) ? 'attn' : '', x.enabled && x.lan_mode !== 'off' ? 'home' : '', x.enabled && x.lan_mode === 'off' ? 'open' : ''].filter(Boolean).join(' ');
+    return `<tr class="px-row${x.enabled ? '' : ' dim'}" data-pxf="${f}" data-pxq="${esc((x.site + ' ' + x.names.join(' ') + ' ' + (x.up || '')).toLowerCase())}">
+      <td><button type="button" class="px-site-btn" data-px-open="${esc(x.site)}"><b>${esc(x.site)}</b>${x.up ? `<span class="muted small mono">→ ${esc(x.up)}</span>` : ''}</button></td>
+      <td><span class="lf-tag ${x.lan_mode === 'off' ? 'wait' : 'ok'}">${esc(x.enabled ? lan[x.lan_mode] || x.lan_mode : L('uit'))}</span></td>
+      <td class="px-prot">${x.enabled ? prot : ''}</td>
+      <td>${x.score ? `<span class="lf-tag px-score ${pxGradeCls(x.score.grade)}">${esc(x.score.grade)} ${x.score.n}</span>` : ''}</td>
+      <td class="nowrap">${x.custom && x.source === 'ai' ? `<span class="lf-tag ok" title="${esc(x.ai_reason || '')}">🤖 ${L('AI')}</span>` : x.custom ? `<span class="lf-tag">${L('eigen')}</span>` : `<span class="muted small">${L('standaard')}</span>`}
+        <button type="button" class="icon-btn" data-px-open="${esc(x.site)}" aria-label="${esc(L('{s} openen', { s: x.site }))}">›</button></td></tr>`;
+  }).join('');
+  return `<div class="px-tools"><input type="search" class="px-search" data-px-q value="${esc(pxQ)}" placeholder="${esc(L('Zoek een site'))}" aria-label="${esc(L('Zoek een site'))}">
+      <div class="px-fil" role="group" aria-label="${esc(L('Filter'))}">${F.map(([k, l]) => `<button type="button" class="dchip${pxF === k ? ' on' : ''}" data-px-f="${k}">${esc(l)}</button>`).join('')}</div></div>
+    <div class="table-scroll"><table class="vuln-table px-table px-list"><thead><tr><th>${L('Site')}</th><th>${L('Wie mag erbij')}</th><th>${L('Bescherming')}</th><th>${L('Score')}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="muted small px-none" hidden>${L('Geen sites die hierop passen.')}</p>`;
+}
+function pxFilter() {
+  $$('#proxy-page .px-list').forEach((t) => {
+    let n = 0;
+    $$('tr.px-row', t).forEach((r) => {
+      const ok = (pxF === 'all' || r.dataset.pxf.split(' ').includes(pxF)) && (!pxQ || r.dataset.pxq.includes(pxQ.toLowerCase()));
+      r.hidden = !ok; if (ok) n++;
+    });
+    const none = t.closest('.px-srv').querySelector('.px-none');
+    if (none) none.hidden = n > 0;
+  });
+}
+
+/** Het zijpaneel van een site: score, AI-voorstel, wie mag erbij, verkeer, WAF, aan/uit en terug naar de standaard */
+function pxDrawer(host, site, refresh = false) {
+  const s = (pxD.servers || []).find((x) => x.id === host);
+  const x = s && (s.sites || []).find((y) => y.site === site);
+  if (!x) return;
+  pxOpen = [host, site];
+  const d = pxD, K = PX_SCORE_K(), lan = PX_LAN_SHORT(), help = PX_LAN_HELP();
+  const it = ((s.ai || {}).items || {})[x.site];
+  const ch = it && it.status === 'new' && it.data ? pxaChanges(x, it.data) : [];
+  const F = PXA_FIELD();
+  const id = (k) => `px-${k}-${host}-${pxSafe(x.site)}`;
+  const html = `<div class="px-dr" data-px-host="${host}" data-px-site="${esc(x.site)}">
+    <div class="px-dr-head"><span class="muted small mono">${esc(x.up ? '→ ' + x.up : '')}${x.names.length > 1 ? ' · ' + esc(x.names.slice(1).join(', ')) : ''}</span>
+      ${x.score ? `<div class="px-dr-score"><span class="px-grade ${pxGradeCls(x.score.grade)}">${esc(x.score.grade)}</span><span class="px-grade-n">${x.score.n} / 100</span></div>
+        <div class="px-tips">${x.score.parts.map((p) => `<div class="px-tip"><span class="px-tip-k">${esc(K[p.k] || p.k)}</span><span class="px-tip-bar"><i style="width:${p.max ? Math.round((p.got / p.max) * 100) : 0}%"></i></span><span class="small">${p.got}/${p.max}</span>${p.tip ? `<span class="small muted">${esc(p.tip)}</span>` : '<span class="small good">✔</span>'}</div>`).join('')}</div>` : ''}</div>
+    ${ch.length ? `<section class="px-dr-sec px-dr-ai" data-pxa-site="${esc(x.site)}"><h3>🤖 ${L('Voorstel van de AI')}</h3>
+        <div>${ch.map(([f, a, b]) => `<span class="pxa-ch">${esc(F[f])}: <s>${esc(pxaVal(f, a))}</s> → <b>${esc(pxaVal(f, b))}</b></span>`).join(' ')}</div>
+        ${it.reason ? `<p class="small muted">${esc(it.reason)}</p>` : ''}
+        <div class="btn-row"><button type="button" class="btn primary" data-pxa-apply>${L('Toepassen')}</button><button type="button" class="btn" data-pxa-dismiss>${L('Negeren')}</button></div></section>` : ''}
+    <section class="px-dr-sec"><h3>${L('Wie mag erbij?')}</h3>
+      ${['off', 'paths', 'site'].map((k) => `<label class="px-opt${x.lan_mode === k ? ' on' : ''}"><input type="radio" name="px_lan" value="${k}" data-px="lan_mode" ${x.lan_mode === k ? 'checked' : ''}>
+        <span><b>${esc(lan[k])}</b><small>${esc(help[k])}</small></span></label>`).join('')}
+      <label class="px-paths-l" ${x.lan_mode === 'paths' ? '' : 'hidden'}>${L('Adminpaden (met een komma ertussen)')}<input type="text" class="mono" data-px="lan_paths" value="${esc(x.lan_paths.replace(/,/g, ', '))}" placeholder="/admin"></label>
+      ${x.rz ? `<p class="small muted">📱 ${L('De site van RzSense zelf: je toegestane apparaten komen er altijd bij.')}</p>`
+        : `<label class="px-sw">${amSw(id('dev'), x.devices, `data-px="devices" ${s.dev_agent_ok ? '' : 'disabled'}`)} <span>${L('Toegestane apparaten mogen er van buiten bij')}${s.dev_agent_ok ? '' : ` <span class="muted small">(${esc(L('Agent {v} of nieuwer nodig', { v: '1.108.0' }))})</span>`}</span></label>`}</section>
+    <section class="px-dr-sec"><h3>${L('Verkeer')}</h3>
+      <label>${L('Te veel verzoeken afremmen')}<select data-px="rate">${PX_RATE().map(([k, l]) => `<option value="${k}" ${k === x.rate ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+      <label class="px-sw">${amSw(id('bots'), x.bots, 'data-px="bots"')} <span>${L('Slechte bots en scanners weren')}</span></label></section>
+    ${d.waf && d.waf.on ? `<section class="px-dr-sec"><h3>WAF</h3>
+      <label>${L('Op deze site')}<select data-px="waf">${WAF_SITE().map(([k, l]) => `<option value="${k}" ${k === (x.waf || 'inherit') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+      ${wafSiteStats((s.waf_stats || {})[x.site])}</section>` : ''}
+    <section class="px-dr-sec"><label class="px-sw">${amSw(id('on'), x.enabled, 'data-px="enabled"')} <span><b>${L('Bescherming aan voor deze site')}</b></span></label>
+      ${x.custom ? `<button type="button" class="btn" data-px-reset>↺ ${L('Terug naar de standaard')}</button>` : `<p class="small muted">${L('Deze site volgt de standaard uit de beheerportal.')}</p>`}
+      <p class="small muted">${L('Wijzigingen gaan binnen een minuut naar de proxy.')}</p></section></div>`;
+  if (refresh) { $('#modal-title').textContent = x.site; $('#modal-body').innerHTML = html; return; }
+  modal({ title: x.site, body: html, drawer: true, buttons: [{ label: L('Sluiten'), onClick: () => $('#modal').close() }] });
+  const mb = $('#modal-body'), sig = { signal: modalSignal() };
+  const save = async (extra = {}) => {
+    const c = $('.px-dr', mb);
+    if (!c) return;
+    const v = (k) => $(`[data-px="${k}"]`, c);
+    const lanMode = ($('[data-px="lan_mode"]:checked', c) || {}).value || 'off';
+    const body = { host_id: +c.dataset.pxHost, site: c.dataset.pxSite, enabled: v('enabled').checked, lan_mode: lanMode, lan_paths: v('lan_paths').value, rate: v('rate').value,
+      bots: v('bots').checked, ...(v('waf') ? { waf: v('waf').value } : {}), ...(v('devices') && !v('devices').disabled ? { devices: v('devices').checked } : {}), ...extra };
+    try { await api('proxy_site_save', body); toast(extra.reset ? L('Terug naar de standaard') : L('Opgeslagen; de agent voert het binnen een minuut door')); await loadProxy(); }
+    catch (ex) { toast(ex.message, 'err'); }
+  };
+  mb.addEventListener('change', (e) => {
+    const c = $('.px-dr', mb);
+    if (!c || !e.target.dataset.px) return;
+    if (e.target.dataset.px === 'lan_mode') {
+      $$('.px-opt', c).forEach((o) => o.classList.toggle('on', $('input', o).checked));
+      const p = $('.px-paths-l', c);
+      p.hidden = e.target.value !== 'paths';
+      if (!p.hidden && !$('input', p).value.trim()) { $('input', p).focus(); return; }   // eerst een pad invullen
+    }
+    save();
+  }, sig);
+  mb.addEventListener('click', async (e) => {
+    if (e.target.closest('[data-px-reset]')) { save({ reset: 1 }); return; }
+    if (await pxaClick(e, host)) await loadProxy();
+  }, sig);
+  $('#modal').addEventListener('close', () => { pxOpen = null; }, { once: true });
 }
 
 // 1.256.0: AI-advies per site
@@ -240,42 +357,10 @@ function pxaHead(s, cfg) {
     ${last && last.summary ? `<p class="small">${esc(last.summary)}</p>` : ''}
     ${last && last.note ? `<p class="small muted">${esc(last.note)}</p>` : ''}</div>`;
 }
-/** Onder een site: het open voorstel met wat er verandert, de reden en Toepassen / Negeren */
-function pxaRow(x, item, cols) {
-  if (!item || item.status !== 'new' || !item.data) return '';
-  const ch = pxaChanges(x, item.data);
-  if (!ch.length) return '';
-  const F = PXA_FIELD();
-  return `<tr class="pxa-row" data-pxa-site="${esc(x.site)}"><td></td><td colspan="${cols - 1}"><div class="pxa-prop">🤖 <b>${L('Voorstel')}:</b>
-      ${ch.map(([f, a, b]) => `<span class="pxa-ch">${esc(F[f])}: <s>${esc(pxaVal(f, a))}</s> → <b>${esc(pxaVal(f, b))}</b></span>`).join(' ')}
-      ${item.reason ? `<div class="muted small">${esc(item.reason)}</div>` : ''}
-      <span class="pxa-btns"><button type="button" class="btn small-btn primary" data-pxa-apply>${L('Toepassen')}</button> <button type="button" class="btn small-btn" data-pxa-dismiss>${L('Negeren')}</button></span></div></td></tr>`;
-}
 
 // 1.258.0: score per site en virtual patching
 const PX_SCORE_K = () => ({ access: L('Wie mag erbij'), rate: L('Rate limit'), bots: L('Bots weren'), waf: L('WAF'), vuln: L('Bekende lekken'), upload: L('Uploads scannen'), off: L('Uit') });
 const pxGradeCls = (g) => ({ A: 'ok', B: 'ok', C: 'wait', D: 'bad' }[g] || '');
-function pxScoreBadge(x) {
-  const sc = x.score;
-  if (!sc) return '';
-  return `<button type="button" class="lf-tag px-score ${pxGradeCls(sc.grade)}" data-px-score aria-expanded="false" title="${esc(L('Waarom deze score?'))}">${esc(sc.grade)} ${sc.n}</button>`;
-}
-function pxScoreRow(x, cols) {
-  const sc = x.score;
-  if (!sc) return '';
-  const K = PX_SCORE_K();
-  return `<tr class="px-tip-row" data-tip-for="${esc(x.site)}" hidden><td></td><td colspan="${cols - 1}"><div class="px-tips">
-    ${sc.parts.map((p) => `<div class="px-tip"><span class="px-tip-k">${esc(K[p.k] || p.k)}</span><span class="px-tip-bar"><i style="width:${p.max ? Math.round((p.got / p.max) * 100) : 0}%"></i></span><span class="small">${p.got}/${p.max}</span>${p.tip ? `<span class="small muted">${esc(p.tip)}</span>` : '<span class="small good">✔</span>'}</div>`).join('')}
-  </div></td></tr>`;
-}
-function pxScoreSum(s) {
-  const sc = (s.sites || []).filter((x) => x.enabled && x.score);
-  if (!sc.length) return '';
-  const avg = Math.round(sc.reduce((a, x) => a + x.score.n, 0) / sc.length);
-  const g = avg >= 85 ? 'A' : avg >= 70 ? 'B' : avg >= 50 ? 'C' : 'D';
-  const low = sc.slice().sort((a, b) => a.score.n - b.score.n)[0];
-  return ` <span class="lf-tag ${pxGradeCls(g)}" title="${esc(L('Laagste: {s} ({n})', { s: low.site, n: low.score.n }))}">${L('Score {g} {n}', { g, n: avg })}</span>`;
-}
 const VP_DAYS = () => [[7, L('7 dagen')], [30, L('30 dagen')], [90, L('90 dagen')], [0, L('zonder einde')]];
 const vpSite = (x) => (x === '*' ? L('alle sites') : x);
 /** Op de pagina Reverse proxy: paden die dicht staan (virtual patching), voorstellen en zelf toevoegen */

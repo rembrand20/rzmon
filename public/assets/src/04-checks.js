@@ -603,7 +603,7 @@ function initCmdk() {
  */
 let modalGen = 0, modalAC = null, pairTok = 0;
 const modalSignal = () => (modalAC || (modalAC = new AbortController())).signal;
-function modal({ title, body, buttons = [], wide = false, page = false, onSubmit }) {
+function modal({ title, body, buttons = [], wide = false, page = false, drawer = false, onSubmit }) {
   const dlg = $('#modal');
   const form = $('#modal-form');
   if (modalAC) modalAC.abort();
@@ -616,6 +616,7 @@ function modal({ title, body, buttons = [], wide = false, page = false, onSubmit
   dlg.classList.toggle('wide', wide);
   dlg.classList.remove('upd-modal');   // 1.204.0: alleen de bijwerk-vensters
   dlg.classList.toggle('page', page);   // 1.121.0: als pagina (bijna het hele scherm), bv. de Agent Manager
+  dlg.classList.toggle('drawer', drawer);   // 1.296.0: als zijpaneel rechts (bv. een site op de pagina Reverse proxy)
   $('#modal-title').textContent = title;
   $('#modal-body').innerHTML = body;
   setTimeout(() => fieldHelp(mb), 0);   // 1.241.0: ⓘ bij de velden
