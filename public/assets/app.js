@@ -5818,8 +5818,12 @@ function initCmdk() {
  */
 let modalGen = 0, modalAC = null, pairTok = 0;
 const modalSignal = () => (modalAC || (modalAC = new AbortController())).signal;
-function modal({ title, body, buttons = [], wide = false, page = false, drawer = false, onSubmit }) {
+function modal({ title, body, buttons = [], wide = false, page = false, drawer = false, split = false, onSubmit }) {
   const dlg = $('#modal');
+  // 1.298.0: split = zijpaneel zonder de pagina erachter te blokkeren (lijst links, details rechts). Van of naar een gewoon venster: eerst dicht.
+  if (dlg.open && (dlg.dataset.split === '1') !== split) dlg.close();
+  dlg.dataset.split = split ? '1' : '';
+  if (split) drawer = true;
   const form = $('#modal-form');
   if (modalAC) modalAC.abort();
   modalAC = new AbortController();
@@ -5832,6 +5836,8 @@ function modal({ title, body, buttons = [], wide = false, page = false, drawer =
   dlg.classList.remove('upd-modal');   // 1.204.0: alleen de bijwerk-vensters
   dlg.classList.toggle('page', page);   // 1.121.0: als pagina (bijna het hele scherm), bv. de Agent Manager
   dlg.classList.toggle('drawer', drawer);   // 1.296.0: als zijpaneel rechts (bv. een site op de pagina Reverse proxy)
+  dlg.classList.toggle('split', split);
+  document.body.classList.toggle('split-open', split);
   $('#modal-title').textContent = title;
   $('#modal-body').innerHTML = body;
   setTimeout(() => fieldHelp(mb), 0);   // 1.241.0: ⓘ bij de velden
@@ -5865,9 +5871,20 @@ function modal({ title, body, buttons = [], wide = false, page = false, drawer =
     }
     if (sb) sb.disabled = false;
   };
-  if (!dlg.open) dlg.showModal();
+  if (!dlg.open) { if (split) dlg.show(); else dlg.showModal(); }
   return { dlg, form, err };
 }
+
+/** 1.298.0: is het scherm breed genoeg om lijst en details naast elkaar te tonen? */
+const splitView = () => window.matchMedia('(min-width: 1900px)').matches;
+
+(function splitWire() {
+  const dlg = $('#modal');
+  if (!dlg) return;
+  dlg.addEventListener('close', () => { document.body.classList.remove('split-open'); dlg.dataset.split = ''; $$('.inc-row.sel').forEach((r) => r.classList.remove('sel')); });
+  // Een niet-blokkerend paneel sluit de browser niet zelf met Esc
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && dlg.open && dlg.dataset.split === '1' && !document.querySelector('dialog[open]:modal')) dlg.close(); });
+})();
 
 function modalError(msg) {
   const err = $('#modal-form .form-error');
@@ -20570,7 +20587,7 @@ function renderIncidents() {
       const [ic, src] = INC_SRC[i.source] || ['•', () => i.source];
       const end = i.resolved_at ? new Date(i.resolved_at.replace(' ', 'T')) : new Date();
       const dur = Math.max(0, (end - new Date(i.opened_at.replace(' ', 'T'))) / 1000);
-      return `<tr class="inc-row inc-${i.status}" data-inc="${i.id}" tabindex="0">
+      return `<tr class="inc-row inc-${i.status}${$('#modal').open && $('#modal').dataset.split === '1' && +$('#modal').dataset.inc === +i.id ? ' sel' : ''}" data-inc="${i.id}" tabindex="0">
         <td>${i.status === 'resolved' ? '<span class="muted small">–</span>' : urgPill(i.urgency, i.why)}</td>
         <td title="${esc(src())}">${ic}</td>
         <td>${i.outcome ? outcomePill(i.outcome, true) + ' ' : ''}<b>${esc(i.title)}</b>${i.status !== 'resolved' ? ' ' + aiBtn('incident', i.id) : ''}${i.parts > 1 ? ` <span class="muted small">· ${esc(L('{n} stappen', { n: i.parts }))}</span>` : ''}${i.detail ? `<div class="muted small">${esc(i.detail.length > 120 ? i.detail.slice(0, 120) + '…' : i.detail)}</div>` : ''}</td>
@@ -20591,8 +20608,9 @@ async function caseDialog(id) {
   const users = (incData && incData.users) || [];
   const KIND = { system: '⚙️', status: '🔁', owner: '👤', note: '💬' };
   const go = i.source === 'check' ? ['dashboard', L('Naar Monitoring')] : i.source === 'ids' ? ['incidents/ids', L('Naar de aanvallen')] : ['vulns', L('Naar Kwetsbaarheden')];
-  const { form } = modal({
-    title: `${ic} ${i.title}`, wide: true,
+  const split = splitView();   // 1.298.0: op een breed scherm de details naast de lijst
+  const { form, dlg } = modal({
+    title: `${ic} ${i.title}`, wide: !split, split,
     body: `<div style="padding:1rem 1.2rem">
       <p class="muted small">${esc(src())}${i.host ? ' · ' + esc(i.host) : ''} · ${L('geopend {t}', { t: esc(fmtDateTime(i.opened_at)) })}${i.resolved_at ? ' · ' + L('opgelost {t}', { t: esc(fmtDateTime(i.resolved_at)) }) : ''}</p>
       ${i.detail ? `<p>${esc(i.detail)}</p>` : ''}
@@ -20620,8 +20638,11 @@ async function caseDialog(id) {
       await api('incident_set', { id: i.id, status: v.status, owner: v.owner, note: v.note });
       toast(L('Opgeslagen'));
       loadIncidents();
+      if (split) { caseDialog(i.id); return 'keep'; }
     },
   });
+  dlg.dataset.inc = String(id);
+  $$('.inc-row').forEach((r) => r.classList.toggle('sel', split && +r.dataset.inc === +id));
   return form;
 }
 

@@ -8,11 +8,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.298.0**: **breed scherm**: Instellingen in twee kolommen, en bij Incidenten de lijst en de details naast elkaar.
 - **1.297.0**: **logs: Patronen en Statistiek**: gelijke regels gegroepeerd (zie wat zeldzaam is), aantallen per veld, en OR in de zoekopdracht.
 - **1.296.0**: **reverse proxy in een rustiger opbouw**: tabbladen, een overzicht met wat aandacht vraagt, en een zijpaneel per site.
 - **1.295.0**: **updates zijn geen aanval meer**, en bij een aanvalsketen **vraagt RzSense eerst** of het moet isoleren.
 - **1.294.0**: **paginabreedte** per apparaat: begrensd, breed of de hele breedte van je scherm.
-- **1.293.0**: **logs zoeken in een nieuwe opbouw**: velden links (klik om te filteren), regels met hun velden, slepen over de tijdlijn en pagina's.
+
+## 1.298.0 – 2026-11-20
+### Nieuw
+- **Meer uit een breed scherm** (paginabreedte *Breed* of *Volledig*). Zie HANDLEIDING, Monitoring → Paginabreedte.
+  - **Instellingen:** twee kaarten naast elkaar als er plaats is (bv. de kanalen). Invoervelden worden niet eindeloos breed.
+  - **Incidenten:** vanaf 1920 pixels breed staan de lijst en de details naast elkaar. Een incident opent als paneel rechts, de lijst blijft bruikbaar, en je klikt zo door naar het volgende incident.
 
 ## 1.297.0 – 2026-11-20
 ### Nieuw

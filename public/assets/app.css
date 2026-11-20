@@ -1070,6 +1070,9 @@ label.radio-row input { width: auto; margin: 0; flex: none; }
 #tab-settings .set-off { display: none !important; }
 #tab-settings .settings-grid { grid-template-columns: minmax(0, 1fr); }
 #tab-settings .settings-grid + .settings-grid { margin-top: 0 !important; }
+/* 1.298.0: op een breed scherm (paginabreedte breed of volledig) twee kaarten naast elkaar; een kaart alleen blijft de hele breedte */
+:root:is([data-pw="wide"], [data-pw="full"]) body:not(.lay-cc) #tab-settings .settings-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 760px), 1fr)); align-items: start; }
+:root:is([data-pw="wide"], [data-pw="full"]) #tab-settings .card :is(input:not([type=checkbox]):not([type=radio]), select, textarea) { max-width: 760px; }
 #settings-form.set-noform .settings-save { display: none; }
 #tab-settings .settings-save { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; gap: 1rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: .7rem 1rem; box-shadow: var(--shadow); }
 #tab-settings .set-toolbar, #tab-settings .set-group { display: none !important; }
@@ -6171,6 +6174,10 @@ button.rz-job::before, .btn.rz-job::before { content: ''; position: absolute; in
 #modal.drawer { margin: 0 0 0 auto; height: 100vh; max-height: 100vh; width: min(560px, 100vw); max-width: none; border-radius: 18px 0 0 18px; }
 #modal.drawer #modal-body { max-height: calc(100vh - 8.5rem); }
 @media (max-width: 600px) { #modal.drawer { border-radius: 0; } }
+/* 1.298.0: lijst links, details rechts (Incidenten op een breed scherm): het paneel blokkeert de pagina niet */
+#modal.split { position: fixed; inset: 0 0 0 auto; z-index: 900; width: min(600px, 32vw); box-shadow: -12px 0 40px rgba(0, 0, 0, .18); border: 0; border-left: 1px solid var(--border); }
+@media (min-width: 1900px) { body.split-open main.container { width: calc(100% - 42px - min(600px, 32vw)); max-width: none; margin-left: 14px; margin-right: auto; } }
+.inc-row.sel { background: color-mix(in srgb, var(--primary) 9%, transparent); box-shadow: inset 3px 0 0 var(--primary); }
 .px-dr { display: grid; gap: .9rem; }
 .px-dr-head { display: grid; gap: .5rem; }
 .px-dr-sec { display: grid; gap: .55rem; border-top: 1px solid var(--border); padding-top: .8rem; }

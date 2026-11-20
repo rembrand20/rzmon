@@ -603,8 +603,12 @@ function initCmdk() {
  */
 let modalGen = 0, modalAC = null, pairTok = 0;
 const modalSignal = () => (modalAC || (modalAC = new AbortController())).signal;
-function modal({ title, body, buttons = [], wide = false, page = false, drawer = false, onSubmit }) {
+function modal({ title, body, buttons = [], wide = false, page = false, drawer = false, split = false, onSubmit }) {
   const dlg = $('#modal');
+  // 1.298.0: split = zijpaneel zonder de pagina erachter te blokkeren (lijst links, details rechts). Van of naar een gewoon venster: eerst dicht.
+  if (dlg.open && (dlg.dataset.split === '1') !== split) dlg.close();
+  dlg.dataset.split = split ? '1' : '';
+  if (split) drawer = true;
   const form = $('#modal-form');
   if (modalAC) modalAC.abort();
   modalAC = new AbortController();
@@ -617,6 +621,8 @@ function modal({ title, body, buttons = [], wide = false, page = false, drawer =
   dlg.classList.remove('upd-modal');   // 1.204.0: alleen de bijwerk-vensters
   dlg.classList.toggle('page', page);   // 1.121.0: als pagina (bijna het hele scherm), bv. de Agent Manager
   dlg.classList.toggle('drawer', drawer);   // 1.296.0: als zijpaneel rechts (bv. een site op de pagina Reverse proxy)
+  dlg.classList.toggle('split', split);
+  document.body.classList.toggle('split-open', split);
   $('#modal-title').textContent = title;
   $('#modal-body').innerHTML = body;
   setTimeout(() => fieldHelp(mb), 0);   // 1.241.0: ⓘ bij de velden
@@ -650,9 +656,20 @@ function modal({ title, body, buttons = [], wide = false, page = false, drawer =
     }
     if (sb) sb.disabled = false;
   };
-  if (!dlg.open) dlg.showModal();
+  if (!dlg.open) { if (split) dlg.show(); else dlg.showModal(); }
   return { dlg, form, err };
 }
+
+/** 1.298.0: is het scherm breed genoeg om lijst en details naast elkaar te tonen? */
+const splitView = () => window.matchMedia('(min-width: 1900px)').matches;
+
+(function splitWire() {
+  const dlg = $('#modal');
+  if (!dlg) return;
+  dlg.addEventListener('close', () => { document.body.classList.remove('split-open'); dlg.dataset.split = ''; $$('.inc-row.sel').forEach((r) => r.classList.remove('sel')); });
+  // Een niet-blokkerend paneel sluit de browser niet zelf met Esc
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && dlg.open && dlg.dataset.split === '1' && !document.querySelector('dialog[open]:modal')) dlg.close(); });
+})();
 
 function modalError(msg) {
   const err = $('#modal-form .form-error');
