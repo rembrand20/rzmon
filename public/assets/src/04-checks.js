@@ -1787,7 +1787,8 @@ function checkForm(c, h, preset = {}, tpl = null) {
       const cfg = { rules: { ...parse(g.notify_rules), ...((own && own.rules) || {}) }, channels: { ...parse(g.notify_channels), ...((own && own.channels) || {}) },
         flap: (own && own.flap) || parse(g.notify_flap) };
       ownEditor = notifyEditor($('#notify-own-editor'), cfg,
-        { push_enabled: g.pushover_enabled === '1' || g.ntfy_enabled === '1', email_enabled: g.email_enabled === '1', ha_webhook_enabled: g.ha_webhook_enabled === '1' });
+        { push_enabled: g.pushover_enabled === '1' || g.ntfy_enabled === '1', webpush_enabled: g.webpush_active === '1', webpush_fallback: g.webpush_fallback !== '0',
+          email_enabled: g.email_enabled === '1', ha_webhook_enabled: g.ha_webhook_enabled === '1' });
     }
     ownEditor?.infoOnly(info);
   };

@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
-- **1.301.0**: **push per dienst en per apparaat**: bv. alles via Web Push en alleen critical via Pushover.
+- **1.302.0**: **Web Push als eigen kanaal** in *Wanneer melden*, met Pushover als reserve; per apparaat te beperken.
 - **1.300.0**: **van buitenaf meten vanaf een server naar keuze** (bv. een VPS): de eerlijkste blik op wat er open staat.
 - **1.299.0**: **webcheck per site**: een cijfer van A tot F voor https, het certificaat en de beveiligingsheaders van elke site achter je proxy.
 - **1.298.0**: **breed scherm**: Instellingen in twee kolommen, en bij Incidenten de lijst en de details naast elkaar.
 - **1.297.0**: **logs: Patronen en Statistiek**: gelijke regels gegroepeerd (zie wat zeldzaam is), aantallen per veld, en OR in de zoekopdracht.
+
+## 1.302.0 – 2026-11-20
+### Nieuw
+- **Web Push is een eigen kanaal.** Zie HANDLEIDING 6.1d.
+  - Bij *Wanneer melden* (en bij de systeemmeldingen en de eigen meldregels van een check) staat nu een kolom **Web Push** naast **Pushover / ntfy**. Zo kies je per status wat waarheen gaat, bijvoorbeeld warning alleen via Web Push en critical via allebei.
+  - **Reserve:** staat Web Push aangevinkt maar uit, is er geen apparaat, of komt het niet aan, dan gaat de melding via Pushover of ntfy (in te stellen bij Web Push, standaard aan). Onder de tabel staat een waarschuwing als Web Push aangevinkt is maar uit staat.
+  - Discord, Slack en Teams volgen nu *een van de twee*.
+  - Na de update verandert er niets: de kolom Web Push neemt de vinkjes van Push over.
+
+### Gewijzigd
+- De keuze *Wat gaat hierheen* bij Pushover, ntfy en Web Push (1.301.0) is weg: dat doe je nu in de tabel *Wanneer melden*. Had je daar iets ingesteld, zet het dan in de tabel. De keuze per Web Push-apparaat blijft.
 
 ## 1.301.0 – 2026-11-20
 ### Nieuw

@@ -11,7 +11,7 @@ declare(strict_types=1);
 final class NotifyRules
 {
     public const KEYS = [STATUS_WARN => 'warn', STATUS_CRIT => 'crit', STATUS_UNKNOWN => 'unknown', STATUS_OK => 'recovery'];
-    public const CHANNELS = ['pushover', 'email', 'webhook'];
+    public const CHANNELS = ['pushover', 'webpush', 'email', 'webhook'];   // 1.302.0: webpush apart (zonder: volgt pushover)
     /** Alle regels: de statussen hierboven en info */
     public const RULE_KEYS = ['warn', 'crit', 'unknown', 'recovery', 'info'];
     /** Extra kanaal alleen bij info: de pagina Meldingen (problemen staan daar altijd) */
@@ -186,7 +186,7 @@ final class NotifyRules
         foreach (self::RULE_KEYS as $k) {
             if (isset($in[$k]) && is_array($in[$k])) {
                 foreach ($k === 'info' ? [...self::CHANNELS, self::PAGE] : self::CHANNELS as $c) {
-                    $out[$k][$c] = !empty($in[$k][$c]);
+                    $out[$k][$c] = $c === 'webpush' && !array_key_exists('webpush', $in[$k]) ? !empty($in[$k]['pushover']) : !empty($in[$k][$c]);
                 }
             }
         }
@@ -214,10 +214,10 @@ final class NotifyRules
         $out = [];
         foreach (self::SYSINFO as $k) {
             $out[$k] = $k === 'sec' || $k === 'stealth_door' || $k === 'task_fail' || $k === 'agent_sec' || $k === 'advice_crit'   // noodlink: ook als iemand anders hem aanvraagt, wil je dat weten
-                ? ['pushover' => true, 'email' => false, 'webhook' => false, self::PAGE => true, 'prio' => 0]
+                ? ['pushover' => true, 'webpush' => true, 'email' => false, 'webhook' => false, self::PAGE => true, 'prio' => 0]
                 : ($k === 'server_login' || $k === 'device_request' || $k === 'net_new' || $k === 'anomaly' || $k === 'net_traffic'   // 1.80.0: logins op je servers van binnen; veel berichten, dus standaard alleen op de pagina
-                    ? ['pushover' => false, 'email' => false, 'webhook' => false, self::PAGE => true, 'prio' => -1]
-                : ['pushover' => $on && $ch['pushover'], 'email' => $on && $ch['email'], 'webhook' => $on && $ch['webhook'],
+                    ? ['pushover' => false, 'webpush' => false, 'email' => false, 'webhook' => false, self::PAGE => true, 'prio' => -1]
+                : ['pushover' => $on && $ch['pushover'], 'webpush' => $on && $ch['webpush'], 'email' => $on && $ch['email'], 'webhook' => $on && $ch['webhook'],
                     self::PAGE => in_array($k, self::SYSINFO_ALWAYS_PAGE, true) || ($ch[self::PAGE] ?? true), 'prio' => -1]);
         }
         return $out;
@@ -232,6 +232,8 @@ final class NotifyRules
                 foreach ([...self::CHANNELS, self::PAGE] as $c) {
                     if (array_key_exists($c, $in[$k])) {
                         $base[$k][$c] = !empty($in[$k][$c]);
+                    } elseif ($c === 'webpush' && array_key_exists('pushover', $in[$k])) {
+                        $base[$k][$c] = !empty($in[$k]['pushover']);   // 1.302.0: opgeslagen voor Web Push apart was: volgt Push
                     }
                 }
                 if (isset($in[$k]['prio'])) {
@@ -281,7 +283,7 @@ final class NotifyRules
         $critOnlyHook = ($s['ha_webhook_events'] ?? 'all') === 'crit';
         $channels = [];
         foreach (array_values(self::KEYS) as $k) {
-            $channels[$k] = ['pushover' => true, 'email' => true, 'webhook' => !$critOnlyHook || in_array($k, ['crit', 'recovery'], true)];
+            $channels[$k] = ['pushover' => true, 'webpush' => true, 'email' => true, 'webhook' => !$critOnlyHook || in_array($k, ['crit', 'recovery'], true)];
         }
         $ins = $pdo->prepare('INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)');
         $ins->execute(['notify_rules', json_encode($rules)]);

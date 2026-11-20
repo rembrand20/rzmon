@@ -1137,15 +1137,13 @@ Met Web Push komen de meldingen van RzSense rechtstreeks op je telefoon, tablet 
 
 **Beheer:** bij **Instellingen → Meldingen en rapporten → Kanalen → Web Push** zie je alle apparaten van alle gebruikers, met **🧪 Test** en **✕ Verwijderen**. Daar staat ook de hoofdschakelaar. Bij *Meldketen testen* staat Web Push er nu bij.
 
-**Wat gaat waarheen** (vanaf 1.301.0): Pushover, ntfy en Web Push vormen samen het kanaal **Push**. Je meldregels, stille uren en de IDS-pushmeldingen bepalen óf een melding naar Push gaat; daarna bepaal je per dienst en per apparaat wát er aankomt.
-- **Per dienst** (*Wat gaat hierheen*, in de kaart van Pushover, ntfy en Web Push):
-  - **Alles** (standaard);
-  - **Alleen critical**, en het bericht als zo'n critical storing hersteld is (het herstel van een warning niet);
-  - **Alleen als reserve**: deze dienst krijgt een melding alleen als de andere pushdiensten hem niet konden afleveren.
-- **Per Web Push-apparaat** (kolom *Krijgt* in de lijst met apparaten, hier en bij *Mijn account*): **Alles**, **Alleen critical** of **Alleen IDS-aanvallen**. Elke gebruiker kiest dat voor zijn eigen apparaten; een beheerder voor elk apparaat.
-- **Voorbeeld:** Web Push op *Alles* en Pushover op *Alleen critical*: alles komt op je telefoon via Web Push, en bij een echte storing ook via Pushover (met de sirene als je dat bij Pushover zo hebt ingesteld).
-- Rapporten (week- en maandoverzicht) tellen als informatie: die gaan niet naar een dienst of apparaat met *Alleen critical*. De noodlink gaat altijd naar elke dienst.
-- Gaat een melding zo bewust naar geen enkele dienst, dan is dat geen fout: in Meldingen staat hij gewoon, zonder 📲.
+**Een eigen kanaal** (vanaf 1.302.0): Web Push is een kanaal naast **Pushover / ntfy**, e-mail en Home Assistant. Bij **Instellingen → Meldingen en rapporten → Wanneer melden** kies je per status (warning, critical, onbekend, hersteld, info) welke kanalen hem krijgen, net als bij de systeemmeldingen en de eigen meldregels van een check.
+- **Voorbeeld:** warning alleen *Web Push*; critical en hersteld *Web Push* én *Pushover / ntfy*. Dan komt alles via Web Push, en een storing daarnaast via Pushover (met de sirene als je dat bij Pushover zo hebt ingesteld).
+- **Na de update verandert er niets:** de kolom Web Push neemt de vinkjes van Push over. Daarna stel je hem los in.
+- **Reserve** (*Komt Web Push niet aan (of staat het uit), dan via Pushover of ntfy*, in de kaart van Web Push, standaard aan): staat Web Push aangevinkt maar uit, is er geen apparaat aangemeld, of komt het bericht niet aan, dan gaat de melding via Pushover of ntfy, met de reden erachter. Kreeg Pushover / ntfy de melding al, dan niet nog een keer. Onder de tabel staat een waarschuwing als Web Push aangevinkt is maar uit staat.
+- **Per apparaat** (kolom *Krijgt* in de lijst met apparaten, hier en bij *Mijn account*): **Alles**, **Alleen critical** (en het herstel daarvan) of **Alleen IDS-aanvallen**. Elke gebruiker kiest dat voor zijn eigen apparaten; een beheerder voor elk apparaat. Wil geen enkel apparaat een melding, dan is dat geen fout en springt de reserve niet in.
+- **IDS-pushmeldingen**, de noodlink en de rapporten gaan naar Pushover / ntfy én Web Push (wat aan staat). Discord, Slack en Teams krijgen een melding als Pushover / ntfy of Web Push aangevinkt is, met hun eigen filter.
+- Alleen e-mail ingesteld: dan gaat er niets via push.
 
 **Veilig:**
 - Elk bericht is **versleuteld van RzSense tot je apparaat** (RFC 8291). Google, Apple, Mozilla of Microsoft bezorgen het, maar kunnen het niet lezen.

@@ -1901,5 +1901,6 @@ CREATE TABLE IF NOT EXISTS web_check (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('webcheck_on', '1'), ('webcheck_domain', '');
 
--- 1.301.0: wat er per pushdienst heen gaat (all, crit of fallback)
-INSERT IGNORE INTO settings (name, value) VALUES ('pushover_what', 'all'), ('ntfy_what', 'all'), ('webpush_what', 'all');
+
+-- 1.302.0: Web Push als eigen kanaal; kwam het niet aan of staat het uit, dan via Pushover/ntfy
+INSERT IGNORE INTO settings (name, value) VALUES ('webpush_fallback', '1');

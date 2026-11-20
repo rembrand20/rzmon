@@ -13,7 +13,8 @@ final class Notify
     /**
      * @param array{channels?: ?array, prio?: int, status?: int, event?: string, anchor?: string, push_opts?: array, mail_extra?: string, ids?: bool,
      *     webhook?: ?array, webhook_extra?: array, webhook_filter?: bool, host?: ?string, host_id?: ?int} $o
-     *  - channels: ['pushover' => bool, 'email' => bool, 'webhook' => bool]; null = alle ingeschakelde kanalen
+     *  - channels: ['pushover' => bool, 'webpush' => bool, 'email' => bool, 'webhook' => bool]; null = alle ingeschakelde kanalen
+     *    ('pushover' = Pushover en ntfy; zonder 'webpush' volgt Web Push 'pushover')
      *  - anchor: deel na het adres van RzSense voor de link (bv. '#ids'); push_opts vervangt de link (bv. de bevestig-link)
      *  - webhook: een eigen payload; anders een standaard-payload (+ webhook_extra)
      *  - webhook_filter: "alleen CRITICAL en herstel" (Instellingen → Home Assistant) toepassen; standaard als channels null is
@@ -30,16 +31,48 @@ final class Notify
         $base = public_url();
         $out = ['push' => null, 'email' => null, 'webhook' => null, 'chat' => null, 'errors' => [], 'receipt' => null, 'push_skipped' => false];
 
-        if (Push::enabled() && ($ch === null || !empty($ch['pushover']))) {
-            $opts = $o['push_opts'] ?? ($base !== '' ? ['url' => $base . '/' . ltrim((string) ($o['anchor'] ?? ''), '/'), 'url_title' => t('Open RzSense')] : []);
-            $r = Push::send($title, $message . "\n" . date('d-m-Y H:i:s'), (int) ($o['prio'] ?? 0), $opts,
-                ['status' => $status, 'event' => $event, 'previous' => isset($o['previous']) ? (int) $o['previous'] : null, 'ids' => !empty($o['ids'])]);
-            $out['push_skipped'] = !empty($r['skipped']);
-            $out['push'] = $out['push_skipped'] ? null : (bool) $r['ok'];   // 1.301.0: bewust naar geen enkele dienst = niet gebruikt
-            if (!empty($r['error'])) {
-                $out['errors'][] = $r['error'];
-            }
+        // 1.302.0: Pushover/ntfy en Web Push zijn twee kanalen. Zonder 'webpush' in channels volgt Web Push de keuze voor 'pushover'
+        // (IDS, beveiliging en oudere meldregels). Kwam Web Push niet aan of staat het uit, dan via Pushover/ntfy (webpush_fallback).
+        $wantClassic = $ch === null || !empty($ch['pushover']);
+        $wantWeb = $ch === null || !empty($ch['webpush'] ?? $ch['pushover'] ?? false);
+        $opts = $o['push_opts'] ?? ($base !== '' ? ['url' => $base . '/' . ltrim((string) ($o['anchor'] ?? ''), '/'), 'url_title' => t('Open RzSense')] : []);
+        $meta = ['status' => $status, 'event' => $event, 'previous' => isset($o['previous']) ? (int) $o['previous'] : null, 'ids' => !empty($o['ids'])];
+        $pushMsg = $message . "\n" . date('d-m-Y H:i:s');
+        $classicDone = false;
+        $results = [];
+        if ($wantClassic && Push::classicEnabled()) {
+            $results[] = $r = Push::send($title, $pushMsg, (int) ($o['prio'] ?? 0), $opts, $meta + ['svc' => Push::CLASSIC]);
+            $classicDone = true;
             $out['receipt'] = $r['receipt'] ?? null;
+        }
+        if ($wantWeb) {
+            $web = WebPush::enabled() ? Push::send($title, $pushMsg, (int) ($o['prio'] ?? 0), $opts, $meta + ['svc' => ['webpush']]) : null;
+            $webOk = $web !== null && ($web['ok'] || !empty($web['skipped']));
+            if ($webOk) {
+                $results[] = $web;
+            } elseif (!$classicDone && Push::classicEnabled() && setting('webpush_fallback', '1') === '1') {
+                // Web Push staat uit, heeft geen apparaten of kwam niet aan: via Pushover/ntfy, met de reden erbij
+                $why = $web === null ? t('Web Push staat uit') : t('Web Push kwam niet aan');
+                $results[] = $r = Push::send($title, $pushMsg . "\n(" . $why . ')', (int) ($o['prio'] ?? 0), $opts, $meta + ['svc' => Push::CLASSIC]);
+                $out['receipt'] = $r['receipt'] ?? null;
+                if (!$r['ok'] && $web !== null) {
+                    $results[] = $web;
+                }
+            } elseif ($web !== null) {
+                $results[] = $web;
+            } elseif (!$classicDone) {
+                $results[] = ['ok' => false, 'error' => 'Web Push: ' . t('staat uit of er is geen apparaat aangemeld'), 'receipt' => null, 'skipped' => false];
+            }
+        }
+        if ($results) {
+            $sent = array_filter($results, static fn($x) => empty($x['skipped']));
+            $out['push_skipped'] = !$sent;
+            $out['push'] = $sent ? (bool) array_filter(array_column($sent, 'ok')) : null;
+            foreach ($sent as $x) {
+                if (!empty($x['error'])) {
+                    $out['errors'][] = $x['error'];
+                }
+            }
         }
 
         // E-mail: altijd, of alleen als reserve wanneer push uit staat of mislukt
@@ -55,7 +88,7 @@ final class Notify
         }
 
         // 1.284.0: Discord, Slack en Teams volgen de beslissing voor push (of 'chat' als die apart is meegegeven), met hun eigen filter
-        if (Chat::enabled() && ($ch === null || !empty($ch['chat'] ?? $ch['pushover'] ?? false))) {
+        if (Chat::enabled() && ($ch === null || !empty($ch['chat'] ?? (!empty($ch['pushover']) || !empty($ch['webpush']))))) {   // 1.302.0: een van de twee
             $link = (string) (($o['push_opts']['url'] ?? '') ?: ($base !== '' ? $base . '/' . ltrim((string) ($o['anchor'] ?? ''), '/') : ''));
             $r = Chat::send($title, $message, $status, $event, $link, $o['host'] ?? null, !empty($o['ids']));
             $out['chat'] = $r['ok'];

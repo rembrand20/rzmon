@@ -940,7 +940,7 @@ final class Monitor
             : (array_keys($events) === ['reminder'] ? "🔁 $host: " . t('nog steeds {n} problemen', ['n' => $n]) : "{$icon[$worst]} " . STATUS_LABELS[$worst] . ": $host – " . t('{n} meldingen', ['n' => $n]));
         $body = implode("\n", $lines);
         // Push en e-mail: één bericht; Home Assistant krijgt hieronder een bericht per check
-        $n = Notify::send($title, $body, ['channels' => ['pushover' => $channels['pushover'], 'email' => $channels['email'], 'webhook' => false], 'prio' => $prio,
+        $n = Notify::send($title, $body, ['channels' => ['pushover' => $channels['pushover'], 'webpush' => $channels['webpush'] ?? $channels['pushover'], 'email' => $channels['email'], 'webhook' => false], 'prio' => $prio,
             'status' => $worst, 'event' => array_keys($events) === ['recovery'] ? 'recovery' : 'problem',
             'previous' => max(array_map(static fn($x) => (int) ($x['item']['previous'] ?? 0), $items) ?: [0]), 'mail_extra' => $acks ? t('Bevestigen (geen meldingen meer voor die storing):') . "\n" . implode("\n", $acks) : '']);
         [$pushover, $email, $errors, $chat] = [$n['push'], $n['email'], $n['errors'], $n['chat']];
@@ -1081,15 +1081,15 @@ final class Monitor
             I18n::forNotify(function () use ($event, $hostId, $hostName, $title, $message, $ip, $detail, $pageOnly, $cfg, $test, $force) {
                 $c = $cfg ?? (NotifyRules::sysinfo()[$event] ?? null);
                 if ($force !== null) {
-                    $c = ['pushover' => true, 'email' => true, 'webhook' => true, NotifyRules::PAGE => true, 'prio' => max($force, (int) ($c['prio'] ?? -1))];
+                    $c = ['pushover' => true, 'webpush' => true, 'email' => true, 'webhook' => true, NotifyRules::PAGE => true, 'prio' => max($force, (int) ($c['prio'] ?? -1))];
                 }
                 if (!$c) {
                     return;
                 }
                 if ($pageOnly) {
-                    $c['pushover'] = $c['email'] = $c['webhook'] = false;
+                    $c['pushover'] = $c['webpush'] = $c['email'] = $c['webhook'] = false;
                 }
-                $hold = !$test && $force === null && ($c['pushover'] || $c['email'] || $c['webhook']) && NotifyRules::quietUntil(NotifyRules::quietGlobal()) !== null ? t('stille uren') : null;
+                $hold = !$test && $force === null && ($c['pushover'] || !empty($c['webpush']) || $c['email'] || $c['webhook']) && NotifyRules::quietUntil(NotifyRules::quietGlobal()) !== null ? t('stille uren') : null;
                 self::sendInfo(null, $hostId, $title, $message(), true, $c, $hold, $hostName, false, $ip, $detail, (int) ($c['prio'] ?? -1));
             });
         } catch (Throwable) {

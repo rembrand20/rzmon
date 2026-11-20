@@ -11809,4 +11809,11 @@ return [
     'Krijgt' => 'Gets',
     'Wat {d} krijgt' => 'What {d} gets',
     'Alleen IDS-aanvallen' => 'Only IDS attacks',
+    'Komt Web Push niet aan (of staat het uit), dan via Pushover of ntfy' => 'If Web Push does not arrive (or is off), use Pushover or ntfy',
+    'Web Push staat uit' => 'Web Push is off',
+    'Web Push kwam niet aan' => 'Web Push did not arrive',
+    'staat uit of er is geen apparaat aangemeld' => 'is off or no device is registered',
+    '{c} is aangevinkt maar staat uit (of er is geen apparaat aangemeld): die meldingen gaan via Pushover / ntfy.' => '{c} is ticked but off (or no device is registered): those alerts go via Pushover / ntfy.',
+    '{c} is aangevinkt maar staat uit: die meldingen komen daar niet aan.' => '{c} is ticked but off: those alerts will not arrive there.',
+    'Staat bij een melding Web Push aangevinkt, maar staat Web Push uit, is er geen apparaat aangemeld of komt het bericht niet aan? Dan gaat de melding via Pushover of ntfy, met de reden erbij. Zo raak je niets kwijt.' => 'Is Web Push ticked for an alert, but is Web Push off, is no device registered, or does the message not arrive? Then the alert goes via Pushover or ntfy, with the reason added. This way you lose nothing.',
 ];

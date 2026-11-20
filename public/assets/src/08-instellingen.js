@@ -1699,7 +1699,8 @@ async function loadSettings() {
   });
   const parse = (v) => { try { return JSON.parse(v || '{}') || {}; } catch (e) { return {}; } };
   notifyGlobal = notifyEditor($('#notify-editor'), { rules: parse(s.notify_rules), channels: parse(s.notify_channels), flap: parse(s.notify_flap) },
-    { push_enabled: s.pushover_enabled === '1' || s.ntfy_enabled === '1' || s.webpush_active === '1', email_enabled: s.email_enabled === '1', ha_webhook_enabled: s.ha_webhook_enabled === '1' });
+    { push_enabled: s.pushover_enabled === '1' || s.ntfy_enabled === '1', webpush_enabled: s.webpush_active === '1', webpush_fallback: s.webpush_fallback !== '0',
+      email_enabled: s.email_enabled === '1', ha_webhook_enabled: s.ha_webhook_enabled === '1' });
   sysinfoCfg = parse(s.sysinfo);
   wpActive = s.webpush_active === '1';
   renderSysinfo();
@@ -1765,7 +1766,9 @@ async function updateAllAgents(e) {
 const NOTIFY_ROWS = [
   ['warn', '🟠 Warning'], ['crit', '🔴 Critical'], ['unknown', '⚪ ' + L('Onbekend')], ['recovery', '✅ ' + L('Hersteld')], ['info', 'ℹ️ ' + L('Info (checks)')],
 ];
-const NOTIFY_CHANNELS = [['pushover', '📲 Push', 'push_enabled'], ['email', L('E-mail'), 'email_enabled'], ['webhook', 'Home Assistant', 'ha_webhook_enabled']];
+const NOTIFY_CHANNELS = [['pushover', '📲 Pushover / ntfy', 'push_enabled'], ['webpush', '📱 Web Push', 'webpush_enabled'], ['email', L('E-mail'), 'email_enabled'], ['webhook', 'Home Assistant', 'ha_webhook_enabled']];   // 1.302.0: Web Push apart
+/** 1.302.0: staat er (nog) niets voor Web Push opgeslagen, dan volgt het Pushover / ntfy */
+const ntOn = (row, c) => ((row || {})[c] === undefined && c === 'webpush' ? (row || {}).pushover !== false : (row || {})[c] !== false);
 
 /** Tabel met per status: melden (nooit / direct / na X min), herhalen en kanalen. Geeft {get()} terug. */
 function notifyEditor(el, cfg, enabled = {}) {
@@ -1788,7 +1791,7 @@ function notifyEditor(el, cfg, enabled = {}) {
         </div></td>
         <td class="nt-rep">${k === 'recovery' || k === 'info' ? '<span class="muted small">–</span>'
           : `<span class="nt-rep">${L('elke {input} min', { input: `<input type="number" data-f="repeat" min="0" max="10080" value="${x.repeat || 0}">` })}</span>`}</td>
-        ${NOTIFY_CHANNELS.map(([c]) => `<td class="nt-ch"><input type="checkbox" data-c="${c}" ${(ch[k] || {})[c] !== false ? 'checked' : ''}></td>`).join('')}
+        ${NOTIFY_CHANNELS.map(([c]) => `<td class="nt-ch"><input type="checkbox" data-c="${c}" ${ntOn(ch[k], c) ? 'checked' : ''}></td>`).join('')}
         <td class="nt-ch">${k === 'info' ? `<input type="checkbox" data-c="page" ${(ch.info || {}).page !== false ? 'checked' : ''}>` : `<span class="muted small" title="${L('Altijd')}">✓</span>`}</td>
       </tr>`;
     }).join('')}</tbody></table></div>
@@ -1803,7 +1806,16 @@ function notifyEditor(el, cfg, enabled = {}) {
       </div>
       ${xpHtml(L('Een check die steeds wisselt, geeft niet steeds een melding.'), L('Flapt een check, dan krijg je één melding <i>staat te flappen</i>, daarna per status (warning, critical, onbekend, hersteld) hooguit één melding, en een melding als hij weer stabiel is. <b>Goed om te weten:</b> ook hier geldt <i>melden na … mislukte checks achter elkaar</i>: zolang dat aantal niet gehaald wordt, flapt hij stil.'))}
     </div>`;
-  const sync = () => { $('.flap-fields', el).classList.toggle('off', !$('[data-flap=on]', el).checked); $$('tr[data-k]', el).forEach((tr) => {
+  el.insertAdjacentHTML('afterbegin', '<p class="warn-txt small nt-off" hidden></p>');
+  const offWarn = () => {   // 1.302.0: een kanaal dat aangevinkt is maar uit staat
+    const off = NOTIFY_CHANNELS.filter(([c, , set]) => c === 'webpush' && enabled[set] === false && $$(`tr[data-k]:not([hidden]) [data-c="${c}"]`, el).some((i) => i.checked));
+    const w = $('.nt-off', el);
+    w.hidden = !off.length;
+    w.innerHTML = off.map(([c, l]) => '⚠ ' + (c === 'webpush' && enabled.webpush_fallback && enabled.push_enabled
+      ? L('{c} is aangevinkt maar staat uit (of er is geen apparaat aangemeld): die meldingen gaan via Pushover / ntfy.', { c: esc(l) })
+      : L('{c} is aangevinkt maar staat uit: die meldingen komen daar niet aan.', { c: esc(l) }))).join('<br>');
+  };
+  const sync = () => { offWarn(); $('.flap-fields', el).classList.toggle('off', !$('[data-flap=on]', el).checked); $$('tr[data-k]', el).forEach((tr) => {
     const mode = $('[data-f=mode]', tr).value;
     $('[data-f=min]', tr).hidden = mode !== 'after';
     $$('input', tr).forEach((i) => { if (i.dataset.f !== 'min') i.disabled = mode === 'never' && i.dataset.f === 'repeat'; });
@@ -2050,7 +2062,7 @@ const SYSINFO_ROWS = [
   [L('Logs'), [['logs_limit', '📜 ' + L('Daglimiet van een server bereikt')], ['logs_full', '📜 ' + L('Maximum bereikt: oudste dag weggegooid')], ['logs_watch_off', '📜 ' + L('Vaste zoekactie te traag, uitgezet')]]],   // 1.210.0
   [L('AI-advies'), [['ai_advice', '🤖 ' + L('Samenvatting van een automatisch advies')], ['ai_week', '📅 ' + L('Weekoverzicht')], ['ai_credit', '💳 ' + L('Tegoed of budget bijna op of op')]]],   // 1.173.0
 ];
-const SYSINFO_CH = [['pushover', '📲 Push', 'push'], ['email', '📧 ' + L('E-mail'), 'email_enabled'], ['webhook', '🏠 Home Assistant', 'ha_webhook_enabled'], ['page', '📄 ' + L('Meldingenpagina'), null]];
+const SYSINFO_CH = [['pushover', '📲 Pushover / ntfy', 'push'], ['webpush', '📱 Web Push', 'webpush'], ['email', '📧 ' + L('E-mail'), 'email_enabled'], ['webhook', '🏠 Home Assistant', 'ha_webhook_enabled'], ['page', '📄 ' + L('Meldingenpagina'), null]];
 let sysinfoCfg = null;
 
 let wpActive = false;   // 1.285.0: er zijn apparaten aangemeld voor Web Push
@@ -2058,10 +2070,11 @@ function renderSysinfo() {
   const t = $('#sysinfo');
   if (!t || !sysinfoCfg) return;
   const f = $('#settings-form');
-  const off = (k) => (k === 'push' ? !f.pushover_enabled.checked && !f.ntfy_enabled.checked && !(wpActive && f.webpush_enabled && f.webpush_enabled.checked) : k && f[k] && !f[k].checked);   // kanaal staat helemaal uit
+  const off = (k) => (k === 'push' ? !f.pushover_enabled.checked && !f.ntfy_enabled.checked : k === 'webpush' ? !(wpActive && f.webpush_enabled && f.webpush_enabled.checked)
+    : k && f[k] && !f[k].checked);   // kanaal staat helemaal uit (1.302.0: Web Push apart)
   t.innerHTML = `<thead><tr><th>${L('Melding')}</th>${SYSINFO_CH.map(([, l, k]) => `<th class="si-ch">${l}${off(k) ? ` <span class="muted small">(${L('uit')})</span>` : ''}</th>`).join('')}
     <th>${L('Push-geluid')}</th><th></th></tr></thead><tbody>
-    ${SYSINFO_ROWS.map(([group, rows]) => `<tr class="si-group"><td colspan="7">${esc(group)}</td></tr>` + rows.map(([k, label]) => {
+    ${SYSINFO_ROWS.map(([group, rows]) => `<tr class="si-group"><td colspan="8">${esc(group)}</td></tr>` + rows.map(([k, label]) => {
       const c = sysinfoCfg[k] || {};
       const iso = k === 'isolate';   // 1.278.1: isoleren gaat altijd via alle kanalen
       return `<tr data-si="${k}"><td>${esc(label)}${k === 'sec' ? `<div class="muted small">${L('ook tijdens stille uren')}</div>` : ''}${iso ? `<div class="muted small">${L('altijd via alle kanalen, ook tijdens stille uren')}</div>` : ''}</td>
@@ -2069,7 +2082,7 @@ function renderSysinfo() {
           const fixed = (k === 'sec' && ch === 'page') || iso;   // de telling per IP staat op de meldingenpagina
           return `<td class="si-ch"><input type="checkbox" data-ch="${ch}" ${c[ch] || fixed ? 'checked' : ''} ${fixed ? `disabled title="${esc(iso ? L('Een geïsoleerde server meldt RzSense altijd via alle kanalen') : L('Altijd: hier telt RzSense de pogingen per IP'))}"` : ''}></td>`;
         }).join('')}
-        <td><select data-prio ${c.pushover ? '' : 'disabled'}><option value="-1" ${+c.prio < 0 ? 'selected' : ''}>🔕 ${L('stil')}</option><option value="0" ${+c.prio >= 0 ? 'selected' : ''}>🔔 ${L('normaal')}</option></select></td>
+        <td><select data-prio ${c.pushover || c.webpush ? '' : 'disabled'}><option value="-1" ${+c.prio < 0 ? 'selected' : ''}>🔕 ${L('stil')}</option><option value="0" ${+c.prio >= 0 ? 'selected' : ''}>🔔 ${L('normaal')}</option></select></td>
         <td><button type="button" class="icon-btn" data-si-test title="${esc(L('Testmelding sturen naar de aangevinkte kanalen'))}">🧪</button></td></tr>`;
     }).join('')).join('')}</tbody>`;
 }

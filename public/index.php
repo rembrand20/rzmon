@@ -834,7 +834,6 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <h2>Pushover</h2>
           <?= xp(t('Pushmeldingen op je telefoon via de Pushover-app.'), t('<b>Wat het is:</b> Pushover is een app voor iPhone, Android en de computer die berichten van RzSense meteen op je scherm zet, met een eigen geluid per prioriteit en noodmeldingen die blijven herhalen tot je reageert. <b>Instellen:</b> maak op <a href="https://pushover.net/apps/build" target="_blank" rel="noopener">pushover.net</a> een applicatie aan; dat geeft het <i>API-token</i>. Je <i>user key</i> staat op je Pushover-dashboard. <b>Goed om te weten:</b> na een gratis proefperiode betaal je Pushover één keer per platform.')) ?>
           <label class="switch"><input type="checkbox" name="pushover_enabled"><span></span> <?= th('Pushover meldingen aan') ?></label>
-          <label><?= th('Wat gaat hierheen') ?><select name="pushover_what"><option value="all"><?= th('Alles') ?></option><option value="crit"><?= th('Alleen critical (en het herstel daarvan)') ?></option><option value="fallback"><?= th('Alleen als reserve (als de andere pushdiensten het niet afleverden)') ?></option></select></label>
           <label>User key<input name="pushover_user" autocomplete="off" spellcheck="false"></label>
           <label>API token<input name="pushover_token" autocomplete="off" spellcheck="false"></label>
           <details class="adv"><summary><?= th('Geavanceerd') ?></summary>
@@ -861,7 +860,6 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <h2>ntfy</h2>
           <?= xp(t('Gratis pushmeldingen via de ntfy-app, naast of in plaats van Pushover.'), t('<b>Wat het is:</b> ntfy is een gratis app en dienst voor pushberichten. Je gebruikt <a href="https://ntfy.sh" target="_blank" rel="noopener">ntfy.sh</a> of je eigen ntfy-server. <b>Instellen:</b> installeer de ntfy-app, abonneer je op het onderwerp (topic) dat je hieronder invult en sla op. <b>Goed om te weten:</b> op ntfy.sh kan iedereen die de naam van het onderwerp kent meelezen. Kies dus een lange, moeilijk te raden naam, of gebruik een eigen server met een toegangstoken.')) ?>
           <label class="switch"><input type="checkbox" name="ntfy_enabled"><span></span> <?= th('ntfy meldingen aan') ?></label>
-          <label><?= th('Wat gaat hierheen') ?><select name="ntfy_what"><option value="all"><?= th('Alles') ?></option><option value="crit"><?= th('Alleen critical (en het herstel daarvan)') ?></option><option value="fallback"><?= th('Alleen als reserve (als de andere pushdiensten het niet afleverden)') ?></option></select></label>
           <label><?= th('Server') ?><input name="ntfy_server" placeholder="https://ntfy.sh" autocomplete="off" spellcheck="false"></label>
           <label><?= th('Onderwerp (topic)') ?><input name="ntfy_topic" placeholder="rzmon-…" autocomplete="off" spellcheck="false" pattern="[A-Za-z0-9_\-]{1,64}"></label>
           <label><?= th('Toegangstoken of gebruiker:wachtwoord') ?> <span class="muted small"><?= th('(leeg = zonder inloggen)') ?></span><input name="ntfy_token" autocomplete="off" spellcheck="false"></label>
@@ -970,7 +968,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <h2>📱 <?= th('Web Push') ?></h2>
           <?= xp(t('Meldingen rechtstreeks op telefoons en computers, zonder app van een andere dienst.'), t('<b>Wat het doet:</b> RzSense stuurt de meldingen van <b>📲 Push</b> ook naar elk aangemeld apparaat: Android, iPhone en iPad (iOS 16.4+, vanaf het beginscherm) en computers. <b>Zo stel je het in:</b> elke gebruiker meldt zijn eigen apparaat aan bij <b>👤 Mijn account → Meldingen op dit apparaat</b>. Hier zie je alle apparaten. <b>Nodig:</b> RzSense via https met een echt certificaat, bijvoorbeeld via SWAG. <b>Veilig:</b> versleuteld van RzSense tot het apparaat en ondertekend met een sleutel die alleen RzSense heeft.')) ?>
           <label class="switch"><input type="checkbox" name="webpush_enabled"><span></span> <?= th('Web Push aan') ?></label>
-          <label><?= th('Wat gaat hierheen') ?><select name="webpush_what"><option value="all"><?= th('Alles') ?></option><option value="crit"><?= th('Alleen critical (en het herstel daarvan)') ?></option><option value="fallback"><?= th('Alleen als reserve (als de andere pushdiensten het niet afleverden)') ?></option></select></label>
+          <label class="switch"><input type="checkbox" name="webpush_fallback"><span></span> <?= th('Komt Web Push niet aan (of staat het uit), dan via Pushover of ntfy') ?></label>
           <div id="wp-admin-body"><p class="muted"><?= th('Laden…') ?></p></div>
         </div>
 
