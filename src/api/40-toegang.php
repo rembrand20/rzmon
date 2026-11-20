@@ -412,7 +412,17 @@ switch ($action) {
             'internal' => !Stealth::outside(), 'ui_locked' => Stealth::uiLocked(), 'door' => setting('stealth_door', '1') === '1',
             'passkey_possible' => Passkey::possible(), 'passkeys_enabled' => Passkey::enabled(), 'rp_id' => Passkey::rpId(),
             'door_url' => $uid ? public_url() . '/?nood=' . rawurlencode((string) $user['username']) : null,
+            'proxy' => ProxyOpen::myStatus($dev && (int) $dev['user_id'] === $uid ? $dev : null),   // 1.291.0: de sleutel voor de proxy
         ]);
+
+    // 1.291.0: de proxy-sleutel van dit toegestane apparaat opnieuw als cookie zetten (bv. na het wissen van cookies)
+    case 'proxy_tag_fix':
+        $dev = Stealth::device();
+        if (!$dev || (int) $dev['user_id'] !== (int) ($user['id'] ?? 0)) {
+            out(['error' => t('Dit apparaat staat niet op de lijst. Zet het eerst (thuis) op de lijst.')], 422);
+        }
+        ProxyOpen::deviceSeen($dev, true);
+        out(['ok' => true]);
 
     case 'device_trust':
         $uid = (int) ($user['id'] ?? 0);

@@ -47,7 +47,7 @@ if [ "$TEST" != 1 ] && [ "${LOG_SHIP:-1}" != 0 ]; then
             while IFS=$'\t' read -r n i s; do
                 [[ "$n" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ ]] || continue
                 lv_dk+="[\"$n\",\"$(json_escape "${i:0:120}")\",\"$(json_escape "${s:0:40}")\",\"$c\"],"
-            done < <(timeout 15 "$c" ps -a --format '{{.Names}}\t{{.Image}}\t{{.State}}' 2>/dev/null | head -n 150)
+            done < <(ctrx 15 "$c" ps -a --format '{{.Names}}\t{{.Image}}\t{{.State}}' 2>/dev/null | head -n 150)
             [ -n "$lv_dk" ] && break
         done
         # Services die de afgelopen 24 uur iets logden (met het aantal regels)

@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.112.0"
+AGENT_VERSION="1.113.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -1539,6 +1539,33 @@ fi
 # Agent 1.69.0: hoe lang elk onderdeel duurde (gaat mee naar RzSense: Agent Manager toont wat traag is)
 lap_t=$run_t0; lap_name=""; laps=""
 lap() { local t; t=$(now_ms); [ -n "$lap_name" ] && laps+="\"$lap_name\":$(( t - lap_t )),"; lap_name=$1; lap_t=$t; }
+# Agent 1.113.0: podman of docker die niet antwoordt (bijvoorbeeld 's nachts een image-update die de opslag op slot zet) liet
+# elk containercommando zijn volle tijdslimiet wachten. Met tientallen commando's duurde één ronde dan een half uur, en
+# omdat de volgende ronde pas start als deze klaar is, kwam er al die tijd geen rapport ("agent stil"). Nu: één korte
+# meting per ronde; antwoordt hij niet, of loopt er één commando af, dan deze ronde geen containeronderdelen meer. De rest
+# (CPU, RAM, disks, services, het rapport) gaat gewoon door, en RzSense hoort waarom (ctr_busy).
+ctr_busy=""
+ctr_ok() {  # ctr_ok <podman|docker>: antwoordt hij deze ronde?
+    local e=$1 v="ctr_seen_$1"
+    case " $ctr_busy " in *" $e "*) return 1 ;; esac
+    [ "${!v-}" = 1 ] && return 0
+    command -v "$e" >/dev/null 2>&1 || return 1
+    if timeout -k 3 8 "$e" ps -q >/dev/null 2>&1; then printf -v "$v" 1; return 0; fi
+    ctr_busy="${ctr_busy:+$ctr_busy }$e"
+    echo "$e antwoordt niet binnen 8 s: deze ronde geen containeronderdelen" >&2
+    return 1
+}
+ctrx() {  # ctrx <seconden> <podman|docker> <argumenten…>: met tijdslimiet; loopt hij af, dan de rest van de ronde overslaan
+    local t=$1 e=$2 rc
+    shift 2
+    ctr_ok "$e" || return 125
+    timeout -k 5 "$t" "$e" "$@"
+    rc=$?
+    if [ "$rc" = 124 ] || [ "$rc" = 137 ]; then
+        case " $ctr_busy " in *" $e "*) ;; *) ctr_busy="${ctr_busy:+$ctr_busy }$e"; echo "$e liep af na $t s: de rest van de ronde geen containeronderdelen" >&2 ;; esac
+    fi
+    return "$rc"
+}
 # Agent 1.67.0: PID van deze run, zodat de endpoint-bewaking wat de agent start als "van de agent" herkent (de laatste 8)
 [ "$TEST" != 1 ] && { tail -n 7 "$t_dir/own.pids" 2>/dev/null; echo "$$"; } >"$t_dir/own.pids.tmp" 2>/dev/null && mv -f "$t_dir/own.pids.tmp" "$t_dir/own.pids" 2>/dev/null
 
@@ -1585,16 +1612,16 @@ if [ "$PODMAN" != 0 ] && [ "$HA_MODE" = 0 ] && command -v podman >/dev/null 2>&1
     fi
 fi
 # Agent 1.69.0: Docker als extra context "docker" (alleen als de Docker-daemon draait)
-if [ "$DOCKER" != 0 ] && [ "$HA_MODE" = 0 ] && command -v docker >/dev/null 2>&1 && timeout 5 docker info >/dev/null 2>&1; then
+if [ "$DOCKER" != 0 ] && [ "$HA_MODE" = 0 ] && command -v docker >/dev/null 2>&1 && ctr_ok docker && timeout 5 docker info >/dev/null 2>&1; then
     podman_ctx+=(docker)
 fi
 pm() {  # pm <context> <podman-argumenten…>: podman als root, of als die gebruiker (rootless); context docker = docker
     local ctx=$1 uid
     shift
     if [ "$ctx" = docker ]; then
-        timeout 60 docker "$@"
+        ctrx 60 docker "$@"
     elif [ "$ctx" = root ] || [ "$ctx" = "$(id -un)" ]; then
-        timeout 60 podman "$@"
+        ctrx 60 podman "$@"
     else
         uid=$(id -u "$ctx")
         (cd / && if [ -d "/run/user/$uid" ]; then export XDG_RUNTIME_DIR="/run/user/$uid"; else unset XDG_RUNTIME_DIR; fi
@@ -2952,7 +2979,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
         for c in docker podman; do
             command -v "$c" >/dev/null 2>&1 || continue
             local out
-            out=$(timeout 15 "$c" ps --format '{{.Names}} {{.Image}}' 2>/dev/null | awk -v p="$1" 'tolower($2) ~ p { print $1; exit }')
+            out=$(ctrx 15 "$c" ps --format '{{.Names}} {{.Image}}' 2>/dev/null | awk -v p="$1" 'tolower($2) ~ p { print $1; exit }')
             [ -n "$out" ] && { echo "$out"; return 0; }   # agent 1.87.0: niet gevonden bij docker? Dan nog podman
         done
         return 1
@@ -2962,7 +2989,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
         for c in docker podman; do
             command -v "$c" >/dev/null 2>&1 || continue
             local out
-            out=$(timeout 15 "$c" inspect -f '{{range .Mounts}}{{.Destination}} {{.Source}}{{"\n"}}{{end}}' "$1" 2>/dev/null | awk -v d="$2" '$1 == d { print $2; exit }')
+            out=$(ctrx 15 "$c" inspect -f '{{range .Mounts}}{{.Destination}} {{.Source}}{{"\n"}}{{end}}' "$1" 2>/dev/null | awk -v d="$2" '$1 == d { print $2; exit }')
             [ -n "$out" ] && { echo "$out"; return 0; }
         done
         return 1
@@ -2971,7 +2998,8 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
         local c
         for c in docker podman; do
             command -v "$c" >/dev/null 2>&1 || continue
-            timeout 15 "$c" ps -q 2>/dev/null | head -n 200 | xargs -r timeout 15 "$c" inspect -f '{{.Name}}{{range .NetworkSettings.Networks}} {{.IPAddress}}{{end}}' 2>/dev/null \
+            ctr_ok "$c" || continue
+            ctrx 15 "$c" ps -q 2>/dev/null | head -n 200 | xargs -r timeout -k 5 15 "$c" inspect -f '{{.Name}}{{range .NetworkSettings.Networks}} {{.IPAddress}}{{end}}' 2>/dev/null \
                 | awk '{ n = $1; sub(/^\//, "", n); for (i = 2; i <= NF; i++) if ($i != "") printf "%s=%s ", $i, n }'
             return 0
         done
@@ -3938,20 +3966,20 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
         local e out
         for e in podman docker; do
             command -v "$e" >/dev/null 2>&1 || continue
-            out=$(timeout 15 "$e" ps --format '{{.Names}} {{.Image}}' 2>/dev/null | awk -v p="$1" 'tolower($2) ~ p { print $1; exit }')
+            out=$(ctrx 15 "$e" ps --format '{{.Names}} {{.Image}}' 2>/dev/null | awk -v p="$1" 'tolower($2) ~ p { print $1; exit }')
             [ -n "$out" ] && { echo "$e $out"; return 0; }
         done
         return 1
     }
     px_mount() {  # px_mount <engine> <container> <pad in de container> → map op de host
-        timeout 15 "$1" inspect -f '{{range .Mounts}}{{.Destination}} {{.Source}}{{"\n"}}{{end}}' "$2" 2>/dev/null | awk -v d="$3" '$1 == d { print $2; exit }'
+        ctrx 15 "$1" inspect -f '{{range .Mounts}}{{.Destination}} {{.Source}}{{"\n"}}{{end}}' "$2" 2>/dev/null | awk -v d="$3" '$1 == d { print $2; exit }'
     }
     px_env() {  # px_env <engine> <container> <naam> → waarde van een omgevingsvariabele van de container
-        timeout 15 "$1" inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$2" 2>/dev/null | sed -n "s/^$3=//p" | head -n 1
+        ctrx 15 "$1" inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$2" 2>/dev/null | sed -n "s/^$3=//p" | head -n 1
     }
     # 1. Welke proxy? (PROXY_CTR in /etc/default/rzmon-agent wijst er zelf een aan)
     if [ -n "${PROXY_CTR-}" ] && [[ "$PROXY_CTR" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$ ]]; then
-        for e in podman docker; do command -v "$e" >/dev/null 2>&1 && timeout 15 "$e" inspect "$PROXY_CTR" >/dev/null 2>&1 && { px_eng=$e; px_ctr=$PROXY_CTR; break; }; done
+        for e in podman docker; do command -v "$e" >/dev/null 2>&1 && ctrx 15 "$e" inspect "$PROXY_CTR" >/dev/null 2>&1 && { px_eng=$e; px_ctr=$PROXY_CTR; break; }; done
         if [ -n "$px_ctr" ]; then
             if [ -n "$(px_mount "$px_eng" "$px_ctr" /config)" ]; then px_kind=swag; else px_kind=npm; fi
         fi
@@ -4012,7 +4040,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
     }
     px_hooked() { local h; for h in "${px_hooks[@]}"; do grep -q '# rzsense-hook' "${h%%:*}" 2>/dev/null || return 1; done; return 0; }
     px_hooked && px_hook=1
-    px_exec() { timeout 30 "$px_eng" exec "$px_ctr" "$@"; }
+    px_exec() { ctrx 30 "$px_eng" exec "$px_ctr" "$@"; }
     px_codes() {  # per site met een vaste naam (of naam.* met URL): HTTP-code via 127.0.0.1:443 → "naam code" per regel
         local n h code
         while IFS= read -r n; do
@@ -4304,9 +4332,9 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
     wf_state=error; wf_msg=""; wf_test=skip; wf_testmsg=""; wf_bouncer=none; wf_running=0; wf_alerts=""
     wf_eng=${px_eng-}
     if [ -z "$wf_eng" ]; then
-        for e in podman docker; do command -v "$e" >/dev/null 2>&1 && timeout 15 "$e" inspect "$wf_ctr" >/dev/null 2>&1 && { wf_eng=$e; break; }; done
+        for e in podman docker; do command -v "$e" >/dev/null 2>&1 && ctrx 15 "$e" inspect "$wf_ctr" >/dev/null 2>&1 && { wf_eng=$e; break; }; done
     fi
-    wfx() { timeout "${WFX_T:-60}" "$wf_eng" "$@"; }
+    wfx() { ctrx "${WFX_T:-60}" "$wf_eng" "$@"; }
     wf_exists() { [ -n "$wf_eng" ] && wfx inspect "$wf_ctr" >/dev/null 2>&1; }
     if [ "$wf_on" != on ]; then
         if wf_exists; then
@@ -4483,7 +4511,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
     av_mem=$(awk '/^MemAvailable:/ { print int($2 / 1024) }' /proc/meminfo 2>/dev/null); av_mem=${av_mem:-0}
     av_eng=${px_eng-}
     if [ -z "$av_eng" ]; then for e in podman docker; do command -v "$e" >/dev/null 2>&1 && { av_eng=$e; break; }; done; fi
-    avx() { timeout "${AVX_T:-120}" "$av_eng" "$@"; }
+    avx() { ctrx "${AVX_T:-120}" "$av_eng" "$@"; }
     av_exists() { [ -n "$av_eng" ] && avx inspect "$av_ctr" >/dev/null 2>&1; }
     # Een map mag als hij bestaat, echt een map is, binnen het plafond ligt en geen systeemmap of eigen map van RzSense is
     av_ok_dir() {
@@ -4645,7 +4673,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
     nd_mem=$(awk '/^MemAvailable:/ { print int($2 / 1024) }' /proc/meminfo 2>/dev/null); nd_mem=${nd_mem:-0}
     nd_eng=${px_eng-}
     if [ -z "$nd_eng" ]; then for e in podman docker; do command -v "$e" >/dev/null 2>&1 && { nd_eng=$e; break; }; done; fi
-    ndx() { timeout "${NDX_T:-60}" "$nd_eng" "$@"; }
+    ndx() { ctrx "${NDX_T:-60}" "$nd_eng" "$@"; }
     nd_exists() { [ -n "$nd_eng" ] && ndx inspect "$nd_ctr" >/dev/null 2>&1; }
     if [ "$nd_on" != on ]; then
         if nd_exists; then ndx rm -f "$nd_ctr" >/dev/null 2>&1; act_log proxy 1 "Suricata (proxynetwerk) uit" "container $nd_ctr weggehaald"; fi
@@ -5611,7 +5639,7 @@ SELECT 'longq', floor(extract(epoch from now() - query_start))::bigint || '|' ||
         local eng=$1 where=$2 ct=$3 usr=$4 pw=$5 dbn=$6 sql=$7 ctx
         if [ "$where" = container ]; then
             if [[ "$ct" == */* ]]; then ctx=${ct%%/*}; ct=${ct#*/}
-            elif command -v docker >/dev/null 2>&1 && timeout 5 docker inspect "$ct" >/dev/null 2>&1; then ctx=docker
+            elif command -v docker >/dev/null 2>&1 && ctrx 5 docker inspect "$ct" >/dev/null 2>&1; then ctx=docker
             else ctx=root; fi
             if [ "$eng" = mysql ]; then
                 # shellcheck disable=SC2016  # $… wordt in de container uitgewerkt
@@ -5722,7 +5750,7 @@ if [ "$TEST" != 1 ] && [ "${LOG_SHIP:-1}" != 0 ]; then
             while IFS=$'\t' read -r n i s; do
                 [[ "$n" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ ]] || continue
                 lv_dk+="[\"$n\",\"$(json_escape "${i:0:120}")\",\"$(json_escape "${s:0:40}")\",\"$c\"],"
-            done < <(timeout 15 "$c" ps -a --format '{{.Names}}\t{{.Image}}\t{{.State}}' 2>/dev/null | head -n 150)
+            done < <(ctrx 15 "$c" ps -a --format '{{.Names}}\t{{.Image}}\t{{.State}}' 2>/dev/null | head -n 150)
             [ -n "$lv_dk" ] && break
         done
         # Services die de afgelopen 24 uur iets logden (met het aantal regels)
@@ -6272,7 +6300,7 @@ if [ -n "$hold_id" ] && [ "$hold_since" -gt 0 ]; then
     [ "$TEST" != 1 ] && [ "${HOLD_JITTER:-1}" != 0 ] && sleep $(( RANDOM % 25 ))
 fi
 run_ms=$(( $(now_ms) - run_t0 ))
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json}${truenas_json:+,\"truenas\":$truenas_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],${logscan_json:+\"log_scan\":$logscan_json,}${logbrowse_json:+\"log_browse\":$logbrowse_json,}${proxy_json:+\"proxy\":$proxy_json,}${waf_json:+\"waf\":$waf_json,}${av_json:+\"av\":$av_json,}${nids_json:+\"nids\":$nids_json,}\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${act_json:+,\"act\":[$act_json]}${ransom_json:+,\"ransom\":$ransom_json}${apps_json:+,\"apps\":$apps_json}${ioc_json:+,\"ioc\":$ioc_json}${patch_json:+,\"patch\":$patch_json}${relay_json:+,\"relay\":$relay_json}${rchk_json:+,\"rchk\":[$rchk_json]}${mid:+,\"mid\":\"$mid\"}${ha_upd_json:+,\"ha_upd_result\":$ha_upd_json}${sudo_json:+,\"sudo\":[${sudo_json%,}]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json}${path_json:+,\"path\":$path_json}${db_json:+,\"db\":$db_json}${iperfs_json:+,\"iperfs\":$iperfs_json}${selftest_json:+,\"selftest\":$selftest_json}${nic_json:+,\"nic\":$nic_json}${hold_json:+,\"hold\":$hold_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json}${truenas_json:+,\"truenas\":$truenas_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],${logscan_json:+\"log_scan\":$logscan_json,}${logbrowse_json:+\"log_browse\":$logbrowse_json,}${proxy_json:+\"proxy\":$proxy_json,}${waf_json:+\"waf\":$waf_json,}${av_json:+\"av\":$av_json,}${nids_json:+\"nids\":$nids_json,}\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${act_json:+,\"act\":[$act_json]}${ransom_json:+,\"ransom\":$ransom_json}${apps_json:+,\"apps\":$apps_json}${ioc_json:+,\"ioc\":$ioc_json}${patch_json:+,\"patch\":$patch_json}${relay_json:+,\"relay\":$relay_json}${ctr_busy:+,\"ctr_busy\":\"$ctr_busy\"}${rchk_json:+,\"rchk\":[$rchk_json]}${mid:+,\"mid\":\"$mid\"}${ha_upd_json:+,\"ha_upd_result\":$ha_upd_json}${sudo_json:+,\"sudo\":[${sudo_json%,}]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json}${path_json:+,\"path\":$path_json}${db_json:+,\"db\":$db_json}${iperfs_json:+,\"iperfs\":$iperfs_json}${selftest_json:+,\"selftest\":$selftest_json}${nic_json:+,\"nic\":$nic_json}${hold_json:+,\"hold\":$hold_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
 
 # Agent 1.66.1: 50 seconden wachten op RzSense (was 20): een druk bezette RzSense verwerkt een groot rapport soms trager;
 # na 20 seconden gaf de agent het op en kreeg hij het antwoord (opdrachten, instellingen, "softwarelijst ontvangen") nooit

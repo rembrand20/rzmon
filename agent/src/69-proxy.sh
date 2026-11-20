@@ -25,20 +25,20 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
         local e out
         for e in podman docker; do
             command -v "$e" >/dev/null 2>&1 || continue
-            out=$(timeout 15 "$e" ps --format '{{.Names}} {{.Image}}' 2>/dev/null | awk -v p="$1" 'tolower($2) ~ p { print $1; exit }')
+            out=$(ctrx 15 "$e" ps --format '{{.Names}} {{.Image}}' 2>/dev/null | awk -v p="$1" 'tolower($2) ~ p { print $1; exit }')
             [ -n "$out" ] && { echo "$e $out"; return 0; }
         done
         return 1
     }
     px_mount() {  # px_mount <engine> <container> <pad in de container> → map op de host
-        timeout 15 "$1" inspect -f '{{range .Mounts}}{{.Destination}} {{.Source}}{{"\n"}}{{end}}' "$2" 2>/dev/null | awk -v d="$3" '$1 == d { print $2; exit }'
+        ctrx 15 "$1" inspect -f '{{range .Mounts}}{{.Destination}} {{.Source}}{{"\n"}}{{end}}' "$2" 2>/dev/null | awk -v d="$3" '$1 == d { print $2; exit }'
     }
     px_env() {  # px_env <engine> <container> <naam> → waarde van een omgevingsvariabele van de container
-        timeout 15 "$1" inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$2" 2>/dev/null | sed -n "s/^$3=//p" | head -n 1
+        ctrx 15 "$1" inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$2" 2>/dev/null | sed -n "s/^$3=//p" | head -n 1
     }
     # 1. Welke proxy? (PROXY_CTR in /etc/default/rzmon-agent wijst er zelf een aan)
     if [ -n "${PROXY_CTR-}" ] && [[ "$PROXY_CTR" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$ ]]; then
-        for e in podman docker; do command -v "$e" >/dev/null 2>&1 && timeout 15 "$e" inspect "$PROXY_CTR" >/dev/null 2>&1 && { px_eng=$e; px_ctr=$PROXY_CTR; break; }; done
+        for e in podman docker; do command -v "$e" >/dev/null 2>&1 && ctrx 15 "$e" inspect "$PROXY_CTR" >/dev/null 2>&1 && { px_eng=$e; px_ctr=$PROXY_CTR; break; }; done
         if [ -n "$px_ctr" ]; then
             if [ -n "$(px_mount "$px_eng" "$px_ctr" /config)" ]; then px_kind=swag; else px_kind=npm; fi
         fi
@@ -99,7 +99,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
     }
     px_hooked() { local h; for h in "${px_hooks[@]}"; do grep -q '# rzsense-hook' "${h%%:*}" 2>/dev/null || return 1; done; return 0; }
     px_hooked && px_hook=1
-    px_exec() { timeout 30 "$px_eng" exec "$px_ctr" "$@"; }
+    px_exec() { ctrx 30 "$px_eng" exec "$px_ctr" "$@"; }
     px_codes() {  # per site met een vaste naam (of naam.* met URL): HTTP-code via 127.0.0.1:443 → "naam code" per regel
         local n h code
         while IFS= read -r n; do
@@ -391,9 +391,9 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
     wf_state=error; wf_msg=""; wf_test=skip; wf_testmsg=""; wf_bouncer=none; wf_running=0; wf_alerts=""
     wf_eng=${px_eng-}
     if [ -z "$wf_eng" ]; then
-        for e in podman docker; do command -v "$e" >/dev/null 2>&1 && timeout 15 "$e" inspect "$wf_ctr" >/dev/null 2>&1 && { wf_eng=$e; break; }; done
+        for e in podman docker; do command -v "$e" >/dev/null 2>&1 && ctrx 15 "$e" inspect "$wf_ctr" >/dev/null 2>&1 && { wf_eng=$e; break; }; done
     fi
-    wfx() { timeout "${WFX_T:-60}" "$wf_eng" "$@"; }
+    wfx() { ctrx "${WFX_T:-60}" "$wf_eng" "$@"; }
     wf_exists() { [ -n "$wf_eng" ] && wfx inspect "$wf_ctr" >/dev/null 2>&1; }
     if [ "$wf_on" != on ]; then
         if wf_exists; then
@@ -570,7 +570,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
     av_mem=$(awk '/^MemAvailable:/ { print int($2 / 1024) }' /proc/meminfo 2>/dev/null); av_mem=${av_mem:-0}
     av_eng=${px_eng-}
     if [ -z "$av_eng" ]; then for e in podman docker; do command -v "$e" >/dev/null 2>&1 && { av_eng=$e; break; }; done; fi
-    avx() { timeout "${AVX_T:-120}" "$av_eng" "$@"; }
+    avx() { ctrx "${AVX_T:-120}" "$av_eng" "$@"; }
     av_exists() { [ -n "$av_eng" ] && avx inspect "$av_ctr" >/dev/null 2>&1; }
     # Een map mag als hij bestaat, echt een map is, binnen het plafond ligt en geen systeemmap of eigen map van RzSense is
     av_ok_dir() {
@@ -732,7 +732,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
     nd_mem=$(awk '/^MemAvailable:/ { print int($2 / 1024) }' /proc/meminfo 2>/dev/null); nd_mem=${nd_mem:-0}
     nd_eng=${px_eng-}
     if [ -z "$nd_eng" ]; then for e in podman docker; do command -v "$e" >/dev/null 2>&1 && { nd_eng=$e; break; }; done; fi
-    ndx() { timeout "${NDX_T:-60}" "$nd_eng" "$@"; }
+    ndx() { ctrx "${NDX_T:-60}" "$nd_eng" "$@"; }
     nd_exists() { [ -n "$nd_eng" ] && ndx inspect "$nd_ctr" >/dev/null 2>&1; }
     if [ "$nd_on" != on ]; then
         if nd_exists; then ndx rm -f "$nd_ctr" >/dev/null 2>&1; act_log proxy 1 "Suricata (proxynetwerk) uit" "container $nd_ctr weggehaald"; fi

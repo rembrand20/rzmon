@@ -63,6 +63,33 @@ fi
 # Agent 1.69.0: hoe lang elk onderdeel duurde (gaat mee naar RzSense: Agent Manager toont wat traag is)
 lap_t=$run_t0; lap_name=""; laps=""
 lap() { local t; t=$(now_ms); [ -n "$lap_name" ] && laps+="\"$lap_name\":$(( t - lap_t )),"; lap_name=$1; lap_t=$t; }
+# Agent 1.113.0: podman of docker die niet antwoordt (bijvoorbeeld 's nachts een image-update die de opslag op slot zet) liet
+# elk containercommando zijn volle tijdslimiet wachten. Met tientallen commando's duurde één ronde dan een half uur, en
+# omdat de volgende ronde pas start als deze klaar is, kwam er al die tijd geen rapport ("agent stil"). Nu: één korte
+# meting per ronde; antwoordt hij niet, of loopt er één commando af, dan deze ronde geen containeronderdelen meer. De rest
+# (CPU, RAM, disks, services, het rapport) gaat gewoon door, en RzSense hoort waarom (ctr_busy).
+ctr_busy=""
+ctr_ok() {  # ctr_ok <podman|docker>: antwoordt hij deze ronde?
+    local e=$1 v="ctr_seen_$1"
+    case " $ctr_busy " in *" $e "*) return 1 ;; esac
+    [ "${!v-}" = 1 ] && return 0
+    command -v "$e" >/dev/null 2>&1 || return 1
+    if timeout -k 3 8 "$e" ps -q >/dev/null 2>&1; then printf -v "$v" 1; return 0; fi
+    ctr_busy="${ctr_busy:+$ctr_busy }$e"
+    echo "$e antwoordt niet binnen 8 s: deze ronde geen containeronderdelen" >&2
+    return 1
+}
+ctrx() {  # ctrx <seconden> <podman|docker> <argumenten…>: met tijdslimiet; loopt hij af, dan de rest van de ronde overslaan
+    local t=$1 e=$2 rc
+    shift 2
+    ctr_ok "$e" || return 125
+    timeout -k 5 "$t" "$e" "$@"
+    rc=$?
+    if [ "$rc" = 124 ] || [ "$rc" = 137 ]; then
+        case " $ctr_busy " in *" $e "*) ;; *) ctr_busy="${ctr_busy:+$ctr_busy }$e"; echo "$e liep af na $t s: de rest van de ronde geen containeronderdelen" >&2 ;; esac
+    fi
+    return "$rc"
+}
 # Agent 1.67.0: PID van deze run, zodat de endpoint-bewaking wat de agent start als "van de agent" herkent (de laatste 8)
 [ "$TEST" != 1 ] && { tail -n 7 "$t_dir/own.pids" 2>/dev/null; echo "$$"; } >"$t_dir/own.pids.tmp" 2>/dev/null && mv -f "$t_dir/own.pids.tmp" "$t_dir/own.pids" 2>/dev/null
 
@@ -109,16 +136,16 @@ if [ "$PODMAN" != 0 ] && [ "$HA_MODE" = 0 ] && command -v podman >/dev/null 2>&1
     fi
 fi
 # Agent 1.69.0: Docker als extra context "docker" (alleen als de Docker-daemon draait)
-if [ "$DOCKER" != 0 ] && [ "$HA_MODE" = 0 ] && command -v docker >/dev/null 2>&1 && timeout 5 docker info >/dev/null 2>&1; then
+if [ "$DOCKER" != 0 ] && [ "$HA_MODE" = 0 ] && command -v docker >/dev/null 2>&1 && ctr_ok docker && timeout 5 docker info >/dev/null 2>&1; then
     podman_ctx+=(docker)
 fi
 pm() {  # pm <context> <podman-argumenten…>: podman als root, of als die gebruiker (rootless); context docker = docker
     local ctx=$1 uid
     shift
     if [ "$ctx" = docker ]; then
-        timeout 60 docker "$@"
+        ctrx 60 docker "$@"
     elif [ "$ctx" = root ] || [ "$ctx" = "$(id -un)" ]; then
-        timeout 60 podman "$@"
+        ctrx 60 podman "$@"
     else
         uid=$(id -u "$ctx")
         (cd / && if [ -d "/run/user/$uid" ]; then export XDG_RUNTIME_DIR="/run/user/$uid"; else unset XDG_RUNTIME_DIR; fi

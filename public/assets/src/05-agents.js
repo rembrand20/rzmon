@@ -2183,6 +2183,14 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
         ${top.length ? `<table class="kv small">${top.map(([k, ms]) => `<tr><th>${esc(name(k))}</th><td><span class="tbar"><i style="width:${Math.max(2, Math.round(ms / tot * 100))}%"></i></span> ${secs(ms)}</td></tr>`).join('')}</table>` : ''}
         ${xpHtml(L('Een trage commando-check houdt het rapport niet op.'), L('Commando-checks draaien op de achtergrond, dus een trage check houdt het rapport niet op. Duurt een run langer dan de tik, dan meldt de agent tussendoor dat hij nog leeft.'))}</details>`;
     }
+    // 1.291.0: stiltes van de laatste 7 dagen met hun reden, en wanneer podman/docker niet antwoordde
+    if (s.mode === 'agent' && ((s.gaps && s.gaps.length) || (s.ctr_busy && s.ctr_busy.to > Date.now() / 1000 - 7 * 86400))) {
+      const hm = (t) => new Date(t * 1000).toLocaleString(LOCALE, { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+      html += `<details class="audit-box agent-gaps" open><summary class="small">🌙 <b>${L('Stiltes (7 dagen)')}</b>: ${(s.gaps || []).length}</summary>
+        ${(s.gaps || []).map((g) => `<div class="small"><b>${esc(fmtDateTime(g.gap_from))} – ${esc(fmtDateTime(g.gap_to).replace(/^.*?, /, ''))}</b><br><span class="muted">${esc(g.reason || L('reden onbekend (agent van vóór 1.113.0)'))}</span></div>`).join('')}
+        ${s.ctr_busy && s.ctr_busy.to > Date.now() / 1000 - 7 * 86400 ? `<div class="small warn-txt">⚠ ${L('{e} antwoordde niet van {a} tot {b}; de agent sloeg de containeronderdelen toen over en bleef rapporteren.', { e: esc(s.ctr_busy.engines), a: esc(hm(s.ctr_busy.from)), b: esc(hm(s.ctr_busy.to)) })}</div>` : ''}
+        ${xpHtml(L('Waarom was de agent stil?'), L('De reden komt uit het eerste rapport na de stilte. <b>Een lange ronde</b>: welk onderdeel het langst duurde. <b>podman/docker antwoordde niet</b>: bijvoorbeeld \'s nachts een image-update (podman-auto-update) die de opslag op slot zet; vanaf agent 1.113.0 slaat de agent de containeronderdelen dan over en blijft hij rapporteren. <b>Metingen nagestuurd</b>: de agent kon RzSense niet bereiken.'))}</details>`;
+    }
     if (s.mode === 'agent' && s.update_sig) {
       html += `<div class="small">${{ ok: `🔏 ${L('Laatste update: handtekening van de ontwikkelaar gecontroleerd')}`, old_openssl: `⚠️ ${L('Laatste update: handtekening niet te controleren (OpenSSL op de server is ouder dan 3.0; alleen het controlegetal)')}`,
         off: `⚠️ ${L('Handtekeningen staan uit op deze server (UPDATE_UNSIGNED=1)')}`, bad: `<b class="bad">✘ ${L('Laatste update geweigerd: de handtekening klopte niet')}</b>` }[s.update_sig] || ''}</div>`;

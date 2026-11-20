@@ -493,7 +493,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
         for c in docker podman; do
             command -v "$c" >/dev/null 2>&1 || continue
             local out
-            out=$(timeout 15 "$c" ps --format '{{.Names}} {{.Image}}' 2>/dev/null | awk -v p="$1" 'tolower($2) ~ p { print $1; exit }')
+            out=$(ctrx 15 "$c" ps --format '{{.Names}} {{.Image}}' 2>/dev/null | awk -v p="$1" 'tolower($2) ~ p { print $1; exit }')
             [ -n "$out" ] && { echo "$out"; return 0; }   # agent 1.87.0: niet gevonden bij docker? Dan nog podman
         done
         return 1
@@ -503,7 +503,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
         for c in docker podman; do
             command -v "$c" >/dev/null 2>&1 || continue
             local out
-            out=$(timeout 15 "$c" inspect -f '{{range .Mounts}}{{.Destination}} {{.Source}}{{"\n"}}{{end}}' "$1" 2>/dev/null | awk -v d="$2" '$1 == d { print $2; exit }')
+            out=$(ctrx 15 "$c" inspect -f '{{range .Mounts}}{{.Destination}} {{.Source}}{{"\n"}}{{end}}' "$1" 2>/dev/null | awk -v d="$2" '$1 == d { print $2; exit }')
             [ -n "$out" ] && { echo "$out"; return 0; }
         done
         return 1
@@ -512,7 +512,8 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
         local c
         for c in docker podman; do
             command -v "$c" >/dev/null 2>&1 || continue
-            timeout 15 "$c" ps -q 2>/dev/null | head -n 200 | xargs -r timeout 15 "$c" inspect -f '{{.Name}}{{range .NetworkSettings.Networks}} {{.IPAddress}}{{end}}' 2>/dev/null \
+            ctr_ok "$c" || continue
+            ctrx 15 "$c" ps -q 2>/dev/null | head -n 200 | xargs -r timeout -k 5 15 "$c" inspect -f '{{.Name}}{{range .NetworkSettings.Networks}} {{.IPAddress}}{{end}}' 2>/dev/null \
                 | awk '{ n = $1; sub(/^\//, "", n); for (i = 2; i <= NF; i++) if ($i != "") printf "%s=%s ", $i, n }'
             return 0
         done

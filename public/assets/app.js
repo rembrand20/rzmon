@@ -9955,6 +9955,14 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
         ${top.length ? `<table class="kv small">${top.map(([k, ms]) => `<tr><th>${esc(name(k))}</th><td><span class="tbar"><i style="width:${Math.max(2, Math.round(ms / tot * 100))}%"></i></span> ${secs(ms)}</td></tr>`).join('')}</table>` : ''}
         ${xpHtml(L('Een trage commando-check houdt het rapport niet op.'), L('Commando-checks draaien op de achtergrond, dus een trage check houdt het rapport niet op. Duurt een run langer dan de tik, dan meldt de agent tussendoor dat hij nog leeft.'))}</details>`;
     }
+    // 1.291.0: stiltes van de laatste 7 dagen met hun reden, en wanneer podman/docker niet antwoordde
+    if (s.mode === 'agent' && ((s.gaps && s.gaps.length) || (s.ctr_busy && s.ctr_busy.to > Date.now() / 1000 - 7 * 86400))) {
+      const hm = (t) => new Date(t * 1000).toLocaleString(LOCALE, { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+      html += `<details class="audit-box agent-gaps" open><summary class="small">🌙 <b>${L('Stiltes (7 dagen)')}</b>: ${(s.gaps || []).length}</summary>
+        ${(s.gaps || []).map((g) => `<div class="small"><b>${esc(fmtDateTime(g.gap_from))} – ${esc(fmtDateTime(g.gap_to).replace(/^.*?, /, ''))}</b><br><span class="muted">${esc(g.reason || L('reden onbekend (agent van vóór 1.113.0)'))}</span></div>`).join('')}
+        ${s.ctr_busy && s.ctr_busy.to > Date.now() / 1000 - 7 * 86400 ? `<div class="small warn-txt">⚠ ${L('{e} antwoordde niet van {a} tot {b}; de agent sloeg de containeronderdelen toen over en bleef rapporteren.', { e: esc(s.ctr_busy.engines), a: esc(hm(s.ctr_busy.from)), b: esc(hm(s.ctr_busy.to)) })}</div>` : ''}
+        ${xpHtml(L('Waarom was de agent stil?'), L('De reden komt uit het eerste rapport na de stilte. <b>Een lange ronde</b>: welk onderdeel het langst duurde. <b>podman/docker antwoordde niet</b>: bijvoorbeeld \'s nachts een image-update (podman-auto-update) die de opslag op slot zet; vanaf agent 1.113.0 slaat de agent de containeronderdelen dan over en blijft hij rapporteren. <b>Metingen nagestuurd</b>: de agent kon RzSense niet bereiken.'))}</details>`;
+    }
     if (s.mode === 'agent' && s.update_sig) {
       html += `<div class="small">${{ ok: `🔏 ${L('Laatste update: handtekening van de ontwikkelaar gecontroleerd')}`, old_openssl: `⚠️ ${L('Laatste update: handtekening niet te controleren (OpenSSL op de server is ouder dan 3.0; alleen het controlegetal)')}`,
         off: `⚠️ ${L('Handtekeningen staan uit op deze server (UPDATE_UNSIGNED=1)')}`, bad: `<b class="bad">✘ ${L('Laatste update geweigerd: de handtekening klopte niet')}</b>` }[s.update_sig] || ''}</div>`;
@@ -15099,6 +15107,33 @@ function passkeyCreate(done) {
   });
 }
 
+/**
+ * 1.291.0: de sleutel van deze browser voor de reverse proxy in gewone taal (✔ / ⚠ / ⏳), met een herstelknop; op iPhone en
+ * iPad de uitleg dat Safari en de app op het beginscherm elk een eigen sleutel hebben (aparte cookies).
+ */
+function proxyKeyHtml(p, isDev) {
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const app = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const tip = ios ? `<p class="small muted">📱 ${app ? L('Je gebruikt nu de app op je beginscherm.') : L('Je gebruikt nu Safari.')} ${L('Op iPhone en iPad zijn Safari en de app op je beginscherm <b>twee aparte apparaten</b>, elk met een eigen sleutel. Zet ze allebei thuis op de lijst: open RzSense in Safari én in de app, en kies in allebei <b>Dit apparaat ook van buiten toestaan</b>.')}</p>` : '';
+  if (!p) return tip;
+  const line = (st, txt) => `<div class="small" style="margin:.2rem 0">${st === 'ok' ? '<span class="good-txt">✔</span>' : st === 'wait' ? '⏳' : '<span class="warn-txt">⚠</span>'} ${txt}</div>`;
+  let key;
+  if (p.cookie && p.known && (p.match || p.door)) {
+    key = p.door ? line('ok', L('Deze browser heeft een tijdelijke sleutel van de noodlink (tot {t}).', { t: esc(fmtDateTime(p.until)) }))
+      : line('ok', L('Deze browser heeft zijn sleutel voor de reverse proxy.'));
+  } else if (isDev) {
+    key = line('bad', L('Dit apparaat staat op de lijst, maar deze browser heeft zijn sleutel niet (meer), bijvoorbeeld na het wissen van cookies.'))
+      + `<button type="button" class="btn small" id="acct-pxfix">🔑 ${L('Sleutel opnieuw zetten')}</button>`;
+  } else {
+    key = line('bad', p.cookie ? L('De sleutel van deze browser is ingetrokken of verlopen: van buiten geeft de proxy een 403. Zet dit apparaat thuis opnieuw op de lijst.')
+      : L('Deze browser heeft geen sleutel: van buiten geeft de proxy een 403. Zet dit apparaat thuis op de lijst.'));
+  }
+  const px = (p.proxies || []).map((x) => x.synced ? line('ok', L('{h} heeft de laatste sleutels.', { h: `<b>${esc(x.host)}</b>` }))
+    : x.silent ? line('bad', L('De agent op {h} rapporteert niet (laatst {t}): nieuwe sleutels komen pas aan als hij weer loopt. Sleutels die {h} al had, blijven werken.', { h: `<b>${esc(x.host)}</b>`, t: esc(x.agent_seen ? ago(x.agent_seen) : '–') }))
+    : line('wait', L('{h} neemt de nieuwe sleutels binnen een minuut over.', { h: `<b>${esc(x.host)}</b>` }))).join('');
+  return `<h4 class="acc-sub">🔑 ${L('Sleutel voor de reverse proxy')}</h4>${key}${px}${tip}`;
+}
+
 async function loadAccountOutside() {
   const box = $('#acct-outside-body');
   if (!box) return;
@@ -15116,6 +15151,7 @@ async function loadAccountOutside() {
       ${a.passkey_possible ? `<button type="button" class="btn" id="acct-passkey">🗝️ ${L('Passkey aanmaken')}</button>`
         : a.passkeys_enabled ? `<span class="muted small">${L('Passkeys werken alleen via https met een domeinnaam (bv. {rp}), niet via een IP-adres.', { rp: '<code>' + esc(a.rp_id) + '</code>' })}</span>` : ''}
     </div>
+    ${proxyKeyHtml(a.proxy, isDev)}
     ${accessTables(a.devices, a.passkeys, false, a.current)}
     ${a.door && door ? `${xpHtml(L('Sleutel kwijt terwijl je onderweg bent? Bewaar dit adres.'), L('Ben je je sleutel kwijt (browser gewist, nieuwe telefoon) terwijl je onderweg bent? Open dan {url}: je krijgt een 404, maar er gaat een <b>noodlink</b> naar je e-mailadres (en Pushover voor een beheerder). Die werkt één keer en 15 minuten.', { url: `<code class="sel-all">${esc(door)}</code>` }))}` : ''}`;
   if ($('#acct-trust')) $('#acct-trust').onclick = () => modal({
@@ -15127,6 +15163,9 @@ async function loadAccountOutside() {
     onSubmit: async (d) => { await api('device_trust', { name: d.name, confirm: d.confirm }); toast(L('Dit apparaat is toegestaan')); loadAccountOutside(); },
   });
   if ($('#acct-passkey')) $('#acct-passkey').onclick = () => passkeyCreate(loadAccountOutside);
+  if ($('#acct-pxfix')) $('#acct-pxfix').onclick = async () => {
+    try { await api('proxy_tag_fix', {}); toast(L('Sleutel opnieuw gezet')); loadAccountOutside(); } catch (ex) { toast(ex.message, 'err'); }
+  };
   box.onclick = (e) => accessAction(e, false, loadAccountOutside);
 }
 

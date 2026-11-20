@@ -19,14 +19,65 @@ final class Quality
         q('INSERT INTO heal_log (host_id, check_id, ok, msg, at) VALUES (?, ?, ?, ?, ?)', [$hostId, $checkId, $ok ? 1 : 0, mb_substr($msg, 0, 200), now()]);
     }
 
-    /** Een rapport na een stilte langer dan de grens voor "agent stil": het gat bewaren */
-    public static function recordAgentGap(array $host, int $now): void
+    /**
+     * Een rapport na een stilte langer dan de grens voor "agent stil": het gat bewaren, met de reden (1.291.0) uit dat rapport.
+     * @param array<string, mixed> $host
+     * @param array<string, mixed> $in het rapport
+     */
+    public static function recordAgentGap(array $host, int $now, array $in = []): void
     {
         $prev = $host['agent_seen'] ? strtotime((string) $host['agent_seen']) : 0;
         $limit = agent_stale_seconds(isset($host['agent_tick']) ? (int) $host['agent_tick'] : null);
         if ($prev > 0 && $now - $prev > $limit) {
-            q('INSERT INTO agent_gaps (host_id, gap_from, gap_to) VALUES (?, ?, ?)', [$host['id'], date('Y-m-d H:i:s', $prev), date('Y-m-d H:i:s', $now)]);
+            q('INSERT INTO agent_gaps (host_id, gap_from, gap_to, reason) VALUES (?, ?, ?, ?)',
+                [$host['id'], date('Y-m-d H:i:s', $prev), date('Y-m-d H:i:s', $now), mb_substr(self::gapReason($in), 0, 300)]);
         }
+    }
+
+    /** Onderdelen van de agent in gewone taal (de namen uit zijn tijdmeting) */
+    public const AGENT_PARTS = ['proxy' => 'reverse proxy (SWAG, WAF, ClamAV, Suricata)', 'containers' => 'containers', 'containers_prep' => 'containers',
+        'weblogs' => 'logs van webdiensten', 'edr' => 'endpoint-bewaking', 'ids' => 'IDS', 'logs' => 'logs', 'log_scan' => 'logbestanden', 'software' => 'software',
+        'patch' => 'updates', 'certs' => 'certificaten', 'cert_search' => 'certificaten zoeken', 'svc_deep' => 'diepere service-checks', 'db' => 'databases',
+        'proxmox' => 'Proxmox', 'ha' => 'Home Assistant', 'relay' => 'relay', 'ransom' => 'ransomware', 'apps' => 'programma\'s', 'path' => 'pad-check'];
+
+    /**
+     * Waarom was de agent stil? Uit het eerste rapport daarna: een lange ronde (en welk onderdeel), podman/docker die niet
+     * antwoordde, of metingen die nagestuurd werden (de agent kon RzSense niet bereiken).
+     * @param array<string, mixed> $in
+     */
+    public static function gapReason(array $in): string
+    {
+        $out = [];
+        $tot = (int) ($in['timing']['total'] ?? 0);
+        if ($tot >= 120000) {
+            $parts = array_filter((array) ($in['timing']['parts'] ?? []), 'is_numeric');
+            arsort($parts);
+            $top = array_key_first($parts);
+            $out[] = t('de ronde duurde {m} min', ['m' => (int) round($tot / 60000)])
+                . ($top !== null ? ', ' . t('vooral {p} ({x} min)', ['p' => t(self::AGENT_PARTS[$top] ?? (string) $top), 'x' => (int) round((int) $parts[$top] / 60000)]) : '');
+        }
+        if (!empty($in['ctr_busy']) && is_string($in['ctr_busy'])) {
+            $out[] = t('{e} antwoordde niet (containeronderdelen overgeslagen)', ['e' => preg_replace('/[^a-z ]/', '', $in['ctr_busy'])]);
+        }
+        if (!empty($in['backlog']) && is_array($in['backlog'])) {
+            $out[] = t('de agent kon RzSense niet bereiken; {n} metingen nagestuurd', ['n' => count($in['backlog'])]);
+        }
+        return $out ? implode('; ', $out) : t('geen reden in het rapport: de agent liep niet (server uit of herstart) of kon niets versturen');
+    }
+
+    /** podman/docker antwoordde niet (agent 1.113.0): de periode bijhouden, voor de Agent Manager */
+    public static function noteCtrBusy(int $hostId, mixed $busy): void
+    {
+        if (!is_string($busy) || $busy === '') {
+            return;
+        }
+        $engines = preg_replace('/[^a-z ]/', '', $busy);
+        $cur = json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'ctr_busy'", [$hostId])->fetchColumn(), true);
+        $now = time();
+        $v = is_array($cur) && $now - (int) ($cur['to'] ?? 0) < 600 ? ['from' => (int) $cur['from'], 'to' => $now, 'engines' => $engines, 'n' => (int) ($cur['n'] ?? 0) + 1]
+            : ['from' => $now, 'to' => $now, 'engines' => $engines, 'n' => 1];
+        q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'ctr_busy', ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)",
+            [$hostId, (string) json_encode($v), now()]);
     }
 
     /**

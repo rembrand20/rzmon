@@ -736,6 +736,9 @@ switch ($action) {
              'report_warn' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'report_warn'", [$id])->fetchColumn(), true),
              // 1.137.0: duur van de laatste run per onderdeel, wat de agent kan, en of hij nu bezig is (hartslag)
              'timing' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'timing'", [$id])->fetchColumn(), true),
+             // 1.291.0: wanneer was de agent stil, en waarom; wanneer antwoordde podman/docker niet
+             'gaps' => q('SELECT gap_from, gap_to, reason FROM agent_gaps WHERE host_id = ? AND gap_to > NOW() - INTERVAL 7 DAY ORDER BY gap_to DESC LIMIT 5', [$id])->fetchAll(),
+             'ctr_busy' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'ctr_busy'", [$id])->fetchColumn(), true),
              'caps' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'caps'", [$id])->fetchColumn(), true) ?: [],
              'busy' => $h['agent_busy'],
              'update_sig' => q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'update_sig'", [$id])->fetchColumn() ?: null,

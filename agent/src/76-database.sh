@@ -61,7 +61,7 @@ SELECT 'longq', floor(extract(epoch from now() - query_start))::bigint || '|' ||
         local eng=$1 where=$2 ct=$3 usr=$4 pw=$5 dbn=$6 sql=$7 ctx
         if [ "$where" = container ]; then
             if [[ "$ct" == */* ]]; then ctx=${ct%%/*}; ct=${ct#*/}
-            elif command -v docker >/dev/null 2>&1 && timeout 5 docker inspect "$ct" >/dev/null 2>&1; then ctx=docker
+            elif command -v docker >/dev/null 2>&1 && ctrx 5 docker inspect "$ct" >/dev/null 2>&1; then ctx=docker
             else ctx=root; fi
             if [ "$eng" = mysql ]; then
                 # shellcheck disable=SC2016  # $… wordt in de container uitgewerkt

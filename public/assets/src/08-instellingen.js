@@ -1475,6 +1475,33 @@ function passkeyCreate(done) {
   });
 }
 
+/**
+ * 1.291.0: de sleutel van deze browser voor de reverse proxy in gewone taal (✔ / ⚠ / ⏳), met een herstelknop; op iPhone en
+ * iPad de uitleg dat Safari en de app op het beginscherm elk een eigen sleutel hebben (aparte cookies).
+ */
+function proxyKeyHtml(p, isDev) {
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const app = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const tip = ios ? `<p class="small muted">📱 ${app ? L('Je gebruikt nu de app op je beginscherm.') : L('Je gebruikt nu Safari.')} ${L('Op iPhone en iPad zijn Safari en de app op je beginscherm <b>twee aparte apparaten</b>, elk met een eigen sleutel. Zet ze allebei thuis op de lijst: open RzSense in Safari én in de app, en kies in allebei <b>Dit apparaat ook van buiten toestaan</b>.')}</p>` : '';
+  if (!p) return tip;
+  const line = (st, txt) => `<div class="small" style="margin:.2rem 0">${st === 'ok' ? '<span class="good-txt">✔</span>' : st === 'wait' ? '⏳' : '<span class="warn-txt">⚠</span>'} ${txt}</div>`;
+  let key;
+  if (p.cookie && p.known && (p.match || p.door)) {
+    key = p.door ? line('ok', L('Deze browser heeft een tijdelijke sleutel van de noodlink (tot {t}).', { t: esc(fmtDateTime(p.until)) }))
+      : line('ok', L('Deze browser heeft zijn sleutel voor de reverse proxy.'));
+  } else if (isDev) {
+    key = line('bad', L('Dit apparaat staat op de lijst, maar deze browser heeft zijn sleutel niet (meer), bijvoorbeeld na het wissen van cookies.'))
+      + `<button type="button" class="btn small" id="acct-pxfix">🔑 ${L('Sleutel opnieuw zetten')}</button>`;
+  } else {
+    key = line('bad', p.cookie ? L('De sleutel van deze browser is ingetrokken of verlopen: van buiten geeft de proxy een 403. Zet dit apparaat thuis opnieuw op de lijst.')
+      : L('Deze browser heeft geen sleutel: van buiten geeft de proxy een 403. Zet dit apparaat thuis op de lijst.'));
+  }
+  const px = (p.proxies || []).map((x) => x.synced ? line('ok', L('{h} heeft de laatste sleutels.', { h: `<b>${esc(x.host)}</b>` }))
+    : x.silent ? line('bad', L('De agent op {h} rapporteert niet (laatst {t}): nieuwe sleutels komen pas aan als hij weer loopt. Sleutels die {h} al had, blijven werken.', { h: `<b>${esc(x.host)}</b>`, t: esc(x.agent_seen ? ago(x.agent_seen) : '–') }))
+    : line('wait', L('{h} neemt de nieuwe sleutels binnen een minuut over.', { h: `<b>${esc(x.host)}</b>` }))).join('');
+  return `<h4 class="acc-sub">🔑 ${L('Sleutel voor de reverse proxy')}</h4>${key}${px}${tip}`;
+}
+
 async function loadAccountOutside() {
   const box = $('#acct-outside-body');
   if (!box) return;
@@ -1492,6 +1519,7 @@ async function loadAccountOutside() {
       ${a.passkey_possible ? `<button type="button" class="btn" id="acct-passkey">🗝️ ${L('Passkey aanmaken')}</button>`
         : a.passkeys_enabled ? `<span class="muted small">${L('Passkeys werken alleen via https met een domeinnaam (bv. {rp}), niet via een IP-adres.', { rp: '<code>' + esc(a.rp_id) + '</code>' })}</span>` : ''}
     </div>
+    ${proxyKeyHtml(a.proxy, isDev)}
     ${accessTables(a.devices, a.passkeys, false, a.current)}
     ${a.door && door ? `${xpHtml(L('Sleutel kwijt terwijl je onderweg bent? Bewaar dit adres.'), L('Ben je je sleutel kwijt (browser gewist, nieuwe telefoon) terwijl je onderweg bent? Open dan {url}: je krijgt een 404, maar er gaat een <b>noodlink</b> naar je e-mailadres (en Pushover voor een beheerder). Die werkt één keer en 15 minuten.', { url: `<code class="sel-all">${esc(door)}</code>` }))}` : ''}`;
   if ($('#acct-trust')) $('#acct-trust').onclick = () => modal({
@@ -1503,6 +1531,9 @@ async function loadAccountOutside() {
     onSubmit: async (d) => { await api('device_trust', { name: d.name, confirm: d.confirm }); toast(L('Dit apparaat is toegestaan')); loadAccountOutside(); },
   });
   if ($('#acct-passkey')) $('#acct-passkey').onclick = () => passkeyCreate(loadAccountOutside);
+  if ($('#acct-pxfix')) $('#acct-pxfix').onclick = async () => {
+    try { await api('proxy_tag_fix', {}); toast(L('Sleutel opnieuw gezet')); loadAccountOutside(); } catch (ex) { toast(ex.message, 'err'); }
+  };
   box.onclick = (e) => accessAction(e, false, loadAccountOutside);
 }
 

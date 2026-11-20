@@ -5,6 +5,13 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.113.0 – 2026-11-20
+- **De agent blijft rapporteren als podman of docker niet antwoordt.** Dat gebeurt bijvoorbeeld 's nachts, als een image-update (podman-auto-update) de opslag op slot zet.
+  - Voorheen wachtte elk containercommando zijn volle tijdslimiet. Op een reverse proxy (SWAG, WAF, ClamAV, Suricata) zijn dat er tientallen, dus één ronde duurde dan een half uur. In die tijd kwam er geen rapport, en RzSense meldde "agent stil".
+  - Nu kijkt de agent eerst kort (8 s) of podman of docker antwoordt. Doet hij dat niet, of loopt er één commando af, dan slaat de agent de containeronderdelen die ronde over. CPU, geheugen, schijven, services en het rapport gaan gewoon door.
+  - RzSense krijgt te horen welke engine niet antwoordde, en toont dat bij de agent.
+- **Vangnet:** een ronde die toch blijft hangen, stopt na 10 minuten (`TimeoutStartSec` in de systemd-unit); de volgende ronde start dan gewoon. Bestaande installaties krijgen dit bij `--update` (of de update vanuit RzSense).
+
 ## 1.112.0 – 2026-11-18
 - **Checks via de relay** (RzSense 1.289.0): een relay voert nu zelf de ping-, TCP- en HTTP-checks uit voor de servers en apparaten in zijn netwerk, als dat in RzSense aan staat bij het netwerk. Dat werkt ook voor apparaten zonder agent, zoals een printer, NAS of switch.
   - De checks lopen elke ronde naast elkaar, elk met een eigen tijdslimiet (ping 10 s, TCP 5 s, HTTP 15 s), hooguit 64.

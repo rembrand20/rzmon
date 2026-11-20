@@ -765,6 +765,8 @@ After=network-online.target
 Type=oneshot
 EnvironmentFile=$CONF
 ExecStart=$BIN
+# Agent 1.113.0: een ronde die toch blijft hangen, stopt na 10 minuten; de volgende start dan gewoon (anders bleef de agent stil)
+TimeoutStartSec=10min
 Nice=10
 $hardening
 PrivateTmp=yes

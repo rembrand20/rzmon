@@ -1106,7 +1106,17 @@ $cq = (int) db()->lastInsertId();
 q("INSERT INTO status_changes (check_id, from_status, to_status, created_at) VALUES (?, 0, 2, NOW() - INTERVAL 60 MINUTE), (?, 0, 2, NOW() - INTERVAL 30 MINUTE)", [$cq, $cq]);
 q("INSERT INTO alerts (check_id, status, title, message, kind, created_at) VALUES (?, 2, 'x', 'x', 'notify', NOW() - INTERVAL 58 MINUTE), (?, 2, 'x', 'x', 'notify', NOW() - INTERVAL 18 MINUTE)", [$cq, $cq]);
 $hostRow = q('SELECT * FROM hosts WHERE id = ?', [$hq])->fetch();
-Quality::recordAgentGap($hostRow, time());   // 20 minuten stil: een gat
+Quality::recordAgentGap($hostRow, time(), ['timing' => ['total' => 1500000, 'parts' => ['proxy' => 1300000, 'logs' => 20000]], 'ctr_busy' => 'podman']);   // 20 minuten stil: een gat
+// 1.291.0: de reden van de stilte, uit het eerste rapport erna
+$gr = (string) q('SELECT reason FROM agent_gaps WHERE host_id = ? ORDER BY id DESC LIMIT 1', [$hq])->fetchColumn();
+ok(str_contains($gr, '25 min') && str_contains($gr, 'reverse proxy') && str_contains($gr, 'podman')
+    && str_contains(Quality::gapReason(['backlog' => [1, 2, 3]]), '3') && Quality::gapReason([]) !== '' && Quality::gapReason(['timing' => ['total' => 30000]]) === Quality::gapReason([]),
+    'stilte: reden met de lange ronde (en welk onderdeel), podman die niet antwoordde, nagestuurde metingen; anders een standaardtekst');
+Quality::noteCtrBusy($hq, 'podman');
+Quality::noteCtrBusy($hq, 'podman docker; rm');
+Quality::noteCtrBusy($hq, null);
+$cb = json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'ctr_busy'", [$hq])->fetchColumn(), true);
+ok(is_array($cb) && $cb['n'] === 2 && $cb['engines'] === 'podman docker rm' && $cb['to'] >= $cb['from'], 'podman/docker antwoordde niet: één periode, telt op, alleen letters');
 $slo = Quality::slo(date('Y-m-d', time() - 86400), date('Y-m-d'));   // ook gisteren: rond middernacht vallen de storingen op de vorige dag
 $mine = array_values(array_filter($slo['agents']['hosts'], fn($x) => $x['host'] === 'ci-q'))[0] ?? null;
 ok($slo['notify']['n'] >= 2 && $slo['notify']['within'] >= 1 && $slo['notify']['within'] < $slo['notify']['n'] && $mine && $mine['secs'] >= 1100,
@@ -4068,6 +4078,15 @@ foreach ($rhParts as $part) {
 }
 save_setting('reserve_hist_in', '{}');
 $GLOBALS['sm_config']['backup_dir'] = $rsBkOld;
+
+// 1.291.0: de proxy-sleutel van deze browser (Mijn account › Van buiten); zonder proxy met "alleen thuis": niets
+ok(ProxyOpen::myStatus(null) === null || is_array(ProxyOpen::myStatus(null)), 'proxy-sleutel: status zonder fouten');
+q("INSERT INTO proxy_tags (tag, device_id, user_id, created_at) VALUES (?, NULL, 1, NOW())", [str_repeat('ab', 16)]);
+$_COOKIE['pxt'] = str_repeat('ab', 16);
+$pxs = ProxyOpen::myStatus(null);
+ok($pxs === null || ($pxs['cookie'] && $pxs['known'] && !$pxs['match']), 'proxy-sleutel: cookie herkend, hoort niet bij dit apparaat');
+unset($_COOKIE['pxt']);
+q('DELETE FROM proxy_tags WHERE tag = ?', [str_repeat('ab', 16)]);
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.291.0**: de **agent blijft 's nachts rapporteren** als podman/docker niet antwoordt; bij elke stilte zie je de reden, en in Mijn account of je sleutel voor de proxy werkt.
 - **1.290.0**: **van buitenaf**: wat staat er van je netwerk open op internet (Shodan en vanuit RzSense), met een melding als er iets nieuws open gaat.
 - **1.289.0**: **checks via de relay**: de relay doet zelf ping, TCP en HTTP in zijn netwerk, ook voor apparaten zonder agent.
 - **1.288.0**: na een overname gaat de **geschiedenis van de reserve vanzelf terug** naar de hoofdserver, rustig en in delen, zonder dubbele rijen.
 - **1.287.0**: de **reserve-RzSense neemt het werk over** als de hoofdserver 5 minuten weg is en de agents bij hem aankloppen, met een melding, en geeft het vanzelf terug.
-- **1.286.0**: **reserve-RzSense**: een tweede RzSense (bv. een container op een andere machine) houdt versleuteld een kopie bij van je hoofdserver: elke 15 minuten klein, elke nacht volledig.
+
+## 1.291.0 – 2026-11-20
+### Nieuw
+- **Nieuwe agent 1.113.0: geen nachtelijke "agent stil" meer door podman of docker.** Antwoordt podman/docker niet (bv. 's nachts tijdens een image-update), dan slaat de agent de containeronderdelen die ronde over en blijft hij rapporteren. Een ronde die toch blijft hangen, stopt na 10 minuten. Zie HANDLEIDING 4.6.
+- **Waarom was de agent stil?** Agent Manager → een agent → *🌙 Stiltes (7 dagen)*: elke stilte met de reden, uit het eerste rapport erna. Bijvoorbeeld welke ronde lang duurde en welk onderdeel het langst, podman/docker die niet antwoordde, of metingen die nagestuurd werden omdat RzSense onbereikbaar was. Ook staat er wanneer podman/docker niet antwoordde.
+- **Mijn account → Van buiten: je sleutel voor de reverse proxy.** Staat RzSense achter een proxy die alleen thuis en toegestane apparaten doorlaat, dan zie je nu:
+  - of deze browser zijn sleutel heeft (of een tijdelijke van de noodlink), met de knop **🔑 Sleutel opnieuw zetten** als hij weg is;
+  - per proxy of die de laatste sleutels al heeft, of dat zijn agent niet rapporteert (dan komen nieuwe sleutels pas later aan).
+- **iPhone en iPad:** uitleg dat Safari en de app op je beginscherm twee aparte apparaten zijn, elk met een eigen sleutel. Zet ze allebei thuis op de lijst. Dat is de meest voorkomende reden voor een 403 onderweg.
 
 ## 1.290.1 – 2026-11-19
 ### Opgelost

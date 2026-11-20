@@ -110,17 +110,46 @@ final class ProxyOpen
         return count($parts) >= 3 ? implode('.', array_slice($parts, 1)) : $host;
     }
 
-    /** Een toegestaan apparaat dat RzSense nu herkent: zorg dat het een tag heeft en de browser die als cookie heeft */
-    public static function deviceSeen(array $dev): void
+    /**
+     * Een toegestaan apparaat dat RzSense nu herkent: zorg dat het een tag heeft en de browser die als cookie heeft.
+     * @param array<string, mixed> $dev
+     * @param bool $force 1.291.0: de cookie altijd opnieuw zetten (knop "Sleutel opnieuw zetten")
+     */
+    public static function deviceSeen(array $dev, bool $force = false): void
     {
         $tag = (string) q('SELECT tag FROM proxy_tags WHERE device_id = ? AND until IS NULL LIMIT 1', [$dev['id']])->fetchColumn();
         if (!preg_match('/^[0-9a-f]{32}$/', $tag)) {
             $tag = bin2hex(random_bytes(16));
             q('INSERT INTO proxy_tags (tag, device_id, user_id, created_at) VALUES (?, ?, ?, NOW())', [$tag, $dev['id'], $dev['user_id']]);
         }
-        if (($_COOKIE[self::COOKIE] ?? '') !== $tag || ($_COOKIE[self::DOMAIN_MARK] ?? '') !== self::cookieDomain()) {
+        if ($force || ($_COOKIE[self::COOKIE] ?? '') !== $tag || ($_COOKIE[self::DOMAIN_MARK] ?? '') !== self::cookieDomain()) {
             self::cookie($tag, 365 * 86400, true);
         }
+    }
+
+    /**
+     * 1.291.0: Mijn account › Van buiten. Heeft deze browser een sleutel (cookie) voor de reverse proxy, hoort die bij dit
+     * apparaat, en heeft elke proxy de laatste sleutels al? null = RzSense staat niet achter een proxy met "alleen thuis".
+     * @param array<string, mixed>|null $dev het toegestane apparaat van deze browser (van deze gebruiker)
+     * @return array<string, mixed>|null
+     */
+    public static function myStatus(?array $dev): ?array
+    {
+        if (!self::behindProxy()) {
+            return null;
+        }
+        $cookie = (string) ($_COOKIE[self::COOKIE] ?? '');
+        $has = preg_match('/^[0-9a-f]{32}$/', $cookie) === 1;
+        $row = $has ? q('SELECT device_id, until FROM proxy_tags WHERE tag = ? AND (until IS NULL OR until > NOW())', [$cookie])->fetch() : false;
+        $devTag = $dev ? (string) q('SELECT tag FROM proxy_tags WHERE device_id = ? AND until IS NULL LIMIT 1', [$dev['id']])->fetchColumn() : '';
+        $proxies = [];
+        foreach (self::rzSitesAll() as $r) {
+            $seen = (string) q('SELECT agent_seen FROM hosts WHERE id = ?', [$r['id']])->fetchColumn();
+            $proxies[] = ['host' => $r['host'], 'synced' => $r['synced'], 'agent_seen' => $seen !== '' ? $seen : null,
+                'silent' => $seen === '' || time() - (int) strtotime($seen) > 300];
+        }
+        return ['cookie' => $has, 'known' => (bool) $row, 'door' => $row && $row['until'] !== null, 'until' => $row ? $row['until'] : null,
+            'match' => $devTag !== '' && $devTag === $cookie, 'proxies' => $proxies];
     }
 
     /** Gebruikte noodlink: een tijdelijke tag voor deze browser */

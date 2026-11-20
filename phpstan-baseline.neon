@@ -7549,12 +7549,6 @@ parameters:
 			path: src/ProxyGuard.php
 
 		-
-			message: '#^Method ProxyOpen\:\:deviceSeen\(\) has parameter \$dev with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/ProxyOpen.php
-
-		-
 			message: '#^Method ProxyOpen\:\:deviceTags\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -7736,12 +7730,6 @@ parameters:
 
 		-
 			message: '#^Method Quality\:\:loops\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Quality.php
-
-		-
-			message: '#^Method Quality\:\:recordAgentGap\(\) has parameter \$host with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/Quality.php

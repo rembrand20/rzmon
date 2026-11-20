@@ -550,7 +550,8 @@ if ($action === 'agent') {
     // ℹ️ als de agent (opnieuw) verbindt: de eerste keer, na stil te zijn geweest, of vanaf een ander IP
     Security::agentConnected($host, $encrypted);
     // 1.146.0: was de agent langer stil dan de grens? Dan het gat bewaren (SLO "agents stil")
-    Quality::recordAgentGap($host, time());
+    Quality::recordAgentGap($host, time(), $in);   // 1.291.0: met de reden
+    Quality::noteCtrBusy((int) $host['id'], $in['ctr_busy'] ?? null);   // 1.291.0 (agent 1.113.0)
     // Contactmomenten (1.99.0): de laatste 21, om het echte ritme te zien
     $beats = array_slice([...array_filter(explode(',', (string) ($host['agent_beats'] ?? ''))), (string) time()], -21);
     q('UPDATE hosts SET agent_seen = ?, agent_busy = NULL, agent_ip = ?, agent_version = ?, enc_seen = ?, agent_beats = ? WHERE id = ?',
