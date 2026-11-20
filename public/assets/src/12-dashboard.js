@@ -122,17 +122,17 @@ function renderHome() {
   </section>`);
 
   // 1.135.0: resourcegebruik van 24 uur en de recente incidenten (zoals het ontwerp)
-  html.push(`<div class="hm-row">${hmResChart(d.resources)}${hmIncidents(d)}</div>`);
+  html.push(`<div class="hm-duo">${hmResChart(d.resources)}${hmIncidents(d)}</div>`);
 
   // Netwerkkaart en de servers zonder problemen, compact
-  html.push(`<div class="hm-row">${hmMap()}${hmAttacks()}</div>`);   // 1.149.0: met de aanvallen van vandaag
+  html.push(`<div class="hm-duo">${hmMap()}${hmAttacks()}</div>`);   // 1.149.0: met de aanvallen van vandaag
   html.push(hmServers(hmAllHosts().filter((x) => !probHosts.some((p) => p.h.id === x.h.id)), L('Overige servers'), d, true));
 
   // Grafieken
   if (d.full) {
     html.push(`<div class="hm-charts">${hmAvailChart(d)}${hmIdsChart(d)}${d.vulns ? hmVulnCard(d.vulns) : ''}</div>`);
   }
-  html.push(`<div class="hm-row">${d.net ? hmNetCard(d.net) : ''}${hmTimeline(d.events)}</div>`);
+  html.push(`<div class="hm-duo">${d.net ? hmNetCard(d.net) : ''}${hmTimeline(d.events)}</div>`);
   $('#home').innerHTML = html.join('');
   if ($('#hm-atk')) hmAtkWire($('#hm-atk'));
   $$('[data-hm-risk]', $('#home')).forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); exposureDialog(+b.dataset.hmRisk); }));

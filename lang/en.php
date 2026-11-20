@@ -11681,4 +11681,12 @@ return [
     'sleep over de balken om een stuk te kiezen' => 'drag across the bars to select a range',
     'Regel openklappen' => 'Expand line',
     'Context: regels ervoor en erna, en andere bronnen in dezelfde minuut' => 'Context: lines before and after, and other sources in the same minute',
+    'Paginabreedte' => 'Page width',
+    '(op dit apparaat)' => '(on this device)',
+    'Hooguit 1400 pixels breed, in het midden (standaard)' => 'At most 1400 pixels wide, centred (default)',
+    'Begrensd' => 'Limited',
+    'Hooguit 1920 pixels breed' => 'At most 1920 pixels wide',
+    'Breed' => 'Wide',
+    'De hele breedte van het scherm; tekst en formulieren houden een leesbare breedte' => 'The full width of the screen; text and forms keep a readable width',
+    'Volledig' => 'Full',
 ];

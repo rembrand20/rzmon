@@ -55,7 +55,8 @@ $userTheme = $prefsJson !== null ? ((json_decode($prefsJson, true) ?: [])['theme
 $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.css');
 ?>
 <!doctype html>
-<html lang="<?= I18n::lang() ?>"<?= in_array($userTheme, ['light', 'dark'], true) ? ' data-theme="' . $userTheme . '"' : '' ?>>
+<?php $pwAcc = (string) ((json_decode((string) ($prefsJson ?? ''), true) ?: [])['pw'] ?? ''); ?>
+<html lang="<?= I18n::lang() ?>"<?= in_array($userTheme, ['light', 'dark'], true) ? ' data-theme="' . $userTheme . '"' : '' ?><?= in_array($pwAcc, ['wide', 'full'], true) ? ' data-pw="' . $pwAcc . '"' : '' ?>>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -65,6 +66,7 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <?= Brand::head() ?>
   <link rel="stylesheet" href="assets/app.css?v=<?= $v ?>">
   <?php if ($userTheme === null): ?><script nonce="<?= csp_nonce() ?>">try{const t=localStorage.getItem('rzmon-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script><?php endif; ?>
+  <script nonce="<?= csp_nonce() ?>">try{const w=localStorage.getItem('rzmon-pw');if(w==='bounded')delete document.documentElement.dataset.pw;else if(w==='wide'||w==='full')document.documentElement.dataset.pw=w}catch(e){}</script>
 </head>
 <?php $sidePrefs = json_decode((string) ($prefsJson ?? ''), true) ?: []; $sideW = (int) ($sidePrefs['side_w'] ?? 0);
 $skin = in_array($sidePrefs['skin'] ?? '', ['std', 's', 'glass', 'neo'], true) ? $sidePrefs['skin'] : (($sidePrefs['mon_glass'] ?? '') === 'on' ? 'glass' : 'std');   // 1.244.0: oude Liquid Glass-schakelaar = thema Liquid Glass
@@ -2108,6 +2110,14 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
             <button type="button" class="seg-btn" data-view-layout="l1nes" title="<?= th('Servers onder elkaar, als een tabel') ?>">☰ L1nes</button>
             <button type="button" class="seg-btn" data-view-layout="compact" title="<?= th('Eén blokje per check: veel checks tegelijk, of voor een TV-scherm') ?>">▪ Compact</button>
             <button type="button" class="seg-btn" data-view-layout="cc" title="<?= th('Alles in de stijl van het Command center, met versleepbare kaarten') ?>">◈ CC</button>
+          </div>
+        </div>
+        <div class="view-row">
+          <span class="view-label"><?= th('Paginabreedte') ?> <span class="hint"><?= th('(op dit apparaat)') ?></span></span>
+          <div class="seg" role="group" aria-label="<?= th('Paginabreedte') ?>">
+            <button type="button" class="seg-btn" data-pw-set="bounded" title="<?= th('Hooguit 1400 pixels breed, in het midden (standaard)') ?>"><?= th('Begrensd') ?></button>
+            <button type="button" class="seg-btn" data-pw-set="wide" title="<?= th('Hooguit 1920 pixels breed') ?>"><?= th('Breed') ?></button>
+            <button type="button" class="seg-btn" data-pw-set="full" title="<?= th('De hele breedte van het scherm; tekst en formulieren houden een leesbare breedte') ?>"><?= th('Volledig') ?></button>
           </div>
         </div>
         <div class="view-row">

@@ -120,6 +120,11 @@ a.version:hover { color: var(--text); }
 main.container { width: calc(100% - 28px); margin: 14px auto; padding: 1.25rem 1.5rem; border-radius: 20px;
   border: 1px solid color-mix(in srgb, var(--text) 14%, transparent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); }
 body.tv main.container { width: auto; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
+/* 1.294.0: paginabreedte (Mijn account → Weergave): breed tot 1920 px, of de hele breedte */
+:root[data-pw="wide"] main.container { max-width: 1920px; }
+:root[data-pw="full"] main.container { max-width: none; }
+:root[data-pw="wide"] .dash-in { max-width: 1920px; }
+:root[data-pw="full"] .dash-in { max-width: none; }
 
 /* ---------- Buttons & forms ---------- */
 .btn {
@@ -2133,9 +2138,9 @@ dialog.confirm-dlg { width: min(440px, calc(100vw - 2rem)); padding: 0; }
 .hm-spark.s2 .l { stroke: var(--ser-2); } .hm-spark.s2 .a { fill: var(--ser-2); }
 .hm-spark.s3 .l { stroke: var(--ser-3); } .hm-spark.s3 .a { fill: var(--ser-3); }
 .hm-spark.crit .l { stroke: var(--crit); } .hm-spark.crit .a { fill: var(--crit); }
-.hm-row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: stretch; }
-.hm-row > * { flex: 1 1 420px; min-width: 0; }
-.hm-row > .hm-map { flex: 1.4 1 520px; }
+.hm-duo { display: flex; flex-wrap: wrap; gap: 1rem; align-items: stretch; }
+.hm-duo > * { flex: 1 1 420px; min-width: 0; }
+.hm-duo > .hm-map { flex: 1.4 1 520px; }
 .hm-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 1.1rem 1.2rem; box-shadow: var(--shadow); min-width: 0; }
 .hm-card h2 { margin: 0; font-size: 1.02rem; font-weight: 700; }
 .hm-card-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .5rem; margin-bottom: .7rem; }
@@ -2180,7 +2185,7 @@ dialog.confirm-dlg { width: min(440px, calc(100vw - 2rem)); padding: 0; }
 .hm-bar i.warn { background: var(--warn); } .hm-bar i.crit { background: var(--crit); }
 .hm-bar b { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
 .hm-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
-.hm-chart { width: 100%; height: auto; display: block; }
+.hm-chart { width: 100%; height: auto; display: block; max-height: 320px; }   /* 1.294.0: op een breed scherm niet eindeloos hoog */
 .hm-chart .ax path { stroke: var(--border); stroke-width: 1; }
 .hm-chart .ax text, .hm-chart .axt { fill: var(--muted); font-size: 10px; font-family: inherit; }
 .hm-chart .ln { fill: none; stroke-width: 2; }
@@ -2237,7 +2242,7 @@ dialog.confirm-dlg { width: min(440px, calc(100vw - 2rem)); padding: 0; }
 .hm-shape.unk { fill: none; stroke: var(--muted); }
 .hm-st.unk { color: var(--muted); }
 .hm-host.unk { border-style: dashed; } .hm-srv.unk { border-top-color: var(--muted); }
-.hm-row > .hm-res { flex: 1.6 1 520px; }
+.hm-duo > .hm-res { flex: 1.6 1 520px; }
 .hm-chart .ln.s3 { stroke: var(--ser-3); }
 .hm-chart .hit { fill: transparent; }
 .hm-chart .hit:hover { fill: color-mix(in srgb, var(--text) 6%, transparent); }

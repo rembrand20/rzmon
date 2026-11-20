@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.294.0**: **paginabreedte** per apparaat: begrensd, breed of de hele breedte van je scherm.
 - **1.293.0**: **logs zoeken in een nieuwe opbouw**: velden links (klik om te filteren), regels met hun velden, slepen over de tijdlijn en pagina's.
 - **1.292.0**: **RzSense haalt op bij de relay** (DMZ): de agents praten alleen met de relay, die nooit zelf naar RzSense belt.
 - **1.291.0**: de **agent blijft 's nachts rapporteren** als podman/docker niet antwoordt; bij elke stilte zie je de reden, en in Mijn account of je sleutel voor de proxy werkt.
 - **1.290.0**: **van buitenaf**: wat staat er van je netwerk open op internet (Shodan en vanuit RzSense), met een melding als er iets nieuws open gaat.
-- **1.289.0**: **checks via de relay**: de relay doet zelf ping, TCP en HTTP in zijn netwerk, ook voor apparaten zonder agent.
+
+## 1.294.0 – 2026-11-20
+### Nieuw
+- **Paginabreedte** (*Mijn account → Weergave*): *Begrensd* (zoals altijd, de standaard), *Breed* (tot 1920 pixels) of *Volledig* (de hele breedte). Zie HANDLEIDING, Monitoring (HTML5) → Paginabreedte.
+  - Op een breed scherm komen er meer serverkaarten per rij en staan kaarten naast elkaar; tekst en formulieren houden een leesbare breedte.
+  - De keuze geldt per apparaat (deze browser). Je account onthoudt de laatste keuze als begin voor een nieuw apparaat.
+### Opgelost
+- **Dashboard (Klassiek): de onderste kaarten stonden scheef.** *Resourcegebruik*, *Recente incidenten*, *Netwerk* en *Aanvallen* stonden niet netjes naast elkaar: een smalle kaart links met veel lege ruimte ernaast. Een opmaakregel van de lay-out *L1nes* (Monitoring) gold per ongeluk ook voor deze rijen.
+- De grafiek *Resourcegebruik* wordt op een breed scherm niet meer eindeloos hoog.
 
 ## 1.293.0 – 2026-11-20
 ### Nieuw

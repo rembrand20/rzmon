@@ -14483,9 +14483,23 @@ function setTheme(v) {
   if (window.RzPulse) RzPulse.refreshColors();
   markTheme();
 }
+/**
+ * 1.294.0: paginabreedte. Begrensd (1400 px, standaard), breed (1920 px) of volledig. Per apparaat (deze browser); het
+ * account onthoudt de laatste keuze als begin voor een apparaat dat nog niets koos.
+ */
+function setPageWidth(v) {
+  if (v === 'wide' || v === 'full') document.documentElement.dataset.pw = v; else delete document.documentElement.dataset.pw;
+  try { localStorage.setItem('rzmon-pw', v); } catch (ex) { /* alleen voor nu */ }
+  if (!prefsLocal) savePref('pw', v);
+  markTheme();
+  window.dispatchEvent(new Event('resize'));   // grafieken en tabbladen rekenen hun breedte opnieuw uit
+}
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-pw-set]'); if (b) setPageWidth(b.dataset.pwSet); });
 function markTheme() {
   const cur = document.documentElement.dataset.theme || 'auto';
   $$('[data-theme-set]').forEach((b) => b.classList.toggle('active', b.dataset.themeSet === cur));
+  const pw = document.documentElement.dataset.pw || 'bounded';
+  $$('[data-pw-set]').forEach((b) => b.classList.toggle('active', b.dataset.pwSet === pw));
   markDash();
 }
 // 1.154.0: knoppen in de kop van het dashboard (keuze, indeling, TV-modus) en de TV-modus bij het laden
@@ -19810,17 +19824,17 @@ function renderHome() {
   </section>`);
 
   // 1.135.0: resourcegebruik van 24 uur en de recente incidenten (zoals het ontwerp)
-  html.push(`<div class="hm-row">${hmResChart(d.resources)}${hmIncidents(d)}</div>`);
+  html.push(`<div class="hm-duo">${hmResChart(d.resources)}${hmIncidents(d)}</div>`);
 
   // Netwerkkaart en de servers zonder problemen, compact
-  html.push(`<div class="hm-row">${hmMap()}${hmAttacks()}</div>`);   // 1.149.0: met de aanvallen van vandaag
+  html.push(`<div class="hm-duo">${hmMap()}${hmAttacks()}</div>`);   // 1.149.0: met de aanvallen van vandaag
   html.push(hmServers(hmAllHosts().filter((x) => !probHosts.some((p) => p.h.id === x.h.id)), L('Overige servers'), d, true));
 
   // Grafieken
   if (d.full) {
     html.push(`<div class="hm-charts">${hmAvailChart(d)}${hmIdsChart(d)}${d.vulns ? hmVulnCard(d.vulns) : ''}</div>`);
   }
-  html.push(`<div class="hm-row">${d.net ? hmNetCard(d.net) : ''}${hmTimeline(d.events)}</div>`);
+  html.push(`<div class="hm-duo">${d.net ? hmNetCard(d.net) : ''}${hmTimeline(d.events)}</div>`);
   $('#home').innerHTML = html.join('');
   if ($('#hm-atk')) hmAtkWire($('#hm-atk'));
   $$('[data-hm-risk]', $('#home')).forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); exposureDialog(+b.dataset.hmRisk); }));

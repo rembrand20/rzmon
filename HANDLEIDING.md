@@ -276,6 +276,13 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
 - **Rode gloed**: een server met een onbevestigde critical pulseert zacht.
 - Beide zet je uit bij **Mijn account → Weergave** (*Rode gloed bij critical* en *Live animaties*, per account). Staat je systeem op *minder beweging*, dan beweegt er niets.
 
+**Paginabreedte** (vanaf 1.294.0, **Mijn account → Weergave → Paginabreedte**, per apparaat): hoe breed RzSense wordt op een groot scherm.
+- **Begrensd** (standaard): hooguit 1400 pixels breed, in het midden.
+- **Breed**: hooguit 1920 pixels. Goed voor een scherm van 24 tot 27 inch.
+- **Volledig**: de hele breedte van het scherm, ook op een ultrawide (3440 pixels).
+- **Wat er met de ruimte gebeurt:** meer serverkaarten per rij op Monitoring, kaarten naast elkaar op het Dashboard, langere regels op de pagina Logs, alle kolommen van een tabel zichtbaar. Tekst en formulieren (*Mijn account*, uitleg) houden een leesbare breedte.
+- **Per apparaat:** je keuze geldt voor deze browser, zodat je laptop anders kan zijn dan je grote scherm. Je account onthoudt de laatste keuze als begin voor een apparaat dat nog niets koos. Op een telefoon maakt het niets uit.
+
 **Liquid Glass** (vanaf 1.201.0; sinds 1.244.0 een **thema**, te kiezen bij **Mijn account → Weergave → Thema**, per account): kaarten, menu's, de tabbalk en vensters worden doorschijnend glas met blur, een lichte rand aan de bovenkant en een glans die je muis volgt. Achter het glas beweegt heel traag een zacht licht in de kleuren van RzSense. De indeling, de statuskleuren en licht/donker/automatisch blijven precies hetzelfde. Kan je browser geen blur, dan zie je het gewone uiterlijk; met *minder beweging* staat het licht stil.
 
 **Laadanimatie** (vanaf 1.201.0, **Mijn account → Weergave**, per account, standaard aan):
