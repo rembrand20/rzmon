@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.296.0**: **reverse proxy in een rustiger opbouw**: tabbladen, een overzicht met wat aandacht vraagt, en een zijpaneel per site.
 - **1.295.0**: **updates zijn geen aanval meer**, en bij een aanvalsketen **vraagt RzSense eerst** of het moet isoleren.
 
+## 1.299.1 – 2026-11-20
+### Nieuw
+- **Nieuwe agent 1.116.0:** een nette pagina als de reverse proxy iemand weigert (Nederlands en Engels, met de reden), in plaats van de kale 403 van nginx. Zie HANDLEIDING 8.12h.
+- **RzSense Relay ook voor arm64** (bv. een Raspberry Pi 4 of 5): de container-image wordt nu voor amd64 en arm64 gebouwd.
+
 ## 1.299.0 – 2026-11-20
 ### Nieuw
 - **Webcheck per site (A tot F)** op de pagina Reverse proxy. Zie HANDLEIDING 8.12h.

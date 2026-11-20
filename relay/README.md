@@ -10,7 +10,7 @@ agent op server ──▶ relay ──▶ RzSense
 De relay draait op een machine in dat andere netwerk. Dat kan op twee manieren, met precies dezelfde onderdelen:
 
 - **Als losse agent** (`rzmon-agent-relay`, vanaf 1.283.0), op een Linux-server met systemd. Hij staat los van een gewone `rzmon-agent` op dezelfde server, maar wordt in RzSense wel bij die server getoond.
-- **Als container** (`ghcr.io/rembrand20/rzsense-relay`), met Podman of Docker.
+- **Als container** (`ghcr.io/rembrand20/rzsense-relay`), met Podman of Docker. Voor amd64 en arm64 (vanaf agent 1.116.0, bv. een Raspberry Pi 4 of 5 met een 64-bits systeem): Docker kiest vanzelf de juiste.
 
 In beide gevallen draaien er twee dingen:
 

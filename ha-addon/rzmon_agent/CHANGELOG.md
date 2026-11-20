@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.116.0 – 2026-11-20
+- **Een nette pagina bij geweigerde toegang** (RzSense 1.299.1): wie op de reverse proxy wordt tegengehouden, ziet nu een korte pagina in het Nederlands en Engels met de reden (alleen vanaf het eigen netwerk, adres geblokkeerd, of scanner), in plaats van de kale 403 van nginx. Er komt geen extra bestand bij: de pagina staat in de nginx-instellingen van RzSense. De agent voert het beleid daarvoor één keer opnieuw door, met de gewone controle (`nginx -t`, en terugzetten als een site daarna niet meer antwoordt).
+
 ## 1.115.0 – 2026-11-20
 - **Updates herkennen** (RzSense 1.295.0): de agent geeft nu ook door of dnf, yum, rpm, apt of dpkg op dit moment draait, en kijkt ook naar `dnf.log`, het downloaden (`dnf.librepo.log`), `yum.log` en `apt/term.log`. Zo weet RzSense dat er een update bezig is, ook al tijdens het downloaden van de mirrors, en ziet het die niet aan voor een aanval.
 

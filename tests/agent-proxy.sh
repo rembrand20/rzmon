@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Agenttest reverse proxy beschermen (agent 1.97.0): een nagebootste SWAG (echte nginx, een nep-podman die ps, inspect en
 # exec nadoet). De agent vindt de sites, schrijft het beleid (adminpad alleen LAN, hele site alleen LAN, slechte bots,
-# rate limit, virtual patching), zet de haak in ssl.conf, test en herlaadt; daarna geeft /admin van buiten 403 en de site zelf gewoon 200.
+# rate limit, virtual patching), zet de haak in ssl.conf, test en herlaadt; daarna geeft /admin van buiten 403 (met een eigen pagina
+# en de reden, agent 1.116.0) en de site zelf gewoon 200.
 # Een tweede ronde verandert niets; uit haalt alles weg en ssl.conf is weer precies zoals eerst. Een beleid dat nginx
 # afkeurt wordt teruggezet. Alleen als root en met nginx, curl en openssl; anders overgeslagen.
 # Gebruik: bash tests/agent-proxy.sh
@@ -74,6 +75,7 @@ fn() { awk -v n="$1" '$0 ~ "^" n "\\(\\) \\{" {f=1} f{print} f&&/^\}/{exit}' age
     echo 'printf "%s" "$proxy_json"'
 } >"$work/run.sh"
 code() { curl -sk --noproxy '*' -o /dev/null -w '%{http_code}' --max-time 5 --resolve "$1.example.test:$port:127.0.0.1" -H "X-Forwarded-For: 1.2.3.4" ${3:+-A "$3"} "https://$1.example.test:$port$2"; }
+body() { curl -sk --noproxy '*' --max-time 5 --resolve "$1.example.test:$port:127.0.0.1" -H "X-Forwarded-For: 1.2.3.4" ${3:+-A "$3"} "https://$1.example.test:$port$2"; }   # agent 1.116.0
 codec() { curl -sk --noproxy '*' -o /dev/null -w '%{http_code}' --max-time 5 --resolve "$1.example.test:$port:127.0.0.1" -b "$3" "https://$1.example.test:$port$2"; }
 lan='127.0.0.2/32'   # de test komt van 127.0.0.1: buiten "het LAN" (127.0.0.1 telt alleen via de vaste regel, die hieronder niet geldt)
 policy() {
@@ -93,6 +95,7 @@ bash "$work/run.sh" >"$work/r1.json" 2>>"$work/err"
 sed -i '/^    127\.0\.0\.1 1;$/d; /^    ::1 1;$/d' "$C/site-confs/rzsense-http.conf" && nginx -s reload -c "$work/nginx.conf" 2>>"$work/err"; sleep 1
 c_adm=$(code vaultwarden /admin); c_adm2=$(code vaultwarden /ADMIN/x); c_vw=$(code vaultwarden /); c_port=$(code portainer /); c_blog=$(code blog /)
 c_bot=$(code blog / 'sqlmap/1.7'); c_ok=$(code blog / 'Mozilla/5.0')
+b_adm=$(body vaultwarden /admin); b_bot=$(body blog / 'sqlmap/1.7')
 c_pass=$(code portainer /ack.php); c_pass2=$(code portainer /assets/app.css); c_pass3=$(code portainer /ack.phpx); c_pass4=$(code portainer /assets/app.js)
 c_tag=$(codec portainer /api.php pxt=0123456789abcdef0123456789abcdef); c_tag2=$(codec portainer / pxt=ffffffffffffffffffffffffffffffff); c_tag3=$(codec blog / pxt=0123456789abcdef0123456789abcdef)
 c_nood=$(code portainer '/?nood=jan'); c_door=$(code portainer "/?door=$(printf '%048d' 0)"); c_door2=$(code portainer '/?door=abc'); c_nood2=$(code portainer '/admin?nood=jan')
@@ -138,6 +141,7 @@ PY
 [ "$c_port" = 403 ] || bad+="portainer (hele site alleen LAN) niet 403 ($c_port) | "
 [ "$c_blog" = 200 ] && [ "$c_ok" = 200 ] || bad+="blog niet 200 ($c_blog/$c_ok) | "
 [ "$c_bot" = 403 ] || bad+="sqlmap niet geweerd ($c_bot) | "
+[[ "$b_adm" == *"Geen toegang"*"eigen netwerk"*"403 Forbidden"* && "$b_bot" == *"scanners zijn hier niet welkom"* ]] || bad+="geen eigen 403-pagina met de reden | "
 [ "$c_pass" = 200 ] && [ "$c_pass2" = 200 ] && [ "$c_pass3" = 403 ] && [ "$c_pass4" = 403 ] || bad+="vaste paden niet goed (ack $c_pass, css $c_pass2, ack.phpx $c_pass3, app.js $c_pass4) | "
 [ "$c_tag" = 200 ] && [ "$c_tag2" = 403 ] && [ "$c_tag3" = 200 ] || bad+="proxy-tag niet goed (juiste tag $c_tag, verkeerde $c_tag2, blog $c_tag3) | "
 [ "$c_nood" = 200 ] && [ "$c_door" = 200 ] && [ "$c_door2" = 403 ] && [ "$c_nood2" = 403 ] || bad+="noodlink niet goed (nood $c_nood, door $c_door, korte door $c_door2, nood op ander pad $c_nood2) | "

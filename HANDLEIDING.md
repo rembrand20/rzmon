@@ -3414,6 +3414,8 @@ Bescherm de apps achter je reverse proxy (**SWAG** of **Nginx Proxy Manager**, i
 - **Sites**: een rustige lijst met per site wie erbij mag, de bescherming (rate limit, bots, toegestane apparaten, WAF) en de score. Zoek op naam, of filter op *Aandacht*, *Afgeschermd*, *Open voor iedereen* of *Uit*. Klik op een site voor het **zijpaneel**: de score met wat hem omlaag haalt, het voorstel van de AI, wie er mag (iedereen, adminpaden alleen thuis, alleen thuis), toegestane apparaten, verkeer, WAF, aan/uit en *Terug naar de standaard*. Een wijziging wordt meteen bewaard.
 - **WAF**, **Paden dicht**, **Malware-scan** en **Netwerk-IDS**: elk onderdeel op een eigen tabblad (alleen als het aan staat).
 
+**Pagina bij geweigerde toegang** (vanaf 1.299.1, agent 1.116.0): wie door de proxy wordt tegengehouden, ziet geen kale *403 Forbidden* van nginx meer, maar een korte pagina (Nederlands en Engels, licht of donker) met de reden: *alleen vanaf het eigen netwerk of een toegestaan apparaat*, *adres tijdelijk geblokkeerd* of *automatische scanners zijn hier niet welkom*. Onderaan staan de site, het adres van de bezoeker en de tijd, handig als iemand je een schermafbeelding stuurt. De pagina wordt niet bewaard door browsers (`Cache-Control: no-store`) en staat in de nginx-instellingen van RzSense zelf: er komt geen los bestand bij. Antwoorden van de app zelf (bv. een 403 van Nextcloud) blijven zoals ze zijn.
+
 **Webcheck per site** (vanaf 1.299.0): RzSense vraagt elke site één keer per dag zelf op en geeft een cijfer van **A tot F** (kolom *Webcheck* op het tabblad *Sites*, en een blok in het zijpaneel met per onderdeel ✔, ◐ of ✘, en **Opnieuw controleren**). Er gaat niets naar een externe dienst, en het certificaat wordt altijd gecontroleerd.
 - **Punten** (samen 100): https met een geldig certificaat (20; 10 als het binnen 14 dagen verloopt), http stuurt door naar https (10), HSTS (15; 8 bij korter dan een half jaar), Content-Security-Policy (15; 8 met `unsafe-inline` zonder nonce, of `*`), niet in een frame van een andere site (10: X-Frame-Options of `frame-ancestors`), `X-Content-Type-Options: nosniff` (10), Referrer-Policy (5), Permissions-Policy (5), en geen softwareversies in `Server` of `X-Powered-By` (10).
 - **Cijfer:** A vanaf 90, B vanaf 75, C vanaf 60, D vanaf 45, E vanaf 30, anders F. Werkt https niet of klopt het certificaat niet, dan altijd F.
@@ -3949,7 +3951,7 @@ agent op server ──▶ relay ──▶ RzSense   (en het antwoord dezelfde we
 
 De relay draait op een machine in dat netwerk. De agents daar sturen hun rapporten naar de relay, en de relay stuurt ze door naar RzSense, via internet (SWAG), een VPN of een eigen route. Er zijn twee manieren:
 - **Losse agent** (`rzmon-agent-relay`, vanaf 1.283.0): op een Linux-server met systemd en Python 3.7+. Hij draait als gebruiker `rzrelay` (niet als root), naast een gewone agent als die er is. In RzSense staat hij **bij die server**: in de Agent Manager op de kaart *🛰️ Relay op deze server*, niet als eigen regel. Bijwerken gaat met de knop of automatisch, zoals bij je gewone agents, en alleen met een geldige handtekening van de ontwikkelaar.
-- **Container** (**RzSense Relay**, `ghcr.io/rembrand20/rzsense-relay`): met Podman of Docker. Bijwerken met een nieuwe image.
+- **Container** (**RzSense Relay**, `ghcr.io/rembrand20/rzsense-relay`): met Podman of Docker, voor amd64 en (vanaf agent 1.116.0) arm64, zoals een Raspberry Pi 4 of 5 met een 64-bits systeem. Bijwerken met een nieuwe image.
 
 **Instellen** (*Beheer → Agents en koppelingen → Netwerken en relays*):
 1. **＋ Relay toevoegen** (bij een losse agent kies je *Op welke server*), of in de Agent Manager van die server **Relay op deze server installeren**. Dan **📦 Installeren**: het commando voor de losse agent, Podman (quadlet), Docker of compose staat er met de koppelcode al in. Voer het uit op de machine in dat netwerk. De relay maakt zijn eigen certificaat, koppelt zich en staat binnen een minuut op 🟢 *online*. Beheer van de losse agent: `sudo rzmon-agent-relay-setup --status | --update | --uninstall`.
@@ -3966,7 +3968,7 @@ De relay draait op een machine in dat netwerk. De agents daar sturen hun rapport
 
 **Valt een relay weg**, dan krijg je één melding: *Agent stil* van de relay, met *meldingen van N agents erachter worden onderdrukt*. De agents erachter bewaren hun metingen en sturen ze na. Haal je een relay weg (*Geen relay meer*), dan gaan zijn netwerken over op hun reserve-relay of rechtstreeks. Met *Adressen toepassen* gaan de agents dan terug naar hun rechtstreekse adres.
 
-**Bijwerken** gaat met een nieuwe image: `sudo podman pull ghcr.io/rembrand20/rzsense-relay:latest && sudo systemctl restart rzsense-relay`. Meer in [relay/README.md](relay/README.md). Home Assistant en TrueNAS als app, en checks die de relay zelf in zijn netwerk uitvoert (ping, HTTP, SNMP …), volgen in een volgende versie.
+**Bijwerken** gaat met een nieuwe image: `sudo podman pull ghcr.io/rembrand20/rzsense-relay:latest && sudo systemctl restart rzsense-relay`. Meer in [relay/README.md](relay/README.md).
 
 #### RzSense haalt op (DMZ) ⇣ (vanaf 1.292.0, agent 1.114.0)
 In een **DMZ** mag het netwerk meestal niet naar binnen bellen, maar je eigen netwerk wel naar de DMZ. Kies dan bij *＋ Relay toevoegen* voor **RzSense haalt op**:

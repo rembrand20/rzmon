@@ -147,6 +147,9 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
     }
     px_apply_hash=$(awk -F'\t' '$1 == "0" && ($2 == "proxylan" || $2 == "proxysite" || $2 == "proxyblock" || $2 == "proxytags" || $2 == "proxypass" || $2 == "proxytrust" || $2 == "proxydev")' "$t_cache" | sha1sum | cut -c1-12)
     px_applied=$(cat "$t_dir/proxy.applied" 2>/dev/null)
+    # Agent 1.116.0: versie van de nginx-sjablonen (2 = eigen 403-pagina). Een nieuwere versie voert het beleid één keer opnieuw door.
+    px_tpl=2
+    px_tpl_ok=0; [ "$(cat "$t_dir/proxy.tpl" 2>/dev/null)" = "$px_tpl" ] && px_tpl_ok=1
     # 3a. Uit: alles weghalen
     if [ "$px_state" = pending ] && [ "$px_mode" != on ]; then
         if [ "$px_hook" = 1 ] || [ -f "$px_http" ] || [ -f "$px_srv" ]; then
@@ -164,7 +167,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
     # 3b. Aan: doorvoeren als het beleid veranderde of iets ontbreekt (een mislukte versie niet elke minuut opnieuw)
     elif [ "$px_state" = pending ]; then
         px_failed=$(cat "$t_dir/proxy.failed" 2>/dev/null)
-        if [ "$px_applied" = "$px_apply_hash" ] && [ "$px_hook" = 1 ] && [ -f "$px_http" ] && [ -f "$px_srv" ]; then
+        if [ "$px_applied" = "$px_apply_hash" ] && [ "$px_tpl_ok" = 1 ] && [ "$px_hook" = 1 ] && [ -f "$px_http" ] && [ -f "$px_srv" ]; then
             px_state=ok; px_msg="doorgevoerd"
         elif [ "${px_failed%% *}" = "$px_apply_hash" ] && [ $(( $(date +%s) - ${px_failed##* } )) -lt 3600 ]; then
             px_state=error; px_msg=$(cat "$t_dir/proxy.failmsg" 2>/dev/null)
@@ -324,11 +327,24 @@ map \"\$rzs_rate:\$rzs_free:\$rzs_static:\$rzs_login\" \$rzs_key_a {
 limit_req_zone \$rzs_key_n zone=rzs_normal:10m rate=20r/s;
 limit_req_zone \$rzs_key_s zone=rzs_strict:10m rate=5r/s;
 limit_req_zone \$rzs_key_a zone=rzs_app:10m rate=50r/s;
+map \"\$rzs_deny_adm\$rzs_deny_blk\$rzs_deny_bot\" \$rzs_why {
+    default \"Je hebt geen toegang tot deze pagina.<br><span>You do not have access to this page.</span>\";
+    \"~^1\" \"Deze pagina is alleen bereikbaar vanaf het eigen netwerk of een toegestaan apparaat.<br><span>This page can only be reached from the home network or an allowed device.</span>\";
+    \"~^01\" \"Je adres is tijdelijk geblokkeerd na verdachte verzoeken.<br><span>Your address is temporarily blocked after suspicious requests.</span>\";
+    \"~^001\" \"Automatische scanners zijn hier niet welkom.<br><span>Automated scanners are not welcome here.</span>\";
+}
 "
             px_conf_srv="# RzSense: reverse proxy beschermen (per site). Beheerd door de RzSense-agent.
 if (\$rzs_deny_adm) { return 403; }
 if (\$rzs_deny_blk) { return 403; }
 if (\$rzs_deny_bot) { return 403; }
+error_page 403 @rzs403;
+location @rzs403 {
+    default_type text/html;
+    add_header Cache-Control \"no-store\" always;
+    add_header X-Content-Type-Options \"nosniff\" always;
+    return 403 '<!doctype html><html lang=\"nl\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>403 Forbidden</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#f4f6fa;color:#1f2633}main{max-width:32rem;margin:1rem;padding:2rem;background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.08)}h1{font-size:1.3rem;margin:0 0 .6rem}span{color:#5b6475}p.k{font-size:.85rem;color:#5b6475;margin-top:1.4rem}@media(prefers-color-scheme:dark){body{background:#12151c;color:#e6e9ef}main{background:#1b2029}span,p.k{color:#9aa3b2}}</style></head><body><main><h1>&#128274; Geen toegang <span>/ Access denied</span></h1><p>\$rzs_why</p><p class=\"k\">403 Forbidden &middot; \$host &middot; \$remote_addr &middot; \$time_iso8601</p></main></body></html>';
+}
 limit_req zone=rzs_normal burst=40 nodelay;
 limit_req zone=rzs_strict burst=20 nodelay;
 limit_req zone=rzs_app burst=300 nodelay;
@@ -357,7 +373,7 @@ limit_req_status 429;
                     px_state=error; px_msg="teruggezet: deze sites antwoordden daarna niet meer: $px_broken"
                 else
                     px_state=ok; px_msg="doorgevoerd ($px_id sites)"; px_hook=1
-                    echo "$px_apply_hash" >"$t_dir/proxy.applied"; rm -f "$t_dir/proxy.failed" "$t_dir/proxy.failmsg"
+                    echo "$px_apply_hash" >"$t_dir/proxy.applied"; echo "$px_tpl" >"$t_dir/proxy.tpl"; rm -f "$t_dir/proxy.failed" "$t_dir/proxy.failmsg"
                     act_log proxy 1 "Reverse proxy: beleid doorgevoerd" "$px_kind $px_ctr, $px_id sites"
                 fi
             else
