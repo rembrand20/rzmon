@@ -21853,6 +21853,9 @@ const FH_SHORT = () => ({
   proxy_def_lan: L("Een nieuwe site met een beheerprogramma of adminpagina's is standaard alleen thuis bereikbaar."),
   proxy_def_rate: L("Hoeveel verzoeken per seconde een nieuwe site per adres krijgt. Apps krijgen vanzelf de ruime stand."),
   proxy_def_bots: L("Een nieuwe site weert standaard bekende aanvalstools."),
+  pushover_what: L("Welke meldingen naar Pushover gaan. Alles; alleen critical (en het bericht als zo'n storing hersteld is); of alleen als reserve: dan krijgt Pushover een melding alleen als de andere pushdiensten (ntfy, Web Push) hem niet konden afleveren. Bijvoorbeeld alles naar Web Push en alleen critical naar Pushover, met de sirene."),
+  ntfy_what: L("Welke meldingen naar ntfy gaan: alles, alleen critical (en het herstel daarvan), of alleen als reserve als de andere pushdiensten het niet afleverden."),
+  webpush_what: L("Welke meldingen via Web Push gaan: alles, alleen critical (en het herstel daarvan), of alleen als reserve. Per apparaat kun je het daarnaast nog beperken bij Mijn account."),
   webcheck_on: L("RzSense vraagt elke site van je reverse proxy één keer per dag zelf op en geeft een cijfer van A tot F: https met een geldig certificaat, doorsturen van http, HSTS, Content-Security-Policy, frames, nosniff, Referrer-Policy, Permissions-Policy en of de site zijn softwareversie verraadt. Er gaat niets naar een externe dienst."),
   webcheck_domain: L("Staat er in je proxy server_name app.* (zoals bij SWAG), dan weet RzSense niet onder welk domein de site hangt. Vul het hier in, bv. example.nl; de webcheck vraagt dan app.example.nl op."),
   proxy_def_devices: L("Een nieuwe site laat standaard je toegestane apparaten van buiten door."),
@@ -24471,13 +24474,20 @@ async function wpUnsubscribe() {
 /** Lijst met apparaten; all = alle gebruikers (beheerder) */
 function wpList(devs, all) {
   if (!devs.length) return `<p class="muted small">${all ? L('Nog geen apparaten aangemeld. Elke gebruiker meldt zijn eigen telefoon aan bij <b>Mijn account</b>.') : L('Nog geen apparaten aangemeld.')}</p>`;
-  return `<table class="vuln-table small wp-list"><thead><tr>${all ? `<th>${L('Gebruiker')}</th>` : ''}<th>${L('Apparaat')}</th><th>${L('Dienst')}</th><th>${L('Laatst gelukt')}</th><th></th></tr></thead><tbody>${devs.map((d) => `<tr>
+  return `<table class="vuln-table small wp-list"><thead><tr>${all ? `<th>${L('Gebruiker')}</th>` : ''}<th>${L('Apparaat')}</th><th>${L('Dienst')}</th><th>${L('Krijgt')}</th><th>${L('Laatst gelukt')}</th><th></th></tr></thead><tbody>${devs.map((d) => `<tr>
     ${all ? `<td>${esc(d.user)}</td>` : ''}<td>${esc(d.name || '#' + d.id)}${d.this ? ` <span class="u-tag ok">${L('dit apparaat')}</span>` : ''}${d.last_error ? `<br><span class="warn-txt small">⚠ ${esc(d.last_error)}</span>` : ''}</td>
-    <td>${esc(d.service)}</td><td class="muted small">${d.last_ok ? esc(ago(d.last_ok)) : L('nog niet')}</td>
+    <td>${esc(d.service)}</td>
+    <td><select data-wp-what="${d.id}" aria-label="${esc(L('Wat {d} krijgt', { d: d.name || '#' + d.id }))}">${WP_WHAT().map(([k, l]) => `<option value="${k}" ${(d.what || 'all') === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></td>
+    <td class="muted small">${d.last_ok ? esc(ago(d.last_ok)) : L('nog niet')}</td>
     <td class="nowrap"><button type="button" class="btn small-btn" data-wp-test="${d.id}">🧪 ${L('Test')}</button> <button type="button" class="btn small-btn danger" data-wp-del="${d.id}" title="${esc(L('Verwijderen'))}">✕</button></td></tr>`).join('')}</tbody></table>`;
 }
 
+const WP_WHAT = () => [['all', L('Alles')], ['crit', L('Alleen critical')], ['ids', L('Alleen IDS-aanvallen')]];
+
 function wpListEvents(box, after) {
+  box.querySelectorAll('[data-wp-what]').forEach((s) => (s.onchange = async () => {   // 1.301.0
+    try { await api('webpush_what', { id: +s.dataset.wpWhat, what: s.value }); toast(L('Opgeslagen')); } catch (ex) { toast(ex.message, 'err'); after(); }
+  }));
   box.querySelectorAll('[data-wp-test]').forEach((b) => (b.onclick = async () => {
     b.disabled = true;
     try { await api('webpush_test', { id: +b.dataset.wpTest }); toast(L('Testbericht verstuurd') + ' 📱'); } catch (ex) { toast(ex.message, 'err'); }

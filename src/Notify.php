@@ -18,7 +18,8 @@ final class Notify
      *  - webhook: een eigen payload; anders een standaard-payload (+ webhook_extra)
      *  - webhook_filter: "alleen CRITICAL en herstel" (Instellingen → Home Assistant) toepassen; standaard als channels null is
      *  - ids: true = een IDS-melding (Discord/Slack/Teams alleen als daar "ook IDS" aan staat)
-     * @return array{push: ?bool, email: ?bool, webhook: ?bool, chat: ?bool, errors: list<string>, receipt: ?string}
+     *  - previous: de status ervoor (1.301.0: het herstel van een critical gaat ook naar een pushdienst die alleen critical krijgt)
+     * @return array{push: ?bool, email: ?bool, webhook: ?bool, chat: ?bool, errors: list<string>, receipt: ?string, push_skipped: bool}
      * @param array<mixed> $o
      */
     public static function send(string $title, string $message, array $o = []): array
@@ -27,12 +28,14 @@ final class Notify
         $status = (int) ($o['status'] ?? STATUS_OK);
         $event = (string) ($o['event'] ?? 'info');
         $base = public_url();
-        $out = ['push' => null, 'email' => null, 'webhook' => null, 'chat' => null, 'errors' => [], 'receipt' => null];
+        $out = ['push' => null, 'email' => null, 'webhook' => null, 'chat' => null, 'errors' => [], 'receipt' => null, 'push_skipped' => false];
 
         if (Push::enabled() && ($ch === null || !empty($ch['pushover']))) {
             $opts = $o['push_opts'] ?? ($base !== '' ? ['url' => $base . '/' . ltrim((string) ($o['anchor'] ?? ''), '/'), 'url_title' => t('Open RzSense')] : []);
-            $r = Push::send($title, $message . "\n" . date('d-m-Y H:i:s'), (int) ($o['prio'] ?? 0), $opts);
-            $out['push'] = (bool) $r['ok'];
+            $r = Push::send($title, $message . "\n" . date('d-m-Y H:i:s'), (int) ($o['prio'] ?? 0), $opts,
+                ['status' => $status, 'event' => $event, 'previous' => isset($o['previous']) ? (int) $o['previous'] : null, 'ids' => !empty($o['ids'])]);
+            $out['push_skipped'] = !empty($r['skipped']);
+            $out['push'] = $out['push_skipped'] ? null : (bool) $r['ok'];   // 1.301.0: bewust naar geen enkele dienst = niet gebruikt
             if (!empty($r['error'])) {
                 $out['errors'][] = $r['error'];
             }
@@ -40,7 +43,7 @@ final class Notify
         }
 
         // E-mail: altijd, of alleen als reserve wanneer push uit staat of mislukt
-        if (setting('email_enabled', '0') === '1' && ($ch === null || !empty($ch['email'])) && (setting('email_mode', 'always') !== 'fallback' || $out['push'] !== true)) {
+        if (setting('email_enabled', '0') === '1' && ($ch === null || !empty($ch['email'])) && (setting('email_mode', 'always') !== 'fallback' || ($out['push'] !== true && !$out['push_skipped']))) {
             $anchor = ltrim((string) ($o['anchor'] ?? ''), '/');
             $r = Mailer::send($title, $message . "\n\n" . t('Tijd') . ': ' . date('d-m-Y H:i:s')
                 . (($o['mail_extra'] ?? '') !== '' ? "\n\n" . $o['mail_extra'] : '')

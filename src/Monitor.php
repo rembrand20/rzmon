@@ -941,7 +941,8 @@ final class Monitor
         $body = implode("\n", $lines);
         // Push en e-mail: één bericht; Home Assistant krijgt hieronder een bericht per check
         $n = Notify::send($title, $body, ['channels' => ['pushover' => $channels['pushover'], 'email' => $channels['email'], 'webhook' => false], 'prio' => $prio,
-            'status' => $worst, 'mail_extra' => $acks ? t('Bevestigen (geen meldingen meer voor die storing):') . "\n" . implode("\n", $acks) : '']);
+            'status' => $worst, 'event' => array_keys($events) === ['recovery'] ? 'recovery' : 'problem',
+            'previous' => max(array_map(static fn($x) => (int) ($x['item']['previous'] ?? 0), $items) ?: [0]), 'mail_extra' => $acks ? t('Bevestigen (geen meldingen meer voor die storing):') . "\n" . implode("\n", $acks) : '']);
         [$pushover, $email, $errors, $chat] = [$n['push'], $n['email'], $n['errors'], $n['chat']];
         if ($n['receipt']) {
             foreach ($items as $x) {
@@ -1001,7 +1002,7 @@ final class Monitor
     private static function notify(array $check, array $res, int $status, string $title, string $message, int $priority, string $event, int $previous, string $kind = 'notify', ?array $channels = null): void
     {
         $ackUrl = $status !== STATUS_OK ? self::ackUrl($check) : null;
-        $n = Notify::send($title, $message, ['channels' => $channels, 'prio' => $priority, 'status' => $status, 'event' => $event,
+        $n = Notify::send($title, $message, ['channels' => $channels, 'prio' => $priority, 'status' => $status, 'event' => $event, 'previous' => $previous,
             'push_opts' => $ackUrl ? ['url' => $ackUrl, 'url_title' => '✔ ' . t('Bevestigen')] : null,
             'mail_extra' => $ackUrl ? '✔ ' . t('Bevestigen (geen meldingen meer voor deze storing):') . "\n$ackUrl" : '',
             'webhook' => self::webhookPayload($check, $res, $status, $title, $message, $event, $previous)]);
@@ -1009,7 +1010,7 @@ final class Monitor
             q('UPDATE checks SET pushover_receipt = ? WHERE id = ?', [$n['receipt'], $check['id']]);   // Emergency: later nagaan of hij in de Pushover-app bevestigd is
         }
         $errors = $n['errors'];
-        if ($n['push'] === null && $n['webhook'] === null && $n['email'] === null && $n['chat'] === null) {
+        if ($n['push'] === null && $n['webhook'] === null && $n['email'] === null && $n['chat'] === null && !$n['push_skipped']) {
             $errors[] = t('geen meldkanaal ingeschakeld');
         }
         q('INSERT INTO alerts (check_id, status, title, message, sent_ok, webhook_ok, email_ok, chat_ok, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [

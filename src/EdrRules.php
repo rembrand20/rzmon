@@ -15,12 +15,19 @@ final class EdrRules
     private const WEB = ['nginx', 'apache2', 'httpd', 'lighttpd', 'caddy', 'php-fpm*', 'php-cgi*', 'uwsgi', 'gunicorn*'];
     private const SHELLS = ['sh', 'bash', 'dash', 'ash', 'zsh', 'ksh', 'busybox', 'nc', 'ncat', 'netcat', 'socat', 'telnet', 'curl', 'wget', 'python*', 'perl', 'ruby', 'whoami'];
 
+    /**
+     * @param array<mixed> $v
+     * @return array<mixed>
+     */
     private static function c(string $f, string $op, array $v, bool $all = false): array
     {
         return ['f' => $f, 'op' => $op, 'v' => $v, 'all' => $all];
     }
 
-    /** Alle eigen regels (titels en uitleg in het Nederlands; vertaald bij het tonen) */
+    /**
+     * Alle eigen regels (titels en uitleg in het Nederlands; vertaald bij het tonen)
+     * @return array<mixed>
+     */
     public static function all(): array
     {
         $tmpDirs = ['/tmp/', '/var/tmp/', '/dev/shm/', '/run/shm/'];

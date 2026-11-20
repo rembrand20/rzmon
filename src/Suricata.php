@@ -32,7 +32,11 @@ final class Suricata
         return Ids::enabled() && setting('suricata_on', '1') === '1';
     }
 
-    /** @param array $list [[tijd, bron, poort, doel, poort, protocol, sid, melding, categorie, ernst, actie], …] */
+    /**
+     * @param array $list [[tijd, bron, poort, doel, poort, protocol, sid, melding, categorie, ernst, actie], …]
+     * @param array<mixed> $host
+     * @param array<mixed> $list
+     */
     public static function process(array $host, array $list): void
     {
         if (!self::on()) {

@@ -111,7 +111,11 @@ final class Report
             . self::css() . '</style></head><body><main>' . implode("\n", $h) . '<footer>' . $e(t('Bewaren als PDF: Afdrukken (Ctrl+P) → Opslaan als PDF.')) . '</footer></main></body></html>';
     }
 
-    /** In één oogopslag: top 5 risico's, tijd tot melding (MTTD) en tot opgelost (MTTR), actief misbruikte lekken en de SLO's */
+    /**
+     * In één oogopslag: top 5 risico's, tijd tot melding (MTTD) en tot opgelost (MTTR), actief misbruikte lekken en de SLO's
+     * @param array<mixed> $inc
+     * @param array<mixed> $r
+     */
     private static function onePager(array $r, array $inc, callable $e, callable $pct, callable $dur): string
     {
         $slo = $r['quality']['slo'] ?? Quality::slo($r['from'], $r['to']);

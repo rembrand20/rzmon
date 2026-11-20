@@ -7,7 +7,10 @@ declare(strict_types=1);
  */
 final class CheckInfo
 {
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     * @param array<mixed> $c
+     */
     public static function extra(array $c): array
     {
         $id = (int) $c['id'];
@@ -83,7 +86,11 @@ final class CheckInfo
         return ['counts' => $counts, 'outages' => $out, 'notify' => $notify, 'ai' => $ai, 'changed' => $chg, 'detail' => self::detail($c)];
     }
 
-    /** Details per soort check: container (uit de agent), disk (wanneer vol), certificaat en domein (dagen) */
+    /**
+     * Details per soort check: container (uit de agent), disk (wanneer vol), certificaat en domein (dagen)
+     * @param array<mixed> $c
+     * @return array<mixed>|null
+     */
     private static function detail(array $c): ?array
     {
         $type = (string) $c['type'];

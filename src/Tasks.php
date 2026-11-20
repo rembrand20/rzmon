@@ -11,7 +11,10 @@ final class Tasks
 {
     private const DAY = 86400;
 
-    /** Alle taken met hun stand: key, label, on, every, last_ok, last_try, error, next, stale (s), alert, status */
+    /**
+     * Alle taken met hun stand: key, label, on, every, last_ok, last_try, error, next, stale (s), alert, status
+     * @return array<mixed>
+     */
     public static function list(): array
     {
         $ts = static fn($v) => ($v === null || $v === '' || $v === 0) ? null : (is_numeric($v) ? (int) $v : (strtotime((string) $v) ?: null));
@@ -100,6 +103,7 @@ final class Tasks
     /**
      * off (uit), wait (nog niet gedaan), ok, warn (laatste poging mislukt, eerder gelukt), bad (te lang niet gelukt:
      * langer dan 'stale' geleden, of nooit gelukt en al zo lang een fout).
+     * @param array<mixed> $o
      */
     private static function status(array $o, ?int $since): string
     {
@@ -167,7 +171,10 @@ final class Tasks
         return $said ? 'Taken: ' . implode(', ', $said) : null;
     }
 
-    /** Wat er bij RzSense binnenkomt */
+    /**
+     * Wat er bij RzSense binnenkomt
+     * @return array<mixed>
+     */
     public static function inbound(): array
     {
         $agents = [];

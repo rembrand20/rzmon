@@ -219,13 +219,23 @@ final class WebPush
     public static function devices(?int $userId, string $endpoint = ''): array
     {
         $mine = $endpoint !== '' ? hash('sha256', $endpoint) : '';
-        $rows = q('SELECT w.id, w.user_id, u.username, w.endpoint, w.ep_hash, w.name, w.created_at, w.last_ok, w.last_error, w.last_error_at, w.fails
+        $rows = q('SELECT w.id, w.user_id, u.username, w.endpoint, w.ep_hash, w.name, w.what, w.created_at, w.last_ok, w.last_error, w.last_error_at, w.fails
                    FROM webpush_subs w JOIN users u ON u.id = w.user_id' . ($userId !== null ? ' WHERE w.user_id = ?' : '') . ' ORDER BY u.username, w.created_at',
             $userId !== null ? [$userId] : [])->fetchAll();
         return array_map(static fn($r) => ['id' => (int) $r['id'], 'user' => $r['username'], 'user_id' => (int) $r['user_id'], 'name' => $r['name'],
             'service' => self::service((string) $r['endpoint']), 'created_at' => $r['created_at'], 'last_ok' => $r['last_ok'],
-            'last_error' => $r['last_error'], 'last_error_at' => $r['last_error_at'], 'fails' => (int) $r['fails'],
+            'last_error' => $r['last_error'], 'last_error_at' => $r['last_error_at'], 'fails' => (int) $r['fails'], 'what' => (string) ($r['what'] ?? 'all'),
             'this' => $mine !== '' && hash_equals((string) $r['ep_hash'], $mine)], $rows);
+    }
+
+    /** 1.301.0: wat een apparaat krijgt instellen (eigen apparaat, of elk apparaat als beheerder) */
+    public static function setWhat(int $id, string $what, int $userId, bool $admin): bool
+    {
+        if (!in_array($what, self::WHAT, true)) {
+            return false;
+        }
+        return q('UPDATE webpush_subs SET what = ? WHERE id = ?' . ($admin ? '' : ' AND user_id = ?'), $admin ? [$what, $id] : [$what, $id, $userId])->rowCount() > 0
+            || (bool) q('SELECT 1 FROM webpush_subs WHERE id = ?' . ($admin ? '' : ' AND user_id = ?') . ' AND what = ?', $admin ? [$id, $what] : [$id, $userId, $what])->fetchColumn();
     }
 
     public static function service(string $endpoint): string
@@ -262,16 +272,41 @@ final class WebPush
         return $json;
     }
 
+    /** 1.301.0: wat een apparaat krijgt: alles, alleen critical (en het herstel daarvan), of alleen IDS-meldingen */
+    public const WHAT = ['all', 'crit', 'ids'];
+
     /**
-     * Naar alle apparaten (of één: $onlyId). Gelukt = minstens één apparaat kreeg het.
-     * @return array{ok: bool, error: ?string, sent: int}
+     * Wil een apparaat met deze keuze deze melding?
+     * @param array{status?: ?int, event?: string, previous?: ?int, force?: bool, ids?: bool} $meta
      */
-    public static function send(string $title, string $message, int $priority = 0, array $extra = [], ?int $onlyId = null): array
+    public static function deviceWants(string $what, array $meta): bool
     {
-        $rows = q('SELECT id, endpoint, p256dh, auth, name FROM webpush_subs' . ($onlyId !== null ? ' WHERE id = ?' : '') . ' ORDER BY id LIMIT ' . self::MAX_PER_SEND,
+        return !empty($meta['force']) || match ($what) {
+            'crit' => Push::isCrit($meta),
+            'ids' => !empty($meta['ids']),
+            default => true,
+        };
+    }
+
+    /**
+     * Naar alle apparaten (of één: $onlyId, zonder filter). Gelukt = minstens één apparaat kreeg het.
+     * skipped: geen enkel apparaat wil deze melding (geen fout).
+     * @param array<mixed> $extra
+     * @param array{status?: ?int, event?: string, previous?: ?int, force?: bool, ids?: bool} $meta
+     * @return array{ok: bool, error: ?string, sent: int, skipped?: bool}
+     */
+    public static function send(string $title, string $message, int $priority = 0, array $extra = [], ?int $onlyId = null, array $meta = []): array
+    {
+        $rows = q('SELECT id, endpoint, p256dh, auth, name, what FROM webpush_subs' . ($onlyId !== null ? ' WHERE id = ?' : '') . ' ORDER BY id LIMIT ' . self::MAX_PER_SEND,
             $onlyId !== null ? [$onlyId] : [])->fetchAll();
         if (!$rows) {
             return ['ok' => false, 'error' => t('geen apparaat aangemeld'), 'sent' => 0];
+        }
+        if ($onlyId === null) {
+            $rows = array_values(array_filter($rows, static fn($r) => self::deviceWants((string) ($r['what'] ?? 'all'), $meta)));
+            if (!$rows) {
+                return ['ok' => false, 'error' => null, 'sent' => 0, 'skipped' => true];
+            }
         }
         $payload = self::payload($title, $message, $priority, $extra);
         $sent = 0;

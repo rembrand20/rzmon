@@ -89,6 +89,7 @@ final class Retention
     /**
      * 1.224.3: oude rijen in stukjes van 20.000 weggooien (met de index op created_at). Eén grote DELETE hield de tabel lang
      * op slot, zodat binnenkomende metingen moesten wachten. Hooguit 100 stukjes per keer; de rest volgt het volgende uur.
+     * @param array<mixed> $params
      */
     public static function deleteBatched(string $sql, array $params = []): int
     {
@@ -111,6 +112,7 @@ final class Retention
     /**
      * Groei van de laatste 7 dagen: [nu, groei per dag, ongewoon]. Ongewoon = meer dan 30% erbij in een week en minstens
      * 100 MB, zodat een kleine database die normaal vult niet meteen een melding geeft. Null zonder een week aan gegevens.
+     * @return array<mixed>|null
      */
     public static function growth(): ?array
     {

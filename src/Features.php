@@ -243,7 +243,10 @@ final class Features
         ['admin', ['Functies', 'Features'], ['Dit overzicht: alle functies met hun status.', 'This overview: all features with their status.'], '1.182.0', '', 'features'],
     ];
 
-    /** De rijen in de taal van nu, met de live status */
+    /**
+     * De rijen in de taal van nu, met de live status
+     * @return array<mixed>
+     */
     public static function rows(): array
     {
         $en = I18n::lang() === 'en';
@@ -264,7 +267,10 @@ final class Features
         return $out;
     }
 
-    /** Groepen in de taal van nu: sleutel => [icoon, naam] */
+    /**
+     * Groepen in de taal van nu: sleutel => [icoon, naam]
+     * @return array<mixed>
+     */
     public static function groups(): array
     {
         $en = I18n::lang() === 'en';
@@ -273,7 +279,10 @@ final class Features
         return $out;
     }
 
-    /** always / on / off / unset */
+    /**
+     * always / on / off / unset
+     * @param array<mixed> $settings
+     */
     public static function status(string $spec, array $settings): string
     {
         if ($spec === '') return 'always';

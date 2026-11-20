@@ -2154,6 +2154,38 @@ $lsC = LogStore::context($lsS['hits'][1]['ref']);
 ok($lsC !== null && count($lsC['before']) === 3 && count($lsC['after']) === 3 && str_contains($lsC['after'][0]['msg'], 'regel 28'), 'regels eromheen: 3 ervoor en de regels erna');
 ok(LogStore::search(['q' => 'regel server:bestaatniet', 'from' => $lsNow2 - 3600])['total'] === 0, 'server: die niet bestaat geeft niets');
 
+section('Push: wat er per dienst en per apparaat heen gaat (1.301.0)');
+$pmC = ['status' => STATUS_CRIT, 'event' => 'problem'];
+$pmW = ['status' => STATUS_WARN, 'event' => 'problem'];
+$pmRc = ['status' => STATUS_OK, 'event' => 'recovery', 'previous' => STATUS_CRIT];
+$pmRw = ['status' => STATUS_OK, 'event' => 'recovery', 'previous' => STATUS_WARN];
+ok(Push::isCrit($pmC) && Push::isCrit($pmRc) && !Push::isCrit($pmW) && !Push::isCrit($pmRw) && !Push::isCrit([]), 'push: critical en het herstel van een critical; een rapport zonder status niet');
+save_setting('pushover_what', 'crit');
+save_setting('webpush_what', 'all');
+ok(Push::wants('pushover', $pmC) && !Push::wants('pushover', $pmW) && Push::wants('pushover', $pmW + ['force' => true]) && Push::wants('webpush', $pmW),
+    'push: alleen critical naar Pushover, alles naar Web Push; de noodlink altijd');
+save_setting('pushover_what', 'bestaat-niet');
+ok(Push::what('pushover') === 'all', 'push: een onbekende keuze telt als alles');
+ok(WebPush::deviceWants('all', $pmW) && WebPush::deviceWants('crit', $pmC) && !WebPush::deviceWants('crit', $pmW) && WebPush::deviceWants('ids', ['ids' => true] + $pmW)
+    && !WebPush::deviceWants('ids', $pmC), 'web push per apparaat: alles, alleen critical, alleen IDS');
+// Alleen Pushover aan, met alleen critical: een warning gaat nergens heen (zonder te versturen) en telt niet als fout
+save_setting('pushover_enabled', '1'); save_setting('pushover_what', 'crit'); save_setting('ntfy_enabled', '0'); save_setting('webpush_enabled', '0');
+$pmS = Push::send('t', 'm', 0, [], $pmW);
+ok($pmS['skipped'] && !$pmS['ok'] && $pmS['error'] === null, 'push: bewust naar geen enkele dienst = overgeslagen, geen fout');
+$pmN = Notify::send('t', 'm', ['channels' => ['pushover' => true], 'status' => STATUS_WARN, 'event' => 'problem']);
+ok($pmN['push'] === null && $pmN['push_skipped'] && $pmN['errors'] === [], 'melding: push overgeslagen telt als "niet gebruikt"');
+// Web Push: een apparaat dat alleen critical wil, krijgt geen warning (en er wordt niets verstuurd)
+save_setting('pushover_enabled', '0'); save_setting('webpush_enabled', '1'); save_setting('pushover_what', 'all');
+$pmUid = (int) q("SELECT id FROM users WHERE username = 'admin'")->fetchColumn();
+q("INSERT INTO webpush_subs (user_id, endpoint, ep_hash, p256dh, auth, name, what) VALUES (?, 'https://fcm.googleapis.com/fcm/send/ci', ?, 'x', 'y', 'ci-telefoon', 'crit')", [$pmUid, hash('sha256', 'ci-wp')]);
+$pmWid = (int) q("SELECT id FROM webpush_subs WHERE name = 'ci-telefoon'")->fetchColumn();
+$pmWs = WebPush::send('t', 'm', 0, [], null, $pmW);
+ok(!empty($pmWs['skipped']) && $pmWs['sent'] === 0, 'web push: apparaat met alleen critical krijgt geen warning');
+ok(WebPush::setWhat($pmWid, 'ids', $pmUid, false) && !WebPush::setWhat($pmWid, 'raar', $pmUid, false) && !WebPush::setWhat($pmWid, 'all', $pmUid + 999, false)
+    && WebPush::devices($pmUid)[0]['what'] === 'ids', 'web push: keuze per apparaat, alleen geldige keuzes en alleen je eigen apparaat');
+q("DELETE FROM webpush_subs WHERE name = 'ci-telefoon'");
+save_setting('webpush_enabled', '1'); save_setting('webpush_what', 'all');
+
 section('Webcheck per site (1.299.0)');
 $wcGood = ['strict-transport-security' => 'max-age=31536000; includeSubDomains', 'content-security-policy' => "default-src 'self'; frame-ancestors 'self'",
     'x-content-type-options' => 'nosniff', 'referrer-policy' => 'same-origin', 'permissions-policy' => 'camera=()', 'server' => 'nginx'];

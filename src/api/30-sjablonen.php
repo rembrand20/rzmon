@@ -360,7 +360,7 @@ switch ($action) {
             // Systeeminfo: alleen bekende meldingen en kanalen bewaren
             $in['sysinfo'] = json_encode(NotifyRules::cleanSysinfo((array) json_decode((string) $in['sysinfo'], true), NotifyRules::sysinfo()));
         }
-        $allowed = ['sysinfo', 'pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
+        $allowed = ['sysinfo', 'pushover_what', 'ntfy_what', 'webpush_what', 'pushover_enabled', 'pushover_user', 'pushover_token', 'pushover_priority_crit', 'pushover_priority_warn',
             'pushover_sound', 'ntfy_enabled', 'ntfy_server', 'ntfy_topic', 'ntfy_token', 'alert_after', 'repeat_minutes', 'notify_warn', 'notify_recovery', 'agent_stale_minutes', 'agent_tick', 'cert_dirs', 'retention_days', 'alerts_days', 'hourly_days', 'daily_days', 'auth_events', 'auth_ignore', 'ids_baseline_hours', 'ids_fail_count', 'ids_fail_minutes', 'ids_block_hours', 'ids_repeat_days', 'ids_fim', 'ids_fim_exclude', 'ids_decoy_users', 'ids_decoy_port', 'ids_block_shared', 'ids_weekly', 'ids_weekly_day', 'ids_weekly_time', 'ids_blocklists', 'ids_geo', 'ids_geo_allowed', 'ids_webshell', 'ids_webshell_kill', 'ids_persist', 'ids_outbound', 'ids_outbound_country', 'ids_outbound_block', 'ids_harden', 'weblog_swag', 'weblog_swag_path', 'weblog_ha', 'weblog_ha_path', 'weblog_vw', 'weblog_vw_path', 'weblog_block', 'wl_paths', 'wl_ua', 'wl_404', 'wl_404_n', 'wl_auth', 'wl_auth_n', 'wl_nohost', 'wl_nohost_n', 'wl_ha_n', 'wl_vw_n', 'wl_minutes',
             'ha_webhook_enabled', 'ha_webhook_url', 'ha_webhook_verify_ssl', 'ha_webhook_events', 'notify_recovery_acked',
             'webpush_enabled', 'chat_discord_on', 'chat_discord_url', 'chat_discord_min', 'chat_discord_recovery', 'chat_discord_info', 'chat_discord_ids',
@@ -448,6 +448,11 @@ switch ($action) {
             $bad = array_filter(parse_list((string) $in['proxy_lan_extra']), static fn($n) => !ProxyGuard::validNet(trim((string) $n)));
             if ($bad) {
                 out(['error' => t('Geen geldig adres of netwerk: {n}', ['n' => mb_substr(implode(', ', $bad), 0, 80)])], 422);
+            }
+        }
+        foreach (['pushover_what', 'ntfy_what', 'webpush_what'] as $k) {   // 1.301.0
+            if (isset($in[$k]) && !in_array((string) $in[$k], Push::WHAT, true)) {
+                out(['error' => t('Ongeldige keuze')], 422);
             }
         }
         if (isset($in['webcheck_domain'])) {   // 1.299.0
@@ -803,6 +808,13 @@ switch ($action) {
     case 'webpush_delete':
         $in = input();
         if (!WebPush::delete((int) ($in['id'] ?? 0), (int) $user['id'], $isAdmin)) {
+            out(['error' => t('Apparaat niet gevonden')], 404);
+        }
+        out(['ok' => true]);
+
+    case 'webpush_what':   // 1.301.0: wat dit apparaat krijgt
+        $in = input();
+        if (!WebPush::setWhat((int) ($in['id'] ?? 0), (string) ($in['what'] ?? ''), (int) $user['id'], $isAdmin)) {
             out(['error' => t('Apparaat niet gevonden')], 404);
         }
         out(['ok' => true]);

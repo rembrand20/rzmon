@@ -1549,24 +1549,6 @@ parameters:
 			path: src/Chat.php
 
 		-
-			message: '#^Method CheckInfo\:\:detail\(\) has parameter \$c with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/CheckInfo.php
-
-		-
-			message: '#^Method CheckInfo\:\:detail\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/CheckInfo.php
-
-		-
-			message: '#^Method CheckInfo\:\:extra\(\) has parameter \$c with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/CheckInfo.php
-
-		-
 			message: '#^Method Checks\:\:agentCertSource\(\) has parameter \$check with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -2863,24 +2845,6 @@ parameters:
 			path: src/Edr.php
 
 		-
-			message: '#^Method EdrRules\:\:all\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/EdrRules.php
-
-		-
-			message: '#^Method EdrRules\:\:c\(\) has parameter \$v with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/EdrRules.php
-
-		-
-			message: '#^Method EdrRules\:\:c\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/EdrRules.php
-
-		-
 			message: '#^Method Eol\:\:cache\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -3215,24 +3179,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/ExtraChecks.php
-
-		-
-			message: '#^Method Features\:\:groups\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Features.php
-
-		-
-			message: '#^Method Features\:\:rows\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Features.php
-
-		-
-			message: '#^Method Features\:\:status\(\) has parameter \$settings with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Features.php
 
 		-
 			message: '#^Method Hardening\:\:detail\(\) return type has no value type specified in iterable type array\.$#'
@@ -3575,24 +3521,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/Home.php
-
-		-
-			message: '#^Method Https\:\:check\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Https.php
-
-		-
-			message: '#^Method Https\:\:fetchCert\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Https.php
-
-		-
-			message: '#^Method Https\:\:proxies\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Https.php
 
 		-
 			message: '#^Function t\(\) has parameter \$vars with no value type specified in iterable type array\.$#'
@@ -7597,18 +7525,6 @@ parameters:
 			path: src/Pve.php
 
 		-
-			message: '#^Method Quality\:\:loops\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Quality.php
-
-		-
-			message: '#^Method Quality\:\:slo\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Quality.php
-
-		-
 			message: '#^Method Quiet\:\:cleanProfile\(\) has parameter \$in with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -7921,18 +7837,6 @@ parameters:
 			path: src/Relay.php
 
 		-
-			message: '#^Method Report\:\:onePager\(\) has parameter \$inc with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Report.php
-
-		-
-			message: '#^Method Report\:\:onePager\(\) has parameter \$r with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Report.php
-
-		-
 			message: '#^Method Reports\:\:addrs\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -8051,18 +7955,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/Reports.php
-
-		-
-			message: '#^Method Retention\:\:deleteBatched\(\) has parameter \$params with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Retention.php
-
-		-
-			message: '#^Method Retention\:\:growth\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Retention.php
 
 		-
 			message: '#^Method Security\:\:accountLocked\(\) has parameter \$u with no value type specified in iterable type array\.$#'
@@ -9205,36 +9097,6 @@ parameters:
 			path: src/Sudo.php
 
 		-
-			message: '#^Method Suricata\:\:process\(\) has parameter \$host with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Suricata.php
-
-		-
-			message: '#^Method Suricata\:\:process\(\) has parameter \$list with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Suricata.php
-
-		-
-			message: '#^Method Tasks\:\:inbound\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Tasks.php
-
-		-
-			message: '#^Method Tasks\:\:list\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Tasks.php
-
-		-
-			message: '#^Method Tasks\:\:status\(\) has parameter \$o with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Tasks.php
-
-		-
 			message: '#^Method Templates\:\:applyItem\(\) has parameter \$cols with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -9781,18 +9643,6 @@ parameters:
 			path: src/Updater.php
 
 		-
-			message: '#^Method Urgency\:\:dependentNames\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Urgency.php
-
-		-
-			message: '#^Method Urgency\:\:dependents\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Urgency.php
-
-		-
 			message: '#^Method VPatch\:\:covered\(\) has parameter \$active with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -10274,12 +10124,6 @@ parameters:
 
 		-
 			message: '#^Method WebPush\:\:post\(\) has parameter \$r with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/WebPush.php
-
-		-
-			message: '#^Method WebPush\:\:send\(\) has parameter \$extra with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/WebPush.php

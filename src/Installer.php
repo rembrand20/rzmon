@@ -399,7 +399,8 @@ final class Installer
         ['hosts', 'relay_pull_at', 'DATETIME NULL'],                     // laatst gelukt
         ['hosts', 'relay_pull_try', 'DATETIME NULL'],                    // laatst geprobeerd
         ['hosts', 'relay_pull_err', 'VARCHAR(255) NULL'],
-        ['hosts', 'relay_kind', 'VARCHAR(10) NULL'],                     // 1.283.0: container of agent   // 1.222.0: pad van een webaanval (sites en diensten, JSON)   // 1.177.0: mag doorvoertest (iperf3) ontvangen   // 1.176.0: containerstatus running/failed/stopped/paused (voor het label)
+        ['hosts', 'relay_kind', 'VARCHAR(10) NULL'],
+        ['webpush_subs', 'what', "VARCHAR(8) NOT NULL DEFAULT 'all'"],   // 1.301.0: wat dit apparaat krijgt (all, crit, ids)                     // 1.283.0: container of agent   // 1.222.0: pad van een webaanval (sites en diensten, JSON)   // 1.177.0: mag doorvoertest (iperf3) ontvangen   // 1.176.0: containerstatus running/failed/stopped/paused (voor het label)
     ];
 
     private static function migrate(PDO $pdo): void

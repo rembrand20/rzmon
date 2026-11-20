@@ -464,7 +464,7 @@ final class Stealth
         if ((string) $u['email'] !== '' && setting('email_enabled', '0') === '1' && Mailer::send(I18n::forNotify(fn() => t('RzSense noodlink')), $msg, null, (string) $u['email'])['ok']) {
             $sent[] = t('e-mail');
         }
-        if ($u['role'] === 'admin' && Push::enabled() && Push::send(I18n::forNotify(fn() => t('RzSense noodlink')), $msg, 0)['ok']) {
+        if ($u['role'] === 'admin' && Push::enabled() && Push::send(I18n::forNotify(fn() => t('RzSense noodlink')), $msg, 0, [], ['force' => true])['ok']) {
             $sent[] = 'push';
         }
         Monitor::sysInfo('stealth_door', null, null, '🚪 ' . t('Noodlink aangevraagd: {user}', ['user' => $u['username']]),

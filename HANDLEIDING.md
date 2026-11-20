@@ -1137,6 +1137,16 @@ Met Web Push komen de meldingen van RzSense rechtstreeks op je telefoon, tablet 
 
 **Beheer:** bij **Instellingen → Meldingen en rapporten → Kanalen → Web Push** zie je alle apparaten van alle gebruikers, met **🧪 Test** en **✕ Verwijderen**. Daar staat ook de hoofdschakelaar. Bij *Meldketen testen* staat Web Push er nu bij.
 
+**Wat gaat waarheen** (vanaf 1.301.0): Pushover, ntfy en Web Push vormen samen het kanaal **Push**. Je meldregels, stille uren en de IDS-pushmeldingen bepalen óf een melding naar Push gaat; daarna bepaal je per dienst en per apparaat wát er aankomt.
+- **Per dienst** (*Wat gaat hierheen*, in de kaart van Pushover, ntfy en Web Push):
+  - **Alles** (standaard);
+  - **Alleen critical**, en het bericht als zo'n critical storing hersteld is (het herstel van een warning niet);
+  - **Alleen als reserve**: deze dienst krijgt een melding alleen als de andere pushdiensten hem niet konden afleveren.
+- **Per Web Push-apparaat** (kolom *Krijgt* in de lijst met apparaten, hier en bij *Mijn account*): **Alles**, **Alleen critical** of **Alleen IDS-aanvallen**. Elke gebruiker kiest dat voor zijn eigen apparaten; een beheerder voor elk apparaat.
+- **Voorbeeld:** Web Push op *Alles* en Pushover op *Alleen critical*: alles komt op je telefoon via Web Push, en bij een echte storing ook via Pushover (met de sirene als je dat bij Pushover zo hebt ingesteld).
+- Rapporten (week- en maandoverzicht) tellen als informatie: die gaan niet naar een dienst of apparaat met *Alleen critical*. De noodlink gaat altijd naar elke dienst.
+- Gaat een melding zo bewust naar geen enkele dienst, dan is dat geen fout: in Meldingen staat hij gewoon, zonder 📲.
+
 **Veilig:**
 - Elk bericht is **versleuteld van RzSense tot je apparaat** (RFC 8291). Google, Apple, Mozilla of Microsoft bezorgen het, maar kunnen het niet lezen.
 - RzSense ondertekent elk bericht met een eigen sleutel (VAPID). De geheime helft blijft in RzSense.

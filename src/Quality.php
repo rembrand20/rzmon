@@ -84,6 +84,7 @@ final class Quality
      * SLO's over een periode (Y-m-d t/m Y-m-d).
      * Tijd tot melding: van de overgang naar critical tot de eerste melding (kanaal) voor die check. Storingen waarvoor
      * (volgens je meldregels) nooit een melding kwam, tellen niet mee. Let op: "melden na X minuten" telt hier mee.
+     * @return array<mixed>
      */
     public static function slo(string $from, string $to): array
     {
@@ -143,7 +144,10 @@ final class Quality
         ];
     }
 
-    /** Na de actie: zelf herstellen, automatische blokkades en slimme drempels, over de laatste $days dagen */
+    /**
+     * Na de actie: zelf herstellen, automatische blokkades en slimme drempels, over de laatste $days dagen
+     * @return array<mixed>
+     */
     public static function loops(int $days = 30): array
     {
         // Zelf herstellen per check

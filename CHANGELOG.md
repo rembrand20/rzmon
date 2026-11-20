@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.301.0**: **push per dienst en per apparaat**: bv. alles via Web Push en alleen critical via Pushover.
 - **1.300.0**: **van buitenaf meten vanaf een server naar keuze** (bv. een VPS): de eerlijkste blik op wat er open staat.
 - **1.299.0**: **webcheck per site**: een cijfer van A tot F voor https, het certificaat en de beveiligingsheaders van elke site achter je proxy.
 - **1.298.0**: **breed scherm**: Instellingen in twee kolommen, en bij Incidenten de lijst en de details naast elkaar.
 - **1.297.0**: **logs: Patronen en Statistiek**: gelijke regels gegroepeerd (zie wat zeldzaam is), aantallen per veld, en OR in de zoekopdracht.
-- **1.296.0**: **reverse proxy in een rustiger opbouw**: tabbladen, een overzicht met wat aandacht vraagt, en een zijpaneel per site.
+
+## 1.301.0 – 2026-11-20
+### Nieuw
+- **Push: per dienst en per apparaat kiezen wat er aankomt.** Zie HANDLEIDING 6.1d.
+  - Bij Pushover, ntfy en Web Push kies je *Wat gaat hierheen*: alles, alleen critical (en het herstel daarvan), of alleen als reserve als de andere pushdiensten het niet afleverden.
+  - Per Web Push-apparaat kies je *alles*, *alleen critical* of *alleen IDS-aanvallen*.
+  - Bijvoorbeeld alles naar Web Push en alleen critical naar Pushover. De standaard blijft *alles*: er verandert niets tot je het zelf instelt.
 
 ## 1.300.0 – 2026-11-20
 ### Nieuw

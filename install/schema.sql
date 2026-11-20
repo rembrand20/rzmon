@@ -1900,3 +1900,6 @@ CREATE TABLE IF NOT EXISTS web_check (
     CONSTRAINT fk_web_check_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('webcheck_on', '1'), ('webcheck_domain', '');
+
+-- 1.301.0: wat er per pushdienst heen gaat (all, crit of fallback)
+INSERT IGNORE INTO settings (name, value) VALUES ('pushover_what', 'all'), ('ntfy_what', 'all'), ('webpush_what', 'all');

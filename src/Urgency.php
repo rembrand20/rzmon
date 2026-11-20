@@ -41,7 +41,10 @@ final class Urgency
         return ['score' => (int) min(100, $s), 'why' => $why];
     }
 
-    /** Per server: hoeveel servers er (direct of verder) van afhangen, via hosts.parent_id */
+    /**
+     * Per server: hoeveel servers er (direct of verder) van afhangen, via hosts.parent_id
+     * @return array<mixed>
+     */
     public static function dependents(bool $fresh = false): array
     {
         static $out = null;
@@ -69,7 +72,10 @@ final class Urgency
         return $out;
     }
 
-    /** Wie hangt er van deze server af (namen, voor de uitleg bij een incident) */
+    /**
+     * Wie hangt er van deze server af (namen, voor de uitleg bij een incident)
+     * @return array<mixed>
+     */
     public static function dependentNames(int $hostId, int $max = 6): array
     {
         $names = [];

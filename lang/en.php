@@ -11800,4 +11800,13 @@ return [
     'meetpunt {s}: {t}' => 'probe {s}: {t}',
     '(niet alles: te veel poorten voor één ronde)' => '(not everything: too many ports for one round)',
     'meetpunt {s}' => 'probe {s}',
+    'Wat gaat hierheen' => 'What goes here',
+    'Alleen critical (en het herstel daarvan)' => 'Only critical (and its recovery)',
+    'Alleen als reserve (als de andere pushdiensten het niet afleverden)' => 'Only as backup (if the other push services did not deliver)',
+    'Welke meldingen naar Pushover gaan. Alles; alleen critical (en het bericht als zo\'n storing hersteld is); of alleen als reserve: dan krijgt Pushover een melding alleen als de andere pushdiensten (ntfy, Web Push) hem niet konden afleveren. Bijvoorbeeld alles naar Web Push en alleen critical naar Pushover, met de sirene.' => 'Which alerts go to Pushover. Everything; only critical (and the message when such an outage has recovered); or only as backup: Pushover then only gets an alert if the other push services (ntfy, Web Push) could not deliver it. For example everything to Web Push and only critical to Pushover, with the siren.',
+    'Welke meldingen naar ntfy gaan: alles, alleen critical (en het herstel daarvan), of alleen als reserve als de andere pushdiensten het niet afleverden.' => 'Which alerts go to ntfy: everything, only critical (and its recovery), or only as backup if the other push services did not deliver.',
+    'Welke meldingen via Web Push gaan: alles, alleen critical (en het herstel daarvan), of alleen als reserve. Per apparaat kun je het daarnaast nog beperken bij Mijn account.' => 'Which alerts go via Web Push: everything, only critical (and its recovery), or only as backup. You can also limit it per device at My account.',
+    'Krijgt' => 'Gets',
+    'Wat {d} krijgt' => 'What {d} gets',
+    'Alleen IDS-aanvallen' => 'Only IDS attacks',
 ];

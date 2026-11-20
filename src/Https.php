@@ -25,6 +25,7 @@ final class Https
 
     // ------------------------------------------------------------------ het verzoek
 
+    /** @return array<mixed> */
     private static function proxies(): array
     {
         try {
@@ -274,7 +275,7 @@ final class Https
 
     /**
      * Certificaat ophalen bij $connect:$port met naam $name (SNI en naamcontrole).
-     * @return array ok, trusted, error, cn, names, issuer, from, to, days, fp, self_signed
+     * @return array<mixed> ok, trusted, error, cn, names, issuer, from, to, days, fp, self_signed
      */
     public static function fetchCert(string $connect, int $port, string $name, bool $withPem = false): array
     {
@@ -331,6 +332,7 @@ final class Https
     /**
      * Controle van het beheeradres (certificaat en DNS) en de nooddeur. Met $notify (cron, dagelijks):
      * ℹ️ 14 dagen voor het certificaat verloopt, ⚠️ als het verlopen of ongeldig is, ✅ als het weer goed is.
+     * @return array<mixed>
      */
     public static function check(bool $notify = false, ?string $url = null): array
     {
