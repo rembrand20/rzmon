@@ -20,7 +20,7 @@ ENV RELAY_PORT=8444 \
     RELAY_DATA=/data
 VOLUME /data
 USER rzrelay
-EXPOSE 8444
+EXPOSE 8444 8445
 HEALTHCHECK --interval=60s --timeout=10s --start-period=30s CMD curl -s -o /dev/null --cacert /data/relay/tls.crt "https://127.0.0.1:${RELAY_PORT}/" || exit 1
 ENTRYPOINT ["/usr/bin/tini", "--", "/opt/rzsense-relay/entrypoint.sh"]
 

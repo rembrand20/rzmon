@@ -124,7 +124,9 @@ if [ "$TEST" = 1 ]; then
     get_auth agent_check
     tk=$(curl "${curl_k[@]}" "${ga[@]}" -w '\n%{http_code}' "$base/api.php?action=agent_check" 2>/dev/null || true)
     tk_code=${tk##*$'\n'}; tk_body=${tk%$'\n'*}
-    if [ "$tk_code" = 200 ] && [ -n "$kid" ]; then
+    if [ "$tk_code" = 200 ] && [[ "$tk_body" == '{"rzpull":1'* ]]; then   # agent 1.114.0
+        pass "Via een relay waar RzSense ophaalt: het verzoek staat bij de relay; het antwoord komt bij een volgend verzoek"
+    elif [ "$tk_code" = 200 ] && [ -n "$kid" ]; then
         if tk_body=$(unseal "$tk_body" "$get_n"); then
             pass "🔑 Eigen sleutel geldig voor server: $(sed -n 's/.*"host":"\([^"]*\)".*/\1/p' <<<"$tk_body") (RzSense ziet dit IP: $(sed -n 's/.*"your_ip":"\([^"]*\)".*/\1/p' <<<"$tk_body"))"
         else

@@ -342,7 +342,8 @@ switch ($action) {
     // Nieuwe relay: een server met een koppelcode voor de relay-container
     case 'relay_create':
         $in = input();
-        $r = Relay::create((string) ($in['name'] ?? ''), (string) $user['username'], (int) ($in['relay_of'] ?? 0) ?: null);
+        $r = Relay::create((string) ($in['name'] ?? ''), (string) $user['username'], (int) ($in['relay_of'] ?? 0) ?: null,
+            !empty($in['pull']) ? ['pull_url' => (string) ($in['pull_url'] ?? ''), 'pull_every' => (int) ($in['pull_every'] ?? RelayPull::EVERY)] : []);   // 1.292.0
         if (is_string($r)) {
             out(['error' => $r], 422);
         }
@@ -351,6 +352,23 @@ switch ($action) {
     case 'relay_save':
         $in = input();
         ($e = Relay::saveRelay((int) ($in['id'] ?? 0), $in, (string) $user['username'])) === null ? out(['ok' => true]) : out(['error' => $e], 422);
+
+    // 1.292.0: RzSense haalt op bij deze relay (DMZ): adres en interval
+    case 'relay_pull_save':
+        $in = input();
+        ($e = RelayPull::save((int) ($in['id'] ?? 0), $in, (string) $user['username'])) === null ? out(['ok' => true]) : out(['error' => $e], 422);
+
+    // 1.292.0: sleutel en poort voor het installatiecommando, en een bundel om mee te nemen (de relay kan RzSense niet bereiken)
+    case 'relay_pull_install':
+        $info = RelayPull::installInfo((int) (input()['id'] ?? 0));
+        $info !== null ? out(['ok' => true] + $info) : out(['error' => t('Relay niet gevonden')], 404);
+
+    case 'relay_bundle':
+        $gz = RelayPull::bundle();
+        header('Content-Type: application/gzip');
+        header('Content-Disposition: attachment; filename="rzsense-relay-' . AGENT_LATEST . '.tar.gz"');
+        echo $gz;
+        exit;
 
     case 'relay_disable':
         Relay::disable((int) (input()['id'] ?? 0), (string) $user['username']) ? out(['ok' => true]) : out(['error' => t('Relay niet gevonden')], 404);

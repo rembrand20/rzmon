@@ -8,6 +8,8 @@
 #
 #   Installeren (het commando staat in RzSense, met koppelcode):
 #     sudo bash rzmon-relay-install.sh --url https://rzsense.voorbeeld.nl --pair XXXX-XXXX-XXXX-XXXX-XXXX [--pin …] [--port 8444]
+#   RzSense haalt op (1.292.0, bijvoorbeeld in een DMZ zonder verbinding met RzSense): uit de bundel uit RzSense,
+#     sudo bash install-relay.sh --src . --pull-key SLEUTEL --pair XXXX-XXXX-XXXX-XXXX-XXXX [--port 8444] [--pull-port 8445]
 #   Daarna:  sudo rzmon-agent-relay-setup --status | --update | --uninstall
 #
 # - draait als gebruiker rzrelay (niet root), afgeschermd door systemd; alleen CAP_NET_RAW (ping)
@@ -27,7 +29,7 @@ UNIT=rzmon-agent-relay
 RUSER=rzrelay
 SD=/etc/systemd/system
 
-URL="" FALLBACK="" FALLBACK_SET=0 PAIR="" PIN="" PORT="" AGENT_SHA="" SRC="" MODE=install ASSUME_YES=0 FROM_AGENT=0
+URL="" FALLBACK="" FALLBACK_SET=0 PAIR="" PIN="" PORT="" AGENT_SHA="" SRC="" MODE=install ASSUME_YES=0 FROM_AGENT=0 PULL_KEY="" PULL_PORT=""
 
 C_OK=$'\e[32m' C_WARN=$'\e[33m' C_ERR=$'\e[31m' C_HEAD=$'\e[1m' C_OFF=$'\e[0m'
 [ -t 1 ] || { C_OK="" C_WARN="" C_ERR="" C_HEAD="" C_OFF=""; }
@@ -49,6 +51,8 @@ RzSense agent relay (rzmon-agent-relay)
 Installeren:
   rzmon-relay-install.sh --url URL --pair KOPPELCODE [--pin VINGERAFDRUK] [--port 8444] [--fallback URL] [--agent-sha SHA256]
   --src MAP     installeren uit een lokale map (rzmon-agent.sh, relay.py, entrypoint.sh); zonder controle van de handtekening
+  --pull-key SLEUTEL  RzSense haalt op (DMZ): de relay belt nooit zelf naar RzSense; --url is dan niet nodig (wel --src)
+  --pull-port POORT   poort waarop RzSense ophaalt (standaard 8445)
 Daarna:
   rzmon-agent-relay-setup --status      hoe het ervoor staat
   rzmon-agent-relay-setup --update      bijwerken vanaf RzSense (alleen met een geldige handtekening)
@@ -65,6 +69,8 @@ while [ $# -gt 0 ]; do
         --port) PORT="${2:?}"; shift ;;
         --agent-sha) AGENT_SHA="${2:?}"; shift ;;
         --src) SRC="${2:?}"; shift ;;
+        --pull-key) PULL_KEY="${2:?}"; shift ;;
+        --pull-port) PULL_PORT="${2:?}"; shift ;;
         --update) MODE=update ;;
         --from-agent) MODE=update; FROM_AGENT=1 ;;
         --status) MODE=status ;;
@@ -89,6 +95,7 @@ if [ "$MODE" = status ]; then
     info "Dienst:    $(systemctl is-active "$UNIT.service" 2>/dev/null || true) ($UNIT.service)"
     info "RzSense:   $(conf_get MONITOR_URL)"
     info "Poort:     $(conf_get RELAY_PORT)"
+    [ -n "$(conf_get RELAY_PULL_KEY)" ] && info "Ophalen:   RzSense haalt op via poort $(conf_get RELAY_PULL_PORT || true) (deze relay belt niet zelf naar RzSense)"
     info "Pin:       $(cat "$DATA/relay/pin" 2>/dev/null || echo '–')"
     info "Netwerken: $(cat "$DATA/relay/allow" 2>/dev/null || echo 'nog geen (de relay laat niemand door)')"
     if [ -s "$DATA/relay/stats.json" ]; then info "Verkeer:   $(cat "$DATA/relay/stats.json")"; fi
@@ -104,11 +111,14 @@ if [ "$MODE" = uninstall ]; then
     rm -f "$SD/$UNIT.service" "$SD/$UNIT-update.path" "$SD/$UNIT-update.service"
     systemctl daemon-reload
     p=$(conf_get RELAY_PORT); p=${p:-8444}
-    if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
-        firewall-cmd -q --permanent --remove-port="$p/tcp" 2>/dev/null && firewall-cmd -q --reload && ok "Firewall: poort $p dicht"
-    elif command -v ufw >/dev/null 2>&1; then
-        ufw delete allow "$p/tcp" >/dev/null 2>&1 && ok "Firewall: poort $p dicht" || true
-    fi
+    pp=""; [ -n "$(conf_get RELAY_PULL_KEY)" ] && pp=$(conf_get RELAY_PULL_PORT) && pp=${pp:-8445}
+    for p in $p $pp; do
+        if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
+            firewall-cmd -q --permanent --remove-port="$p/tcp" 2>/dev/null && firewall-cmd -q --reload && ok "Firewall: poort $p dicht"
+        elif command -v ufw >/dev/null 2>&1; then
+            ufw delete allow "$p/tcp" >/dev/null 2>&1 && ok "Firewall: poort $p dicht" || true
+        fi
+    done
     rm -rf "$APP"
     ok "Programma en dienst weg"
     if [ "$ASSUME_YES" = 1 ]; then
@@ -154,6 +164,12 @@ if [ "$MODE" = update ]; then
     elif [ -r "$DATA/agent/keys/pin" ]; then PIN=$(tr -dc 'A-Za-z0-9+/=' <"$DATA/agent/keys/pin" | head -c 64); fi
 fi
 URL=${URL%/}
+# 1.292.0: RzSense haalt op. De relay kan RzSense dan niet bereiken: installeren en bijwerken uit de bundel (--src)
+[ -z "$PULL_KEY" ] || [[ "$PULL_KEY" =~ ^[0-9a-f]{64}$ ]] || die "Ongeldige sleutel (--pull-key): kopieer hem uit RzSense (64 tekens, 0-9 en a-f)"
+[ -z "$PULL_PORT" ] || { [[ "$PULL_PORT" =~ ^[0-9]{1,5}$ ]] && [ "$PULL_PORT" -ge 1 ] && [ "$PULL_PORT" -le 65535 ]; } || die "Ongeldige poort (--pull-port)"
+if [ -z "$SRC" ] && { [ -n "$PULL_KEY" ] || [ -n "$(conf_get RELAY_PULL_KEY)" ]; }; then
+    die "RzSense haalt op bij deze relay, dus de relay kan RzSense niet bereiken. Download in RzSense de bundel (Netwerken en relays → 📦 Installeren), zet hem op deze machine en installeer met: sudo bash install-relay.sh --src . (--update werkt zo ook)"
+fi
 if [ -z "$SRC" ]; then
     [[ "$URL" =~ ^https?://[^[:space:]\"\']+$ ]] || die "Geef het adres van RzSense op met --url (bijvoorbeeld https://rzsense.voorbeeld.nl)"
 fi
@@ -279,7 +295,7 @@ conf_set() {  # conf_set NAAM WAARDE
     fi
 }
 if [ ! -f "$CONF" ]; then
-    [ -n "$SRC" ] && [ -z "$URL" ] && die "Geef het adres van RzSense op met --url"
+    [ -n "$SRC" ] && [ -z "$URL" ] && [ -z "$PULL_KEY" ] && die "Geef het adres van RzSense op met --url (of --pull-key als RzSense ophaalt)"
     umask 027
     cat >"$CONF" <<EOF
 # RzSense agent relay ($UNIT). Wijzig met de hand en herstart: systemctl restart $UNIT
@@ -288,6 +304,9 @@ MONITOR_URL_FALLBACK="${FALLBACK%/}"
 PAIR_CODE="$PAIR"
 PIN="$PIN"
 RELAY_PORT="${PORT:-8444}"
+# 1.292.0: RzSense haalt op (leeg = de relay stuurt door naar MONITOR_URL)
+RELAY_PULL_KEY="$PULL_KEY"
+RELAY_PULL_PORT="${PULL_PORT:-8445}"
 EOF
     umask 022
     ok "Instellingen in $CONF"
@@ -297,10 +316,14 @@ elif [ "$MODE" = install ]; then
     [ -n "$PIN" ] && conf_set PIN "$PIN"
     [ -n "$PORT" ] && conf_set RELAY_PORT "$PORT"
     [ "$FALLBACK_SET" = 1 ] && conf_set MONITOR_URL_FALLBACK "${FALLBACK%/}"
+    [ -n "$PULL_KEY" ] && conf_set RELAY_PULL_KEY "$PULL_KEY"
+    [ -n "$PULL_PORT" ] && conf_set RELAY_PULL_PORT "$PULL_PORT"
     ok "Instellingen bijgewerkt (alleen wat je meegaf)"
 fi
 chown root:"$RUSER" "$CONF"; chmod 640 "$CONF"
 PORT=$(conf_get RELAY_PORT); PORT=${PORT:-8444}
+PULL_ON=""; [ -n "$(conf_get RELAY_PULL_KEY)" ] && PULL_ON=1
+PULL_PORT=$(conf_get RELAY_PULL_PORT); PULL_PORT=${PULL_PORT:-8445}
 
 # ----------------------------------------------------------------- 3. systemd en firewall
 step "3/4 Dienst en firewall"
@@ -362,11 +385,14 @@ systemctl restart "$UNIT-update.path"
 ok "Dienst $UNIT.service (als $RUSER) en bijwerken via $UNIT-update.path"
 if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
     firewall-cmd -q --permanent --add-port="$PORT/tcp" && firewall-cmd -q --reload && ok "Firewall (firewalld): poort $PORT open; de relay laat zelf alleen de netwerken uit RzSense door"
+    [ -n "$PULL_ON" ] && firewall-cmd -q --permanent --add-port="$PULL_PORT/tcp" && firewall-cmd -q --reload && ok "Firewall (firewalld): poort $PULL_PORT open voor het ophalen (alleen met de sleutel van RzSense)"
 elif command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q 'Status: active'; then
     ufw allow "$PORT/tcp" >/dev/null && ok "Firewall (ufw): poort $PORT open; de relay laat zelf alleen de netwerken uit RzSense door"
+    [ -n "$PULL_ON" ] && ufw allow "$PULL_PORT/tcp" >/dev/null && ok "Firewall (ufw): poort $PULL_PORT open voor het ophalen (alleen met de sleutel van RzSense)"
 else
-    info "Geen firewalld of ufw gevonden: zorg zelf dat poort $PORT bereikbaar is voor de agents in dit netwerk"
+    info "Geen firewalld of ufw gevonden: zorg zelf dat poort $PORT bereikbaar is voor de agents in dit netwerk${PULL_ON:+, en poort $PULL_PORT voor RzSense}"
 fi
+[ -n "$PULL_ON" ] && info "Tip: laat poort $PULL_PORT in je firewall alleen toe vanaf het adres van RzSense"
 
 # ----------------------------------------------------------------- 4. starten
 step "4/4 Starten"
@@ -377,6 +403,12 @@ if [ "$MODE" = update ]; then
         printf 'ok %s %s\n' "$old_version" "$new_version" >"$RESULT"; chown "$RUSER:$RUSER" "$RESULT"
     fi
     ok "Bijgewerkt${old_version:+ van $old_version} naar $new_version"
+    exit 0
+fi
+if [ -n "$PULL_ON" ]; then
+    ok "Gestart. De relay wacht nu op RzSense: zodra RzSense ophaalt (elke 15 seconden) koppelt hij zich en staat hij in RzSense op online."
+    info "Vingerafdruk van het certificaat van deze relay: $(cat "$DATA/relay/pin" 2>/dev/null || echo '?')"
+    info "Ophaaladres voor RzSense: https://$(hostname -I 2>/dev/null | awk '{print $1}'):$PULL_PORT · agents in dit netwerk: https://$(hostname -I 2>/dev/null | awk '{print $1}'):$PORT"
     exit 0
 fi
 for _ in $(seq 1 45); do

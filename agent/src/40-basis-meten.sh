@@ -11,8 +11,14 @@ if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ -e "$t_dir/tests.stale" ] || [ $(
     # bijvoorbeeld tijdens een update, dan blijft de vorige lijst staan: anders zou de agent denken dat het
     # IDS uit staat en de blokkades opheffen.
     # Met een sleutel moet de lijst versleuteld terugkomen; anders is hij niet te vertrouwen
-    if t_list=$(curl -fsS "${t_k[@]}" -m 10 "${MONITOR_URL%/}/api.php?action=agent_tests" 2>/dev/null) \
-        && { if [[ "$t_list" == '{"rzenc":'* ]]; then t_list=$(unseal "$t_list" "$t_n"); else [ -z "$t_n" ]; fi; } \
+    t_list=$(curl -fsS "${t_k[@]}" -m 10 "${MONITOR_URL%/}/api.php?action=agent_tests" 2>/dev/null)
+    # Agent 1.114.0: relay waar RzSense ophaalt: de lijst komt bij een volgende keer; tot dan de vorige, en snel opnieuw vragen
+    t_pull=0
+    if [[ "$t_list" == '{"rzpull":1'* ]]; then
+        if t_list=$(pull_open "$t_list" "$t_n"); then t_pull=1; else t_list=""; touch "$t_dir/tests.stale" 2>/dev/null; fi
+    fi
+    if [ -n "$t_list" ] \
+        && { if [ "$t_pull" = 1 ]; then :; elif [[ "$t_list" == '{"rzenc":'* ]]; then t_list=$(unseal "$t_list" "$t_n"); else [ -z "$t_n" ]; fi; } \
         && grep -q $'^0\ttick\t[0-9]' <<<"$t_list"; then
         (umask 077; printf '%s\n' "$t_list" >"$t_cache") 2>/dev/null && rm -f "$t_dir/tests.stale"
     fi
@@ -52,7 +58,7 @@ if [ "$TEST" != 1 ] && [ "${RZ_NO_BEAT-}" != 1 ]; then
             printf '{"beat":1,"agent_version":"%s","hostname":"%s","busy_since":%s}' "$AGENT_VERSION" "$(json_escape "$(hostname)")" "$b_since" >"$b_file"
             b_send=$b_file
             if [ -n "$enc_key" ] && seal "$b_file" "$b_file.enc"; then b_send="$b_file.enc"; fi
-            curl -fsS -m 10 -X POST "${tls[@]}" -H "Content-Type: application/json" "${auth[@]}" --data-binary "@$b_send" \
+            curl -fsS -m 10 -X POST "${tls[@]}" -H "Content-Type: application/json" -H "X-Agent-Beat: 1" "${auth[@]}" --data-binary "@$b_send" \
                 "${MONITOR_URL%/}/api.php?action=agent" >/dev/null 2>&1
             rm -f "$b_file" "$b_file.enc"
             sleep "$tick"

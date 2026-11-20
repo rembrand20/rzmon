@@ -4079,6 +4079,35 @@ foreach ($rhParts as $part) {
 save_setting('reserve_hist_in', '{}');
 $GLOBALS['sm_config']['backup_dir'] = $rsBkOld;
 
+// 1.292.0: RzSense haalt op bij de relay (DMZ)
+section('Relay: RzSense haalt op');
+$rpId = Relay::create('ci-dmz', 'ci', null, ['pull_url' => 'https://10.9.8.7:8445', 'pull_every' => 20]);
+$rpBad = Relay::create('ci-dmz2', 'ci', null, ['pull_url' => 'http://10.9.8.7:8445']);
+$rpRow = is_int($rpId) ? q('SELECT * FROM hosts WHERE id = ?', [$rpId])->fetch() : [];
+ok(is_int($rpId) && is_string($rpBad) && (int) $rpRow['relay_pull'] === 1 && preg_match('/^[0-9a-f]{64}$/', (string) $rpRow['relay_pull_key']) === 1
+    && RelayPull::every($rpRow) === 20 && RelayPull::status($rpRow)['url'] === 'https://10.9.8.7:8445' && !isset(RelayPull::status($rpRow)['key']),
+    'ophalen: relay met adres, interval en een eigen sleutel; http geweigerd; de sleutel niet in de status');
+$rpK = str_repeat('a1', 32);
+ok(RelayPull::sign($rpK, '1700000000', str_repeat('0', 32), '/rz/pull', '{}') === hash_hmac('sha256', "rzpull1\n1700000000\n" . str_repeat('0', 32) . "\n/rz/pull\n" . hash('sha256', '{}'), (string) hex2bin($rpK))
+    && RelayPull::signResp($rpK, 'n', 'x') !== RelayPull::signResp($rpK, 'm', 'x'), 'ophalen: handtekening zoals relay.py, antwoord gebonden aan de nonce');
+$rpIt = ['id' => 'abcdef0123456789', 'rts' => time(), 'ip' => '10.9.8.20', 'method' => 'POST', 'target' => 'api.php?action=agent', 'sup' => true,
+    'headers' => ['X-Agent-Key' => '0123456789abcdef', 'X-Evil' => 'x', 'Content-Type' => "a\nb"], 'body' => base64_encode('{}')];
+$rpJob = RelayPull::job($rpId, $rpIt);
+ok($rpJob !== null && $rpJob[0] === 'agent' && $rpJob[1]['light'] && array_keys($rpJob[1]['headers']) === ['X-Agent-Key']
+    && RelayPull::job($rpId, ['target' => 'api.php?action=users'] + $rpIt) === null && RelayPull::job($rpId, ['rts' => time() - 2 * 86400] + $rpIt) === null
+    && RelayPull::job($rpId, ['ip' => 'nee'] + $rpIt) === null && RelayPull::job($rpId, ['target' => 'api.php?action=agent&x=$(id)'] + $rpIt) === null,
+    'ophalen: alleen agentacties, geldige afzender, hooguit een dag oud, alleen bekende kopteksten; ouder rapport = alleen metingen');
+$rpGz = RelayPull::bundle();
+ok(str_starts_with($rpGz, "\x1f\x8b") && str_contains((string) gzdecode($rpGz), 'rzsense-relay/install-relay.sh') && isset(RelayPull::files()['agent_script'], RelayPull::files()['ping']),
+    'ophalen: bundel (.tar.gz) en de bestanden die de relay zelf uitlevert');
+// Een opgehaald verzoek verwerken zoals api.php: zonder geldige agent een weigering, en de relay als bron
+$rpDone = RelayPull::process($rpRow, [['id' => '00112233aabbccdd', 'ident' => 'k:0123456789abcdef', 'rts' => time(), 'ip' => '10.9.8.20', 'method' => 'POST',
+    'target' => 'api.php?action=agent', 'headers' => ['X-Agent-Key' => '0123456789abcdef'], 'body' => base64_encode('{"agent_version":"1.114.0"}')],
+    ['id' => 'nee', 'ident' => 'x']]);
+ok(count($rpDone) === 1 && $rpDone[0]['code'] >= 400 && $rpDone[0]['ident'] === 'k:0123456789abcdef',
+    'ophalen: verzoek verwerkt door dezelfde code als api.php (onbekende agent: geweigerd); ongeldig verzoek overgeslagen');
+q('DELETE FROM hosts WHERE id = ?', [$rpId]);
+
 // 1.291.0: de proxy-sleutel van deze browser (Mijn account › Van buiten); zonder proxy met "alleen thuis": niets
 ok(ProxyOpen::myStatus(null) === null || is_array(ProxyOpen::myStatus(null)), 'proxy-sleutel: status zonder fouten');
 q("INSERT INTO proxy_tags (tag, device_id, user_id, created_at) VALUES (?, NULL, 1, NOW())", [str_repeat('ab', 16)]);

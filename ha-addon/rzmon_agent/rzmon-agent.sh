@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.113.0"
+AGENT_VERSION="1.114.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -864,6 +864,38 @@ seal() {  # seal <invoer> <uitvoer>: versleutelen met enc_key; de nonce staat da
     m=$(printf 'rzenc1|%s|%s|%s|%s' "$t" "$seal_n" "$iv" "$d" | hmac_hex "$km")
     [ "${#m}" = 64 ] || return 1
     printf '{"rzenc":1,"t":%s,"n":"%s","iv":"%s","d":"%s","m":"%s"}' "$t" "$seal_n" "$iv" "$d" "$m" >"$2"
+    rn_note "$seal_n"
+}
+# Agent 1.114.0 (RzSense 1.292.0): via een relay waar RzSense ophaalt (DMZ) komt het antwoord op een verzoek pas bij een
+# volgend verzoek. Daarom de nonces van de laatste verzoeken onthouden (hooguit 40, een dag); een antwoord telt alleen als
+# het bij een daarvan hoort, met onze sleutel ondertekend is, en maar één keer.
+rn_file="$k_dir/rn.pull"
+rn_note() { (umask 077; { tail -n 39 "$rn_file" 2>/dev/null; printf '%s %s\n' "$1" "$(date +%s)"; } >"$rn_file.tmp.$$" && mv -f "$rn_file.tmp.$$" "$rn_file") 2>/dev/null || true; }
+rn_known() { [[ "$1" =~ ^[0-9a-f]{32}$ ]] && awk -v n="$1" -v t="$(( $(date +%s) - 90000 ))" '$1 == n && $2 > t { f = 1 } END { exit !f }' "$rn_file" 2>/dev/null; }
+rn_drop() { (grep -v "^$1 " "$rn_file" >"$rn_file.tmp.$$"; mv -f "$rn_file.tmp.$$" "$rn_file") 2>/dev/null || true; }
+# pull_open <antwoord> <nonce van dit verzoek, leeg = onversleuteld verstuurd>: antwoord van een relay waar RzSense ophaalt
+# ({"rzpull":1,…}). rc 0: het uitgepakte antwoord van RzSense (op een eerder verzoek). rc 5: in de wachtrij, nog geen
+# antwoord. rc 4: RzSense weigerde (de reden op stdout). rc 3: geen relay-antwoord (doe wat je altijd deed). rc 1: niet te
+# vertrouwen.
+pull_open() {
+    local b inner rn pull_code
+    [[ "$1" == '{"rzpull":1'* ]] || return 3
+    [[ "$1" == *'"queued":1'* ]] && return 5
+    pull_code=$(sed -n 's/^{"rzpull":1,"code":\([0-9]\{3\}\),.*/\1/p' <<<"$1")
+    b=$(sed -n 's/.*"b64":"\([A-Za-z0-9+/=]*\)".*/\1/p' <<<"$1")
+    inner=$(printf '%s' "$b" | base64 -d 2>/dev/null) || return 1
+    if [[ "$inner" == '{"rzenc":'* ]]; then
+        rn=$(sed -n 's/.*"rn":"\([0-9a-f]*\)".*/\1/p' <<<"$inner")
+        rn_known "$rn" || return 1
+        unseal "$inner" "$rn" || return 1
+        rn_drop "$rn"
+    elif [ "${pull_code:-200}" -ge 400 ]; then
+        printf '%s' "$inner"; return 4
+    elif [ -n "$2" ]; then
+        return 1   # versleuteld verstuurd, onversleuteld antwoord: niet van RzSense
+    else
+        printf '%s' "$inner"
+    fi
 }
 unseal() {  # unseal <antwoord> <nonce van het verzoek>: handtekening controleren, dan uitpakken; 1 = niet te vertrouwen
     local t rn iv d m ke km
@@ -911,10 +943,11 @@ get_auth() {
         t=$(date +%s); get_n=$(openssl rand -hex 16)
         s=$(printf 'rzget1|%s|%s|%s' "$1" "$t" "$get_n" | hmac_hex "$(enc_sub "$own_key" mac)")
         ga=(-H "X-Agent-Auth: $kid:$t:$get_n:$s")
+        rn_note "$get_n"
     else
         tok_auth
         ga=("${tok_h[@]}")
-        if [ -n "$enc_key" ]; then get_n=$(openssl rand -hex 16) && ga+=(-H "X-Agent-Enc: $(enc_sub "$enc_key" id | cut -c1-16):$get_n"); fi
+        if [ -n "$enc_key" ]; then get_n=$(openssl rand -hex 16) && ga+=(-H "X-Agent-Enc: $(enc_sub "$enc_key" id | cut -c1-16):$get_n") && rn_note "$get_n"; fi
     fi
 }
 
@@ -1013,7 +1046,8 @@ url_switch() {  # url_switch <nieuw adres> <reserve-adres> [controle nieuw] [con
     code=${out##*$'\n'}; out=${out%$'\n'*}
     rip=${code#* }; code=${code%% *}
     [[ "$rip" =~ ^[0-9a-fA-F.:]+$ ]] || rip=
-    if [ "$code" = 200 ] && [ -n "$get_n" ] && body=$(unseal "$out" "$get_n") && [[ "$body" == *'"ok":true'* ]]; then
+    if [ "$code" = 200 ] && [ -n "$get_n" ] && { { body=$(unseal "$out" "$get_n") && [[ "$body" == *'"ok":true'* ]]; } \
+        || { [[ "$n_spec" == sha256//* ]] && { pull_open "$out" "$get_n" >/dev/null; [[ " 0 5 " == *" $? "* ]]; }; }; }; then   # agent 1.114.0: relay waar RzSense ophaalt
         if (umask 077; printf '%s\n%s\n%s\n' "$new" "$conf_url" "$fb" >"$url_file.tmp" && mv -f "$url_file.tmp" "$url_file"); then
             url_pins_put "$new" "$n_spec" "$fb" "$f_spec"
             printf 'ok %s%s\n' "$new" "${rip:+ [ip $rip]}" >"$k_dir/url.result"
@@ -1038,6 +1072,12 @@ c_ver=$(curl -V 2>/dev/null | awk 'NR == 1 { print $2 }'); IFS=. read -r c_v1 c_
 { [ "${c_v1:-0}" -gt 7 ] || { [ "${c_v1:-0}" = 7 ] && [ "${c_v2:-0}" -ge 44 ]; }; } 2>/dev/null && curl_pins=1   # sha256-pins: curl 7.44+
 set_tls() {
     pin=""
+    # Agent 1.114.0: de agent van een relay waar RzSense ophaalt, levert af bij zijn eigen relay (127.0.0.1): altijd en
+    # alleen het certificaat van die relay (RELAY_SELF_PIN van het startscript), wat RzSense ook terugstuurt
+    if [ "${RELAY_MODE-}" = 1 ] && [[ "${RELAY_SELF_PIN-}" =~ ^[A-Za-z0-9+/]{43}=$ ]] && [[ "$MONITOR_URL" == https://127.0.0.1:* ]] && [ "$curl_pins" = 1 ]; then
+        pin=$RELAY_SELF_PIN; tls=(-k --pinnedpubkey "sha256//$pin")
+        return 0
+    fi
     u_spec=$(url_spec "$MONITOR_URL")
     if [ -n "$u_spec" ]; then   # agent 1.53.0: RzSense gaf voor dit adres door hoe het gecontroleerd wordt
         spec_tls "$MONITOR_URL" "$u_spec"; tls=("${s_tls[@]}")
@@ -1083,7 +1123,23 @@ pair_agent() {
         --data-binary "@$pf.enc" -w '\n%{http_code}' "${MONITOR_URL%/}/api.php?action=agent_pair" 2>&1)
     rm -f "$pf" "$pf.enc"
     code=${raw##*$'\n'}; raw=${raw%$'\n'*}
-    if [ "$code" != 200 ] || ! body=$(unseal "$raw" "$seal_n"); then
+    # Agent 1.114.0: relay waar RzSense ophaalt: in de wachtrij (de volgende poging krijgt het antwoord), of het antwoord
+    # op een eerdere poging
+    if [ "$code" = 200 ] && [[ "$raw" == '{"rzpull":1'* ]]; then
+        body=$(pull_open "$raw" "$seal_n"); p_rc=$?
+        if [ "$p_rc" = 5 ]; then
+            echo "Koppelen: verzoek staat bij de relay; RzSense haalt het op en het antwoord komt bij de volgende poging" >&2
+            return 1
+        elif [ "$p_rc" = 4 ]; then
+            echo "Koppelen mislukt: $(sed -n 's/.*"error":"\([^"]*\)".*/\1/p' <<<"$body" | head -c 200)" >&2
+            return 1
+        elif [ "$p_rc" != 0 ]; then
+            echo "Koppelen: antwoord via de relay klopt niet (handtekening); niet gekoppeld" >&2
+            return 1
+        fi
+        raw=""
+    fi
+    if [ -n "$raw" ] && { [ "$code" != 200 ] || ! body=$(unseal "$raw" "$seal_n"); }; then
         echo "Koppelen mislukt (HTTP $code): $(sed -n 's/.*"error":"\([^"]*\)".*/\1/p' <<<"$raw" | head -c 200)" >&2
         [ "$code" = 200 ] && echo "  Het antwoord van RzSense klopt niet (handtekening); niet gekoppeld." >&2
         return 1
@@ -1250,7 +1306,9 @@ if [ "$TEST" = 1 ]; then
     get_auth agent_check
     tk=$(curl "${curl_k[@]}" "${ga[@]}" -w '\n%{http_code}' "$base/api.php?action=agent_check" 2>/dev/null || true)
     tk_code=${tk##*$'\n'}; tk_body=${tk%$'\n'*}
-    if [ "$tk_code" = 200 ] && [ -n "$kid" ]; then
+    if [ "$tk_code" = 200 ] && [[ "$tk_body" == '{"rzpull":1'* ]]; then   # agent 1.114.0
+        pass "Via een relay waar RzSense ophaalt: het verzoek staat bij de relay; het antwoord komt bij een volgend verzoek"
+    elif [ "$tk_code" = 200 ] && [ -n "$kid" ]; then
         if tk_body=$(unseal "$tk_body" "$get_n"); then
             pass "🔑 Eigen sleutel geldig voor server: $(sed -n 's/.*"host":"\([^"]*\)".*/\1/p' <<<"$tk_body") (RzSense ziet dit IP: $(sed -n 's/.*"your_ip":"\([^"]*\)".*/\1/p' <<<"$tk_body"))"
         else
@@ -1487,8 +1545,14 @@ if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ -e "$t_dir/tests.stale" ] || [ $(
     # bijvoorbeeld tijdens een update, dan blijft de vorige lijst staan: anders zou de agent denken dat het
     # IDS uit staat en de blokkades opheffen.
     # Met een sleutel moet de lijst versleuteld terugkomen; anders is hij niet te vertrouwen
-    if t_list=$(curl -fsS "${t_k[@]}" -m 10 "${MONITOR_URL%/}/api.php?action=agent_tests" 2>/dev/null) \
-        && { if [[ "$t_list" == '{"rzenc":'* ]]; then t_list=$(unseal "$t_list" "$t_n"); else [ -z "$t_n" ]; fi; } \
+    t_list=$(curl -fsS "${t_k[@]}" -m 10 "${MONITOR_URL%/}/api.php?action=agent_tests" 2>/dev/null)
+    # Agent 1.114.0: relay waar RzSense ophaalt: de lijst komt bij een volgende keer; tot dan de vorige, en snel opnieuw vragen
+    t_pull=0
+    if [[ "$t_list" == '{"rzpull":1'* ]]; then
+        if t_list=$(pull_open "$t_list" "$t_n"); then t_pull=1; else t_list=""; touch "$t_dir/tests.stale" 2>/dev/null; fi
+    fi
+    if [ -n "$t_list" ] \
+        && { if [ "$t_pull" = 1 ]; then :; elif [[ "$t_list" == '{"rzenc":'* ]]; then t_list=$(unseal "$t_list" "$t_n"); else [ -z "$t_n" ]; fi; } \
         && grep -q $'^0\ttick\t[0-9]' <<<"$t_list"; then
         (umask 077; printf '%s\n' "$t_list" >"$t_cache") 2>/dev/null && rm -f "$t_dir/tests.stale"
     fi
@@ -1528,7 +1592,7 @@ if [ "$TEST" != 1 ] && [ "${RZ_NO_BEAT-}" != 1 ]; then
             printf '{"beat":1,"agent_version":"%s","hostname":"%s","busy_since":%s}' "$AGENT_VERSION" "$(json_escape "$(hostname)")" "$b_since" >"$b_file"
             b_send=$b_file
             if [ -n "$enc_key" ] && seal "$b_file" "$b_file.enc"; then b_send="$b_file.enc"; fi
-            curl -fsS -m 10 -X POST "${tls[@]}" -H "Content-Type: application/json" "${auth[@]}" --data-binary "@$b_send" \
+            curl -fsS -m 10 -X POST "${tls[@]}" -H "Content-Type: application/json" -H "X-Agent-Beat: 1" "${auth[@]}" --data-binary "@$b_send" \
                 "${MONITOR_URL%/}/api.php?action=agent" >/dev/null 2>&1
             rm -f "$b_file" "$b_file.enc"
             sleep "$tick"
@@ -6334,6 +6398,16 @@ if [ -n "$enc_key" ]; then
 fi
 # Antwoord van RzSense: versleuteld (dan eerst controleren) of gewoon. Klopt de handtekening niet: niets mee doen.
 open_resp() {
+    # Agent 1.114.0: relay waar RzSense ophaalt. In de wachtrij: gelukt, nog zonder antwoord (geen opdrachten). Of het
+    # antwoord op een eerder rapport (met onze sleutel ondertekend, bij een van onze laatste nonces).
+    local o p_rc
+    if [[ "$1" == '{"rzpull":1'* ]]; then
+        o=$(pull_open "$1" "$seal_n"); p_rc=$?
+        if [ "$p_rc" = 5 ]; then printf '{"ok":true,"queued":true}'; return 0; fi
+        [ "$p_rc" = 0 ] && { printf '%s' "$o"; return 0; }
+        [ "$p_rc" = 4 ] && { echo "RzSense weigerde een eerder rapport (via de relay): $(sed -n 's/.*"error":"\([^"]*\)".*/\1/p' <<<"$o" | head -c 200)" >&2; printf '{"ok":true,"queued":true}'; return 0; }
+        echo "Antwoord via de relay niet te vertrouwen (handtekening); genegeerd" >&2; printf '{"ok":true,"queued":true}'; return 0
+    fi
     if [[ "$1" == '{"rzenc":'* ]]; then
         unseal "$1" "$seal_n" || { echo "Antwoord van RzSense niet te vertrouwen (handtekening klopt niet); genegeerd" >&2; return 1; }
     elif [ -n "$seal_n" ]; then
@@ -6836,6 +6910,8 @@ if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlogsrc\t' "$t_cache" && [ "${LOG_S
                 "${MONITOR_URL%/}/api.php?action=agent_logs" 2>/dev/null); l_rc=$?
             rm -f "$b.enc"
             [ "$l_rc" = 0 ] || break
+            # Agent 1.114.0: relay waar RzSense ophaalt: het pakketje staat bij de relay; RzSense haalt het op
+            if [[ "$l_resp" == '{"rzpull":1'* ]]; then rm -f "$b"; continue; fi
             l_body=$(unseal "$l_resp" "$seal_n") || break
             b_name=$(basename "$b" .gz)
             if [[ "$l_body" == *"\"batch\":\"$b_name\""* ]] && [[ "$l_body" == *'"ok":true'* ]]; then rm -f "$b"; else break; fi

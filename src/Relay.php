@@ -39,6 +39,11 @@ final class Relay
             return self::$current;
         }
         self::$checked = true;
+        // 1.292.0: een verzoek dat RzSense zelf bij een relay ophaalde (cron/relay-item.php); de relay is al gecontroleerd
+        if (isset($GLOBALS['rz_pull']['relay'], $GLOBALS['rz_pull']['for']) && PHP_SAPI === 'cli') {
+            $name = q('SELECT name FROM hosts WHERE id = ? AND relay_on = 1 AND relay_pull = 1', [(int) $GLOBALS['rz_pull']['relay']])->fetchColumn();
+            return self::$current = $name !== false ? ['id' => (int) $GLOBALS['rz_pull']['relay'], 'name' => (string) $name, 'for' => (string) $GLOBALS['rz_pull']['for']] : null;
+        }
         $kid = (string) ($_SERVER['HTTP_X_RZ_RELAY'] ?? '');
         $for = (string) ($_SERVER['HTTP_X_RZ_RELAY_FOR'] ?? '');
         $ts = (string) ($_SERVER['HTTP_X_RZ_RELAY_TS'] ?? '');
@@ -56,7 +61,7 @@ final class Relay
         if (!$h || !(int) $h['enabled'] || !(int) $h['relay_on']) {
             return null;
         }
-        $msg = self::message($ts, $for, (string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'), self::requestTarget(), hash('sha256', (string) file_get_contents('php://input')));
+        $msg = self::message($ts, $for, (string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'), self::requestTarget(), hash('sha256', request_body()));
         foreach (AgentCrypto::hostKeys($h) as $key) {
             if (hash_equals(hash_hmac('sha256', $msg, (string) hex2bin(self::signKey($key))), $sig)) {
                 return self::$current = ['id' => (int) $h['id'], 'name' => (string) $h['name'], 'for' => $for];
@@ -594,7 +599,11 @@ final class Relay
     // ------------------------------------------------------------------ relays beheren
 
     /** Nieuwe relay: een server van het type agent, die zich met de koppelcode uit het installatiecommando meldt */
-    public static function create(string $name, string $by, ?int $relayOf = null): int|string
+    /**
+     * Nieuwe relay. 1.292.0: $pull = RzSense haalt op bij de relay (DMZ), met het adres waar RzSense hem bereikt.
+     * @param array<string, mixed> $pull ['pull_url' => …, 'pull_every' => …] of [] (de relay belt aan, zoals altijd)
+     */
+    public static function create(string $name, string $by, ?int $relayOf = null, array $pull = []): int|string
     {
         $name = trim($name);
         if ($name === '' || mb_strlen($name) > 100) {
@@ -606,12 +615,18 @@ final class Relay
         if ($relayOf !== null && !q("SELECT COUNT(*) FROM hosts WHERE id = ? AND relay_on = 0", [$relayOf])->fetchColumn()) {
             return t('Server niet gevonden');
         }
+        if ($pull && ($u = rtrim(trim((string) ($pull['pull_url'] ?? '')), '/')) !== '' && !RelayPull::validUrl($u)) {
+            return t('Het ophaaladres begint met https:// en bevat alleen de machine en de poort, bijvoorbeeld https://10.0.5.10:8445');
+        }
         $addr = $relayOf !== null ? (string) q('SELECT address FROM hosts WHERE id = ?', [$relayOf])->fetchColumn() : '';
         q("INSERT INTO hosts (name, address, mode, enabled, relay_on, relay_port, relay_of, relay_kind) VALUES (?, ?, 'agent', 1, 1, ?, ?, ?)",
             [$name, $addr, self::PORT, $relayOf, $relayOf !== null ? 'agent' : null]);
         $id = (int) db()->lastInsertId();
         self::ensureCheck($id);
         ActionLog::add($id, 'rzsense', 'agent', t('Relay toegevoegd'), $name, true, '', null, $by);
+        if ($pull && ($e = RelayPull::save($id, $pull, $by)) !== null) {
+            return $e;
+        }
         return $id;
     }
 
@@ -654,7 +669,7 @@ final class Relay
     {
         $relays = [];
         foreach (q("SELECT h.id, h.name, h.enabled, h.agent_seen, h.agent_tick, h.agent_version, h.agent_ip, h.agent_key_seen, h.relay_url, h.relay_port, h.relay_of, h.relay_kind,
-                           h.agent_update_status, s.name AS of_name
+                           h.agent_update_status, s.name AS of_name, h.relay_pull, h.relay_pull_url, h.relay_pull_every, h.relay_pull_pin, h.relay_pull_at, h.relay_pull_err
                     FROM hosts h LEFT JOIN hosts s ON s.id = h.relay_of WHERE h.relay_on = 1 ORDER BY h.name")->fetchAll() as $r) {
             $d = self::data((int) $r['id']);
             $stale = $r['agent_seen'] === null || strtotime((string) $r['agent_seen']) < time() - agent_stale_seconds($r['agent_tick'] !== null ? (int) $r['agent_tick'] : null);
@@ -663,8 +678,10 @@ final class Relay
                 'url' => (string) $r['relay_url'], 'port' => (int) $r['relay_port'] ?: self::PORT, 'pin' => (string) ($d['pin'] ?? ''), 'ips' => (array) ($d['ips'] ?? []),
                 'st' => (array) ($d['st'] ?? []), 'relay_ver' => (string) ($d['ver'] ?? ''), 'allow' => self::allowFor((int) $r['id']), 'behind' => self::behind((int) $r['id']),
                 'kind' => (string) ($r['relay_kind'] ?? ($d['kind'] ?? '')), 'relay_of' => $r['relay_of'] !== null ? (int) $r['relay_of'] : null, 'of_name' => (string) ($r['of_name'] ?? ''),
-                'outdated' => $r['agent_version'] && version_compare((string) $r['agent_version'], AGENT_LATEST, '<'), 'update_status' => (string) ($r['agent_update_status'] ?? '')];
+                'outdated' => $r['agent_version'] && version_compare((string) $r['agent_version'], AGENT_LATEST, '<'), 'update_status' => (string) ($r['agent_update_status'] ?? ''),
+                'pull' => RelayPull::status($r)];   // 1.292.0: RzSense haalt op (null = de relay belt aan)
         }
-        return ['networks' => self::networks(), 'relays' => $relays, 'hosts' => self::plan(), 'port' => self::PORT, 'agent_min' => AgentCrypto::PINURL_MIN, 'latest' => AGENT_LATEST];
+        return ['networks' => self::networks(), 'relays' => $relays, 'hosts' => self::plan(), 'port' => self::PORT, 'agent_min' => AgentCrypto::PINURL_MIN, 'latest' => AGENT_LATEST,
+            'pull_port' => RelayPull::PORT, 'pull_every' => RelayPull::EVERY, 'pull_agent_min' => RelayPull::AGENT_MIN];
     }
 }

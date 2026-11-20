@@ -3921,6 +3921,49 @@ De relay draait op een machine in dat netwerk. De agents daar sturen hun rapport
 
 **Bijwerken** gaat met een nieuwe image: `sudo podman pull ghcr.io/rembrand20/rzsense-relay:latest && sudo systemctl restart rzsense-relay`. Meer in [relay/README.md](relay/README.md). Home Assistant en TrueNAS als app, en checks die de relay zelf in zijn netwerk uitvoert (ping, HTTP, SNMP …), volgen in een volgende versie.
 
+#### RzSense haalt op (DMZ) ⇣ (vanaf 1.292.0, agent 1.114.0)
+In een **DMZ** mag het netwerk meestal niet naar binnen bellen, maar je eigen netwerk wel naar de DMZ. Kies dan bij *＋ Relay toevoegen* voor **RzSense haalt op**:
+
+```
+            je netwerk              │                DMZ
+ RzSense ── haalt op (elke 15 s) ───┼──▶ relay ◀── agent A
+         ◀─ rapporten ──────────────┼───        ◀── agent B
+         ── antwoorden ─────────────┼──▶   (de relay belt nooit zelf naar RzSense)
+```
+
+- **Hoe het werkt:**
+  1. De agents in de DMZ leveren hun rapport af bij de relay, zoals altijd versleuteld.
+  2. De relay bewaart het, en geeft de agent meteen het antwoord dat RzSense de vorige keer voor hem klaarlegde.
+  3. RzSense haalt elke 15 seconden (instelbaar van 5 tot 300) alles op en verwerkt het zoals een gewoon rapport: checks, IDS, meldingen.
+  4. RzSense legt de antwoorden terug: instellingen, opdrachten en sleutels.
+- **Gevolg:** een antwoord komt één ronde later bij de agent. Een opdracht zoals isoleren duurt zo hooguit één ophaalronde plus één tik van de agent. Instellingen en meldingen blijven gewoon in RzSense.
+- **Instellen:**
+  1. *＋ Relay toevoegen* → *RzSense haalt op*.
+  2. Vul het **ophaaladres** in: waar RzSense de relay bereikt, bijvoorbeeld `https://10.0.5.10:8445`. Achteraf aan te passen met **⇣ Ophalen**.
+  3. Kies **📦 Installeren**. De relay kan RzSense niet bereiken, dus je neemt de bestanden mee:
+     - **Losse agent:** **⬇ Bundel downloaden** (agent, doorstuurprogramma, startscript en installatiescript, met hun handtekeningen). Kopieer de bundel naar de relay (bijvoorbeeld met `scp`) en voer daar het commando uit: `sudo bash install-relay.sh --src . --pull-key … --pair …`.
+     - **Container:** haal de image op een machine met internet (`podman save`), zet hem op de relay (`podman load`) en zet `RELAY_PULL_KEY` en `PAIR_CODE` in `relay.env`. `MONITOR_URL` is niet nodig.
+  4. Zodra RzSense de eerste keer ophaalt, koppelt de relay zich en staat hij op 🟢 *online*.
+  5. Zet het **🌐 Adres** voor de agents (poort 8444) en maak een netwerk dat via deze relay gaat, zoals hierboven.
+- **Firewall:**
+  - poort **8445** (`RELAY_PULL_PORT`) alleen vanaf RzSense;
+  - poort **8444** voor de agents in de DMZ.
+  - Met `RELAY_PULL_FROM=10.0.0.5` (één of meer adressen of reeksen) laat de relay zelf ook alleen dat adres ophalen.
+- **Veilig:**
+  - Elk verzoek van RzSense aan de relay is ondertekend met een **eigen sleutel per relay** (HMAC-SHA256, met tijd en nonce), en het antwoord van de relay ook, gebonden aan het verzoek. Zonder sleutel geeft de relay niets.
+  - Het certificaat van de relay wordt vastgezet. Vernieuwt de relay zijn certificaat, dan neemt RzSense het alleen over als de handtekening klopt.
+  - De rapporten blijven versleuteld van agent tot RzSense.
+  - De sleutel staat in het installatiecommando: houd hem geheim.
+- **Wachtrij:** de relay bewaart hooguit **24 uur** en **200 MB** (`RELAY_Q_HOURS`, `RELAY_Q_MB`).
+  - Haalde RzSense een tijd niet op, dan verwerkt RzSense van elke agent het nieuwste rapport volledig. Van de oudere rapporten neemt RzSense alleen de metingen (CPU, RAM, disks) over, op hun eigen tijd, net als de wachtrij van de agent zelf.
+  - In de tabel staat bij de relay wanneer RzSense het laatst ophaalde, hoeveel er in de wachtrij staat, en de fout als ophalen niet lukt.
+  - Lukt ophalen niet, dan wordt de relay *agent stil*, en worden de meldingen van de agents erachter onderdrukt.
+- **Agents:**
+  - Agents in de DMZ en de relay zelf hebben **agent 1.114.0** of nieuwer nodig.
+  - De relay levert de agent, het installatiescript en hun handtekeningen zelf uit. Een agent installeren in de DMZ (*Verbinden via* de relay) en bijwerken werkt dus gewoon.
+  - De relay zelf werk je bij met een nieuwe bundel (`sudo bash install-relay.sh --src . --update`) of een nieuwe image.
+
+
 ## 9. Agent op Home Assistant OS
 
 Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De agent draait daarom als **add-on**.

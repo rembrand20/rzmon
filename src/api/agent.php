@@ -96,7 +96,7 @@ if ($action === 'agent_pair') {
         $deny(t("server '{name}' staat niet op type 'Remote met agent'", ['name' => $host['name']]), $host);
     }
     try {
-        [$plain, $pkey, $nonce] = AgentCrypto::open((string) file_get_contents('php://input'), [$host['pair_key']]);
+        [$plain, $pkey, $nonce] = AgentCrypto::open(request_body(), [$host['pair_key']]);
     } catch (RuntimeException $e) {
         $deny($e->getMessage(), $host);
     }
@@ -112,8 +112,11 @@ if ($action === 'agent_pair') {
     Monitor::sysInfo('agent_connect', (int) $host['id'], (string) $host['name'], 'ℹ️ ' . t('Agent gekoppeld: {name}', ['name' => $host['name']]),
         fn() => t('Agent op {name} is gekoppeld met een koppelcode en heeft een eigen sleutel', ['name' => $host['name']]) . " · IP $ip · agent $ver", $ip);
     $viaRelay = Relay::current();   // 1.282.0: gekoppeld via een relay: de vingerafdruk van de relay
-    out(['ok' => true, 'host' => $host['name'], 'agent_key' => $key, 'pin' => $viaRelay !== null ? Relay::pin($viaRelay['id']) : (AgentCrypto::pin(false, true, $host) ?? ''),
-        'agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh')]);
+    $pairPin = $viaRelay !== null ? Relay::pin($viaRelay['id']) : (AgentCrypto::pin(false, true, $host) ?? '');
+    // 1.292.0: via een relay die zijn vingerafdruk nog niet meldde (bv. de relay die zichzelf koppelt): niets meegeven, anders
+    // zet de agent het vastzetten uit
+    out(['ok' => true, 'host' => $host['name'], 'agent_key' => $key] + ($viaRelay !== null && $pairPin === '' ? [] : ['pin' => $pairPin])
+        + ['agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh')]);
 }
 
 if ($action === 'agent_tests') {
@@ -193,8 +196,17 @@ if ($action === 'agent') {
         out(['error' => "Geweigerd: $reason"], 400);
     }
     Perf::part('rapport:ontvangen');   // 1.129.0: aanmelden, ontsleutelen en inlezen
+    // 1.292.0: een ouder rapport dat bij de relay bleef liggen (RzSense haalde een tijd niet op), met een nieuwer erachter:
+    // alleen de metingen van CPU, RAM en disks, op hun eigen tijd. Net als de wachtrij van de agent zelf.
+    if (!empty($GLOBALS['rz_pull']['light']) && empty($in['beat'])) {
+        $items = is_array($in['backlog'] ?? null) ? array_values(array_filter($in['backlog'], 'is_array')) : [];
+        $items[] = ['t' => (int) $GLOBALS['rz_pull']['rts'], 'cpu' => $in['cpu']['pct'] ?? null, 'mem' => $in['mem'] ?? null, 'disks' => $in['disks'] ?? []];
+        $GLOBALS['agent_noreply'] = true;
+        out(['ok' => true, 'light' => AgentQueue::backlog($host, $items)]);
+    }
     // 1.137.0 (agent 1.69.0): hartslag tijdens een lange run: alleen "ik leef", de gegevens blijven staan
     if (!empty($in['beat'])) {
+        $GLOBALS['agent_noreply'] = true;   // 1.292.0: via een relay waar RzSense ophaalt: dit antwoord hoeft niet terug
         out(['ok' => true, 'beat' => AgentQueue::beat($host, $in)]);
     }
     $now = now();

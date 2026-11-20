@@ -5,6 +5,16 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.114.0 – 2026-11-20
+- **Via een relay waar RzSense ophaalt** (RzSense 1.292.0, bijvoorbeeld in een DMZ). Zo'n relay bewaart het rapport en geeft het antwoord van RzSense pas bij een volgend rapport mee.
+  - De agent onthoudt daarom de kenmerken (nonces) van zijn laatste 40 verzoeken, hooguit een dag. Hij neemt een antwoord alleen aan als het bij een daarvan hoort en met zijn eigen sleutel ondertekend is, en maar één keer.
+  - "In de wachtrij" telt als verstuurd: geen foutmelding en geen meting in de eigen wachtrij.
+  - Koppelen werkt ook zo: het antwoord met de sleutel komt bij de volgende poging.
+  - De testlijst komt ook een ronde later; tot dan blijft de vorige gelden.
+  - Logpakketjes staan bij de relay zodra die ze heeft.
+- **De agent van zo'n relay** levert zijn eigen rapporten af bij zijn eigen relay (127.0.0.1), en controleert daarbij altijd het certificaat van die relay.
+- De hartslag ("ik ben nog bezig") heeft een eigen kenmerk, zodat de relay hem niet voor een rapport aanziet.
+
 ## 1.113.0 – 2026-11-20
 - **De agent blijft rapporteren als podman of docker niet antwoordt.** Dat gebeurt bijvoorbeeld 's nachts, als een image-update (podman-auto-update) de opslag op slot zet.
   - Voorheen wachtte elk containercommando zijn volle tijdslimiet. Op een reverse proxy (SWAG, WAF, ClamAV, Suricata) zijn dat er tientallen, dus één ronde duurde dan een half uur. In die tijd kwam er geen rapport, en RzSense meldde "agent stil".

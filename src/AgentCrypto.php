@@ -125,6 +125,16 @@ final class AgentCrypto
         return function_exists('inflate_init');
     }
 
+    /**
+     * 1.292.0: de tijd waarmee een bericht vergeleken wordt. Gewoon nu; bij een verzoek dat RzSense bij een relay ophaalde
+     * het moment waarop de relay het kreeg (door de relay ondertekend, hooguit een dag oud).
+     */
+    public static function refTime(): int
+    {
+        $rts = (int) ($GLOBALS['rz_pull']['rts'] ?? 0);
+        return PHP_SAPI === 'cli' && $rts > time() - RelayPull::MAX_AGE && $rts <= time() + 300 ? $rts : time();
+    }
+
     public static function isEnvelope(string $raw): bool
     {
         return str_starts_with(ltrim($raw), '{"rzenc":');
@@ -144,7 +154,7 @@ final class AgentCrypto
             || !preg_match('/^[0-9a-f]{64}$/', (string) ($e['m'] ?? ''))) {
             throw new RuntimeException(t('versleuteld bericht is onvolledig'));
         }
-        if (abs(time() - $e['t']) > self::MAX_AGE) {
+        if (abs(self::refTime() - $e['t']) > self::MAX_AGE) {
             throw new RuntimeException(t('versleuteld bericht is te oud of komt uit de toekomst (klopt de klok van de server?)'));
         }
         $used = null;
@@ -235,7 +245,7 @@ final class AgentCrypto
         if (!preg_match('/^([0-9a-f]{16}):(\d{9,11}):([0-9a-f]{32}):([0-9a-f]{64})$/', $header, $m)) {
             throw new RuntimeException(t('handtekening onvolledig'));
         }
-        if (abs(time() - (int) $m[2]) > self::MAX_AGE) {
+        if (abs(self::refTime() - (int) $m[2]) > self::MAX_AGE) {
             throw new RuntimeException(t('versleuteld bericht is te oud of komt uit de toekomst (klopt de klok van de server?)'));
         }
         foreach ($keys as $k) {

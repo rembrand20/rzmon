@@ -87,6 +87,15 @@ function parse_list(?string $text): array
 }
 
 /**
+ * 1.292.0: inhoud van het verzoek. Normaal php://input; bij een verzoek dat RzSense bij een relay ophaalde (cron/relay-item.php)
+ * de inhoud die de relay bewaarde.
+ */
+function request_body(): string
+{
+    return isset($GLOBALS['rz_req_body']) ? (string) $GLOBALS['rz_req_body'] : (string) file_get_contents('php://input');
+}
+
+/**
  * IP-adres van de bezoeker. X-Forwarded-For wordt alleen vertrouwd als het
  * verzoek binnenkomt via een ingestelde reverse proxy.
  */

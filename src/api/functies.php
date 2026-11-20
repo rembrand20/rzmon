@@ -25,7 +25,7 @@ function out($data, int $code = 200): never
 /** Inhoud van het verzoek: bij een agent de uitgepakte tekst (zie agent_body), anders zoals hij binnenkwam */
 function raw_input(): string
 {
-    return $GLOBALS['agent_plain'] ?? (string) file_get_contents('php://input');
+    return $GLOBALS['agent_plain'] ?? request_body();
 }
 
 function input(): array
@@ -191,7 +191,7 @@ function agent_get_auth(array $host, string $action): ?array
  */
 function agent_body(array $host): bool
 {
-    $raw = (string) file_get_contents('php://input');
+    $raw = request_body();
     $refuse = static function (string $reason, array $extra = []) use ($host): never {
         q('INSERT INTO agent_log (host_id, ip, reason) VALUES (?, ?, ?)', [$host['id'], mb_substr(client_ip(), 0, 45), mb_substr($reason, 0, 255)]);
         Security::unauthorized('agent', $reason, [t('server') => $host['name']]);

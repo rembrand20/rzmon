@@ -239,6 +239,36 @@ jobs:
           echo "✔ agent → relay → RzSense: gekoppeld en gerapporteerd via relay $RID"
           docker logs rzsense-relay 2>&1 | tail -n 8
 
+      - name: Relay in de ophaalmodus (1.292.0) - RzSense haalt op, de relay belt nooit zelf
+        run: |
+          rz() { docker exec rzsense php -r "require '/opt/rzsense/src/bootstrap.php'; $1"; }
+          fail() { echo "::error title=Relay (ophalen)::$1"; docker logs rzsense-relay-pull 2>&1 | tail -n 30; rz "print_r(q('SELECT name, relay_pull_err, relay_pull_at FROM hosts WHERE relay_pull = 1')->fetchAll());"; exit 1; }
+          read -r RID CODE KEY < <(rz '$id = Relay::create("ci-dmz", "ci", null, ["pull_url" => "https://127.0.0.1:8455", "pull_every" => 5]); $p = AgentCrypto::pairCreate($id); $k = RelayPull::installInfo($id); echo $id, " ", $p["code"], " ", $k["pull_key"], "\n";')
+          # Geen MONITOR_URL: de relay kent RzSense niet en belt niet naar buiten
+          docker run -d --name rzsense-relay-pull --network host --read-only --tmpfs /tmp:rw,size=64m,mode=1777 \
+            --security-opt no-new-privileges -e RELAY_PULL_KEY="$KEY" -e PAIR_CODE="$CODE" -e RELAY_PORT=8454 -e RELAY_PULL_PORT=8455 -e RELAY_TICK=10 \
+            -v relay-pull-data:/data rzsense-relay:ci
+          # 1. RzSense haalt op (de planner start elke minuut de ophaallus): de relay koppelt en meldt zich
+          PIN=""
+          for i in $(seq 1 60); do PIN=$(rz "echo Relay::pin($RID);"); [ -n "$PIN" ] && break; sleep 3; done
+          [ -n "$PIN" ] || fail "de relay koppelt niet via ophalen"
+          # 2. zonder handtekening geeft het ophaalpunt niets
+          [ "$(curl -sk -o /dev/null -w '%{http_code}' -X POST https://127.0.0.1:8455/rz/pull)" = 401 ] || fail "ophaalpunt zonder handtekening niet geweigerd"
+          # 3. een agent achter de relay koppelt en rapporteert (het antwoord komt één ronde later)
+          read -r AID CODE2 < <(rz 'q("INSERT INTO hosts (name, address, mode, enabled) VALUES (\"ci-dmz-web\", \"127.0.0.1\", \"agent\", 1)"); $id = (int) db()->lastInsertId(); $p = AgentCrypto::pairCreate($id); echo $id, " ", $p["code"], "\n";')
+          mkdir -p /tmp/achp
+          v=""
+          for i in $(seq 1 15); do
+            AGENT_DIR=/tmp/achp CACHE_DIRECTORY=/tmp/achp/cache REMOTE_UPDATE=0 RZ_FORCE=1 RZ_NO_BEAT=1 MONITOR_URL=https://127.0.0.1:8454 PIN="$PIN" PAIR_CODE="$CODE2" \
+              bash agent/rzmon-agent.sh >/tmp/achp.log 2>&1 || true
+            v=$(rz "echo q('SELECT CONCAT(IFNULL(relay_via, 0), \" \", IF(agent_seen IS NULL, 0, 1), \" \", agent_key_seen) FROM hosts WHERE id = $AID')->fetchColumn();")
+            [ "$v" = "$RID 1 1" ] && break
+            sleep 10
+          done
+          [ "$v" = "$RID 1 1" ] || { tail -n 20 /tmp/achp.log; fail "agent achter de relay (ophalen): $v (verwacht: $RID 1 1)"; }
+          echo "✔ agent → relay ← RzSense haalt op: gekoppeld en gerapporteerd via relay $RID"
+          docker logs rzsense-relay-pull 2>&1 | grep -v 'in de wachtrij' | tail -n 8
+
       - name: Losse relay-agent (1.283.0) - rzmon-agent-relay met systemd
         run: |
           rz() { docker exec rzsense php -r "require '/opt/rzsense/src/bootstrap.php'; $1"; }

@@ -388,8 +388,17 @@ final class Installer
         ['hosts', 'net_id', 'INT UNSIGNED NULL'],                        // netwerk (relay_networks); leeg = vanzelf op IP-adres
         ['alerts', 'chat_ok', 'TINYINT(1) NULL'],                        // 1.284.0: Discord/Slack/Teams (null = niet gebruikt)
         ['hosts', 'relay_of', 'INT UNSIGNED NULL'],                      // 1.283.0: losse relay-agent op deze server (hosts.id van die server)
-        ['relay_networks', 'relay_checks', 'TINYINT(1) NOT NULL DEFAULT 0'],   // 1.289.0
-        ['agent_gaps', 'reason', 'VARCHAR(300) NULL'],                       // 1.291.0: waarom de agent stil was (uit het eerste rapport erna)   // 1.289.0: ping, TCP en HTTP van dit netwerk door de relay
+        ['relay_networks', 'relay_checks', 'TINYINT(1) NOT NULL DEFAULT 0'],   // 1.289.0: ping, TCP en HTTP van dit netwerk door de relay
+        ['agent_gaps', 'reason', 'VARCHAR(300) NULL'],                       // 1.291.0: waarom de agent stil was (uit het eerste rapport erna)
+        // 1.292.0: RzSense haalt op bij de relay (DMZ): de relay belt nooit zelf naar RzSense
+        ['hosts', 'relay_pull', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        ['hosts', 'relay_pull_url', 'VARCHAR(255) NULL'],                // waar RzSense ophaalt, bv. https://10.0.5.10:8445
+        ['hosts', 'relay_pull_key', 'CHAR(64) NULL'],                    // gedeelde sleutel (HMAC) tussen RzSense en de relay
+        ['hosts', 'relay_pull_every', 'SMALLINT UNSIGNED NULL'],         // seconden tussen twee keer ophalen (leeg = 15)
+        ['hosts', 'relay_pull_pin', 'VARCHAR(60) NULL'],                 // vingerafdruk van het certificaat van de relay
+        ['hosts', 'relay_pull_at', 'DATETIME NULL'],                     // laatst gelukt
+        ['hosts', 'relay_pull_try', 'DATETIME NULL'],                    // laatst geprobeerd
+        ['hosts', 'relay_pull_err', 'VARCHAR(255) NULL'],
         ['hosts', 'relay_kind', 'VARCHAR(10) NULL'],                     // 1.283.0: container of agent   // 1.222.0: pad van een webaanval (sites en diensten, JSON)   // 1.177.0: mag doorvoertest (iperf3) ontvangen   // 1.176.0: containerstatus running/failed/stopped/paused (voor het label)
     ];
 

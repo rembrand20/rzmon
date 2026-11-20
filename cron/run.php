@@ -68,6 +68,14 @@ try {
     cron_err('Reserve', $e);
 }
 
+// 1.292.0: relays waar RzSense ophaalt (DMZ): een eigen proces dat bijna een minuut loopt (elke 15 s per relay, instelbaar)
+try {
+    if (RelayPull::any()) {
+        exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(SM_ROOT . '/cron/relay-pull.php') . ' >/dev/null 2>&1 &');
+    }
+} catch (Throwable $e) {
+    cron_err('Relay', $e);
+}
 $force = in_array('--force', $argv, true);
 Perf::lap('start');   // snelheidsmeter (1.119.0): de duur van elk onderdeel
 $n = Monitor::runDue($force);

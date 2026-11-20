@@ -33,11 +33,12 @@ async function loadRelaySet() {
           ${r.outdated && r.kind === 'container' ? `<br><span class="warn-txt small">⬆ ${esc(L('nieuwe image: podman pull'))}</span>` : ''}
           ${r.update_status && r.kind === 'agent' ? `<br><span class="muted small">${esc(r.update_status)}</span>` : ''}</td>
         <td>${!r.paired ? `<span class="warn-txt">⏳ ${L('nog niet gekoppeld')}</span>` : r.down ? `<b class="danger-txt">🔴 ${L('weg')}</b>` : `<span class="good-txt">🟢 ${L('online')}</span>`}
-          ${r.seen ? `<br><span class="muted">${agoSpan(r.seen)}</span>` : ''}</td>
+          ${r.seen ? `<br><span class="muted">${agoSpan(r.seen)}</span>` : ''}${relayPullCell(r)}</td>
         <td>${r.url ? `<code>${esc(r.url)}</code>` : `<span class="warn-txt">${L('nog geen adres')}</span>`}<br><span class="muted">📌 ${relayPinShort(r.pin)}${r.ips.length ? ' · ' + esc(r.ips.slice(0, 3).join(', ')) : ''}</span></td>
         <td>${r.allow.length ? esc(r.allow.join(', ')) : `<span class="muted">${L('nog geen: de relay laat niemand door')}</span>`}<br><span class="muted">${L('{n} agents erachter', { n: r.behind })}</span></td>
         <td class="muted">${r.st && r.st.req !== undefined ? `${L('{n} verzoeken', { n: r.st.req })} · ${L('{n} geweigerd', { n: r.st.deny || 0 })}${r.st.err ? ` · <span class="warn-txt">${L('{n} fout', { n: r.st.err })}</span>` : ''}${r.st.up ? `<br>→ ${esc(r.st.up)}` : ''}` : '–'}</td>
         <td class="nowrap need-admin"><button type="button" class="btn small-btn" data-relay-url="${r.id}">🌐 ${L('Adres')}</button>
+          ${r.pull ? `<button type="button" class="btn small-btn" data-relay-pull="${r.id}">⇣ ${L('Ophalen')}</button>` : ''}
           <button type="button" class="btn small-btn" data-relay-install="${r.id}">📦 ${L('Installeren')}</button>
           <button type="button" class="btn small-btn danger" data-relay-off="${r.id}">${L('Geen relay meer')}</button></td></tr>`).join('')}
       </tbody></table></div>` : `<p class="muted small">${L('Nog geen relays.')}</p>`}
@@ -87,6 +88,7 @@ async function relayClick(e) {
     try { await api('relay_net_delete', { id: n.id }); toast(L('Verwijderd')); loadRelaySet(); } catch (ex) { toast(ex.message, 'err'); }
     return;
   }
+  if (t('[data-relay-pull]')) return relayPullDialog(relayData.relays.find((r) => r.id === +t('[data-relay-pull]').dataset.relayPull));
   if (t('[data-relay-url]')) return relayUrlDialog(relayData.relays.find((r) => r.id === +t('[data-relay-url]').dataset.relayUrl));
   if (t('[data-relay-install]')) return relayInstall(relayData.relays.find((r) => r.id === +t('[data-relay-install]').dataset.relayInstall));
   if (t('[data-relay-upd]')) {
@@ -112,13 +114,56 @@ function relayNew() {
     body: `<div style="padding:1rem 1.2rem">${xpHtml(L('Een relay is een kleine container in een ander netwerk. De agents daar praten met de relay, en de relay met RzSense.'),
       L('<b>Wat het doet:</b> de relay stuurt alleen agentverkeer door, en alleen uit de netwerken die je hier aan hem koppelt. De rapporten blijven versleuteld van de agent tot RzSense: de relay kan ze niet lezen. <b>Zo stel je het in:</b> geef de relay een naam, installeer de container met het commando dat je zo krijgt, zet daarna zijn adres (bijvoorbeeld https://192.168.50.10:8444) en maak een netwerk dat via deze relay gaat. <b>Goed om te weten:</b> de relay moet RzSense kunnen bereiken: via internet (SWAG), een VPN of een eigen route.'))}
       <label>${L('Naam')}<input name="name" required maxlength="100" placeholder="${esc(L('bijvoorbeeld Relay kantoor'))}"></label>
+      <fieldset class="relay-dir"><legend>${L('Richting')}</legend>
+        <label class="radio-row"><input type="radio" name="dir" value="push" checked> ${L('<b>De relay belt aan</b> bij RzSense (standaard)')}</label>
+        <label class="radio-row"><input type="radio" name="dir" value="pull"> ${L('<b>RzSense haalt op</b> bij de relay, bijvoorbeeld in een DMZ: de relay belt nooit zelf naar RzSense')}</label></fieldset>
+      <div data-pull-only hidden>
+        <label>${L('Ophaaladres')} <span class="hint">${L('(waar RzSense de relay bereikt, met poort {p})', { p: relayData.pull_port })}</span><input name="pull_url" class="mono" placeholder="https://10.0.5.10:${relayData.pull_port}"></label>
+        <label>${L('Elke … seconden ophalen')}<input name="pull_every" type="number" min="5" max="300" value="${relayData.pull_every}"></label></div>
       <label>${L('Op welke server')} <span class="hint">${L('(losse agent op een server die je al bewaakt; leeg = eigen regel, bijvoorbeeld een container)')}</span>
         <select name="relay_of"><option value="0">${esc(L('geen (eigen regel)'))}</option>${relayData.hosts.filter((h) => !h.is_relay && !relayData.relays.some((x) => x.relay_of === h.id)).map((h) => `<option value="${h.id}">${esc(h.name)}</option>`).join('')}</select></label></div>`,
     buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: L('Toevoegen'), cls: 'primary', submit: true }],
     onSubmit: async (v) => {
-      const r = await api('relay_create', { name: v.name, relay_of: +v.relay_of });
+      const pull = v.dir === 'pull';
+      const r = await api('relay_create', { name: v.name, relay_of: +v.relay_of, pull: pull ? 1 : 0, pull_url: v.pull_url || '', pull_every: +v.pull_every || relayData.pull_every });
       await loadRelaySet();
-      relayInstall(relayData.relays.find((x) => x.id === r.id), +v.relay_of ? 'native' : '');
+      relayInstall(relayData.relays.find((x) => x.id === r.id), +v.relay_of || pull ? 'native' : '');
+    },
+  });
+  $('#modal-form').addEventListener('change', (e) => {
+    if (e.target.name !== 'dir') return;
+    const pull = e.target.value === 'pull';
+    $('[data-pull-only]').hidden = !pull;
+    $('[name="pull_url"]').required = pull;
+  }, { signal: modalSignal() });
+}
+
+/** 1.292.0: RzSense haalt op bij deze relay: status in de tabel */
+function relayPullCell(r) {
+  const p = r.pull;
+  if (!p) return '';
+  const st = p.st || {};
+  return `<br><span class="muted small">⇣ ${esc(L('RzSense haalt op, elke {s} s', { s: p.every }))}</span>
+    ${p.err ? `<br><span class="warn-txt small">⚠ ${esc(p.err)}</span>` : p.at ? `<br><span class="muted small">${esc(L('laatst opgehaald'))} ${agoSpan(p.at)}${st.q ? ' · ' + esc(L('{n} in de wachtrij', { n: st.q })) : ''}${st.dropped ? ` · <span class="warn-txt">${esc(L('{n} weggegooid (wachtrij vol of te oud)', { n: st.dropped }))}</span>` : ''}</span>`
+    : `<br><span class="muted small">${esc(L('nog niet opgehaald'))}</span>`}
+    ${p.outbox ? `<br><span class="muted small">${esc(L('{n} antwoorden wachten op de relay', { n: p.outbox }))}</span>` : ''}`;
+}
+
+/** 1.292.0: ophaaladres en interval van een relay waar RzSense ophaalt */
+function relayPullDialog(r) {
+  if (!r || !r.pull) return;
+  modal({
+    title: '⇣ ' + L('Ophalen bij {n}', { n: r.name }),
+    body: `<div style="padding:1rem 1.2rem">${xpHtml(L('RzSense haalt de rapporten van de agents op bij deze relay, en legt de antwoorden terug.'),
+      L('<b>Wat het doet:</b> de relay belt nooit zelf naar RzSense. RzSense maakt elke paar seconden verbinding, haalt op wat de agents bij de relay afleverden en geeft de antwoorden mee (instellingen, opdrachten). <b>Zo stel je het in:</b> het adres waarop RzSense de relay bereikt, met de ophaalpoort (standaard {p}). <b>Goed om te weten:</b> een opdracht komt één ronde later bij de agent aan. Laat de ophaalpoort in je firewall alleen toe vanaf RzSense; zonder de sleutel van RzSense geeft de relay niets.', { p: relayData.pull_port }))}
+      <label>${L('Ophaaladres')}<input name="pull_url" class="mono" required value="${esc(r.pull.url || '')}" placeholder="https://10.0.5.10:${relayData.pull_port}"></label>
+      <label>${L('Elke … seconden ophalen')}<input name="pull_every" type="number" min="5" max="300" value="${r.pull.every}"></label>
+      ${r.pull.pin ? `<p class="muted small">📌 ${L('Certificaat van de relay vastgezet: {p}', { p: relayPinShort(r.pull.pin) })}</p>` : ''}</div>`,
+    buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: L('Opslaan'), cls: 'primary', submit: true }],
+    onSubmit: async (v) => {
+      await api('relay_pull_save', { id: r.id, pull_url: v.pull_url, pull_every: +v.pull_every });
+      toast(L('Opgeslagen'));
+      loadRelaySet();
     },
   });
 }
@@ -168,6 +213,7 @@ function relayNetDialog(n) {
 /** Installatiecommando's voor de relay-container (Podman met quadlet, Docker, compose), met een verse koppelcode */
 async function relayInstall(r, first = '') {
   if (!r) return;
+  if (r.pull) return relayInstallPull(r, first);
   let p;
   try { p = await api('agent_pair_code', { id: r.id }); } catch (ex) { toast(ex.message, 'err'); return; }
   const base = agentBase(null);
@@ -199,6 +245,47 @@ async function relayInstall(r, first = '') {
       <div data-rpane="docker" hidden>${copyBox('rl-docker', docker)}</div>
       <div data-rpane="compose" hidden>${copyBox('rl-compose', compose)}<p class="muted small">${L('Dan: podman compose up -d (of docker compose up -d)')}</p></div>
       <p class="muted small">${L('Open in de firewall van die machine poort {p} voor de agents in dat netwerk.', { p: r.port })}${pin ? ' · 📌 ' + L('alleen het certificaat van deze RzSense') : ''}</p></div>`,
+    buttons: [{ label: L('Sluiten'), onClick: () => { $('#modal').close(); loadRelaySet(); } }],
+  });
+  const body = $('#modal-body');
+  wireCopy(body);
+  body.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-rseg]');
+    if (!b) return;
+    $$('[data-rseg]', body).forEach((x) => x.classList.toggle('active', x === b));
+    $$('[data-rpane]', body).forEach((x) => { x.hidden = x.dataset.rpane !== b.dataset.rseg; });
+  }, { signal: modalSignal() });
+}
+
+/** 1.292.0: installeren als RzSense ophaalt: de relay kan RzSense niet bereiken, dus de bundel (losse agent) of een image die je meeneemt */
+async function relayInstallPull(r, first = '') {
+  let p, k;
+  try { [p, k] = await Promise.all([api('agent_pair_code', { id: r.id }), api('relay_pull_install', { id: r.id })]); } catch (ex) { toast(ex.message, 'err'); return; }
+  const env = `RELAY_PULL_KEY=${k.pull_key}\nPAIR_CODE=${p.code}\nRELAY_PORT=${r.port}\nRELAY_PULL_PORT=${k.pull_port}\nTZ=${Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Amsterdam'}`;
+  const raw = 'https://raw.githubusercontent.com/rembrand20/rzmon/main/relay';
+  const native = `tar xzf rzsense-relay-*.tar.gz && cd rzsense-relay\nsudo bash install-relay.sh --src . --pull-key '${k.pull_key}' --pair '${p.code}' --port ${r.port} --pull-port ${k.pull_port}`;
+  const image = `# ${L('Op een machine met internet:')}\npodman pull ${RELAY_IMAGE} && podman save ${RELAY_IMAGE} | gzip >rzsense-relay-image.tar.gz\n# ${L('Op de relay (na het kopiëren):')}\nsudo podman load <rzsense-relay-image.tar.gz`;
+  const podman = `sudo mkdir -p /etc/rzsense && sudo chmod 700 /etc/rzsense\nsudo tee /etc/rzsense/relay.env >/dev/null <<'EOF'\n${env}\nEOF\nsudo chmod 600 /etc/rzsense/relay.env\n`
+    + `# ${L('quadlet: kopieer {f} naar /etc/containers/systemd/', { f: `${raw}/quadlet/rzsense-relay.container` })}\nsudo systemctl daemon-reload && sudo systemctl start rzsense-relay`;
+  const docker = `docker run -d --name rzsense-relay --restart always --network host --cap-add NET_RAW --read-only --tmpfs /tmp \\\n  --security-opt no-new-privileges `
+    + env.split('\n').map((l) => `-e '${l}'`).join(' ') + ` \\\n  -v rzsense-relay:/data ${RELAY_IMAGE}`;
+  const tab = first === 'native' || r.kind !== 'container' ? 'native' : 'podman';
+  modal({
+    title: '📦 ' + L('{n} installeren (RzSense haalt op)', { n: r.name }),
+    wide: true,
+    body: `<div style="padding:1rem 1.2rem">${xpHtml(L('Deze relay kan RzSense niet bereiken. Neem de bestanden mee naar de relay, en installeer daar met de sleutel en de koppelcode hieronder.'),
+      L('<b>Wat het doet:</b> de relay bewaart wat de agents in zijn netwerk afleveren. RzSense haalt het elke paar seconden op, verwerkt het en legt de antwoorden terug; de relay belt zelf nooit naar RzSense. <b>Zo stel je het in:</b> download de bundel (losse agent) of neem de image mee (container), kopieer hem naar de relay (bijvoorbeeld met scp) en voer het commando uit. Zet daarna bij <i>⇣ Ophalen</i> het adres waarop RzSense de relay bereikt, en maak een netwerk dat via deze relay gaat. <b>Goed om te weten:</b> de koppelcode werkt één keer en 15 minuten; koppelen gebeurt zodra RzSense de eerste keer ophaalt. De sleutel is geheim: wie hem heeft, kan de relay uitlezen. Laat de ophaalpoort ({pp}) in je firewall alleen toe vanaf RzSense, en poort {p} voor de agents in dat netwerk.', { p: r.port, pp: k.pull_port }))}
+      <p><span class="muted small">${L('Koppelcode')}</span> <b class="mono">${esc(p.code)}</b> <span class="muted small">· ${L('{m} minuten geldig', { m: p.minutes })}</span></p>
+      <div class="seg" role="tablist">${[['native', '🐧 ' + L('Losse agent')], ['podman', 'Podman (quadlet)'], ['docker', 'Docker']]
+        .map(([key, l]) => `<button type="button" class="seg-btn ${key === tab ? 'active' : ''}" data-rseg="${key}">${esc(l)}</button>`).join('')}</div>
+      <div data-rpane="native" ${tab === 'native' ? '' : 'hidden'}>
+        <p>1. <a class="btn small-btn" href="api.php?action=relay_bundle" download>⬇ ${L('Bundel downloaden')}</a> <span class="muted small">${L('(agent, doorstuurprogramma, startscript en installatiescript, met hun handtekeningen)')}</span></p>
+        <p>2. ${L('Kopieer hem naar de relay, bijvoorbeeld:')} <code>scp rzsense-relay-*.tar.gz relay:</code></p>
+        <p>3. ${L('Op de relay:')}</p>${copyBox('rl-native', native)}
+        <p class="muted small">${L('Linux met systemd en Python 3.7+. Draait als gebruiker rzrelay, niet als root. Bijwerken gaat ook met een nieuwe bundel: hetzelfde commando met --update in plaats van --pull-key en --pair.')}</p></div>
+      <div data-rpane="podman" ${tab === 'podman' ? '' : 'hidden'}>${copyBox('rl-image', image)}${copyBox('rl-podman', podman)}</div>
+      <div data-rpane="docker" hidden>${copyBox('rl-image2', image.replace(/podman/g, 'docker').replace('sudo docker load', 'docker load'))}${copyBox('rl-docker', docker)}</div>
+      <p class="muted small">${L('Agents in dat netwerk hebben agent {v} of nieuwer nodig.', { v: relayData.pull_agent_min })}</p></div>`,
     buttons: [{ label: L('Sluiten'), onClick: () => { $('#modal').close(); loadRelaySet(); } }],
   });
   const body = $('#modal-body');

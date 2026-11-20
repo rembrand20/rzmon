@@ -17,6 +17,20 @@ In beide gevallen draaien er twee dingen:
 - **Het doorstuurprogramma** (`relay.py`, Python 3): https op poort **8444**, met een eigen certificaat. Het stuurt verkeer van de agents door naar RzSense.
 - **De agent** (dezelfde als op je servers, in relaymodus). Hij koppelt de relay met RzSense, geeft het doorstuurprogramma zijn instellingen door en meldt hoe het gaat.
 
+## RzSense haalt op (DMZ, vanaf 1.292.0)
+
+Mag de relay niet naar RzSense bellen (bijvoorbeeld in een DMZ)? Zet dan `RELAY_PULL_KEY` (uit RzSense) in plaats van `MONITOR_URL`. De relay belt dan nooit zelf naar RzSense:
+
+```
+agent ──▶ relay (bewaart)  ◀── RzSense haalt op (poort 8445) en legt de antwoorden terug
+```
+
+- De agents leveren af bij de relay; de relay bewaart het (hooguit `RELAY_Q_HOURS`=24 uur en `RELAY_Q_MB`=200 MB) en geeft de agent het antwoord dat RzSense de vorige keer klaarlegde.
+- RzSense haalt op via `RELAY_PULL_PORT` (standaard 8445), elke 15 seconden (instelbaar). Elk verzoek en antwoord is ondertekend met de sleutel (HMAC-SHA256, met tijd en nonce). Met `RELAY_PULL_FROM` laat de relay alleen die adressen ophalen.
+- De agent, het installatiescript en hun handtekeningen levert de relay zelf uit aan de agents in zijn netwerk.
+- Installeren zonder internet: de bundel uit RzSense (losse agent, `install-relay.sh --src . --pull-key … --pair …`) of de image meenemen met `podman save` / `podman load`.
+- Agents achter zo'n relay: agent 1.114.0 of nieuwer.
+
 ## Veilig
 
 - **Versleuteld van agent tot RzSense:** de relay ziet alleen dichte enveloppen en kan ze niet lezen of veranderen.

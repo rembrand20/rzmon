@@ -1781,6 +1781,20 @@ CREATE TABLE IF NOT EXISTS proxy_tags (
 
 -- 1.282.0: netwerken en relays. Een netwerk zonder verbinding met RzSense krijgt een relay (RzSense Relay, een container
 -- met de agent erin): de agents daar rapporteren via de relay, en de relay doet de checks in dat netwerk.
+-- 1.292.0: antwoorden van RzSense voor agents achter een relay waar RzSense ophaalt, tot de relay ze heeft
+CREATE TABLE IF NOT EXISTS relay_outbox (
+    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    relay_id   INT UNSIGNED  NOT NULL,
+    item       VARCHAR(40)   NOT NULL,
+    ident      VARCHAR(80)   NOT NULL,
+    action     VARCHAR(40)   NOT NULL,
+    code       SMALLINT      NOT NULL DEFAULT 200,
+    body       MEDIUMBLOB    NULL,
+    created_at DATETIME      NOT NULL,
+    INDEX idx_relay_outbox (relay_id, id),
+    CONSTRAINT fk_relay_outbox_host FOREIGN KEY (relay_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS relay_networks (
     id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name        VARCHAR(80)   NOT NULL,

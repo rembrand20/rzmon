@@ -436,6 +436,6 @@ final class Security
         q('DELETE FROM login_log WHERE created_at < NOW() - INTERVAL 90 DAY');
         q('DELETE FROM block_log WHERE removed_at < NOW() - INTERVAL ? DAY', [Monitor::alertDays()]);
         Stealth::purge();
-        q('DELETE FROM agent_nonces WHERE created_at < NOW() - INTERVAL 1 HOUR');
+        q('DELETE FROM agent_nonces WHERE created_at < NOW() - INTERVAL ' . (RelayPull::any() ? 25 : 1) . ' HOUR');   // 1.292.0
     }
 }

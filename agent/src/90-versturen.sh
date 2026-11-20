@@ -66,6 +66,16 @@ if [ -n "$enc_key" ]; then
 fi
 # Antwoord van RzSense: versleuteld (dan eerst controleren) of gewoon. Klopt de handtekening niet: niets mee doen.
 open_resp() {
+    # Agent 1.114.0: relay waar RzSense ophaalt. In de wachtrij: gelukt, nog zonder antwoord (geen opdrachten). Of het
+    # antwoord op een eerder rapport (met onze sleutel ondertekend, bij een van onze laatste nonces).
+    local o p_rc
+    if [[ "$1" == '{"rzpull":1'* ]]; then
+        o=$(pull_open "$1" "$seal_n"); p_rc=$?
+        if [ "$p_rc" = 5 ]; then printf '{"ok":true,"queued":true}'; return 0; fi
+        [ "$p_rc" = 0 ] && { printf '%s' "$o"; return 0; }
+        [ "$p_rc" = 4 ] && { echo "RzSense weigerde een eerder rapport (via de relay): $(sed -n 's/.*"error":"\([^"]*\)".*/\1/p' <<<"$o" | head -c 200)" >&2; printf '{"ok":true,"queued":true}'; return 0; }
+        echo "Antwoord via de relay niet te vertrouwen (handtekening); genegeerd" >&2; printf '{"ok":true,"queued":true}'; return 0
+    fi
     if [[ "$1" == '{"rzenc":'* ]]; then
         unseal "$1" "$seal_n" || { echo "Antwoord van RzSense niet te vertrouwen (handtekening klopt niet); genegeerd" >&2; return 1; }
     elif [ -n "$seal_n" ]; then

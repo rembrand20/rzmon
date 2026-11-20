@@ -12,12 +12,27 @@
   die is afgeleid van de eigen sleutel van de agent in deze container. Zo kent RzSense het echte adres (IP-slot).
 - Naar RzSense via curl, met dezelfde controle van het certificaat als de agent (vastgezet of gewoon).
 Geen afhankelijkheden buiten Python 3 en curl.
+
+1.292.0 (agent 1.114.0): RzSense haalt op (bijvoorbeeld in een DMZ). Staat er een sleutel in "pull.key", dan belt de
+relay nooit zelf naar RzSense:
+
+    agent --https--> deze relay (bewaart)  <--https-- RzSense haalt op (poort 8445) en legt de antwoorden terug
+
+- Elk verzoek van een agent gaat in de wachtrij (map q/, hooguit RELAY_Q_MB en RELAY_Q_HOURS). De agent krijgt meteen het
+  antwoord dat RzSense de vorige keer voor hem klaarlegde (map r/), of "in de wachtrij".
+- RzSense haalt op met POST /rz/pull en legt antwoorden terug met POST /rz/push, op een eigen poort (RELAY_PULL_PORT).
+  Elk verzoek is ondertekend (HMAC-SHA256 met de sleutel uit pull.key, met tijd en nonce); het antwoord ook, gebonden
+  aan het verzoek. Zonder geldige handtekening: niets.
+- De agent, het installatiescript, hun handtekeningen en ping levert de relay zelf uit (map files/, van RzSense).
 """
+
+import base64
 import hashlib
 import hmac
 import ipaddress
 import json
 import os
+import re
 import socket
 import ssl
 import subprocess
@@ -41,9 +56,19 @@ ACTIONS = {
 PASS_HEADERS = ("Content-Type", "X-Agent-Token", "X-Agent-Key", "X-Agent-Auth", "X-Agent-Enc", "X-Agent-Pair",
                 "X-Agent-Fallback", "X-Agent-Pin-Fail")
 RETRY_RC = {5, 6, 7, 28, 35, 51, 52, 55, 56, 58, 60, 90, 91}   # verbinding mislukt: volgende adres proberen
+# 1.292.0: RzSense haalt op
+PULL_PORT = int(os.environ.get("RELAY_PULL_PORT", "8445"))
+Q_MAX = int(os.environ.get("RELAY_Q_MB", "200")) * 1024 * 1024       # wachtrij hooguit zo groot
+Q_AGE = int(os.environ.get("RELAY_Q_HOURS", "24")) * 3600            # en zo oud
+R_MAX = 10                                                            # antwoorden per agent en actie
+FILE_ACTIONS = {"ping", "agent_script", "agent_script_sig", "agent_install", "agent_install_sig"}
+PULL_SKEW = 300
 
 lock = threading.Lock()
-stats = {"req": 0, "ok": 0, "err": 0, "deny": 0, "up_err": 0, "busy": 0, "up": ""}
+qlock = threading.Lock()   # wachtrij en antwoorden
+stats = {"req": 0, "ok": 0, "err": 0, "deny": 0, "up_err": 0, "busy": 0, "up": "", "pulled": 0, "q": 0, "dropped": 0, "pull_at": 0, "pull_deny": 0}
+pull_nonces = {}   # nonce -> tijd (tegen opnieuw afspelen)
+idents = {}        # agent -> laatste keer (voor "agents")
 seen = {}       # ip -> laatste keer (voor "clients")
 rate = {}       # ip -> [minuut, aantal]
 busy = threading.BoundedSemaphore(MAX_BUSY)
@@ -114,6 +139,8 @@ def write_stats():
                 seen.pop(ip, None)
             for ip in [k for k, v in rate.items() if v[0] < int(now // 60) - 1]:
                 rate.pop(ip, None)
+            for k in [k for k, t in idents.items() if now - t > 3600]:
+                idents.pop(k, None)
             data = dict(stats, clients=len(seen), at=int(now), ver=VERSION)
         try:
             fd, tmp = tempfile.mkstemp(dir=DIR)
@@ -167,6 +194,8 @@ class Handler(BaseHTTPRequestHandler):
         with lock:
             stats["req"] += 1
         nets = allowed_nets()
+        if pull_key() and ip.is_loopback:
+            nets = nets + [ipaddress.ip_network("127.0.0.0/8"), ipaddress.ip_network("::1/128")]   # de agent van de relay zelf
         if not any(ip in n for n in nets):
             log(f"{ip} geweigerd: niet in de toegestane netwerken")
             return self.deny(403, "dit adres hoort niet bij de netwerken van deze relay" if nets else "nog geen netwerken ingesteld in RzSense")
@@ -197,6 +226,8 @@ class Handler(BaseHTTPRequestHandler):
             body = self.rfile.read(n) if n else b""
             if len(body) != n:
                 return self.deny(400, "bericht onvolledig")
+        if pull_key():
+            return self.pull_mode(method, u, action, body, ip, t0)
         if not busy.acquire(blocking=False):
             return self.deny(503, "druk, probeer zo opnieuw")
         with lock:
@@ -215,6 +246,35 @@ class Handler(BaseHTTPRequestHandler):
         if code is None:
             return self.reply(502, json.dumps({"error": "Relay: RzSense niet bereikbaar", "relay": True}))
         self.reply(code, out, ctype or "application/octet-stream")
+
+    def pull_mode(self, method, u, action, body, ip, t0):
+        """1.292.0: RzSense haalt op. Bestanden zelf uitleveren; al het andere in de wachtrij, met het klaarliggende antwoord."""
+        if action in FILE_ACTIONS:
+            try:
+                with open(os.path.join(DIR, "files", action), "rb") as f:
+                    data = f.read()
+            except OSError:
+                return self.deny(503, "dit bestand heeft de relay nog niet van RzSense")
+            ctype = "application/json" if action == "ping" else "text/x-shellscript; charset=utf-8" if action in ("agent_script", "agent_install") else "text/plain; charset=utf-8"
+            with lock:
+                stats["ok"] += 1
+            return self.reply(200, data, ctype)
+        hdrs = {h: self.headers[h] for h in PASS_HEADERS if self.headers.get(h) and "\n" not in self.headers[h] and "\r" not in self.headers[h]}
+        ident = ident_of(hdrs, str(ip))
+        item = {"id": os.urandom(8).hex(), "rts": int(t0), "ip": str(ip), "ident": ident, "action": action, "method": method,
+                "target": "api.php" + (f"?{u.query}" if u.query else ""), "headers": hdrs, "beat": self.headers.get("X-Agent-Beat") == "1",
+                "body": base64.b64encode(body).decode()}
+        try:
+            enqueue(item)
+            out = take_reply(ident, action)
+        except OSError as e:
+            log(f"wachtrij: {e}")
+            return self.deny(503, "wachtrij niet beschikbaar")
+        with lock:
+            stats["ok"] += 1
+            idents[ident] = t0
+        log(f"{ip} {action} in de wachtrij{' (+antwoord)' if out else ''}")
+        self.reply(200, out or json.dumps({"rzpull": 1, "queued": 1}, separators=(",", ":")))
 
     def forward(self, method, u, body, ip):
         kid, key = sign_key()
@@ -266,9 +326,310 @@ class Handler(BaseHTTPRequestHandler):
         return None, "", b"", ""
 
 
+# ---------------------------------------------------------------- 1.292.0: RzSense haalt op
+
+def pull_key():
+    """De gedeelde sleutel met RzSense (pull.key, 64 hex), of None: dan stuurt de relay door zoals altijd."""
+    txt = (read_file("pull.key", 30) or "").strip()
+    return bytes.fromhex(txt) if re.fullmatch(r"[0-9a-f]{64}", txt) else None
+
+
+def ident_of(h, ip):
+    """Wie is de agent: het kenmerk van zijn sleutel, van de koppelcode, het token (gehasht) of anders zijn adres."""
+    k = h.get("X-Agent-Key", "")
+    if re.fullmatch(r"[0-9a-f]{16}", k):
+        return "k:" + k
+    a = h.get("X-Agent-Auth", "")
+    if re.match(r"[0-9a-f]{16}:", a):
+        return "k:" + a[:16]
+    p = h.get("X-Agent-Pair", "")
+    if re.fullmatch(r"[0-9a-f]{16}", p):
+        return "p:" + p
+    t = h.get("X-Agent-Token", "")
+    if t:
+        return "t:" + hashlib.sha256(t.encode()).hexdigest()[:16]
+    return "ip:" + ip
+
+
+def qdir(name):
+    d = os.path.join(DIR, name)
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    return d
+
+
+def put(path, data):
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path))
+    with os.fdopen(fd, "wb") as f:
+        f.write(data)
+    os.replace(tmp, path)
+
+
+def queue_files():
+    """(naam, pad, grootte, tijd) van de wachtrij, oudste eerst; te oude weg."""
+    d = qdir("q")
+    out = []
+    now = time.time()
+    for n in sorted(os.listdir(d)):
+        if not n.endswith(".json"):
+            continue
+        p = os.path.join(d, n)
+        try:
+            st = os.stat(p)
+        except OSError:
+            continue
+        if now - st.st_mtime > Q_AGE:
+            try:
+                os.unlink(p)
+                stats["dropped"] += 1
+            except OSError:
+                pass
+            continue
+        out.append((n, p, st.st_size))
+    return out
+
+
+def enqueue(item):
+    data = json.dumps(item, separators=(",", ":")).encode()
+    with qlock:
+        files = queue_files()
+        total = sum(f[2] for f in files) + len(data)
+        while files and total > Q_MAX:   # vol: de oudste eruit
+            n, p, size = files.pop(0)
+            try:
+                os.unlink(p)
+            except OSError:
+                pass
+            total -= size
+            stats["dropped"] += 1
+        put(os.path.join(qdir("q"), f"{int(time.time() * 1000):015d}-{item['id']}.json"), data)
+
+
+def reply_dir(ident, action):
+    return qdir(os.path.join("r", hashlib.sha256(f"{ident}|{action}".encode()).hexdigest()[:24]))
+
+
+def take_reply(ident, action):
+    """Het oudste antwoord dat RzSense voor deze agent (en actie) klaarlegde, en dan weg."""
+    with qlock:
+        d = reply_dir(ident, action)
+        for n in sorted(os.listdir(d)):
+            p = os.path.join(d, n)
+            try:
+                with open(p, "rb") as f:
+                    data = f.read()
+                os.unlink(p)
+            except OSError:
+                continue
+            if time.time() - int(n.split("-")[0]) / 1000 > Q_AGE:
+                continue
+            return data
+    return None
+
+
+def pull_items(maximum):
+    """Verzoeken voor RzSense, oudste eerst. sup = er staat een nieuwer rapport van dezelfde agent achter (dit telt alleen
+    voor de metingen); alleen als het al een paar minuten ligt."""
+    items = []
+    size = 0
+    with qlock:
+        files = queue_files()
+        latest = {}
+        for n, p, _ in files:
+            try:
+                with open(p, encoding="utf-8") as f:
+                    it = json.load(f)
+            except (OSError, ValueError):
+                continue
+            if it.get("action") == "agent" and not it.get("beat"):
+                latest[it.get("ident")] = it.get("id")
+            items.append(it)
+    out = []
+    now = time.time()
+    for it in items:
+        if len(out) >= maximum or size > 16 * 1024 * 1024:
+            break
+        it["sup"] = it.get("action") == "agent" and not it.get("beat") and latest.get(it.get("ident")) != it.get("id") and now - it.get("rts", 0) > 120
+        size += len(it.get("body", ""))
+        out.append(it)
+    return out, len(files), sum(f[2] for f in files)
+
+
+def done_items(done):
+    """Antwoorden van RzSense: verzoek uit de wachtrij, antwoord klaarleggen voor de agent."""
+    ids = {}
+    for d in done:
+        if isinstance(d, dict) and re.fullmatch(r"[0-9a-f]{8,40}", str(d.get("id", ""))):
+            ids[d["id"]] = d
+    with qlock:
+        qd = qdir("q")
+        for n in os.listdir(qd):
+            m = re.fullmatch(r"\d{15}-([0-9a-f]{8,40})\.json", n)
+            if m and m.group(1) in ids:
+                try:
+                    os.unlink(os.path.join(qd, n))
+                except OSError:
+                    pass
+        for i, d in ids.items():
+            body = d.get("body")
+            ident, action = str(d.get("ident", "")), str(d.get("action", ""))
+            if body is None or not re.fullmatch(r"[A-Za-z0-9:._-]{1,80}", ident) or not re.fullmatch(r"agent[a-z_]{0,30}", action):
+                continue
+            try:
+                code = int(d.get("code", 200))
+                base64.b64decode(body, validate=True)
+            except (ValueError, TypeError):
+                continue
+            rd = reply_dir(ident, action)
+            put(os.path.join(rd, f"{int(time.time() * 1000):015d}-{i}.json"),
+                json.dumps({"rzpull": 1, "code": code, "b64": body}, separators=(",", ":")).encode())
+            old = sorted(os.listdir(rd))
+            for n in old[:-R_MAX]:
+                try:
+                    os.unlink(os.path.join(rd, n))
+                except OSError:
+                    pass
+    return len(ids)
+
+
+def file_shas():
+    out = {}
+    d = qdir("files")
+    for n in FILE_ACTIONS:
+        try:
+            with open(os.path.join(d, n), "rb") as f:
+                out[n] = hashlib.sha256(f.read()).hexdigest()
+        except OSError:
+            pass
+    return out
+
+
+def pull_from_ok(ip):
+    allow = os.environ.get("RELAY_PULL_FROM", "").replace(",", " ").split()
+    if not allow:
+        return True
+    for a in allow:
+        try:
+            if ip in ipaddress.ip_network(a, strict=False):
+                return True
+        except ValueError:
+            pass
+    return False
+
+
+class PullHandler(BaseHTTPRequestHandler):
+    """Het ophaalpunt voor RzSense: POST /rz/pull en /rz/push, alleen met een geldige handtekening."""
+    server_version = "RzSense-Relay"
+    sys_version = ""
+    protocol_version = "HTTP/1.0"
+    timeout = 60
+
+    def log_message(self, fmt, *args):
+        pass
+
+    def answer(self, code, data, key=None, nonce=""):
+        body = json.dumps(data, separators=(",", ":")).encode()
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            if key is not None:
+                sig = hmac.new(key, b"rzpull1r\n" + nonce.encode() + b"\n" + hashlib.sha256(body).hexdigest().encode(), hashlib.sha256).hexdigest()
+                self.send_header("X-Rz-Pull-Sig", sig)
+            self.end_headers()
+            self.wfile.write(body)
+        except OSError:
+            pass
+
+    def refuse(self, code, why):
+        with lock:
+            stats["pull_deny"] += 1
+        log(f"ophalen geweigerd ({self.client_address[0]}): {why}")
+        self.answer(code, {"error": why})
+
+    def do_GET(self):
+        self.refuse(404, "alleen voor RzSense")
+
+    def do_POST(self):
+        try:
+            ip = client_ip(self.client_address[0])
+        except ValueError:
+            return self.refuse(403, "onbekend adres")
+        if not pull_from_ok(ip):
+            return self.refuse(403, "dit adres mag niet ophalen (RELAY_PULL_FROM)")
+        key = pull_key()
+        if key is None:
+            return self.refuse(503, "geen sleutel (pull.key)")
+        path = urlsplit(self.path).path
+        if path not in ("/rz/pull", "/rz/push"):
+            return self.refuse(404, "onbekend")
+        try:
+            n = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            return self.refuse(400, "ongeldige lengte")
+        if n < 0 or n > 64 * 1024 * 1024:
+            return self.refuse(413, "te groot")
+        body = self.rfile.read(n) if n else b""
+        ts, nonce, sig = self.headers.get("X-Rz-Pull-Ts", ""), self.headers.get("X-Rz-Pull-Nonce", ""), self.headers.get("X-Rz-Pull-Sig", "")
+        if not re.fullmatch(r"\d{9,11}", ts) or not re.fullmatch(r"[0-9a-f]{32}", nonce) or abs(time.time() - int(ts)) > PULL_SKEW:
+            return self.refuse(401, "handtekening onvolledig of tijd klopt niet")
+        want = hmac.new(key, "\n".join(["rzpull1", ts, nonce, path, hashlib.sha256(body).hexdigest()]).encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(want, sig):
+            return self.refuse(401, "handtekening klopt niet")
+        with lock:
+            now = time.time()
+            for k in [k for k, t in pull_nonces.items() if now - t > 2 * PULL_SKEW]:
+                pull_nonces.pop(k, None)
+            if nonce in pull_nonces:
+                stats["pull_deny"] += 1
+                return self.answer(409, {"error": "opnieuw afgespeeld"}, key, nonce)
+            pull_nonces[nonce] = now
+        try:
+            req = json.loads(body or b"{}")
+        except ValueError:
+            return self.answer(400, {"error": "ongeldige JSON"}, key, nonce)
+        if path == "/rz/pull":
+            items, n_q, size = pull_items(max(1, min(200, int(req.get("max", 50)))))
+            with lock:
+                stats["pull_at"] = int(time.time())
+                active = sum(1 for t in idents.values() if time.time() - t < 600)
+            return self.answer(200, {"items": items, "files": file_shas(), "ver": VERSION,
+                                     "q": {"n": n_q, "bytes": size, "dropped": stats["dropped"], "agents": active}}, key, nonce)
+        n_done = done_items(req.get("done") or [])
+        for name, b64 in (req.get("files") or {}).items():
+            if name in FILE_ACTIONS and isinstance(b64, str) and len(b64) < 8 * 1024 * 1024:
+                try:
+                    put(os.path.join(qdir("files"), name), base64.b64decode(b64, validate=True))
+                except (ValueError, OSError) as e:
+                    log(f"bestand {name} niet bewaard: {e}")
+        with lock:
+            stats["pulled"] += n_done
+        log(f"RzSense: {n_done} verwerkt")
+        return self.answer(200, {"ok": True, "n": n_done}, key, nonce)
+
+
 class Server(ThreadingHTTPServer):
     daemon_threads = True
     request_queue_size = 64
+
+
+def listen(port, handler, ctx):
+    srv = None
+    if socket.has_ipv6 and os.path.exists("/proc/net/if_inet6"):
+        try:
+            cls = type("Server6", (Server,), {"address_family": socket.AF_INET6})
+            srv = cls(("::", port), handler, bind_and_activate=False)
+            srv.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+            srv.server_bind()
+            srv.server_activate()
+        except OSError:
+            srv = None
+    if srv is None:
+        cls = type("Server4", (Server,), {"address_family": socket.AF_INET})
+        srv = cls(("0.0.0.0", port), handler)
+    # Handdruk pas in de eigen draad van het verzoek, zodat één trage afzender de rest niet ophoudt
+    srv.socket = ctx.wrap_socket(srv.socket, server_side=True, do_handshake_on_connect=False)
+    return srv
 
 
 def main():
@@ -276,23 +637,14 @@ def main():
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     ctx.load_cert_chain(os.path.join(DIR, "tls.crt"), os.path.join(DIR, "tls.key"))
-    srv = None
-    if socket.has_ipv6 and os.path.exists("/proc/net/if_inet6"):
-        try:
-            Server.address_family = socket.AF_INET6
-            srv = Server(("::", PORT), Handler, bind_and_activate=False)
-            srv.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-            srv.server_bind()
-            srv.server_activate()
-        except OSError:
-            srv = None
-    if srv is None:
-        Server.address_family = socket.AF_INET
-        srv = Server(("0.0.0.0", PORT), Handler)
-    # Handdruk pas in de eigen draad van het verzoek, zodat één trage afzender de rest niet ophoudt
-    srv.socket = ctx.wrap_socket(srv.socket, server_side=True, do_handshake_on_connect=False)
+    srv = listen(PORT, Handler, ctx)
     threading.Thread(target=write_stats, daemon=True).start()
-    log(f"RzSense Relay {VERSION}: luistert op poort {PORT} (https)")
+    if pull_key():
+        psrv = listen(PULL_PORT, PullHandler, ctx)
+        threading.Thread(target=psrv.serve_forever, daemon=True).start()
+        log(f"RzSense Relay {VERSION}: RzSense haalt op (poort {PULL_PORT}); agents op poort {PORT} (https)")
+    else:
+        log(f"RzSense Relay {VERSION}: luistert op poort {PORT} (https)")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

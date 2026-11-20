@@ -151,6 +151,8 @@ if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlogsrc\t' "$t_cache" && [ "${LOG_S
                 "${MONITOR_URL%/}/api.php?action=agent_logs" 2>/dev/null); l_rc=$?
             rm -f "$b.enc"
             [ "$l_rc" = 0 ] || break
+            # Agent 1.114.0: relay waar RzSense ophaalt: het pakketje staat bij de relay; RzSense haalt het op
+            if [[ "$l_resp" == '{"rzpull":1'* ]]; then rm -f "$b"; continue; fi
             l_body=$(unseal "$l_resp" "$seal_n") || break
             b_name=$(basename "$b" .gz)
             if [[ "$l_body" == *"\"batch\":\"$b_name\""* ]] && [[ "$l_body" == *'"ok":true'* ]]; then rm -f "$b"; else break; fi

@@ -8,11 +8,30 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.292.0**: **RzSense haalt op bij de relay** (DMZ): de agents praten alleen met de relay, die nooit zelf naar RzSense belt.
 - **1.291.0**: de **agent blijft 's nachts rapporteren** als podman/docker niet antwoordt; bij elke stilte zie je de reden, en in Mijn account of je sleutel voor de proxy werkt.
 - **1.290.0**: **van buitenaf**: wat staat er van je netwerk open op internet (Shodan en vanuit RzSense), met een melding als er iets nieuws open gaat.
 - **1.289.0**: **checks via de relay**: de relay doet zelf ping, TCP en HTTP in zijn netwerk, ook voor apparaten zonder agent.
 - **1.288.0**: na een overname gaat de **geschiedenis van de reserve vanzelf terug** naar de hoofdserver, rustig en in delen, zonder dubbele rijen.
-- **1.287.0**: de **reserve-RzSense neemt het werk over** als de hoofdserver 5 minuten weg is en de agents bij hem aankloppen, met een melding, en geeft het vanzelf terug.
+
+## 1.292.0 – 2026-11-20
+### Nieuw
+- **RzSense haalt op bij de relay (bijvoorbeeld een DMZ).** Nieuwe agent 1.114.0; die versie is ook nodig op de agents achter zo'n relay. Zie HANDLEIDING 8.15.
+  - In de DMZ praten de agents alleen met de relay, en de relay belt nooit zelf naar RzSense. RzSense haalt elke 15 seconden (instelbaar: 5 tot 300) op wat de agents afleverden, verwerkt het zoals altijd, en legt de antwoorden terug: instellingen, opdrachten en sleutels.
+  - Instellingen en meldingen blijven in RzSense; alleen komen antwoorden één ronde later aan. Een opdracht zoals isoleren duurt zo hooguit één ophaalronde plus één tik van de agent.
+  - **Instellen:** *Netwerken en relays → ＋ Relay toevoegen → RzSense haalt op*, met het ophaaladres (standaard poort 8445). Achteraf aan te passen met *⇣ Ophalen*.
+  - **Installeren zonder verbinding:** de relay kan RzSense niet bereiken.
+    - Losse agent: download de **bundel** (agent, doorstuurprogramma, startscript, installatiescript, met handtekeningen), kopieer hem naar de relay en installeer met `--src . --pull-key … --pair …`. Bijwerken gaat met een nieuwe bundel en `--update`.
+    - Container: neem de image mee (`podman save` / `podman load`) en zet `RELAY_PULL_KEY` en `PAIR_CODE` in de instellingen.
+  - **Veilig:**
+    - Elk verzoek van RzSense aan de relay en elk antwoord is ondertekend met een eigen sleutel per relay, met tijd en nonce; het antwoord hoort bij het verzoek.
+    - Het certificaat van de relay wordt vastgezet. Een vernieuwd certificaat neemt RzSense alleen over met een geldige handtekening.
+    - De rapporten blijven versleuteld van agent tot RzSense: de relay kan ze niet lezen.
+    - Zonder de sleutel geeft het ophaalpunt niets.
+  - **Wachtrij op de relay:** hooguit 24 uur en 200 MB (`RELAY_Q_HOURS`, `RELAY_Q_MB`).
+    - Haalde RzSense een tijd niet op, dan verwerkt RzSense van elke agent het nieuwste rapport volledig. Van de oudere rapporten neemt RzSense alleen de metingen (CPU, RAM, disks) over, op hun eigen tijd.
+    - Werkt het ophalen niet, dan meldt RzSense de relay als *agent stil*, en worden de meldingen van de agents erachter onderdrukt, net als bij een relay die wegvalt.
+  - De relay levert de agent, het installatiescript en hun handtekeningen zelf uit aan de agents in zijn netwerk. Agents installeren en bijwerken via de relay werkt dus ook.
 
 ## 1.291.0 – 2026-11-20
 ### Nieuw
