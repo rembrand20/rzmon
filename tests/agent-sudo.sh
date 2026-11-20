@@ -23,6 +23,7 @@ fn() { awk -v n="$1" '$0 ~ "^" n "\\(\\) \\{" {f=1} f{print} f&&/^\}/{exit}' age
     echo 'lap() { :; }'
     fn json_escape; fn act_log
     echo "systemd-run() { :; }"   # geen echte timer in de test
+    fn ctr_ok; fn ctrx   # agent 1.113.0
     echo ". '$work/mod.sh'"
     echo 'printf "[%s]" "${sudo_json%,}"'
 } >"$work/run.sh"

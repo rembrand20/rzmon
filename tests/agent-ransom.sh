@@ -17,6 +17,7 @@ awk '/^# -+ Ransomware herkennen/{f=1} f&&/^# -+ /&&!/Ransomware/{exit} f{print}
     echo 'lap() { :; }'
     awk '/^json_escape\(\) \{/{f=1} f{print} f&&/^\}/{exit}' agent/rzmon-agent.sh
     awk '/^act_n=0/{f=1} f{print} f&&/^\}/{exit}' agent/rzmon-agent.sh
+    fn ctr_ok; fn ctrx   # agent 1.113.0
     echo ". '$work/mod.sh'"
     echo 'printf "%s" "$ransom_json"'
 } >"$work/run.sh"

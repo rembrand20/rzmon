@@ -55,6 +55,7 @@ fn() { awk -v n="$1" '$0 ~ "^" n "\\(\\) \\{" {f=1} f{print} f&&/^\}/{exit}' age
     echo "PATH='$work/bin':\$PATH; px_kind=swag; px_eng=podman; px_ctr=swag; px_root='$work/config/nginx'"
     echo 'lap() { :; }'
     fn json_escape; fn act_log
+    fn ctr_ok; fn ctrx   # agent 1.113.0
     echo ". '$work/mod.sh'"
     echo 'printf "%s" "$waf_json"'
 } >"$work/run.sh"

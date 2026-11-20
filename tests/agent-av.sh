@@ -44,6 +44,7 @@ fn() { awk -v n="$1" '$0 ~ "^" n "\\(\\) \\{" {f=1} f{print} f&&/^\}/{exit}' age
     echo "HA_MODE=0; t_dir='$work/cache'; t_cache='$work/cache/tests.cache'; act_n=0; AV_DIR='$work/av'; AV_DIRS_MAX='$work/data'"
     echo "PATH='$work/bin':\$PATH; px_kind=swag; px_eng=podman; px_ctr=swag"
     fn json_escape; fn act_log
+    fn ctr_ok; fn ctrx   # agent 1.113.0
     echo ". '$work/mod.sh'"
     echo 'printf "%s" "$av_json"'
 } >"$work/run.sh"

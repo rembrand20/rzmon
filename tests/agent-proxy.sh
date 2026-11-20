@@ -69,6 +69,7 @@ fn() { awk -v n="$1" '$0 ~ "^" n "\\(\\) \\{" {f=1} f{print} f&&/^\}/{exit}' age
     echo "PATH='$work/bin':\$PATH; PROXY_HTTPS_PORT=$port; PROXY_CPATH='$C'"
     echo 'lap() { :; }'
     fn json_escape; fn act_log
+    fn ctr_ok; fn ctrx   # agent 1.113.0
     echo ". '$work/mod.sh'"
     echo 'printf "%s" "$proxy_json"'
 } >"$work/run.sh"

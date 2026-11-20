@@ -37,6 +37,7 @@ fn() { awk -v n="$1" '$0 ~ "^" n "\\(\\) \\{" {f=1} f{print} f&&/^\}/{exit}' age
     echo "HA_MODE=0; t_dir='$work/cache'; t_cache='$work/cache/tests.cache'; pk_dir='$work/pk'"
     echo 'lap() { :; }'
     fn json_escape; fn act_log | sed '1s/^/act_n=0\n/'
+    fn ctr_ok; fn ctrx   # agent 1.113.0
     echo ". '$work/mod.sh'"
     echo 'printf "%s" "$patch_json"'
 } >"$work/run.sh"

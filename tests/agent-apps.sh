@@ -17,6 +17,7 @@ awk '/^# -+ Onbekende programma/{f=1} f&&/^# -+ /&&!/Onbekende programma/{exit} 
     awk '/^json_escape\(\) \{/{f=1} f{print} f&&/^\}/{exit}' agent/rzmon-agent.sh
     awk '/^json_text\(\) \{/{f=1} f{print} f&&/^\}/{exit}' agent/rzmon-agent.sh
     awk '/^act_n=0/{f=1} f{print} f&&/^\}/{exit}' agent/rzmon-agent.sh
+    fn ctr_ok; fn ctrx   # agent 1.113.0
     echo ". '$work/mod.sh'"
     echo 'printf "%s\n%s" "$apps_json" "$ioc_json"'
 } >"$work/run.sh"
