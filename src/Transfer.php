@@ -26,6 +26,7 @@ final class Transfer
         return json_encode($s, JSON_UNESCAPED_SLASHES);
     }
 
+    /** @return array<mixed> */
     public static function export(bool $withSettings): array
     {
         $hosts = [];
@@ -60,7 +61,11 @@ final class Transfer
         return $out;
     }
 
-    /** Wat er bij importeren gebeurt (zonder iets te veranderen), of het echt doen. @return array tellers */
+    /**
+     * Wat er bij importeren gebeurt (zonder iets te veranderen), of het echt doen.
+     * @param array<mixed> $d
+     * @return array<mixed> tellers
+     */
     public static function import(array $d, bool $withSettings, bool $apply): array
     {
         if ((int) ($d['rzmon_export'] ?? 0) !== 1) {

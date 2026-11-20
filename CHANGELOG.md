@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.303.0**: **📖 Hoe werken meldingen?**: per status zie je waarheen een melding gaat; ClamAV start weer na een herstart.
 - **1.302.0**: **Web Push als eigen kanaal** in *Wanneer melden*, met Pushover als reserve; per apparaat te beperken.
 - **1.300.0**: **van buitenaf meten vanaf een server naar keuze** (bv. een VPS): de eerlijkste blik op wat er open staat.
 - **1.299.0**: **webcheck per site**: een cijfer van A tot F voor https, het certificaat en de beveiligingsheaders van elke site achter je proxy.
 - **1.298.0**: **breed scherm**: Instellingen in twee kolommen, en bij Incidenten de lijst en de details naast elkaar.
-- **1.297.0**: **logs: Patronen en Statistiek**: gelijke regels gegroepeerd (zie wat zeldzaam is), aantallen per veld, en OR in de zoekopdracht.
+
+## 1.303.0 – 2026-11-20
+### Nieuw
+- **📖 Hoe werken meldingen?** Een knop bij *Wanneer melden* met een overzicht. Zie HANDLEIDING 6.1d.
+  - Bovenaan wat er met jouw instellingen per status waarheen gaat.
+  - Daaronder wanneer elke soort melding verstuurd wordt en wat stille uren doen, hoe elk kanaal werkt, en wanneer er niets verstuurd wordt.
+- **Nieuwe agent 1.117.1.**
+
+### Opgelost
+- **ClamAV bleef uit na een herstart van de server** (exit 143). De agent start hem nu weer, en ruimt een dubbele `rzsense-clamav` in de andere container-engine op. Zie HANDLEIDING 8.12h.
+- Is `docker` op een server eigenlijk Podman, dan stonden de containers er twee keer (ook als `docker/…`). Dat is opgelost.
 
 ## 1.302.0 – 2026-11-20
 ### Nieuw

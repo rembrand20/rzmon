@@ -584,10 +584,21 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
     av_max="${AV_DIRS_MAX-/srv /opt /data /home /mnt /var/lib/docker/volumes /var/lib/containers/storage/volumes}"
     av_state=error; av_msg=""; av_sigs=""; av_found=""; av_ops=""; av_dirs_j=""; av_sugg=""; av_q=""; av_full="none"; av_fullid=""; av_new=0
     av_mem=$(awk '/^MemAvailable:/ { print int($2 / 1024) }' /proc/meminfo 2>/dev/null); av_mem=${av_mem:-0}
-    av_eng=${px_eng-}
+    # Agent 1.118.0: de engine waarin ClamAV ooit gemaakt is, blijft die engine (anders kon hij in Podman én Docker
+    # ontstaan als de proxy een ronde niet gevonden werd: twee keer ruim een gigabyte geheugen)
+    av_eng=$(cat "$av_dir/engine" 2>/dev/null | tr -dc 'a-z')
+    case "$av_eng" in podman|docker) command -v "$av_eng" >/dev/null 2>&1 || av_eng="" ;; *) av_eng="" ;; esac
+    [ -n "$av_eng" ] || av_eng=${px_eng-}
     if [ -z "$av_eng" ]; then for e in podman docker; do command -v "$e" >/dev/null 2>&1 && { av_eng=$e; break; }; done; fi
     avx() { ctrx "${AVX_T:-120}" "$av_eng" "$@"; }
     av_exists() { [ -n "$av_eng" ] && avx inspect "$av_ctr" >/dev/null 2>&1; }
+    [ -f "$av_dir/engine" ] || { [ -d "$av_dir" ] && av_exists && echo "$av_eng" >"$av_dir/engine"; }   # bestaande installatie: vastleggen
+    # Een tweede rzsense-clamav in de andere engine (echte Docker naast Podman) is van ons en dubbel: weg ermee
+    av_other=""; [ "$av_eng" = podman ] && av_other=docker; [ "$av_eng" = docker ] && av_other=podman
+    if [ -n "$av_other" ] && command -v "$av_other" >/dev/null 2>&1 && ! { [ "$av_other" = docker ] && docker_is_podman; } && ! { [ "$av_eng" = docker ] && docker_is_podman; } \
+        && ctrx 30 "$av_other" inspect "$av_ctr" >/dev/null 2>&1; then
+        ctrx 60 "$av_other" rm -f "$av_ctr" >/dev/null 2>&1 && act_log proxy 1 "ClamAV: dubbele container weggehaald" "$av_ctr in $av_other (hij draait in $av_eng)"
+    fi
     # Een map mag als hij bestaat, echt een map is, binnen het plafond ligt en geen systeemmap of eigen map van RzSense is
     av_ok_dir() {
         local d r m
@@ -634,7 +645,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
                 # Geen relabel (:Z) op de mappen van je apps: dat zou hun rechten veranderen; daarom label=disable
                 if out=$(AVX_T=900 avx run -d --name "$av_ctr" --restart unless-stopped --security-opt label=disable \
                     -v "$av_dir/db:/var/lib/clamav" -v "$av_dir/work:/rzwork:ro" "${av_mounts[@]}" "$av_img" 2>&1); then
-                    echo "$av_ehash" >"$av_dir/env.hash"
+                    echo "$av_ehash" >"$av_dir/env.hash"; echo "$av_eng" >"$av_dir/engine"
                     act_log proxy 1 "ClamAV gestart" "$av_img, ${#av_ok[@]} mappen"
                 else
                     av_msg="starten mislukt: $(tail -n 2 <<<"$out" | tr '\n' ' ' | cut -c1-200)"
@@ -702,6 +713,21 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
             else
                 av_state=starting; av_msg=${av_msg:-"ClamAV start nog (virusdefinities laden; de eerste keer een paar minuten)"}
             fi
+        elif [ "$av_state" != lowmem ] && av_exists; then
+            # Agent 1.118.0: gestopt (bv. na een herstart van de server: Podman start "unless-stopped" niet vanzelf zonder
+            # podman-restart.service, of te weinig geheugen). Zoals bij Suricata: reden tonen en hooguit elke 10 minuten opnieuw starten.
+            av_st=$(avx inspect -f '{{.State.Status}} {{.State.ExitCode}}' "$av_ctr" 2>/dev/null)
+            av_log=$(avx logs --tail 4 "$av_ctr" 2>&1 | grep -v '^\s*$' | tail -n 2 | tr '\n' ' ' | cut -c1-220)
+            if [ -z "$(find "$av_dir/start.at" -mmin -10 2>/dev/null)" ]; then
+                touch "$av_dir/start.at"
+                if [ "$av_mem" -lt "${AV_MIN_MB:-1400}" ]; then
+                    av_state=lowmem; av_msg="gestopt en te weinig vrij geheugen om opnieuw te starten: $av_mem MB, nodig ${AV_MIN_MB:-1400} MB"
+                elif avx start "$av_ctr" >/dev/null 2>&1 && sleep 3 && [ "$(avx inspect -f '{{.State.Running}}' "$av_ctr" 2>/dev/null)" = true ]; then
+                    av_state=starting; av_msg="opnieuw gestart (was: ${av_st:-onbekend}); virusdefinities laden"
+                    act_log proxy 1 "ClamAV opnieuw gestart" "was: ${av_st:-onbekend}"
+                fi
+            fi
+            [ "$av_state" = starting ] || [ "$av_state" = lowmem ] || av_msg=${av_msg:-"de container draait niet (${av_st:-onbekend}${av_log:+: $av_log}); bekijk: $av_eng logs --tail 30 $av_ctr"}
         elif [ "$av_state" != lowmem ]; then
             av_msg=${av_msg:-"de container draait niet"}
         fi

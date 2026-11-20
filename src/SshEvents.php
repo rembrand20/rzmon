@@ -13,7 +13,11 @@ final class SshEvents
 {
     public const KEEP_DAYS = 30;
 
-    /** Het auth-deel van een agentrapport verwerken. @return int aantal opgeslagen regels */
+    /**
+     * Het auth-deel van een agentrapport verwerken. @return int aantal opgeslagen regels
+     * @param array<mixed> $auth
+     * @param array<mixed> $host
+     */
     public static function store(array $host, array $auth): int
     {
         $hid = (int) $host['id'];
@@ -74,6 +78,7 @@ final class SshEvents
     /**
      * Geslaagde SSH-sessies (IDS → Toegang → SSH → Gelukt), nieuwste eerst, met de duur (of "nog bezig").
      * Per IP ook het aantal mislukte pogingen in dezelfde periode: "eerst 40 keer mis, toen binnen" valt zo op.
+     * @return array<mixed>
      */
     public static function sessions(int $days = 7, int $limit = 1000): array
     {

@@ -142,7 +142,9 @@ if [ "$PODMAN" != 0 ] && [ "$HA_MODE" = 0 ] && command -v podman >/dev/null 2>&1
     fi
 fi
 # Agent 1.69.0: Docker als extra context "docker" (alleen als de Docker-daemon draait)
-if [ "$DOCKER" != 0 ] && [ "$HA_MODE" = 0 ] && command -v docker >/dev/null 2>&1 && ctr_ok docker && timeout 5 docker info >/dev/null 2>&1; then
+# Agent 1.118.0: niet als "docker" eigenlijk Podman is (pakket podman-docker): dan stond elke container er twee keer
+docker_is_podman() { timeout 5 docker --version 2>/dev/null | grep -qi podman; }
+if [ "$DOCKER" != 0 ] && [ "$HA_MODE" = 0 ] && command -v docker >/dev/null 2>&1 && ctr_ok docker && ! docker_is_podman && timeout 5 docker info >/dev/null 2>&1; then
     podman_ctx+=(docker)
 fi
 pm() {  # pm <context> <podman-argumenten…>: podman als root, of als die gebruiker (rootless); context docker = docker

@@ -101,7 +101,10 @@ final class VPatch
         }
     }
 
-    /** Is dit pad (voor deze site) al dicht? Een korter pad dekt een langer (prefix) */
+    /**
+     * Is dit pad (voor deze site) al dicht? Een korter pad dekt een langer (prefix)
+     * @param array<mixed> $active
+     */
     public static function covered(array $active, string $site, string $path): bool
     {
         foreach ($active as $a) {
@@ -112,7 +115,11 @@ final class VPatch
         return false;
     }
 
-    /** Voor de pagina: de dichtgezette paden en voorstellen (uit de WAF en de bekende lijst) */
+    /**
+     * Voor de pagina: de dichtgezette paden en voorstellen (uit de WAF en de bekende lijst)
+     * @param array<mixed> $sites
+     * @return array<mixed>
+     */
     public static function overview(int $hostId, array $sites): array
     {
         $active = array_map(static fn($r) => ['id' => (int) $r['id'], 'site' => $r['site'], 'path' => $r['path'], 'reason' => $r['reason'], 'source' => $r['source'],

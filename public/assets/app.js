@@ -15755,6 +15755,75 @@ function notifyEditor(el, cfg, enabled = {}) {
   };
 }
 let notifyGlobal = null;   // editor van de algemene meldregels
+
+/**
+ * 1.303.0: "Hoe werken meldingen?": bovenaan wat er met jouw instellingen nu per status waarheen gaat (uit het formulier,
+ * dus ook wat nog niet bewaard is), daaronder wanneer elke soort melding verstuurd wordt en hoe elk kanaal werkt.
+ */
+function notifyHelpOpen() {
+  const f = $('#settings-form');
+  const v = (k) => (f && f[k] ? (f[k].type === 'checkbox' ? f[k].checked : f[k].value) : null);
+  const cfg = notifyGlobal ? notifyGlobal.get() : { rules: {}, channels: {} };
+  const on = { pushover: !!(v('pushover_enabled') || v('ntfy_enabled')), webpush: !!(wpActive && v('webpush_enabled')), email: !!v('email_enabled'), webhook: !!v('ha_webhook_enabled') };
+  const CH = [['pushover', '📲 Pushover / ntfy'], ['webpush', '📱 Web Push'], ['email', '📧 ' + L('E-mail')], ['webhook', '🏠 Home Assistant']];
+  const when = (x) => (!x || x.mode === 'never' ? L('nooit') : x.mode === 'now' ? L('direct') : L('na {n} min', { n: x.min }));
+  const fails = +(v('notify_fails') || 1);
+  const yes = (k, c) => {
+    const x = (cfg.channels[k] || {})[c] !== false && (cfg.rules[k] || {}).mode !== 'never';
+    if (!x) return '<span class="muted">–</span>';
+    if (on[c]) return '✔';
+    if (c === 'webpush' && on.pushover && v('webpush_fallback')) return `<span class="warn-txt" title="${esc(L('Web Push staat uit: via Pushover / ntfy'))}">↪ 📲</span>`;
+    return `<span class="muted" title="${esc(L('aangevinkt, maar dit kanaal staat uit'))}">✔ (${L('uit')})</span>`;
+  };
+  const rows = NOTIFY_ROWS.map(([k, label]) => {
+    const x = cfg.rules[k] || {};
+    const rep = k !== 'recovery' && k !== 'info' && x.mode !== 'never' && +x.repeat ? L('elke {n} min', { n: x.repeat }) : '–';
+    return `<tr><td>${label}</td><td>${esc(when(x))}${k !== 'recovery' && k !== 'info' && x.mode !== 'never' && fails > 1 ? ` <span class="muted small">${esc(L('en na {n} mislukte checks', { n: fails }))}</span>` : ''}</td>
+      <td>${esc(rep)}</td>${CH.map(([c]) => `<td class="nt-ch">${yes(k, c)}</td>`).join('')}</tr>`;
+  }).join('');
+  const idsMode = { all: L('elk critical incident'), action: L('alleen als je iets moet doen'), digest: L('alleen de dagsamenvatting') }[v('ids_push_mode') || 'action'];
+  const T = (head, body) => `<div class="table-scroll"><table class="vuln-table small nh-t"><thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${body.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  const body = `<div class="nh">
+    <h3>${L('Jouw instellingen nu')}</h3>
+    <p class="muted small">${L('Wat er met de instellingen op deze pagina (ook wat nog niet bewaard is) per status van een check waarheen gaat.')}</p>
+    <div class="table-scroll"><table class="vuln-table small nh-t"><thead><tr><th>${L('Status')}</th><th>${L('Melden')}</th><th>${L('Herhalen')}</th>${CH.map(([, l]) => `<th class="nt-ch">${l}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="muted small">✔ ${L('verstuurd')} · ↪ 📲 ${L('Web Push staat uit: via Pushover / ntfy (reserve)')} · ✔ (${L('uit')}) ${L('aangevinkt, maar dit kanaal staat uit')}<br>
+      ${esc(L('IDS-pushmeldingen: {m}', { m: idsMode }))}${v('ids_digest_on') ? ' · ' + esc(L('dagsamenvatting om {t}', { t: v('ids_digest_time') || '20:00' })) : ''}
+      · ${esc(L('e-mail: {m}', { m: v('email_mode') === 'fallback' ? L('alleen als push mislukt') : L('altijd') }))}</p>
+    <h3>${L('Wanneer wordt er iets verstuurd?')}</h3>
+    ${T([L('Soort melding'), L('Wanneer'), L('Kanalen'), L('Stille uren')], [
+      [L('Check: warning, critical, onbekend'), L('Na X minuten onafgebroken in die status (en na N mislukte checks); daarna elke Y minuten een herinnering'), L('Per status, in de tabel'), L('Tegengehouden; daarna ingehaald als het probleem er nog is')],
+      [L('Check: hersteld'), L('Direct, of na X minuten OK'), L('Per status'), L('Idem')],
+      [L('Check: info (herstart, certificaat vernieuwd)'), L('Standaard uit; aan = direct, stil'), L('Per status'), L('Niet verstuurd, wel op de pagina Meldingen')],
+      [L('Systeemmeldingen'), L('Direct, per soort aan of uit'), L('Per soort, met stil of normaal geluid'), L('Niet verstuurd, wel op de pagina')],
+      [L('Niet-geautoriseerde verbinding'), L('Eén keer per IP per periode (daarna alleen de teller)'), L('Zijn rij bij Systeemmeldingen'), '<b>' + L('Wel verstuurd') + '</b>'],
+      [L('Isoleren (vraag, geïsoleerd, opgeheven)'), L('Direct'), '<b>' + L('Altijd alle kanalen') + '</b>', '<b>' + L('Wel verstuurd') + '</b>'],
+      [L('IDS: critical incident'), esc(idsMode), L('Alleen push (Pushover / ntfy en Web Push)'), '<b>' + L('Wel verstuurd') + '</b>'],
+      [L('IDS: warning-incident'), L('Niet; alleen op de pagina IDS'), '–', '–'],
+      [L('IDS: dagsamenvatting'), L('Elke dag op het tijdstip dat je kiest, alleen als er iets was'), L('Alleen push, stil'), '–'],
+      [L('Logs: vaste zoekactie'), L('Als de voorwaarde klopt; daarna een rustperiode, en een herstelmelding'), L('Alle kanalen die aan staan'), L('Tegengehouden, behalve critical als je dat bij stille uren toestaat')],
+      [L('Van buitenaf: nieuwe open poort'), L('Na een scan, als er iets onverwachts open staat (de eerste scan: één overzicht)'), L('Alle kanalen die aan staan'), '<b>' + L('Wel verstuurd') + '</b>'],
+      [L('Rapporten (week, maand)'), L('Op hun moment'), L('Per rapport e-mail en/of push, stil'), '–'],
+      [L('Noodlink'), L('Bij aanvragen'), L('Alle pushdiensten'), '–'],
+    ])}
+    <h3>${L('Hoe elk kanaal werkt')}</h3>
+    ${T([L('Kanaal'), L('Hoe')], [
+      ['📲 Pushover / ntfy', L('Wat je in die kolom aanvinkt. Geluid: critical hoog (of emergency als je dat instelt), warning normaal, info stil.')],
+      ['📱 Web Push', L('Wat je in die kolom aanvinkt; per apparaat te beperken (alles, alleen critical, alleen IDS). Staat Web Push uit, is er geen apparaat of komt het niet aan, dan via Pushover / ntfy (als die hem nog niet had en de reserve aan staat).')],
+      ['📧 ' + L('E-mail'), L('Altijd, of alleen als reserve als push niet lukte.')],
+      ['🏠 Home Assistant', L('Wat je in die kolom aanvinkt.')],
+      ['💬 Discord / Slack / Teams', L('Mee als Pushover / ntfy of Web Push aangevinkt is, met een eigen filter (niveau, herstel, IDS).')],
+      ['📋 ' + L('Pagina Meldingen'), L('Altijd (info alleen als je dat aanvinkt).')],
+    ])}
+    <h3>${L('Wanneer er niets verstuurd wordt')}</h3>
+    <ul class="small">
+      <li>${L('De check is bevestigd (✔) of de server staat in onderhoud.')}</li>
+      <li>${L('De server erboven ligt plat: dan één melding voor die server, niet voor alles erachter.')}</li>
+      <li>${L('Een check die flapt: één melding "staat te flappen", daarna per status hooguit één tot hij weer stabiel is.')}</li>
+      <li>${L('Tijdens een update (dnf, apt) tellen pakketbeheer en dracut niet als aanval.')}</li>
+    </ul></div>`;
+  modal({ title: '📖 ' + L('Hoe werken meldingen?'), body, page: true, buttons: [{ label: L('Sluiten'), onClick: () => $('#modal').close() }] });
+}
 let fimGlobal = null;      // editor van de algemene lijst 'Bestanden bewaken' (IDS)
 let quietGlobal = null;    // editor van de algemene stille uren
 
@@ -16000,6 +16069,8 @@ function renderSysinfo() {
         <td><button type="button" class="icon-btn" data-si-test title="${esc(L('Testmelding sturen naar de aangevinkte kanalen'))}">🧪</button></td></tr>`;
     }).join('')).join('')}</tbody>`;
 }
+
+document.addEventListener('click', (e) => { if (e.target.closest('#notify-help')) notifyHelpOpen(); });   // 1.303.0
 
 function initSysinfo() {
   const t = $('#sysinfo');

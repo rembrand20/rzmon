@@ -5,6 +5,11 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.117.1 – 2026-11-20
+- **ClamAV start weer als hij gestopt is** (RzSense 1.303.0): na een herstart van de server bleef `rzsense-clamav` uit (exit 143), omdat Podman een container met `unless-stopped` niet vanzelf start. De agent start hem nu opnieuw, hooguit elke 10 minuten en alleen met genoeg vrij geheugen; lukt het niet, dan staan de reden en de laatste logregels erbij. Zo deed hij het al voor Suricata.
+- **Geen dubbele ClamAV meer:** ClamAV blijft in de engine waarin hij gemaakt is. Een tweede `rzsense-clamav` in de andere engine (echte Docker naast Podman) haalt de agent weg.
+- **Containers niet meer twee keer:** is `docker` eigenlijk Podman (pakket `podman-docker`), dan telt de agent de containers niet nog eens als Docker-containers.
+
 ## 1.117.0 – 2026-11-20
 - **Meetpunt van buitenaf** (RzSense 1.300.0): kies je deze server in RzSense als meetpunt (Instellingen → Bescherming → Van buitenaf), dan probeert hij de adressen en poorten die RzSense meegeeft met een gewone TCP-verbinding (bash, 64 tegelijk, 2 seconden per poort) en stuurt hij de open poorten terug. Geen extra programma's, nooit privé-adressen, hooguit 50 seconden per rapport. Op andere servers doet de agent niets nieuws.
 

@@ -53,6 +53,10 @@ final class Nids
         return [implode("\t", [0, 'nids', 'on', in_array($p, self::PROFILES, true) ? $p : 'balanced', self::cleanIface((string) setting('nids_iface', 'auto')) ?? 'auto'])];
     }
 
+    /**
+     * @param array<mixed> $host
+     * @param array<mixed> $in
+     */
     public static function fromAgent(array $host, array $in): void
     {
         if (!isset($in['nids']) || !is_array($in['nids'])) {
@@ -82,6 +86,7 @@ final class Nids
         }
     }
 
+    /** @return array<mixed>|null */
     public static function status(int $hostId): ?array
     {
         $v = json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'nids'", [$hostId])->fetchColumn(), true);

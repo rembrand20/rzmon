@@ -6385,24 +6385,6 @@ parameters:
 			path: src/NetTraffic.php
 
 		-
-			message: '#^Method Nids\:\:fromAgent\(\) has parameter \$host with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Nids.php
-
-		-
-			message: '#^Method Nids\:\:fromAgent\(\) has parameter \$in with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Nids.php
-
-		-
-			message: '#^Method Nids\:\:status\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Nids.php
-
-		-
 			message: '#^Method Nis2\:\:blocks\(\) has parameter \$o with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -7391,24 +7373,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/ProxyOpen.php
-
-		-
-			message: '#^Method ProxyStats\:\:fromAgent\(\) has parameter \$host with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/ProxyStats.php
-
-		-
-			message: '#^Method ProxyStats\:\:fromAgent\(\) has parameter \$stat with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/ProxyStats.php
-
-		-
-			message: '#^Method ProxyStats\:\:summary\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/ProxyStats.php
 
 		-
 			message: '#^Method Pve\:\:check\(\) has parameter \$check with no value type specified in iterable type array\.$#'
@@ -8947,24 +8911,6 @@ parameters:
 			path: src/SnmpMonitor.php
 
 		-
-			message: '#^Method SshEvents\:\:sessions\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/SshEvents.php
-
-		-
-			message: '#^Method SshEvents\:\:store\(\) has parameter \$auth with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/SshEvents.php
-
-		-
-			message: '#^Method SshEvents\:\:store\(\) has parameter \$host with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/SshEvents.php
-
-		-
 			message: '#^Method Stats\:\:applyDiskForecast\(\) has parameter \$check with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -9313,24 +9259,6 @@ parameters:
 			path: src/ThreatIntel.php
 
 		-
-			message: '#^Method Transfer\:\:export\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Transfer.php
-
-		-
-			message: '#^Method Transfer\:\:import\(\) has parameter \$d with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Transfer.php
-
-		-
-			message: '#^Method Transfer\:\:import\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Transfer.php
-
-		-
 			message: '#^Method Trends\:\:compute\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -9641,24 +9569,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/Updater.php
-
-		-
-			message: '#^Method VPatch\:\:covered\(\) has parameter \$active with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/VPatch.php
-
-		-
-			message: '#^Method VPatch\:\:overview\(\) has parameter \$sites with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/VPatch.php
-
-		-
-			message: '#^Method VPatch\:\:overview\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/VPatch.php
 
 		-
 			message: '#^Method VulnSearch\:\:csv\(\) has parameter \$head with no value type specified in iterable type array\.$#'

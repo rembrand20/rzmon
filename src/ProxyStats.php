@@ -18,6 +18,10 @@ final class ProxyStats
     public const PERIODS = ['24h' => 1, '7d' => 7, '30d' => 30];
     private const COLS = ['total', 's2', 's3', 's4', 's403', 's404', 's429', 's444', 's5', 'bot'];
 
+    /**
+     * @param array<mixed> $host
+     * @param array<mixed> $stat
+     */
     public static function fromAgent(array $host, array $stat): void
     {
         $hid = (int) $host['id'];
@@ -105,6 +109,7 @@ final class ProxyStats
      * Alles voor het blok bovenaan: tegels (met de vorige periode), redenen, statuscodes, top-lijsten en een grafiek.
      * @param string $period 24h, 7d of 30d
      * @param string $site   leeg = alle sites
+     * @return array<mixed>
      */
     public static function summary(string $period = '24h', string $site = '', ?int $now = null): array
     {

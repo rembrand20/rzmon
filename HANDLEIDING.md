@@ -1137,6 +1137,8 @@ Met Web Push komen de meldingen van RzSense rechtstreeks op je telefoon, tablet 
 
 **Beheer:** bij **Instellingen → Meldingen en rapporten → Kanalen → Web Push** zie je alle apparaten van alle gebruikers, met **🧪 Test** en **✕ Verwijderen**. Daar staat ook de hoofdschakelaar. Bij *Meldketen testen* staat Web Push er nu bij.
 
+**📖 Hoe werken meldingen?** (vanaf 1.303.0): de knop bij *Wanneer melden* opent een overzicht: bovenaan wat er met jouw instellingen per status waarheen gaat (ook wat nog niet bewaard is; ↪ 📲 = Web Push staat uit en gaat via Pushover / ntfy), daaronder wanneer elke soort melding verstuurd wordt (checks, systeemmeldingen, IDS, logs, van buitenaf, rapporten) en wat stille uren doen, hoe elk kanaal werkt, en wanneer er niets verstuurd wordt.
+
 **Een eigen kanaal** (vanaf 1.302.0): Web Push is een kanaal naast **Pushover / ntfy**, e-mail en Home Assistant. Bij **Instellingen → Meldingen en rapporten → Wanneer melden** kies je per status (warning, critical, onbekend, hersteld, info) welke kanalen hem krijgen, net als bij de systeemmeldingen en de eigen meldregels van een check.
 - **Voorbeeld:** warning alleen *Web Push*; critical en hersteld *Web Push* én *Pushover / ntfy*. Dan komt alles via Web Push, en een storing daarnaast via Pushover (met de sirene als je dat bij Pushover zo hebt ingesteld).
 - **Na de update verandert er niets:** de kolom Web Push neemt de vinkjes van Push over. Daarna stel je hem los in.
@@ -3534,6 +3536,7 @@ ClamAV scant wat er via je apps binnenkomt (uploads in Nextcloud, bijlagen, form
 - De mappen van je apps krijgen geen ander SELinux-label (de container draait met `label=disable`), zodat je apps er gewoon bij blijven kunnen.
 
 **Uit**: de container gaat weg; de quarantaine blijft staan.
+**Gestopt?** (vanaf agent 1.117.1) Staat de container stil, bijvoorbeeld na een herstart van de server (Podman start `unless-stopped` niet vanzelf zonder `podman-restart.service`), dan start de agent hem opnieuw, hooguit elke 10 minuten, als er genoeg geheugen vrij is. Lukt dat niet, dan zie je de reden en de laatste logregels. ClamAV blijft in de container-engine waarin hij gemaakt is; staat er ook een `rzsense-clamav` in de andere engine (echte Docker naast Podman), dan haalt de agent die dubbele weg. Is `docker` op de server eigenlijk Podman (het pakket `podman-docker`), dan telt de agent de containers niet meer twee keer.
 **Eerlijk**: dit scant direct ná het uploaden, niet aan de deur. Een besmet bestand staat dus hooguit een minuut in de map voordat het gevonden wordt.
 Op de server in te stellen: `AV_DIR`, `AV_IMAGE` (standaard `docker.io/clamav/clamav:1.4`), `AV_MIN_MB`, `AV_MAX_MB` en `AV_DIRS_MAX`.
 

@@ -6181,6 +6181,8 @@ button.rz-job::before, .btn.rz-job::before { content: ''; position: absolute; in
 .px-web-l li { display: flex; gap: .45rem; align-items: baseline; flex-wrap: wrap; font-size: .9rem; }
 .px-web-l li > span:first-child { width: 1.1rem; flex: none; }
 .px-web-l li.ok > span:first-child { color: var(--ok); } .px-web-l li.half > span:first-child { color: var(--warn); } .px-web-l li.no > span:first-child { color: var(--crit); }
+.nh h3 { margin: 1.2rem 0 .4rem; } .nh h3:first-child { margin-top: 0; }
+.nh-t td { vertical-align: top; } .nh-t td.nt-ch, .nh-t th.nt-ch { text-align: center; }
 .inc-row.sel { background: color-mix(in srgb, var(--primary) 9%, transparent); box-shadow: inset 3px 0 0 var(--primary); }
 .px-dr { display: grid; gap: .9rem; }
 .px-dr-head { display: grid; gap: .5rem; }

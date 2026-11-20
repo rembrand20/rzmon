@@ -18,13 +18,16 @@ case "\$1" in
     inspect)
         if [ "\$2" = -f ]; then
             case "\$3" in
-                *State.Running*) [ -f "\$S/ctr" ] && echo true || exit 1 ;;
+                *State.Running*) [ -f "\$S/ctr" ] || exit 1; [ -f "\$S/stopped" ] && echo false || echo true ;;
+                *State.Status*) echo "exited 143" ;;
                 *Mounts*) [ "\$4" = nextcloud ] && echo "$work/data/nc" && echo /etc/nextcloud-config ;;
             esac
         else [ "\$2" = rzsense-clamav ] && { [ -f "\$S/ctr" ] || exit 1; }; fi ;;
     ps) printf 'swag\nnextcloud\nrzsense-clamav\n' ;;
     run) touch "\$S/ctr"; printf '%s\n' "\$*" >"\$S/run" ;;
     rm) rm -f "\$S/ctr" ;;
+    start) [ -f "\$S/nostart" ] && exit 125; rm -f "\$S/stopped" ;;
+    logs) echo "clamd: Received SIGTERM" ;;
     exec)
         shift 2
         [ "\$1" = clamdscan ] || exit 2
@@ -38,6 +41,18 @@ esac
 exit 0
 EOF
 chmod +x "$work/bin/podman"
+cat >"$work/bin/docker" <<EOF
+#!/usr/bin/env bash
+echo "\$*" >>"$work/docker.log"
+case "\$1" in
+    --version) echo "Docker version 27.3.1, build ce12230" ;;
+    inspect) [ -f "$work/state/dctr" ] || exit 1 ;;
+    rm) rm -f "$work/state/dctr" ;;
+esac
+exit 0
+EOF
+chmod +x "$work/bin/docker"
+touch "$work/state/dctr"
 awk '/^# -+ ClamAV op de reverse proxy/{f=1} f&&/^# -+ /&&!/ClamAV op de reverse proxy/{exit} f{print}' agent/rzmon-agent.sh >"$work/mod.sh"
 fn() { awk -v n="$1" '$0 ~ "^" n "\\(\\) \\{" {f=1} f{print} f&&/^\}/{exit}' agent/rzmon-agent.sh; }
 {
@@ -45,6 +60,7 @@ fn() { awk -v n="$1" '$0 ~ "^" n "\\(\\) \\{" {f=1} f{print} f&&/^\}/{exit}' age
     echo "PATH='$work/bin':\$PATH; px_kind=swag; px_eng=podman; px_ctr=swag"
     fn json_escape; fn act_log
     fn ctr_ok; fn ctrx   # agent 1.113.0
+    fn docker_is_podman   # agent 1.118.0
     echo ". '$work/mod.sh'"
     echo 'printf "%s" "$av_json"'
 } >"$work/run.sh"
@@ -73,6 +89,12 @@ AV_MIN_MB=1 run fulldone
 qold=$(python3 -c "import json,sys; print([f['qid'] for f in json.load(open(sys.argv[1]))['found'] if f['p'].endswith('old.bin')][0])" "$work/r-fulldone.json" 2>/dev/null)
 { base 1; printf '0\tavdelete\t%s\n0\tavdelete\t1; rm -rf /\n' "$qold"; } >"$work/cache/tests.cache"
 AV_MIN_MB=1 run delete
+base 1 >"$work/cache/tests.cache"
+touch "$work/state/stopped"; rm -f "$work/av/start.at"
+AV_MIN_MB=1 run restart
+touch "$work/state/stopped" "$work/state/nostart"
+AV_MIN_MB=1 run restart2
+rm -f "$work/state/nostart" "$work/state/stopped"
 printf '0\tav\toff\t1\t1\n' >"$work/cache/tests.cache"
 run off
 bad=""
@@ -81,7 +103,12 @@ import json, sys, os
 w = sys.argv[1]
 err = open(f'{w}/py.err', 'w')
 try:
-    r = {k: json.load(open(f'{w}/r-{k}.json')) for k in ('lowmem', 'first', 'scan', 'restore', 'report', 'fullstart', 'fulldone', 'delete', 'off')}
+    r = {k: json.load(open(f'{w}/r-{k}.json')) for k in ('lowmem', 'first', 'scan', 'restore', 'report', 'fullstart', 'fulldone', 'delete', 'restart', 'restart2', 'off')}
+    assert r['restart']['state'] == 'starting' and 'opnieuw gestart' in r['restart']['msg'] and 'exited 143' in r['restart']['msg'], r['restart']
+    assert r['restart2']['state'] == 'error' and 'exited 143' in r['restart2']['msg'] and 'SIGTERM' in r['restart2']['msg'], r['restart2']
+    assert open(f'{w}/av/engine').read().strip() == 'podman', 'engine niet vastgelegd'
+    dl = open(f'{w}/docker.log').read()
+    assert 'rm -f rzsense-clamav' in dl and not os.path.exists(f'{w}/state/dctr'), dl
     assert r['lowmem']['state'] == 'lowmem', r['lowmem']
     f = r['first']
     assert f['state'] == 'ok' and f['found'] == [] and 'ClamAV 1.4.1' in f['sigs'], f
@@ -111,6 +138,7 @@ try:
 except AssertionError as e:
     err.write(str(e)[:1500]); sys.exit(1)
 PY
-grep -q 'ClamAV gestart' "$work/cache/act.log" && grep -q 'ClamAV: teruggezet' "$work/cache/act.log" && grep -q 'ClamAV uit' "$work/cache/act.log" || bad+="logboek mist regels | "
+grep -q 'ClamAV gestart' "$work/cache/act.log" && grep -q 'ClamAV: teruggezet' "$work/cache/act.log" && grep -q 'ClamAV uit' "$work/cache/act.log" \
+    && grep -q 'ClamAV opnieuw gestart' "$work/cache/act.log" && grep -q 'ClamAV: dubbele container weggehaald' "$work/cache/act.log" || bad+="logboek mist regels | "
 if [ -n "$bad" ]; then echo "✘ ClamAV: ${bad% | } $(tail -n 3 "$work/err" 2>/dev/null)"; exit 1; fi
-echo "✔ ClamAV: te weinig geheugen = niet starten, mappen alleen binnen het plafond (systeemmap en buiten geweigerd), voorstellen uit andere containers, eerst een beginpunt, nieuwe bestanden gescand, besmet naar quarantaine (000) of alleen gemeld, terugzetten (niet opnieuw), definitief weghalen (ongeldige id genegeerd), volledige scan op de achtergrond, uit = container weg en quarantaine blijft, in het logboek"
+echo "✔ ClamAV: te weinig geheugen = niet starten, mappen alleen binnen het plafond (systeemmap en buiten geweigerd), voorstellen uit andere containers, eerst een beginpunt, nieuwe bestanden gescand, besmet naar quarantaine (000) of alleen gemeld, terugzetten (niet opnieuw), definitief weghalen (ongeldige id genegeerd), volledige scan op de achtergrond, gestopt = opnieuw gestart (hooguit elke 10 min, anders de reden), dubbele container in Docker weg, uit = container weg en quarantaine blijft, in het logboek"
