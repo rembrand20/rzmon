@@ -1886,3 +1886,16 @@ CREATE TABLE IF NOT EXISTS exposure_ok (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('exposure_on', '0'), ('exposure_shodan', '0'), ('exposure_self', '0'), ('exposure_auto', '1'),
     ('exposure_hours', '24'), ('exposure_ports', ''), ('exposure_notify', '1');
+
+-- 1.299.0: lichte webcheck per site achter de reverse proxy (A tot F)
+CREATE TABLE IF NOT EXISTS web_check (
+    site        VARCHAR(253) NOT NULL PRIMARY KEY,
+    host_id     INT UNSIGNED NOT NULL,
+    grade       CHAR(1)      NOT NULL DEFAULT 'F',
+    score       TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    result      TEXT         NOT NULL,
+    checked_at  DATETIME     NOT NULL,
+    INDEX idx_web_check_host (host_id),
+    CONSTRAINT fk_web_check_host FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('webcheck_on', '1'), ('webcheck_domain', '');

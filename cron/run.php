@@ -103,6 +103,11 @@ try {
     cron_err('Logs (vaste zoekacties)', $e);
 }
 try {
+    WebCheck::cron();   // 1.299.0: elke site achter de proxy één keer per dag (A tot F)
+} catch (Throwable $e) {
+    cron_err('Webcheck', $e);
+}
+try {
     IsoAsk::cron();   // 1.295.0: vragen om te isoleren waarop niemand reageerde: na de wachttijd alsnog
 } catch (Throwable $e) {
     cron_err('Isoleren', $e);

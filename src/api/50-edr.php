@@ -663,6 +663,15 @@ switch ($action) {
         }
         out(['ok' => true]);
 
+    // 1.299.0: webcheck van één site nu
+    case 'webcheck_run':
+        $in = input();
+        $r = WebCheck::run((int) ($in['host_id'] ?? 0), mb_substr((string) ($in['site'] ?? ''), 0, 253));
+        if (isset($r['error'])) {
+            out(['error' => $r['error']], 422);
+        }
+        out(['ok' => true, 'web' => $r]);
+
     case 'proxy_site_save':
         $in = input();
         if (!empty($in['reset'])) {

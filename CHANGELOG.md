@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.299.0**: **webcheck per site**: een cijfer van A tot F voor https, het certificaat en de beveiligingsheaders van elke site achter je proxy.
 - **1.298.0**: **breed scherm**: Instellingen in twee kolommen, en bij Incidenten de lijst en de details naast elkaar.
 - **1.297.0**: **logs: Patronen en Statistiek**: gelijke regels gegroepeerd (zie wat zeldzaam is), aantallen per veld, en OR in de zoekopdracht.
 - **1.296.0**: **reverse proxy in een rustiger opbouw**: tabbladen, een overzicht met wat aandacht vraagt, en een zijpaneel per site.
 - **1.295.0**: **updates zijn geen aanval meer**, en bij een aanvalsketen **vraagt RzSense eerst** of het moet isoleren.
-- **1.294.0**: **paginabreedte** per apparaat: begrensd, breed of de hele breedte van je scherm.
+
+## 1.299.0 – 2026-11-20
+### Nieuw
+- **Webcheck per site (A tot F)** op de pagina Reverse proxy. Zie HANDLEIDING 8.12h.
+  - RzSense vraagt elke site één keer per dag zelf op: https en het certificaat, doorsturen van http, HSTS, Content-Security-Policy, frames, nosniff, Referrer-Policy, Permissions-Policy, en of de site zijn softwareversie verraadt.
+  - Het cijfer staat in de sitelijst. In het zijpaneel zie je wat goed is en wat beter kan, met *Opnieuw controleren*.
+  - Er gaat niets naar een externe dienst. Bij namen als `app.*` (SWAG) vul je het domein in bij Instellingen → Reverse proxy.
 
 ## 1.298.0 – 2026-11-20
 ### Nieuw

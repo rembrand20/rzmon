@@ -437,6 +437,8 @@ const FH_SHORT = () => ({
   proxy_def_lan: L("Een nieuwe site met een beheerprogramma of adminpagina's is standaard alleen thuis bereikbaar."),
   proxy_def_rate: L("Hoeveel verzoeken per seconde een nieuwe site per adres krijgt. Apps krijgen vanzelf de ruime stand."),
   proxy_def_bots: L("Een nieuwe site weert standaard bekende aanvalstools."),
+  webcheck_on: L("RzSense vraagt elke site van je reverse proxy één keer per dag zelf op en geeft een cijfer van A tot F: https met een geldig certificaat, doorsturen van http, HSTS, Content-Security-Policy, frames, nosniff, Referrer-Policy, Permissions-Policy en of de site zijn softwareversie verraadt. Er gaat niets naar een externe dienst."),
+  webcheck_domain: L("Staat er in je proxy server_name app.* (zoals bij SWAG), dan weet RzSense niet onder welk domein de site hangt. Vul het hier in, bv. example.nl; de webcheck vraagt dan app.example.nl op."),
   proxy_def_devices: L("Een nieuwe site laat standaard je toegestane apparaten van buiten door."),
   proxy_lan_extra: L("Netwerken die ook als 'thuis' tellen, bv. je VPN."),
   waf_on: L("Bekijkt elk verzoek naar je apps op aanvallen (CrowdSec AppSec op de proxy)."),

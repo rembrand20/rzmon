@@ -6177,6 +6177,10 @@ button.rz-job::before, .btn.rz-job::before { content: ''; position: absolute; in
 /* 1.298.0: lijst links, details rechts (Incidenten op een breed scherm): het paneel blokkeert de pagina niet */
 #modal.split { position: fixed; inset: 0 0 0 auto; z-index: 900; width: min(600px, 32vw); box-shadow: -12px 0 40px rgba(0, 0, 0, .18); border: 0; border-left: 1px solid var(--border); }
 @media (min-width: 1900px) { body.split-open main.container { width: calc(100% - 42px - min(600px, 32vw)); max-width: none; margin-left: 14px; margin-right: auto; } }
+.px-web-l { list-style: none; margin: .4rem 0 .6rem; padding: 0; display: grid; gap: .25rem; }
+.px-web-l li { display: flex; gap: .45rem; align-items: baseline; flex-wrap: wrap; font-size: .9rem; }
+.px-web-l li > span:first-child { width: 1.1rem; flex: none; }
+.px-web-l li.ok > span:first-child { color: var(--ok); } .px-web-l li.half > span:first-child { color: var(--warn); } .px-web-l li.no > span:first-child { color: var(--crit); }
 .inc-row.sel { background: color-mix(in srgb, var(--primary) 9%, transparent); box-shadow: inset 3px 0 0 var(--primary); }
 .px-dr { display: grid; gap: .9rem; }
 .px-dr-head { display: grid; gap: .5rem; }

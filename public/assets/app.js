@@ -21853,6 +21853,8 @@ const FH_SHORT = () => ({
   proxy_def_lan: L("Een nieuwe site met een beheerprogramma of adminpagina's is standaard alleen thuis bereikbaar."),
   proxy_def_rate: L("Hoeveel verzoeken per seconde een nieuwe site per adres krijgt. Apps krijgen vanzelf de ruime stand."),
   proxy_def_bots: L("Een nieuwe site weert standaard bekende aanvalstools."),
+  webcheck_on: L("RzSense vraagt elke site van je reverse proxy één keer per dag zelf op en geeft een cijfer van A tot F: https met een geldig certificaat, doorsturen van http, HSTS, Content-Security-Policy, frames, nosniff, Referrer-Policy, Permissions-Policy en of de site zijn softwareversie verraadt. Er gaat niets naar een externe dienst."),
+  webcheck_domain: L("Staat er in je proxy server_name app.* (zoals bij SWAG), dan weet RzSense niet onder welk domein de site hangt. Vul het hier in, bv. example.nl; de webcheck vraagt dan app.example.nl op."),
   proxy_def_devices: L("Een nieuwe site laat standaard je toegestane apparaten van buiten door."),
   proxy_lan_extra: L("Netwerken die ook als 'thuis' tellen, bv. je VPN."),
   waf_on: L("Bekijkt elk verzoek naar je apps op aanvallen (CrowdSec AppSec op de proxy)."),
@@ -23164,12 +23166,13 @@ function pxSiteList(s, d) {
       <td><span class="lf-tag ${x.lan_mode === 'off' ? 'wait' : 'ok'}">${esc(x.enabled ? lan[x.lan_mode] || x.lan_mode : L('uit'))}</span></td>
       <td class="px-prot">${x.enabled ? prot : ''}</td>
       <td>${x.score ? `<span class="lf-tag px-score ${pxGradeCls(x.score.grade)}">${esc(x.score.grade)} ${x.score.n}</span>` : ''}</td>
+      <td>${x.web && x.web.grade ? `<span class="lf-tag px-score ${pxWebCls(x.web.grade)}" title="${esc(L('Webcheck: https, certificaat en beveiligingsheaders'))}">${esc(x.web.grade)} ${x.web.n}</span>` : '<span class="muted small">–</span>'}</td>
       <td class="nowrap">${x.custom && x.source === 'ai' ? `<span class="lf-tag ok" title="${esc(x.ai_reason || '')}">🤖 ${L('AI')}</span>` : x.custom ? `<span class="lf-tag">${L('eigen')}</span>` : `<span class="muted small">${L('standaard')}</span>`}
         <button type="button" class="icon-btn" data-px-open="${esc(x.site)}" aria-label="${esc(L('{s} openen', { s: x.site }))}">›</button></td></tr>`;
   }).join('');
   return `<div class="px-tools"><input type="search" class="px-search" data-px-q value="${esc(pxQ)}" placeholder="${esc(L('Zoek een site'))}" aria-label="${esc(L('Zoek een site'))}">
       <div class="px-fil" role="group" aria-label="${esc(L('Filter'))}">${F.map(([k, l]) => `<button type="button" class="dchip${pxF === k ? ' on' : ''}" data-px-f="${k}">${esc(l)}</button>`).join('')}</div></div>
-    <div class="table-scroll"><table class="vuln-table px-table px-list"><thead><tr><th>${L('Site')}</th><th>${L('Wie mag erbij')}</th><th>${L('Bescherming')}</th><th>${L('Score')}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="table-scroll"><table class="vuln-table px-table px-list"><thead><tr><th>${L('Site')}</th><th>${L('Wie mag erbij')}</th><th>${L('Bescherming')}</th><th>${L('Score')}</th><th>${L('Webcheck')}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="muted small px-none" hidden>${L('Geen sites die hierop passen.')}</p>`;
 }
 function pxFilter() {
@@ -23199,6 +23202,7 @@ function pxDrawer(host, site, refresh = false) {
     <div class="px-dr-head"><span class="muted small mono">${esc(x.up ? '→ ' + x.up : '')}${x.names.length > 1 ? ' · ' + esc(x.names.slice(1).join(', ')) : ''}</span>
       ${x.score ? `<div class="px-dr-score"><span class="px-grade ${pxGradeCls(x.score.grade)}">${esc(x.score.grade)}</span><span class="px-grade-n">${x.score.n} / 100</span></div>
         <div class="px-tips">${x.score.parts.map((p) => `<div class="px-tip"><span class="px-tip-k">${esc(K[p.k] || p.k)}</span><span class="px-tip-bar"><i style="width:${p.max ? Math.round((p.got / p.max) * 100) : 0}%"></i></span><span class="small">${p.got}/${p.max}</span>${p.tip ? `<span class="small muted">${esc(p.tip)}</span>` : '<span class="small good">✔</span>'}</div>`).join('')}</div>` : ''}</div>
+    ${pxWebSec(x)}
     ${ch.length ? `<section class="px-dr-sec px-dr-ai" data-pxa-site="${esc(x.site)}"><h3>🤖 ${L('Voorstel van de AI')}</h3>
         <div>${ch.map(([f, a, b]) => `<span class="pxa-ch">${esc(F[f])}: <s>${esc(pxaVal(f, a))}</s> → <b>${esc(pxaVal(f, b))}</b></span>`).join(' ')}</div>
         ${it.reason ? `<p class="small muted">${esc(it.reason)}</p>` : ''}
@@ -23244,6 +23248,13 @@ function pxDrawer(host, site, refresh = false) {
   }, sig);
   mb.addEventListener('click', async (e) => {
     if (e.target.closest('[data-px-reset]')) { save({ reset: 1 }); return; }
+    const wb = e.target.closest('[data-px-web]');   // 1.299.0: webcheck nu
+    if (wb) {
+      wb.disabled = true; wb.textContent = '⏳ ' + L('Bezig…');
+      try { const r = await api('webcheck_run', { host_id: host, site }); x.web = r.web; } catch (ex) { toast(ex.message, 'err'); }
+      if (pxOpen && pxOpen[1] === site) pxDrawer(host, site, true);
+      return;
+    }
     if (await pxaClick(e, host)) await loadProxy();
   }, sig);
   $('#modal').addEventListener('close', () => { pxOpen = null; }, { once: true });
@@ -23286,6 +23297,22 @@ function pxaHead(s, cfg) {
 // 1.258.0: score per site en virtual patching
 const PX_SCORE_K = () => ({ access: L('Wie mag erbij'), rate: L('Rate limit'), bots: L('Bots weren'), waf: L('WAF'), vuln: L('Bekende lekken'), upload: L('Uploads scannen'), off: L('Uit') });
 const pxGradeCls = (g) => ({ A: 'ok', B: 'ok', C: 'wait', D: 'bad' }[g] || '');
+// 1.299.0: webcheck (A tot F)
+const pxWebCls = (g) => ({ A: 'ok', B: 'ok', C: 'wait', D: 'wait', E: 'bad', F: 'bad' }[g] || '');
+const PX_WEB_K = () => ({ tls: L('https en certificaat'), redirect: L('http naar https'), hsts: 'HSTS', csp: 'Content-Security-Policy', frame: L('Frames'), nosniff: 'nosniff',
+  referrer: 'Referrer-Policy', perms: 'Permissions-Policy', leak: L('Versies verborgen') });
+function pxWebSec(x) {
+  const w = x.web, K = PX_WEB_K();
+  const btn = isAdmin() ? `<button type="button" class="btn small-btn" data-px-web>${w ? '↻ ' + L('Opnieuw controleren') : '🌐 ' + L('Nu controleren')}</button>` : '';
+  if (!w) return `<section class="px-dr-sec px-web"><h3>🌐 ${L('Webcheck')}</h3><p class="small muted">${L('Nog niet gecontroleerd. RzSense vraagt de site zelf op en kijkt naar https, het certificaat en de beveiligingsheaders.')}</p>${btn}</section>`;
+  return `<section class="px-dr-sec px-web"><h3>🌐 ${L('Webcheck')}</h3>
+    <div class="px-dr-score"><span class="px-grade ${pxWebCls(w.grade)}">${esc(w.grade)}</span><span class="px-grade-n">${w.n} / 100</span>
+      <span class="muted small">${esc(L('gecontroleerd {t}', { t: ago(w.at) }))}</span></div>
+    ${w.err ? `<p class="small err-txt">${esc(w.err)}</p>` : ''}
+    <ul class="px-web-l">${w.parts.filter((p) => !w.err || p.k === 'tls').map((p) => `<li class="${p.ok ? 'ok' : p.got ? 'half' : 'no'}"><span aria-hidden="true">${p.ok ? '✔' : p.got ? '◐' : '✘'}</span>
+      <b>${esc(K[p.k] || p.k)}</b> <span class="muted small">${esc(p.note)}</span></li>`).join('')}</ul>
+    ${btn}</section>`;
+}
 const VP_DAYS = () => [[7, L('7 dagen')], [30, L('30 dagen')], [90, L('90 dagen')], [0, L('zonder einde')]];
 const vpSite = (x) => (x === '*' ? L('alle sites') : x);
 /** Op de pagina Reverse proxy: paden die dicht staan (virtual patching), voorstellen en zelf toevoegen */

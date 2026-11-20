@@ -2154,6 +2154,19 @@ $lsC = LogStore::context($lsS['hits'][1]['ref']);
 ok($lsC !== null && count($lsC['before']) === 3 && count($lsC['after']) === 3 && str_contains($lsC['after'][0]['msg'], 'regel 28'), 'regels eromheen: 3 ervoor en de regels erna');
 ok(LogStore::search(['q' => 'regel server:bestaatniet', 'from' => $lsNow2 - 3600])['total'] === 0, 'server: die niet bestaat geeft niets');
 
+section('Webcheck per site (1.299.0)');
+$wcGood = ['strict-transport-security' => 'max-age=31536000; includeSubDomains', 'content-security-policy' => "default-src 'self'; frame-ancestors 'self'",
+    'x-content-type-options' => 'nosniff', 'referrer-policy' => 'same-origin', 'permissions-policy' => 'camera=()', 'server' => 'nginx'];
+$wcA = WebCheck::score($wcGood, true, true, 60);
+ok($wcA['n'] === 100 && $wcA['grade'] === 'A', 'webcheck: alles goed is A 100');
+$wcB = WebCheck::score(['server' => 'nginx/1.24.0', 'x-powered-by' => 'PHP/8.2'], true, false, 60);
+ok($wcB['grade'] === 'F' && $wcB['n'] === 20 && !array_values(array_filter($wcB['parts'], static fn($p) => $p['k'] === 'leak'))[0]['ok'], 'webcheck: geen headers en versies zichtbaar geeft F');
+ok(WebCheck::score($wcGood, false, true, null)['grade'] === 'F', 'webcheck: zonder werkend https altijd F');
+$wcW = WebCheck::score(['content-security-policy' => "default-src * 'unsafe-inline'"] + $wcGood, true, true, 5);
+ok($wcW['n'] === 73 && $wcW['grade'] === 'C', 'webcheck: zwakke CSP (zonder frame-ancestors) en een bijna verlopen certificaat kosten punten');
+ok(WebCheck::validSite('app.example.nl') && !WebCheck::validSite('*.example.nl') && !WebCheck::validSite('_') && !WebCheck::validSite('a/b.nl'), 'webcheck: alleen echte sitenamen');
+ok(isset(WebCheck::run(0, '_')['error']), 'webcheck: een ongeldige site wordt niet opgevraagd');
+
 section('Logs: patronen, statistiek en OR (1.297.0)');
 ok(LogFields::pattern('Nov 20 10:00:01 sshd[123]: Failed password for root from 10.0.0.5 port 2222')
     === LogFields::pattern('Nov 20 11:22:33 sshd[9]: Failed password for admin from 192.168.1.9 port 51000'), 'patroon: tijd, getallen, IP en naam maken niet uit');
