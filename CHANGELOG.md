@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.300.0**: **van buitenaf meten vanaf een server naar keuze** (bv. een VPS): de eerlijkste blik op wat er open staat.
 - **1.299.0**: **webcheck per site**: een cijfer van A tot F voor https, het certificaat en de beveiligingsheaders van elke site achter je proxy.
 - **1.298.0**: **breed scherm**: Instellingen in twee kolommen, en bij Incidenten de lijst en de details naast elkaar.
 - **1.297.0**: **logs: Patronen en Statistiek**: gelijke regels gegroepeerd (zie wat zeldzaam is), aantallen per veld, en OR in de zoekopdracht.
 - **1.296.0**: **reverse proxy in een rustiger opbouw**: tabbladen, een overzicht met wat aandacht vraagt, en een zijpaneel per site.
-- **1.295.0**: **updates zijn geen aanval meer**, en bij een aanvalsketen **vraagt RzSense eerst** of het moet isoleren.
+
+## 1.300.0 – 2026-11-20
+### Nieuw
+- **Van buitenaf: een meetpunt naar keuze** (agent 1.117.0 nodig op die server). Zie HANDLEIDING 8.12i.
+  - Kies welke server met een agent van buiten meet, bijvoorbeeld een VPS of een Raspberry Pi bij familie. Die ziet wat een aanvaller ziet, en niet wat je eigen router terugkaatst.
+  - De open poorten staan in de lijst met als bron *meetpunt*. Een nieuwe onverwachte poort geeft dezelfde melding als bij de andere bronnen.
+- **Nieuwe agent 1.117.0** met het meetpunt.
 
 ## 1.299.1 – 2026-11-20
 ### Nieuw

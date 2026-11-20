@@ -24,6 +24,8 @@ final class Ntfy
      * $extra: 'url' en 'url_title' worden de klik-actie en een knop onder het bericht.
      * $cfg (voor de testknop): server, topic, token uit het formulier in plaats van de opgeslagen instellingen.
      * @return array{ok: bool, error: ?string}
+     * @param array<mixed>|null $cfg
+     * @param array<mixed> $extra
      */
     public static function send(string $title, string $message, int $priority = 0, array $extra = [], ?array $cfg = null): array
     {

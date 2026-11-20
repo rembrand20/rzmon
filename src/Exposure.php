@@ -12,7 +12,8 @@ declare(strict_types=1);
  *   bekende kwetsbaarheden (CVE) en labels. Alleen je publieke IP-adressen gaan daarheen, niets anders.
  * - Vanuit RzSense zelf: een TCP-verbinding naar elke poort (geen aanval, geen gegevens). Gaat meestal via je router
  *   "rondje terug" (NAT-loopback): wat RzSense zo ziet, is niet altijd wat een aanvaller ziet. Daarom met een waarschuwing.
- * - (1.290.x) een meetpunt buiten je netwerk: een agent op een VPS of op een andere plek.
+ * - (1.300.0) een meetpunt: een agent die jij kiest, bv. op een VPS of bij familie (agent 1.117.0). RzSense geeft hem de adressen
+ *   en poorten mee; de agent probeert ze met een TCP-verbinding (bash /dev/tcp, geen extra programma's) en stuurt de open poorten terug.
  *
  * Wat je goedkeurt (bv. 443 voor SWAG) is "verwacht". Een nieuwe poort die niet verwacht is: een melding. Een risicovolle
  * dienst (SSH, RDP, databases, Home Assistant, Proxmox …) altijd. Nieuwe CVE's die Shodan bij je IP ziet: ook een melding.
@@ -41,7 +42,125 @@ final class Exposure
 
     public static function on(): bool
     {
-        return setting('exposure_on', '0') === '1' && (setting('exposure_shodan', '0') === '1' || setting('exposure_self', '0') === '1');
+        return setting('exposure_on', '0') === '1' && (setting('exposure_shodan', '0') === '1' || setting('exposure_self', '0') === '1' || self::probeHost() > 0);
+    }
+
+    // ------------------------------------------------------------------ 1.300.0: meetpunt (een agent die jij kiest)
+    public const PROBE_AGENT = '1.117.0';
+    private const PROBE_WAIT = 7200;   // een vraag aan het meetpunt geldt 2 uur
+
+    /** De server die van buitenaf meet (0 = geen) */
+    public static function probeHost(): int
+    {
+        $id = (int) setting('exposure_probe', '0');
+        return $id > 0 && q("SELECT 1 FROM hosts WHERE id = ? AND mode = 'agent'", [$id])->fetchColumn() ? $id : 0;
+    }
+
+    /**
+     * Servers die meetpunt kunnen zijn (agents), met of hun agent nieuw genoeg is.
+     * @return list<array{id: int, name: string, ok: bool}>
+     */
+    public static function probeHosts(): array
+    {
+        $out = [];
+        foreach (q("SELECT id, name, agent_version FROM hosts WHERE mode = 'agent' ORDER BY name")->fetchAll() as $h) {
+            $out[] = ['id' => (int) $h['id'], 'name' => (string) $h['name'], 'ok' => version_compare((string) $h['agent_version'], self::PROBE_AGENT, '>=')];
+        }
+        return $out;
+    }
+
+    /** @return array<string, mixed>|null */
+    private static function probeGet(string $metric): ?array
+    {
+        $hid = self::probeHost();
+        if (!$hid) {
+            return null;
+        }
+        $v = json_decode((string) q('SELECT value FROM agent_data WHERE host_id = ? AND metric = ?', [$hid, $metric])->fetchColumn(), true);
+        return is_array($v) ? $v : null;
+    }
+
+    /** @param array<string, mixed> $v */
+    private static function probePut(int $hid, string $metric, array $v): void
+    {
+        q('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)',
+            [$hid, $metric, json_encode($v, JSON_UNESCAPED_UNICODE), now()]);
+    }
+
+    /**
+     * Vraag het meetpunt om deze adressen en poorten te proberen (bij zijn volgende ronde).
+     * @param list<string> $ips
+     * @param list<int> $ports
+     */
+    public static function probeRequest(array $ips, array $ports): ?int
+    {
+        $hid = self::probeHost();
+        if (!$hid || !$ips || !$ports) {
+            return null;
+        }
+        $id = (int) (microtime(true) * 1000);
+        self::probePut($hid, 'exprobe_req', ['id' => $id, 'at' => time(), 'ips' => array_slice($ips, 0, self::MAX_IPS), 'ports' => $ports]);
+        return $id;
+    }
+
+    /**
+     * Regels voor de agent ("0 exprobe id ip poorten") zolang er een vraag openstaat.
+     * @return list<string>
+     */
+    public static function agentLines(int $hostId): array
+    {
+        if ($hostId !== self::probeHost()) {
+            return [];
+        }
+        $rq = self::probeGet('exprobe_req');
+        if (!$rq || time() - (int) ($rq['at'] ?? 0) > self::PROBE_WAIT) {
+            return [];
+        }
+        $done = self::probeGet('exprobe');
+        if ($done && (int) ($done['id'] ?? 0) === (int) $rq['id']) {
+            return [];
+        }
+        $ports = implode(',', array_map('intval', (array) $rq['ports']));
+        $out = [];
+        foreach ((array) $rq['ips'] as $ip) {
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                $out[] = "0\texprobe\t" . (int) $rq['id'] . "\t$ip\t$ports";
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Antwoord van het meetpunt: alleen gevraagde adressen en poorten tellen.
+     * @param array<string, mixed> $host
+     * @param array<string, mixed> $in
+     */
+    public static function fromAgent(array $host, array $in): void
+    {
+        $r = $in['exprobe'] ?? null;
+        if (!is_array($r) || (int) $host['id'] !== self::probeHost()) {
+            return;
+        }
+        $rq = self::probeGet('exprobe_req');
+        if (!$rq || (int) ($r['id'] ?? 0) !== (int) $rq['id'] || !is_array($r['res'] ?? null)) {
+            return;
+        }
+        $want = array_flip(array_map('intval', (array) $rq['ports']));
+        $seen = [];
+        foreach ((array) $rq['ips'] as $ip) {
+            $got = $r['res'][$ip] ?? null;
+            if (!is_array($got)) {
+                continue;   // niet aan toegekomen: niets over zeggen
+            }
+            $seen[(string) $ip] = array_values(array_unique(array_filter(array_map('intval', $got), static fn($p) => isset($want[$p]))));
+        }
+        self::probePut((int) $host['id'], 'exprobe', ['id' => (int) $rq['id'], 'at' => time(), 'partial' => !empty($r['partial']), 'n' => count($seen)]);
+        if (!$seen || setting('exposure_on', '0') !== '1') {
+            return;
+        }
+        $ips = self::ips();
+        $new = self::store(['agent' => array_intersect_key($seen, $ips)], $ips);
+        self::alert($new, json_decode((string) setting('exposure_ipinfo', '{}'), true) ?: [], $ips);
     }
 
     // ------------------------------------------------------------------ doelen
@@ -311,12 +430,14 @@ final class Exposure
                 $seen['self'][$ip] = self::tcpScan((string) $ip, $ports);
             }
         }
+        $probe = self::probeRequest(array_map('strval', array_keys($ips)), self::portList()) !== null;   // 1.300.0: het meetpunt bij zijn volgende ronde
         save_setting('exposure_ipinfo', (string) json_encode(array_intersect_key($info, $ips)));
         save_setting('exposure_last_error', implode('; ', $errors));
         $new = self::store($seen, $ips);
         self::alert($new, $info, $ips);
         $n = (int) q('SELECT COUNT(DISTINCT ip, port) FROM exposure WHERE gone_at IS NULL')->fetchColumn();
-        return t('Van buitenaf: {n} open poort(en) op {i} adres(sen)', ['n' => $n, 'i' => count($ips)]) . ($new ? ' · ' . t('{n} nieuw', ['n' => count($new)]) : '');
+        return t('Van buitenaf: {n} open poort(en) op {i} adres(sen)', ['n' => $n, 'i' => count($ips)]) . ($new ? ' · ' . t('{n} nieuw', ['n' => count($new)]) : '')
+            . ($probe ? ' · ' . t('het meetpunt kijkt bij zijn volgende ronde') : '');
     }
 
     /**
@@ -418,6 +539,9 @@ final class Exposure
         return ['on' => setting('exposure_on', '0') === '1', 'shodan' => setting('exposure_shodan', '0') === '1', 'self' => setting('exposure_self', '0') === '1',
             'auto' => setting('exposure_auto', '1') === '1', 'hours' => (int) setting('exposure_hours', '24'), 'ports' => (string) setting('exposure_ports', ''),
             'notify' => setting('exposure_notify', '1') === '1', 'last_run' => (string) setting('exposure_last_run', ''), 'error' => (string) setting('exposure_last_error', ''),
+            'probe' => self::probeHost(), 'probe_hosts' => self::probeHosts(), 'probe_req' => self::probeGet('exprobe_req') ? ['at' => date('c', (int) (self::probeGet('exprobe_req')['at'] ?? 0))] : null,
+            'probe_done' => ($pd = self::probeGet('exprobe')) ? ['at' => date('c', (int) ($pd['at'] ?? 0)), 'partial' => !empty($pd['partial']), 'n' => (int) ($pd['n'] ?? 0),
+                'current' => (int) ($pd['id'] ?? 0) === (int) (self::probeGet('exprobe_req')['id'] ?? -1)] : null,
             'targets' => self::targets(), 'rows' => $rows, 'gone' => $gone, 'ipinfo' => $info, 'n_ports' => count(self::portList()), 'n_top' => count(self::TOP),
             'ok' => q('SELECT ip, port, note, created_by, created_at FROM exposure_ok ORDER BY port')->fetchAll()];
     }

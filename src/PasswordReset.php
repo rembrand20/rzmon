@@ -82,7 +82,10 @@ final class PasswordReset
         };
     }
 
-    /** Geldige, ongebruikte link → de rij met de gebruiker, anders null. */
+    /**
+     * Geldige, ongebruikte link → de rij met de gebruiker, anders null.
+     * @return array<mixed>|null
+     */
     private static function find(string $token): ?array
     {
         if (!preg_match('/^[0-9a-f]{64}$/', $token)) {

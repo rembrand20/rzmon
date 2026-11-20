@@ -19,6 +19,7 @@ final class Notify
      *  - webhook_filter: "alleen CRITICAL en herstel" (Instellingen → Home Assistant) toepassen; standaard als channels null is
      *  - ids: true = een IDS-melding (Discord/Slack/Teams alleen als daar "ook IDS" aan staat)
      * @return array{push: ?bool, email: ?bool, webhook: ?bool, chat: ?bool, errors: list<string>, receipt: ?string}
+     * @param array<mixed> $o
      */
     public static function send(string $title, string $message, array $o = []): array
     {
@@ -73,7 +74,10 @@ final class Notify
         return $out;
     }
 
-    /** Wat niet verstuurd kon worden, om achter de tekst in Meldingen te zetten ('' als alles goed ging) */
+    /**
+     * Wat niet verstuurd kon worden, om achter de tekst in Meldingen te zetten ('' als alles goed ging)
+     * @param array<mixed> $errors
+     */
     public static function errText(array $errors): string
     {
         return $errors ? ' [' . t('niet verzonden') . ': ' . implode('; ', $errors) . ']' : '';

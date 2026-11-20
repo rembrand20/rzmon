@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.116.0"
+AGENT_VERSION="1.117.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -6351,6 +6351,29 @@ if [ "$TEST" != 1 ] && [ -r "${t_cache-}" ]; then
         printf '%s' "$st_line" >"$t_dir/selftest.done" 2>/dev/null
     fi
 fi
+# ---------------------------------------------------------------- Meetpunt van buitenaf (agent 1.117.0, RzSense 1.300.0)
+# Is deze server in RzSense gekozen als meetpunt (Instellingen → Bescherming → Van buitenaf), dan geeft RzSense regels mee:
+# "0 <tab> exprobe <tab> id <tab> ip <tab> poorten". De agent probeert elke poort met een gewone TCP-verbinding (bash /dev/tcp,
+# 64 tegelijk, 2 seconden per poort, geen extra programma's, geen gegevens versturen) en stuurt de open poorten terug.
+# Eén keer per vraag; na 50 seconden stopt hij met nieuwe adressen (dan "partial"). Alleen openbare adressen.
+exprobe_json=""
+if [ "$TEST" != 1 ] && [ -r "${t_cache-}" ]; then
+    xp_id=$(awk -F'\t' '$1 == "0" && $2 == "exprobe" { print $3; exit }' "$t_cache")
+    if [[ "$xp_id" =~ ^[0-9]{1,18}$ ]] && [ "$(cat "$t_dir/exprobe.done" 2>/dev/null)" != "$xp_id" ]; then
+        xp_res=""; xp_part=0; xp_end=$(( $(date +%s) + 50 ))
+        while IFS=$'\t' read -r _ _ _ xp_ip xp_ports; do
+            # Alleen een IP-adres (v4 of v6) en een lijst getallen; privé- en lokale adressen niet
+            if [[ ! "$xp_ip" =~ ^[0-9a-fA-F:.]{3,45}$ ]] || [[ ! "$xp_ports" =~ ^[0-9][0-9,]*$ ]] || [ "${#xp_ports}" -gt 12000 ]; then continue; fi
+            [[ "$xp_ip" =~ ^(10\.|127\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|::1$|[fF][cdCD]|[fF][eE]80) ]] && continue
+            if [ "$(date +%s)" -ge "$xp_end" ]; then xp_part=1; break; fi
+            # shellcheck disable=SC2016  # $0 en $1 horen bij de bash -c hieronder
+            xp_open=$(tr ',' '\n' <<<"$xp_ports" | head -2000 | xargs -P 64 -I{} timeout 2 bash -c 'exec 3<>"/dev/tcp/$0/$1" && echo "$1"' "$xp_ip" {} 2>/dev/null | sort -n | paste -sd, -)
+            xp_res+="\"$xp_ip\":[${xp_open}],"
+        done < <(awk -F'\t' -v id="$xp_id" '$1 == "0" && $2 == "exprobe" && $3 == id' "$t_cache" | head -32)
+        exprobe_json="{\"id\":$xp_id,\"partial\":$xp_part,\"res\":{${xp_res%,}}}"
+        printf '%s' "$xp_id" >"$t_dir/exprobe.done" 2>/dev/null
+    fi
+fi
 # ---------------------------------------------------------------- Versturen
 lap ""
 [ -n "$beat_pid" ] && kill "$beat_pid" 2>/dev/null   # het echte rapport gaat nu; geen hartslag meer nodig
@@ -6385,7 +6408,7 @@ if [ -n "$hold_id" ] && [ "$hold_since" -gt 0 ]; then
     [ "$TEST" != 1 ] && [ "${HOLD_JITTER:-1}" != 0 ] && sleep $(( RANDOM % 25 ))
 fi
 run_ms=$(( $(now_ms) - run_t0 ))
-payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json}${truenas_json:+,\"truenas\":$truenas_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],${logscan_json:+\"log_scan\":$logscan_json,}${logbrowse_json:+\"log_browse\":$logbrowse_json,}${proxy_json:+\"proxy\":$proxy_json,}${waf_json:+\"waf\":$waf_json,}${av_json:+\"av\":$av_json,}${nids_json:+\"nids\":$nids_json,}\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${act_json:+,\"act\":[$act_json]}${ransom_json:+,\"ransom\":$ransom_json}${apps_json:+,\"apps\":$apps_json}${ioc_json:+,\"ioc\":$ioc_json}${patch_json:+,\"patch\":$patch_json}${relay_json:+,\"relay\":$relay_json}${ctr_busy:+,\"ctr_busy\":\"$ctr_busy\"}${rchk_json:+,\"rchk\":[$rchk_json]}${mid:+,\"mid\":\"$mid\"}${ha_upd_json:+,\"ha_upd_result\":$ha_upd_json}${sudo_json:+,\"sudo\":[${sudo_json%,}]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json}${path_json:+,\"path\":$path_json}${db_json:+,\"db\":$db_json}${iperfs_json:+,\"iperfs\":$iperfs_json}${selftest_json:+,\"selftest\":$selftest_json}${nic_json:+,\"nic\":$nic_json}${hold_json:+,\"hold\":$hold_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
+payload="{\"agent_version\":\"$AGENT_VERSION\",\"hostname\":\"$(json_escape "$hostname")\",\"boot\":$boot_ts,\"cpu\":{\"pct\":$cpu_pct,\"load\":[$l1,$l5,$l15],\"cores\":$cores},\"mem\":$mem,\"disks\":[${disks%,}],\"ports\":[${ports%,}],\"services\":{${services%,}},\"certs\":[${certs%,}]${podman_json:+,\"podman\":$podman_json}${rt_json:+,\"realtime\":$rt_json}${tools_json:+,\"tools\":$tools_json}${podman_ha:+,\"podman\":$podman_ha}${usb_json:+,\"usb\":$usb_json}${pve_json:+,\"pve\":$pve_json}${truenas_json:+,\"truenas\":$truenas_json},\"svc\":{${svc_detail%,}},\"svc_tests\":{${svc_tests%,}},\"logs\":{${log_results%,}},\"cmd\":{${cmd_results%,}},${auth_json}${iso_json}${weblog_json}${ids_json}\"svc_list\":[${svc_list%,}],\"cert_found\":[${cert_found%,}],${logscan_json:+\"log_scan\":$logscan_json,}${logbrowse_json:+\"log_browse\":$logbrowse_json,}${proxy_json:+\"proxy\":$proxy_json,}${waf_json:+\"waf\":$waf_json,}${av_json:+\"av\":$av_json,}${nids_json:+\"nids\":$nids_json,}\"procs\":{${procs_json%,}},\"proc_list\":[${proc_list%,}],\"cfg\":$(cfg_json),${ha_json:+\"ha\":$ha_json,}\"update\":{\"via\":\"$upd_via\"},\"url\":\"$(json_escape "$MONITOR_URL")\",\"url_fallback\":\"$(json_escape "$MONITOR_URL_FALLBACK")\",\"url_pin\":\"$(url_spec "$MONITOR_URL")\",\"url_fb_pin\":\"$(url_spec "$MONITOR_URL_FALLBACK")\"${url_result:+,\"url_result\":\"$(json_escape "$url_result")\"}${upd_result:+,\"update_result\":\"$(json_escape "$upd_result")\"}${pkgs_json:+,\"packages\":$pkgs_json}${pkg_result:+,\"pkg_result\":$pkg_result}${hb_json:+,\"hb\":[$hb_json]}${heal_json:+,\"heal\":[$heal_json]}${act_json:+,\"act\":[$act_json]}${ransom_json:+,\"ransom\":$ransom_json}${apps_json:+,\"apps\":$apps_json}${ioc_json:+,\"ioc\":$ioc_json}${patch_json:+,\"patch\":$patch_json}${relay_json:+,\"relay\":$relay_json}${ctr_busy:+,\"ctr_busy\":\"$ctr_busy\"}${rchk_json:+,\"rchk\":[$rchk_json]}${mid:+,\"mid\":\"$mid\"}${ha_upd_json:+,\"ha_upd_result\":$ha_upd_json}${sudo_json:+,\"sudo\":[${sudo_json%,}]}${heal_cmds:+,\"heal_cmds\":[$heal_cmds]}${wd_gap:+,\"watchdog\":$wd_gap}${edr_json:+,\"edr\":$edr_json}${time_json:+,\"time\":$time_json}$( [ -r "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" ] && printf ',"update_sig":"%s"' "$(head -c 20 "${CACHE_DIRECTORY:-/var/cache/rzmon-agent}/update.sig" | tr -dc 'a-z_')")${smart_json:+,\"smart\":$smart_json}${ups_json:+,\"ups\":$ups_json}${wg_json:+,\"wg\":$wg_json}${diag_json:+,\"diag\":$diag_json}${path_json:+,\"path\":$path_json}${db_json:+,\"db\":$db_json}${iperfs_json:+,\"iperfs\":$iperfs_json}${selftest_json:+,\"selftest\":$selftest_json}${exprobe_json:+,\"exprobe\":$exprobe_json}${nic_json:+,\"nic\":$nic_json}${hold_json:+,\"hold\":$hold_json},\"caps\":[${caps%,}],\"timing\":{\"total\":$run_ms,\"parts\":{${laps%,}}}${backlog:+,\"backlog\":[$backlog]}}"
 
 # Agent 1.66.1: 50 seconden wachten op RzSense (was 20): een druk bezette RzSense verwerkt een groot rapport soms trager;
 # na 20 seconden gaf de agent het op en kreeg hij het antwoord (opdrachten, instellingen, "softwarelijst ontvangen") nooit

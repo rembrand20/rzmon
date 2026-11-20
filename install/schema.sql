@@ -1886,6 +1886,7 @@ CREATE TABLE IF NOT EXISTS exposure_ok (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('exposure_on', '0'), ('exposure_shodan', '0'), ('exposure_self', '0'), ('exposure_auto', '1'),
     ('exposure_hours', '24'), ('exposure_ports', ''), ('exposure_notify', '1');
+INSERT IGNORE INTO settings (name, value) VALUES ('exposure_probe', '0');   -- 1.300.0: meetpunt (een agent), 0 = geen
 
 -- 1.299.0: lichte webcheck per site achter de reverse proxy (A tot F)
 CREATE TABLE IF NOT EXISTS web_check (

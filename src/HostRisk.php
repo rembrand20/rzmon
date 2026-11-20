@@ -101,6 +101,7 @@ final class HostRisk
      * op localhost), welk programma/pakket daar zit en de ergste kwetsbaarheid daarin, wat er open staat aan incidenten,
      * en welke servers ervan afhangen (blast radius: valt hij om of wordt hij overgenomen, dan raakt dat ook die servers).
      * Een schatting: RzSense kent je firewall niet; een poort op 0.0.0.0 kan van buiten dicht zijn.
+     * @return array<mixed>|null
      */
     public static function exposure(int $hostId): ?array
     {
@@ -165,7 +166,10 @@ final class HostRisk
         return $score >= 70 ? 'high' : ($score >= 40 ? 'medium' : 'low');
     }
 
-    /** Voor de REST API en MQTT: score, niveau en de redenen als tekst */
+    /**
+     * Voor de REST API en MQTT: score, niveau en de redenen als tekst
+     * @return array<mixed>
+     */
     public static function of(int $hostId): array
     {
         $r = self::all()[$hostId] ?? ['score' => 0, 'level' => 'low', 'factors' => []];

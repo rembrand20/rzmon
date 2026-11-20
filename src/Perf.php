@@ -97,7 +97,10 @@ final class Perf
         q('DELETE FROM perf_stats WHERE hour < NOW() - INTERVAL 2 DAY');
     }
 
-    /** Overzicht van de laatste 24 uur voor de systeemcheck */
+    /**
+     * Overzicht van de laatste 24 uur voor de systeemcheck
+     * @return array<mixed>
+     */
     public static function report(): array
     {
         $rows = static fn(string $kind, int $limit) => array_map(static fn($r) => ['name' => $r['name'], 'n' => (int) $r['n'], 'avg' => (int) round($r['total'] / max(1, $r['n'])),

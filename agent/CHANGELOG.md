@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.117.0 – 2026-11-20
+- **Meetpunt van buitenaf** (RzSense 1.300.0): kies je deze server in RzSense als meetpunt (Instellingen → Bescherming → Van buitenaf), dan probeert hij de adressen en poorten die RzSense meegeeft met een gewone TCP-verbinding (bash, 64 tegelijk, 2 seconden per poort) en stuurt hij de open poorten terug. Geen extra programma's, nooit privé-adressen, hooguit 50 seconden per rapport. Op andere servers doet de agent niets nieuws.
+
 ## 1.116.0 – 2026-11-20
 - **Een nette pagina bij geweigerde toegang** (RzSense 1.299.1): wie op de reverse proxy wordt tegengehouden, ziet nu een korte pagina in het Nederlands en Engels met de reden (alleen vanaf het eigen netwerk, adres geblokkeerd, of scanner), in plaats van de kale 403 van nginx. Er komt geen extra bestand bij: de pagina staat in de nginx-instellingen van RzSense. De agent voert het beleid daarvoor één keer opnieuw door, met de gewone controle (`nginx -t`, en terugzetten als een site daarna niet meer antwoordt).
 

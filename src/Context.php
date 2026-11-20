@@ -11,6 +11,7 @@ final class Context
 {
     private const WINDOW = 1200;   // 20 minuten
 
+    /** @param array<mixed> $check */
     public static function recent(array $check): string
     {
         if (setting('context_on', '1') !== '1') {

@@ -47,12 +47,14 @@ final class Once
         self::write($bucket, $m);
     }
 
+    /** @return array<mixed> */
     private static function read(string $bucket): array
     {
         $m = json_decode((string) setting($bucket, ''), true);
         return is_array($m) ? array_map('strval', $m) : [];
     }
 
+    /** @param array<mixed> $m */
     private static function write(string $bucket, array $m): void
     {
         save_setting($bucket, json_encode($m ?: (object) []));

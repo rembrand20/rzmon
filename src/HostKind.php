@@ -17,6 +17,7 @@ final class HostKind
     /** Extra kolom bij een SELECT op hosts: is het Home Assistant (add-on of HA-checks)? */
     public const IS_HA_SQL = "(hosts.agent_update_via = 'ha' OR EXISTS (SELECT 1 FROM checks hc WHERE hc.host_id = hosts.id AND hc.type = 'ha')) AS is_ha";
 
+    /** @param array<mixed> $h */
     public static function effective(array $h): string
     {
         foreach (['kind', 'kind_auto'] as $k) {
@@ -33,6 +34,7 @@ final class HostKind
         return preg_match(self::CAMERA_NAME, (string) ($h['name'] ?? '')) ? 'camera' : 'other';
     }
 
+    /** @param array<mixed> $h */
     public static function group(array $h): string
     {
         return self::KINDS[self::effective($h)];

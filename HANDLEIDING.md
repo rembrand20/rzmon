@@ -3593,7 +3593,11 @@ Wat staat er van je netwerk open op internet? Dat bekijk je bij *Instellingen �
 **Bronnen** (elk aan of uit):
 - **Shodan InternetDB** (gratis, zonder sleutel): wat Shodan de afgelopen weken van buiten zag, met open poorten, software (CPE), bekende kwetsbaarheden (CVE) en labels. Alleen je publieke IP-adressen gaan naar Shodan, niets anders.
 - **Vanuit RzSense zelf:** RzSense maakt naar elke poort een verbinding (geen aanval, er gaan geen gegevens heen). Standaard zijn dat de 89 bekendste poorten; je kunt ook een eigen lijst of reeksen opgeven (hooguit 2000). Dit gaat meestal via je router "rondje terug", dus het is niet altijd wat een aanvaller ziet.
-- Een **meetpunt buiten je netwerk** (een agent op een VPS of een andere locatie) volgt in een volgende versie. Dat is de eerlijkste blik van buitenaf.
+- **Meetpunt van buitenaf** (vanaf 1.300.0, agent 1.117.0): kies welke server meet, bijvoorbeeld een VPS of een Raspberry Pi bij familie, met een agent die rapporteert aan RzSense. Dat is de eerlijkste blik van buitenaf: die server staat niet achter je eigen router.
+  - Bij elke ronde (*Hoe vaak*, of **Nu bekijken**) krijgt het meetpunt bij zijn volgende rapport je adressen en dezelfde poorten als *Vanuit RzSense zelf*. Het probeert elke poort met een gewone TCP-verbinding (64 tegelijk, 2 seconden per poort, geen extra programma's, er gaan geen gegevens heen) en stuurt de open poorten terug. Ze staan in de lijst met als bron *meetpunt*.
+  - Hooguit 50 seconden per rapport: zijn het er meer (veel adressen en een lange poortlijst), dan staat er *niet alles* en meet hij de rest bij een volgende ronde niet mee. Houd de poortlijst dan korter.
+  - Privé-adressen probeert het meetpunt nooit, en alleen de adressen en poorten die RzSense vroeg tellen mee.
+  - Naast de knop zie je de stand: *wacht op zijn volgende ronde* of wanneer het laatst gemeten is.
 
 **Wat je krijgt:**
 - Een lijst **Open op internet**: adres, poort, dienst, welke bron het zag, en sinds wanneer. Risicovolle diensten zijn rood: SSH, RDP, databases, Home Assistant, Proxmox, Docker API, Redis …

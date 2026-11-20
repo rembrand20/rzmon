@@ -23,6 +23,8 @@ async function loadExposure() {
       ${sw('exposure_on', d.on, L('Van buitenaf bekijken'))}
       ${sw('exposure_shodan', d.shodan, L('Shodan InternetDB'), L('(stuurt alleen je publieke IP-adressen naar Shodan)'))}
       ${sw('exposure_self', d.self, L('Vanuit RzSense zelf'), L('(via je router: niet altijd wat een aanvaller ziet)'))}
+      <label>${L('Meetpunt van buitenaf')} <span class="muted small">${L('(een server met een agent buiten je netwerk, bv. een VPS: die ziet wat een aanvaller ziet)')}</span>
+        <select data-exp-set="exposure_probe"><option value="0">${L('Geen')}</option>${(d.probe_hosts || []).map((h) => `<option value="${h.id}" ${d.probe === h.id ? 'selected' : ''} ${h.ok || d.probe === h.id ? '' : 'disabled'}>${esc(h.name)}${h.ok ? '' : ' ' + esc(L('(agent {v} nodig)', { v: '1.117.0' }))}</option>`).join('')}</select></label>
       ${sw('exposure_auto', d.auto, L('Doelen automatisch'), L('(je publieke IP en de domeinen van je reverse proxy)'))}
       ${sw('exposure_notify', d.notify, L('Melden als er iets nieuws open staat'))}
       <label>${L('Hoe vaak')}<select data-exp-set="exposure_hours">${[1, 3, 6, 12, 24, 72, 168].map((h) => `<option value="${h}" ${d.hours === h ? 'selected' : ''}>${h === 168 ? L('elke week') : h === 1 ? L('elk uur') : L('elke {n} uur', { n: h })}</option>`).join('')}</select></label>
@@ -30,7 +32,7 @@ async function loadExposure() {
         <span class="rs-agent-url"><input data-exp-ports value="${esc(d.ports)}" class="mono" placeholder="22, 80, 443, 8000-8999"><button type="button" class="btn small-btn" data-exp-ports-save>${L('Opslaan')}</button></span></label>
     </div>
     <div class="btn-row"><button type="button" class="btn primary" data-exp-run ${d.on ? '' : 'disabled'}>🔍 ${L('Nu bekijken')}</button>
-      <span class="muted small">${d.last_run ? L('Laatst: {t}', { t: esc(ago(d.last_run)) }) : L('Nog niet bekeken')}${d.self ? ' · ' + L('{n} poorten', { n: d.n_ports }) : ''}</span></div>
+      <span class="muted small">${d.last_run ? L('Laatst: {t}', { t: esc(ago(d.last_run)) }) : L('Nog niet bekeken')}${d.self || d.probe ? ' · ' + L('{n} poorten', { n: d.n_ports }) : ''}${expProbeState(d)}</span></div>
     ${d.error ? `<p class="warn-txt small">⚠ ${esc(d.error)}</p>` : ''}
     <h3 class="set-sub">${L('Open op internet')} ${open.length ? `<span class="u-tag bad">${open.length}</span>` : ''}</h3>
     ${open.length ? `<div class="table-scroll"><table class="vuln-table small"><thead><tr><th>${L('Adres')}</th><th>${L('Poort')}</th><th>${L('Gezien door')}</th><th>${L('Sinds')}</th><th></th></tr></thead><tbody>${open.map(row).join('')}</tbody></table></div>`
@@ -47,6 +49,15 @@ async function loadExposure() {
       <button type="button" class="btn small-btn" data-exp-add>＋ ${L('Doel toevoegen')}</button></div>
     ${d.gone.length ? `<details class="adv"><summary>${L('Weer dicht (laatste 30 dagen)')}</summary><p class="small">${d.gone.map((g) => `<span class="mono">${esc(g.ip)}:${g.port}</span> <span class="muted">${esc(ago(g.gone_at))}</span>`).join(' · ')}</p></details>` : ''}`;
   expEvents(box);
+}
+
+/** 1.300.0: hoe staat het meetpunt ervoor? */
+function expProbeState(d) {
+  if (!d.probe) return '';
+  const name = ((d.probe_hosts || []).find((h) => h.id === d.probe) || {}).name || '?';
+  if (d.probe_req && !(d.probe_done && d.probe_done.current)) return ' · ' + esc(L('meetpunt {s}: wacht op zijn volgende ronde', { s: name }));
+  if (d.probe_done) return ' · ' + esc(L('meetpunt {s}: {t}', { s: name, t: ago(d.probe_done.at) })) + (d.probe_done.partial ? ' ' + esc(L('(niet alles: te veel poorten voor één ronde)')) : '');
+  return ' · ' + esc(L('meetpunt {s}', { s: name }));
 }
 
 function expEvents(box) {

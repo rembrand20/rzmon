@@ -21,7 +21,10 @@ final class Push
             Ntfy::enabled() ? 'ntfy' : '', WebPush::enabled() ? 'Web Push' : '']));
     }
 
-    /** @return array{ok: bool, error: ?string, receipt: ?string} */
+    /**
+     * @return array{ok: bool, error: ?string, receipt: ?string}
+     * @param array<mixed> $extra
+     */
     public static function send(string $title, string $message, int $priority = 0, array $extra = []): array
     {
         $ok = false;

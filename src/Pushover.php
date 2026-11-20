@@ -12,6 +12,7 @@ final class Pushover
     /**
      * $extra: optioneel 'url' en 'url_title' (link onder het bericht, bv. "✔ Bevestigen").
      * @return array{ok: bool, error: ?string, receipt: ?string}
+     * @param array<mixed> $extra
      */
     public static function send(string $title, string $message, int $priority = 0, ?string $user = null, ?string $token = null, array $extra = []): array
     {
@@ -67,7 +68,10 @@ final class Pushover
         return ['ok' => false, 'error' => $msg, 'receipt' => null];
     }
 
-    /** Status van een Emergency-melding: is hij in de Pushover-app bevestigd? */
+    /**
+     * Status van een Emergency-melding: is hij in de Pushover-app bevestigd?
+     * @return array<mixed>|null
+     */
     public static function receipt(string $receipt): ?array
     {
         $url = self::api('/receipts/' . rawurlencode($receipt) . '.json?token=' . rawurlencode((string) setting('pushover_token', '')));

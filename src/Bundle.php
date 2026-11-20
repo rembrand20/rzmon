@@ -21,6 +21,7 @@ final class Bundle
     /**
      * Waarschijnlijke oorzaak voor deze meldingen (alleen de problemen tellen), of null.
      * @param array<int, array{item: array, check: array}> $items
+     * @param array<mixed> $items
      */
     public static function cause(array $items): ?string
     {
@@ -76,7 +77,10 @@ final class Bundle
         return null;
     }
 
-    /** Titel voor een bundel van meerdere servers */
+    /**
+     * Titel voor een bundel van meerdere servers
+     * @param array<mixed> $items
+     */
     public static function title(array $items, ?string $cause): string
     {
         $rank = [STATUS_OK => 0, STATUS_UNKNOWN => 1, STATUS_WARN => 2, STATUS_CRIT => 3];

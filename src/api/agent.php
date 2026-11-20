@@ -328,6 +328,12 @@ if ($action === 'agent') {
     } catch (Throwable $e) {
         error_log('RzSense: zelftest niet verwerkt: ' . $e->getMessage());
     }
+    // 1.300.0 (agent 1.117.0): antwoord van het meetpunt van buitenaf
+    try {
+        Exposure::fromAgent($host, $in);
+    } catch (Throwable $e) {
+        error_log('RzSense: meetpunt van buitenaf niet verwerkt: ' . $e->getMessage());
+    }
     // Proxmox VE (agent 1.61.0): guests, opslag, ZFS, back-ups en taken
     if (isset($in['pve']) && is_array($in['pve'])) {
         try {

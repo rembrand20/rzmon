@@ -12,6 +12,7 @@ final class Job
     /** Na zoveel seconden zonder teken van leven geldt een taak als vastgelopen (PHP afgebroken, server herstart) */
     private const STALE = 90;
 
+    /** @var array<mixed> */
     private static array $last = [];
 
     /** Beginnen. false als er al een (levende) taak met deze sleutel loopt. */
@@ -62,7 +63,7 @@ final class Job
         return q("UPDATE jobs SET stop = 1 WHERE k = ? AND state = 'running'", [$k])->rowCount() > 0;
     }
 
-    /** @return array|null de stand, met elapsed (seconden) en stale (vastgelopen) */
+    /** @return array<mixed>|null de stand, met elapsed (seconden) en stale (vastgelopen) */
     public static function get(string $k): ?array
     {
         $r = q('SELECT *, TIMESTAMPDIFF(SECOND, started_at, NOW()) AS elapsed, TIMESTAMPDIFF(SECOND, updated_at, NOW()) AS idle FROM jobs WHERE k = ?', [$k])->fetch();

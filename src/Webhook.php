@@ -6,6 +6,7 @@ final class Webhook
 {
     /**
      * @return array{ok: bool, error: ?string}
+     * @param array<mixed> $payload
      */
     public static function send(array $payload, ?string $url = null, ?bool $verifySsl = null): array
     {

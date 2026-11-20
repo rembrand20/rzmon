@@ -73,6 +73,7 @@ final class SelfCheck
         return (int) q('SELECT COALESCE(SUM(data_length + index_length), 0) FROM information_schema.TABLES WHERE table_schema = DATABASE()')->fetchColumn();
     }
 
+    /** @return array<mixed> */
     public static function report(): array
     {
         // Database: grootte, grootste tabellen, groei per dag (over de bewaarde dagen) en ruimte op de disk

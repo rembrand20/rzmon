@@ -436,6 +436,7 @@ function agent_tests_text(int $hostId, bool $secure = false): string
     array_push($out, ...Paths::agentLines($hostId));   // 1.177.0: pad-checks en doorvoertests (agent 1.78.0)
     array_push($out, ...Db::agentLines($hostId, $secure));   // 1.200.0: databasechecks (agent 1.81.0); wachtwoord alleen versleuteld
     array_push($out, ...AgentTest::agentLines($hostId));   // 1.178.0: 🧪 Test uit de Agent Manager (agent 1.79.0)
+    array_push($out, ...Exposure::agentLines($hostId));   // 1.300.0: meetpunt van buitenaf (agent 1.117.0)
     array_push($out, ...LogStore::agentLines($hostId));   // 1.210.0: logs verzamelen (agent 1.83.0)
     array_push($out, ...Ransom::agentLines($hostId));   // 1.228.0: ransomware herkennen (agent 1.90.0)
     array_push($out, ...AppControl::agentLines($hostId), ...Ioc::agentLines($hostId));   // 1.229.0: programma's en jagen (agent 1.91.0)

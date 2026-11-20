@@ -23,6 +23,13 @@ switch ($action) {
                 save_setting($k, !empty($in[$k]) ? '1' : '0');
             }
         }
+        if (isset($in['exposure_probe'])) {   // 1.300.0: meetpunt (0 = geen)
+            $pid = (int) $in['exposure_probe'];
+            if ($pid && !q("SELECT 1 FROM hosts WHERE id = ? AND mode = 'agent'", [$pid])->fetchColumn()) {
+                out(['error' => t('Kies een server met een agent')], 422);
+            }
+            save_setting('exposure_probe', (string) $pid);
+        }
         if (isset($in['exposure_hours'])) {
             $h = (int) $in['exposure_hours'];
             save_setting('exposure_hours', (string) (in_array($h, [1, 3, 6, 12, 24, 72, 168], true) ? $h : 24));

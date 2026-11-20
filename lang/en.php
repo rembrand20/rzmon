@@ -11791,4 +11791,13 @@ return [
     'Versies verborgen' => 'Versions hidden',
     'Opnieuw controleren' => 'Check again',
     'Nog niet gecontroleerd. RzSense vraagt de site zelf op en kijkt naar https, het certificaat en de beveiligingsheaders.' => 'Not checked yet. RzSense requests the site itself and looks at https, the certificate and the security headers.',
+    'het meetpunt kijkt bij zijn volgende ronde' => 'the probe looks at its next round',
+    'Kies een server met een agent' => 'Choose a server with an agent',
+    'Meetpunt van buitenaf' => 'Outside probe',
+    '(een server met een agent buiten je netwerk, bv. een VPS: die ziet wat een aanvaller ziet)' => '(a server with an agent outside your network, e.g. a VPS: it sees what an attacker sees)',
+    '(agent {v} nodig)' => '(agent {v} needed)',
+    'meetpunt {s}: wacht op zijn volgende ronde' => 'probe {s}: waiting for its next round',
+    'meetpunt {s}: {t}' => 'probe {s}: {t}',
+    '(niet alles: te veel poorten voor één ronde)' => '(not everything: too many ports for one round)',
+    'meetpunt {s}' => 'probe {s}',
 ];

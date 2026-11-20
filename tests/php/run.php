@@ -3858,6 +3858,27 @@ ok(!in_array(8123, array_column($exOv['rows'], 'port'), true) && in_array(22, ar
 $exA2 = $exAl();
 (new ReflectionMethod('Exposure', 'alert'))->invoke(null, [], ['8.8.4.4' => ['new_vulns' => ['CVE-2024-6387'], 'first' => false]], $exIps);
 ok($exAl() === $exA2 + 1, 'van buitenaf: melding bij nieuwe kwetsbaarheden die Shodan ziet');
+
+section('Van buitenaf: meetpunt (1.300.0)');
+save_setting('exposure_auto', '0');
+save_setting('exposure_on', '1');
+q("DELETE FROM exposure_targets WHERE value <> '8.8.4.4'");
+$exPh = (int) q("SELECT id FROM hosts WHERE name = 'ci-a'")->fetchColumn();
+$exPo = (int) q("SELECT id FROM hosts WHERE name = 'ci-b'")->fetchColumn();
+save_setting('exposure_probe', '0');
+ok(Exposure::probeRequest(['8.8.4.4'], [22]) === null && Exposure::agentLines($exPh) === [], 'meetpunt: zonder gekozen server geen vraag');
+save_setting('exposure_probe', (string) $exPh);
+$exPid = Exposure::probeRequest(['8.8.4.4'], [22, 443, 3389]);
+$exPl = Exposure::agentLines($exPh);
+ok($exPid !== null && $exPl === ["0\texprobe\t$exPid\t8.8.4.4\t22,443,3389"] && Exposure::agentLines($exPo) === [], 'meetpunt: de vraag gaat alleen naar de gekozen server');
+Exposure::fromAgent(['id' => $exPo], ['exprobe' => ['id' => $exPid, 'res' => ['8.8.4.4' => [3389]]]]);
+ok(!(int) q("SELECT COUNT(*) FROM exposure WHERE source = 'agent'")->fetchColumn(), 'meetpunt: een antwoord van een andere server telt niet');
+Exposure::fromAgent(['id' => $exPh], ['exprobe' => ['id' => $exPid, 'res' => ['8.8.4.4' => [3389, 8080], '1.1.1.1' => [80]]]]);
+ok(array_map('intval', q("SELECT port FROM exposure WHERE source = 'agent' AND gone_at IS NULL")->fetchAll(PDO::FETCH_COLUMN)) === [3389] && Exposure::agentLines($exPh) === [],
+    'meetpunt: alleen gevraagde adressen en poorten tellen, en de vraag is daarna klaar');
+$exOv = Exposure::overview();
+ok($exOv['probe'] === $exPh && $exOv['probe_done']['current'] && in_array('agent', array_column($exOv['rows'], null, 'port')[3389]['sources'], true), 'meetpunt: in het overzicht');
+save_setting('exposure_probe', '0'); save_setting('exposure_auto', '1'); save_setting('exposure_on', '0');
 q('DELETE FROM exposure'); q('DELETE FROM exposure_ok'); q('DELETE FROM exposure_targets');
 
 section('Discord, Slack en Teams (1.284.0)');

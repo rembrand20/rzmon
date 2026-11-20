@@ -1303,18 +1303,6 @@ parameters:
 			path: src/Backup.php
 
 		-
-			message: '#^Method Bundle\:\:cause\(\) has parameter \$items with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 2
-			path: src/Bundle.php
-
-		-
-			message: '#^Method Bundle\:\:title\(\) has parameter \$items with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Bundle.php
-
-		-
 			message: '#^Method Chain\:\:check\(\) has parameter \$host with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -2191,12 +2179,6 @@ parameters:
 			path: src/Checks.php
 
 		-
-			message: '#^Method Cleanup\:\:ignored\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Cleanup.php
-
-		-
 			message: '#^Method CommandCenter\:\:data\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -2273,12 +2255,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/Confirm.php
-
-		-
-			message: '#^Method Context\:\:recent\(\) has parameter \$check with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Context.php
 
 		-
 			message: '#^Method CveBuzz\:\:aiContext\(\) return type has no value type specified in iterable type array\.$#'
@@ -3599,30 +3575,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/Home.php
-
-		-
-			message: '#^Method HostKind\:\:effective\(\) has parameter \$h with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/HostKind.php
-
-		-
-			message: '#^Method HostKind\:\:group\(\) has parameter \$h with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/HostKind.php
-
-		-
-			message: '#^Method HostRisk\:\:exposure\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/HostRisk.php
-
-		-
-			message: '#^Method HostRisk\:\:of\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/HostRisk.php
 
 		-
 			message: '#^Method Https\:\:check\(\) return type has no value type specified in iterable type array\.$#'
@@ -4973,18 +4925,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/IpIntel.php
-
-		-
-			message: '#^Method Job\:\:get\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Job.php
-
-		-
-			message: '#^Property Job\:\:\$last type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Job.php
 
 		-
 			message: '#^Method LogLibrary\:\:add\(\) has parameter \$items with no value type specified in iterable type array\.$#'
@@ -6601,18 +6541,6 @@ parameters:
 			path: src/Nis2.php
 
 		-
-			message: '#^Method Notify\:\:errText\(\) has parameter \$errors with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Notify.php
-
-		-
-			message: '#^Method Notify\:\:send\(\) has parameter \$o with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 4
-			path: src/Notify.php
-
-		-
 			message: '#^Method NotifyRules\:\:cleanChannels\(\) has parameter \$in with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -6755,30 +6683,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/NotifyRules.php
-
-		-
-			message: '#^Method Ntfy\:\:send\(\) has parameter \$cfg with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Ntfy.php
-
-		-
-			message: '#^Method Ntfy\:\:send\(\) has parameter \$extra with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Ntfy.php
-
-		-
-			message: '#^Method Once\:\:read\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Once.php
-
-		-
-			message: '#^Method Once\:\:write\(\) has parameter \$m with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Once.php
 
 		-
 			message: '#^Method OwnCert\:\:activate\(\) return type has no value type specified in iterable type array\.$#'
@@ -6929,12 +6833,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/Passkey.php
-
-		-
-			message: '#^Method PasswordReset\:\:find\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/PasswordReset.php
 
 		-
 			message: '#^Method Patch\:\:agentLines\(\) return type has no value type specified in iterable type array\.$#'
@@ -7199,12 +7097,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/Paths.php
-
-		-
-			message: '#^Method Perf\:\:report\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Perf.php
 
 		-
 			message: '#^Method Pick\:\:emails\(\) has parameter \$users with no value type specified in iterable type array\.$#'
@@ -7589,24 +7481,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/ProxyStats.php
-
-		-
-			message: '#^Method Push\:\:send\(\) has parameter \$extra with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Push.php
-
-		-
-			message: '#^Method Pushover\:\:receipt\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Pushover.php
-
-		-
-			message: '#^Method Pushover\:\:send\(\) has parameter \$extra with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Pushover.php
 
 		-
 			message: '#^Method Pve\:\:check\(\) has parameter \$check with no value type specified in iterable type array\.$#'
@@ -8255,12 +8129,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/Security.php
-
-		-
-			message: '#^Method SelfCheck\:\:report\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/SelfCheck.php
 
 		-
 			message: '#^Method SelfStatus\:\:agentHost\(\) return type has no value type specified in iterable type array\.$#'
@@ -10421,12 +10289,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/WebPush.php
-
-		-
-			message: '#^Method Webhook\:\:send\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Webhook.php
 
 		-
 			message: '#^Method Whitelist\:\:add\(\) return type has no value type specified in iterable type array\.$#'

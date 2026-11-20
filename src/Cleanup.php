@@ -8,6 +8,7 @@ declare(strict_types=1);
  */
 final class Cleanup
 {
+    /** @return array<mixed> */
     private static function ignored(): array
     {
         return (array) (json_decode((string) setting('cleanup_ignore', ''), true) ?: []);
