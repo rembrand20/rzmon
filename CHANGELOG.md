@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.309.0**: **Dagritme**: overdag licht, 's avonds Schemer, 's nachts donker, op je eigen tijden.
 - **1.308.0**: **kleurenschema Schemer**: licht, maar warm en zacht voor je ogen; ook automatisch 's avonds.
 - **1.306.0**: **het detailpaneel op elke pagina**: een klik opent de details rechts, met ← →, een kruimelpad en een deelbare link.
 - **1.305.0**: **agent stil: één melding met de reden**, en een **bewaker** die de agent zelf herstelt.
 - **1.303.0**: **📖 Hoe werken meldingen?**: per status zie je waarheen een melding gaat; ClamAV start weer na een herstart.
-- **1.302.0**: **Web Push als eigen kanaal** in *Wanneer melden*, met Pushover als reserve; per apparaat te beperken.
+
+## 1.309.0 – 2026-11-21
+### Nieuw
+- **Dagritme** (vervangt *Licht + Schemer*). Bij *Licht/donker*: overdag licht, 's avonds Schemer en 's nachts donker. Zie HANDLEIDING (Weergave).
+  - Standaard licht vanaf 07:00, Schemer vanaf 19:00 en donker vanaf 23:00.
+  - Je stelt de tijden per apparaat in bij *Mijn account → Weergave*. Laat je *Donker vanaf* leeg, dan blijft het 's nachts Schemer.
+  - Had je *Licht + Schemer* gekozen, dan staat het nu op Dagritme en wordt het vanaf 23:00 donker; maak *Donker vanaf* leeg als je dat niet wilt.
 
 ## 1.308.0 – 2026-11-21
 ### Nieuw

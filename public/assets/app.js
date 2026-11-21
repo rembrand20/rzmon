@@ -14838,35 +14838,42 @@ function setTheme(v) {
   try { v === 'auto' ? localStorage.removeItem('rzmon-theme') : localStorage.setItem('rzmon-theme', v); } catch (ex) {}
   if (!prefsLocal) savePref('theme', v);
 }
-/** 1.308.0: de tijden van "Licht + Schemer", per apparaat (standaard 19:00–07:00) */
-function dimTimes() {
-  let from = '19:00', to = '07:00';
-  try { from = localStorage.getItem('rzmon-dim-from') || from; to = localStorage.getItem('rzmon-dim-to') || to; } catch (ex) { /* standaard */ }
-  return { from, to };
-}
-/** Is het nu Schemer-tijd? Gaat over middernacht heen als "van" later is dan "tot". */
-function dimNow(t = dimTimes(), now = new Date()) {
-  const m = (s) => { const p = /^(\d\d):(\d\d)$/.exec(s || ''); return p ? Number(p[1]) * 60 + Number(p[2]) : -1; };
-  const f = m(t.from), u = m(t.to), c = now.getHours() * 60 + now.getMinutes();
-  if (f < 0 || u < 0 || f === u) return false;
-  return f > u ? (c >= f || c < u) : (c >= f && c < u);
+/**
+ * 1.309.0: Dagritme (thema-waarde 'lightdim'): overdag licht, 's avonds Schemer, 's nachts donker. De tijden gelden per
+ * apparaat (localStorage). Welke fase het nu is, rekent window.rzPhase() uit: dat staat in het script in de kop van
+ * index.php, zodat de pagina meteen in de goede kleuren opent en er maar één berekening is.
+ */
+const DAY_KEYS = { light: ['rzmon-dim-to', '07:00'], dim: ['rzmon-dim-from', '19:00'], dark: ['rzmon-dark-from', '23:00'] };
+function dayTimes() {
+  const out = {};
+  for (const [k, [key, def]] of Object.entries(DAY_KEYS)) {
+    let v = null;
+    try { v = localStorage.getItem(key); } catch (ex) { /* standaard */ }
+    out[k] = v === null ? def : v;   // leeg bij donker = 's nachts geen donker
+  }
+  return out;
 }
 /** Zet de attributen op <html>: data-theme (licht/donker), data-tmode (dim/lightdim) en data-dim (Schemer aan) */
 function themeApply(v) {
   const d = document.documentElement, was = d.dataset.dim === '1' ? 'dim' : (d.dataset.theme || '');
-  if (v === 'auto') delete d.dataset.theme; else d.dataset.theme = (v === 'dim' || v === 'lightdim') ? 'light' : v;
-  if (v === 'dim' || v === 'lightdim') d.dataset.tmode = v; else delete d.dataset.tmode;
-  if (v === 'dim' || (v === 'lightdim' && dimNow())) d.dataset.dim = '1'; else delete d.dataset.dim;
+  const ph = v === 'dim' ? 'dim' : (v === 'lightdim' ? (window.rzPhase ? window.rzPhase() : 'light') : null);
+  if (ph) { d.dataset.theme = ph === 'dark' ? 'dark' : 'light'; d.dataset.tmode = v; } else {
+    delete d.dataset.tmode;
+    if (v === 'auto') delete d.dataset.theme; else d.dataset.theme = v;
+  }
+  if (ph === 'dim') d.dataset.dim = '1'; else delete d.dataset.dim;
   const nu = d.dataset.dim === '1' ? 'dim' : (d.dataset.theme || '');
   if (nu !== was && window.RzPulse) RzPulse.refreshColors();
   markTheme();
 }
-// Elke minuut: bij "Licht + Schemer" vanzelf wisselen als de tijd daar is
+// Elke minuut: bij Dagritme vanzelf wisselen als de tijd daar is
 setInterval(() => { if (document.documentElement.dataset.tmode === 'lightdim') themeApply('lightdim'); }, 60000);
 document.addEventListener('change', (e) => {
-  const inp = e.target.closest('#dim-from, #dim-to');
-  if (!inp || !/^\d\d:\d\d$/.test(inp.value)) return;
-  try { localStorage.setItem(inp.id === 'dim-from' ? 'rzmon-dim-from' : 'rzmon-dim-to', inp.value); } catch (ex) { /* alleen voor nu */ }
+  const inp = e.target.closest('#dr-light, #dr-dim, #dr-dark');
+  if (!inp) return;
+  const k = inp.id.slice(3);
+  if (!/^\d\d:\d\d$/.test(inp.value) && !(k === 'dark' && inp.value === '')) { inp.value = dayTimes()[k]; return; }
+  try { localStorage.setItem(DAY_KEYS[k][0], inp.value); } catch (ex) { /* alleen voor nu */ }
   if (document.documentElement.dataset.tmode === 'lightdim') themeApply('lightdim');
 });
 /**
@@ -14887,9 +14894,8 @@ function markTheme() {
   const dt = $('#dim-times');
   if (dt) {
     dt.hidden = cur !== 'lightdim';
-    const t = dimTimes();
-    if ($('#dim-from') && document.activeElement !== $('#dim-from')) $('#dim-from').value = t.from;
-    if ($('#dim-to') && document.activeElement !== $('#dim-to')) $('#dim-to').value = t.to;
+    const t = dayTimes();
+    for (const k of Object.keys(DAY_KEYS)) { const i = $('#dr-' + k); if (i && document.activeElement !== i) i.value = t[k]; }
   }
   const pw = document.documentElement.dataset.pw || 'bounded';
   $$('[data-pw-set]').forEach((b) => b.classList.toggle('active', b.dataset.pwSet === pw));

@@ -66,8 +66,8 @@ $v = filemtime(__DIR__ . '/assets/app.js') . filemtime(__DIR__ . '/assets/app.cs
   <title>Rz//Sense AI</title>
   <?= Brand::head() ?>
   <link rel="stylesheet" href="assets/app.css?v=<?= $v ?>">
-  <?php /* 1.308.0: Schemer. Bij "Licht + Schemer" kiest dit script vóór het tekenen of het nu avond is (tijden per apparaat). */ ?>
-  <script nonce="<?= csp_nonce() ?>">(function(){const d=document.documentElement;let t=<?= json_encode(is_string($userTheme) ? $userTheme : null) ?>;try{if(!t)t=localStorage.getItem('rzmon-theme')}catch(e){}if(t==='light'||t==='dark')d.dataset.theme=t;else if(t==='dim'||t==='lightdim'){d.dataset.theme='light';d.dataset.tmode=t;let a='19:00',b='07:00';try{a=localStorage.getItem('rzmon-dim-from')||a;b=localStorage.getItem('rzmon-dim-to')||b}catch(e){}const m=(s)=>{const p=/^(\d\d):(\d\d)$/.exec(s);return p?p[1]*60+ +p[2]:-1},n=new Date(),c=n.getHours()*60+n.getMinutes(),f=m(a),u=m(b);if(t==='dim'||(f>=0&&u>=0&&(f>u?(c>=f||c<u):(c>=f&&c<u))))d.dataset.dim='1'}})()</script>
+  <?php /* 1.308.0: Schemer. 1.309.0: Dagritme (licht, Schemer, donker op tijden per apparaat); rzPhase() gebruikt app.js ook. */ ?>
+  <script nonce="<?= csp_nonce() ?>">(function(){const d=document.documentElement;const g=(k,f)=>{try{const v=localStorage.getItem(k);return v===null?f:v}catch(e){return f}};window.rzPhase=function(now){now=now||new Date();const m=(s)=>{const p=/^(\d\d):(\d\d)$/.exec(s||'');return p?p[1]*60+ +p[2]:-1};const c=now.getHours()*60+now.getMinutes();const b=[[m(g('rzmon-dim-to','07:00')),'light'],[m(g('rzmon-dim-from','19:00')),'dim'],[m(g('rzmon-dark-from','23:00')),'dark']].filter((x)=>x[0]>=0).sort((x,y)=>x[0]-y[0]);if(!b.length)return 'light';let r=b[b.length-1][1];for(const x of b)if(x[0]<=c)r=x[1];return r};let t=<?= json_encode(is_string($userTheme) ? $userTheme : null) ?>;if(!t)t=g('rzmon-theme',null);if(t==='light'||t==='dark')d.dataset.theme=t;else if(t==='dim'||t==='lightdim'){d.dataset.tmode=t;const p=t==='dim'?'dim':window.rzPhase();d.dataset.theme=p==='dark'?'dark':'light';if(p==='dim')d.dataset.dim='1';else delete d.dataset.dim}})()</script>
   <script nonce="<?= csp_nonce() ?>">try{const w=localStorage.getItem('rzmon-pw');if(w==='bounded')delete document.documentElement.dataset.pw;else if(w==='wide'||w==='full')document.documentElement.dataset.pw=w}catch(e){}</script>
 </head>
 <?php $sidePrefs = json_decode((string) ($prefsJson ?? ''), true) ?: []; $sideW = (int) ($sidePrefs['side_w'] ?? 0);
@@ -219,7 +219,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <div class="acct-sep"></div>
           <div class="acct-row">◈ <?= th('Lay-out') ?> <span class="seg" id="dash-seg"><button type="button" data-view-layout="blox">Blox</button><button type="button" data-view-layout="l1nes">L1nes</button><button type="button" data-view-layout="compact">Compact</button><button type="button" data-view-layout="cc">CC</button></span></div>
           <div class="acct-row">✦ <?= th('Thema') ?> <span class="seg" id="skin-seg"><button type="button" data-skin-set="std"><?= th('Standaard') ?></button><button type="button" data-skin-set="s">@S</button><button type="button" data-skin-set="glass"><?= th('Glas') ?></button><button type="button" data-skin-set="neo">Neo</button></span></div>
-          <div class="acct-row">🌓 <?= th('Licht/donker') ?> <span class="seg" id="theme-seg"><button type="button" data-theme-set="auto">auto</button><button type="button" data-theme-set="light"><?= th('licht') ?></button><button type="button" data-theme-set="dim" title="<?= th('Licht, maar zacht en warm voor de ogen in de schemer of het donker') ?>"><?= th('schemer') ?></button><button type="button" data-theme-set="dark"><?= th('donker') ?></button><button type="button" data-theme-set="lightdim" title="<?= th('Overdag licht, \'s avonds vanzelf Schemer') ?>">☀︎/◐</button></span></div>
+          <div class="acct-row">🌓 <?= th('Licht/donker') ?> <span class="seg" id="theme-seg"><button type="button" data-theme-set="auto">auto</button><button type="button" data-theme-set="light"><?= th('licht') ?></button><button type="button" data-theme-set="dim" title="<?= th('Licht, maar zacht en warm voor de ogen in de schemer of het donker') ?>"><?= th('schemer') ?></button><button type="button" data-theme-set="dark"><?= th('donker') ?></button><button type="button" data-theme-set="lightdim" title="<?= th('Overdag licht, \'s avonds Schemer, \'s nachts donker') ?>"><?= th('dagritme') ?></button></span></div>
           <div class="acct-row">🌐 <?= th('Taal') ?> <span class="seg" id="lang-seg"><button type="button" data-lang-set="nl" class="<?= I18n::lang() === 'nl' ? 'active' : '' ?>">NL</button><button type="button" data-lang-set="en" class="<?= I18n::lang() === 'en' ? 'active' : '' ?>">EN</button></span></div>
           <?php if ($hasAccount): ?><div class="acct-sep"></div><button type="button" role="menuitem" id="logout" class="danger-txt">⏻ <?= th('Uitloggen') ?></button><?php endif; ?>
         </div>
@@ -2155,12 +2155,17 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
             <button type="button" class="seg-btn" data-theme-set="light"><?= th('Licht') ?></button>
             <button type="button" class="seg-btn" data-theme-set="dim" title="<?= th('Licht, maar zacht en warm voor de ogen in de schemer of het donker') ?>"><?= th('Schemer') ?></button>
             <button type="button" class="seg-btn" data-theme-set="dark"><?= th('Donker') ?></button>
-            <button type="button" class="seg-btn" data-theme-set="lightdim" title="<?= th('Overdag licht, \'s avonds vanzelf Schemer') ?>"><?= th('Licht + Schemer') ?></button>
+            <button type="button" class="seg-btn" data-theme-set="lightdim" title="<?= th('Overdag licht, \'s avonds Schemer, \'s nachts donker') ?>"><?= th('Dagritme') ?></button>
           </div>
         </div>
         <div class="view-row" id="dim-times" hidden>
-          <span class="view-label"><?= th('Schemer \'s avonds') ?> <span class="hint"><?= th('(per apparaat)') ?></span></span>
-          <span class="dim-times"><?= th('van') ?> <input type="time" id="dim-from" value="19:00" aria-label="<?= th('Schemer vanaf') ?>"> <?= th('tot') ?> <input type="time" id="dim-to" value="07:00" aria-label="<?= th('Schemer tot') ?>"></span>
+          <span class="view-label"><?= th('Dagritme') ?> <span class="hint"><?= th('(per apparaat)') ?></span></span>
+          <span class="dim-times">
+            <label>☀︎ <?= th('Licht vanaf') ?> <input type="time" id="dr-light" value="07:00" required></label>
+            <label>◐ <?= th('Schemer vanaf') ?> <input type="time" id="dr-dim" value="19:00" required></label>
+            <label>● <?= th('Donker vanaf') ?> <input type="time" id="dr-dark" value="23:00"></label>
+            <span class="hint"><?= th('(donker leeg: \'s nachts geen donker)') ?></span>
+          </span>
         </div>
         <div class="view-row">
           <span class="view-label"><?= th('Grootte') ?> <span class="hint"><?= th('(per lay-out; telefoon en computer apart)') ?></span></span>

@@ -6547,5 +6547,7 @@ details.pxs h4 { margin: .2rem 0 .45rem; font-size: .9rem; }
 }
 :root[data-dim="1"] body.sk-s { --s-seg-on: #ebe6dc; --s-field: #e8e3d9; --s-shadow: 0 1px 2px rgba(60, 45, 25, .06), 0 6px 20px rgba(60, 45, 25, .08); }
 :root[data-dim="1"] .login-wrap { --hud: #3e5fb3; --hud-t: #34509a; --hud-bg: radial-gradient(1200px 700px at 50% 40%, #e2ddd3 0%, #d8d3c9 50%, #cdc7bc 100%); }
-.dim-times { display: inline-flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+.dim-times { display: inline-flex; align-items: center; gap: .4rem .9rem; flex-wrap: wrap; }
+.dim-times label { display: inline-flex; flex-direction: row; align-items: center; gap: .4rem; white-space: nowrap; margin: 0 0 .6rem; font-weight: 500; }
+.dim-times > .hint { margin-bottom: .6rem; }
 .dim-times input[type="time"] { width: auto; }
