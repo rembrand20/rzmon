@@ -58,8 +58,9 @@ function iaTop() {
       <div class="ia-domgrid">${domBars}</div></div></div>`;
 }
 
+let iaPanelKey = null;   // 1.306.0: de kaart die in het detailpaneel staat (alleen die toont zijn inhoud)
 function iaCard(a) {
-  const open = iaOpen.has(a.key);
+  const open = iaPanelKey === a.key;
   const admin = iaData.admin;
   const acts = (a.acts || []).map((x, i) => {
     const lbl = { upgrade: '⬆ ' + (x.label ? L('Bijwerken op {h}', { h: x.label }) : L('Bijwerken via de agent')), cve: '🐞 ' + x.cve, ip: '🔎 ' + L('Alles over {ip}', { ip: x.ip }),
@@ -154,6 +155,20 @@ function iaRender(p) {
       <div class="ia-pane">${tabs.find((t) => t[0] === iaTab)[2]}</div></section>`;
 }
 
+/** 1.306.0: een advies in het detailpaneel */
+function iaPanel(key, o = {}) {
+  const a = ((iaData && iaData.advices) || []).find((x) => x.key === key);
+  if (!a) return;
+  iaPanelKey = key;
+  const html = iaCard(a);
+  iaPanelKey = null;
+  panelFrom(html, { title: a.title || L('Advies'), ref: 'ia:' + key, push: !!o.push, onClick: (e) => {
+    const st = e.target.closest('[data-ia-st]');
+    if (iaClick(e) && st) $('#modal').close();   // gedaan, later of niet van toepassing: weg uit de lijst, dus het paneel dicht
+  } });
+}
+DETAIL_OPEN.ia = (key, o) => iaPanel(key, o);
+
 /** Klikken in het advies-deel (één keer gekoppeld aan #an-body) */
 function iaClick(e) {
   const t = e.target.closest('[data-ia-filter], [data-ia-toggle], [data-ia-st], [data-ia-act], [data-ia-copy], [data-ia-tab], [data-ia-cve], [data-ia-host]');
@@ -164,7 +179,8 @@ function iaClick(e) {
   if (t.dataset.iaTab) { iaTab = t.dataset.iaTab; try { localStorage.setItem('rzmon-an-tab', iaTab); } catch (ex) { /* alleen nu */ } renderAnalytics(); return true; }
   if (t.dataset.iaCve) { vulnDetail(t.dataset.iaCve); return true; }
   if (t.dataset.iaHost) { iaFilter = 'open'; const h = (iaData.advices || []).find((a) => a.host_id === +t.dataset.iaHost); if (h) iaOpen.add(h.key); renderAnalytics(); $('.ia-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return true; }
-  if (t.dataset.iaToggle !== undefined && key) { iaOpen.has(key) ? iaOpen.delete(key) : iaOpen.add(key); renderAnalytics(); return true; }
+  if (t.dataset.iaToggle !== undefined && key && !t.closest('.in-panel')) { iaPanel(key); return true; }   // 1.306.0: het detailpaneel
+  if (t.dataset.iaToggle !== undefined) return true;
   if (t.dataset.iaCopy !== undefined) { const pre = t.parentElement.querySelector('pre'); navigator.clipboard?.writeText(pre.textContent).then(() => toast(L('Gekopieerd')), () => {}); return true; }
   if (t.dataset.iaSt && key) {
     api('insight_set', { key, status: t.dataset.iaSt }).then(async () => {

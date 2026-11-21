@@ -400,7 +400,7 @@ const lvDay = (at) => { const d = at.slice(0, 10), t = new Date(), y = new Date(
 function lvRow(e) {
   const hit = e.rule && !e.own, cls = hit ? (e.sev >= 2 ? 'c' : 'w') : e.own ? 'ok' : '';
   const [s1, s2] = lvSentence(e);
-  const open = hit && lvOpen.has(e.id);
+  const open = false;   // 1.306.0: een treffer opent het detailpaneel
   const t = e.at.slice(11, 16), ki = e.kind === 'own' ? 'own' : lvIcKind(e.kind);
   const ownTag = e.own && e.kind !== 'own' ? `<span class="okl">✔ ${L('toegestaan')} · ${esc((EDR_OWN[e.own] || (() => e.own))())}${e.own === 'exc' && (e.ev || {})._exc ? ': ' + esc(e.ev._exc) : ''}</span>` : '';
   const span = e.n > 1 ? L('{n}× tussen {a} en {b}', { n: e.n, a: e.first.slice(11, 16), b: t }) : '';
@@ -408,7 +408,7 @@ function lvRow(e) {
     <span class="st"></span><span class="lv-t" title="${esc(fmtDateTime(e.at))}">${t}</span>
     <span class="lv-k">${lvIc(ki)} ${esc((LV_KIND[e.kind] || (() => e.kind))())}</span>
     <span class="lv-s">${s1}${s2 ? `<span class="why">${s2}</span>` : ''}${hit ? `<span class="hitl">${e.sev >= 2 ? '●' : '▲'} ${esc(e.rule_title || e.rule)} · ${e.sev >= 2 ? 'Critical' : 'Warning'}</span>` : ''}${ownTag ? `<span class="why">${ownTag}</span>` : ''}</span>
-    ${e.n > 1 ? `<span class="lv-n" title="${esc(span)}">${e.n}×</span>` : '<span></span>'}<span class="lv-h">${esc(e.host)}</span><span class="lv-go">${hit ? (open ? '▾' : '▸') : ''}</span>
+    ${e.n > 1 ? `<span class="lv-n" title="${esc(span)}">${e.n}×</span>` : '<span></span>'}<span class="lv-h">${esc(e.host)}</span><span class="lv-go">${hit ? '›' : ''}</span>
     <span class="lv-meta">${t} · ${esc(e.host)}${span ? ' · ' + esc(span) : ''}</span>
     ${open ? lvHitOpen(e) : ''}</div>`;
 }
@@ -485,6 +485,36 @@ function renderLive() {
     : `<p class="muted">${L('Nog niets gezien. Staat de endpoint-bewaking aan op je servers (Agent Manager), en is de agent 1.63.0 of nieuwer?')}</p>`;
   withMorph(() => { $('#edr-feed').innerHTML = rows.length ? html + (lvMode === 'hits' && sum.list.all > sum.list.hits ? `<p class="muted small lv-more">${L('Verder niets verdachts. Kies <b>Alles</b> om alle {n} gebeurtenissen te zien.', { n: nf(sum.list.all) })}</p>` : '') + legend : empty; });
 }
+/** 1.306.0: de knoppen bij een treffer (op de pagina en in het paneel): incident, proces stoppen, dit is normaal */
+async function lvAction(e) {
+  const inc = e.target.closest('[data-lv-inc]');
+  if (inc) { incidentDialog(+inc.dataset.lvInc); return true; }
+  const kill = e.target.closest('[data-lv-kill]');
+  if (kill) {
+    if (!confirm(L('Dit proces op de server stoppen? De agent controleert eerst dat het nog hetzelfde proces is.'))) return true;
+    try { await api('edr_kill', { id: +kill.dataset.lvKill }); toast(L('Wordt gestopt bij het volgende contact met de agent')); kill.disabled = true; } catch (ex) { toast(ex.message, 'err'); }
+    return true;
+  }
+  const nor = e.target.closest('[data-lv-normal]');
+  if (nor) {
+    if (!confirm(L('Afhandelen en dit voortaan niet meer melden op deze server?'))) return true;
+    try { await api('ids_incident', { id: +nor.dataset.lvNormal, action: 'normal' }); toast(L('Afgehandeld; dit wordt voortaan niet meer gemeld')); nor.disabled = true; } catch (ex) { toast(ex.message, 'err'); }
+    return true;
+  }
+  return false;
+}
+/** 1.306.0: een treffer van de endpoint-bewaking in het detailpaneel */
+function lvPanel(id) {
+  const e = ((edrFeed && edrFeed.events) || []).find((x) => +x.id === +id);
+  if (!e) return;
+  const [s1, s2] = lvSentence(e);
+  const body = `<p class="lv-psent">${s1}${s2 ? `<br><span class="muted small">${s2}</span>` : ''}</p>
+    <p class="small muted">${esc(fmtDateTime(e.at))} · ${esc(e.host)} · ${e.sev >= 2 ? '🔴 Critical' : '🟠 Warning'}</p>${lvHitOpen(e)}`;
+  detail({ title: `${e.sev >= 2 ? '🔴' : '🟠'} ${e.rule_title || e.rule}`, body, ref: 'lv:' + e.id, buttons: [] });
+  $('#modal-body').addEventListener('click', (ev) => { lvAction(ev); }, { signal: modalSignal() });
+}
+DETAIL_OPEN.lv = (id) => lvPanel(+id);
+
 function initLive() {
   const pane = $('.ids-pane[data-pane="live"]');
   if (!pane || pane.dataset.lvInit) return;
@@ -494,23 +524,10 @@ function initLive() {
     if (m) { lvMode = m.dataset.lvMode; uiSet('edr_mode', 'rzmon-edr-mode', lvMode); lvOpen.clear(); $('#edr-feed').innerHTML = `<p class="muted">${L('Laden…')}</p>`; return loadEdrFeed(); }
     const k = e.target.closest('[data-lv-kind]');
     if (k) { lvKind = lvKind === k.dataset.lvKind ? '' : k.dataset.lvKind; return renderLive(); }
-    const inc = e.target.closest('[data-lv-inc]');
-    if (inc) return incidentDialog(+inc.dataset.lvInc);
-    const kill = e.target.closest('[data-lv-kill]');
-    if (kill) {
-      if (!confirm(L('Dit proces op de server stoppen? De agent controleert eerst dat het nog hetzelfde proces is.'))) return undefined;
-      try { await api('edr_kill', { id: +kill.dataset.lvKill }); toast(L('Wordt gestopt bij het volgende contact met de agent')); kill.disabled = true; } catch (ex) { toast(ex.message, 'err'); }
-      return undefined;
-    }
-    const nor = e.target.closest('[data-lv-normal]');
-    if (nor) {
-      if (!confirm(L('Afhandelen en dit voortaan niet meer melden op deze server?'))) return undefined;
-      try { await api('ids_incident', { id: +nor.dataset.lvNormal, action: 'normal' }); toast(L('Afgehandeld; dit wordt voortaan niet meer gemeld')); nor.disabled = true; } catch (ex) { toast(ex.message, 'err'); }
-      return undefined;
-    }
+    if (await lvAction(e)) return undefined;
     if (e.target.closest('a, button, details, .xp')) return undefined;
     const row = e.target.closest('[data-lv-row]');
-    if (row) { const id = +row.dataset.lvRow; if (lvOpen.has(id)) lvOpen.delete(id); else lvOpen.add(id); renderLive(); }
+    if (row) lvPanel(+row.dataset.lvRow);   // 1.306.0: het detailpaneel
     return undefined;
   });
   pane.addEventListener('keydown', (e) => {

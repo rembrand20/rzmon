@@ -175,7 +175,10 @@ final class WebPush
 
     // ------------------------------------------------------------------ apparaten
 
-    /** Abonnement van de browser opslaan (of bijwerken). Geeft een foutmelding of null. */
+    /**
+     * Abonnement van de browser opslaan (of bijwerken). Geeft een foutmelding of null.
+     * @param array<mixed> $sub
+     */
     public static function subscribe(int $userId, array $sub, string $name): ?string
     {
         if ($userId <= 0 || !q('SELECT 1 FROM users WHERE id = ?', [$userId])->fetchColumn()) {
@@ -215,6 +218,7 @@ final class WebPush
     /**
      * De apparaten voor het scherm (nooit het adres of de sleutels; alleen de dienst).
      * $endpoint: het adres van deze browser, om "dit apparaat" te markeren.
+     * @return array<mixed>
      */
     public static function devices(?int $userId, string $endpoint = ''): array
     {
@@ -252,7 +256,10 @@ final class WebPush
 
     // ------------------------------------------------------------------ versturen
 
-    /** Het bericht dat de service worker toont (kort: een pushbericht mag hooguit 4 KB zijn) */
+    /**
+     * Het bericht dat de service worker toont (kort: een pushbericht mag hooguit 4 KB zijn)
+     * @param array<mixed> $extra
+     */
     public static function payload(string $title, string $message, int $priority, array $extra): string
     {
         $url = (string) ($extra['url'] ?? '');
@@ -327,7 +334,10 @@ final class WebPush
         return ['ok' => $sent > 0, 'error' => $errors ? implode('; ', $errors) : null, 'sent' => $sent];
     }
 
-    /** @return array{ok: bool, gone: bool, error: ?string} */
+    /**
+     * @return array{ok: bool, gone: bool, error: ?string}
+     * @param array<mixed> $r
+     */
     private static function post(array $r, string $payload, int $priority): array
     {
         $ep = (string) $r['endpoint'];

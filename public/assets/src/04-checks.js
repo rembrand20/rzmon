@@ -689,13 +689,31 @@ const DETAIL_SEL = {
   inc: ['tr.inc-row[data-inc]', (e) => e.dataset.inc],
   net: ['[data-net-open], [data-nm-open], [data-nd-open]', (e) => e.dataset.netOpen || e.dataset.nmOpen || e.dataset.ndOpen],
   ids: ['[data-ids-geen]', () => ''],   // het IDS-venster heeft zijn eigen nummers onderin (de incidenten van die regel)
+  // 1.306.0 (deel 2)
+  ct: ['[data-ct-row]', (e) => e.dataset.ctRow],
+  lv: ['[data-lv-row]', (e) => e.dataset.lvRow],
+  vh: ['details.vuln-host[data-host] > summary', (e) => e.parentElement.dataset.host],
+  ia: ['[data-ia] [data-ia-toggle]', (e) => e.closest('[data-ia]').dataset.ia],
+  n2: ['details.nis2-m[data-code] > summary', (e) => e.parentElement.dataset.code],
+  ph: ['tr[data-ph]', (e) => e.dataset.ph],
+  act: ['.al-row[data-act-id]', (e) => e.dataset.actId],
+  al: ['#alerts .al2-row[data-aid]', (e) => e.dataset.aid],
 };
+/**
+ * 1.306.0: een stuk van de pagina in het detailpaneel tonen (bv. een <details> die eerst openklapte). De afhandeling van de
+ * pagina (onClick) werkt ook in het paneel, omdat de inhoud dezelfde elementen en kenmerken heeft.
+ */
+function panelFrom(html, { title, ref, push = false, onClick = null, buttons = [] }) {
+  const r = detail({ title, body: `<div class="in-panel">${html}</div>`, ref, push, buttons });
+  if (onClick) $('#modal-body').addEventListener('click', onClick, { signal: modalSignal() });
+  return r;
+}
 function detailHash(ref) {
   const h = location.hash.slice(1), qi = h.indexOf('?');
   const sp = new URLSearchParams(qi >= 0 ? h.slice(qi + 1) : '');
   if (ref) sp.set('open', ref); else sp.delete('open');
   const s = sp.toString();
-  try { history.replaceState(null, '', '#' + (qi >= 0 ? h.slice(0, qi) : h) + (s ? '?' + s.replace(/%3A/g, ':') : '')); } catch (e) { /* geen adres aanpassen */ }
+  try { history.replaceState(null, '', '#' + (qi >= 0 ? h.slice(0, qi) : h) + (s ? '?' + s.replace(/%3A/g, ':').replace(/%7C/g, '|') : '')); } catch (e) { /* geen adres aanpassen */ }
 }
 /**
  * Het detailpaneel tonen (zelfde opties als modal). ref = "soort:id". push = geopend vanuit het paneel zelf (kruimelpad).

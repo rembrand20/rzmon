@@ -46,6 +46,7 @@ async function loadPatch() {
   clearTimeout(loadPatch.t);
   if (hs.some((h) => (h.status && ['queued', 'running'].includes(h.status.state)) || h.ha_req)) loadPatch.t = setTimeout(() => { if (box.isConnected && box.offsetParent) loadPatch(); }, 5000);
   if ($('#ph-all', box)) $('#ph-all', box).onchange = (e) => $$('[data-ph-sel]', box).forEach((c) => { c.checked = e.target.checked; });
+  patchHs = hs;
   box.onclick = (e) => {
     if (e.target.closest('#ph-bulk')) return patchBulk($$('[data-ph-sel]:checked', box).map((c) => +c.dataset.phSel));
     if (e.target.closest('[data-ph-sel]')) return;
@@ -56,9 +57,14 @@ async function loadPatch() {
     if (e.target.closest('[data-ph-am]')) return agentInstructions(findHost(h.id));
     if (e.target.closest('[data-ph-prog]')) return vulnUpgradeDialog(findHost(h.id) || h, true);
     const now = e.target.closest('[data-ph-now]');
-    if (now) patchNow(h, now.dataset.phNow, loadPatch);
+    if (now) return patchNow(h, now.dataset.phNow, loadPatch);
+    if (!e.target.closest('button, a, input, label')) return patchList(h);   // 1.306.0: de rij opent het detailpaneel
+    return undefined;
   };
 }
+
+let patchHs = [];   // 1.306.0: voor het detailpaneel (← → en ?open=ph:id)
+DETAIL_OPEN.ph = (id) => { const h = patchHs.find((x) => x.id === +id); if (h) patchList(h); };
 
 /** 1.238.0: updates voor meerdere servers tegelijk instellen, met spreiding en een voorbeeld vooraf */
 function patchBulk(ids) {
@@ -94,12 +100,18 @@ function patchBulk(ids) {
 }
 
 function patchList(h) {
-  modal({
+  detail({
+    ref: 'ph:' + h.id,
     title: L('Updates voor {name}', { name: h.name }),
     body: `<div style="padding:1rem 1.2rem"><table class="vuln-table small"><thead><tr><th>${L('Pakket')}</th><th>${L('Nieuwe versie')}</th><th></th></tr></thead><tbody>
       ${h.list.map((x) => `<tr><td><code>${esc(x[3] || x[0])}</code></td><td>${esc(x[1])}</td><td>${+x[2] ? `<b class="bad">🛡 ${L('beveiliging')}</b>` : ''}${x[0] === 'os' ? `<span class="muted">${L('in Home Assistant zelf (herstart alles)')}</span>` : ''}</td></tr>`).join('')}
       </tbody></table>${h.list.length >= 300 ? `<p class="muted small">${L('De eerste 300.')}</p>` : ''}</div>`,
-    buttons: [{ label: L('Sluiten'), onClick: () => $('#modal').close() }],
+    buttons: [
+      ...(isAdmin() && !h.blocked && patchCount({ ...h, scope: 'security' }) && h.kind === 'linux' ? [{ label: '🛡 ' + L('Beveiligingsupdates installeren'), cls: 'primary', onClick: () => patchNow(h, 'security', loadPatch) }] : []),
+      ...(isAdmin() && !h.blocked && h.avail ? [{ label: '⬆ ' + (h.kind === 'ha' ? L('Core en add-ons') : L('Alles')), onClick: () => patchNow(h, 'all', loadPatch) }] : []),
+      ...(isAdmin() && h.kind !== 'truenas' ? [{ label: L('Instellen') + ' →', onClick: () => agentInstructions(findHost(h.id)) }] : []),
+      { label: L('Sluiten'), style: 'margin-left:auto', onClick: () => $('#modal').close() },
+    ],
   });
 }
 

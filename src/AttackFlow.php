@@ -21,7 +21,10 @@ final class AttackFlow
     /** Daarna is er ingelogd */
     private const LOGIN = ['breakin', 'ssh_login', 'newip', 'rootlogin'];
 
-    /** @param array{days?: int, mins?: int, host?: int, cc?: string, cat?: string, dir?: string, top?: int, live?: int} $o */
+    /**
+     * @param array{days?: int, mins?: int, host?: int, cc?: string, cat?: string, dir?: string, top?: int, live?: int} $o
+     * @return array<mixed>
+     */
     public static function build(array $o): array
     {
         $f = Ids::flows($o + ['top' => 12]);
@@ -135,6 +138,8 @@ final class AttackFlow
      * 1.153.0: de live weergave: wie valt nu het hardst aan (laatste 15 minuten) en wat deed het IDS, hoeveel aanvallers
      * zijn bezig, de IDS-acties van het laatste uur, de nieuwste gebeurtenissen (ticker) en de top 10 van de periode.
      * Per lijn het tempo (pogingen per minuut) en of hij nieuw is, per server of hij op dit moment geraakt wordt.
+     * @param array<mixed> $r
+     * @return array<mixed>
      */
     private static function live(array $r, int $hostId): array
     {
@@ -289,6 +294,7 @@ final class AttackFlow
     /**
      * Alles over één IP-adres voor de popup: elke gebeurtenis (SSH-poging, login, einde sessie, bewijs van Suricata, de
      * agent of een webdienst, blokkades en meldingen), waar het geblokkeerd is en waar niet, de meldingen en waarom.
+     * @return array<mixed>
      */
     public static function ipEvents(string $ip, int $days = 7): array
     {

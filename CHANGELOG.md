@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.306.0**: **het detailpaneel op elke pagina**: een klik opent de details rechts, met ← →, een kruimelpad en een deelbare link.
 - **1.305.0**: **agent stil: één melding met de reden**, en een **bewaker** die de agent zelf herstelt.
-- **1.304.0**: **het detailpaneel**: op Monitoring, Logs, Incidenten, IDS en Netwerk opent een klik de details in een paneel rechts, met ← → en een kruimelpad.
 - **1.303.0**: **📖 Hoe werken meldingen?**: per status zie je waarheen een melding gaat; ClamAV start weer na een herstart.
 - **1.302.0**: **Web Push als eigen kanaal** in *Wanneer melden*, met Pushover als reserve; per apparaat te beperken.
 - **1.300.0**: **van buitenaf meten vanaf een server naar keuze** (bv. een VPS): de eerlijkste blik op wat er open staat.
+
+## 1.306.0 – 2026-11-21
+### Nieuw
+- **Het detailpaneel, deel 2: nu op elke pagina.** Een klik opent de details in het paneel rechts, met ← →, een kruimelpad en een link met `?open=…`. Zie HANDLEIDING 2 (Monitoring → Het detailpaneel).
+  - **Containers:** status, exitcode, image, geheugen en schijf, met *Check maken* en *Naar de server*.
+  - **IDS → Live:** wat de treffer betekent, wat je kunt doen, en de knoppen (incident, proces stoppen, dit is normaal).
+  - **Kwetsbaarheden:** per server de lekken en *Bijwerken*, in plaats van een kaart die openklapt.
+  - **Analyse:** een advies met waarom, wat te doen en de knoppen.
+  - **Compliance:** een maatregel met bewijs, notitie en *Opslaan*.
+  - **Updates:** een klik op een server toont de pakketten, met knoppen om te installeren.
+  - **Logboek:** een regel met alle details en *Terugzetten*.
+  - **Meldingen:** het eigen zijpaneel is nu het algemene paneel, met dezelfde inhoud en knoppen.
 
 ## 1.305.0 – 2026-11-21
 ### Nieuw

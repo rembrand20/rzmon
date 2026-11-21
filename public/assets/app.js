@@ -1803,7 +1803,7 @@ function showTab(name) {
   const qs = qi >= 0 ? name.slice(qi + 1) : '';
   if (qi >= 0) name = name.slice(0, qi);
   const openRef = new URLSearchParams(qs).get('open');   // 1.304.0: #pagina?open=check:12 opent het detailpaneel
-  if (openRef && /^[a-z]+:[\w.:-]{1,80}$/.test(openRef)) setTimeout(() => { if (!$('#modal').open) detailOpen(openRef); }, 700);
+  if (openRef && /^[a-z0-9]+:[\w.:|-]{1,120}$/.test(openRef)) setTimeout(() => { if (!$('#modal').open) detailOpen(openRef); }, 700);
   if (name === 'settings/blocks') name = 'ids/blk';   // 1.92.0: blokkades en whitelist staan in het IDS-tabblad
   // 1.276.0: nieuwe indeling; oude adressen (ook in meldingen en e-mails) sturen door naar de nieuwe plek
   const MOVED = { 'settings/agents': 'servers', 'settings/actlog': 'logboek', 'settings/changelog': 'logboek', 'settings/nis2': 'compliance',
@@ -2814,12 +2814,12 @@ function renderContainers() {
   }
   const head = `<div class="ct-tr ct-th"><span>${L('Container')}</span><span>${L('Status')}</span><span>${L('Image')}</span><span>${L('Draait')}</span><span>CPU</span><span>${L('Geheugen')}</span><span>${L('Schijf')}</span><span>${L('Herstart')}</span><span>${L('24 uur')}</span><span class="r">${L('Check')}</span></div>`;
   const row = (c, i) => {
-    const id = c.host.id + ':' + c.key, open = ctOpen.has(id), run = c.state === 'running';
+    const id = c.host.id + ':' + c.key, open = false, run = c.state === 'running';   // 1.306.0: details in het paneel
     const memW = c.mem_pct !== null ? Math.min(100, c.mem_pct) : 0;
     const sub = [g !== 'host' ? c.host.name : '', c.pod ? 'pod: ' + c.pod : '', c.user && c.user !== 'root' && c.user !== 'docker' ? L('gebruiker: {u}', { u: c.user }) : '', c.health === 'unhealthy' ? L('ongezond (healthcheck faalt)') : c.health === 'healthy' ? L('gezond') : ''].filter(Boolean).join(' · ');
     const chk = c.check ? `<button type="button" class="ct-mon" data-ct-check="${c.check.id}">${ctSvg(ctIcon.shield, 14)}${L('bewaakt')}</button>`
       : (isAdmin() ? `<button type="button" class="btn small-btn" data-ct-add="${c.host.id}" data-ct-key="${esc(c.key)}">＋ ${L('Check')}</button>` : `<span class="muted small">–</span>`);
-    return `<div class="ct-tr ct-s-${c.state}${open ? ' open' : ''}" data-ct-row="${esc(id)}" style="--i:${Math.min(i, 20)}" role="button" tabindex="0" aria-expanded="${open}">
+    return `<div class="ct-tr ct-s-${c.state}${open ? ' open' : ''}" data-ct-row="${esc(id)}" style="--i:${Math.min(i, 20)}" role="button" tabindex="0">
       <span class="ct-name"><b>${esc(c.name)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span>
       <span>${ctLabel(c.state)}</span>
       <span class="mono ct-img" data-l="${esc(L('Image'))}" title="${esc(c.image)}">${esc(c.image || '–')}</span>
@@ -2871,6 +2871,33 @@ function ctDetail(c) {
   </div>`;
 }
 
+/** 1.306.0: een container in het detailpaneel */
+function ctPanel(id, o = {}) {
+  const c = ((ctData && ctData.hosts) || []).flatMap((h) => h.containers.map((x) => ({ ...x, host: h }))).find((x) => x.host.id + ':' + x.key === id);
+  if (!c) return;
+  const extra = [
+    c.image ? [L('Image'), `<span class="mono">${esc(c.image)}</span>`] : null,
+    c.cpu !== null ? ['CPU', `${dec(String(c.cpu))}%`] : null,
+    c.mem !== null ? [L('Geheugen'), fmtBytes(c.mem) + (c.mem_limit && c.mem_limit < 1e12 ? ' / ' + fmtBytes(c.mem_limit) : '')] : null,
+    [L('Schijf'), L('container {a} · volumes {b}', { a: fmtBytes(c.size_rw), b: fmtBytes(c.volumes) })],
+    [L('Herstart'), String(c.restarts)],
+    c.pod ? ['Pod', esc(c.pod)] : null,
+    [L('Server'), esc(c.host.name)],
+  ].filter(Boolean);
+  const body = `${ctDetail(c)}<div class="ct-kvs ct-kvs2">${extra.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('')}</div>`;
+  detail({ title: `📦 ${c.name}`, body, ref: 'ct:' + id, push: !!o.push, buttons: [] });
+  $('#modal-body').addEventListener('click', (e) => {
+    const ck = e.target.closest('[data-ct-check]');
+    if (ck) return checkInfo(+ck.dataset.ctCheck, false, null, { push: true });
+    const add = e.target.closest('[data-ct-add]');
+    if (add) return checkForm(null, findHost(+add.dataset.ctAdd), { type: 'container', target: add.dataset.ctKey, name: '', options: '{"res":{}}' });
+    const hb = e.target.closest('[data-ct-host]');
+    if (hb) return hostPanel(+hb.dataset.ctHost, { push: true });
+    return undefined;
+  }, { signal: modalSignal() });
+}
+DETAIL_OPEN.ct = (id, o) => ctPanel(id, o);
+
 function initContainers() {
   const el = $('#containers');
   el.addEventListener('click', (e) => {
@@ -2888,7 +2915,7 @@ function initContainers() {
     if (hb) { setMonSub('checks'); return jumpToHost(hb.dataset.ctHost); }
     if (e.target.closest('button, a, [data-ai]')) return;
     const r = e.target.closest('[data-ct-row]');
-    if (r) { const k = r.dataset.ctRow; if (ctOpen.has(k)) ctOpen.delete(k); else ctOpen.add(k); renderContainers(); }
+    if (r) ctPanel(r.dataset.ctRow);   // 1.306.0: het detailpaneel
   });
   el.addEventListener('keydown', (e) => {
     const r = e.target.closest('[data-ct-row]');
@@ -5931,13 +5958,31 @@ const DETAIL_SEL = {
   inc: ['tr.inc-row[data-inc]', (e) => e.dataset.inc],
   net: ['[data-net-open], [data-nm-open], [data-nd-open]', (e) => e.dataset.netOpen || e.dataset.nmOpen || e.dataset.ndOpen],
   ids: ['[data-ids-geen]', () => ''],   // het IDS-venster heeft zijn eigen nummers onderin (de incidenten van die regel)
+  // 1.306.0 (deel 2)
+  ct: ['[data-ct-row]', (e) => e.dataset.ctRow],
+  lv: ['[data-lv-row]', (e) => e.dataset.lvRow],
+  vh: ['details.vuln-host[data-host] > summary', (e) => e.parentElement.dataset.host],
+  ia: ['[data-ia] [data-ia-toggle]', (e) => e.closest('[data-ia]').dataset.ia],
+  n2: ['details.nis2-m[data-code] > summary', (e) => e.parentElement.dataset.code],
+  ph: ['tr[data-ph]', (e) => e.dataset.ph],
+  act: ['.al-row[data-act-id]', (e) => e.dataset.actId],
+  al: ['#alerts .al2-row[data-aid]', (e) => e.dataset.aid],
 };
+/**
+ * 1.306.0: een stuk van de pagina in het detailpaneel tonen (bv. een <details> die eerst openklapte). De afhandeling van de
+ * pagina (onClick) werkt ook in het paneel, omdat de inhoud dezelfde elementen en kenmerken heeft.
+ */
+function panelFrom(html, { title, ref, push = false, onClick = null, buttons = [] }) {
+  const r = detail({ title, body: `<div class="in-panel">${html}</div>`, ref, push, buttons });
+  if (onClick) $('#modal-body').addEventListener('click', onClick, { signal: modalSignal() });
+  return r;
+}
 function detailHash(ref) {
   const h = location.hash.slice(1), qi = h.indexOf('?');
   const sp = new URLSearchParams(qi >= 0 ? h.slice(qi + 1) : '');
   if (ref) sp.set('open', ref); else sp.delete('open');
   const s = sp.toString();
-  try { history.replaceState(null, '', '#' + (qi >= 0 ? h.slice(0, qi) : h) + (s ? '?' + s.replace(/%3A/g, ':') : '')); } catch (e) { /* geen adres aanpassen */ }
+  try { history.replaceState(null, '', '#' + (qi >= 0 ? h.slice(0, qi) : h) + (s ? '?' + s.replace(/%3A/g, ':').replace(/%7C/g, '|') : '')); } catch (e) { /* geen adres aanpassen */ }
 }
 /**
  * Het detailpaneel tonen (zelfde opties als modal). ref = "soort:id". push = geopend vanuit het paneel zelf (kruimelpad).
@@ -10854,7 +10899,7 @@ const lvDay = (at) => { const d = at.slice(0, 10), t = new Date(), y = new Date(
 function lvRow(e) {
   const hit = e.rule && !e.own, cls = hit ? (e.sev >= 2 ? 'c' : 'w') : e.own ? 'ok' : '';
   const [s1, s2] = lvSentence(e);
-  const open = hit && lvOpen.has(e.id);
+  const open = false;   // 1.306.0: een treffer opent het detailpaneel
   const t = e.at.slice(11, 16), ki = e.kind === 'own' ? 'own' : lvIcKind(e.kind);
   const ownTag = e.own && e.kind !== 'own' ? `<span class="okl">✔ ${L('toegestaan')} · ${esc((EDR_OWN[e.own] || (() => e.own))())}${e.own === 'exc' && (e.ev || {})._exc ? ': ' + esc(e.ev._exc) : ''}</span>` : '';
   const span = e.n > 1 ? L('{n}× tussen {a} en {b}', { n: e.n, a: e.first.slice(11, 16), b: t }) : '';
@@ -10862,7 +10907,7 @@ function lvRow(e) {
     <span class="st"></span><span class="lv-t" title="${esc(fmtDateTime(e.at))}">${t}</span>
     <span class="lv-k">${lvIc(ki)} ${esc((LV_KIND[e.kind] || (() => e.kind))())}</span>
     <span class="lv-s">${s1}${s2 ? `<span class="why">${s2}</span>` : ''}${hit ? `<span class="hitl">${e.sev >= 2 ? '●' : '▲'} ${esc(e.rule_title || e.rule)} · ${e.sev >= 2 ? 'Critical' : 'Warning'}</span>` : ''}${ownTag ? `<span class="why">${ownTag}</span>` : ''}</span>
-    ${e.n > 1 ? `<span class="lv-n" title="${esc(span)}">${e.n}×</span>` : '<span></span>'}<span class="lv-h">${esc(e.host)}</span><span class="lv-go">${hit ? (open ? '▾' : '▸') : ''}</span>
+    ${e.n > 1 ? `<span class="lv-n" title="${esc(span)}">${e.n}×</span>` : '<span></span>'}<span class="lv-h">${esc(e.host)}</span><span class="lv-go">${hit ? '›' : ''}</span>
     <span class="lv-meta">${t} · ${esc(e.host)}${span ? ' · ' + esc(span) : ''}</span>
     ${open ? lvHitOpen(e) : ''}</div>`;
 }
@@ -10939,6 +10984,36 @@ function renderLive() {
     : `<p class="muted">${L('Nog niets gezien. Staat de endpoint-bewaking aan op je servers (Agent Manager), en is de agent 1.63.0 of nieuwer?')}</p>`;
   withMorph(() => { $('#edr-feed').innerHTML = rows.length ? html + (lvMode === 'hits' && sum.list.all > sum.list.hits ? `<p class="muted small lv-more">${L('Verder niets verdachts. Kies <b>Alles</b> om alle {n} gebeurtenissen te zien.', { n: nf(sum.list.all) })}</p>` : '') + legend : empty; });
 }
+/** 1.306.0: de knoppen bij een treffer (op de pagina en in het paneel): incident, proces stoppen, dit is normaal */
+async function lvAction(e) {
+  const inc = e.target.closest('[data-lv-inc]');
+  if (inc) { incidentDialog(+inc.dataset.lvInc); return true; }
+  const kill = e.target.closest('[data-lv-kill]');
+  if (kill) {
+    if (!confirm(L('Dit proces op de server stoppen? De agent controleert eerst dat het nog hetzelfde proces is.'))) return true;
+    try { await api('edr_kill', { id: +kill.dataset.lvKill }); toast(L('Wordt gestopt bij het volgende contact met de agent')); kill.disabled = true; } catch (ex) { toast(ex.message, 'err'); }
+    return true;
+  }
+  const nor = e.target.closest('[data-lv-normal]');
+  if (nor) {
+    if (!confirm(L('Afhandelen en dit voortaan niet meer melden op deze server?'))) return true;
+    try { await api('ids_incident', { id: +nor.dataset.lvNormal, action: 'normal' }); toast(L('Afgehandeld; dit wordt voortaan niet meer gemeld')); nor.disabled = true; } catch (ex) { toast(ex.message, 'err'); }
+    return true;
+  }
+  return false;
+}
+/** 1.306.0: een treffer van de endpoint-bewaking in het detailpaneel */
+function lvPanel(id) {
+  const e = ((edrFeed && edrFeed.events) || []).find((x) => +x.id === +id);
+  if (!e) return;
+  const [s1, s2] = lvSentence(e);
+  const body = `<p class="lv-psent">${s1}${s2 ? `<br><span class="muted small">${s2}</span>` : ''}</p>
+    <p class="small muted">${esc(fmtDateTime(e.at))} · ${esc(e.host)} · ${e.sev >= 2 ? '🔴 Critical' : '🟠 Warning'}</p>${lvHitOpen(e)}`;
+  detail({ title: `${e.sev >= 2 ? '🔴' : '🟠'} ${e.rule_title || e.rule}`, body, ref: 'lv:' + e.id, buttons: [] });
+  $('#modal-body').addEventListener('click', (ev) => { lvAction(ev); }, { signal: modalSignal() });
+}
+DETAIL_OPEN.lv = (id) => lvPanel(+id);
+
 function initLive() {
   const pane = $('.ids-pane[data-pane="live"]');
   if (!pane || pane.dataset.lvInit) return;
@@ -10948,23 +11023,10 @@ function initLive() {
     if (m) { lvMode = m.dataset.lvMode; uiSet('edr_mode', 'rzmon-edr-mode', lvMode); lvOpen.clear(); $('#edr-feed').innerHTML = `<p class="muted">${L('Laden…')}</p>`; return loadEdrFeed(); }
     const k = e.target.closest('[data-lv-kind]');
     if (k) { lvKind = lvKind === k.dataset.lvKind ? '' : k.dataset.lvKind; return renderLive(); }
-    const inc = e.target.closest('[data-lv-inc]');
-    if (inc) return incidentDialog(+inc.dataset.lvInc);
-    const kill = e.target.closest('[data-lv-kill]');
-    if (kill) {
-      if (!confirm(L('Dit proces op de server stoppen? De agent controleert eerst dat het nog hetzelfde proces is.'))) return undefined;
-      try { await api('edr_kill', { id: +kill.dataset.lvKill }); toast(L('Wordt gestopt bij het volgende contact met de agent')); kill.disabled = true; } catch (ex) { toast(ex.message, 'err'); }
-      return undefined;
-    }
-    const nor = e.target.closest('[data-lv-normal]');
-    if (nor) {
-      if (!confirm(L('Afhandelen en dit voortaan niet meer melden op deze server?'))) return undefined;
-      try { await api('ids_incident', { id: +nor.dataset.lvNormal, action: 'normal' }); toast(L('Afgehandeld; dit wordt voortaan niet meer gemeld')); nor.disabled = true; } catch (ex) { toast(ex.message, 'err'); }
-      return undefined;
-    }
+    if (await lvAction(e)) return undefined;
     if (e.target.closest('a, button, details, .xp')) return undefined;
     const row = e.target.closest('[data-lv-row]');
-    if (row) { const id = +row.dataset.lvRow; if (lvOpen.has(id)) lvOpen.delete(id); else lvOpen.add(id); renderLive(); }
+    if (row) lvPanel(+row.dataset.lvRow);   // 1.306.0: het detailpaneel
     return undefined;
   });
   pane.addEventListener('keydown', (e) => {
@@ -13769,6 +13831,8 @@ document.addEventListener('touchstart', (e) => {
   document.addEventListener('touchmove', mv, { passive: true }); document.addEventListener('touchend', up);
 }, { passive: true });
 function al2Close() {
+  const m = $('#modal');   // 1.306.0: de melding staat in het detailpaneel
+  if (m && m.open && detailCur && detailCur.ref.startsWith('al:')) m.close();
   const d = $('#al2-drawer');
   if (!d || d.hidden) return;
   d.classList.remove('on');
@@ -13829,6 +13893,7 @@ function al2Strip(eps, it) {
   return `<div class="al2-strip" title="${esc(L('Storingen van deze check, 7 dagen'))}">${xs.map(tick).join('')}<span>${esc(L('7 dagen'))}</span><span>${esc(L('nu'))}</span></div>`;
 }
 
+DETAIL_OPEN.al = (id) => al2Open(id);
 async function al2Open(aid) {
   const it = AL2_ITEMS.get(String(aid));
   if (!it) return;
@@ -13880,9 +13945,11 @@ async function al2Open(aid) {
       ${a.check_id && (isAdmin() || isUser()) ? `<button type="button" class="btn" data-al2-act="fails">🔔 ${L('Melden na…')}</button>` : ''}
       ${a.check_id ? aiBtn('check', a.check_id, true) : ''}
       ${lwd ? `<button type="button" class="btn primary" data-al2-act="logs">📜 ${L('In Logs bekijken')}</button>${isAdmin() || isUser() ? `<button type="button" class="btn" data-al2-act="lwedit">${L('Zoekactie aanpassen')}</button>` : ''}` : ''}</div>`;
-  d.hidden = false;
-  $('#al2-scrim').hidden = false;
-  requestAnimationFrame(() => { d.classList.add('on'); $('#al2-scrim').classList.add('on'); });
+  // 1.306.0: in het detailpaneel, zoals overal (de inhoud en de knoppen blijven dezelfde)
+  const html = d.innerHTML, cls = d.className;
+  d.innerHTML = '';
+  detail({ title: `${host}${check && check !== '–' ? ' › ' + check : ''}`, body: `<div class="${cls} al2-inpanel">${html}</div>`, ref: 'al:' + aid, buttons: [] });
+  $('#modal-body').addEventListener('click', al2DrawerClick, { signal: modalSignal() });
   if (a.check_id) al2Chart(it);
 }
 /** 1.212.0: gegevens van een melding van een vaste zoekactie */
@@ -16960,7 +17027,8 @@ function actlogRows(items, withHost) {
     const head = d !== day ? `<div class="al-day">${esc(new Date(d + 'T12:00').toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' }))}</div>` : '';
     day = d;
     const okTxt = i.ok === true ? `<span class="al-ok good" title="${esc(L('gelukt'))}">✔</span>` : i.ok === false ? `<span class="al-ok bad" title="${esc(L('mislukt'))}">✘</span>` : '<span class="al-ok muted">·</span>';
-    return `${head}<div class="al-row${i.ok === false ? ' al-fail' : ''}${i.undone ? ' muted' : ''}">
+    ACT_ITEMS.set(String(i.id), i);
+    return `${head}<div class="al-row${i.ok === false ? ' al-fail' : ''}${i.undone ? ' muted' : ''}" data-act-id="${esc(String(i.id))}" data-dref="act:${esc(String(i.id))}" data-dref-click tabindex="0" role="button">
       <span class="al-time mono">${esc((i.at || '').slice(11, 16))}</span>${okTxt}
       <div class="grow"><div><span class="al-mod">${esc((AL_MOD[i.module] || (() => i.module))())}</span> <b>${esc(i.action)}</b>
         ${withHost && i.host ? `<button type="button" class="linklike small" data-al-host="${i.host_id}">${esc(i.host)}</button>` : ''}</div>
@@ -16969,6 +17037,33 @@ function actlogRows(items, withHost) {
       ${i.can_undo ? `<button type="button" class="btn small-btn need-admin al-undo" data-undo="${i.id}" title="${esc(L('Terugzetten naar hoe het was'))}">↩ ${L('Terugzetten')}</button>` : ''}</div>`;
   }).join('');
 }
+const ACT_ITEMS = new Map();   // 1.306.0: regels van het logboek (voor het detailpaneel)
+/** 1.306.0: een regel van het logboek in het detailpaneel */
+function actPanel(id) {
+  const i = ACT_ITEMS.get(String(id));
+  if (!i) return;
+  const src = AL_SRC[i.source] || ['•', () => i.source];
+  const rows = [
+    [L('Tijd'), esc(fmtDateTime(i.at))],
+    [L('Onderdeel'), esc((AL_MOD[i.module] || (() => i.module))())],
+    [L('Uitkomst'), i.ok === true ? '✔ ' + L('gelukt') : i.ok === false ? '✘ ' + L('mislukt') : '–'],
+    i.host ? [L('Server'), esc(i.host)] : null,
+    [L('Door'), `${src[0]} ${esc(i.username || src[1]())}${i.ip ? ' · ' + esc(i.ip) : ''}`],
+    i.undone ? [L('Status'), L('teruggezet')] : null,
+  ].filter(Boolean);
+  detail({ title: i.action, ref: 'act:' + i.id, body: `<table class="kv-table">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>
+    ${i.detail ? `<pre class="code al-pdet">${esc(i.detail)}</pre>` : ''}`, buttons: [
+    ...(i.can_undo && isAdmin() ? [{ label: '↩ ' + L('Terugzetten'), onClick: async (b) => {
+      if (!confirm(L('Deze wijziging terugzetten?'))) return;
+      b.disabled = true;
+      try { const r = await api('changelog_undo', { id: +i.id }); toast(r.message); $('#modal').close(); loadActLog(); refresh(); } catch (ex) { toast(ex.message, 'err'); b.disabled = false; }
+    } }] : []),
+    ...(i.host_id ? [{ label: L('Naar de server') + ' →', onClick: () => hostPanel(+i.host_id, { push: true }) }] : []),
+    { label: L('Sluiten'), style: 'margin-left:auto', onClick: () => $('#modal').close() },
+  ] });
+}
+DETAIL_OPEN.act = (id) => actPanel(id);
+
 /** 1.235.0: ↩ bij een wijziging in het Logboek (was het Wijzigingslogboek) */
 async function alUndo(e, reload) {
   const b = e.target.closest('[data-undo]');
@@ -18157,8 +18252,9 @@ function iaTop() {
       <div class="ia-domgrid">${domBars}</div></div></div>`;
 }
 
+let iaPanelKey = null;   // 1.306.0: de kaart die in het detailpaneel staat (alleen die toont zijn inhoud)
 function iaCard(a) {
-  const open = iaOpen.has(a.key);
+  const open = iaPanelKey === a.key;
   const admin = iaData.admin;
   const acts = (a.acts || []).map((x, i) => {
     const lbl = { upgrade: '⬆ ' + (x.label ? L('Bijwerken op {h}', { h: x.label }) : L('Bijwerken via de agent')), cve: '🐞 ' + x.cve, ip: '🔎 ' + L('Alles over {ip}', { ip: x.ip }),
@@ -18253,6 +18349,20 @@ function iaRender(p) {
       <div class="ia-pane">${tabs.find((t) => t[0] === iaTab)[2]}</div></section>`;
 }
 
+/** 1.306.0: een advies in het detailpaneel */
+function iaPanel(key, o = {}) {
+  const a = ((iaData && iaData.advices) || []).find((x) => x.key === key);
+  if (!a) return;
+  iaPanelKey = key;
+  const html = iaCard(a);
+  iaPanelKey = null;
+  panelFrom(html, { title: a.title || L('Advies'), ref: 'ia:' + key, push: !!o.push, onClick: (e) => {
+    const st = e.target.closest('[data-ia-st]');
+    if (iaClick(e) && st) $('#modal').close();   // gedaan, later of niet van toepassing: weg uit de lijst, dus het paneel dicht
+  } });
+}
+DETAIL_OPEN.ia = (key, o) => iaPanel(key, o);
+
 /** Klikken in het advies-deel (één keer gekoppeld aan #an-body) */
 function iaClick(e) {
   const t = e.target.closest('[data-ia-filter], [data-ia-toggle], [data-ia-st], [data-ia-act], [data-ia-copy], [data-ia-tab], [data-ia-cve], [data-ia-host]');
@@ -18263,7 +18373,8 @@ function iaClick(e) {
   if (t.dataset.iaTab) { iaTab = t.dataset.iaTab; try { localStorage.setItem('rzmon-an-tab', iaTab); } catch (ex) { /* alleen nu */ } renderAnalytics(); return true; }
   if (t.dataset.iaCve) { vulnDetail(t.dataset.iaCve); return true; }
   if (t.dataset.iaHost) { iaFilter = 'open'; const h = (iaData.advices || []).find((a) => a.host_id === +t.dataset.iaHost); if (h) iaOpen.add(h.key); renderAnalytics(); $('.ia-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return true; }
-  if (t.dataset.iaToggle !== undefined && key) { iaOpen.has(key) ? iaOpen.delete(key) : iaOpen.add(key); renderAnalytics(); return true; }
+  if (t.dataset.iaToggle !== undefined && key && !t.closest('.in-panel')) { iaPanel(key); return true; }   // 1.306.0: het detailpaneel
+  if (t.dataset.iaToggle !== undefined) return true;
   if (t.dataset.iaCopy !== undefined) { const pre = t.parentElement.querySelector('pre'); navigator.clipboard?.writeText(pre.textContent).then(() => toast(L('Gekopieerd')), () => {}); return true; }
   if (t.dataset.iaSt && key) {
     api('insight_set', { key, status: t.dataset.iaSt }).then(async () => {
@@ -19659,6 +19770,16 @@ function vulnOneUpDo(pkg) {
   $$('[data-vou-h]', $('#modal')).forEach((b) => (b.onclick = () => vulnUpgrade(hosts.find((h) => h.id === +b.dataset.vouH), [pkg])));
 }
 
+/** 1.306.0: de kaart van een server in het detailpaneel (dezelfde inhoud en knoppen als op de pagina) */
+function vulnPanel(id, o = {}) {
+  const det = $(`#vuln-hosts details.vuln-host[data-host="${id}"]`);
+  if (!det) return;
+  const html = det.outerHTML.replace(/^<details class="/, '<details open class="in-panel-d ');
+  const name = ($('.vh-name b', det) || {}).textContent || '';
+  panelFrom(html, { title: `🐞 ${name}`, ref: 'vh:' + id, push: !!o.push, onClick: vulnClick });
+}
+DETAIL_OPEN.vh = (id, o) => vulnPanel(+id, o);
+
 function vulnHostCard(h, fs) {
   const sharedErr = h.error && vulnSharedErr.has(h.error);   // staat al bovenaan als één melding
   // Per pakket: alle CVE's, ernstigste eerst; pakketten met de ergste en bereikbare bovenaan
@@ -19675,7 +19796,8 @@ function vulnHostCard(h, fs) {
   // Dicht, tenzij je hem open had (per account); met zoeken of een filter tijdelijk open als er treffers zijn
   const narrowed = !!$('#vuln-search').value.trim() || fxActive('vulns');
   if (!narrowed) vulnTmp.h.clear();
-  const open = narrowed ? vulnTmp.h.get(+h.id) ?? fs.length > 0 : vulnSaved('h', h.id);
+  const open = false;   // 1.306.0: een server opent het detailpaneel (niet meer openklappen)
+  void narrowed;
   const up = h.upgrade;
   const upTxt = !up ? '' : up.state === 'queued' || up.state === 'running'
     ? `<a href="#" data-vact="progress" data-host="${h.id}" title="${L('Voortgang tonen')}">${agentSteps(up)}</a>`   // 1.252.0: dezelfde stappen als overal
@@ -19722,6 +19844,9 @@ function vulnHostCard(h, fs) {
 }
 
 function vulnClick(e) {
+  // 1.306.0: een server (de kop van de kaart) opent zijn kwetsbaarheden in het detailpaneel
+  const sum = e.target.closest('details.vuln-host:not(.in-panel-d) > summary');
+  if (sum && !e.target.closest('button, a, input')) { e.preventDefault(); vulnPanel(+sum.parentElement.dataset.host); return; }
   const vou = e.target.closest('[data-vou]');
   if (vou) return vulnOneUpDo(vou.dataset.vou);
   const det = e.target.closest('details.vuln-host');
@@ -21238,6 +21363,7 @@ async function loadPatch() {
   clearTimeout(loadPatch.t);
   if (hs.some((h) => (h.status && ['queued', 'running'].includes(h.status.state)) || h.ha_req)) loadPatch.t = setTimeout(() => { if (box.isConnected && box.offsetParent) loadPatch(); }, 5000);
   if ($('#ph-all', box)) $('#ph-all', box).onchange = (e) => $$('[data-ph-sel]', box).forEach((c) => { c.checked = e.target.checked; });
+  patchHs = hs;
   box.onclick = (e) => {
     if (e.target.closest('#ph-bulk')) return patchBulk($$('[data-ph-sel]:checked', box).map((c) => +c.dataset.phSel));
     if (e.target.closest('[data-ph-sel]')) return;
@@ -21248,9 +21374,14 @@ async function loadPatch() {
     if (e.target.closest('[data-ph-am]')) return agentInstructions(findHost(h.id));
     if (e.target.closest('[data-ph-prog]')) return vulnUpgradeDialog(findHost(h.id) || h, true);
     const now = e.target.closest('[data-ph-now]');
-    if (now) patchNow(h, now.dataset.phNow, loadPatch);
+    if (now) return patchNow(h, now.dataset.phNow, loadPatch);
+    if (!e.target.closest('button, a, input, label')) return patchList(h);   // 1.306.0: de rij opent het detailpaneel
+    return undefined;
   };
 }
+
+let patchHs = [];   // 1.306.0: voor het detailpaneel (← → en ?open=ph:id)
+DETAIL_OPEN.ph = (id) => { const h = patchHs.find((x) => x.id === +id); if (h) patchList(h); };
 
 /** 1.238.0: updates voor meerdere servers tegelijk instellen, met spreiding en een voorbeeld vooraf */
 function patchBulk(ids) {
@@ -21286,12 +21417,18 @@ function patchBulk(ids) {
 }
 
 function patchList(h) {
-  modal({
+  detail({
+    ref: 'ph:' + h.id,
     title: L('Updates voor {name}', { name: h.name }),
     body: `<div style="padding:1rem 1.2rem"><table class="vuln-table small"><thead><tr><th>${L('Pakket')}</th><th>${L('Nieuwe versie')}</th><th></th></tr></thead><tbody>
       ${h.list.map((x) => `<tr><td><code>${esc(x[3] || x[0])}</code></td><td>${esc(x[1])}</td><td>${+x[2] ? `<b class="bad">🛡 ${L('beveiliging')}</b>` : ''}${x[0] === 'os' ? `<span class="muted">${L('in Home Assistant zelf (herstart alles)')}</span>` : ''}</td></tr>`).join('')}
       </tbody></table>${h.list.length >= 300 ? `<p class="muted small">${L('De eerste 300.')}</p>` : ''}</div>`,
-    buttons: [{ label: L('Sluiten'), onClick: () => $('#modal').close() }],
+    buttons: [
+      ...(isAdmin() && !h.blocked && patchCount({ ...h, scope: 'security' }) && h.kind === 'linux' ? [{ label: '🛡 ' + L('Beveiligingsupdates installeren'), cls: 'primary', onClick: () => patchNow(h, 'security', loadPatch) }] : []),
+      ...(isAdmin() && !h.blocked && h.avail ? [{ label: '⬆ ' + (h.kind === 'ha' ? L('Core en add-ons') : L('Alles')), onClick: () => patchNow(h, 'all', loadPatch) }] : []),
+      ...(isAdmin() && h.kind !== 'truenas' ? [{ label: L('Instellen') + ' →', onClick: () => agentInstructions(findHost(h.id)) }] : []),
+      { label: L('Sluiten'), style: 'margin-left:auto', onClick: () => $('#modal').close() },
+    ],
   });
 }
 
@@ -21474,7 +21611,7 @@ async function loadNis2() {
       <span class="app-sum-b"><span class="bad">✘</span> <b>${cnt('missing')}</b> ${L('ontbreekt')}</span>
       <a class="btn small-btn" href="api.php?action=nis2_report" target="_blank" rel="noopener">📄 ${L('NIS2-rapport (afdrukken als PDF)')}</a></div>
     <h3 class="set-sub">${L('Maatregelen (art. 21 lid 2)')}</h3>
-    <div class="nis2-list">${d.measures.map((m) => { const [ic, lbl, c] = NIS2_ST[m.status]; return `<details class="nis2-m nis2-${c}" ${m.status === 'missing' ? 'open' : ''}>
+    <div class="nis2-list">${d.measures.map((m) => { const [ic, lbl, c] = NIS2_ST[m.status]; return `<details class="nis2-m nis2-${c}" data-code="${esc(m.code)}">
       <summary><span class="${c}">${ic}</span> <b>${m.code.toUpperCase()}. ${esc(m.title)}</b> <span class="muted small">${esc(lbl())}</span></summary>
       <p class="muted small">${esc(m.desc)}</p>
       <ul class="nis2-ev">${m.evidence.map((e) => `<li>${e.ok === true ? '<span class="ok">✔</span>' : e.ok === false ? '<span class="bad">✘</span>' : '<span class="muted">•</span>'} ${esc(e.text)}${e.go ? ` <a href="#${esc(e.go)}" data-goto="${esc(e.go)}" class="small">${L('bekijken')} →</a>` : ''}</li>`).join('')}</ul>
@@ -21490,13 +21627,32 @@ async function loadNis2() {
     <div class="btn-row need-admin">${d.recent.length ? `<select id="nis2-pick" aria-label="${esc(L('Incident'))}"><option value="">${L('Incident van de laatste 30 dagen…')}</option>${d.recent.map((r) => `<option value="${r.id}">${esc(fmtDateTime(r.at))} · ${esc(r.title.slice(0, 80))}${r.host ? ' · ' + esc(r.host) : ''}</option>`).join('')}</select>
       <button type="button" class="btn small-btn" id="nis2-mark">⚠ ${L('Als significant markeren')}</button>` : `<span class="muted small">${L('Geen incidenten van de laatste 30 dagen om te markeren (Incidenten).')}</span>`}</div>
     <p class="muted small">${L('Dit is geen juridisch advies en geen certificering: het laat zien wat RzSense technisch ziet. Of je onder NIS2 valt en wat significant is, bepaal je zelf (of met je adviseur).')}</p>`;
-  box.onclick = async (e) => {
+  box.onclick = (e) => nis2Click(e, box);
+  box.onchange = async (e) => {
+    const c = e.target.closest('[data-nis2-sent]');
+    if (!c) return;
+    try { await api('nis2_sent', { id: +c.dataset.id, which: c.dataset.nis2Sent, on: c.checked }); loadNis2(); } catch (ex) { toast(ex.message, 'err'); }
+  };
+}
+/** 1.306.0: een maatregel in het detailpaneel; de knoppen werken daar zoals op de pagina */
+function nis2Panel(code, o = {}) {
+  const det = $(`#tab-compliance details.nis2-m[data-code="${CSS.escape(code)}"], details.nis2-m[data-code="${CSS.escape(code)}"]`);
+  if (!det) return;
+  const html = det.outerHTML.replace(/^<details class="/, '<details open class="in-panel-d ');
+  panelFrom(html, { title: ($('summary b', det) || {}).textContent || code, ref: 'n2:' + code, push: !!o.push, onClick: (e) => nis2Click(e, $('#modal-body')) });
+}
+DETAIL_OPEN.n2 = (code, o) => nis2Panel(code, o);
+async function nis2Click(e, box) {
+  {
+    const sum = e.target.closest('details.nis2-m:not(.in-panel-d) > summary');
+    if (sum) { e.preventDefault(); nis2Panel(sum.parentElement.dataset.code); return; }
     const s = e.target.closest('[data-nis2-save]');
     const un = e.target.closest('[data-nis2-unmark]');
     try {
       if (s) {
         const c = s.dataset.nis2Save;
-        await api('nis2_note', { code: c, note: $(`[data-nis2-note="${c}"]`, box).value, manual: $(`[data-nis2-manual="${c}"]`, box).checked });
+        const m = s.closest('.nis2-m') || box;
+        await api('nis2_note', { code: c, note: $(`[data-nis2-note="${c}"]`, m).value, manual: $(`[data-nis2-manual="${c}"]`, m).checked });
         toast(L('Opgeslagen'));
         loadNis2();
       } else if (un) {
@@ -21509,12 +21665,7 @@ async function loadNis2() {
         loadNis2();
       }
     } catch (ex) { toast(ex.message, 'err'); }
-  };
-  box.onchange = async (e) => {
-    const c = e.target.closest('[data-nis2-sent]');
-    if (!c) return;
-    try { await api('nis2_sent', { id: +c.dataset.id, which: c.dataset.nis2Sent, on: c.checked }); loadNis2(); } catch (ex) { toast(ex.message, 'err'); }
-  };
+  }
 }
 // ---------------------------------------------------------------- 🧩 Slimme velden (1.239.0)
 // Eén bouwsteen voor lijsten (IP-adressen, netwerken, accounts, e-mailadressen, domeinen): kiezen uit wat RzSense al

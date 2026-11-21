@@ -2874,7 +2874,8 @@ function actlogRows(items, withHost) {
     const head = d !== day ? `<div class="al-day">${esc(new Date(d + 'T12:00').toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' }))}</div>` : '';
     day = d;
     const okTxt = i.ok === true ? `<span class="al-ok good" title="${esc(L('gelukt'))}">✔</span>` : i.ok === false ? `<span class="al-ok bad" title="${esc(L('mislukt'))}">✘</span>` : '<span class="al-ok muted">·</span>';
-    return `${head}<div class="al-row${i.ok === false ? ' al-fail' : ''}${i.undone ? ' muted' : ''}">
+    ACT_ITEMS.set(String(i.id), i);
+    return `${head}<div class="al-row${i.ok === false ? ' al-fail' : ''}${i.undone ? ' muted' : ''}" data-act-id="${esc(String(i.id))}" data-dref="act:${esc(String(i.id))}" data-dref-click tabindex="0" role="button">
       <span class="al-time mono">${esc((i.at || '').slice(11, 16))}</span>${okTxt}
       <div class="grow"><div><span class="al-mod">${esc((AL_MOD[i.module] || (() => i.module))())}</span> <b>${esc(i.action)}</b>
         ${withHost && i.host ? `<button type="button" class="linklike small" data-al-host="${i.host_id}">${esc(i.host)}</button>` : ''}</div>
@@ -2883,6 +2884,33 @@ function actlogRows(items, withHost) {
       ${i.can_undo ? `<button type="button" class="btn small-btn need-admin al-undo" data-undo="${i.id}" title="${esc(L('Terugzetten naar hoe het was'))}">↩ ${L('Terugzetten')}</button>` : ''}</div>`;
   }).join('');
 }
+const ACT_ITEMS = new Map();   // 1.306.0: regels van het logboek (voor het detailpaneel)
+/** 1.306.0: een regel van het logboek in het detailpaneel */
+function actPanel(id) {
+  const i = ACT_ITEMS.get(String(id));
+  if (!i) return;
+  const src = AL_SRC[i.source] || ['•', () => i.source];
+  const rows = [
+    [L('Tijd'), esc(fmtDateTime(i.at))],
+    [L('Onderdeel'), esc((AL_MOD[i.module] || (() => i.module))())],
+    [L('Uitkomst'), i.ok === true ? '✔ ' + L('gelukt') : i.ok === false ? '✘ ' + L('mislukt') : '–'],
+    i.host ? [L('Server'), esc(i.host)] : null,
+    [L('Door'), `${src[0]} ${esc(i.username || src[1]())}${i.ip ? ' · ' + esc(i.ip) : ''}`],
+    i.undone ? [L('Status'), L('teruggezet')] : null,
+  ].filter(Boolean);
+  detail({ title: i.action, ref: 'act:' + i.id, body: `<table class="kv-table">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>
+    ${i.detail ? `<pre class="code al-pdet">${esc(i.detail)}</pre>` : ''}`, buttons: [
+    ...(i.can_undo && isAdmin() ? [{ label: '↩ ' + L('Terugzetten'), onClick: async (b) => {
+      if (!confirm(L('Deze wijziging terugzetten?'))) return;
+      b.disabled = true;
+      try { const r = await api('changelog_undo', { id: +i.id }); toast(r.message); $('#modal').close(); loadActLog(); refresh(); } catch (ex) { toast(ex.message, 'err'); b.disabled = false; }
+    } }] : []),
+    ...(i.host_id ? [{ label: L('Naar de server') + ' →', onClick: () => hostPanel(+i.host_id, { push: true }) }] : []),
+    { label: L('Sluiten'), style: 'margin-left:auto', onClick: () => $('#modal').close() },
+  ] });
+}
+DETAIL_OPEN.act = (id) => actPanel(id);
+
 /** 1.235.0: ↩ bij een wijziging in het Logboek (was het Wijzigingslogboek) */
 async function alUndo(e, reload) {
   const b = e.target.closest('[data-undo]');

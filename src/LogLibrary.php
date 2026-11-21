@@ -14,7 +14,10 @@ final class LogLibrary
     private const SYS = 'bron:kern bron:journal bron:messages bron:syslog';
     private const AXIGEN = 'bron:axigen';
 
-    /** Groepen in de volgorde van het venster */
+    /**
+     * Groepen in de volgorde van het venster
+     * @return array<mixed>
+     */
     public static function groups(): array
     {
         return [
@@ -32,6 +35,7 @@ final class LogLibrary
     /**
      * De sjablonen. mode many = te veel treffers (threshold in win minuten), none = geen treffer in win minuten.
      * severity: 0 info, 1 warning, 2 critical. edit = de zoektekst moet je zelf invullen (bv. de tekst van je back-up).
+     * @return array<mixed>
      */
     public static function templates(): array
     {
@@ -125,6 +129,7 @@ final class LogLibrary
 
     /**
      * Het venster: de sjablonen met per sjabloon of het bij je servers past (de bronnen bestaan) en of het al toegevoegd is.
+     * @return array<mixed>
      */
     public static function list(): array
     {
@@ -152,6 +157,7 @@ final class LogLibrary
     /**
      * Sjablonen toevoegen als vaste zoekacties. $items: [{key, threshold?, severity?, q?}] (q alleen bij sjablonen met edit).
      * @return array{added: list<string>, skipped: list<array{name: string, why: string}>}
+     * @param array<mixed> $items
      */
     public static function add(array $items, string $by): array
     {

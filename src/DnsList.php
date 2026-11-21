@@ -35,13 +35,17 @@ final class DnsList
         return self::token();
     }
 
+    /** @return array<mixed> */
     public static function own(): array
     {
         return array_values(array_filter(array_map(static fn($d) => rtrim(strtolower(trim($d)), '.'), parse_list((string) setting('dnsbl_own', ''))),
             static fn($d) => (bool) preg_match('/^(?=.{4,253}$)(?:[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/', $d)));
     }
 
-    /** Alle domeinen, per bron */
+    /**
+     * Alle domeinen, per bron
+     * @return array<mixed>
+     */
     public static function domains(): array
     {
         $out = [];
@@ -78,6 +82,7 @@ final class DnsList
         return implode("\n", $lines) . "\n";
     }
 
+    /** @return array<mixed> */
     public static function status(): array
     {
         $d = self::domains();
@@ -86,7 +91,10 @@ final class DnsList
             'fetched' => setting('dnsbl_fetched', '') ?: null, 'fetched_by' => setting('dnsbl_fetched_by', '') ?: null];
     }
 
-    /** De lijst toevoegen aan alle AdGuard-instanties (filtering/add_url); bestaat hij al, dan niets */
+    /**
+     * De lijst toevoegen aan alle AdGuard-instanties (filtering/add_url); bestaat hij al, dan niets
+     * @return array<mixed>
+     */
     public static function addToAdguard(string $url, string $by): array
     {
         $res = [];

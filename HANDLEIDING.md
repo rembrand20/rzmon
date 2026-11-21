@@ -277,7 +277,8 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
 - Beide zet je uit bij **Mijn account → Weergave** (*Rode gloed bij critical* en *Live animaties*, per account). Staat je systeem op *minder beweging*, dan beweegt er niets.
 
 **Het detailpaneel** (vanaf 1.304.0): op elke pagina werkt een klik op een item hetzelfde. Er klapt niets meer open in de lijst; de details openen in een **paneel rechts**.
-- **Wat opent in het paneel:** een server (Monitoring, ook via *Nu aandacht nodig*), een check, een incident, een IDS-incident, een apparaat (Netwerk) en een logregel. Volgt in een volgende versie: IDS Live, Kwetsbaarheden, Analyse, Compliance, Updates, Logboek en Containers.
+- **Wat opent in het paneel:** een server (Monitoring, ook via *Nu aandacht nodig*), een check, een incident, een IDS-incident, een apparaat (Netwerk) en een logregel. Vanaf 1.306.0 ook: een container, een treffer bij IDS → Live, een server bij Kwetsbaarheden, een advies bij Analyse, een maatregel bij Compliance, een server bij Updates (met de pakketten en de knoppen om te installeren), een regel van het Logboek (met *Terugzetten*) en een melding bij Meldingen.
+- **Blijven zoals ze zijn:** groepen en dagen (die zijn kopjes, geen items), de Agent Manager (een grote werkpagina), en Instellingen en Mijn account (formulieren).
 - **Knoppen in een rij** (✔ Bevestig, 🔧, ＋) doen meteen wat ze zeggen, zonder paneel.
 - **Verder klikken:** in het paneel van een server opent een check in hetzelfde paneel, met bovenin een kruimelpad terug (← ci-b).
 - **← →** (knoppen bovenin of de pijltjestoetsen) gaan naar het vorige of volgende item van die soort op de pagina. Het item dat open is, is in de lijst gemarkeerd.

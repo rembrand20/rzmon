@@ -6207,6 +6207,20 @@ button.rz-job::before, .btn.rz-job::before { content: ''; position: absolute; in
 .dref-sel:not(tr) { box-shadow: inset 3px 0 0 var(--primary); }
 [data-dref][data-dref-click] { cursor: pointer; }
 /* De lijst achter het paneel blijft leesbaar: wat donkerder, niet wazig (ook in de thema's Liquid Glass en Skeuo) */
+/* 1.306.0: stukken van de pagina in het paneel */
+.in-panel details.in-panel-d > summary { display: none; }
+.in-panel details.in-panel-d { border: 0; box-shadow: none; margin: 0; padding: 0; background: none; }
+.in-panel .ia-head { pointer-events: none; }
+.in-panel .ia-body { display: block !important; }
+#modal .al2-drawer.al2-inpanel { position: static; transform: none; width: auto; height: auto; box-shadow: none; border: 0; z-index: auto; overflow: visible; background: none; }
+#modal .al2-inpanel .al2-x, #modal .al2-inpanel .al2-grip, #modal .al2-inpanel .al2-dh h3 { display: none; }
+#modal .al2-inpanel .al2-db { overflow: visible; max-height: none; }
+.ct-kvs2 { margin-top: .8rem; }
+.lv-psent { margin: 0 0 .3rem; font-size: 1rem; }
+.al-pdet { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: .8rem; }
+.al-row[data-dref] { cursor: pointer; }
+.al-row[data-dref]:hover { background: var(--card-2); }
+tr[data-ph] { cursor: pointer; }
 body #modal.detail::backdrop { background: rgba(5, 10, 20, .28); -webkit-backdrop-filter: none; backdrop-filter: none; }
 [data-dref][data-dref-click]:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 /* 1.298.0: lijst links, details rechts (Incidenten op een breed scherm): het paneel blokkeert de pagina niet */

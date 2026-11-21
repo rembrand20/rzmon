@@ -25,6 +25,8 @@ document.addEventListener('touchstart', (e) => {
   document.addEventListener('touchmove', mv, { passive: true }); document.addEventListener('touchend', up);
 }, { passive: true });
 function al2Close() {
+  const m = $('#modal');   // 1.306.0: de melding staat in het detailpaneel
+  if (m && m.open && detailCur && detailCur.ref.startsWith('al:')) m.close();
   const d = $('#al2-drawer');
   if (!d || d.hidden) return;
   d.classList.remove('on');
@@ -85,6 +87,7 @@ function al2Strip(eps, it) {
   return `<div class="al2-strip" title="${esc(L('Storingen van deze check, 7 dagen'))}">${xs.map(tick).join('')}<span>${esc(L('7 dagen'))}</span><span>${esc(L('nu'))}</span></div>`;
 }
 
+DETAIL_OPEN.al = (id) => al2Open(id);
 async function al2Open(aid) {
   const it = AL2_ITEMS.get(String(aid));
   if (!it) return;
@@ -136,9 +139,11 @@ async function al2Open(aid) {
       ${a.check_id && (isAdmin() || isUser()) ? `<button type="button" class="btn" data-al2-act="fails">🔔 ${L('Melden na…')}</button>` : ''}
       ${a.check_id ? aiBtn('check', a.check_id, true) : ''}
       ${lwd ? `<button type="button" class="btn primary" data-al2-act="logs">📜 ${L('In Logs bekijken')}</button>${isAdmin() || isUser() ? `<button type="button" class="btn" data-al2-act="lwedit">${L('Zoekactie aanpassen')}</button>` : ''}` : ''}</div>`;
-  d.hidden = false;
-  $('#al2-scrim').hidden = false;
-  requestAnimationFrame(() => { d.classList.add('on'); $('#al2-scrim').classList.add('on'); });
+  // 1.306.0: in het detailpaneel, zoals overal (de inhoud en de knoppen blijven dezelfde)
+  const html = d.innerHTML, cls = d.className;
+  d.innerHTML = '';
+  detail({ title: `${host}${check && check !== '–' ? ' › ' + check : ''}`, body: `<div class="${cls} al2-inpanel">${html}</div>`, ref: 'al:' + aid, buttons: [] });
+  $('#modal-body').addEventListener('click', al2DrawerClick, { signal: modalSignal() });
   if (a.check_id) al2Chart(it);
 }
 /** 1.212.0: gegevens van een melding van een vaste zoekactie */

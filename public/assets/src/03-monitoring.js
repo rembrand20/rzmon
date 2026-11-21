@@ -653,12 +653,12 @@ function renderContainers() {
   }
   const head = `<div class="ct-tr ct-th"><span>${L('Container')}</span><span>${L('Status')}</span><span>${L('Image')}</span><span>${L('Draait')}</span><span>CPU</span><span>${L('Geheugen')}</span><span>${L('Schijf')}</span><span>${L('Herstart')}</span><span>${L('24 uur')}</span><span class="r">${L('Check')}</span></div>`;
   const row = (c, i) => {
-    const id = c.host.id + ':' + c.key, open = ctOpen.has(id), run = c.state === 'running';
+    const id = c.host.id + ':' + c.key, open = false, run = c.state === 'running';   // 1.306.0: details in het paneel
     const memW = c.mem_pct !== null ? Math.min(100, c.mem_pct) : 0;
     const sub = [g !== 'host' ? c.host.name : '', c.pod ? 'pod: ' + c.pod : '', c.user && c.user !== 'root' && c.user !== 'docker' ? L('gebruiker: {u}', { u: c.user }) : '', c.health === 'unhealthy' ? L('ongezond (healthcheck faalt)') : c.health === 'healthy' ? L('gezond') : ''].filter(Boolean).join(' · ');
     const chk = c.check ? `<button type="button" class="ct-mon" data-ct-check="${c.check.id}">${ctSvg(ctIcon.shield, 14)}${L('bewaakt')}</button>`
       : (isAdmin() ? `<button type="button" class="btn small-btn" data-ct-add="${c.host.id}" data-ct-key="${esc(c.key)}">＋ ${L('Check')}</button>` : `<span class="muted small">–</span>`);
-    return `<div class="ct-tr ct-s-${c.state}${open ? ' open' : ''}" data-ct-row="${esc(id)}" style="--i:${Math.min(i, 20)}" role="button" tabindex="0" aria-expanded="${open}">
+    return `<div class="ct-tr ct-s-${c.state}${open ? ' open' : ''}" data-ct-row="${esc(id)}" style="--i:${Math.min(i, 20)}" role="button" tabindex="0">
       <span class="ct-name"><b>${esc(c.name)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span>
       <span>${ctLabel(c.state)}</span>
       <span class="mono ct-img" data-l="${esc(L('Image'))}" title="${esc(c.image)}">${esc(c.image || '–')}</span>
@@ -710,6 +710,33 @@ function ctDetail(c) {
   </div>`;
 }
 
+/** 1.306.0: een container in het detailpaneel */
+function ctPanel(id, o = {}) {
+  const c = ((ctData && ctData.hosts) || []).flatMap((h) => h.containers.map((x) => ({ ...x, host: h }))).find((x) => x.host.id + ':' + x.key === id);
+  if (!c) return;
+  const extra = [
+    c.image ? [L('Image'), `<span class="mono">${esc(c.image)}</span>`] : null,
+    c.cpu !== null ? ['CPU', `${dec(String(c.cpu))}%`] : null,
+    c.mem !== null ? [L('Geheugen'), fmtBytes(c.mem) + (c.mem_limit && c.mem_limit < 1e12 ? ' / ' + fmtBytes(c.mem_limit) : '')] : null,
+    [L('Schijf'), L('container {a} · volumes {b}', { a: fmtBytes(c.size_rw), b: fmtBytes(c.volumes) })],
+    [L('Herstart'), String(c.restarts)],
+    c.pod ? ['Pod', esc(c.pod)] : null,
+    [L('Server'), esc(c.host.name)],
+  ].filter(Boolean);
+  const body = `${ctDetail(c)}<div class="ct-kvs ct-kvs2">${extra.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('')}</div>`;
+  detail({ title: `📦 ${c.name}`, body, ref: 'ct:' + id, push: !!o.push, buttons: [] });
+  $('#modal-body').addEventListener('click', (e) => {
+    const ck = e.target.closest('[data-ct-check]');
+    if (ck) return checkInfo(+ck.dataset.ctCheck, false, null, { push: true });
+    const add = e.target.closest('[data-ct-add]');
+    if (add) return checkForm(null, findHost(+add.dataset.ctAdd), { type: 'container', target: add.dataset.ctKey, name: '', options: '{"res":{}}' });
+    const hb = e.target.closest('[data-ct-host]');
+    if (hb) return hostPanel(+hb.dataset.ctHost, { push: true });
+    return undefined;
+  }, { signal: modalSignal() });
+}
+DETAIL_OPEN.ct = (id, o) => ctPanel(id, o);
+
 function initContainers() {
   const el = $('#containers');
   el.addEventListener('click', (e) => {
@@ -727,7 +754,7 @@ function initContainers() {
     if (hb) { setMonSub('checks'); return jumpToHost(hb.dataset.ctHost); }
     if (e.target.closest('button, a, [data-ai]')) return;
     const r = e.target.closest('[data-ct-row]');
-    if (r) { const k = r.dataset.ctRow; if (ctOpen.has(k)) ctOpen.delete(k); else ctOpen.add(k); renderContainers(); }
+    if (r) ctPanel(r.dataset.ctRow);   // 1.306.0: het detailpaneel
   });
   el.addEventListener('keydown', (e) => {
     const r = e.target.closest('[data-ct-row]');

@@ -11894,4 +11894,6 @@ return [
     'RzSense kreeg geen rapporten (geen weigeringen): netwerk, reverse proxy of de agent zelf; de agent vertelt het zodra hij terug is' => 'RzSense received no reports (no refusals): network, reverse proxy or the agent itself; the agent will tell once it is back',
     'rapporten geweigerd ({n}× sinds {t}): {why}' => 'reports refused ({n}× since {t}): {why}',
     'Geen gegevens: de agent is stil (gemeld bij de check {c})' => 'No data: the agent is silent (reported on the check {c})',
+    'Uitkomst' => 'Outcome',
+    'Beveiligingsupdates installeren' => 'Install security updates',
 ];

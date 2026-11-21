@@ -373,6 +373,16 @@ function vulnOneUpDo(pkg) {
   $$('[data-vou-h]', $('#modal')).forEach((b) => (b.onclick = () => vulnUpgrade(hosts.find((h) => h.id === +b.dataset.vouH), [pkg])));
 }
 
+/** 1.306.0: de kaart van een server in het detailpaneel (dezelfde inhoud en knoppen als op de pagina) */
+function vulnPanel(id, o = {}) {
+  const det = $(`#vuln-hosts details.vuln-host[data-host="${id}"]`);
+  if (!det) return;
+  const html = det.outerHTML.replace(/^<details class="/, '<details open class="in-panel-d ');
+  const name = ($('.vh-name b', det) || {}).textContent || '';
+  panelFrom(html, { title: `🐞 ${name}`, ref: 'vh:' + id, push: !!o.push, onClick: vulnClick });
+}
+DETAIL_OPEN.vh = (id, o) => vulnPanel(+id, o);
+
 function vulnHostCard(h, fs) {
   const sharedErr = h.error && vulnSharedErr.has(h.error);   // staat al bovenaan als één melding
   // Per pakket: alle CVE's, ernstigste eerst; pakketten met de ergste en bereikbare bovenaan
@@ -389,7 +399,8 @@ function vulnHostCard(h, fs) {
   // Dicht, tenzij je hem open had (per account); met zoeken of een filter tijdelijk open als er treffers zijn
   const narrowed = !!$('#vuln-search').value.trim() || fxActive('vulns');
   if (!narrowed) vulnTmp.h.clear();
-  const open = narrowed ? vulnTmp.h.get(+h.id) ?? fs.length > 0 : vulnSaved('h', h.id);
+  const open = false;   // 1.306.0: een server opent het detailpaneel (niet meer openklappen)
+  void narrowed;
   const up = h.upgrade;
   const upTxt = !up ? '' : up.state === 'queued' || up.state === 'running'
     ? `<a href="#" data-vact="progress" data-host="${h.id}" title="${L('Voortgang tonen')}">${agentSteps(up)}</a>`   // 1.252.0: dezelfde stappen als overal
@@ -436,6 +447,9 @@ function vulnHostCard(h, fs) {
 }
 
 function vulnClick(e) {
+  // 1.306.0: een server (de kop van de kaart) opent zijn kwetsbaarheden in het detailpaneel
+  const sum = e.target.closest('details.vuln-host:not(.in-panel-d) > summary');
+  if (sum && !e.target.closest('button, a, input')) { e.preventDefault(); vulnPanel(+sum.parentElement.dataset.host); return; }
   const vou = e.target.closest('[data-vou]');
   if (vou) return vulnOneUpDo(vou.dataset.vou);
   const det = e.target.closest('details.vuln-host');

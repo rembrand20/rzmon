@@ -1159,30 +1159,6 @@ parameters:
 			path: src/AppControl.php
 
 		-
-			message: '#^Method AttackFlow\:\:build\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/AttackFlow.php
-
-		-
-			message: '#^Method AttackFlow\:\:ipEvents\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/AttackFlow.php
-
-		-
-			message: '#^Method AttackFlow\:\:live\(\) has parameter \$r with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/AttackFlow.php
-
-		-
-			message: '#^Method AttackFlow\:\:live\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/AttackFlow.php
-
-		-
 			message: '#^Method AuthEvents\:\:ignored\(\) has parameter \$users with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -1523,30 +1499,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/ChangeLog.php
-
-		-
-			message: '#^Method Chat\:\:payload\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Chat.php
-
-		-
-			message: '#^Method Chat\:\:post\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Chat.php
-
-		-
-			message: '#^Method Chat\:\:send\(\) has parameter \$only with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Chat.php
-
-		-
-			message: '#^Method Chat\:\:test\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Chat.php
 
 		-
 			message: '#^Method Checks\:\:agentCertSource\(\) has parameter \$check with no value type specified in iterable type array\.$#'
@@ -2519,30 +2471,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/Discover.php
-
-		-
-			message: '#^Method DnsList\:\:addToAdguard\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/DnsList.php
-
-		-
-			message: '#^Method DnsList\:\:domains\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/DnsList.php
-
-		-
-			message: '#^Method DnsList\:\:own\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/DnsList.php
-
-		-
-			message: '#^Method DnsList\:\:status\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/DnsList.php
 
 		-
 			message: '#^Method DnsWatch\:\:check\(\) has parameter \$entries with no value type specified in iterable type array\.$#'
@@ -4855,30 +4783,6 @@ parameters:
 			path: src/IpIntel.php
 
 		-
-			message: '#^Method LogLibrary\:\:add\(\) has parameter \$items with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/LogLibrary.php
-
-		-
-			message: '#^Method LogLibrary\:\:groups\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/LogLibrary.php
-
-		-
-			message: '#^Method LogLibrary\:\:list\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/LogLibrary.php
-
-		-
-			message: '#^Method LogLibrary\:\:templates\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/LogLibrary.php
-
-		-
 			message: '#^Method LogStore\:\:agentLines\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -7039,30 +6943,6 @@ parameters:
 			path: src/Pick.php
 
 		-
-			message: '#^Method PortScan\:\:parsePorts\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/PortScan.php
-
-		-
-			message: '#^Method PortScan\:\:presetPorts\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/PortScan.php
-
-		-
-			message: '#^Method PortScan\:\:scan\(\) has parameter \$ports with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/PortScan.php
-
-		-
-			message: '#^Method PortScan\:\:scan\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/PortScan.php
-
-		-
 			message: '#^Method Protect\:\:actions\(\) has parameter \$card with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -8911,30 +8791,6 @@ parameters:
 			path: src/SnmpMonitor.php
 
 		-
-			message: '#^Method Stats\:\:applyDiskForecast\(\) has parameter \$check with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Stats.php
-
-		-
-			message: '#^Method Stats\:\:applyDiskForecast\(\) has parameter \$res with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Stats.php
-
-		-
-			message: '#^Method Stats\:\:applyDiskForecast\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Stats.php
-
-		-
-			message: '#^Method Stats\:\:uptimeFull\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Stats.php
-
-		-
 			message: '#^Method StatusPage\:\:data\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -10019,30 +9875,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/WebLog.php
-
-		-
-			message: '#^Method WebPush\:\:devices\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/WebPush.php
-
-		-
-			message: '#^Method WebPush\:\:payload\(\) has parameter \$extra with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/WebPush.php
-
-		-
-			message: '#^Method WebPush\:\:post\(\) has parameter \$r with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/WebPush.php
-
-		-
-			message: '#^Method WebPush\:\:subscribe\(\) has parameter \$sub with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/WebPush.php
 
 		-
 			message: '#^Method Whitelist\:\:add\(\) return type has no value type specified in iterable type array\.$#'

@@ -74,6 +74,7 @@ final class Chat
     /**
      * Naar elk kanaal dat aan staat en de melding wil. $url = de link in het bericht (bevestigen of RzSense zelf).
      * @return array{ok: ?bool, errors: list<string>} ok: null = geen kanaal gebruikt, anders of alles lukte
+     * @param array<mixed>|null $only
      */
     public static function send(string $title, string $message, int $status, string $event, string $url, ?string $host = null, bool $ids = false, ?array $only = null): array
     {
@@ -92,7 +93,10 @@ final class Chat
         return ['ok' => $ok, 'errors' => $errors];
     }
 
-    /** Het bericht in de vorm van de dienst */
+    /**
+     * Het bericht in de vorm van de dienst
+     * @return array<mixed>
+     */
     public static function payload(string $kind, string $title, string $message, int $status, string $url, ?string $host): array
     {
         $title = mb_substr(trim($title), 0, 240);
@@ -138,7 +142,10 @@ final class Chat
         return ['type' => 'message', 'attachments' => [['contentType' => 'application/vnd.microsoft.card.adaptive', 'content' => $card]]];
     }
 
-    /** @return array{ok: bool, error: ?string} */
+    /**
+     * @return array{ok: bool, error: ?string}
+     * @param array<mixed> $payload
+     */
     private static function post(string $url, array $payload): array
     {
         if (!preg_match('#^https://#i', $url)) {
@@ -169,7 +176,10 @@ final class Chat
             : ['ok' => false, 'error' => "HTTP $code" . ($code === 429 ? ' (' . t('te veel berichten, de dienst remt af') . ')' : '')];
     }
 
-    /** Testbericht naar één kanaal, met de (nog niet opgeslagen) URL uit het formulier, of de opgeslagen */
+    /**
+     * Testbericht naar één kanaal, met de (nog niet opgeslagen) URL uit het formulier, of de opgeslagen
+     * @return array<mixed>
+     */
     public static function test(string $kind, string $url): array
     {
         if (!isset(self::KINDS[$kind])) {

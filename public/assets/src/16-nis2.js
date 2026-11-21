@@ -19,7 +19,7 @@ async function loadNis2() {
       <span class="app-sum-b"><span class="bad">✘</span> <b>${cnt('missing')}</b> ${L('ontbreekt')}</span>
       <a class="btn small-btn" href="api.php?action=nis2_report" target="_blank" rel="noopener">📄 ${L('NIS2-rapport (afdrukken als PDF)')}</a></div>
     <h3 class="set-sub">${L('Maatregelen (art. 21 lid 2)')}</h3>
-    <div class="nis2-list">${d.measures.map((m) => { const [ic, lbl, c] = NIS2_ST[m.status]; return `<details class="nis2-m nis2-${c}" ${m.status === 'missing' ? 'open' : ''}>
+    <div class="nis2-list">${d.measures.map((m) => { const [ic, lbl, c] = NIS2_ST[m.status]; return `<details class="nis2-m nis2-${c}" data-code="${esc(m.code)}">
       <summary><span class="${c}">${ic}</span> <b>${m.code.toUpperCase()}. ${esc(m.title)}</b> <span class="muted small">${esc(lbl())}</span></summary>
       <p class="muted small">${esc(m.desc)}</p>
       <ul class="nis2-ev">${m.evidence.map((e) => `<li>${e.ok === true ? '<span class="ok">✔</span>' : e.ok === false ? '<span class="bad">✘</span>' : '<span class="muted">•</span>'} ${esc(e.text)}${e.go ? ` <a href="#${esc(e.go)}" data-goto="${esc(e.go)}" class="small">${L('bekijken')} →</a>` : ''}</li>`).join('')}</ul>
@@ -35,13 +35,32 @@ async function loadNis2() {
     <div class="btn-row need-admin">${d.recent.length ? `<select id="nis2-pick" aria-label="${esc(L('Incident'))}"><option value="">${L('Incident van de laatste 30 dagen…')}</option>${d.recent.map((r) => `<option value="${r.id}">${esc(fmtDateTime(r.at))} · ${esc(r.title.slice(0, 80))}${r.host ? ' · ' + esc(r.host) : ''}</option>`).join('')}</select>
       <button type="button" class="btn small-btn" id="nis2-mark">⚠ ${L('Als significant markeren')}</button>` : `<span class="muted small">${L('Geen incidenten van de laatste 30 dagen om te markeren (Incidenten).')}</span>`}</div>
     <p class="muted small">${L('Dit is geen juridisch advies en geen certificering: het laat zien wat RzSense technisch ziet. Of je onder NIS2 valt en wat significant is, bepaal je zelf (of met je adviseur).')}</p>`;
-  box.onclick = async (e) => {
+  box.onclick = (e) => nis2Click(e, box);
+  box.onchange = async (e) => {
+    const c = e.target.closest('[data-nis2-sent]');
+    if (!c) return;
+    try { await api('nis2_sent', { id: +c.dataset.id, which: c.dataset.nis2Sent, on: c.checked }); loadNis2(); } catch (ex) { toast(ex.message, 'err'); }
+  };
+}
+/** 1.306.0: een maatregel in het detailpaneel; de knoppen werken daar zoals op de pagina */
+function nis2Panel(code, o = {}) {
+  const det = $(`#tab-compliance details.nis2-m[data-code="${CSS.escape(code)}"], details.nis2-m[data-code="${CSS.escape(code)}"]`);
+  if (!det) return;
+  const html = det.outerHTML.replace(/^<details class="/, '<details open class="in-panel-d ');
+  panelFrom(html, { title: ($('summary b', det) || {}).textContent || code, ref: 'n2:' + code, push: !!o.push, onClick: (e) => nis2Click(e, $('#modal-body')) });
+}
+DETAIL_OPEN.n2 = (code, o) => nis2Panel(code, o);
+async function nis2Click(e, box) {
+  {
+    const sum = e.target.closest('details.nis2-m:not(.in-panel-d) > summary');
+    if (sum) { e.preventDefault(); nis2Panel(sum.parentElement.dataset.code); return; }
     const s = e.target.closest('[data-nis2-save]');
     const un = e.target.closest('[data-nis2-unmark]');
     try {
       if (s) {
         const c = s.dataset.nis2Save;
-        await api('nis2_note', { code: c, note: $(`[data-nis2-note="${c}"]`, box).value, manual: $(`[data-nis2-manual="${c}"]`, box).checked });
+        const m = s.closest('.nis2-m') || box;
+        await api('nis2_note', { code: c, note: $(`[data-nis2-note="${c}"]`, m).value, manual: $(`[data-nis2-manual="${c}"]`, m).checked });
         toast(L('Opgeslagen'));
         loadNis2();
       } else if (un) {
@@ -54,10 +73,5 @@ async function loadNis2() {
         loadNis2();
       }
     } catch (ex) { toast(ex.message, 'err'); }
-  };
-  box.onchange = async (e) => {
-    const c = e.target.closest('[data-nis2-sent]');
-    if (!c) return;
-    try { await api('nis2_sent', { id: +c.dataset.id, which: c.dataset.nis2Sent, on: c.checked }); loadNis2(); } catch (ex) { toast(ex.message, 'err'); }
-  };
+  }
 }

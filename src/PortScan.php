@@ -31,7 +31,10 @@ final class PortScan
         'custom' => 'Eigen lijst/range',
     ];
 
-    /** "22, 80, 8000-8100" → [22, 80, 8000, ...] */
+    /**
+     * "22, 80, 8000-8100" → [22, 80, 8000, ...]
+     * @return array<mixed>
+     */
     public static function parsePorts(string $spec): array
     {
         $ports = [];
@@ -62,6 +65,7 @@ final class PortScan
         return $ports;
     }
 
+    /** @return array<mixed> */
     public static function presetPorts(string $preset, string $custom = ''): array
     {
         return match ($preset) {
@@ -82,6 +86,8 @@ final class PortScan
     /**
      * @param ?callable $progress 1.252.0: na elk groepje fn(int $gedaan, int $totaal, int $open): bool; false = stoppen
      *                            (wat al gevonden is, komt terug)
+     * @param array<mixed> $ports
+     * @return array<mixed>
      */
     public static function scan(string $host, array $ports, float $timeout = 1.5, int $parallel = 200, ?callable $progress = null): array
     {

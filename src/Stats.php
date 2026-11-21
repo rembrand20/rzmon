@@ -43,7 +43,10 @@ final class Stats
         return $out;
     }
 
-    /** Zoals vóór 1.119.0: alles uit de metingen (als er nog geen dagtotalen zijn) */
+    /**
+     * Zoals vóór 1.119.0: alles uit de metingen (als er nog geen dagtotalen zijn)
+     * @return array<mixed>
+     */
     private static function uptimeFull(Closure $pct): array
     {
         $rows = q("SELECT c.host_id, c.type = 'ping' AS is_ping,
@@ -126,7 +129,12 @@ final class Stats
         return $slope;
     }
 
-    /** Diskvoorspelling in het checkresultaat verwerken: tekst erbij en eventueel WARNING. */
+    /**
+     * Diskvoorspelling in het checkresultaat verwerken: tekst erbij en eventueel WARNING.
+     * @param array<mixed> $check
+     * @param array<mixed> $res
+     * @return array<mixed>
+     */
     public static function applyDiskForecast(array $check, array $res): array
     {
         if ($res['value'] === null || $res['status'] === STATUS_UNKNOWN) {

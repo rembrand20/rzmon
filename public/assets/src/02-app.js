@@ -578,7 +578,7 @@ function showTab(name) {
   const qs = qi >= 0 ? name.slice(qi + 1) : '';
   if (qi >= 0) name = name.slice(0, qi);
   const openRef = new URLSearchParams(qs).get('open');   // 1.304.0: #pagina?open=check:12 opent het detailpaneel
-  if (openRef && /^[a-z]+:[\w.:-]{1,80}$/.test(openRef)) setTimeout(() => { if (!$('#modal').open) detailOpen(openRef); }, 700);
+  if (openRef && /^[a-z0-9]+:[\w.:|-]{1,120}$/.test(openRef)) setTimeout(() => { if (!$('#modal').open) detailOpen(openRef); }, 700);
   if (name === 'settings/blocks') name = 'ids/blk';   // 1.92.0: blokkades en whitelist staan in het IDS-tabblad
   // 1.276.0: nieuwe indeling; oude adressen (ook in meldingen en e-mails) sturen door naar de nieuwe plek
   const MOVED = { 'settings/agents': 'servers', 'settings/actlog': 'logboek', 'settings/changelog': 'logboek', 'settings/nis2': 'compliance',
