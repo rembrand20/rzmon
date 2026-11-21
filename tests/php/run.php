@@ -2154,6 +2154,20 @@ $lsC = LogStore::context($lsS['hits'][1]['ref']);
 ok($lsC !== null && count($lsC['before']) === 3 && count($lsC['after']) === 3 && str_contains($lsC['after'][0]['msg'], 'regel 28'), 'regels eromheen: 3 ervoor en de regels erna');
 ok(LogStore::search(['q' => 'regel server:bestaatniet', 'from' => $lsNow2 - 3600])['total'] === 0, 'server: die niet bestaat geeft niets');
 
+section('Web Push apart bij rapporten en IDS (1.307.0)');
+$wpR1 = Reports::clean('month', ['on' => 1, 'email' => 1, 'push' => 1]);
+$wpR2 = Reports::clean('month', ['on' => 1, 'email' => 0, 'push' => 1, 'webpush' => 0]);
+$wpR3 = Reports::clean('month', ['on' => 1, 'email' => 0, 'push' => 0, 'webpush' => 1]);
+ok($wpR1['webpush'] === true && $wpR2['push'] && !$wpR2['webpush'] && !$wpR3['push'] && $wpR3['webpush'], 'rapport: Web Push volgt Push zolang er niets apart is gekozen; daarna los');
+save_setting('ids_push_classic', '1'); save_setting('ids_push_web', '0');
+ok(IdsPush::via('classic') && !IdsPush::via('web'), 'IDS-pushmeldingen: Pushover/ntfy en Web Push los aan en uit');
+save_setting('ids_push_web', '1');
+// IDS met alleen Web Push: Notify krijgt pushover=false; Pushover aan zonder sleutel (geen echt bericht) wordt dan niet gebruikt
+save_setting('ids_push_classic', '0'); save_setting('pushover_enabled', '1'); save_setting('pushover_user', ''); save_setting('webpush_enabled', '0'); save_setting('webpush_fallback', '0');
+$wpN = Notify::send('t', 'm', ['channels' => ['pushover' => IdsPush::via('classic'), 'webpush' => IdsPush::via('web'), 'email' => false, 'webhook' => false], 'status' => STATUS_CRIT, 'event' => 'problem', 'ids' => true]);
+ok(!str_contains(implode(' ', $wpN['errors']), 'Pushover'), 'IDS alleen via Web Push: niet naar Pushover');
+save_setting('ids_push_classic', '1'); save_setting('pushover_enabled', '0'); save_setting('webpush_enabled', '1'); save_setting('webpush_fallback', '1');
+
 section('Agent stil: één melding met de reden (1.305.0)');
 q("INSERT INTO hosts (name, address, mode, agent_seen) VALUES ('ci-stil', '10.0.0.88', 'agent', NOW() - INTERVAL 2 HOUR)");
 $asH = (int) q("SELECT id FROM hosts WHERE name = 'ci-stil'")->fetchColumn();

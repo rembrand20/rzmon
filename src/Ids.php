@@ -1375,7 +1375,7 @@ final class Ids
         }
         $done[$title] = true;
         // 1.235.0: via Notify; alleen push (ook tijdens stille uren), zoals altijd
-        $n = Notify::send("🛡️ IDS: $title", $detail, ['channels' => ['pushover' => true, 'email' => false, 'webhook' => false], 'status' => $status, 'event' => 'problem', 'anchor' => '#ids', 'ids' => true,
+        $n = Notify::send("🛡️ IDS: $title", $detail, ['channels' => ['pushover' => IdsPush::via('classic'), 'webpush' => IdsPush::via('web'), 'email' => false, 'webhook' => false], 'status' => $status, 'event' => 'problem', 'anchor' => '#ids', 'ids' => true,
             'prio' => $status === STATUS_CRIT ? min(1, (int) setting('pushover_priority_crit', 1)) : min(1, (int) setting('pushover_priority_warn', 0))]);
         q("INSERT INTO alerts (check_id, status, title, message, sent_ok, chat_ok, kind) VALUES (NULL, ?, ?, ?, ?, ?, 'ids')",
             [$status, mb_substr("🛡️ IDS: $title", 0, 250), mb_substr($detail . Notify::errText($n['errors']), 0, 1000), $n['push'] ? 1 : 0, Notify::flag($n['chat'])]);

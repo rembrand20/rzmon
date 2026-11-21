@@ -14,6 +14,13 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.302.0**: **Web Push als eigen kanaal** in *Wanneer melden*, met Pushover als reserve; per apparaat te beperken.
 - **1.300.0**: **van buitenaf meten vanaf een server naar keuze** (bv. een VPS): de eerlijkste blik op wat er open staat.
 
+## 1.307.0 – 2026-11-21
+### Nieuw
+- **Web Push ook apart bij de IDS-pushmeldingen en de rapporten.** Zie HANDLEIDING 6.1d.
+  - **IDS-pushmeldingen:** kies *Via* Pushover / ntfy en/of Web Push, voor aanvallen en de dagsamenvatting.
+  - **Rapporten:** per rapport een schakelaar voor Pushover / ntfy en een voor Web Push, naast e-mail.
+  - Na de update verandert er niets: alles staat zoals het stond.
+
 ## 1.306.0 – 2026-11-21
 ### Nieuw
 - **Het detailpaneel, deel 2: nu op elke pagina.** Een klik opent de details in het paneel rechts, met ← →, een kruimelpad en een link met `?open=…`. Zie HANDLEIDING 2 (Monitoring → Het detailpaneel).

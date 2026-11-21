@@ -6299,7 +6299,7 @@ function repSub(c, fixed) {
   const n = c.to ? c.to.split(/[,;\s]+/).filter(Boolean).length : 0;
   return !c.on ? L('uit') : (f === 'week' ? L('elke {d} om {t}', { d: REP_DAYS().find(([v]) => v === c.day)[1], t: c.time })
     : f === 'quarter' ? L('elk kwartaal op de {d}e (jan, apr, jul, okt) om {t}', { d: c.day, t: c.time }) : L('elke maand op de {d}e om {t}', { d: c.day, t: c.time }))
-    + ' · ' + [c.email ? L('e-mail') : '', c.push ? L('push') : ''].filter(Boolean).join(' + ')
+    + ' · ' + [c.email ? L('e-mail') : '', c.push ? 'Pushover / ntfy' : '', (c.webpush ?? c.push) ? 'Web Push' : ''].filter(Boolean).join(' + ')
     + (c.email && (n || c.own) ? ' · ' + (n ? L('{n} eigen ontvanger(s)', { n }) : L('eigen ontvangers')) + (c.also ? ' + ' + L('algemene') : '') : '');
 }
 async function loadReports() {
@@ -6327,7 +6327,8 @@ async function loadReports() {
         </div>
         <div class="rep-ch">
           <label class="switch small"><input type="checkbox" data-rep-f="email" ${c.email ? 'checked' : ''} ${dis}><span></span> 📧 ${L('E-mail (HTML)')}${r.smtp && (r.mail || c.to) ? '' : ` <span class="warn-txt">${L('nog niet ingesteld')}</span>`}</label>
-          <label class="switch small"><input type="checkbox" data-rep-f="push" ${c.push ? 'checked' : ''} ${dis}><span></span> 📱 ${L('Push (korte samenvatting)')}${r.push ? '' : ` <span class="warn-txt">${L('nog niet ingesteld')}</span>`}</label>
+          <label class="switch small"><input type="checkbox" data-rep-f="webpush" ${(c.webpush ?? c.push) ? 'checked' : ''} ${dis}><span></span> 📱 ${L('Web Push (korte samenvatting)')}${r.webpush ? '' : ` <span class="warn-txt">${L('nog niet ingesteld')}</span>`}</label>
+          <label class="switch small"><input type="checkbox" data-rep-f="push" ${c.push ? 'checked' : ''} ${dis}><span></span> 📲 ${L('Pushover / ntfy (korte samenvatting)')}${r.push ? '' : ` <span class="warn-txt">${L('nog niet ingesteld')}</span>`}</label>
         </div>
         ${r.admin ? `<div class="rep-to">
           <label>${L('Ontvangers van dit rapport')} <span class="hint">${L('(komma ertussen, max. {n}; leeg = de algemene ontvangers bij Instellingen → E-mail)', { n: r.max_to })}</span>
@@ -6363,6 +6364,7 @@ function repRead(el) {
   c.time = $('[data-rep-f=time]', el).value || '08:00';
   c.email = $('[data-rep-f=email]', el).checked;
   c.push = $('[data-rep-f=push]', el).checked;
+  c.webpush = $('[data-rep-f=webpush]', el).checked;   // 1.307.0
   if ($('[data-rep-f=to]', el)) {
     c.to = $('[data-rep-f=to]', el).value;
     c.also = $('[data-rep-f=also]', el).checked;
@@ -6402,7 +6404,7 @@ function repWire(el) {
     try {
       if (b.matches('[data-rep-send]')) {
         const r = await api('report_send', { key: k });
-        toast(L('Verstuurd via {c}', { c: r.sent.map((x) => (x === 'email' ? L('e-mail') : L('push'))).join(' + ') }) + (r.warn ? ' · ' + r.warn : ''), r.warn ? 'err' : undefined);
+        toast(L('Verstuurd via {c}', { c: r.sent.map((x) => (x === 'email' ? L('e-mail') : x === 'webpush' ? 'Web Push' : 'Pushover / ntfy')).join(' + ') }) + (r.warn ? ' · ' + r.warn : ''), r.warn ? 'err' : undefined);
       } else {
         const r = await api('report_me', { key: k });
         toast(L('Verstuurd naar {e}', { e: r.to }));
@@ -22264,6 +22266,8 @@ const FH_SHORT = () => ({
   proxy_def_rate: L("Hoeveel verzoeken per seconde een nieuwe site per adres krijgt. Apps krijgen vanzelf de ruime stand."),
   proxy_def_bots: L("Een nieuwe site weert standaard bekende aanvalstools."),
   webpush_fallback: L("Staat bij een melding Web Push aangevinkt, maar staat Web Push uit, is er geen apparaat aangemeld of komt het bericht niet aan? Dan gaat de melding via Pushover of ntfy, met de reden erbij. Zo raak je niets kwijt."),
+  ids_push_classic: L("IDS-meldingen (aanvallen en de dagsamenvatting) via Pushover of ntfy. Zet je dit uit en Web Push aan, dan krijg je ze alleen via Web Push. Staat Web Push uit of komt het niet aan, dan gaat het toch via Pushover als de reserve bij Web Push aan staat."),
+  ids_push_web: L("IDS-meldingen (aanvallen en de dagsamenvatting) via Web Push, naar de apparaten die ze willen (per apparaat: alles, alleen critical of alleen IDS)."),
   webcheck_on: L("RzSense vraagt elke site van je reverse proxy één keer per dag zelf op en geeft een cijfer van A tot F: https met een geldig certificaat, doorsturen van http, HSTS, Content-Security-Policy, frames, nosniff, Referrer-Policy, Permissions-Policy en of de site zijn softwareversie verraadt. Er gaat niets naar een externe dienst."),
   webcheck_domain: L("Staat er in je proxy server_name app.* (zoals bij SWAG), dan weet RzSense niet onder welk domein de site hangt. Vul het hier in, bv. example.nl; de webcheck vraagt dan app.example.nl op."),
   proxy_def_devices: L("Een nieuwe site laat standaard je toegestane apparaten van buiten door."),

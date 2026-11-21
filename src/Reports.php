@@ -49,7 +49,7 @@ final class Reports
     /** Standaard voor een rapport */
     private static function def(string $k): array
     {
-        return ['on' => false, 'freq' => self::LIST[$k][1] ?? ($k === 'nis2' ? 'quarter' : 'month'), 'day' => 1, 'time' => '08:00', 'email' => true, 'push' => false, 'to' => '', 'also' => false]
+        return ['on' => false, 'freq' => self::LIST[$k][1] ?? ($k === 'nis2' ? 'quarter' : 'month'), 'day' => 1, 'time' => '08:00', 'email' => true, 'push' => false, 'webpush' => false, 'to' => '', 'also' => false]
             + ($k === 'all' ? ['parts' => array_values(array_diff(self::PARTS, ['nis2']))] : []);
     }
 
@@ -85,6 +85,7 @@ final class Reports
             'day' => $freq === 'week' ? max(1, min(7, (int) ($in['day'] ?? 1))) : max(1, min(28, (int) ($in['day'] ?? 1))),
             'time' => preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) ($in['time'] ?? '')) ? (string) $in['time'] : $d['time'],
             'email' => !empty($in['email'] ?? $d['email']), 'push' => !empty($in['push'] ?? $d['push']),
+            'webpush' => !empty($in['webpush'] ?? $in['push'] ?? $d['push']),   // 1.307.0: apart; zonder opgeslagen keuze volgt het Push
             'to' => implode(', ', self::addrs((string) ($in['to'] ?? ''))), 'also' => !empty($in['also'] ?? false),
         ];
         if ($k === 'all') {
@@ -227,14 +228,24 @@ final class Reports
             $r = Mailer::send($doc['subject'], $doc['text'], null, $to, $doc['html']);
             return ['ok' => $r['ok'], 'error' => $r['error'], 'sent' => $r['ok'] ? ['email'] : []];
         }
-        $email = $c['email'] || !$c['push'];   // geen kanaal gekozen: dan e-mail
+        $c['webpush'] ??= $c['push'];
+        $email = $c['email'] || (!$c['push'] && !$c['webpush']);   // geen kanaal gekozen: dan e-mail
         if ($email) {
             $r = Mailer::send($doc['subject'], $doc['text'], null, self::recipients($c), $doc['html']);
             $r['ok'] ? $sent[] = 'email' : $err = 'E-mail: ' . $r['error'];
         }
-        if ($c['push'] && Push::enabled()) {
-            $r = Push::send($doc['subject'], $doc['short'], -1);
+        // 1.307.0: Pushover/ntfy en Web Push apart
+        if ($c['push'] && Push::classicEnabled()) {
+            $r = Push::send($doc['subject'], $doc['short'], -1, [], ['svc' => Push::CLASSIC]);
             !empty($r['ok']) ? $sent[] = 'push' : $err = ($err ? $err . ' · ' : '') . 'Push: ' . ($r['error'] ?? '?');
+        }
+        if ($c['webpush'] && WebPush::enabled()) {
+            $r = Push::send($doc['subject'], $doc['short'], -1, [], ['svc' => ['webpush']]);
+            if (!empty($r['ok'])) {
+                $sent[] = 'webpush';
+            } elseif (empty($r['skipped'])) {   // geen apparaat dat dit wil: geen fout
+                $err = ($err ? $err . ' · ' : '') . 'Web Push: ' . ($r['error'] ?? '?');
+            }
         }
         return ['ok' => (bool) $sent, 'error' => $err, 'sent' => $sent];
     }
@@ -246,7 +257,7 @@ final class Reports
             return;
         }
         $where = $to ?? (in_array('email', $r['sent'] ?? [], true) ? (self::recipients(self::cfg()[$k]) ?? t('de algemene ontvangers')) : '');
-        $via = implode(' + ', array_map(static fn($c) => $c === 'email' ? 'e-mail' : 'push', $r['sent'] ?? []));
+        $via = implode(' + ', array_map(static fn($c) => $c === 'email' ? 'e-mail' : ($c === 'webpush' ? 'Web Push' : 'Pushover/ntfy'), $r['sent'] ?? []));
         ActionLog::by($by, null, 'report', $to !== null ? t('Rapport naar mij') : t('Rapport verstuurd'),
             self::label($k) . ($via !== '' ? " · $via" : '') . ($where !== '' ? ' → ' . $where : '') . (!empty($r['error']) ? ' · ' . $r['error'] : ''), (bool) ($r['ok'] ?? false));
     }

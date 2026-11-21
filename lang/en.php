@@ -11896,4 +11896,9 @@ return [
     'Geen gegevens: de agent is stil (gemeld bij de check {c})' => 'No data: the agent is silent (reported on the check {c})',
     'Uitkomst' => 'Outcome',
     'Beveiligingsupdates installeren' => 'Install security updates',
+    'Pushover / ntfy' => 'Pushover / ntfy',
+    'Web Push (korte samenvatting)' => 'Web Push (short summary)',
+    'Pushover / ntfy (korte samenvatting)' => 'Pushover / ntfy (short summary)',
+    'IDS-meldingen (aanvallen en de dagsamenvatting) via Pushover of ntfy. Zet je dit uit en Web Push aan, dan krijg je ze alleen via Web Push. Staat Web Push uit of komt het niet aan, dan gaat het toch via Pushover als de reserve bij Web Push aan staat.' => 'IDS alerts (attacks and the daily summary) via Pushover or ntfy. If you switch this off and Web Push on, you only get them via Web Push. If Web Push is off or does not arrive, they still go via Pushover when the backup at Web Push is on.',
+    'IDS-meldingen (aanvallen en de dagsamenvatting) via Web Push, naar de apparaten die ze willen (per apparaat: alles, alleen critical of alleen IDS).' => 'IDS alerts (attacks and the daily summary) via Web Push, to the devices that want them (per device: everything, only critical or only IDS).',
 ];

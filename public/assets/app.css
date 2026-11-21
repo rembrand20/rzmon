@@ -6527,3 +6527,6 @@ details.pxs h4 { margin: .2rem 0 .45rem; font-size: .9rem; }
 .rs-agent-url input { min-width: 260px; }
 .exp-sets { display: grid; gap: 4px; margin-bottom: .6rem; }
 .exp-risky td { background: color-mix(in srgb, var(--bad, #dc2626) 8%, transparent); }
+/* 1.307.0: IDS-pushmeldingen via Pushover/ntfy en/of Web Push */
+.ids-push-via { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1.2rem; margin: .3rem 0 .9rem; }
+.ids-push-via .switch { margin: 0; }

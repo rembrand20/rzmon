@@ -1904,3 +1904,6 @@ INSERT IGNORE INTO settings (name, value) VALUES ('webcheck_on', '1'), ('webchec
 
 -- 1.302.0: Web Push als eigen kanaal; kwam het niet aan of staat het uit, dan via Pushover/ntfy
 INSERT IGNORE INTO settings (name, value) VALUES ('webpush_fallback', '1');
+
+-- 1.307.0: IDS-pushmeldingen via Pushover/ntfy en/of Web Push
+INSERT IGNORE INTO settings (name, value) VALUES ('ids_push_classic', '1'), ('ids_push_web', '1');

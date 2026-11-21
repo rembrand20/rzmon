@@ -936,6 +936,9 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <?= xp(t('Wanneer een aanval je telefoon laat trillen.'), t('<b>Alleen als ik iets moet doen</b> (aanbevolen): een aanval van buiten die al automatisch geblokkeerd of tegengehouden is, geeft geen pushmelding; hij staat wel bij IDS en in de samenvatting. Wel meteen een melding als hij <i>niet</i> geblokkeerd kon worden, als de app een gewoon antwoord gaf (misschien gelukt), als het lek past bij software die je echt draait (Kwetsbaarheden), en altijd bij iets op een server zelf (webshell, verdacht proces, bestand, login, malware). Dezelfde aanvaller binnen 10 minuten: één melding. <b>Alles pushen</b> = elke ernstige melding. <b>Alleen de samenvatting</b> = geen losse meldingen voor aanvallen van buiten (iets op een server zelf blijft wel komen).')) ?>
           <label><?= th('Pushmelding bij een aanval') ?>
             <select name="ids_push_mode"><option value="action"><?= th('Alleen als ik iets moet doen (aanbevolen)') ?></option><option value="all"><?= th('Alles pushen') ?></option><option value="digest"><?= th('Alleen de dagelijkse samenvatting') ?></option></select></label>
+            <div class="ids-push-via"><span class="muted small"><?= th('Via') ?></span>
+              <label class="switch small"><input type="checkbox" name="ids_push_classic"><span></span> 📲 <?= th('Pushover / ntfy') ?></label>
+              <label class="switch small"><input type="checkbox" name="ids_push_web"><span></span> 📱 Web Push</label></div>
           <div class="row2">
             <label class="switch"><input type="checkbox" name="ids_digest_on"><span></span> <?= th('Dagelijkse samenvatting (stil, zonder geluid)') ?></label>
             <label><?= th('Tijdstip') ?><input type="time" name="ids_digest_time"></label>

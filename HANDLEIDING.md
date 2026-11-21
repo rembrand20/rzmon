@@ -1156,7 +1156,9 @@ Met Web Push komen de meldingen van RzSense rechtstreeks op je telefoon, tablet 
 - **Na de update verandert er niets:** de kolom Web Push neemt de vinkjes van Push over. Daarna stel je hem los in.
 - **Reserve** (*Komt Web Push niet aan (of staat het uit), dan via Pushover of ntfy*, in de kaart van Web Push, standaard aan): staat Web Push aangevinkt maar uit, is er geen apparaat aangemeld, of komt het bericht niet aan, dan gaat de melding via Pushover of ntfy, met de reden erachter. Kreeg Pushover / ntfy de melding al, dan niet nog een keer. Onder de tabel staat een waarschuwing als Web Push aangevinkt is maar uit staat.
 - **Per apparaat** (kolom *Krijgt* in de lijst met apparaten, hier en bij *Mijn account*): **Alles**, **Alleen critical** (en het herstel daarvan) of **Alleen IDS-aanvallen**. Elke gebruiker kiest dat voor zijn eigen apparaten; een beheerder voor elk apparaat. Wil geen enkel apparaat een melding, dan is dat geen fout en springt de reserve niet in.
-- **IDS-pushmeldingen**, de noodlink en de rapporten gaan naar Pushover / ntfy én Web Push (wat aan staat). Discord, Slack en Teams krijgen een melding als Pushover / ntfy of Web Push aangevinkt is, met hun eigen filter.
+- **IDS-pushmeldingen** (vanaf 1.307.0): bij *Meldingen en rapporten → IDS-pushmeldingen* kies je **Via** 📲 Pushover / ntfy en/of 📱 Web Push (allebei standaard aan). Dat geldt voor aanvallen en de dagsamenvatting.
+- **Rapporten** (vanaf 1.307.0): per rapport een schakelaar voor 📲 Pushover / ntfy en een voor 📱 Web Push (naast e-mail). Na de update staat Web Push zoals Push stond.
+- **De noodlink** gaat altijd naar Pushover / ntfy én Web Push (wat aan staat). Discord, Slack en Teams krijgen een melding als Pushover / ntfy of Web Push aangevinkt is, met hun eigen filter.
 - Alleen e-mail ingesteld: dan gaat er niets via push.
 
 **Veilig:**

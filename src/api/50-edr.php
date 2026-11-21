@@ -370,7 +370,7 @@ switch ($action) {
             $rcfg = array_map(static fn($c) => ['to' => '', 'also' => false, 'own' => $c['to'] !== ''] + $c, $rcfg);
         }
         out(['cfg' => $rcfg, 'meta' => $meta, 'parts' => Reports::PARTS, 'admin' => $isAdmin, 'smtp' => trim((string) setting('smtp_host', '')) !== '',
-            'mail' => trim((string) setting('smtp_host', '')) !== '' && trim((string) setting('mail_to', '')) !== '', 'push' => Push::enabled(), 'max_to' => Reports::MAX_TO,
+            'mail' => trim((string) setting('smtp_host', '')) !== '' && trim((string) setting('mail_to', '')) !== '', 'push' => Push::classicEnabled(), 'webpush' => WebPush::enabled(), 'max_to' => Reports::MAX_TO,
             'ai' => Ai::on(), 'ids' => Ids::enabled(), 'vulns' => Vulns::enabled(), 'hibp' => Hibp::enabled(), 'nis2' => Nis2::enabled(), 'me' => $me]);
 
     case 'reports_save':
