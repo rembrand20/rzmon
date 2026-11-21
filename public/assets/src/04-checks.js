@@ -2435,7 +2435,7 @@ function chartSvg(pts, c, t, hours, H = 260, band = null) {
   let max = hasVals ? Math.max(...vals, ...(smart ? band.map((b) => b[1]) : [+c.crit_threshold || 0, +c.warn_threshold || 0])) * 1.1 : 1;
   if (t.unit === '%') max = Math.max(100, ...vals);   // CPU van een container kan boven 100% (meer cores)
   const y = (v) => T + (1 - v / max) * (H - T - B - 14);
-  let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" style="height:${H}px">`;
+  let svg = `<svg class="rz-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" style="height:${H}px">`;
 
   if (hasVals) {
     svg += '<g class="grid">';

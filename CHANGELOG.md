@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.310.0**: **Beweging in heel RzSense** (Stil · Rustig · Vol): statuswissels, knoppen, grafieken en overgangen; gevaarlijke acties bevestig je door ingedrukt te houden.
 - **1.309.0**: **Dagritme**: overdag licht, 's avonds Schemer, 's nachts donker, op je eigen tijden.
 - **1.308.0**: **kleurenschema Schemer**: licht, maar warm en zacht voor je ogen; ook automatisch 's avonds.
 - **1.306.0**: **het detailpaneel op elke pagina**: een klik opent de details rechts, met ← →, een kruimelpad en een deelbare link.
 - **1.305.0**: **agent stil: één melding met de reden**, en een **bewaker** die de agent zelf herstelt.
-- **1.303.0**: **📖 Hoe werken meldingen?**: per status zie je waarheen een melding gaat; ClamAV start weer na een herstart.
+
+## 1.310.0 – 2026-11-21
+### Nieuw
+- **Beweging in heel RzSense.** Eén schuif *Stil · Rustig · Vol* bij *Mijn account → Weergave*. Zie HANDLEIDING (Weergave).
+  - Vervangt de schakelaar *Live animaties* en de schuif voor de Attack Flow. Had je *Live animaties* uit, dan staat Beweging op Stil.
+  - **Statuswissel:** een server of check pulseert één keer in de kleur van zijn nieuwe status. Zolang een server critical is, gaat er een rustige ping om zijn stip. Bij herstel tekent zich een groen vinkje.
+  - **Knoppen:** een zachte golf bij een klik, en een groen vinkje op de hoek als het gelukt is.
+  - **Pagina's:** bij het openen tellen de getallen in de tegels op, komen de blokken kort na elkaar binnen en tekenen grafieken zich. Een nieuwe melding schuift bovenaan binnen.
+- **Ingedrukt houden om te bevestigen.** Waar je eerst het vinkje *Ik weet het zeker* aanzette (isoleren, blokkeren …), houd je nu de knop even ingedrukt. Ook met spatie of Enter. Waar je wachtwoord nodig is, blijft dat zo.
+
+### Opgelost
+- De puls bij een statuswissel van een check was onzichtbaar: een andere animatie had dezelfde naam.
 
 ## 1.309.0 – 2026-11-21
 ### Nieuw

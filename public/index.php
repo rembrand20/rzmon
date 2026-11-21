@@ -1036,7 +1036,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <h2>🎨 <?= th('Weergave voor nieuwe accounts') ?></h2>
           <?= xp(t('De standaard voor accounts die zelf nog niets kozen.'), t('<b>Wat het doet:</b> elk account kiest zijn eigen weergave bij <i>Mijn account → Weergave</i>. Wat je hier instelt, geldt voor accounts die daar nog niets kozen, en voor het lokale netwerk zonder account.')) ?>
           <label class="switch"><input type="checkbox" name="ids_modern"><span></span> <?= t('<b>Moderne IDS-weergave</b> (anders compact)') ?></label>
-          <label><?= th('Beweging in de Attack Flow en het Command center') ?>
+          <label><?= th('Beweging in heel RzSense') ?>
             <select name="af_motion"><option value="0"><?= th('stil') ?></option><option value="1"><?= th('rustig') ?></option><option value="2"><?= th('vol') ?></option></select></label>
         </div>
 
@@ -2177,15 +2177,14 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <label class="switch"><input type="checkbox" data-mon-pref="glow"><span></span> <span><?= t('<b>Rode gloed bij critical</b>: een server met een critical check pulseert zacht') ?> <span class="hint"><?= th('(voor je account)') ?></span></span></label>
         <label class="switch" id="vivid-row"><input type="checkbox" data-mon-pref="vivid"><span></span> <span><?= t('<b>Levendige kleuren</b> bij Liquid Glass: blauw, turquoise en paars licht en sterkere glans (uit = rustig, alleen blauw)') ?> <span class="hint"><?= th('(voor je account)') ?></span></span></label>
         <label class="switch"><input type="checkbox" data-mon-pref="loader"><span></span> <span><?= t('<b>Laadanimatie</b>: bij het openen lichten je servers een voor een op, en overal waar je moet wachten loopt een hartslag') ?> <span class="hint"><?= th('(voor je account; met "minder beweging" stilstaand)') ?></span></span></label>
-        <label class="switch"><input type="checkbox" data-mon-pref="anim"><span></span> <span><?= t('<b>Live animaties</b>: getallen lopen naar de nieuwe waarde en een statuswissel licht even op') ?> <span class="hint"><?= th('(voor je account; staat je systeem op "minder beweging", dan altijd uit)') ?></span></span></label>
-        <h3 class="set-sub">🛡️ <?= th('IDS') ?></h3>
-        <label class="switch"><input type="checkbox" data-acct-ids-modern><span></span> <span><?= t('<b>Moderne weergave</b> van de pagina IDS (score, Nu aandacht nodig, serverkaarten, grafiek)') ?> <span class="hint"><?= th('(voor je account)') ?></span></span></label>
-        <?= xp(t('Uit: de oudere, compacte weergave van de IDS-pagina.'), t('Aan: de IDS-pagina met een score, <i>Nu aandacht nodig</i>, serverkaarten en een grafiek. Uit: de compacte weergave van vóór 1.117.0, met de modus als tegel en de servers als regels.')) ?>
-        <label class="af-motion-set"><span><?= t('<b>Beweging in de live Attack Flow</b> (IDS → Aanvalskaart)') ?> <span class="hint"><?= th('(voor je account)') ?></span></span>
+        <label class="af-motion-set"><span><?= t('<b>Beweging</b> in heel RzSense') ?> <span class="hint"><?= th('(voor je account)') ?></span></span>
           <input type="range" data-acct-motion min="0" max="2" step="1" list="af-motion-steps">
           <span class="af-motion-lbls small muted" aria-hidden="true"><span><?= th('Stil') ?></span><span><?= th('Rustig') ?></span><span><?= th('Vol') ?></span></span></label>
         <datalist id="af-motion-steps"><option value="0"></option><option value="1"></option><option value="2"></option></datalist>
-        <?= xp(t('Hoeveel er beweegt in de live Attack Flow: stil, rustig of vol.'), t('<b>Vol:</b> bewegende deeltjes, flitsende schilden en een lopende band. <b>Rustig:</b> alles trager, zonder flitsen. <b>Stil:</b> geen beweging, handig voor een scherm dat de hele dag aanstaat. <b>Goed om te weten:</b> staat <i>minder beweging</i> aan op je apparaat, dan is het altijd stil.')) ?>
+        <?= xp(t('Hoeveel er beweegt: stil, rustig of vol.'), t('<b>Vol:</b> getallen lopen naar hun nieuwe waarde, een statuswissel pulseert, knoppen laten zien dat ze bezig zijn en klaar zijn, grafieken tekenen zich, pagina\'s en nieuwe meldingen komen zacht binnen, en de Attack Flow en het Command center bewegen helemaal. <b>Rustig:</b> hetzelfde, maar trager en zonder flitsen. <b>Stil:</b> niets beweegt, handig voor een scherm dat de hele dag aanstaat. <b>Goed om te weten:</b> staat <i>minder beweging</i> aan op je apparaat, dan is het altijd stil. Vanaf 1.310.0 vervangt dit de schakelaar <i>Live animaties</i>.')) ?>
+        <h3 class="set-sub">🛡️ <?= th('IDS') ?></h3>
+        <label class="switch"><input type="checkbox" data-acct-ids-modern><span></span> <span><?= t('<b>Moderne weergave</b> van de pagina IDS (score, Nu aandacht nodig, serverkaarten, grafiek)') ?> <span class="hint"><?= th('(voor je account)') ?></span></span></label>
+        <?= xp(t('Uit: de oudere, compacte weergave van de IDS-pagina.'), t('Aan: de IDS-pagina met een score, <i>Nu aandacht nodig</i>, serverkaarten en een grafiek. Uit: de compacte weergave van vóór 1.117.0, met de modus als tegel en de servers als regels.')) ?>
       </div>
 
       </div>

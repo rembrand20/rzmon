@@ -448,7 +448,8 @@ function pageWaitEnd(w, record) {
 async function api(action, body, params = {}, retried = false) {
   const w = curWait, rec = w ? w.add(action) : null;
   const busy = retried ? null : rzBusyStart(action, !!body);   // 1.252.0: de knop en het balkje bovenaan laten zien dat het loopt
-  try { return await apiRaw(action, body, params, retried); } finally { if (rec) rec(); if (busy) busy(); }
+  let ok = false;
+  try { const r = await apiRaw(action, body, params, retried); ok = true; return r; } finally { if (rec) rec(); if (busy) busy(ok); }
 }
 
 async function apiRaw(action, body, params = {}, retried = false) {
@@ -898,6 +899,65 @@ FX.leaks = {
  */
 const MORPH_KEYS = ['id', 'data-cid', 'data-host', 'data-day', 'data-key', 'data-email', 'data-bundle', 'data-k', 'data-st', 'data-kpi'];
 let morphOn = 0;
+let rzTabAt = 0;   // 1.310.0: wanneer de huidige pagina geopend werd (dan tellen getallen op en schuiven er geen "nieuwe" rijen binnen)
+/** 1.310.0: een server of check is weer ok: een groen vinkje dat zichzelf tekent */
+function rzHeal(el) {
+  if (el.querySelector(':scope > .rz-heal')) return;
+  const s = document.createElement('span');
+  s.className = 'rz-heal'; s.setAttribute('aria-hidden', 'true');
+  s.innerHTML = '<svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg>';
+  el.classList.add('rz-healed'); el.append(s);
+  setTimeout(() => { s.remove(); el.classList.remove('rz-healed'); }, 2600);
+}
+/** 1.310.0: een knop die iets deed: een groen vinkje op de hoek */
+function rzDone(b) {
+  if (!b || !b.isConnected || b.querySelector(':scope > .rz-ok') || document.body.classList.contains('no-anim')) return;
+  const s = document.createElement('span');
+  s.className = 'rz-ok'; s.setAttribute('aria-hidden', 'true');
+  s.innerHTML = '<svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg>';
+  b.classList.add('rz-done'); b.append(s);
+  setTimeout(() => { s.remove(); b.classList.remove('rz-done'); }, 1600);
+}
+/** 1.310.0: bij het openen van een pagina tellen de getallen in de tegels op (één keer per tegel) */
+const rzCounted = new WeakSet();
+function rzCountUp(el) {
+  if (rzCounted.has(el)) return;
+  rzCounted.add(el);
+  const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let n = null;
+  while ((n = tw.nextNode())) if (/\d/.test(n.nodeValue)) break;
+  if (!n) return;
+  const text = n.nodeValue, m = text.match(/\d{1,3}(?:[.,\u202f\u00a0]\d{3})+|\d+/);
+  if (!m || /[.,]\d{1,2}(?!\d)/.test(text.slice(m.index + m[0].length, m.index + m[0].length + 3))) return;   // geen decimalen
+  const to = parseInt(m[0].replace(/\D/g, ''), 10);
+  if (!(to >= 10) || to > 1e9) return;
+  const k = document.body.classList.contains('mo-1') ? 1.6 : 1, D = 800 * k, t0 = performance.now();
+  const fmt = (v) => text.slice(0, m.index) + (m[0].length > 3 && /\D/.test(m[0]) ? v.toLocaleString(LOCALE) : String(v)) + text.slice(m.index + m[0].length);
+  let want = fmt(0);
+  n.nodeValue = want;
+  const step = (t) => {
+    if (n.nodeValue !== want) return;   // er kwam al een nieuwe waarde
+    const f = Math.min(1, (t - t0) / D), e = 1 - Math.pow(1 - f, 3);
+    want = f >= 1 ? text : fmt(Math.round(to * e));
+    n.nodeValue = want;
+    if (f < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+new MutationObserver((ms) => {
+  if (performance.now() - rzTabAt > 2500 || document.body.classList.contains('no-anim')) return;
+  for (const m of ms) for (const nd of m.addedNodes) {
+    if (nd.nodeType !== 1) continue;
+    (nd.matches('.kpi-val') ? [nd] : nd.querySelectorAll('.kpi-val')).forEach(rzCountUp);
+  }
+}).observe(document.documentElement, { childList: true, subtree: true });
+// 1.310.0: knoppen geven een zachte golf als je klikt
+document.addEventListener('pointerdown', (e) => {
+  const b = e.target.closest && e.target.closest('.btn, .seg-btn');
+  if (!b || b.disabled || document.body.classList.contains('no-anim')) return;
+  b.classList.remove('rz-press'); void b.offsetWidth; b.classList.add('rz-press');
+  setTimeout(() => b.classList.remove('rz-press'), 700);
+}, { passive: true });
 function morphKey(n) {
   if (n.nodeType !== 1) return null;
   for (const k of MORPH_KEYS) { const v = n.getAttribute(k); if (v !== null && v !== '') return n.nodeName + '|' + k + '=' + v; }
@@ -931,7 +991,11 @@ function morphKids(from, to) {
       if (old !== at) from.insertBefore(old, at);
       morphNode(old, nw);
     } else {
-      from.insertBefore(nw.cloneNode(true), at);
+      const add = nw.cloneNode(true);
+      // 1.310.0: een nieuwe rij in een lijst (bv. een nieuwe melding) schuift binnen en licht even op
+      if (add.nodeType === 1 && add.className && performance.now() - rzTabAt > 3000 && !document.body.classList.contains('no-anim')
+        && olds.some((o) => o.nodeType === 1 && o.className === add.className)) add.classList.add('live-new');
+      from.insertBefore(add, at);
     }
   });
   olds.forEach((o) => { if (!used.has(o) && o.parentNode === from) o.remove(); });
@@ -944,12 +1008,16 @@ function morphNode(a, b) {
   if (a.nodeType !== 1 || a.isEqualNode(b)) return;
   // Kenmerken: alles van de nieuwe, behalve "open" van een <details> die je zelf open- of dichtklapte
   const keepOpen = a.nodeName === 'DETAILS' && !b.hasAttribute('data-fresh');
-  const sBefore = a.hasAttribute('data-cid') ? (a.className.match(/\bs(\d)\b/) || [])[1] : null;
+  const stEl = a.hasAttribute('data-cid') || (a.classList && (a.classList.contains('host') || a.classList.contains('hb') || a.classList.contains('hm-row')));   // 1.310.0: ook servers
+  const sBefore = stEl ? (a.className.match(/\bs(\d)\b/) || [])[1] : null;
   for (const at of [...a.attributes]) if (!b.hasAttribute(at.name) && !(keepOpen && at.name === 'open')) a.removeAttribute(at.name);
   for (const at of [...b.attributes]) if (a.getAttribute(at.name) !== at.value && !(keepOpen && at.name === 'open')) a.setAttribute(at.name, at.value);
   if (sBefore !== null) {
     const sAfter = (a.className.match(/\bs(\d)\b/) || [])[1];
-    if (sAfter !== sBefore) { a.classList.remove('live-pulse'); void a.offsetWidth; a.classList.add('live-pulse'); }
+    if (sAfter !== sBefore && !document.body.classList.contains('no-anim')) {
+      a.classList.remove('live-pulse'); void a.offsetWidth; a.classList.add('live-pulse');
+      if (sAfter === '0' && (sBefore === '1' || sBefore === '2')) rzHeal(a);   // 1.310.0: weer ok: een vinkje dat zichzelf tekent
+    }
   }
   // Velden: wat je typt of aanvinkt blijft (de browser laat de waarde staan zodra je iets wijzigde)
   if (a.nodeName === 'TEXTAREA' && a === document.activeElement) return;

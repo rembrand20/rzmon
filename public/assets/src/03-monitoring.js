@@ -2027,7 +2027,7 @@ const monGlass = () => skinCur() === 'glass';
 const monLoader = () => PREFS.mon_loader !== 'off';
 const monVivid = () => PREFS.mon_vivid === 'on';   // 1.216.0: Liquid Glass levendig (anders rustig)
 const MON_PREF_KEY = { glow: 'mon_glow', anim: 'mon_anim', glass: 'mon_glass', loader: 'mon_loader', vivid: 'mon_vivid' };
-const monAnim = () => PREFS.mon_anim !== 'off';
+const monAnim = () => afMotion(null) > 0;   // 1.310.0: onderdeel van Beweging (Stil = geen live animaties)
 document.addEventListener('pointermove', (e) => {
   if (!document.body.classList.contains('lg') || e.pointerType === 'touch') return;
   const g = e.target.closest && e.target.closest('.card, .pcard, .ccx, .hcard');
@@ -2039,6 +2039,7 @@ document.addEventListener('pointermove', (e) => {
 function applyMonPrefs() {
   document.body.classList.toggle('no-glow', !monGlow());
   document.body.classList.toggle('no-anim', !monAnim());
+  { const m = afMotion(null); document.body.classList.toggle('mo-1', m === 1); document.body.classList.toggle('mo-2', m === 2); }   // 1.310.0: Beweging
   document.body.classList.toggle('lg', monGlass());
   document.body.classList.toggle('no-loader', !monLoader());
   document.body.classList.toggle('lg-vivid', monGlass() && monVivid());

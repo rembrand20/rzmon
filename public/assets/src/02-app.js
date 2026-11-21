@@ -489,7 +489,7 @@ function init() {
   // 1.157.0: rode gloed en live-animaties (per account)
   $$('[data-mon-pref]').forEach((c) => (c.onchange = () => { savePref(MON_PREF_KEY[c.dataset.monPref], c.checked ? 'on' : 'off'); applyMonPrefs(); }));
   $$('[data-acct-ids-modern]').forEach((c) => (c.onchange = () => { savePref('ids_modern', c.checked ? 'on' : 'off'); savedFlag(c, true); if (typeof idsData !== 'undefined' && idsData) renderIds(); }));
-  $$('[data-acct-motion]').forEach((c) => (c.onchange = () => { savePref('af_motion', String(c.value)); savedFlag(c, true); }));
+  $$('[data-acct-motion]').forEach((c) => (c.onchange = () => { savePref('af_motion', String(c.value)); savedFlag(c, true); applyMonPrefs(); }));
   applyMonPrefs();
   initPageGrid();   // 1.158.0: lay-out CC
   // Bij openen: alles dicht of slim openen (voor je account, 1.71.0)
@@ -612,6 +612,8 @@ function showTab(name) {
   { const m = $('#tab-more'); if (m) m.classList.toggle('active', MORE_TABS.includes(name)); }   // 1.196.0
   moveTabIndicator();
   $$('.tab-panel').forEach((p) => (p.hidden = p.id !== 'tab-' + name));
+  rzTabAt = performance.now();   // 1.310.0: getallen tellen op, de blokken komen kort na elkaar binnen
+  { const tp = $('#tab-' + name); if (tp && !document.body.classList.contains('no-anim')) { tp.classList.remove('tab-in'); void tp.offsetWidth; tp.classList.add('tab-in'); clearTimeout(tp._tabIn); tp._tabIn = setTimeout(() => tp.classList.remove('tab-in'), 900); } }
   history.replaceState(null, '', '#' + hashName(name));
   fxSyncHash();
   sideMode(name);   // 1.167.0

@@ -60,7 +60,7 @@ function rzBusyStart(action, isPost) {
       tm = setTimeout(tickBusy, 500);
     }, 400);
   }
-  return () => {
+  return (ok) => {
     const ms = performance.now() - t0;
     if (ms > 300) rzDur.put(action, ms);
     RZB.top = Math.max(0, RZB.top - 1);
@@ -74,6 +74,7 @@ function rzBusyStart(action, isPost) {
       b.style.removeProperty('--rzp');
       if (span) span.remove();
       if (b.title && /Bezig|langer|meestal|Busy|longer|usually/.test(b.title)) b.removeAttribute('title');
+      if (ok && isPost) rzDone(b);   // 1.310.0: gelukt: een vinkje
     }
   };
 }

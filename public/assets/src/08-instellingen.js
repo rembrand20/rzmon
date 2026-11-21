@@ -3452,22 +3452,49 @@ function askConfirm({ title, text = '', word, ok = L('Bevestigen'), danger = fal
     dlg.innerHTML = `<form method="dialog" class="cf-form">
       <div class="cf-head"><span class="cf-ic ${danger ? 'danger' : ''}" aria-hidden="true">${danger ? '!' : '🔒'}</span><h3>${esc(title)}</h3></div>
       ${text ? `<p class="cf-text">${text}</p>` : ''}
-      ${sure ? `<label class="switch cf-sure"><input name="pw" type="checkbox" value="__sure__" required><span></span> ${L('Ik weet het zeker')}</label>`   // 1.206.0
+      ${sure ? `<p class="cf-hold-hint muted small">${L('Houd de knop even ingedrukt om te bevestigen.')}</p>`   // 1.206.0; 1.310.0: ingedrukt houden in plaats van een vinkje
     : `<label class="cf-label">${lan ? L('Typ <b>{word}</b> om te bevestigen', { word: esc(L(word)) }) : L('Je wachtwoord')}
         <span class="cf-field"><input name="pw" type="${lan ? 'text' : 'password'}" required autocomplete="${lan ? 'off' : 'current-password'}" spellcheck="false" ${lan ? `placeholder="${esc(L(word))}"` : ''}>
         ${lan ? '' : `<button type="button" class="cf-eye" title="${esc(L('Wachtwoord tonen'))}" aria-label="${esc(L('Wachtwoord tonen'))}">👁</button>`}</span></label>`}
       <div class="cf-btns"><button type="button" class="btn" value="cancel" data-cf-cancel>${L('Annuleren')}</button>
-        <button type="submit" class="btn ${danger ? 'danger' : 'primary'}">${esc(ok)}</button></div></form>`;
-    const inp = $('input', dlg);
+        ${sure ? `<button type="button" class="btn ${danger ? 'danger' : 'primary'} cf-hold" data-no-busy><span>${esc(ok)}</span></button>`
+    : `<button type="submit" class="btn ${danger ? 'danger' : 'primary'}">${esc(ok)}</button>`}</div></form>`;
+    const inp = $('input', dlg), hold = $('.cf-hold', dlg);
     let done = false;
     const finish = (v) => { if (done) return; done = true; dlg.close(); resolve(v); };
     $('.cf-eye', dlg)?.addEventListener('click', (e) => { inp.type = inp.type === 'password' ? 'text' : 'password'; e.currentTarget.classList.toggle('on', inp.type === 'text'); inp.focus(); });
     $('[data-cf-cancel]', dlg).onclick = () => finish(null);
-    $('form', dlg).onsubmit = (e) => { e.preventDefault(); if (sure ? inp.checked : inp.value) finish(inp.value); };
+    $('form', dlg).onsubmit = (e) => { e.preventDefault(); if (!sure && inp.value) finish(inp.value); };
+    if (hold) holdToConfirm(hold, () => finish('__sure__'));
     dlg.oncancel = (e) => { e.preventDefault(); finish(null); };
     dlg.showModal();
-    inp.focus();
+    (hold || inp).focus();
   });
+}
+
+/**
+ * 1.310.0: een knop die je even ingedrukt houdt (muis, vinger, of spatie/Enter). Een balk loopt vol; laat je eerder los,
+ * dan gebeurt er niets. Ook met Beweging op Stil (de balk is dan de enige beweging, want hij laat zien hoe lang nog).
+ */
+function holdToConfirm(btn, done, ms = 900) {
+  let raf = 0, t0 = 0, fired = false;
+  const set = (p) => btn.style.setProperty('--hold', (p * 100).toFixed(1) + '%');
+  const stop = () => { cancelAnimationFrame(raf); raf = 0; if (!fired) { set(0); btn.classList.remove('holding'); } };
+  const start = () => {
+    if (raf || fired) return;
+    t0 = performance.now(); btn.classList.add('holding');
+    const step = (t) => {
+      const p = Math.min(1, (t - t0) / ms); set(p);
+      if (p < 1) { raf = requestAnimationFrame(step); return; }
+      raf = 0; fired = true; btn.classList.add('held'); done();
+    };
+    raf = requestAnimationFrame(step);
+  };
+  btn.addEventListener('pointerdown', (e) => { e.preventDefault(); btn.setPointerCapture?.(e.pointerId); start(); });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => btn.addEventListener(ev, stop));
+  btn.addEventListener('keydown', (e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); start(); } else if (e.key === ' ' || e.key === 'Enter') e.preventDefault(); });
+  btn.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') stop(); });
+  btn.addEventListener('contextmenu', (e) => e.preventDefault());   // lang drukken op een telefoon
 }
 
 // 1.206.0: per rol een vinkje in plaats van het wachtwoord (RzSense zegt in elke statusvraag of en tot wanneer)

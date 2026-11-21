@@ -11912,4 +11912,10 @@ return [
     'Licht vanaf' => 'Light from',
     'Donker vanaf' => 'Dark from',
     '(donker leeg: \'s nachts geen donker)' => '(dark empty: no dark at night)',
+    'Beweging in heel RzSense' => 'Motion throughout RzSense',
+    '<b>Beweging</b> in heel RzSense' => '<b>Motion</b> throughout RzSense',
+    'Hoeveel er beweegt: stil, rustig of vol.' => 'How much moves: still, calm or full.',
+    '<b>Vol:</b> getallen lopen naar hun nieuwe waarde, een statuswissel pulseert, knoppen laten zien dat ze bezig zijn en klaar zijn, grafieken tekenen zich, pagina\'s en nieuwe meldingen komen zacht binnen, en de Attack Flow en het Command center bewegen helemaal. <b>Rustig:</b> hetzelfde, maar trager en zonder flitsen. <b>Stil:</b> niets beweegt, handig voor een scherm dat de hele dag aanstaat. <b>Goed om te weten:</b> staat <i>minder beweging</i> aan op je apparaat, dan is het altijd stil. Vanaf 1.310.0 vervangt dit de schakelaar <i>Live animaties</i>.' => '<b>Full:</b> numbers run to their new value, a status change pulses, buttons show that they are busy and done, charts draw themselves, pages and new alerts fade in, and the Attack Flow and the Command center move fully. <b>Calm:</b> the same, but slower and without flashes. <b>Still:</b> nothing moves, handy for a screen that is on all day. <b>Good to know:</b> if <i>reduce motion</i> is on for your device, it is always still. From 1.310.0 this replaces the switch <i>Live animations</i>.',
+    'Houd de knop even ingedrukt om te bevestigen.' => 'Press and hold the button to confirm.',
+    'Hoeveel er beweegt in heel RzSense: live getallen, knoppen, grafieken, overgangen, de Attack Flow en het Command center. Stil = niets.' => 'How much moves throughout RzSense: live numbers, buttons, charts, transitions, the Attack Flow and the Command center. Still = nothing.',
 ];

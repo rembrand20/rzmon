@@ -488,8 +488,8 @@ pre.code { background: var(--bg); border: 1px solid var(--border); border-radius
 /* 1.109.0: live: een waarde die verandert licht even op; een check die van status wisselt, kleurt even mee */
 @keyframes live-flash { from { background: color-mix(in srgb, var(--primary) 30%, transparent); } to { background: transparent; } }
 .live-flash { animation: live-flash 1.2s ease-out; border-radius: 4px; }
-@keyframes live-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 55%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
-.live-pulse { animation: live-pulse 1.4s ease-out; }
+@keyframes live-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--pulse, var(--primary)) 55%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
+.live-pulse { animation: live-pulse calc(1.4s * var(--mo-k, 1)) ease-out; }
 .chk.s2.live-pulse { --primary: var(--crit); } .chk.s1.live-pulse { --primary: var(--warn); } .chk.s0.live-pulse { --primary: var(--ok); }
 @media (prefers-reduced-motion: reduce) { .live-flash, .live-pulse { animation: none; } }
 
@@ -1786,9 +1786,9 @@ button.audit-badge { background: none; border: 0; padding: 0; font: inherit; tex
 .smart-prop td:nth-child(4), .smart-prop td:nth-child(5) { white-space: nowrap; }
 .smart-tip { background: var(--card-2, rgba(127,127,127,.08)); border-left: 3px solid var(--warn); padding: .4rem .6rem; border-radius: 6px; }
 .smart-prop .link-btn, .smart-box .link-btn { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font: inherit; text-align: left; }
-.live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); vertical-align: middle; animation: live-pulse 2.4s ease-in-out infinite; }
+.live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); vertical-align: middle; animation: live-dot 2.4s ease-in-out infinite; }
 .live-dot.off { background: var(--muted); animation: none; }
-@keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@keyframes live-dot { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }   /* 1.310.0: had dezelfde naam als de statuspuls en verving die */
 @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
 
 /* 1.107.0: ⌨️ zoeken en doen (Ctrl+K) */
@@ -6551,3 +6551,61 @@ details.pxs h4 { margin: .2rem 0 .45rem; font-size: .9rem; }
 .dim-times label { display: inline-flex; flex-direction: row; align-items: center; gap: .4rem; white-space: nowrap; margin: 0 0 .6rem; font-weight: 500; }
 .dim-times > .hint { margin-bottom: .6rem; }
 .dim-times input[type="time"] { width: auto; }
+
+/* ---------------------------------------------------------------- 1.310.0: Beweging in heel RzSense
+   body.no-anim = Stil, body.mo-1 = Rustig (alles trager, geen flitsen), body.mo-2 = Vol. Alleen opacity, transform en schaduw. */
+:root { --mo-k: 1; }
+body.mo-1 { --mo-k: 1.6; }
+body.no-anim .live-pulse { animation: none; }
+.live-pulse.s0 { --pulse: var(--ok); } .live-pulse.s1 { --pulse: var(--warn); } .live-pulse.s2 { --pulse: var(--crit); }
+
+/* Knoppen: indrukken en een zachte golf */
+body:not(.no-anim) :is(.btn, .seg-btn) { transition: transform calc(.12s * var(--mo-k)) ease, box-shadow calc(.2s * var(--mo-k)) ease, background-color .15s, border-color .15s; }
+body:not(.no-anim) :is(.btn, .seg-btn):active:not([disabled]) { transform: scale(.97); }
+@keyframes rz-press { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 38%, transparent); } to { box-shadow: 0 0 0 8px transparent; } }
+.rz-press { animation: rz-press calc(.5s * var(--mo-k)) ease-out; }
+.btn.danger.rz-press { --primary: var(--crit); }
+
+/* Gelukt: een groen vinkje op de hoek van de knop */
+.rz-done { position: relative; overflow: visible !important; }
+.rz-ok { position: absolute; top: -7px; right: -7px; width: 18px; height: 18px; border-radius: 50%; background: var(--ok); display: grid; place-items: center;
+  box-shadow: 0 0 0 2px var(--card); pointer-events: none; z-index: 2; animation: rz-ok-in calc(.25s * var(--mo-k)) ease-out, rz-ok-out .3s ease-in 1.25s forwards; }
+.rz-ok svg, .rz-heal svg { width: 12px; height: 12px; fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.rz-ok path, .rz-heal path { stroke-dasharray: 16; stroke-dashoffset: 16; animation: rz-draw calc(.35s * var(--mo-k)) .12s ease-out forwards; }
+@keyframes rz-ok-in { from { transform: scale(.3); opacity: 0; } }
+@keyframes rz-ok-out { to { transform: scale(.6); opacity: 0; } }
+@keyframes rz-draw { to { stroke-dashoffset: 0; } }
+
+/* Weer ok: het vinkje op de server of check */
+.rz-healed { position: relative; }
+.rz-heal { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 50%; background: var(--ok); display: grid; place-items: center; pointer-events: none; z-index: 2;
+  animation: rz-ok-in calc(.3s * var(--mo-k)) ease-out, rz-ok-out .4s ease-in 2.1s forwards; }
+
+/* Critical: een rustige ping om de stip zolang het duurt (alleen bij Vol) */
+body.mo-2 :is(.host, .hb).s2:not(.acked-only) .dot { position: relative; }
+body.mo-2 :is(.host, .hb).s2:not(.acked-only) .dot::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--crit); animation: rz-ping 1.8s ease-out infinite; pointer-events: none; }
+@keyframes rz-ping { from { opacity: .8; transform: scale(.6); } to { opacity: 0; transform: scale(2.1); } }
+
+/* Nieuwe rij in een lijst (een nieuwe melding …): schuift binnen en licht even op */
+@keyframes rz-new { 0% { opacity: 0; transform: translateY(-8px); box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--primary) 16%, transparent); } 40% { opacity: 1; transform: none; } 100% { box-shadow: inset 0 0 0 999px transparent; } }
+body:not(.no-anim) .live-new { animation: rz-new calc(.9s * var(--mo-k)) ease-out; }
+
+/* Een pagina openen: de blokken komen kort na elkaar binnen (alleen opacity, zodat niets verspringt) */
+@keyframes rz-in { from { opacity: 0; } }
+body:not(.no-anim) .tab-panel.tab-in > * { animation: rz-in calc(.3s * var(--mo-k)) ease-out backwards; }
+body:not(.no-anim) .tab-panel.tab-in > :nth-child(2) { animation-delay: 40ms; }
+body:not(.no-anim) .tab-panel.tab-in > :nth-child(3) { animation-delay: 80ms; }
+body:not(.no-anim) .tab-panel.tab-in > :nth-child(4) { animation-delay: 120ms; }
+body:not(.no-anim) .tab-panel.tab-in > :nth-child(n+5) { animation-delay: 160ms; }
+
+/* Grafieken tekenen zich van links naar rechts (alleen als ze nieuw op de pagina komen, niet bij elke live update) */
+@keyframes rz-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+body:not(.no-anim) :is(svg.spark, svg.rz-chart) { animation: rz-wipe calc(.9s * var(--mo-k)) cubic-bezier(.3, .7, .3, 1); }
+
+/* Ingedrukt houden om te bevestigen (isoleren, blokkeren …) */
+.cf-hold { position: relative; overflow: hidden; --hold: 0%; touch-action: none; user-select: none; -webkit-user-select: none; }
+.cf-hold::before { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--hold); background: color-mix(in srgb, currentColor 22%, transparent); }
+.btn.primary.cf-hold::before { background: rgba(255, 255, 255, .28); }
+.cf-hold > span { position: relative; }
+.cf-hold.held { box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 30%, transparent); }
+.cf-hold-hint { margin: 0; }

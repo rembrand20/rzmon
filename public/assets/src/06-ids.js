@@ -1834,7 +1834,10 @@ const afEmpty = (filtered) => `<div class="card am-empty">${amSvg('stop', 'am-ic
 function afMotion(d) {
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 0;
   const own = PREFS.af_motion;   // 1.162.0: per account; anders wat de beheerder instelde
-  const m = own !== undefined && own !== '' ? +own : (d && d.live ? +d.live.motion : 2);
+  // 1.310.0: Beweging geldt voor heel RzSense. Wie de oude schakelaar "Live animaties" uitzette en nog geen Beweging koos: Stil.
+  if ((own === undefined || own === '') && PREFS.mon_anim === 'off') return 0;
+  const vc = document.querySelector('.view-card');
+  const m = own !== undefined && own !== '' ? +own : (d && d.live ? +d.live.motion : vc && vc.dataset.afMotion !== undefined ? +vc.dataset.afMotion : 2);
   return [0, 1, 2].includes(m) ? m : 2;
 }
 
