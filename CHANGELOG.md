@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.304.0**: **het detailpaneel**: op Monitoring, Logs, Incidenten, IDS en Netwerk opent een klik de details in een paneel rechts, met ← → en een kruimelpad.
 - **1.303.0**: **📖 Hoe werken meldingen?**: per status zie je waarheen een melding gaat; ClamAV start weer na een herstart.
 - **1.302.0**: **Web Push als eigen kanaal** in *Wanneer melden*, met Pushover als reserve; per apparaat te beperken.
 - **1.300.0**: **van buitenaf meten vanaf een server naar keuze** (bv. een VPS): de eerlijkste blik op wat er open staat.
 - **1.299.0**: **webcheck per site**: een cijfer van A tot F voor https, het certificaat en de beveiligingsheaders van elke site achter je proxy.
-- **1.298.0**: **breed scherm**: Instellingen in twee kolommen, en bij Incidenten de lijst en de details naast elkaar.
+
+## 1.304.0 – 2026-11-21
+### Nieuw
+- **Eén manier om iets te openen: het detailpaneel.** Een klik op een item opent de details in een paneel rechts in plaats van openklappen in de lijst. Zie HANDLEIDING 2 (Monitoring → Het detailpaneel).
+  - **Monitoring:** een server opent zijn knoppen en checks in het paneel, ook via *Nu aandacht nodig*. Een check daarin opent in hetzelfde paneel, met een kruimelpad terug.
+  - **Ook in het paneel:** checks, Incidenten, IDS-incidenten, apparaten (Netwerk) en logregels.
+  - **Logs:** een regel toont alle velden, de regels eromheen en *Alle regels van dit patroon*. Een veld links opent een klein venster met de waarden, in plaats van openklappen.
+  - **Overal hetzelfde:** ← → naar het vorige of volgende item, het open item gemarkeerd, Esc sluit, en een link met `?open=…` opent het paneel meteen. Op een breed scherm staat het paneel naast de lijst.
+  - **Dagen bij Meldingen en IDS:** vandaag open, de rest ingeklapt.
+  - Volgt in de volgende versie: IDS Live, Kwetsbaarheden, Analyse, Compliance, Updates, Logboek en Containers.
 
 ## 1.303.0 – 2026-11-20
 ### Nieuw

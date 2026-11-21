@@ -11884,4 +11884,11 @@ return [
     'De server erboven ligt plat: dan één melding voor die server, niet voor alles erachter.' => 'The server above it is down: then one alert for that server, not for everything behind it.',
     'Een check die flapt: één melding "staat te flappen", daarna per status hooguit één tot hij weer stabiel is.' => 'A flapping check: one "is flapping" alert, then at most one per status until it is stable again.',
     'Tijdens een update (dnf, apt) tellen pakketbeheer en dracut niet als aanval.' => 'During an update (dnf, apt) the package manager and dracut do not count as an attack.',
+    'Terug naar' => 'Back to',
+    '{n} checks van {s} openen' => 'Open {n} checks of {s}',
+    'Regel openen' => 'Open line',
+    'Eromheen' => 'Around it',
+    'Patroon' => 'Pattern',
+    'Alle regels van dit patroon' => 'All lines with this pattern',
+    'Melding van maken' => 'Make an alert',
 ];

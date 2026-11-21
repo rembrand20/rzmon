@@ -1220,3 +1220,6 @@ if (loginForm) {
   queueMicrotask(init);
 }
 
+// 1.304.0: het detailpaneel (zie 04-checks.js: detail()); hier omdat elke module er een soort aan toevoegt
+const DETAIL_OPEN = {};   // soort → (id, { push }) => opent het paneel (bv. check → checkInfo)
+let detailCur = null, detailStack = [];

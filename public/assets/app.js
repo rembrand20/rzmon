@@ -1220,6 +1220,9 @@ if (loginForm) {
   queueMicrotask(init);
 }
 
+// 1.304.0: het detailpaneel (zie 04-checks.js: detail()); hier omdat elke module er een soort aan toevoegt
+const DETAIL_OPEN = {};   // soort → (id, { push }) => opent het paneel (bv. check → checkInfo)
+let detailCur = null, detailStack = [];
 // ---------------------------------------------------------------- App
 function init() {
   if ($('#vuln-search')) initVulns();
@@ -1309,7 +1312,7 @@ function init() {
     const host = e.target.closest('[data-host]');
     if (host) return jumpToHost(host.dataset.host);
     const ab = e.target.closest('[data-attn-bundle]');
-    if (ab) { const id = +ab.dataset.attnBundle; if (attnBundles.has(id)) attnBundles.delete(id); else attnBundles.add(id); renderAttention(); return; }
+    if (ab) return hostPanel(+ab.dataset.attnBundle);   // 1.304.0: de checks van die server in het detailpaneel
     if (e.target.closest('[data-attn-more]')) { attnOpen = !attnOpen; return renderAttention(); }
     const axf = e.target.closest('[data-ax-f]');
     if (axf) { axFilter = axf.dataset.axF; return renderAttention(); }   // 1.176.0
@@ -1799,6 +1802,8 @@ function showTab(name) {
   const qi = name.indexOf('?');
   const qs = qi >= 0 ? name.slice(qi + 1) : '';
   if (qi >= 0) name = name.slice(0, qi);
+  const openRef = new URLSearchParams(qs).get('open');   // 1.304.0: #pagina?open=check:12 opent het detailpaneel
+  if (openRef && /^[a-z]+:[\w.:-]{1,80}$/.test(openRef)) setTimeout(() => { if (!$('#modal').open) detailOpen(openRef); }, 700);
   if (name === 'settings/blocks') name = 'ids/blk';   // 1.92.0: blokkades en whitelist staan in het IDS-tabblad
   // 1.276.0: nieuwe indeling; oude adressen (ook in meldingen en e-mails) sturen door naar de nieuwe plek
   const MOVED = { 'settings/agents': 'servers', 'settings/actlog': 'logboek', 'settings/changelog': 'logboek', 'settings/nis2': 'compliance',
@@ -1944,6 +1949,7 @@ function liveModal() {
   if (!dlg.open || !dlg.dataset.live) return;
   const [kind, id] = dlg.dataset.live.split(':');
   if (kind === 'check') checkInfo(id, true);
+  if (kind === 'host') hostPanel(id, { live: true });   // 1.304.0
 }
 
 /** Nieuwe problemen (er ging echt een melding uit: melden na N gehaald) als klikbaar meldinkje rechtsonder */
@@ -2391,7 +2397,7 @@ function renderAttnCC(box, items, open, acked, ackedList, down, why, since) {
       ${acts(c)}
     </div>`;
   const bundle = (it) => {
-    const st = worstOf(it), d = down.get(+it.h.id), isOpen = attnBundles.has(+it.h.id), s0 = since(it);
+    const st = worstOf(it), d = down.get(+it.h.id), isOpen = false, s0 = since(it);
     const cause = d ? (why[d.reason] || L('onbereikbaar')) : '';
     const unacked = it.list.some((c) => !c.acked_at);
     return `<div class="ax-row ax-bundle s${st}" style="--i:${Math.min(k++, 20)}">
@@ -2402,7 +2408,7 @@ function renderAttnCC(box, items, open, acked, ackedList, down, why, since) {
       <span class="ax-msg">${esc(it.list.map((c) => c.name).slice(0, 6).join(', '))}${it.list.length > 6 ? ' …' : ''}</span>
       <span class="ax-dur mono">${s0 ? dur(s0) : ''}</span>
       <span class="ax-tl">${hostTimeline(it.h)}</span>
-      <span class="ax-acts"><button type="button" class="ax-ib" data-attn-bundle="${it.h.id}" aria-expanded="${isOpen}" aria-label="${esc(isOpen ? L('Dichtklappen') : L('Openklappen'))}">${axSvg(isOpen ? 'up' : 'down', 15)}</button>${unacked ? `<button type="button" class="ax-ib ok need-user" data-act="ack-host" data-id="${it.h.id}" aria-label="${esc(L('Alles bevestigen'))}" title="${esc(L('Alles bevestigen'))}">${axSvg('ok', 15)}</button>` : ''}${aiOn() ? `<span class="ax-ai">${aiBtn('bundle', it.h.id)}</span>` : ''}</span>
+      <span class="ax-acts"><button type="button" class="ax-ib" data-attn-bundle="${it.h.id}" aria-label="${esc(L('{n} checks van {s} openen', { n: it.list.length, s: it.h.name }))}">›</button>${unacked ? `<button type="button" class="ax-ib ok need-user" data-act="ack-host" data-id="${it.h.id}" aria-label="${esc(L('Alles bevestigen'))}" title="${esc(L('Alles bevestigen'))}">${axSvg('ok', 15)}</button>` : ''}${aiOn() ? `<span class="ax-ai">${aiBtn('bundle', it.h.id)}</span>` : ''}</span>
     </div>${isOpen ? it.list.map((c) => row(it.h, c, true)).join('') : ''}`;
   };
   const limit = attnOpen ? Infinity : 8;
@@ -2471,12 +2477,12 @@ function renderAttention() {
     const st = it.list.reduce((m, c) => (STATUS_RANK[+c.status] > STATUS_RANK[m] ? +c.status : m), 0);
     const d = down.get(+it.h.id);
     const cause = d ? (why[d.reason] || L('onbereikbaar')) : L('{n} problemen op deze server', { n: it.list.length });
-    const isOpen = attnBundles.has(+it.h.id);
+    const isOpen = false;   // 1.304.0: een bundel opent het serverpaneel
     const s0 = since(it);
     return `<div class="arow bundle${isOpen ? ' open' : ''}" data-bundle="h${it.h.id}">
       <i class="adot s${st}"></i>
       <button type="button" class="a-srv hl-link" data-host="${it.h.id}">${esc(it.h.name)}</button>
-      <span class="a-chk"><button type="button" class="link-btn" data-attn-bundle="${it.h.id}" aria-expanded="${isOpen}">${isOpen ? '▾' : '▸'} ${L('{n} checks', { n: it.list.length })}</button>${bundleMarks(it.list)}</span>
+      <span class="a-chk"><button type="button" class="link-btn" data-attn-bundle="${it.h.id}">${L('{n} checks', { n: it.list.length })} ›</button>${bundleMarks(it.list)}</span>
       <span class="a-msg"><b>${esc(cause)}</b> · ${esc(it.list.map((c) => c.name).slice(0, 5).join(', '))}${it.list.length > 5 ? ' …' : ''}</span>
       ${hostTimeline(it.h)}
       <span class="a-since">${s0 ? dur(s0) : ''}</span>
@@ -2495,9 +2501,8 @@ function jumpToHost(id) {
   statusFilter = null;
   $('#filter').value = '';
   if (!DASH_FILTERS.find((f) => f[0] === dashFilter)[2](findHost(id))) dashFilter = 'all';
-  openHosts.add(+id);
-  saveOpen();
   render();
+  hostPanel(+id);   // 1.304.0: het detailpaneel van die server
   const head = $(`#hosts [data-act=toggle][data-id="${id}"]`);
   if (head) {
     const art = head.closest('article');
@@ -4523,6 +4528,28 @@ function setAutosaveState(st, why) {
 // Bij openen alles dicht (1.71.0): wat je openklapt, blijft open tot je herlaadt. "Slim openen": onthouden in deze browser.
 const openHosts = new Set((() => { try { return smartOpen() ? JSON.parse(localStorage.getItem('rzmon-open') || '[]') : []; } catch (e) { return []; } })());
 function saveOpen() { if (!smartOpen()) return; try { localStorage.setItem('rzmon-open', JSON.stringify([...openHosts])); } catch (e) {} }
+/**
+ * 1.304.0: het detailpaneel van een server: de knoppen (check toevoegen, bewerken, agent, logs …), de beschikbaarheid en de
+ * checks als lijst, problemen eerst. Een check opent in hetzelfde paneel, met een kruimelpad terug naar de server.
+ */
+function hostPanel(id, opt = {}) {
+  const h = findHost(id);
+  if (!h) return;
+  const dlg = $('#modal');
+  if (opt.live && !(dlg.open && dlg.dataset.live === 'host:' + h.id)) return;
+  const body = `<div class="host-panel">${hostDetail({ ...h, shown: h.checks }, 'small')}</div>`;   // alle checks, ook als de pagina gefilterd is
+  const title = `${h.icon || '🖥️'} ${h.name}`;
+  if (opt.live) { $('#modal-title').textContent = title; withMorph(() => { $('#modal-body').innerHTML = body; }); return; }
+  detail({ title, body, ref: 'host:' + h.id, push: !!opt.push, buttons: [] });
+  dlg.dataset.live = 'host:' + h.id;
+  $('#modal-body').addEventListener('click', (e) => {
+    const chk = e.target.closest('[data-cid]');
+    if (chk && !e.target.closest('button, a, input, select, label, [data-act]')) { checkInfo(+chk.dataset.cid, false, null, { push: true }); return; }
+    onHostsClick(e);
+  }, { signal: modalSignal() });
+}
+DETAIL_OPEN.host = (id, o) => hostPanel(+id, o);
+
 function toggleHost(id) {
   openHosts.has(+id) ? openHosts.delete(+id) : openHosts.add(+id);
   saveOpen();
@@ -4560,14 +4587,14 @@ function hostParts(h) {
   return {
     st: hostStatus(h),
     sum: hostSummary(h),
-    isOpen: openHosts.has(+h.id) || h.autoOpen,
+    isOpen: !!h.autoOpen,   // 1.304.0: alleen bij zoeken (passende checks); een server openen = het detailpaneel
     chips,
     counts,
     lastChecked: h.checks.reduce((m, c) => (c.last_checked && (!m || c.last_checked > m) ? c.last_checked : m), null),
     title: `${esc(h.name)} <span class="badge">${esc(h.mode)}</span>${+h.enabled ? '' : `<span class="badge">${L('uit')}</span>`}${h.quiet_eff && h.quiet_eff.mute ? ` <span class="quiet-tag mute" title="${esc(L('Altijd stil: geen meldingen van deze server (via {via})', { via: QUIET_SRC()[h.quiet_eff.src] || h.quiet_eff.src }))}">🔕 ${L('stil')}</span>` : ''}`,
     via: parent ? ` <span class="via" title="${L('Afhankelijk van {name}: geen aparte meldingen als die onbereikbaar is', { name: esc(parent.name) })}">↳ via ${esc(parent.name)}</span>` : '',
     maint: h.maintenance ? `<span class="maint-tag">${esc(maintLabel(h.maintenance))}</span>` : '',
-    cls: `card host s${hostStatus(h)} ${+h.enabled ? '' : 'disabled'} ${h.maintenance ? 'in-maint' : ''} ${openHosts.has(+h.id) || h.autoOpen ? 'open' : ''} ${ackedOnly(h) ? 'acked-only' : ''}`,
+    cls: `card host s${hostStatus(h)} ${+h.enabled ? '' : 'disabled'} ${h.maintenance ? 'in-maint' : ''} ${h.autoOpen ? 'open' : ''} ${ackedOnly(h) ? 'acked-only' : ''}`,
   };
 }
 
@@ -5187,8 +5214,8 @@ async function onHostsClick(e) {
     case 'podman': return podmanOverview(findHost(id));
     case 'pve': return pveOverview(findHost(id));
     case 'truenas': return tnOverview(findHost(id));   // 1.174.0
-    case 'toggle': return toggleHost(id);
-    case 'cc-open': return ccToggle(id, !ccOpen.has(+id));
+    case 'toggle': return hostPanel(id);   // 1.304.0: een server opent het detailpaneel (niet meer openklappen)
+    case 'cc-open': return hostPanel(id);
     case 'cc-close': return ccToggle(id, false);
     case 'cc-allok': return ccAllOkToggle(id);   // 1.175.0
     case 'np-go': return npGo(id);   // 1.191.0
@@ -5231,7 +5258,7 @@ function whenText(dt) {
   return (today ? '' : d.toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short' }) + ' ') + dt.slice(11, 16);
 }
 
-async function checkInfo(id, live = false, more = null) {
+async function checkInfo(id, live = false, more = null, opt = {}) {
   let r;
   if (more === null) more = live && $('#modal').dataset.ciMore === String(id);
   try { r = await api('check_info', null, more ? { id, more: 1 } : { id }); } catch (ex) { return live ? null : toast(ex.message, 'err'); }
@@ -5433,7 +5460,7 @@ async function checkInfo(id, live = false, more = null) {
     const sig = btns.map((b) => b.label).join('|');
     if ($('#modal').dataset.btns === sig) return;
   }
-  modal({ title, wide: true, body: ciBody, buttons: btns });
+  detail({ title, body: ciBody, buttons: btns, ref: 'check:' + id, push: !!opt.push });   // 1.304.0: in het detailpaneel
   // 1.227.0: e-mailbeveiliging: het DNS-record kopiëren
   $('#modal-body').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-mail-copy]');
@@ -5445,6 +5472,8 @@ async function checkInfo(id, live = false, more = null) {
   if (!live) { const mb = $('#modal-body'); if (mb && !more) mb.scrollTop = 0; }
   $('#modal').dataset.btns = btns.map((b) => b.label).join('|');
 }
+
+DETAIL_OPEN.check = (id, o) => checkInfo(+id, false, null, o);
 
 /** 1.176.0: grafiek van 24 uur in de popup: waarde, geleerde band, drempels en de statuswissels als stip */
 const ciChartCache = new Map();
@@ -5818,8 +5847,11 @@ function initCmdk() {
  */
 let modalGen = 0, modalAC = null, pairTok = 0;
 const modalSignal = () => (modalAC || (modalAC = new AbortController())).signal;
-function modal({ title, body, buttons = [], wide = false, page = false, drawer = false, split = false, onSubmit }) {
+function modal({ title, body, buttons = [], wide = false, page = false, drawer = false, split = false, onSubmit, isDetail = false }) {
   const dlg = $('#modal');
+  // 1.304.0: een gewoon venster (formulier, uitleg) is geen detailpaneel: navigatie en kruimelpad weg
+  dlg.classList.toggle('detail', isDetail);
+  if (!isDetail) { detailCur = null; detailStack = []; $('#modal-nav').hidden = true; $('#modal-crumb').hidden = true; }
   // 1.298.0: split = zijpaneel zonder de pagina erachter te blokkeren (lijst links, details rechts). Van of naar een gewoon venster: eerst dicht.
   if (dlg.open && (dlg.dataset.split === '1') !== split) dlg.close();
   dlg.dataset.split = split ? '1' : '';
@@ -5874,6 +5906,111 @@ function modal({ title, body, buttons = [], wide = false, page = false, drawer =
   if (!dlg.open) { if (split) dlg.show(); else dlg.showModal(); }
   return { dlg, form, err };
 }
+
+// ---------------------------------------------------------------- 1.304.0: het detailpaneel
+// Overal hetzelfde: een klik op een item (check, server, incident, logregel …) opent dit paneel rechts. ← → stappen door
+// de items van dezelfde soort op de pagina (elementen met data-dref="soort:id"), verder klikken in het paneel bewaart
+// een kruimelpad terug, en het adres krijgt ?open=soort:id zodat een link het paneel weer opent.
+// DETAIL_OPEN, detailCur en detailStack staan in 01-basis.js (modules daarvoor gebruiken ze al)
+/** Open een item via zijn verwijzing ("check:12") */
+function detailOpen(ref, push = false) {
+  const i = String(ref).indexOf(':');
+  const f = DETAIL_OPEN[String(ref).slice(0, i)];
+  if (f) f(String(ref).slice(i + 1), { push });
+}
+/** De items van deze soort op de huidige pagina, in volgorde (voor ← →) */
+function detailList(kind) {
+  const scope = $('.tab-panel:not([hidden])') || document;
+  const [sel, idOf] = DETAIL_SEL[kind] || [`[data-dref^="${kind}:"]`, (e) => e.dataset.dref.slice(kind.length + 1)];
+  return [...new Set($$(sel, scope).filter((e) => e.offsetParent !== null).map((e) => `${kind}:${idOf(e)}`))];
+}
+/** Waar de items van een soort op de pagina staan, als ze (nog) geen data-dref hebben */
+const DETAIL_SEL = {
+  check: ['[data-cid]', (e) => e.dataset.cid],
+  host: ['#hosts [data-act="toggle"][data-id], #hosts [data-act="cc-open"][data-id]', (e) => e.dataset.id],
+  inc: ['tr.inc-row[data-inc]', (e) => e.dataset.inc],
+  net: ['[data-net-open], [data-nm-open], [data-nd-open]', (e) => e.dataset.netOpen || e.dataset.nmOpen || e.dataset.ndOpen],
+  ids: ['[data-ids-geen]', () => ''],   // het IDS-venster heeft zijn eigen nummers onderin (de incidenten van die regel)
+};
+function detailHash(ref) {
+  const h = location.hash.slice(1), qi = h.indexOf('?');
+  const sp = new URLSearchParams(qi >= 0 ? h.slice(qi + 1) : '');
+  if (ref) sp.set('open', ref); else sp.delete('open');
+  const s = sp.toString();
+  try { history.replaceState(null, '', '#' + (qi >= 0 ? h.slice(0, qi) : h) + (s ? '?' + s.replace(/%3A/g, ':') : '')); } catch (e) { /* geen adres aanpassen */ }
+}
+/**
+ * Het detailpaneel tonen (zelfde opties als modal). ref = "soort:id". push = geopend vanuit het paneel zelf (kruimelpad).
+ * Opnieuw tonen met dezelfde ref (live bijwerken) houdt het kruimelpad.
+ */
+function detail({ title, body, buttons = [], ref, push = false, onSubmit }) {
+  const dlg = $('#modal');
+  const was = dlg.open && dlg.classList.contains('detail') ? detailCur : null;
+  const stack = was && was.ref === ref ? detailStack : push && was ? [...detailStack, was] : [];
+  const r = modal({ title, body, buttons, drawer: true, split: splitView(), onSubmit, isDetail: true });
+  detailStack = stack;
+  detailCur = { ref, title };
+  const kind = ref.slice(0, ref.indexOf(':'));
+  const list = detailList(kind), at = list.indexOf(ref);
+  $('#modal-nav').hidden = list.length < 2 || at < 0;
+  $('#modal-prev').disabled = at <= 0;
+  $('#modal-next').disabled = at < 0 || at >= list.length - 1;
+  const cr = $('#modal-crumb');
+  cr.hidden = !stack.length;
+  cr.innerHTML = stack.map((x, i) => `<button type="button" data-crumb="${i}">← ${esc(x.title)}</button>`).join('<span aria-hidden="true">›</span>');
+  $$('.dref-sel').forEach((e) => e.classList.remove('dref-sel'));
+  const [sel, idOf] = DETAIL_SEL[kind] || [`[data-dref^="${kind}:"]`, (e) => e.dataset.dref.slice(kind.length + 1)];
+  const rid = ref.slice(kind.length + 1);
+  $$(sel).filter((e) => String(idOf(e)) === rid).forEach((e) => (e.closest('tr') || e).classList.add('dref-sel'));
+  detailHash(ref);
+  return r;
+}
+(function detailWire() {
+  const dlg = $('#modal');
+  if (!dlg) return;
+  const step = (d) => {
+    if (!detailCur) return;
+    const kind = detailCur.ref.slice(0, detailCur.ref.indexOf(':'));
+    const list = detailList(kind), at = list.indexOf(detailCur.ref);
+    const to = list[at + d];
+    if (at >= 0 && to) { detailStack = []; detailOpen(to); }
+  };
+  $('#modal-prev').addEventListener('click', () => step(-1));
+  $('#modal-next').addEventListener('click', () => step(1));
+  $('#modal-crumb').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-crumb]');
+    if (!b) return;
+    const i = +b.dataset.crumb, to = detailStack[i];
+    detailStack = detailStack.slice(0, i);
+    detailCur = null;
+    const keep = detailStack;
+    detailOpen(to.ref);
+    detailStack = keep;   // detailOpen kan async zijn: het kruimelpad tot hier blijft
+  });
+  document.addEventListener('keydown', (e) => {
+    if (!dlg.open || !dlg.classList.contains('detail') || !detailCur || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '') || document.activeElement?.isContentEditable) return;
+    if (document.querySelector('dialog[open]:modal:not(#modal)') || dlg.dataset.incNav) return;   // IDS: eigen ← →
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); step(e.key === 'ArrowLeft' ? -1 : 1); }
+  });
+  dlg.addEventListener('close', () => {
+    if (!dlg.classList.contains('detail')) return;
+    detailCur = null; detailStack = [];
+    $$('.dref-sel').forEach((e) => e.classList.remove('dref-sel'));
+    detailHash(null);
+  });
+  // Een klik op een element met data-dref opent het paneel (pagina's die nog geen eigen afhandeling hebben)
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-dref][data-dref-click]');
+    if (!el || e.target.closest('button:not([data-dref]), a, input, select, label, [data-stop]')) return;
+    detailOpen(el.dataset.dref);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const el = e.target.closest?.('[data-dref][data-dref-click]');
+    if (el && e.target === el) { e.preventDefault(); detailOpen(el.dataset.dref); }
+  });
+})();
 
 /** 1.298.0: is het scherm breed genoeg om lijst en details naast elkaar te tonen? */
 const splitView = () => window.matchMedia('(min-width: 1900px)').matches;
@@ -8913,20 +9050,12 @@ function lpBuild(el) {
     if (pg) { LP.page = +pg.dataset.lpPg; LP.open = new Set(); await lpSearch(); $('#lp-body').scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
     const fo = e.target.closest('[data-lp-fopen]');
     if (fo) { LP.fopen = LP.fopen === fo.dataset.lpFopen ? '' : fo.dataset.lpFopen; lpFields(); return; }
+    if (LP.fopen && !e.target.closest('.lp-fpop')) { LP.fopen = ''; lpFields(); }   // 1.304.0: klik ernaast sluit het veldvenster
     const fa = e.target.closest('[data-lp-fadd]');
     if (fa) { const [k, v] = JSON.parse(fa.dataset.lpFadd); lpAddField(k, v, fa.dataset.neg === '1'); return; }
     if (e.target.closest('#lp-csv')) { lpCsv(); return; }
     if (e.target.closest('#lp-save-w')) { lwEdit({ q: lwQueryFromSearch() }); return; }   // 1.212.0
-    const tg = e.target.closest('[data-lp-tg]');
-    if (tg) {
-      const r = tg.closest('.lp-r'), ref = r.dataset.ref;
-      if (LP.open.has(ref)) LP.open.delete(ref); else LP.open.add(ref);
-      r.classList.toggle('open', LP.open.has(ref));
-      tg.setAttribute('aria-expanded', LP.open.has(ref) ? 'true' : 'false');
-      return;
-    }
-    const cx = e.target.closest('[data-lp-ctx]');
-    if (cx) { lpContext(cx.closest('.lp-r')); }
+    // 1.304.0: een klik op de regel opent het detailpaneel (algemene afhandeling via data-dref-click in 04-checks.js)
   });
   el.addEventListener('change', (e) => {
     const s = e.target.closest('[data-lp-add]');
@@ -9147,12 +9276,11 @@ function lpRow(h, mark) {
   const open = LP.open.has(h.ref);
   const kv = (k, v) => `<button type="button" class="lp-kv" data-lp-fadd="${esc(JSON.stringify([k, v]))}" title="${esc(L('Zoeken op {k}={v}', { k, v }))}">${esc(k)} = <b>${esc(v)}</b></button>`;
   const shown = Object.entries(f).slice(0, 8);
-  return `<div class="lp-r lv${h.level}${open ? ' open' : ''}" data-ref="${esc(h.ref || '')}">
-    <button type="button" class="lp-tg" data-lp-tg="1" aria-expanded="${open}" aria-label="${esc(L('Regel openklappen'))}"><span aria-hidden="true">›</span></button>
+  return `<div class="lp-r lv${h.level}" data-ref="${esc(h.ref || '')}" ${h.ref ? `data-dref="log:${esc(h.ref)}" data-dref-click tabindex="0" role="button" aria-label="${esc(L('Regel openen'))}"` : ''}>
     <span class="lp-t2" title="${esc(h.time)}"><b>${esc(new Date(h.ts * 1000).toLocaleDateString(LOCALE, { weekday: 'short', day: '2-digit', month: '2-digit' }))}</b><span>${esc(h.time.slice(11))}</span></span>
     <div class="lp-c"><span class="lp-m">${h.level >= 2 ? `<span class="lp-lv lp-lv${h.level}">${LP_LV[h.level]}</span> ` : ''}${mark(h.msg)}</span>
       <div class="lp-kvs">${shown.map(([k, v]) => kv(k, v)).join('')}</div>
-      <div class="lp-x">
+      <div class="lp-x" hidden>
         <table class="lp-xt"><thead><tr><th>${L('Veld')}</th><th>${L('Waarde')}</th><th></th></tr></thead><tbody>
           ${[...Object.entries(f), ['niveau', LP_LV[h.level] || '']].map(([k, v]) => `<tr><td class="muted">${esc(k)}</td><td class="mono">${esc(v)}</td>
             <td class="nowrap"><button type="button" class="lp-fx" data-lp-fadd="${esc(JSON.stringify([k, v]))}" aria-label="${esc(L('Zoeken op {k}={v}', { k, v }))}">＋</button>
@@ -9167,6 +9295,49 @@ const lpLine = (h, mark, ctx = false) => `<div class="lp-ln lv${h.level}${ctx ? 
   <span><span class="lp-lv lp-lv${h.level}">${LP_LV[h.level] || ''}</span></span>
   <span class="lp-h">${h.host ? esc(h.host) + ' <small>› ' + esc(h.source) + '</small>' : `<small>${esc(h.source || '')}</small>`}</span>
   <span class="lp-m">${mark(h.msg)}</span>${h.ref ? '<span class="lp-o" aria-hidden="true">›</span>' : '<span></span>'}</div>`;
+
+/**
+ * 1.304.0: een logregel in het detailpaneel: de hele regel, alle velden (＋ zoeken, − uitsluiten), de regels eromheen
+ * (zelfde bron) en andere bronnen van die server in dezelfde minuut, en alle regels van hetzelfde patroon.
+ */
+async function lpDetail(ref, opt = {}) {
+  const h = ((LP.last && LP.last.hits) || []).find((x) => x.ref === ref);
+  if (!h) return;
+  const f = { server: h.host, bron: h.source, ...(h.fields || {}) };
+  const plain = (s) => esc(s).replace(/••••/g, '<span class="lp-mask">••••</span>');
+  const fx = (k, v) => `<button type="button" class="lp-fx" data-lp-fadd="${esc(JSON.stringify([k, v]))}" aria-label="${esc(L('Zoeken op {k}={v}', { k, v }))}" title="${esc(L('Zoeken op {k}={v}', { k, v }))}">＋</button>
+    <button type="button" class="lp-fx" data-lp-fadd="${esc(JSON.stringify([k, v]))}" data-neg="1" aria-label="${esc(L('Uitsluiten: {k}={v}', { k, v }))}" title="${esc(L('Uitsluiten'))}">−</button>`;
+  const body = `<div class="lpd">
+    <div class="lpd-msg lv${h.level}">${h.level >= 2 ? `<span class="lp-lv lp-lv${h.level}">${LP_LV[h.level]}</span> ` : ''}${plain(h.msg)}</div>
+    <p class="muted small">${esc(h.time)} · ${esc(h.host)} › ${esc(h.source)}</p>
+    <section><h4 class="lpd-h">${L('Velden')}</h4><table class="lp-xt"><tbody>
+      ${[...Object.entries(f), ['niveau', LP_LV[h.level] || '']].map(([k, v]) => `<tr><td class="muted">${esc(k)}</td><td class="mono">${esc(v)}</td><td class="nowrap">${fx(k, v)}</td></tr>`).join('')}
+    </tbody></table></section>
+    <section><h4 class="lpd-h">${L('Eromheen')}</h4><div class="lpd-ctx"><p class="muted small">${L('Laden…')}</p></div></section>
+    ${h.pid ? `<section><h4 class="lpd-h">${L('Patroon')}</h4><button type="button" class="btn small-btn" data-lp-pat="${esc(h.pid)}">${L('Alle regels van dit patroon')}</button></section>` : ''}
+  </div>`;
+  detail({ title: `📜 ${h.host} · ${h.source}`, body, ref: 'log:' + ref, push: !!opt.push, buttons: [
+    { label: '🔔 ' + L('Melding van maken'), onClick: () => lwEdit({ q: (lwQueryFromSearch() + (h.pid ? ' patroon=' + h.pid : '')).trim() }) },
+    { label: '⧉ ' + L('Kopiëren'), onClick: async () => { try { await navigator.clipboard.writeText(h.msg); toast(L('Gekopieerd')); } catch (e) { toast(L('Kopiëren lukte niet'), 'err'); } } },
+    { label: L('Sluiten'), style: 'margin-left:auto', onClick: () => $('#modal').close() },
+  ] });
+  const sig = { signal: modalSignal() };
+  $('#modal-body').addEventListener('click', (e) => {
+    const fa = e.target.closest('[data-lp-fadd]');
+    if (fa) { const [k, v] = JSON.parse(fa.dataset.lpFadd); $('#modal').close(); lpAddField(k, v, fa.dataset.neg === '1'); return; }
+    const pt = e.target.closest('[data-lp-pat]');
+    if (pt) { $('#modal').close(); LP.view = 'hits'; lpAddField('patroon', pt.dataset.lpPat, false); }
+  }, sig);
+  const box = $('#modal-body .lpd-ctx');
+  try {
+    const c = await api('log_context', null, { ref });
+    if (!box.isConnected) return;
+    const row = (x, me = false) => `<div class="lpd-cl${me ? ' me' : ''} lv${x.level}"><span class="mono muted">${esc((x.time || '').slice(11))}</span> ${plain(x.msg)}</div>`;
+    box.innerHTML = c.before.map((x) => row(x)).join('') + row(h, true) + c.after.map((x) => row(x)).join('')
+      + (c.other.length ? `<h4 class="lpd-h">${L('Andere bronnen van deze server, zelfde minuut')}</h4>${c.other.map((x) => row({ ...x, msg: (x.source ? x.source + ': ' : '') + x.msg })).join('')}` : '');
+  } catch (ex) { if (box.isConnected) box.innerHTML = `<p class="danger-txt small">${esc(ex.message)}</p>`; }
+}
+DETAIL_OPEN.log = (ref, o) => lpDetail(ref, o);
 
 async function lpContext(ln) {
   const next = ln.nextElementSibling;
@@ -11724,7 +11895,7 @@ function renderIds() {
     const byDay = new Map();
     list.forEach((i) => { const day = i.created_at.slice(0, 10); if (!byDay.has(day)) byDay.set(day, []); byDay.get(day).push(i); });
     const fresh = todayFresh('ids', idsDayOpen, d.today, (byDay.get(d.today) || []).length);
-    const isOpen = (day) => idsDayOpen[day] ?? (day === d.today || narrowed || (smartOpen() && idsFilter === 'open'));
+    const isOpen = (day) => idsDayOpen[day] ?? (day === d.today || narrowed);
     idsDayItems = byDay;
     el.innerHTML = (idsFilter === 'open' && !narrowed ? idsNoisy(d) : '') + (!narrowed && !byDay.has(d.today) ? todayEmpty(d.today, (idsFilter === 'open' ? L('geen nieuwe open incidenten') : L('geen incidenten')) + ' 👌') : '') + [...byDay].map(([day, items]) => {
       const n2 = items.filter((i) => +i.severity === 2).length, n1 = items.length - n2;
@@ -13037,6 +13208,7 @@ async function loadWebSites() {
     <span class="lp-sp"></span><button type="button" class="btn small-btn" data-goto="proxy">${L('Per site, pad en land')} →</button></div>`;
 }
 
+DETAIL_OPEN.ids = (id) => incidentDialog(+id);
 async function incidentDialog(id, nav = null) {
   let d;
   try { d = await api('ids_incident_info', null, { id }); } catch (ex) { toast(ex.message, 'err'); return; }
@@ -13045,9 +13217,9 @@ async function incidentDialog(id, nav = null) {
   const open = i.status === 'open';
   const agentHost = i.host_mode === 'agent';
   const sevTxt = +i.severity === 2 ? '🔴 Critical' : '🟠 Warning';
-  modal({
+  detail({   // 1.304.0: het detailpaneel, zoals overal
+    ref: 'ids:' + id,
     title: `${+i.severity === 2 ? '🔴' : '🟠'} ${i.title}`,
-    wide: true,
     body: `<p class="small" style="margin-top:0">${sevTxt} · <b>${esc(i.host_name)}</b> · ${esc(fmtDateTime(i.created_at))}${+i.hits > 1 ? ` · ${L('{n}× gezien, laatst {t}', { n: i.hits, t: esc(fmtDateTime(i.last_seen || i.created_at)) })}` : ''}
         · ${open ? `<b class="warn-txt">${L('open')}</b>` : `✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}${i.handled_at ? ' (' + esc(fmtDateTime(i.handled_at)) + ')' : ''}`}${d.ignored ? ` · <span class="muted">${L('wordt niet meer gemeld (normaal)')}</span>` : ''}</p>
       ${i.ip ? '<div class="af-incsum" id="af-incsum"><p class="muted small">' + L('Laden…') + '</p></div>' : ''}
@@ -18991,15 +19163,16 @@ function netAddHost(x) {
   hostForm(null, { name: x.name || x.label, address: x.ip, kind: NET_TO_HOST[netKind(x)] || '' });
 }
 
+DETAIL_OPEN.net = (id) => netDialog(((typeof netData !== 'undefined' && netData && netData.devices) || []).find((d) => +d.id === +id));
 function netDialog(x) {
   if (!x) return;
   const [ic] = NET_KIND[netKind(x)] || NET_KIND.unknown;
   const i = x.info || {};
   const row = (k, v) => (v ? `<tr><th>${k}</th><td>${v}</td></tr>` : '');
   const admin = isAdmin();
-  modal({
+  detail({   // 1.304.0: het detailpaneel, zoals overal
+    ref: 'net:' + x.id,
     title: `${ic} ${x.label}`,
-    wide: true,
     body: `<table class="kv-table">
         ${row(L('IP-adres'), `<span class="mono">${esc(x.ip)}</span>${(i.ips || []).length ? ` <span class="muted small">(${L('eerder: {ips}', { ips: esc(i.ips.join(', ')) })})</span>` : ''}`)}
         ${row(L('MAC-adres'), x.mac ? `<span class="mono">${esc(x.mac.toUpperCase())}</span>${+x.random_mac ? ' · 🎭 ' + L('privé-adres (willekeurig)') : ''}` : L('onbekend (ander netwerk)'))}
@@ -20672,7 +20845,7 @@ function renderIncidents() {
       const [ic, src] = INC_SRC[i.source] || ['•', () => i.source];
       const end = i.resolved_at ? new Date(i.resolved_at.replace(' ', 'T')) : new Date();
       const dur = Math.max(0, (end - new Date(i.opened_at.replace(' ', 'T'))) / 1000);
-      return `<tr class="inc-row inc-${i.status}${$('#modal').open && $('#modal').dataset.split === '1' && +$('#modal').dataset.inc === +i.id ? ' sel' : ''}" data-inc="${i.id}" tabindex="0">
+      return `<tr class="inc-row inc-${i.status}${detailCur && detailCur.ref === 'inc:' + i.id ? ' dref-sel' : ''}" data-inc="${i.id}" tabindex="0">
         <td>${i.status === 'resolved' ? '<span class="muted small">–</span>' : urgPill(i.urgency, i.why)}</td>
         <td title="${esc(src())}">${ic}</td>
         <td>${i.outcome ? outcomePill(i.outcome, true) + ' ' : ''}<b>${esc(i.title)}</b>${i.status !== 'resolved' ? ' ' + aiBtn('incident', i.id) : ''}${i.parts > 1 ? ` <span class="muted small">· ${esc(L('{n} stappen', { n: i.parts }))}</span>` : ''}${i.detail ? `<div class="muted small">${esc(i.detail.length > 120 ? i.detail.slice(0, 120) + '…' : i.detail)}</div>` : ''}</td>
@@ -20694,8 +20867,9 @@ async function caseDialog(id) {
   const KIND = { system: '⚙️', status: '🔁', owner: '👤', note: '💬' };
   const go = i.source === 'check' ? ['dashboard', L('Naar Monitoring')] : i.source === 'ids' ? ['incidents/ids', L('Naar de aanvallen')] : ['vulns', L('Naar Kwetsbaarheden')];
   const split = splitView();   // 1.298.0: op een breed scherm de details naast de lijst
-  const { form, dlg } = modal({
-    title: `${ic} ${i.title}`, wide: !split, split,
+  const { form, dlg } = detail({   // 1.304.0: het detailpaneel, zoals overal
+    ref: 'inc:' + id,
+    title: `${ic} ${i.title}`,
     body: `<div style="padding:1rem 1.2rem">
       <p class="muted small">${esc(src())}${i.host ? ' · ' + esc(i.host) : ''} · ${L('geopend {t}', { t: esc(fmtDateTime(i.opened_at)) })}${i.resolved_at ? ' · ' + L('opgelost {t}', { t: esc(fmtDateTime(i.resolved_at)) }) : ''}</p>
       ${i.detail ? `<p>${esc(i.detail)}</p>` : ''}
@@ -20723,11 +20897,10 @@ async function caseDialog(id) {
       await api('incident_set', { id: i.id, status: v.status, owner: v.owner, note: v.note });
       toast(L('Opgeslagen'));
       loadIncidents();
-      if (split) { caseDialog(i.id); return 'keep'; }
+      if (split) { caseDialog(i.id); return 'keep'; }   // naast de lijst: het paneel blijft open
     },
   });
   dlg.dataset.inc = String(id);
-  $$('.inc-row').forEach((r) => r.classList.toggle('sel', split && +r.dataset.inc === +id));
   return form;
 }
 
@@ -20737,6 +20910,7 @@ async function caseDialog(id) {
   $('#inc-src').addEventListener('click', (e) => { const b = e.target.closest('[data-isrc]'); if (!b) return; incSrc = b.dataset.isrc; incSrcShow(); history.replaceState(null, '', '#incidents' + (incSrc === 'all' ? '' : '/' + incSrc)); crumbs(); });
   $('#inc-search').addEventListener('input', () => renderIncidents());
   const open = (e) => { const r = e.target.closest('[data-inc]'); if (r) caseDialog(+r.dataset.inc); };
+  DETAIL_OPEN.inc = (id) => caseDialog(+id);
   $('#inc-list').addEventListener('click', open);
   $('#inc-list').addEventListener('keydown', (e) => { if (e.key === 'Enter') open(e); });
 })();

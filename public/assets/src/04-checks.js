@@ -16,7 +16,7 @@ function whenText(dt) {
   return (today ? '' : d.toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short' }) + ' ') + dt.slice(11, 16);
 }
 
-async function checkInfo(id, live = false, more = null) {
+async function checkInfo(id, live = false, more = null, opt = {}) {
   let r;
   if (more === null) more = live && $('#modal').dataset.ciMore === String(id);
   try { r = await api('check_info', null, more ? { id, more: 1 } : { id }); } catch (ex) { return live ? null : toast(ex.message, 'err'); }
@@ -218,7 +218,7 @@ async function checkInfo(id, live = false, more = null) {
     const sig = btns.map((b) => b.label).join('|');
     if ($('#modal').dataset.btns === sig) return;
   }
-  modal({ title, wide: true, body: ciBody, buttons: btns });
+  detail({ title, body: ciBody, buttons: btns, ref: 'check:' + id, push: !!opt.push });   // 1.304.0: in het detailpaneel
   // 1.227.0: e-mailbeveiliging: het DNS-record kopiëren
   $('#modal-body').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-mail-copy]');
@@ -230,6 +230,8 @@ async function checkInfo(id, live = false, more = null) {
   if (!live) { const mb = $('#modal-body'); if (mb && !more) mb.scrollTop = 0; }
   $('#modal').dataset.btns = btns.map((b) => b.label).join('|');
 }
+
+DETAIL_OPEN.check = (id, o) => checkInfo(+id, false, null, o);
 
 /** 1.176.0: grafiek van 24 uur in de popup: waarde, geleerde band, drempels en de statuswissels als stip */
 const ciChartCache = new Map();
@@ -603,8 +605,11 @@ function initCmdk() {
  */
 let modalGen = 0, modalAC = null, pairTok = 0;
 const modalSignal = () => (modalAC || (modalAC = new AbortController())).signal;
-function modal({ title, body, buttons = [], wide = false, page = false, drawer = false, split = false, onSubmit }) {
+function modal({ title, body, buttons = [], wide = false, page = false, drawer = false, split = false, onSubmit, isDetail = false }) {
   const dlg = $('#modal');
+  // 1.304.0: een gewoon venster (formulier, uitleg) is geen detailpaneel: navigatie en kruimelpad weg
+  dlg.classList.toggle('detail', isDetail);
+  if (!isDetail) { detailCur = null; detailStack = []; $('#modal-nav').hidden = true; $('#modal-crumb').hidden = true; }
   // 1.298.0: split = zijpaneel zonder de pagina erachter te blokkeren (lijst links, details rechts). Van of naar een gewoon venster: eerst dicht.
   if (dlg.open && (dlg.dataset.split === '1') !== split) dlg.close();
   dlg.dataset.split = split ? '1' : '';
@@ -659,6 +664,111 @@ function modal({ title, body, buttons = [], wide = false, page = false, drawer =
   if (!dlg.open) { if (split) dlg.show(); else dlg.showModal(); }
   return { dlg, form, err };
 }
+
+// ---------------------------------------------------------------- 1.304.0: het detailpaneel
+// Overal hetzelfde: een klik op een item (check, server, incident, logregel …) opent dit paneel rechts. ← → stappen door
+// de items van dezelfde soort op de pagina (elementen met data-dref="soort:id"), verder klikken in het paneel bewaart
+// een kruimelpad terug, en het adres krijgt ?open=soort:id zodat een link het paneel weer opent.
+// DETAIL_OPEN, detailCur en detailStack staan in 01-basis.js (modules daarvoor gebruiken ze al)
+/** Open een item via zijn verwijzing ("check:12") */
+function detailOpen(ref, push = false) {
+  const i = String(ref).indexOf(':');
+  const f = DETAIL_OPEN[String(ref).slice(0, i)];
+  if (f) f(String(ref).slice(i + 1), { push });
+}
+/** De items van deze soort op de huidige pagina, in volgorde (voor ← →) */
+function detailList(kind) {
+  const scope = $('.tab-panel:not([hidden])') || document;
+  const [sel, idOf] = DETAIL_SEL[kind] || [`[data-dref^="${kind}:"]`, (e) => e.dataset.dref.slice(kind.length + 1)];
+  return [...new Set($$(sel, scope).filter((e) => e.offsetParent !== null).map((e) => `${kind}:${idOf(e)}`))];
+}
+/** Waar de items van een soort op de pagina staan, als ze (nog) geen data-dref hebben */
+const DETAIL_SEL = {
+  check: ['[data-cid]', (e) => e.dataset.cid],
+  host: ['#hosts [data-act="toggle"][data-id], #hosts [data-act="cc-open"][data-id]', (e) => e.dataset.id],
+  inc: ['tr.inc-row[data-inc]', (e) => e.dataset.inc],
+  net: ['[data-net-open], [data-nm-open], [data-nd-open]', (e) => e.dataset.netOpen || e.dataset.nmOpen || e.dataset.ndOpen],
+  ids: ['[data-ids-geen]', () => ''],   // het IDS-venster heeft zijn eigen nummers onderin (de incidenten van die regel)
+};
+function detailHash(ref) {
+  const h = location.hash.slice(1), qi = h.indexOf('?');
+  const sp = new URLSearchParams(qi >= 0 ? h.slice(qi + 1) : '');
+  if (ref) sp.set('open', ref); else sp.delete('open');
+  const s = sp.toString();
+  try { history.replaceState(null, '', '#' + (qi >= 0 ? h.slice(0, qi) : h) + (s ? '?' + s.replace(/%3A/g, ':') : '')); } catch (e) { /* geen adres aanpassen */ }
+}
+/**
+ * Het detailpaneel tonen (zelfde opties als modal). ref = "soort:id". push = geopend vanuit het paneel zelf (kruimelpad).
+ * Opnieuw tonen met dezelfde ref (live bijwerken) houdt het kruimelpad.
+ */
+function detail({ title, body, buttons = [], ref, push = false, onSubmit }) {
+  const dlg = $('#modal');
+  const was = dlg.open && dlg.classList.contains('detail') ? detailCur : null;
+  const stack = was && was.ref === ref ? detailStack : push && was ? [...detailStack, was] : [];
+  const r = modal({ title, body, buttons, drawer: true, split: splitView(), onSubmit, isDetail: true });
+  detailStack = stack;
+  detailCur = { ref, title };
+  const kind = ref.slice(0, ref.indexOf(':'));
+  const list = detailList(kind), at = list.indexOf(ref);
+  $('#modal-nav').hidden = list.length < 2 || at < 0;
+  $('#modal-prev').disabled = at <= 0;
+  $('#modal-next').disabled = at < 0 || at >= list.length - 1;
+  const cr = $('#modal-crumb');
+  cr.hidden = !stack.length;
+  cr.innerHTML = stack.map((x, i) => `<button type="button" data-crumb="${i}">← ${esc(x.title)}</button>`).join('<span aria-hidden="true">›</span>');
+  $$('.dref-sel').forEach((e) => e.classList.remove('dref-sel'));
+  const [sel, idOf] = DETAIL_SEL[kind] || [`[data-dref^="${kind}:"]`, (e) => e.dataset.dref.slice(kind.length + 1)];
+  const rid = ref.slice(kind.length + 1);
+  $$(sel).filter((e) => String(idOf(e)) === rid).forEach((e) => (e.closest('tr') || e).classList.add('dref-sel'));
+  detailHash(ref);
+  return r;
+}
+(function detailWire() {
+  const dlg = $('#modal');
+  if (!dlg) return;
+  const step = (d) => {
+    if (!detailCur) return;
+    const kind = detailCur.ref.slice(0, detailCur.ref.indexOf(':'));
+    const list = detailList(kind), at = list.indexOf(detailCur.ref);
+    const to = list[at + d];
+    if (at >= 0 && to) { detailStack = []; detailOpen(to); }
+  };
+  $('#modal-prev').addEventListener('click', () => step(-1));
+  $('#modal-next').addEventListener('click', () => step(1));
+  $('#modal-crumb').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-crumb]');
+    if (!b) return;
+    const i = +b.dataset.crumb, to = detailStack[i];
+    detailStack = detailStack.slice(0, i);
+    detailCur = null;
+    const keep = detailStack;
+    detailOpen(to.ref);
+    detailStack = keep;   // detailOpen kan async zijn: het kruimelpad tot hier blijft
+  });
+  document.addEventListener('keydown', (e) => {
+    if (!dlg.open || !dlg.classList.contains('detail') || !detailCur || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '') || document.activeElement?.isContentEditable) return;
+    if (document.querySelector('dialog[open]:modal:not(#modal)') || dlg.dataset.incNav) return;   // IDS: eigen ← →
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); step(e.key === 'ArrowLeft' ? -1 : 1); }
+  });
+  dlg.addEventListener('close', () => {
+    if (!dlg.classList.contains('detail')) return;
+    detailCur = null; detailStack = [];
+    $$('.dref-sel').forEach((e) => e.classList.remove('dref-sel'));
+    detailHash(null);
+  });
+  // Een klik op een element met data-dref opent het paneel (pagina's die nog geen eigen afhandeling hebben)
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-dref][data-dref-click]');
+    if (!el || e.target.closest('button:not([data-dref]), a, input, select, label, [data-stop]')) return;
+    detailOpen(el.dataset.dref);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const el = e.target.closest?.('[data-dref][data-dref-click]');
+    if (el && e.target === el) { e.preventDefault(); detailOpen(el.dataset.dref); }
+  });
+})();
 
 /** 1.298.0: is het scherm breed genoeg om lijst en details naast elkaar te tonen? */
 const splitView = () => window.matchMedia('(min-width: 1900px)').matches;

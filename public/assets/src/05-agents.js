@@ -1122,20 +1122,12 @@ function lpBuild(el) {
     if (pg) { LP.page = +pg.dataset.lpPg; LP.open = new Set(); await lpSearch(); $('#lp-body').scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
     const fo = e.target.closest('[data-lp-fopen]');
     if (fo) { LP.fopen = LP.fopen === fo.dataset.lpFopen ? '' : fo.dataset.lpFopen; lpFields(); return; }
+    if (LP.fopen && !e.target.closest('.lp-fpop')) { LP.fopen = ''; lpFields(); }   // 1.304.0: klik ernaast sluit het veldvenster
     const fa = e.target.closest('[data-lp-fadd]');
     if (fa) { const [k, v] = JSON.parse(fa.dataset.lpFadd); lpAddField(k, v, fa.dataset.neg === '1'); return; }
     if (e.target.closest('#lp-csv')) { lpCsv(); return; }
     if (e.target.closest('#lp-save-w')) { lwEdit({ q: lwQueryFromSearch() }); return; }   // 1.212.0
-    const tg = e.target.closest('[data-lp-tg]');
-    if (tg) {
-      const r = tg.closest('.lp-r'), ref = r.dataset.ref;
-      if (LP.open.has(ref)) LP.open.delete(ref); else LP.open.add(ref);
-      r.classList.toggle('open', LP.open.has(ref));
-      tg.setAttribute('aria-expanded', LP.open.has(ref) ? 'true' : 'false');
-      return;
-    }
-    const cx = e.target.closest('[data-lp-ctx]');
-    if (cx) { lpContext(cx.closest('.lp-r')); }
+    // 1.304.0: een klik op de regel opent het detailpaneel (algemene afhandeling via data-dref-click in 04-checks.js)
   });
   el.addEventListener('change', (e) => {
     const s = e.target.closest('[data-lp-add]');
@@ -1356,12 +1348,11 @@ function lpRow(h, mark) {
   const open = LP.open.has(h.ref);
   const kv = (k, v) => `<button type="button" class="lp-kv" data-lp-fadd="${esc(JSON.stringify([k, v]))}" title="${esc(L('Zoeken op {k}={v}', { k, v }))}">${esc(k)} = <b>${esc(v)}</b></button>`;
   const shown = Object.entries(f).slice(0, 8);
-  return `<div class="lp-r lv${h.level}${open ? ' open' : ''}" data-ref="${esc(h.ref || '')}">
-    <button type="button" class="lp-tg" data-lp-tg="1" aria-expanded="${open}" aria-label="${esc(L('Regel openklappen'))}"><span aria-hidden="true">›</span></button>
+  return `<div class="lp-r lv${h.level}" data-ref="${esc(h.ref || '')}" ${h.ref ? `data-dref="log:${esc(h.ref)}" data-dref-click tabindex="0" role="button" aria-label="${esc(L('Regel openen'))}"` : ''}>
     <span class="lp-t2" title="${esc(h.time)}"><b>${esc(new Date(h.ts * 1000).toLocaleDateString(LOCALE, { weekday: 'short', day: '2-digit', month: '2-digit' }))}</b><span>${esc(h.time.slice(11))}</span></span>
     <div class="lp-c"><span class="lp-m">${h.level >= 2 ? `<span class="lp-lv lp-lv${h.level}">${LP_LV[h.level]}</span> ` : ''}${mark(h.msg)}</span>
       <div class="lp-kvs">${shown.map(([k, v]) => kv(k, v)).join('')}</div>
-      <div class="lp-x">
+      <div class="lp-x" hidden>
         <table class="lp-xt"><thead><tr><th>${L('Veld')}</th><th>${L('Waarde')}</th><th></th></tr></thead><tbody>
           ${[...Object.entries(f), ['niveau', LP_LV[h.level] || '']].map(([k, v]) => `<tr><td class="muted">${esc(k)}</td><td class="mono">${esc(v)}</td>
             <td class="nowrap"><button type="button" class="lp-fx" data-lp-fadd="${esc(JSON.stringify([k, v]))}" aria-label="${esc(L('Zoeken op {k}={v}', { k, v }))}">＋</button>
@@ -1376,6 +1367,49 @@ const lpLine = (h, mark, ctx = false) => `<div class="lp-ln lv${h.level}${ctx ? 
   <span><span class="lp-lv lp-lv${h.level}">${LP_LV[h.level] || ''}</span></span>
   <span class="lp-h">${h.host ? esc(h.host) + ' <small>› ' + esc(h.source) + '</small>' : `<small>${esc(h.source || '')}</small>`}</span>
   <span class="lp-m">${mark(h.msg)}</span>${h.ref ? '<span class="lp-o" aria-hidden="true">›</span>' : '<span></span>'}</div>`;
+
+/**
+ * 1.304.0: een logregel in het detailpaneel: de hele regel, alle velden (＋ zoeken, − uitsluiten), de regels eromheen
+ * (zelfde bron) en andere bronnen van die server in dezelfde minuut, en alle regels van hetzelfde patroon.
+ */
+async function lpDetail(ref, opt = {}) {
+  const h = ((LP.last && LP.last.hits) || []).find((x) => x.ref === ref);
+  if (!h) return;
+  const f = { server: h.host, bron: h.source, ...(h.fields || {}) };
+  const plain = (s) => esc(s).replace(/••••/g, '<span class="lp-mask">••••</span>');
+  const fx = (k, v) => `<button type="button" class="lp-fx" data-lp-fadd="${esc(JSON.stringify([k, v]))}" aria-label="${esc(L('Zoeken op {k}={v}', { k, v }))}" title="${esc(L('Zoeken op {k}={v}', { k, v }))}">＋</button>
+    <button type="button" class="lp-fx" data-lp-fadd="${esc(JSON.stringify([k, v]))}" data-neg="1" aria-label="${esc(L('Uitsluiten: {k}={v}', { k, v }))}" title="${esc(L('Uitsluiten'))}">−</button>`;
+  const body = `<div class="lpd">
+    <div class="lpd-msg lv${h.level}">${h.level >= 2 ? `<span class="lp-lv lp-lv${h.level}">${LP_LV[h.level]}</span> ` : ''}${plain(h.msg)}</div>
+    <p class="muted small">${esc(h.time)} · ${esc(h.host)} › ${esc(h.source)}</p>
+    <section><h4 class="lpd-h">${L('Velden')}</h4><table class="lp-xt"><tbody>
+      ${[...Object.entries(f), ['niveau', LP_LV[h.level] || '']].map(([k, v]) => `<tr><td class="muted">${esc(k)}</td><td class="mono">${esc(v)}</td><td class="nowrap">${fx(k, v)}</td></tr>`).join('')}
+    </tbody></table></section>
+    <section><h4 class="lpd-h">${L('Eromheen')}</h4><div class="lpd-ctx"><p class="muted small">${L('Laden…')}</p></div></section>
+    ${h.pid ? `<section><h4 class="lpd-h">${L('Patroon')}</h4><button type="button" class="btn small-btn" data-lp-pat="${esc(h.pid)}">${L('Alle regels van dit patroon')}</button></section>` : ''}
+  </div>`;
+  detail({ title: `📜 ${h.host} · ${h.source}`, body, ref: 'log:' + ref, push: !!opt.push, buttons: [
+    { label: '🔔 ' + L('Melding van maken'), onClick: () => lwEdit({ q: (lwQueryFromSearch() + (h.pid ? ' patroon=' + h.pid : '')).trim() }) },
+    { label: '⧉ ' + L('Kopiëren'), onClick: async () => { try { await navigator.clipboard.writeText(h.msg); toast(L('Gekopieerd')); } catch (e) { toast(L('Kopiëren lukte niet'), 'err'); } } },
+    { label: L('Sluiten'), style: 'margin-left:auto', onClick: () => $('#modal').close() },
+  ] });
+  const sig = { signal: modalSignal() };
+  $('#modal-body').addEventListener('click', (e) => {
+    const fa = e.target.closest('[data-lp-fadd]');
+    if (fa) { const [k, v] = JSON.parse(fa.dataset.lpFadd); $('#modal').close(); lpAddField(k, v, fa.dataset.neg === '1'); return; }
+    const pt = e.target.closest('[data-lp-pat]');
+    if (pt) { $('#modal').close(); LP.view = 'hits'; lpAddField('patroon', pt.dataset.lpPat, false); }
+  }, sig);
+  const box = $('#modal-body .lpd-ctx');
+  try {
+    const c = await api('log_context', null, { ref });
+    if (!box.isConnected) return;
+    const row = (x, me = false) => `<div class="lpd-cl${me ? ' me' : ''} lv${x.level}"><span class="mono muted">${esc((x.time || '').slice(11))}</span> ${plain(x.msg)}</div>`;
+    box.innerHTML = c.before.map((x) => row(x)).join('') + row(h, true) + c.after.map((x) => row(x)).join('')
+      + (c.other.length ? `<h4 class="lpd-h">${L('Andere bronnen van deze server, zelfde minuut')}</h4>${c.other.map((x) => row({ ...x, msg: (x.source ? x.source + ': ' : '') + x.msg })).join('')}` : '');
+  } catch (ex) { if (box.isConnected) box.innerHTML = `<p class="danger-txt small">${esc(ex.message)}</p>`; }
+}
+DETAIL_OPEN.log = (ref, o) => lpDetail(ref, o);
 
 async function lpContext(ln) {
   const next = ln.nextElementSibling;

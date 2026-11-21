@@ -287,7 +287,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <div class="dash-menu" id="dash-menu" role="menu" hidden>
             <button class="need-user" id="maint-all" type="button" role="menuitem">🔧 <?= th('Onderhoud') ?> <small><?= th('alle meldingen tijdelijk pauzeren') ?></small></button>
             <button class="need-user" id="run-all" type="button" role="menuitem">↻ <?= th('Alles nu checken') ?></button>
-            <button id="toggle-all" type="button" role="menuitem">⊞ <?= th('Alles openen') ?></button>
+            <button id="toggle-all" type="button" role="menuitem" hidden>⊞ <?= th('Alles openen') ?></button>
           </div>
         </div>
         <button class="btn primary need-admin" id="add-host">＋ <?= th('Server') ?></button>
@@ -2179,7 +2179,10 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
   <dialog id="modal" aria-labelledby="modal-title">
     <form method="dialog" class="modal-inner" id="modal-form">
-      <header><h3 id="modal-title"></h3><button class="icon-btn" value="cancel" formnovalidate aria-label="<?= th('Sluiten') ?>" title="<?= th('Sluiten') ?>">✕</button></header>
+      <header><h3 id="modal-title"></h3>
+        <span class="modal-nav" id="modal-nav" hidden><button type="button" class="icon-btn" id="modal-prev" aria-label="<?= th('Vorige') ?>" title="<?= th('Vorige') ?> (←)">←</button><button type="button" class="icon-btn" id="modal-next" aria-label="<?= th('Volgende') ?>" title="<?= th('Volgende') ?> (→)">→</button></span>
+        <button class="icon-btn" value="cancel" formnovalidate aria-label="<?= th('Sluiten') ?>" title="<?= th('Sluiten') ?>">✕</button></header>
+      <nav class="modal-crumb" id="modal-crumb" aria-label="<?= th('Terug naar') ?>" hidden></nav>
       <div id="modal-body"></div>
       <p class="form-error" hidden></p>
       <footer id="modal-footer"></footer>

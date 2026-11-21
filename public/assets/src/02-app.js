@@ -87,7 +87,7 @@ function init() {
     const host = e.target.closest('[data-host]');
     if (host) return jumpToHost(host.dataset.host);
     const ab = e.target.closest('[data-attn-bundle]');
-    if (ab) { const id = +ab.dataset.attnBundle; if (attnBundles.has(id)) attnBundles.delete(id); else attnBundles.add(id); renderAttention(); return; }
+    if (ab) return hostPanel(+ab.dataset.attnBundle);   // 1.304.0: de checks van die server in het detailpaneel
     if (e.target.closest('[data-attn-more]')) { attnOpen = !attnOpen; return renderAttention(); }
     const axf = e.target.closest('[data-ax-f]');
     if (axf) { axFilter = axf.dataset.axF; return renderAttention(); }   // 1.176.0
@@ -577,6 +577,8 @@ function showTab(name) {
   const qi = name.indexOf('?');
   const qs = qi >= 0 ? name.slice(qi + 1) : '';
   if (qi >= 0) name = name.slice(0, qi);
+  const openRef = new URLSearchParams(qs).get('open');   // 1.304.0: #pagina?open=check:12 opent het detailpaneel
+  if (openRef && /^[a-z]+:[\w.:-]{1,80}$/.test(openRef)) setTimeout(() => { if (!$('#modal').open) detailOpen(openRef); }, 700);
   if (name === 'settings/blocks') name = 'ids/blk';   // 1.92.0: blokkades en whitelist staan in het IDS-tabblad
   // 1.276.0: nieuwe indeling; oude adressen (ook in meldingen en e-mails) sturen door naar de nieuwe plek
   const MOVED = { 'settings/agents': 'servers', 'settings/actlog': 'logboek', 'settings/changelog': 'logboek', 'settings/nis2': 'compliance',
@@ -722,6 +724,7 @@ function liveModal() {
   if (!dlg.open || !dlg.dataset.live) return;
   const [kind, id] = dlg.dataset.live.split(':');
   if (kind === 'check') checkInfo(id, true);
+  if (kind === 'host') hostPanel(id, { live: true });   // 1.304.0
 }
 
 /** Nieuwe problemen (er ging echt een melding uit: melden na N gehaald) als klikbaar meldinkje rechtsonder */

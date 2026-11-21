@@ -1441,7 +1441,7 @@ function renderIds() {
     const byDay = new Map();
     list.forEach((i) => { const day = i.created_at.slice(0, 10); if (!byDay.has(day)) byDay.set(day, []); byDay.get(day).push(i); });
     const fresh = todayFresh('ids', idsDayOpen, d.today, (byDay.get(d.today) || []).length);
-    const isOpen = (day) => idsDayOpen[day] ?? (day === d.today || narrowed || (smartOpen() && idsFilter === 'open'));
+    const isOpen = (day) => idsDayOpen[day] ?? (day === d.today || narrowed);
     idsDayItems = byDay;
     el.innerHTML = (idsFilter === 'open' && !narrowed ? idsNoisy(d) : '') + (!narrowed && !byDay.has(d.today) ? todayEmpty(d.today, (idsFilter === 'open' ? L('geen nieuwe open incidenten') : L('geen incidenten')) + ' 👌') : '') + [...byDay].map(([day, items]) => {
       const n2 = items.filter((i) => +i.severity === 2).length, n1 = items.length - n2;
@@ -2754,6 +2754,7 @@ async function loadWebSites() {
     <span class="lp-sp"></span><button type="button" class="btn small-btn" data-goto="proxy">${L('Per site, pad en land')} →</button></div>`;
 }
 
+DETAIL_OPEN.ids = (id) => incidentDialog(+id);
 async function incidentDialog(id, nav = null) {
   let d;
   try { d = await api('ids_incident_info', null, { id }); } catch (ex) { toast(ex.message, 'err'); return; }
@@ -2762,9 +2763,9 @@ async function incidentDialog(id, nav = null) {
   const open = i.status === 'open';
   const agentHost = i.host_mode === 'agent';
   const sevTxt = +i.severity === 2 ? '🔴 Critical' : '🟠 Warning';
-  modal({
+  detail({   // 1.304.0: het detailpaneel, zoals overal
+    ref: 'ids:' + id,
     title: `${+i.severity === 2 ? '🔴' : '🟠'} ${i.title}`,
-    wide: true,
     body: `<p class="small" style="margin-top:0">${sevTxt} · <b>${esc(i.host_name)}</b> · ${esc(fmtDateTime(i.created_at))}${+i.hits > 1 ? ` · ${L('{n}× gezien, laatst {t}', { n: i.hits, t: esc(fmtDateTime(i.last_seen || i.created_at)) })}` : ''}
         · ${open ? `<b class="warn-txt">${L('open')}</b>` : `✔ ${L('afgehandeld door {who}', { who: esc(i.handled_by || '?') })}${i.handled_at ? ' (' + esc(fmtDateTime(i.handled_at)) + ')' : ''}`}${d.ignored ? ` · <span class="muted">${L('wordt niet meer gemeld (normaal)')}</span>` : ''}</p>
       ${i.ip ? '<div class="af-incsum" id="af-incsum"><p class="muted small">' + L('Laden…') + '</p></div>' : ''}

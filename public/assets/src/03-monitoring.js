@@ -236,7 +236,7 @@ function renderAttnCC(box, items, open, acked, ackedList, down, why, since) {
       ${acts(c)}
     </div>`;
   const bundle = (it) => {
-    const st = worstOf(it), d = down.get(+it.h.id), isOpen = attnBundles.has(+it.h.id), s0 = since(it);
+    const st = worstOf(it), d = down.get(+it.h.id), isOpen = false, s0 = since(it);
     const cause = d ? (why[d.reason] || L('onbereikbaar')) : '';
     const unacked = it.list.some((c) => !c.acked_at);
     return `<div class="ax-row ax-bundle s${st}" style="--i:${Math.min(k++, 20)}">
@@ -247,7 +247,7 @@ function renderAttnCC(box, items, open, acked, ackedList, down, why, since) {
       <span class="ax-msg">${esc(it.list.map((c) => c.name).slice(0, 6).join(', '))}${it.list.length > 6 ? ' …' : ''}</span>
       <span class="ax-dur mono">${s0 ? dur(s0) : ''}</span>
       <span class="ax-tl">${hostTimeline(it.h)}</span>
-      <span class="ax-acts"><button type="button" class="ax-ib" data-attn-bundle="${it.h.id}" aria-expanded="${isOpen}" aria-label="${esc(isOpen ? L('Dichtklappen') : L('Openklappen'))}">${axSvg(isOpen ? 'up' : 'down', 15)}</button>${unacked ? `<button type="button" class="ax-ib ok need-user" data-act="ack-host" data-id="${it.h.id}" aria-label="${esc(L('Alles bevestigen'))}" title="${esc(L('Alles bevestigen'))}">${axSvg('ok', 15)}</button>` : ''}${aiOn() ? `<span class="ax-ai">${aiBtn('bundle', it.h.id)}</span>` : ''}</span>
+      <span class="ax-acts"><button type="button" class="ax-ib" data-attn-bundle="${it.h.id}" aria-label="${esc(L('{n} checks van {s} openen', { n: it.list.length, s: it.h.name }))}">›</button>${unacked ? `<button type="button" class="ax-ib ok need-user" data-act="ack-host" data-id="${it.h.id}" aria-label="${esc(L('Alles bevestigen'))}" title="${esc(L('Alles bevestigen'))}">${axSvg('ok', 15)}</button>` : ''}${aiOn() ? `<span class="ax-ai">${aiBtn('bundle', it.h.id)}</span>` : ''}</span>
     </div>${isOpen ? it.list.map((c) => row(it.h, c, true)).join('') : ''}`;
   };
   const limit = attnOpen ? Infinity : 8;
@@ -316,12 +316,12 @@ function renderAttention() {
     const st = it.list.reduce((m, c) => (STATUS_RANK[+c.status] > STATUS_RANK[m] ? +c.status : m), 0);
     const d = down.get(+it.h.id);
     const cause = d ? (why[d.reason] || L('onbereikbaar')) : L('{n} problemen op deze server', { n: it.list.length });
-    const isOpen = attnBundles.has(+it.h.id);
+    const isOpen = false;   // 1.304.0: een bundel opent het serverpaneel
     const s0 = since(it);
     return `<div class="arow bundle${isOpen ? ' open' : ''}" data-bundle="h${it.h.id}">
       <i class="adot s${st}"></i>
       <button type="button" class="a-srv hl-link" data-host="${it.h.id}">${esc(it.h.name)}</button>
-      <span class="a-chk"><button type="button" class="link-btn" data-attn-bundle="${it.h.id}" aria-expanded="${isOpen}">${isOpen ? '▾' : '▸'} ${L('{n} checks', { n: it.list.length })}</button>${bundleMarks(it.list)}</span>
+      <span class="a-chk"><button type="button" class="link-btn" data-attn-bundle="${it.h.id}">${L('{n} checks', { n: it.list.length })} ›</button>${bundleMarks(it.list)}</span>
       <span class="a-msg"><b>${esc(cause)}</b> · ${esc(it.list.map((c) => c.name).slice(0, 5).join(', '))}${it.list.length > 5 ? ' …' : ''}</span>
       ${hostTimeline(it.h)}
       <span class="a-since">${s0 ? dur(s0) : ''}</span>
@@ -340,9 +340,8 @@ function jumpToHost(id) {
   statusFilter = null;
   $('#filter').value = '';
   if (!DASH_FILTERS.find((f) => f[0] === dashFilter)[2](findHost(id))) dashFilter = 'all';
-  openHosts.add(+id);
-  saveOpen();
   render();
+  hostPanel(+id);   // 1.304.0: het detailpaneel van die server
   const head = $(`#hosts [data-act=toggle][data-id="${id}"]`);
   if (head) {
     const art = head.closest('article');
@@ -2368,6 +2367,28 @@ function setAutosaveState(st, why) {
 // Bij openen alles dicht (1.71.0): wat je openklapt, blijft open tot je herlaadt. "Slim openen": onthouden in deze browser.
 const openHosts = new Set((() => { try { return smartOpen() ? JSON.parse(localStorage.getItem('rzmon-open') || '[]') : []; } catch (e) { return []; } })());
 function saveOpen() { if (!smartOpen()) return; try { localStorage.setItem('rzmon-open', JSON.stringify([...openHosts])); } catch (e) {} }
+/**
+ * 1.304.0: het detailpaneel van een server: de knoppen (check toevoegen, bewerken, agent, logs …), de beschikbaarheid en de
+ * checks als lijst, problemen eerst. Een check opent in hetzelfde paneel, met een kruimelpad terug naar de server.
+ */
+function hostPanel(id, opt = {}) {
+  const h = findHost(id);
+  if (!h) return;
+  const dlg = $('#modal');
+  if (opt.live && !(dlg.open && dlg.dataset.live === 'host:' + h.id)) return;
+  const body = `<div class="host-panel">${hostDetail({ ...h, shown: h.checks }, 'small')}</div>`;   // alle checks, ook als de pagina gefilterd is
+  const title = `${h.icon || '🖥️'} ${h.name}`;
+  if (opt.live) { $('#modal-title').textContent = title; withMorph(() => { $('#modal-body').innerHTML = body; }); return; }
+  detail({ title, body, ref: 'host:' + h.id, push: !!opt.push, buttons: [] });
+  dlg.dataset.live = 'host:' + h.id;
+  $('#modal-body').addEventListener('click', (e) => {
+    const chk = e.target.closest('[data-cid]');
+    if (chk && !e.target.closest('button, a, input, select, label, [data-act]')) { checkInfo(+chk.dataset.cid, false, null, { push: true }); return; }
+    onHostsClick(e);
+  }, { signal: modalSignal() });
+}
+DETAIL_OPEN.host = (id, o) => hostPanel(+id, o);
+
 function toggleHost(id) {
   openHosts.has(+id) ? openHosts.delete(+id) : openHosts.add(+id);
   saveOpen();
@@ -2405,14 +2426,14 @@ function hostParts(h) {
   return {
     st: hostStatus(h),
     sum: hostSummary(h),
-    isOpen: openHosts.has(+h.id) || h.autoOpen,
+    isOpen: !!h.autoOpen,   // 1.304.0: alleen bij zoeken (passende checks); een server openen = het detailpaneel
     chips,
     counts,
     lastChecked: h.checks.reduce((m, c) => (c.last_checked && (!m || c.last_checked > m) ? c.last_checked : m), null),
     title: `${esc(h.name)} <span class="badge">${esc(h.mode)}</span>${+h.enabled ? '' : `<span class="badge">${L('uit')}</span>`}${h.quiet_eff && h.quiet_eff.mute ? ` <span class="quiet-tag mute" title="${esc(L('Altijd stil: geen meldingen van deze server (via {via})', { via: QUIET_SRC()[h.quiet_eff.src] || h.quiet_eff.src }))}">🔕 ${L('stil')}</span>` : ''}`,
     via: parent ? ` <span class="via" title="${L('Afhankelijk van {name}: geen aparte meldingen als die onbereikbaar is', { name: esc(parent.name) })}">↳ via ${esc(parent.name)}</span>` : '',
     maint: h.maintenance ? `<span class="maint-tag">${esc(maintLabel(h.maintenance))}</span>` : '',
-    cls: `card host s${hostStatus(h)} ${+h.enabled ? '' : 'disabled'} ${h.maintenance ? 'in-maint' : ''} ${openHosts.has(+h.id) || h.autoOpen ? 'open' : ''} ${ackedOnly(h) ? 'acked-only' : ''}`,
+    cls: `card host s${hostStatus(h)} ${+h.enabled ? '' : 'disabled'} ${h.maintenance ? 'in-maint' : ''} ${h.autoOpen ? 'open' : ''} ${ackedOnly(h) ? 'acked-only' : ''}`,
   };
 }
 
@@ -3032,8 +3053,8 @@ async function onHostsClick(e) {
     case 'podman': return podmanOverview(findHost(id));
     case 'pve': return pveOverview(findHost(id));
     case 'truenas': return tnOverview(findHost(id));   // 1.174.0
-    case 'toggle': return toggleHost(id);
-    case 'cc-open': return ccToggle(id, !ccOpen.has(+id));
+    case 'toggle': return hostPanel(id);   // 1.304.0: een server opent het detailpaneel (niet meer openklappen)
+    case 'cc-open': return hostPanel(id);
     case 'cc-close': return ccToggle(id, false);
     case 'cc-allok': return ccAllOkToggle(id);   // 1.175.0
     case 'np-go': return npGo(id);   // 1.191.0

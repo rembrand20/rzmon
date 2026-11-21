@@ -276,6 +276,17 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
 - **Rode gloed**: een server met een onbevestigde critical pulseert zacht.
 - Beide zet je uit bij **Mijn account → Weergave** (*Rode gloed bij critical* en *Live animaties*, per account). Staat je systeem op *minder beweging*, dan beweegt er niets.
 
+**Het detailpaneel** (vanaf 1.304.0): op elke pagina werkt een klik op een item hetzelfde. Er klapt niets meer open in de lijst; de details openen in een **paneel rechts**.
+- **Wat opent in het paneel:** een server (Monitoring, ook via *Nu aandacht nodig*), een check, een incident, een IDS-incident, een apparaat (Netwerk) en een logregel. Volgt in een volgende versie: IDS Live, Kwetsbaarheden, Analyse, Compliance, Updates, Logboek en Containers.
+- **Knoppen in een rij** (✔ Bevestig, 🔧, ＋) doen meteen wat ze zeggen, zonder paneel.
+- **Verder klikken:** in het paneel van een server opent een check in hetzelfde paneel, met bovenin een kruimelpad terug (← ci-b).
+- **← →** (knoppen bovenin of de pijltjestoetsen) gaan naar het vorige of volgende item van die soort op de pagina. Het item dat open is, is in de lijst gemarkeerd.
+- **Sluiten:** Esc, ✕ of naast het paneel klikken.
+- **Delen:** het adres krijgt `?open=…` (bv. `#monitoring?open=host:3`); wie die link opent, ziet meteen hetzelfde paneel.
+- **Breed scherm** (1920 pixels of meer): het paneel staat naast de lijst en blokkeert die niet; je klikt zo door. Op een telefoon vult het paneel het scherm.
+- **Logs:** een klik op een regel toont de hele regel, alle velden (＋ zoeken, − uitsluiten), de regels eromheen uit dezelfde bron, andere bronnen van die server in dezelfde minuut, en *Alle regels van dit patroon*. Een veld in de linkerkolom opent een klein venster met de waarden ernaast, dat sluit als je ernaast klikt.
+- **Dagen** bij Meldingen en IDS: vandaag staat open, eerdere dagen zijn ingeklapt (bij zoeken staan de dagen met treffers open).
+
 **Paginabreedte** (vanaf 1.294.0, **Mijn account → Weergave → Paginabreedte**, per apparaat): hoe breed RzSense wordt op een groot scherm.
 - **Begrensd** (standaard): hooguit 1400 pixels breed, in het midden.
 - **Breed**: hooguit 1920 pixels. Goed voor een scherm van 24 tot 27 inch.

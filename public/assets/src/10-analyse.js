@@ -1064,15 +1064,16 @@ function netAddHost(x) {
   hostForm(null, { name: x.name || x.label, address: x.ip, kind: NET_TO_HOST[netKind(x)] || '' });
 }
 
+DETAIL_OPEN.net = (id) => netDialog(((typeof netData !== 'undefined' && netData && netData.devices) || []).find((d) => +d.id === +id));
 function netDialog(x) {
   if (!x) return;
   const [ic] = NET_KIND[netKind(x)] || NET_KIND.unknown;
   const i = x.info || {};
   const row = (k, v) => (v ? `<tr><th>${k}</th><td>${v}</td></tr>` : '');
   const admin = isAdmin();
-  modal({
+  detail({   // 1.304.0: het detailpaneel, zoals overal
+    ref: 'net:' + x.id,
     title: `${ic} ${x.label}`,
-    wide: true,
     body: `<table class="kv-table">
         ${row(L('IP-adres'), `<span class="mono">${esc(x.ip)}</span>${(i.ips || []).length ? ` <span class="muted small">(${L('eerder: {ips}', { ips: esc(i.ips.join(', ')) })})</span>` : ''}`)}
         ${row(L('MAC-adres'), x.mac ? `<span class="mono">${esc(x.mac.toUpperCase())}</span>${+x.random_mac ? ' · 🎭 ' + L('privé-adres (willekeurig)') : ''}` : L('onbekend (ander netwerk)'))}

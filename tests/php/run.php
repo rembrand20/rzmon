@@ -2219,6 +2219,8 @@ $lsP = LogStore::search(['q' => 'regel', 'from' => $lsNow2 - 3600, 'to' => $lsNo
 ok(count($lsP['patterns']) === 2 && $lsP['patterns'][0]['n'] === 20 && $lsP['patterns'][1]['n'] === 10 && $lsP['hits'] === [], 'Patronen: 30 regels worden 2 patronen (20 en 10), meest eerst');
 $lsPid = $lsP['patterns'][1]['id'];
 ok(LogStore::search(['q' => 'patroon=' . $lsPid, 'from' => $lsNow2 - 3600, 'to' => $lsNow2 + 60])['total'] === 10, 'zoeken op patroon= vindt de regels van dat patroon');
+$lsPh = LogStore::search(['q' => 'failed regel', 'from' => $lsNow2 - 3600, 'to' => $lsNow2 + 60, 'limit' => 2])['hits'];
+ok(count($lsPh) === 2 && $lsPh[0]['pid'] === $lsPid && $lsPh[1]['pid'] === $lsPid, 'elke treffer heeft het kenmerk van zijn patroon (voor het detailpaneel, 1.304.0)');
 $lsSt = LogStore::search(['q' => 'regel', 'from' => $lsNow2 - 3600, 'to' => $lsNow2 + 60, 'mode' => 'stats', 'field' => 'niveau']);
 ok($lsSt['stats']['field'] === 'niveau' && $lsSt['stats']['total'] === 30 && $lsSt['stats']['distinct'] === 2 && $lsSt['stats']['rows'][0] === ['info', 20], 'Statistiek: aantal per waarde van een veld');
 ok(LogStore::search(['q' => '"regel 7" OR "regel 12"', 'from' => $lsNow2 - 3600, 'to' => $lsNow2 + 60])['total'] === 2, 'OR: een regel past als één van de delen past');

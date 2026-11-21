@@ -1216,6 +1216,7 @@ final class LogStore
             $h['source'] = $s ? $s['name'] : '?';
             $h['time'] = date('Y-m-d H:i:s', $h['ts']);
             $h['fields'] = LogFields::extract($h['msg']);   // 1.293.0
+            $h['pid'] = LogFields::patternId(LogFields::pattern($h['msg']));   // 1.304.0: voor "alle regels van dit patroon" in het paneel
         }
         unset($h);
         return ['hits' => $hits, 'total' => array_sum($levels), 'levels' => $levels, 'partial' => $partial, 'blocks' => $blocks, 'scanned' => $scanned,
