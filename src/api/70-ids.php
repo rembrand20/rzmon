@@ -668,6 +668,9 @@ switch ($action) {
     case 'ssh_sessions':   // 1.152.0: IDS → Toegang → SSH → Gelukt
         out(['days' => max(1, min(SshEvents::KEEP_DAYS, (int) ($_GET['days'] ?? 7))), 'sessions' => SshEvents::sessions((int) ($_GET['days'] ?? 7))]);
 
+    case 'ids_band':   // 1.311.0: live-aanvalsband (wat de IDS de laatste minuten zag)
+        out(Ids::band((int) ($_GET['since'] ?? 0)));
+
     case 'ids_flows':   // 1.149.0: aanvalskaart
         out(Ids::flows(['days' => (int) ($_GET['days'] ?? 1), 'host' => (int) ($_GET['host'] ?? 0), 'cc' => strtoupper(mb_substr((string) ($_GET['cc'] ?? ''), 0, 3)),
             'cat' => preg_replace('/[^a-z]/', '', (string) ($_GET['cat'] ?? '')), 'dir' => in_array($_GET['dir'] ?? '', ['i', 'o'], true) ? $_GET['dir'] : '',

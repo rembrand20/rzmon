@@ -231,6 +231,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
   <main class="container">
     <div class="iso-ask" id="iso-ask" role="alert" hidden></div><!-- 1.295.0: isoleren? (keten, eerst vragen) -->
     <div class="iso-banner" id="iso-banner" role="alert" hidden></div><!-- 1.172.0: server in isolatie -->
+    <div class="card atkb" id="atk-band" hidden></div><!-- 1.311.0: live-aanvalsband (Dashboard, IDS, Netwerk) -->
 <?php if (Reserve::active()): ?>
     <div class="reserve-banner active" role="alert">🛟 <?= t('Deze <b>reserve</b> doet nu het werk van {url} (sinds {t}). Checks en meldingen lopen hier; zodra de hoofdserver terug is, geeft hij het terug.', ['url' => htmlspecialchars((string) setting('reserve_primary_url', '')), 't' => htmlspecialchars(date('d-m-Y H:i', (int) strtotime((string) setting('reserve_active_since', ''))))]) ?></div>
 <?php elseif (Reserve::standby()): ?>
@@ -2177,6 +2178,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <label class="switch"><input type="checkbox" data-mon-pref="glow"><span></span> <span><?= t('<b>Rode gloed bij critical</b>: een server met een critical check pulseert zacht') ?> <span class="hint"><?= th('(voor je account)') ?></span></span></label>
         <label class="switch" id="vivid-row"><input type="checkbox" data-mon-pref="vivid"><span></span> <span><?= t('<b>Levendige kleuren</b> bij Liquid Glass: blauw, turquoise en paars licht en sterkere glans (uit = rustig, alleen blauw)') ?> <span class="hint"><?= th('(voor je account)') ?></span></span></label>
         <label class="switch"><input type="checkbox" data-mon-pref="loader"><span></span> <span><?= t('<b>Laadanimatie</b>: bij het openen lichten je servers een voor een op, en overal waar je moet wachten loopt een hartslag') ?> <span class="hint"><?= th('(voor je account; met "minder beweging" stilstaand)') ?></span></span></label>
+        <label class="switch"><input type="checkbox" data-mon-pref="band"><span></span> <span><?= t('<b>Aanvallen live</b>: een band boven Dashboard, IDS en Netwerk met wat de IDS nu ziet, als stippen die onderweg zijn') ?> <span class="hint"><?= th('(voor je account)') ?></span></span></label>
         <label class="af-motion-set"><span><?= t('<b>Beweging</b> in heel RzSense') ?> <span class="hint"><?= th('(voor je account)') ?></span></span>
           <input type="range" data-acct-motion min="0" max="2" step="1" list="af-motion-steps">
           <span class="af-motion-lbls small muted" aria-hidden="true"><span><?= th('Stil') ?></span><span><?= th('Rustig') ?></span><span><?= th('Vol') ?></span></span></label>

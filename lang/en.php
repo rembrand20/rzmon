@@ -11918,4 +11918,13 @@ return [
     '<b>Vol:</b> getallen lopen naar hun nieuwe waarde, een statuswissel pulseert, knoppen laten zien dat ze bezig zijn en klaar zijn, grafieken tekenen zich, pagina\'s en nieuwe meldingen komen zacht binnen, en de Attack Flow en het Command center bewegen helemaal. <b>Rustig:</b> hetzelfde, maar trager en zonder flitsen. <b>Stil:</b> niets beweegt, handig voor een scherm dat de hele dag aanstaat. <b>Goed om te weten:</b> staat <i>minder beweging</i> aan op je apparaat, dan is het altijd stil. Vanaf 1.310.0 vervangt dit de schakelaar <i>Live animaties</i>.' => '<b>Full:</b> numbers run to their new value, a status change pulses, buttons show that they are busy and done, charts draw themselves, pages and new alerts fade in, and the Attack Flow and the Command center move fully. <b>Calm:</b> the same, but slower and without flashes. <b>Still:</b> nothing moves, handy for a screen that is on all day. <b>Good to know:</b> if <i>reduce motion</i> is on for your device, it is always still. From 1.310.0 this replaces the switch <i>Live animations</i>.',
     'Houd de knop even ingedrukt om te bevestigen.' => 'Press and hold the button to confirm.',
     'Hoeveel er beweegt in heel RzSense: live getallen, knoppen, grafieken, overgangen, de Attack Flow en het Command center. Stil = niets.' => 'How much moves throughout RzSense: live numbers, buttons, charts, transitions, the Attack Flow and the Command center. Still = nothing.',
+    '<b>Aanvallen live</b>: een band boven Dashboard, IDS en Netwerk met wat de IDS nu ziet, als stippen die onderweg zijn' => '<b>Live attacks</b>: a band above Dashboard, IDS and Network showing what the IDS sees right now, as dots on their way',
+    'Aanvallen live' => 'Live attacks',
+    'Verbergen (terugzetten bij Mijn account → Weergave)' => 'Hide (bring back at My account → Display)',
+    'Aanvallen van internet en binnen het netwerk naar je servers' => 'Attacks from the internet and inside the network to your servers',
+    'vandaag {n} pogingen · {b} IP-adressen geblokkeerd' => 'today {n} attempts · {b} IP addresses blocked',
+    'Rustig: de laatste 15 minuten geen aanvallen.' => 'Quiet: no attacks in the last 15 minutes.',
+    'binnen het netwerk' => 'inside the network',
+    'naar buiten' => 'outbound',
+    'Verborgen. Terugzetten kan bij Mijn account → Weergave.' => 'Hidden. You can bring it back at My account → Display.',
 ];

@@ -4307,5 +4307,24 @@ ok($pxs === null || ($pxs['cookie'] && $pxs['known'] && !$pxs['match']), 'proxy-
 unset($_COOKIE['pxt']);
 q('DELETE FROM proxy_tags WHERE tag = ?', [str_repeat('ab', 16)]);
 
+// 1.311.0: live-aanvalsband: alleen gebeurtenissen met een IP, de juiste richting, een eigen server als bron = van binnen
+section('Live-aanvalsband');
+$abH = (int) q("SELECT id FROM hosts ORDER BY id LIMIT 1")->fetchColumn();
+$abSrc = q("SELECT id, address FROM hosts WHERE id <> ? AND address NOT IN ('127.0.0.1', '::1', '') ORDER BY id LIMIT 1", [$abH])->fetch();
+q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, ip, dir, last_seen) VALUES (?, 3, 'bruteforce', 'abt1', 'Brute force test', '198.51.100.201', 'i', NOW()),
+   (?, 3, 'out_country', 'abt2', 'Uitgaand test', '198.51.100.202', 'o', NOW())", [$abH, $abH]);
+if ($abSrc) {
+    q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, ip, dir, last_seen) VALUES (?, 4, 'lateral', 'abt3', 'Binnen test', ?, 'i', NOW())", [$abH, $abSrc['address']]);
+}
+q("INSERT INTO ids_incidents (host_id, severity, type, dkey, title, ip, dir, last_seen) VALUES (?, 2, 'bruteforce', 'abt4', 'Te oud', '198.51.100.203', 'i', NOW() - INTERVAL 1 HOUR)", [$abH]);
+$ab = Ids::band(0);
+$abBy = array_column($ab['events'], null, 'ip');
+ok($ab['active'] && isset($abBy['198.51.100.201']) && $abBy['198.51.100.201']['dir'] === 'i' && !$abBy['198.51.100.201']['internal'], 'aanvalsband: aanval van buiten, naar de server toe');
+ok(isset($abBy['198.51.100.202']) && $abBy['198.51.100.202']['dir'] === 'o', 'aanvalsband: uitgaande verbinding heeft richting "o"');
+ok(!isset($abBy['198.51.100.203']), 'aanvalsband: niets ouder dan 15 minuten');
+ok(!$abSrc || (isset($abBy[$abSrc['address']]) && $abBy[$abSrc['address']]['internal'] && (int) $abBy[$abSrc['address']]['src_id'] === (int) $abSrc['id']), 'aanvalsband: eigen server als bron = van binnen, met die server');
+ok(count($ab['hosts']) <= 5 && in_array($abH, array_column($ab['hosts'], 'id'), true), 'aanvalsband: hooguit 5 servers, met de aangevallen server');
+q("DELETE FROM ids_incidents WHERE dkey IN ('abt1', 'abt2', 'abt3', 'abt4')");
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

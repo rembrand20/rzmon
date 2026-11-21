@@ -2026,7 +2026,7 @@ const skinCur = () => (['std', 's', 'glass', 'neo'].includes(PREFS.skin) ? PREFS
 const monGlass = () => skinCur() === 'glass';
 const monLoader = () => PREFS.mon_loader !== 'off';
 const monVivid = () => PREFS.mon_vivid === 'on';   // 1.216.0: Liquid Glass levendig (anders rustig)
-const MON_PREF_KEY = { glow: 'mon_glow', anim: 'mon_anim', glass: 'mon_glass', loader: 'mon_loader', vivid: 'mon_vivid' };
+const MON_PREF_KEY = { glow: 'mon_glow', anim: 'mon_anim', glass: 'mon_glass', loader: 'mon_loader', vivid: 'mon_vivid', band: 'atk_band' };
 const monAnim = () => afMotion(null) > 0;   // 1.310.0: onderdeel van Beweging (Stil = geen live animaties)
 document.addEventListener('pointermove', (e) => {
   if (!document.body.classList.contains('lg') || e.pointerType === 'touch') return;
@@ -2047,7 +2047,8 @@ function applyMonPrefs() {
   document.body.classList.toggle('sk-neo', skinCur() === 'neo');   // 1.245.0: thema Neo
   if ($('#vivid-row')) $('#vivid-row').hidden = !monGlass();   // levendige kleuren alleen bij Liquid Glass
   if (window.RzPulse) RzPulse.refreshColors();
-  $$('[data-mon-pref]').forEach((c) => { c.checked = ({ glow: monGlow, anim: monAnim, glass: monGlass, loader: monLoader, vivid: monVivid }[c.dataset.monPref] || (() => false))(); });
+  $$('[data-mon-pref]').forEach((c) => { c.checked = ({ glow: monGlow, anim: monAnim, glass: monGlass, loader: monLoader, vivid: monVivid, band: monBand }[c.dataset.monPref] || (() => false))(); });
+  { const cur = $('.tab-panel:not([hidden])'); atkbShow(cur ? cur.id.slice(4) : ''); }   // 1.311.0: live-aanvalsband aan of uit
   // 1.162.0: IDS-weergave en beweging, per account (standaard: wat de beheerder instelde)
   const vc = $('.view-card');
   if (vc) {

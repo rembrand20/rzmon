@@ -618,6 +618,7 @@ function showTab(name) {
   fxSyncHash();
   sideMode(name);   // 1.167.0
   renderIsoBanner(name);   // 1.172.0
+  atkbShow(name);   // 1.311.0: live-aanvalsband
   pageWaitOpen(name);   // 1.202.0: laadteller
   if (name === 'settings') { loadSettings(); showSettingsSection(sub || setSection); }
   if (name === 'account') { loadAccount(); setTimeout(() => { if (sideTab === 'account' && document.body.classList.contains('side-admin-on')) sideAcctList(); }, 600); }

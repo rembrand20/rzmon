@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.311.0**: **Aanvallen live**: boven Dashboard, IDS en Netwerk zie je aanvallen van buiten en binnen onderweg, met elke stip een echte gebeurtenis.
 - **1.310.0**: **Beweging in heel RzSense** (Stil · Rustig · Vol): statuswissels, knoppen, grafieken en overgangen; gevaarlijke acties bevestig je door ingedrukt te houden.
 - **1.309.0**: **Dagritme**: overdag licht, 's avonds Schemer, 's nachts donker, op je eigen tijden.
 - **1.308.0**: **kleurenschema Schemer**: licht, maar warm en zacht voor je ogen; ook automatisch 's avonds.
 - **1.306.0**: **het detailpaneel op elke pagina**: een klik opent de details rechts, met ← →, een kruimelpad en een deelbare link.
-- **1.305.0**: **agent stil: één melding met de reden**, en een **bewaker** die de agent zelf herstelt.
+
+## 1.311.0 – 2026-11-21
+### Nieuw
+- **Aanvallen live.** Een band boven Dashboard, IDS en Netwerk met wat de IDS de laatste 15 minuten zag. Elke stip is een echte gebeurtenis. Zie HANDLEIDING (Weergave).
+  - **Rood, van buiten:** van internet naar het IDS-schild. Geblokkeerd: hij spat uiteen op het schild. Anders loopt hij door naar de server.
+  - **Rood, naar buiten:** een server die zelf een verdachte verbinding maakt.
+  - **Oranje:** binnen het netwerk, van een eigen server of het LAN naar een andere server.
+  - Rechts de laatste vier; klik voor de details. Volgt *Beweging* (bij Stil alleen de lijst). Verbergen met ✕, terugzetten bij *Mijn account → Weergave*.
 
 ## 1.310.0 – 2026-11-21
 ### Nieuw

@@ -1156,6 +1156,73 @@ final class Ids
     }
 
     /**
+     * 1.311.0: de live-aanvalsband boven Dashboard, IDS en Netwerk: de IDS-gebeurtenissen met een IP-adres sinds $since
+     * (hooguit 15 minuten terug), de servers om te tekenen, en wat tellers. Alleen lezen.
+     * @return array<string, mixed>
+     */
+    public static function band(int $since): array
+    {
+        $now = time();
+        $since = $since > 0 ? max($now - 900, min($now, $since)) : $now - 900;
+        $rows = q("SELECT i.id, i.host_id, h.name AS host, i.severity, i.type, i.dkey, i.title, i.detail, i.ip, i.dir, UNIX_TIMESTAMP(i.last_seen) AS ts
+                     FROM ids_incidents i JOIN hosts h ON h.id = i.host_id
+                    WHERE i.ip IS NOT NULL AND i.ip <> '' AND i.type NOT IN ('chain', 'anomaly') AND i.last_seen > FROM_UNIXTIME(?)
+                    ORDER BY i.last_seen DESC LIMIT 40", [$since])->fetchAll();
+        $rows = array_reverse($rows);
+        $ips = array_values(array_unique(array_map(static fn(array $r): string => (string) $r['ip'], $rows)));
+        $blocked = [];
+        if ($ips) {
+            $in = implode(',', array_fill(0, count($ips), '?'));
+            foreach (q("SELECT DISTINCT ip FROM ids_blocks WHERE removed_at IS NULL AND (until IS NULL OR until > NOW()) AND ip IN ($in)", $ips)->fetchAll() as $b) {
+                $blocked[(string) $b['ip']] = true;
+            }
+        }
+        // Een eigen server als bron: dan is het een aanval van binnen, van die server
+        $own = [];
+        foreach (q('SELECT id, name, address, agent_ip FROM hosts')->fetchAll() as $h) {
+            foreach ([$h['agent_ip'], $h['address']] as $a) {
+                $a = trim((string) $a);
+                if ($a !== '' && @inet_pton($a) !== false && !in_array($a, ['127.0.0.1', '::1'], true)) {
+                    $own[$a] ??= ['id' => (int) $h['id'], 'name' => (string) $h['name']];
+                }
+            }
+        }
+        $events = [];
+        $hostIds = [];
+        foreach ($rows as $r) {
+            $ip = (string) $r['ip'];
+            $src = $own[$ip] ?? null;
+            // Richting: i = naar de server toe, o = de server maakt zelf verbinding naar buiten (bv. een onbekend land)
+            $dir = $r['dir'] ?? self::flowOf((string) $r['type'], (string) $r['dkey'], (string) $r['title'], (string) $r['detail'], $ip)['dir'];
+            $events[] = ['id' => (int) $r['id'], 'ts' => (int) $r['ts'], 'ip' => $ip, 'dir' => $dir === 'o' ? 'o' : 'i', 'internal' => self::internalIp($ip) || $src !== null,
+                'src' => $src['name'] ?? null, 'src_id' => $src['id'] ?? null, 'host_id' => (int) $r['host_id'], 'host' => (string) $r['host'],
+                'what' => mb_strimwidth((string) $r['title'], 0, 80, '…'), 'sev' => (int) $r['severity'], 'blocked' => isset($blocked[$ip])];
+            $hostIds[(int) $r['host_id']] = true;
+        }
+        // Servers om te tekenen: die in de gebeurtenissen, aangevuld met de meest aangevallen van de laatste dag (samen hooguit 5)
+        $top = q("SELECT i.host_id, COUNT(*) AS n FROM ids_incidents i WHERE i.ip IS NOT NULL AND i.ip <> '' AND i.last_seen >= NOW() - INTERVAL 1 DAY
+                   GROUP BY i.host_id ORDER BY n DESC LIMIT 5")->fetchAll();
+        foreach ($top as $t) {
+            if (count($hostIds) >= 5) {
+                break;
+            }
+            $hostIds[(int) $t['host_id']] = true;
+        }
+        $ids = array_slice(array_keys($hostIds), 0, 5);
+        $hosts = [];
+        if ($ids) {
+            $in = implode(',', array_fill(0, count($ids), '?'));
+            foreach (q("SELECT id, name FROM hosts WHERE id IN ($in) ORDER BY name", $ids)->fetchAll() as $h) {
+                $hosts[] = ['id' => (int) $h['id'], 'name' => (string) $h['name']];
+            }
+        }
+        $today = (int) q("SELECT COALESCE(SUM(hits), 0) FROM ids_incidents WHERE ip IS NOT NULL AND ip <> '' AND type NOT IN ('chain', 'anomaly') AND last_seen >= NOW() - INTERVAL 1 DAY")->fetchColumn();
+        $blocks = (int) q('SELECT COUNT(DISTINCT ip) FROM ids_blocks WHERE removed_at IS NULL AND (until IS NULL OR until > NOW())')->fetchColumn();
+        $active = $events || (bool) q("SELECT 1 FROM ids_incidents WHERE ip IS NOT NULL AND ip <> '' AND last_seen >= NOW() - INTERVAL 7 DAY LIMIT 1")->fetchColumn();
+        return ['now' => $now, 'active' => $active, 'events' => $events, 'hosts' => $hosts, 'today' => $today, 'blocks' => $blocks];
+    }
+
+    /**
      * 1.149.0: de aanvalskaart. Wie (IP, land) valt wat aan (server), via welke poort of dienst, en is het geblokkeerd.
      * Per lijn (bron, doelwit, poort, richting) de pogingen opgeteld; de 10 grootste bronnen apart, de rest als "overig".
      * Landen voor de wereldkaart altijd allemaal. Alleen wat al bekend is: geen nieuwe opvragingen naar buiten.

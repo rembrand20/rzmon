@@ -8,7 +8,7 @@ const API_GET = [
     'backup_info', 'backup_dir_test', 'blocks_overview', 'changelog', 'check_info', 'checks_all', 'cleanup', 'connections', 'contacts', 'containers', 'db_info',
     'db_rotate_status', 'discover', 'edr_feed', 'edr_host', 'edr_rules', 'exc_export', 'exc_list', 'exc_proposals', 'export', 'features',
     'harden_detail', 'hibp_info', 'hibp_overview', 'history', 'home', 'host_exposure', 'https_info', 'ids', 'ids_access', 'ids_anom',
-    'ids_attack_flow', 'ids_flows', 'ids_incident_info', 'ids_ip_events', 'ids_mitre', 'ids_protect', 'incident_info', 'incidents', 'inet_state',
+    'ids_attack_flow', 'ids_flows', 'ids_band', 'ids_incident_info', 'ids_ip_events', 'ids_mitre', 'ids_protect', 'incident_info', 'incidents', 'inet_state',
     'insight_analyses', 'insights', 'ip_info', 'ip_timeline', 'ipintel_status', 'log_context', 'log_export', 'log_facets', 'log_found', 'log_browse_get', 'job_status', 'proxy_overview', 'proxy_stats',
     'log_overview', 'log_search', 'log_source_lines', 'log_sources', 'log_library', 'log_watches', 'mds', 'my_access', 'my_logins', 'net_devices', 'net_discover',
     'net_domains', 'net_dpi', 'net_traffic_device', 'path_info', 'paths', 'podman', 'pve_overview', 'pw_reset_info', 'quiet_get', 'report',
@@ -78,7 +78,7 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'home', 'mds', 'self_status', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'web_sites', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'trends', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'home', 'mds', 'self_status', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_band', 'ids_attack_flow', 'web_sites', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'trends', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename', 'proxy_tag_fix',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save',
     'webpush_key', 'webpush_subscribe', 'webpush_unsubscribe', 'webpush_devices', 'webpush_test', 'webpush_delete', 'webpush_what' => 'readonly',   // 1.285.0: je eigen apparaten (1.301.0: wat elk apparaat krijgt)
@@ -92,7 +92,7 @@ $isAdmin = has_role($user, 'admin');
 I18n::init($user);
 // 1.119.0: alleen lezen? Dan de sessie meteen vrijgeven. PHP laat andere verzoeken van dezelfde browser anders wachten
 // tot dit verzoek klaar is; één trage pagina maakte zo alles traag.
-if ($method === 'GET' && in_array($action, ['insights', 'insight_analyses', 'trends', 'home', 'self_status', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_attack_flow', 'web_sites', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
+if ($method === 'GET' && in_array($action, ['insights', 'insight_analyses', 'trends', 'home', 'self_status', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_band', 'ids_attack_flow', 'web_sites', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
     'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'analytics', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_search', 'vuln_where', 'vuln_software', 'vuln_csv', 'net_devices', 'pve_overview', 'truenas_overview', 'incidents', 'incident_info', 'report',
     'smart_proposals', 'setup_info', 'settings', 'edr_rules', 'ti_status'], true)) {
     session_write_close();

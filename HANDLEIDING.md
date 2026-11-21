@@ -281,6 +281,13 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
   - **Knoppen:** een zachte golf als je klikt, een balkje terwijl iets bezig is, en een groen vinkje op de hoek als het gelukt is.
   - **Rustig:** hetzelfde, maar trager en zonder flitsen en ping. **Stil:** niets beweegt (handig voor een scherm dat de hele dag aanstaat).
   - Alles is licht voor je apparaat: alleen zachte overgangen, kort, en grafieken tekenen zich alleen als ze nieuw op de pagina komen, niet bij elke live update.
+- **Aanvallen live** (vanaf 1.311.0): een band boven **Dashboard**, **IDS** en **Netwerk** met wat de IDS de laatste 15 minuten zag. Elke stip is een echte gebeurtenis, geen versiering.
+  - **Rood, van buiten:** een stip vliegt van *Internet* naar het IDS-schild. Is het IP-adres geblokkeerd, dan spat hij daar uiteen (*tegengehouden*). Anders loopt hij door naar de server, die even rood oplicht (*gezien*).
+  - **Rood, naar buiten:** maakt een server zelf een verdachte verbinding (bv. naar een onbekend land), dan gaat de stip van de server naar internet (*naar buiten*).
+  - **Oranje, binnen het netwerk:** van een eigen server of het LAN naar een andere server, met een gestippelde lijn (*binnen het netwerk*).
+  - Rechts staan de laatste vier (op een telefoon twee); klik erop voor de details. Bovenaan: hoeveel pogingen vandaag en hoeveel IP-adressen nu geblokkeerd zijn.
+  - De band ververst elke 5 seconden (bij Beweging *Stil* elke 15, en dan alleen de lijst) en pauzeert als het tabblad niet zichtbaar is. Zag de IDS de laatste 7 dagen niets, dan blijft hij weg.
+  - Verbergen met ✕; terugzetten bij **Mijn account → Weergave → Aanvallen live** (per account, standaard aan).
 
 **Het detailpaneel** (vanaf 1.304.0): op elke pagina werkt een klik op een item hetzelfde. Er klapt niets meer open in de lijst; de details openen in een **paneel rechts**.
 - **Wat opent in het paneel:** een server (Monitoring, ook via *Nu aandacht nodig*), een check, een incident, een IDS-incident, een apparaat (Netwerk) en een logregel. Vanaf 1.306.0 ook: een container, een treffer bij IDS → Live, een server bij Kwetsbaarheden, een advies bij Analyse, een maatregel bij Compliance, een server bij Updates (met de pakketten en de knoppen om te installeren), een regel van het Logboek (met *Terugzetten*) en een melding bij Meldingen.
