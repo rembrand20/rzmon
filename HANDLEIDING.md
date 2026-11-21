@@ -306,6 +306,12 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
 - **Auto** volgt je computer of telefoon (licht of donker). Die vertelt RzSense niet hoe laat het donker wordt, dus Schemer komt daar niet tussen; daarvoor is Dagritme.
 - De keuze zelf (Auto, Licht, Schemer, Donker, Dagritme) geldt voor je account, op elk apparaat.
 
+**Nieuwe, rustige indeling van de instellingen** (vanaf 1.312.0, eerst bij **Meldingen en rapporten**; de andere onderdelen volgen):
+- Elke kaart heeft een kop met een **klein label** (het onderwerp, bv. *PUSH · TELEFOON*), de titel met **aan/uit**, en de **hoofdschakelaar rechts** in de kop.
+- De uitleg staat als notitie met een lijn links, met *Meer info* er direct achter. Velden staan **naast elkaar** op een breed scherm (op een telefoon onder elkaar). *Geavanceerd* en de actieknop (bv. *Testbericht sturen*) staan in een vaste voetregel.
+- Bij **Kanalen** staat bovenaan een **overzicht** van alle kanalen met aan/uit; klik om naar de kaart te springen.
+- Het werkt in elk thema (Standaard, @S, Liquid Glass, Neo) en in licht, Schemer en donker. Er verandert niets aan wat je instelt of hoe het opslaat.
+
 **Paginabreedte** (vanaf 1.294.0, **Mijn account → Weergave → Paginabreedte**, per apparaat): hoe breed RzSense wordt op een groot scherm.
 - **Begrensd** (standaard): hooguit 1400 pixels breed, in het midden.
 - **Breed**: hooguit 1920 pixels. Goed voor een scherm van 24 tot 27 inch.

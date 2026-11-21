@@ -11927,4 +11927,11 @@ return [
     'binnen het netwerk' => 'inside the network',
     'naar buiten' => 'outbound',
     'Verborgen. Terugzetten kan bij Mijn account → Weergave.' => 'Hidden. You can bring it back at My account → Display.',
+    'Push · telefoon' => 'Push · phone',
+    'Push · zonder app' => 'Push · no app',
+    'Koppeling · automatisering' => 'Integration · automation',
+    'Chat · team' => 'Chat · team',
+    'Alarm' => 'Alarm',
+    'Rust' => 'Quiet',
+    'Overzichten' => 'Reports',
 ];

@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.312.0**: **rustige nieuwe indeling** van de instellingen, eerst bij Meldingen en rapporten: kop met label en aan/uit, velden naast elkaar, overzicht van de kanalen.
 - **1.311.0**: **Aanvallen live**: boven Dashboard, IDS en Netwerk zie je aanvallen van buiten en binnen onderweg, met elke stip een echte gebeurtenis.
 - **1.310.0**: **Beweging in heel RzSense** (Stil · Rustig · Vol): statuswissels, knoppen, grafieken en overgangen; gevaarlijke acties bevestig je door ingedrukt te houden.
 - **1.309.0**: **Dagritme**: overdag licht, 's avonds Schemer, 's nachts donker, op je eigen tijden.
 - **1.308.0**: **kleurenschema Schemer**: licht, maar warm en zacht voor je ogen; ook automatisch 's avonds.
-- **1.306.0**: **het detailpaneel op elke pagina**: een klik opent de details rechts, met ← →, een kruimelpad en een deelbare link.
+
+## 1.312.0 – 2026-11-21
+### Nieuw
+- **Rustige nieuwe indeling van de instellingen**, eerst bij *Meldingen en rapporten* (Kanalen, Wanneer melden, IDS-pushmeldingen, Systeemmeldingen, Rapporten). De andere onderdelen volgen. Zie HANDLEIDING (Weergave).
+  - Elke kaart heeft een kop met een klein label, de titel met aan/uit, en de hoofdschakelaar rechts.
+  - De uitleg staat als notitie, de velden staan naast elkaar, en *Geavanceerd* en de actieknop staan in een vaste voetregel.
+  - Bij *Kanalen* staat bovenaan een overzicht van alle kanalen met aan/uit.
+  - Werkt in elk thema en in licht, Schemer en donker. Wat je instelt en hoe het opslaat, blijft hetzelfde.
 
 ## 1.311.0 – 2026-11-21
 ### Nieuw

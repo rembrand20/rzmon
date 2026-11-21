@@ -6649,3 +6649,60 @@ body:not(.no-anim) .atkb-flow { animation: atkb-fl calc(1.4s * var(--mo-k)) line
 body:not(.no-anim) .atkb-row:first-child { animation: rz-new calc(.9s * var(--mo-k)) ease-out; }
 .atkb-calm { margin: 0; }
 @media (max-width: 600px) { .atkb-row:nth-child(n+3) { display: none; } .atkb-row { font-size: .74rem; } }
+
+/* ---------------------------------------------------------------- 1.312.0: de schone stijl (cs2), eerst voor Meldingen en rapporten
+   Alleen met de kleuren van het thema, zodat Standaard, @S, Liquid Glass, Neo, licht, Schemer en donker het zelf inkleuren. */
+:root { --eyebrow: #22d3ee; }
+:root[data-theme="light"] { --eyebrow: #0e7490; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --eyebrow: #0e7490; } }
+:root[data-dim="1"] { --eyebrow: #2f6e86; }
+body.sk-s { --eyebrow: var(--muted); }
+body.sk-neo { --eyebrow: var(--fx-cy); }
+.eyebrow { font: 600 .68rem/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .09em; text-transform: uppercase; color: var(--eyebrow); }
+
+/* Paginakop */
+.cs2-on .set-crumb { font: 600 .68rem/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .09em; color: var(--eyebrow); }
+.cs2-on .set-crumb .autosave-state { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: 0; text-transform: none; }
+
+/* Kop van een kaart: label, titel met aan/uit, schakelaar rechts */
+.cs2 > .cs2-h { display: flex; justify-content: space-between; align-items: flex-start; gap: .75rem; margin: 0 0 .7rem; }
+.cs2 .cs2-ht { display: grid; gap: .15rem; min-width: 0; }
+.cs2 .cs2-ht > h2 { margin: 0; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.cs2 .cs2-ht > h2.set-dup { display: none; }
+.cs2 .cs2-h:has(h2.set-dup) .eyebrow { display: none; }
+.cs2 .cs2-h:has(h2.set-dup):not(:has(.cs2-hsw)) { display: none; }
+.cs2 .cs2-emo { display: none; }
+.cs2-pill { font-size: .7rem; font-weight: 600; padding: .1rem .5rem; border-radius: 99px; background: var(--card-2); color: var(--muted); border: 1px solid var(--border); letter-spacing: 0; }
+.cs2-pill:empty { display: none; }
+.cs2-pill.on { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); border-color: transparent; }
+#tab-settings [data-sk].cs2 > .cs2-h > label.cs2-hsw { margin: .15rem 0 0; padding: 0; border: 0; flex: none; gap: 0; width: auto; }
+.cs2-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* Uitleg als notitie, met Meer info er direct achter */
+.cs2 > .xp { margin: 0 0 .9rem; }
+.cs2 > .xp > .xp-s { display: block; border-left: 3px solid var(--border); padding: .05rem 0 .05rem .65rem; }
+.cs2 > .xp > .xp-s > span { display: inline; }
+.cs2 > .xp > .xp-s > .xp-btn { margin-left: .35rem; }
+
+/* Velden naast elkaar (op een telefoon onder elkaar) */
+.cs2-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 0 1rem; align-items: end; }
+.cs2 :is(input[name*="key"], input[name*="token"], input[name*="url"], input[name*="topic"], input[name*="server"]) { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88rem; }
+
+/* Voetregel: Geavanceerd links, de actie rechts */
+.cs2-f { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .6rem 1rem; margin-top: .4rem; padding-top: .8rem; border-top: 1px solid var(--border); }
+.cs2-f > details.adv { flex: 1 1 14rem; margin: 0; min-width: 0; }
+.cs2-f > details.adv[open] { flex-basis: 100%; order: 2; }
+.cs2-f > .btn, .cs2-f > .btn-row { margin: 0 0 0 auto; }
+.cs2-f > .btn + .btn { margin-left: 0; }
+
+/* Overzicht bovenaan: alle kanalen met aan/uit; klik springt naar de kaart */
+.cs2-ov { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: .6rem; margin: 0 0 1.1rem; }
+.cs2-ovi { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-rows: 1fr auto; gap: .15rem; padding: .6rem .75rem; border-radius: 12px; background: var(--card); border: 1px solid var(--border); color: var(--text); min-width: 0; }
+.cs2-ovi:hover { border-color: var(--primary); }
+.cs2-ovi:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.cs2-ovi b { font-size: .9rem; overflow-wrap: anywhere; }
+.cs2-ovi small { display: flex; align-items: center; gap: .4rem; color: var(--muted); font-size: .78rem; }
+.cs2-dot { width: 8px; height: 8px; border-radius: 50%; background: color-mix(in srgb, var(--muted) 55%, transparent); flex: none; }
+.cs2-dot.on { background: var(--ok); }
+body.lg .cs2-ovi { background: var(--card); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+body.sk-s .cs2-ovi { border-color: transparent; box-shadow: var(--shadow); }

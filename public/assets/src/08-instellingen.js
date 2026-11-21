@@ -948,13 +948,14 @@ function showSettingsSection(id, focusEl) {
   crumbs();   // 1.199.0
   // Eén kaart op de pagina: zijn titel is gelijk aan de paginatitel, dus weg (tenzij er knoppen in staan)
   const shown = $$('#tab-settings [data-sk]').filter((c) => !c.classList.contains('set-off'));
-  $$('#tab-settings [data-sk] > h2').forEach((h) => h.classList.toggle('set-dup', shown.length === 1 && shown[0] === h.parentElement && !h.querySelector('button, input, a')));
+  $$('#tab-settings [data-sk] > h2, #tab-settings [data-sk] > .cs2-h h2').forEach((h) => h.classList.toggle('set-dup', shown.length === 1 && shown[0] === h.closest('[data-sk]') && !h.querySelector('button, input, a')));
   renderSettingsNav();
   // 1.189.1: in de zijbalk het gekozen onderdeel in beeld houden
   if (document.body.classList.contains('side-admin-on')) { const a = $('#side-admin-body .set-nav-subs .active') || $('#side-admin-body .set-nav-head.cur'); if (a) a.scrollIntoView({ block: 'nearest' }); }
   $('#set-mselect').innerHTML = SET_NAV.map(([g, icon, label, subs]) => `<optgroup label="${esc(label)}">${subs.map(([k, l]) => `<option value="${k}" ${k === setSection ? 'selected' : ''}>${esc(l)}</option>`).join('')}</optgroup>`).join('');
   history.replaceState(null, '', '#settings/' + setSection);
   renderSetAttn();
+  cs2Apply(setSection);   // 1.312.0: de schone stijl
   if (setSection === 'overview' || Date.now() - setHealthAt > 60000) loadSettingsHealth();
   if (setSection === 'conn') loadConn();
   if (setSection === 'templates') loadTemplates();
@@ -1739,6 +1740,7 @@ async function loadSettings() {
     if (el.type === 'checkbox') el.checked = v === '1';
     else el.value = v ?? '';
   });
+  cs2Sync();   // 1.312.0: aan/uit in de koppen en het overzicht
   const parse = (v) => { try { return JSON.parse(v || '{}') || {}; } catch (e) { return {}; } };
   notifyGlobal = notifyEditor($('#notify-editor'), { rules: parse(s.notify_rules), channels: parse(s.notify_channels), flap: parse(s.notify_flap) },
     { push_enabled: s.pushover_enabled === '1' || s.ntfy_enabled === '1', webpush_enabled: s.webpush_active === '1', webpush_fallback: s.webpush_fallback !== '0',
