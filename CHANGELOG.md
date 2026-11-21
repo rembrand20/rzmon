@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.305.0**: **agent stil: één melding met de reden**, en een **bewaker** die de agent zelf herstelt.
 - **1.304.0**: **het detailpaneel**: op Monitoring, Logs, Incidenten, IDS en Netwerk opent een klik de details in een paneel rechts, met ← → en een kruimelpad.
 - **1.303.0**: **📖 Hoe werken meldingen?**: per status zie je waarheen een melding gaat; ClamAV start weer na een herstart.
 - **1.302.0**: **Web Push als eigen kanaal** in *Wanneer melden*, met Pushover als reserve; per apparaat te beperken.
 - **1.300.0**: **van buitenaf meten vanaf een server naar keuze** (bv. een VPS): de eerlijkste blik op wat er open staat.
-- **1.299.0**: **webcheck per site**: een cijfer van A tot F voor https, het certificaat en de beveiligingsheaders van elke site achter je proxy.
+
+## 1.305.0 – 2026-11-21
+### Nieuw
+- **Agent stil: één melding, met de reden.** Zie HANDLEIDING 8.14b (Agent stil, Nachtlogboek, Bewaker).
+  - Eén check van de server (bij voorkeur CPU) meldt *Agent stil*. De andere checks worden *onbekend*, zonder eigen melding. Geen muur van criticals meer.
+  - De melding zegt wat RzSense weet: werden rapporten geweigerd (hoe vaak, sinds wanneer, waarom, bv. een nieuw IP-adres), of kwam er gewoon niets binnen (netwerk, reverse proxy of de agent zelf).
+- **Nieuwe agent 1.118.0** met de **bewaker** (herstelt een vastgelopen of gestopte agent zelf, hooguit 3 keer per uur) en het **nachtlogboek** (na herstel: van wanneer tot wanneer geen contact, en waarom).
 
 ## 1.304.0 – 2026-11-21
 ### Nieuw

@@ -2154,6 +2154,24 @@ $lsC = LogStore::context($lsS['hits'][1]['ref']);
 ok($lsC !== null && count($lsC['before']) === 3 && count($lsC['after']) === 3 && str_contains($lsC['after'][0]['msg'], 'regel 28'), 'regels eromheen: 3 ervoor en de regels erna');
 ok(LogStore::search(['q' => 'regel server:bestaatniet', 'from' => $lsNow2 - 3600])['total'] === 0, 'server: die niet bestaat geeft niets');
 
+section('Agent stil: één melding met de reden (1.305.0)');
+q("INSERT INTO hosts (name, address, mode, agent_seen) VALUES ('ci-stil', '10.0.0.88', 'agent', NOW() - INTERVAL 2 HOUR)");
+$asH = (int) q("SELECT id FROM hosts WHERE name = 'ci-stil'")->fetchColumn();
+q("INSERT INTO checks (host_id, name, type, target, interval_sec) VALUES (?, 'RAM', 'ram', '', 60), (?, 'CPU', 'cpu', '', 60), (?, 'Disk /', 'disk', '/', 60)", [$asH, $asH, $asH]);
+$asC = q('SELECT type, id FROM checks WHERE host_id = ?', [$asH])->fetchAll(PDO::FETCH_KEY_PAIR);
+ok(Checks::staleLead($asH) === (int) $asC['cpu'], 'agent stil: de CPU-check meldt het (ook als hij niet de eerste is)');
+ok(str_contains(Checks::staleWhy(q('SELECT * FROM hosts WHERE id = ?', [$asH])->fetch()), 'geen weigeringen'), 'agent stil zonder weigeringen: dat staat erbij');
+q("INSERT INTO agent_log (host_id, ip, reason, created_at) VALUES (?, '10.0.0.99', 'nieuw IP-adres 10.0.0.99 (bekend: 10.0.0.88)', NOW() - INTERVAL 90 MINUTE), (?, '10.0.0.99', 'nieuw IP-adres 10.0.0.99 (bekend: 10.0.0.88)', NOW() - INTERVAL 1 MINUTE)", [$asH, $asH]);
+Monitor::runCheckById((int) $asC['cpu']);
+Monitor::runCheckById((int) $asC['ram']);
+Monitor::runCheckById((int) $asC['disk']);
+$asS = q('SELECT type, status, last_message FROM checks WHERE host_id = ?', [$asH])->fetchAll(PDO::FETCH_UNIQUE);
+ok((int) $asS['cpu']['status'] === STATUS_CRIT && str_contains($asS['cpu']['last_message'], 'Agent stil sinds') && str_contains($asS['cpu']['last_message'], 'geweigerd (2×')
+    && str_contains($asS['cpu']['last_message'], 'nieuw IP-adres 10.0.0.99'), 'agent stil: de CPU-check is critical, met de reden (rapporten geweigerd: nieuw IP-adres)');
+ok((int) $asS['ram']['status'] === STATUS_UNKNOWN && (int) $asS['disk']['status'] === STATUS_UNKNOWN && str_contains($asS['ram']['last_message'], 'gemeld bij de check CPU'),
+    'agent stil: de andere checks zijn onbekend (geen muur van criticals)');
+q('DELETE FROM hosts WHERE id = ?', [$asH]);
+
 section('Push: Web Push als eigen kanaal, per apparaat, reserve via Pushover (1.302.0)');
 $pmC = ['status' => STATUS_CRIT, 'event' => 'problem'];
 $pmW = ['status' => STATUS_WARN, 'event' => 'problem'];

@@ -5,6 +5,15 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.118.0 – 2026-11-21
+- **🩺 Bewaker:** een eigen systemd-timer (`rzmon-agent-guard`, elke 5 minuten), los van de gewone ronde. Rapporteert de agent 15 minuten niet (`GUARD_MIN`):
+  - een ronde die al meer dan 10 minuten loopt: stoppen;
+  - de timer staat stil: weer starten;
+  - al 5 minuten geen ronde: er een starten;
+  - lopen de rondes wel maar komt het rapport niet aan: niet herstarten (dat helpt dan niet), alleen een notitie met de reden in het logboek.
+  - Hooguit 3 ingrepen per uur; elke ingreep in het logboek van RzSense. `GUARD=0` zet hem uit. Komt mee bij `--update` en de update vanuit RzSense.
+- **Nachtlogboek:** lukt het versturen een tijd niet, dan zet de agent na herstel één regel in het logboek: van wanneer tot wanneer, hoeveel pogingen en de reden (bv. geen verbinding, of RzSense weigerde het rapport).
+
 ## 1.117.1 – 2026-11-20
 - **ClamAV start weer als hij gestopt is** (RzSense 1.303.0): na een herstart van de server bleef `rzsense-clamav` uit (exit 143), omdat Podman een container met `unless-stopped` niet vanzelf start. De agent start hem nu opnieuw, hooguit elke 10 minuten en alleen met genoeg vrij geheugen; lukt het niet, dan staan de reden en de laatste logregels erbij. Zo deed hij het al voor Suricata.
 - **Geen dubbele ClamAV meer:** ClamAV blijft in de engine waarin hij gemaakt is. Een tweede `rzsense-clamav` in de andere engine (echte Docker naast Podman) haalt de agent weg.

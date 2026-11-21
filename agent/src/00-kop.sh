@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.117.1"
+AGENT_VERSION="1.118.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -113,6 +113,10 @@ HEAL_DIR="${HEAL_DIR:-/etc/rzmon-agent/heal.d}"
 # Waakhond (agent 1.62.0, per agent in RzSense aan te zetten): Pushover als RzSense onbereikbaar is of de checks stilstaan.
 # WATCHDOG=0 = op deze server nooit.
 WATCHDOG="${WATCHDOG:-1}"
+# Bewaker (agent 1.118.0, systemd-timer rzmon-agent-guard): rapporteert de agent GUARD_MIN minuten niet (standaard 15), dan
+# een vastgelopen ronde stoppen, de timer weer starten of een ronde starten. GUARD=0 = op deze server nooit.
+GUARD="${GUARD:-1}"
+GUARD_MIN="${GUARD_MIN:-15}"
 PUSHOVER_API="${PUSHOVER_API:-https://api.pushover.net/1/messages.json}"
 # Logins (SSH en console), sudo en su melden op de pagina Meldingen, als dat in RzSense aan staat
 # (Instellingen → Alarmgedrag). AUTH_EVENTS=0 zet het op deze server altijd uit.

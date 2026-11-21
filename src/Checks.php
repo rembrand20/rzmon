@@ -1050,6 +1050,39 @@ final class Checks
             : self::result(STATUS_CRIT, 0, t('{name} is {state}', ['name' => $name, 'state' => $state]));
     }
 
+    /** Typen die van de agent komen: bij "agent stil" is de eerste daarvan (bij voorkeur CPU) de check die het meldt */
+    public const STALE_LEAD_TYPES = ['cpu', 'ram', 'disk', 'service', 'process', 'reboot'];
+    /** @var array<int, int> */
+    private static array $leadCache = [];
+
+    /**
+     * 1.305.0: welke check van deze server meldt "agent stil" (critical, met de reden)? De andere agentchecks worden dan
+     * "onbekend" zonder eigen melding. 0 = geen geschikte check (dan blijft elke check critical, zoals voorheen).
+     */
+    public static function staleLead(int $hostId): int
+    {
+        return self::$leadCache[$hostId] ??= (int) q("SELECT id FROM checks WHERE host_id = ? AND enabled = 1 AND info_only = 0
+            AND type IN ('" . implode("','", self::STALE_LEAD_TYPES) . "') ORDER BY type = 'cpu' DESC, id LIMIT 1", [$hostId])->fetchColumn();
+    }
+
+    /**
+     * 1.305.0: waarom is de agent stil, als RzSense dat weet: rapporten die RzSense weigerde sinds het laatste goede rapport
+     * (bv. een nieuw IP-adres), met hoe vaak en sinds wanneer.
+     * @param array<string, mixed> $host
+     */
+    public static function staleWhy(array $host): string
+    {
+        if (empty($host['id']) || empty($host['agent_seen'])) {
+            return '';
+        }
+        $r = q('SELECT COUNT(*) AS n, MIN(created_at) AS first, (SELECT reason FROM agent_log WHERE host_id = ? AND created_at >= ? ORDER BY id DESC LIMIT 1) AS reason
+                FROM agent_log WHERE host_id = ? AND created_at >= ?', [$host['id'], $host['agent_seen'], $host['id'], $host['agent_seen']])->fetch();
+        if (!$r || !(int) $r['n']) {
+            return ' · ' . t('RzSense kreeg geen rapporten (geen weigeringen): netwerk, reverse proxy of de agent zelf; de agent vertelt het zodra hij terug is');
+        }
+        return ' · ' . t('rapporten geweigerd ({n}× sinds {t}): {why}', ['n' => (int) $r['n'], 't' => date('H:i', (int) strtotime((string) $r['first'])), 'why' => (string) $r['reason']]);
+    }
+
     public static function agentStale(array $host): ?array
     {
         if ($host['agent_seen'] === null) {
@@ -1059,7 +1092,8 @@ final class Checks
             && !UpdateHold::covers((string) $host['agent_seen'])) {   // 1.205.0: tijdens een update van RzSense is stil normaal
             $behind = !empty($host['id']) ? Relay::behind((int) $host['id']) : 0;   // 1.282.0: een relay: hoeveel agents erachter
             return self::result(STATUS_CRIT, null, t('Agent stil sinds {t}', ['t' => date('d-m-Y H:i:s', strtotime((string) $host['agent_seen']))])
-                . ($behind ? ' · ' . t('relay: meldingen van {n} agents erachter worden onderdrukt', ['n' => $behind]) : ''));
+                . self::staleWhy($host)
+                . ($behind ? ' · ' . t('relay: meldingen van {n} agents erachter worden onderdrukt', ['n' => $behind]) : '')) + ['agent_stale' => true];
         }
         return null;
     }

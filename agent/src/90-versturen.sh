@@ -261,6 +261,23 @@ if mkdir -p "$st_dir" 2>/dev/null && [ -w "$st_dir" ]; then
         printf '%s\t%s\n' "$st_now" "$st_err" >>"$st_dir/errors" 2>/dev/null
         [ "$(wc -l 2>/dev/null <"$st_dir/errors")" -gt 20 ] && { tail -n 20 "$st_dir/errors" >"$st_dir/errors.tmp" && mv -f "$st_dir/errors.tmp" "$st_dir/errors"; }
     fi
+    # Agent 1.118.0: geen contact met RzSense bijhouden (sinds wanneer, hoe vaak, waarom). Lukt het weer, dan één regel in het
+    # logboek van RzSense ("Geen contact van 00:38 tot 07:12, 812 pogingen: …"). Het tijdstip van het laatste goede rapport
+    # (ok) gebruikt de bewaker (--guard).
+    if [ "$rc" != 0 ]; then
+        o_from=$(sed -n 's/^from=//p' "$st_dir/outage" 2>/dev/null | tr -dc '0-9'); o_n=$(sed -n 's/^n=//p' "$st_dir/outage" 2>/dev/null | tr -dc '0-9')
+        (umask 077; printf 'from=%s\nlast=%s\nn=%s\nerr=%s\n' "${o_from:-$st_now}" "$st_now" "$(( ${o_n:-0} + 1 ))" "$st_err" >"$st_dir/outage") 2>/dev/null
+    else
+        echo "$st_now" >"$st_dir/ok" 2>/dev/null
+        if [ -s "$st_dir/outage" ]; then
+            o_from=$(sed -n 's/^from=//p' "$st_dir/outage" | tr -dc '0-9'); o_n=$(sed -n 's/^n=//p' "$st_dir/outage" | tr -dc '0-9'); o_err=$(sed -n 's/^err=//p' "$st_dir/outage")
+            if [ -n "$o_from" ] && [ $(( st_now - o_from )) -ge 120 ]; then
+                act_log agent 0 "Geen contact met RzSense van $(date -d "@$o_from" +%H:%M 2>/dev/null || echo '?') tot $(date +%H:%M)" \
+                    "${o_n:-?} mislukte pogingen in $(( (st_now - o_from) / 60 )) min$( [ "$fb_used" != 0 ] && echo ', nu via het reserve-adres'); reden: ${o_err:-onbekend}"
+            fi
+            rm -f "$st_dir/outage"
+        fi
+    fi
     # De beveiligingscontrole van RzSense (regels tekst, RzSense 1.100.0+)
     if [ "$rc" = 0 ] && [[ "$resp" =~ \"sec\":\[([^]]*)\] ]]; then
         grep -o '"[^"]*"' <<<"${BASH_REMATCH[1]}" | sed 's/^"//; s/"$//; s#\\/#/#g' >"$st_dir/sec" 2>/dev/null

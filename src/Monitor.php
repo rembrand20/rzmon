@@ -457,6 +457,14 @@ final class Monitor
 
     private static function process(array $check, array $res): void
     {
+        // 1.305.0: agent stil: alleen de leidende check van de server meldt het (critical, met de reden); de andere agentchecks
+        // worden "onbekend" zonder eigen melding, in plaats van een muur van criticals
+        $staleQuiet = false;
+        if (!empty($res['agent_stale']) && ($lead = Checks::staleLead((int) $check['hid'])) && $lead !== (int) $check['id']) {
+            $res['status'] = STATUS_UNKNOWN;
+            $res['message'] = t('Geen gegevens: de agent is stil (gemeld bij de check {c})', ['c' => (string) q('SELECT name FROM checks WHERE id = ?', [$lead])->fetchColumn()]);
+            $staleQuiet = true;
+        }
         $raw = (int) $res['status'];
         [$res['status'], $pendStatus, $pendCount] = self::confirmStatus($check, $raw);
         if ($pendStatus !== null || (int) ($check['pend_count'] ?? 0) > 0) {
@@ -495,7 +503,7 @@ final class Monitor
         }
         // Onderhoud: checks draaien door, maar er gaan geen meldingen uit. notified_status
         // blijft staan, zodat na afloop alsnog gemeld wordt als er dan nog iets mis is.
-        $silenced = $upstream !== null || self::maintenanceFor($check) !== null;
+        $silenced = $upstream !== null || $staleQuiet || self::maintenanceFor($check) !== null;
 
         // Begin van de huidige storing: hoort bij de bevestig-link (zie ackToken)
         $problemSince = $status === STATUS_OK ? null : ($check['problem_since'] ?: now());

@@ -3960,6 +3960,23 @@ Valt RzSense zelf uit, dan krijg je van RzSense niets meer, en denk je dat alles
 - **RzSense draait, maar de checks staan stil** (de cron loopt niet): RzSense geeft bij elk rapport mee wanneer de checks voor het laatst draaiden; is dat langer geleden dan je ingestelde tijd, dan meldt de waakhond ook dat (*⚠️ RzSense: checks staan stil*), en weer als ze draaien.
 - **Nodig**: Pushover of ntfy aan (*Meldingen → Kanalen*; ntfy vanaf agent 1.72.0) en een **versleutelde verbinding** (koppelcode): de pushgegevens gaan naar de agent, en staan daar in de cache die alleen root kan lezen. Met `WATCHDOG=0` in `/etc/default/rzmon-agent` doet die server nooit mee. Een Pushover-compatibele dienst gebruiken? Zet `PUSHOVER_API` (standaard `https://api.pushover.net/1/messages.json`).
 
+**Agent stil: één melding, met de reden** (vanaf RzSense 1.305.0). Stuurt een agent te lang niets, dan meldt **één** check van die server het (bij voorkeur CPU) als critical: *Agent stil sinds …*, met erachter wat RzSense weet:
+- *rapporten geweigerd (812× sinds 00:38): nieuw IP-adres …*: de agent probeert het wel, maar RzSense laat hem niet toe (bv. een nieuw IP-adres dat op toestemming wacht, of een sleutel die niet meer klopt);
+- *RzSense kreeg geen rapporten (geen weigeringen)*: het ligt aan het netwerk, de reverse proxy of de agent zelf; de agent vertelt het zodra hij terug is (zie het nachtlogboek hieronder).
+
+De andere checks van die server worden *onbekend* (*geen gegevens: de agent is stil*), zonder eigen melding. Zo krijg je één bericht in plaats van een muur van criticals, en één herstelbericht.
+
+**Nachtlogboek** (vanaf agent 1.118.0): lukt het versturen niet, dan houdt de agent bij sinds wanneer, hoe vaak en waarom. Is hij terug, dan staat in het **Logboek** één regel als *Geen contact met RzSense van 00:38 tot 07:12* met het aantal pogingen en de reden (bv. *geen verbinding (poort dicht of RzSense uit)* of *RzSense weigerde het rapport (HTTP 403)*). Pas vanaf 2 minuten; korte haperingen niet.
+
+**🩺 Bewaker** (vanaf agent 1.118.0, systemd-timer `rzmon-agent-guard`, elke 5 minuten): los van de gewone ronde kijkt hij of de agent nog rapporteert. Is het laatste goede rapport ouder dan 15 minuten (`GUARD_MIN` in `/etc/default/rzmon-agent`):
+- loopt er een ronde die al meer dan 10 minuten bezig is: die stopt hij;
+- staat de timer van de agent stil: die zet hij weer aan;
+- is er al 5 minuten geen ronde geweest: dan start hij er een;
+- lopen de rondes gewoon, maar komt het rapport niet aan (netwerk, reverse proxy, RzSense weigert): dan helpt herstarten niet, en zet hij alleen een notitie met de reden in het logboek (één per uur);
+- hooguit **3 ingrepen per uur**; daarna alleen een notitie.
+
+Elke ingreep staat in het **Logboek** (*Bewaker: ronde hing, gestopt* …). Uitzetten op een server: `GUARD=0` in `/etc/default/rzmon-agent`. De bewaker komt mee bij `--update` en bij de update vanuit RzSense.
+
 **Tijdens een update van RzSense** (vanaf RzSense 1.205.0 en agent 1.82.0) wachten de agents rustig:
 1. Bij **Bijwerken** (met de knop of automatisch) waarschuwt RzSense eerst de agents: in zijn antwoord op hun rapport staat *update bezig*, met hoe lang ze hooguit wachten. Het update-venster toont dan *Agents waarschuwen (3 van 5)*. De update begint zodra iedereen het weet, of na 75 seconden.
 2. Lukt een rapport tijdens de update niet, dan zet de agent zijn meting in de **wachtrij** en geeft de waakhond **geen alarm**. In `rzmon-agent --status` staat *RzSense-update: wacht op de vrijgave*.
