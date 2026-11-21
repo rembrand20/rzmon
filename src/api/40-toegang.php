@@ -354,7 +354,7 @@ switch ($action) {
         $prefs = json_decode((string) q('SELECT prefs FROM users WHERE id = ?', [$user['id']])->fetchColumn(), true) ?: [];
         $prefs[$key] = match ($key) {
             'open_mode' => $in['value'] === 'smart' ? 'smart' : 'closed',
-            'theme' => in_array($in['value'] ?? '', ['light', 'dark'], true) ? $in['value'] : 'auto',   // 1.135.0: thema per gebruiker
+            'theme' => in_array($in['value'] ?? '', ['light', 'dark', 'dim', 'lightdim'], true) ? $in['value'] : 'auto',   // 1.308.0: ook Schemer en Licht + Schemer   // 1.135.0: thema per gebruiker
             'side' => ($in['value'] ?? '') === 'mini' ? 'mini' : 'full',
             'pw' => in_array($in['value'] ?? '', ['wide', 'full'], true) ? $in['value'] : 'bounded',   // 1.294.0: paginabreedte (terugval voor een nieuw apparaat)   // 1.150.0: zijbalk ingeklapt (alleen iconen)
             'dash' => ($in['value'] ?? '') === 'cc' ? 'cc' : 'classic',

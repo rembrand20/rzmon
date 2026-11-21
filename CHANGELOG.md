@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.308.0**: **kleurenschema Schemer**: licht, maar warm en zacht voor je ogen; ook automatisch 's avonds.
 - **1.306.0**: **het detailpaneel op elke pagina**: een klik opent de details rechts, met ← →, een kruimelpad en een deelbare link.
 - **1.305.0**: **agent stil: één melding met de reden**, en een **bewaker** die de agent zelf herstelt.
 - **1.303.0**: **📖 Hoe werken meldingen?**: per status zie je waarheen een melding gaat; ClamAV start weer na een herstart.
 - **1.302.0**: **Web Push als eigen kanaal** in *Wanneer melden*, met Pushover als reserve; per apparaat te beperken.
-- **1.300.0**: **van buitenaf meten vanaf een server naar keuze** (bv. een VPS): de eerlijkste blik op wat er open staat.
+
+## 1.308.0 – 2026-11-21
+### Nieuw
+- **Kleurenschema Schemer.** *Licht/donker* heeft nu *Auto · Licht · Schemer · Donker · Licht + Schemer*. Zie HANDLEIDING (Weergave).
+  - **Schemer:** licht, maar warm en gedempt: geen fel wit, minder blauw licht en zachtere statuskleuren. Fijn voor je ogen in de schemer of het donker.
+  - **Licht + Schemer:** overdag licht, 's avonds vanzelf Schemer. De tijden (standaard 19:00–07:00) stel je per apparaat in bij *Mijn account → Weergave*.
+  - Werkt met elk thema (Standaard, @S, Liquid Glass, Neo). Je keuze geldt voor je account, op elk apparaat.
 
 ## 1.307.0 – 2026-11-21
 ### Nieuw

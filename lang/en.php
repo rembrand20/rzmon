@@ -11901,4 +11901,13 @@ return [
     'Pushover / ntfy (korte samenvatting)' => 'Pushover / ntfy (short summary)',
     'IDS-meldingen (aanvallen en de dagsamenvatting) via Pushover of ntfy. Zet je dit uit en Web Push aan, dan krijg je ze alleen via Web Push. Staat Web Push uit of komt het niet aan, dan gaat het toch via Pushover als de reserve bij Web Push aan staat.' => 'IDS alerts (attacks and the daily summary) via Pushover or ntfy. If you switch this off and Web Push on, you only get them via Web Push. If Web Push is off or does not arrive, they still go via Pushover when the backup at Web Push is on.',
     'IDS-meldingen (aanvallen en de dagsamenvatting) via Web Push, naar de apparaten die ze willen (per apparaat: alles, alleen critical of alleen IDS).' => 'IDS alerts (attacks and the daily summary) via Web Push, to the devices that want them (per device: everything, only critical or only IDS).',
+    'Licht, maar zacht en warm voor de ogen in de schemer of het donker' => 'Light, but soft and warm on the eyes at dusk or in the dark',
+    'schemer' => 'dusk',
+    'Overdag licht, \'s avonds vanzelf Schemer' => 'Light by day, Dusk automatically in the evening',
+    'Schemer' => 'Dusk',
+    'Licht + Schemer' => 'Light + Dusk',
+    'Schemer \'s avonds' => 'Dusk in the evening',
+    '(per apparaat)' => '(per device)',
+    'Schemer vanaf' => 'Dusk from',
+    'Schemer tot' => 'Dusk until',
 ];

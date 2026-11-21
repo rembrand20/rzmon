@@ -6530,3 +6530,22 @@ details.pxs h4 { margin: .2rem 0 .45rem; font-size: .9rem; }
 /* 1.307.0: IDS-pushmeldingen via Pushover/ntfy en/of Web Push */
 .ids-push-via { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1.2rem; margin: .3rem 0 .9rem; }
 .ids-push-via .switch { margin: 0; }
+
+/* 1.308.0: Schemer. Licht, maar warm en gedempt: geen fel wit, minder blauw licht, zachtere kleuren.
+   Bovenop licht (data-theme="light"); data-dim="1" vervangt alleen de basiskleuren. Staat achteraan, zodat het wint. */
+:root[data-dim="1"],
+:root[data-dim="1"] body.sk-s {
+  --bg: #d4d0c7; --bg-2: #dcd7cd; --card: #e2ddd3; --card-2: #d9d4ca; --border: #c3bcaf;
+  --text: #2a2d32; --rz-tile: #2a2d32; --muted: #585b61; --side: #d9d4ca;
+  --primary: #3e5fb3; --primary-2: #34509a; --ok: #2c7a50; --warn: #a3660f; --crit: #b2423f; --unknown: #7a7f88; --maint: #5f52b8;
+  --shadow: 0 4px 16px rgba(60, 45, 25, .10);
+  --rz-name: #2a2d32; --rz-acc: #a3660f; --rz-slogan: #585b61;
+  --fx-bg: #d4d0c7; --fx-bg2: #e2ddd3; --fx-tx: #2a2d32; --fx-mu: #585b61; --fx-bd: rgba(90, 70, 40, .22); --fx-cy: #2f6e86; --fx-cr: #b2423f;
+  --am-land: #cfc9bd; --am-land-line: #bdb5a7;
+  --lg-rim: rgba(255, 248, 235, .55); --lg-glare: rgba(255, 248, 235, .25);
+  --al2-scrim: rgba(40, 30, 15, .30);
+}
+:root[data-dim="1"] body.sk-s { --s-seg-on: #ebe6dc; --s-field: #e8e3d9; --s-shadow: 0 1px 2px rgba(60, 45, 25, .06), 0 6px 20px rgba(60, 45, 25, .08); }
+:root[data-dim="1"] .login-wrap { --hud: #3e5fb3; --hud-t: #34509a; --hud-bg: radial-gradient(1200px 700px at 50% 40%, #e2ddd3 0%, #d8d3c9 50%, #cdc7bc 100%); }
+.dim-times { display: inline-flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+.dim-times input[type="time"] { width: auto; }

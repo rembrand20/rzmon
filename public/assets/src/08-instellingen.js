@@ -679,12 +679,41 @@ function initSideToggle() {
 }
 /** Licht, donker of automatisch (1.135.0: per gebruiker, op elk apparaat) */
 function setTheme(v) {
-  if (v === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = v;
+  themeApply(v);
   try { v === 'auto' ? localStorage.removeItem('rzmon-theme') : localStorage.setItem('rzmon-theme', v); } catch (ex) {}
   if (!prefsLocal) savePref('theme', v);
-  if (window.RzPulse) RzPulse.refreshColors();
+}
+/** 1.308.0: de tijden van "Licht + Schemer", per apparaat (standaard 19:00–07:00) */
+function dimTimes() {
+  let from = '19:00', to = '07:00';
+  try { from = localStorage.getItem('rzmon-dim-from') || from; to = localStorage.getItem('rzmon-dim-to') || to; } catch (ex) { /* standaard */ }
+  return { from, to };
+}
+/** Is het nu Schemer-tijd? Gaat over middernacht heen als "van" later is dan "tot". */
+function dimNow(t = dimTimes(), now = new Date()) {
+  const m = (s) => { const p = /^(\d\d):(\d\d)$/.exec(s || ''); return p ? Number(p[1]) * 60 + Number(p[2]) : -1; };
+  const f = m(t.from), u = m(t.to), c = now.getHours() * 60 + now.getMinutes();
+  if (f < 0 || u < 0 || f === u) return false;
+  return f > u ? (c >= f || c < u) : (c >= f && c < u);
+}
+/** Zet de attributen op <html>: data-theme (licht/donker), data-tmode (dim/lightdim) en data-dim (Schemer aan) */
+function themeApply(v) {
+  const d = document.documentElement, was = d.dataset.dim === '1' ? 'dim' : (d.dataset.theme || '');
+  if (v === 'auto') delete d.dataset.theme; else d.dataset.theme = (v === 'dim' || v === 'lightdim') ? 'light' : v;
+  if (v === 'dim' || v === 'lightdim') d.dataset.tmode = v; else delete d.dataset.tmode;
+  if (v === 'dim' || (v === 'lightdim' && dimNow())) d.dataset.dim = '1'; else delete d.dataset.dim;
+  const nu = d.dataset.dim === '1' ? 'dim' : (d.dataset.theme || '');
+  if (nu !== was && window.RzPulse) RzPulse.refreshColors();
   markTheme();
 }
+// Elke minuut: bij "Licht + Schemer" vanzelf wisselen als de tijd daar is
+setInterval(() => { if (document.documentElement.dataset.tmode === 'lightdim') themeApply('lightdim'); }, 60000);
+document.addEventListener('change', (e) => {
+  const inp = e.target.closest('#dim-from, #dim-to');
+  if (!inp || !/^\d\d:\d\d$/.test(inp.value)) return;
+  try { localStorage.setItem(inp.id === 'dim-from' ? 'rzmon-dim-from' : 'rzmon-dim-to', inp.value); } catch (ex) { /* alleen voor nu */ }
+  if (document.documentElement.dataset.tmode === 'lightdim') themeApply('lightdim');
+});
 /**
  * 1.294.0: paginabreedte. Begrensd (1400 px, standaard), breed (1920 px) of volledig. Per apparaat (deze browser); het
  * account onthoudt de laatste keuze als begin voor een apparaat dat nog niets koos.
@@ -698,8 +727,15 @@ function setPageWidth(v) {
 }
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-pw-set]'); if (b) setPageWidth(b.dataset.pwSet); });
 function markTheme() {
-  const cur = document.documentElement.dataset.theme || 'auto';
+  const cur = document.documentElement.dataset.tmode || document.documentElement.dataset.theme || 'auto';
   $$('[data-theme-set]').forEach((b) => b.classList.toggle('active', b.dataset.themeSet === cur));
+  const dt = $('#dim-times');
+  if (dt) {
+    dt.hidden = cur !== 'lightdim';
+    const t = dimTimes();
+    if ($('#dim-from') && document.activeElement !== $('#dim-from')) $('#dim-from').value = t.from;
+    if ($('#dim-to') && document.activeElement !== $('#dim-to')) $('#dim-to').value = t.to;
+  }
   const pw = document.documentElement.dataset.pw || 'bounded';
   $$('[data-pw-set]').forEach((b) => b.classList.toggle('active', b.dataset.pwSet === pw));
   markDash();

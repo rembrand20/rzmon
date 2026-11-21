@@ -288,6 +288,10 @@ De pagina Monitoring (vanaf 1.66.0, tot 1.134.0 *Dashboard*), van boven naar ben
 - **Logs:** een klik op een regel toont de hele regel, alle velden (＋ zoeken, − uitsluiten), de regels eromheen uit dezelfde bron, andere bronnen van die server in dezelfde minuut, en *Alle regels van dit patroon*. Een veld in de linkerkolom opent een klein venster met de waarden ernaast, dat sluit als je ernaast klikt.
 - **Dagen** bij Meldingen en IDS: vandaag staat open, eerdere dagen zijn ingeklapt (bij zoeken staan de dagen met treffers open).
 
+**Schemer** (vanaf 1.308.0, **Mijn account → Weergave → Licht/donker**, of het accountmenu 🌓): naast *Auto*, *Licht* en *Donker* is er **Schemer**: licht, maar zacht voor je ogen als het om je heen schemerig of donker is. Geen fel wit maar warm grijs-beige, minder blauw licht en rustigere kleuren voor ok, warning en critical; de tekst blijft goed leesbaar. Het werkt met elk thema (Standaard, @S, Liquid Glass, Neo).
+- **Licht + Schemer**: overdag licht, 's avonds vanzelf Schemer. De tijden (standaard **19:00 tot 07:00**) stel je in op de regel *Schemer 's avonds* eronder; die gelden **per apparaat**, zodat je telefoon en je computer elk hun eigen tijden hebben. RzSense wisselt vanzelf, ook als de pagina openstaat (binnen een minuut).
+- De keuze zelf (Auto, Licht, Schemer, Donker, Licht + Schemer) geldt voor je account, op elk apparaat.
+
 **Paginabreedte** (vanaf 1.294.0, **Mijn account → Weergave → Paginabreedte**, per apparaat): hoe breed RzSense wordt op een groot scherm.
 - **Begrensd** (standaard): hooguit 1400 pixels breed, in het midden.
 - **Breed**: hooguit 1920 pixels. Goed voor een scherm van 24 tot 27 inch.
