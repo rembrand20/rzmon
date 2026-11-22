@@ -71,3 +71,20 @@ let mtW = document.documentElement.clientWidth;
 window.addEventListener('resize', () => { const w = document.documentElement.clientWidth; if (w !== mtW) { mtW = w; mtLater(true); } });   // alleen bij een andere breedte (niet de adresbalk op iOS)
 window.addEventListener('orientationchange', () => mtLater(true));
 document.addEventListener('DOMContentLoaded', () => mtLater(true));
+
+// 1.312.1: op een telefoon staat de tabbalk onderaan los van de bovenbalk (direct in <body>). De bovenbalk "plakt" bovenaan
+// (sticky); Safari op iOS liet een vaste balk daarbinnen soms met de pagina mee schuiven, midden in beeld. Breder dan
+// 720 px gaat hij terug naar zijn plek in de zijbalk.
+(() => {
+  const nav = document.getElementById('main-tabs');
+  if (!nav || !nav.parentElement) return;
+  const home = nav.parentElement, mark = document.createComment('main-tabs');
+  home.insertBefore(mark, nav);
+  const mq = window.matchMedia('(max-width: 720px)');
+  const place = () => {
+    if (mq.matches) { if (nav.parentElement !== document.body) document.body.append(nav); }
+    else if (nav.parentElement !== home) home.insertBefore(nav, mark);
+  };
+  place();
+  if (mq.addEventListener) mq.addEventListener('change', place); else mq.addListener(place);
+})();

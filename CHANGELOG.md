@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.309.0**: **Dagritme**: overdag licht, 's avonds Schemer, 's nachts donker, op je eigen tijden.
 - **1.308.0**: **kleurenschema Schemer**: licht, maar warm en zacht voor je ogen; ook automatisch 's avonds.
 
+## 1.312.1 – 2026-11-22
+### Opgelost
+- **Het menu onderaan op een telefoon schoof mee met de pagina** (Safari op iPhone): het bleef dan midden in beeld hangen. Het menu staat op een telefoon nu los van de bovenbalk en blijft altijd onderaan.
+
 ## 1.312.0 – 2026-11-21
 ### Nieuw
 - **Rustige nieuwe indeling van de instellingen**, eerst bij *Meldingen en rapporten* (Kanalen, Wanneer melden, IDS-pushmeldingen, Systeemmeldingen, Rapporten). De andere onderdelen volgen. Zie HANDLEIDING (Weergave).
