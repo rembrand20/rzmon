@@ -826,6 +826,7 @@ const SET_NAV = [
     ['rules', L('Wanneer melden'), ['confirm', 'notify', 'alarm', 'quiet'], L('Wanneer een probleem een melding wordt, en wanneer het stil moet zijn.'),
       [['wanneer', L('Wanneer melden'), ['confirm', 'notify', 'alarm']], ['stil', L('Stille uren'), ['quiet']]]],
     ['idspush', L('IDS-pushmeldingen'), ['idspush'], L('Wanneer een aanval je telefoon laat trillen, en de dagelijkse samenvatting.')],
+    ['secch', L('Beveiligingskanaal'), ['secch'], L('Wat nú je aandacht nodig heeft: door Niet storen heen, tot iemand bevestigt.')],   // 1.320.0
     ['sysinfo', L('Systeemmeldingen'), ['sysinfo'], L('Meldingen over RzSense zelf, zoals updates en certificaten.')],
     ['reports', L('Rapporten'), ['reports'], L('Alle overzichten die RzSense per e-mail of push verstuurt, en het Maandoverzicht.')]]],
   ['toegang', SET_IC('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'), L('Toegang tot RzSense'), [
@@ -973,6 +974,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'ids_ransom') loadRansomSet();   // 1.228.0
   if (setSection === 'ids_apps') loadAppsSet();   // 1.229.0
   if (setSection === 'patch') loadPatchSet();   // 1.230.0
+  if (setSection === 'secch') loadSecCh();   // 1.320.0
   if (setSection === 'sudo') loadSudoSet();   // 1.231.0
   if (setSection === 'relays') loadRelaySet();   // 1.282.0
   if (setSection === 'reserve') loadReserveSet();   // 1.286.0

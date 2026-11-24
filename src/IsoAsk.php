@@ -46,6 +46,12 @@ final class IsoAsk
         $name = (string) $host['name'];
         $after = setting('edr_iso_after', 'isolate') === 'notify' ? t('alleen gemeld') : t('geïsoleerd');
         ActionLog::add($hid, 'rzsense', 'isolate', t('Isoleren gevraagd'), $reason, true);
+        // 1.320.0: via het beveiligingskanaal als dat aan staat (blijft komen tot iemand bevestigt); de knop opent RzSense
+        if (I18n::forNotify(fn() => SecChannel::isoAsk($id, $hid, t('{name} isoleren?', ['name' => $name]),
+            t('{reason}. Kies in RzSense "Nu isoleren" of "Hoort zo". Zonder keuze wordt {name} om {t} {after}.',
+                ['reason' => $reason, 'name' => $name, 't' => date('H:i', strtotime($deadline)), 'after' => $after])))) {
+            return $id;
+        }
         Monitor::sysInfo('isolate', $hid, $name, '⚠️ ' . t('{name} isoleren?', ['name' => $name]),
             fn() => t('{reason}. Kies in RzSense "Nu isoleren" of "Hoort zo". Zonder keuze wordt {name} om {t} {after}.',
                 ['reason' => $reason, 'name' => $name, 't' => date('H:i', strtotime($deadline)), 'after' => $after]), null, null, false, null, false, 1);

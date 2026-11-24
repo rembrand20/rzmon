@@ -1163,7 +1163,10 @@ final class Ids
         }
         // 1.115.0: Waarom, Trigger en Actie in de melding. 1.275.0: alleen pushen als je iets moet doen (IdsPush)
         if ($sev === 2 && IdsPush::now($newId)) {
-            self::notify($ctx['host']['name'] . ': ' . $title, Protect::pushText($newId) ?? $detail);
+            // 1.320.0: wat nu je aandacht nodig heeft via het beveiligingskanaal (blijft komen tot iemand bevestigt)
+            if (!SecChannel::incident($newId, $ctx['host']['name'] . ': ' . $title, Protect::pushText($newId) ?? $detail)) {
+                self::notify($ctx['host']['name'] . ': ' . $title, Protect::pushText($newId) ?? $detail);
+            }
         }
         return true;
     }
@@ -1510,6 +1513,9 @@ final class Ids
             return;
         }
         q('UPDATE ids_incidents SET severity = 2, detail = ? WHERE id = ?', [mb_substr($i['detail'] . ' · ⚠️ ' . $why, 0, 1000), $incidentId]);
+        if (SecChannel::incident($incidentId, $i['host'] . ': ' . $i['title'], $why . "\n" . (Protect::pushText($incidentId) ?? ''))) {
+            return;   // 1.320.0: via het beveiligingskanaal
+        }
         self::notify($i['host'] . ': ' . $i['title'], $why . "\n" . (Protect::pushText($incidentId) ?? ''));
     }
 

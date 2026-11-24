@@ -4527,5 +4527,51 @@ q("UPDATE agent_data SET updated_at = ? WHERE host_id = ? AND metric = 'alive'",
 ok(!str_contains(Checks::staleWhy($alh), 'de server leeft'), 'oud levensteken (10 min): niet meer genoemd');
 q('DELETE FROM hosts WHERE id = ?', [$al]);
 
+// 1.320.0: het beveiligingskanaal
+$scPrev = [];
+foreach (['sec_ch_on', 'sec_ch_kinds', 'sec_ch_night', 'sec_ch_classic', 'sec_ch_web', 'sec_ch_mail', 'sec_ch_ha', 'ids_enabled'] as $k) {
+    $scPrev[$k] = setting($k, '');
+}
+ok(is_string(SecChannel::save(['ha' => 1, 'ha_url' => 'https://ha.voorbeeld:8123', 'ha_service' => 'mobile_app_x'])) && is_string(SecChannel::save(['ha_url' => 'ftp://x']))
+    && is_string(SecChannel::save(['ha_service' => 'persistent_notification'])), 'beveiligingskanaal: Home Assistant alleen met adres, mobile_app_-telefoon en token');
+ok(SecChannel::save(['on' => 1, 'mode' => 'action', 'kinds' => ['iso', 'malware', 'edr', 'login', 'unhandled', 'nep'], 'classic' => 0, 'web' => 0, 'mail' => 0,
+    'ha_url' => 'https://ha.voorbeeld:8123', 'ha_service' => 'notify.mobile_app_iphone', 'ha_token' => str_repeat('a', 40)]) === null
+    && setting('sec_ch_ha_service', '') === 'mobile_app_iphone' && SecChannel::kinds() === ['iso', 'malware', 'edr', 'login', 'unhandled']
+    && SecChannel::settings()['ha_token'] === true && !str_contains(json_encode(SecChannel::settings()), str_repeat('a', 40)), 'beveiligingskanaal opslaan: soorten, telefoon, token nooit terug naar de browser');
+ok(SecChannel::kindOf(['severity' => 2, 'type' => 'webshell']) === 'edr' && SecChannel::kindOf(['severity' => 2, 'type' => 'ransom']) === 'malware'
+    && SecChannel::kindOf(['severity' => 2, 'type' => 'win_group']) === 'login' && SecChannel::kindOf(['severity' => 1, 'type' => 'webshell']) === null,
+    'beveiligingskanaal: soort per incident (alleen critical)');
+save_setting('sec_ch_night', '1');
+ok(SecChannel::wants('malware', 3) && !SecChannel::wants('login', 3) && SecChannel::wants('login', 14), "beveiligingskanaal: 's nachts alleen het ergste");
+save_setting('sec_ch_night', '0');
+save_setting('ids_enabled', '1');
+q("INSERT INTO hosts (name, address, mode) VALUES ('sec-unit', '192.0.2.60', 'agent')");
+$scH = (int) db()->lastInsertId();
+q("INSERT INTO ids_state (host_id, baseline_until, fim_epoch) VALUES (?, ?, ?)", [$scH, date('Y-m-d H:i:s', time() - 60), time()]);
+$scA0 = (int) q('SELECT COUNT(*) FROM alerts')->fetchColumn();
+Ids::raise(q('SELECT * FROM hosts WHERE id = ?', [$scH])->fetch(), 2, 'webshell', 'k1', 'Webshell gevonden', '/var/www/x.php');
+$scRow = q('SELECT * FROM sec_alerts WHERE host_id = ? ORDER BY id DESC LIMIT 1', [$scH])->fetch();
+ok($scRow && $scRow['kind'] === 'edr' && str_starts_with($scRow['title'], '🚨') && (int) q('SELECT COUNT(*) FROM alerts')->fetchColumn() === $scA0 + 1,
+    'webshell gaat via het beveiligingskanaal (één melding, niet ook gewoon)');
+ok(count(array_filter(SecChannel::active(), static fn($a) => $a['id'] === (int) $scRow['id'])) === 1, 'beveiligingskanaal: wacht op bevestiging');
+q('UPDATE sec_alerts SET last_sent = ? WHERE id = ?', [date('Y-m-d H:i:s', time() - 400), $scRow['id']]);
+SecChannel::cron();
+ok((int) q('SELECT sends FROM sec_alerts WHERE id = ?', [$scRow['id']])->fetchColumn() === 2, 'niet bevestigd: na 5 minuten opnieuw');
+ok(SecChannel::ack((int) $scRow['id'], 'admin') && !SecChannel::ack((int) $scRow['id'], 'admin') && SecChannel::active() === [], 'Ik kijk ernaar: bevestigd, het herhalen stopt');
+$sc2 = SecChannel::raise('iso', 'proef', 'x', null, null, $scH);
+q("UPDATE ids_incidents SET status = 'done' WHERE host_id = ?", [$scH]);
+q("INSERT INTO sec_alerts (kind, incident_id, host_id, title, body, created_at, last_sent) SELECT 'edr', id, host_id, 'x', 'y', NOW(), NOW() FROM ids_incidents WHERE host_id = ? LIMIT 1", [$scH]);
+SecChannel::cron();
+ok(!q("SELECT COUNT(*) FROM sec_alerts WHERE host_id = ? AND kind = 'edr' AND ack_at IS NULL", [$scH])->fetchColumn(), 'incident afgehandeld: de beveiligingsmelding stopt vanzelf');
+save_setting('sec_ch_on', '0');
+Ids::raise(q('SELECT * FROM hosts WHERE id = ?', [$scH])->fetch(), 2, 'webshell', 'k2', 'Webshell 2', '/var/www/y.php');
+ok(!q("SELECT COUNT(*) FROM sec_alerts WHERE title LIKE '%Webshell 2%'")->fetchColumn(), 'kanaal uit: gewone IDS-melding');
+q('DELETE FROM hosts WHERE id = ?', [$scH]);
+q('DELETE FROM sec_alerts');
+foreach ($scPrev as $k => $v) {
+    save_setting($k, $v);
+}
+save_setting('sec_ch_ha_token', '');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

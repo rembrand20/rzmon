@@ -164,6 +164,28 @@ switch ($action) {
         out(['results' => DnsList::addToAdguard($url, (string) $user['username'])]);
 
     // ---------- 1.230.0: updates installeren (patchbeheer, agent 1.92.0) ----------
+    // 1.320.0: het beveiligingskanaal
+    case 'sec_ch_get':
+        out(SecChannel::settings() + ['active' => SecChannel::active()]);
+
+    case 'sec_active':
+        out(['active' => SecChannel::active()]);
+
+    case 'sec_ch_save':
+        $err = SecChannel::save(input());
+        if ($err !== null) {
+            out(['error' => $err], 422);
+        }
+        AgentCommands::audit((string) $user['username'], 'Beveiligingskanaal', SecChannel::on() ? 'aan' : 'uit');
+        out(['ok' => true] + SecChannel::settings());
+
+    case 'sec_ch_test':
+        $n = SecChannel::raise('test', t('Proef: beveiligingskanaal'), t('Zo komt een beveiligingsmelding binnen. Bevestig hem in RzSense of in de Pushover-app; dan stopt het herhalen.'), null, null, null, true);
+        out(['ok' => $n['ok'], 'errors' => $n['errors']]);
+
+    case 'sec_ack':
+        SecChannel::ack((int) (input()['id'] ?? 0), (string) $user['username']) ? out(['ok' => true]) : out(['error' => t('Al bevestigd')], 404);
+
     case 'patch':
         out(Patch::overview());
 

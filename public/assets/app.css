@@ -6706,3 +6706,11 @@ body.sk-neo { --eyebrow: var(--fx-cy); }
 .cs2-dot.on { background: var(--ok); }
 body.lg .cs2-ovi { background: var(--card); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
 body.sk-s .cs2-ovi { border-color: transparent; box-shadow: var(--shadow); }
+
+/* 1.320.0: het beveiligingskanaal */
+.secch-kinds { display: grid; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin: .4rem 0; }
+.secch-kinds .check-row { display: flex; flex-direction: row; gap: .7rem; align-items: flex-start; padding: .6rem .8rem; border-bottom: 1px solid var(--border); margin: 0; cursor: pointer; }
+.secch-kinds .check-row:last-child { border-bottom: 0; }
+.secch-kinds .check-row input { width: 18px; height: 18px; margin: .15rem 0 0; flex: none; accent-color: var(--crit); }
+.secch-bar { border-left: 0; box-shadow: inset 0 0 0 2px var(--crit); margin-bottom: .75rem; }
+.secch-bar .btn-row { margin-top: .5rem; }

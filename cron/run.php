@@ -108,6 +108,11 @@ try {
     cron_err('Webcheck', $e);
 }
 try {
+    SecChannel::cron();   // 1.320.0: beveiligingskanaal: bevestigd in Pushover? anders elke 5 minuten opnieuw (hooguit een uur)
+} catch (Throwable $e) {
+    cron_err('Beveiligingskanaal', $e);
+}
+try {
     IsoAsk::cron();   // 1.295.0: vragen om te isoleren waarop niemand reageerde: na de wachttijd alsnog
 } catch (Throwable $e) {
     cron_err('Isoleren', $e);

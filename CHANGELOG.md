@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.320.0**: **🚨 Beveiligingskanaal**: wat nú je aandacht nodig heeft gaat door Niet storen heen (ook als kritieke melding in de Home Assistant-app) en blijft komen tot iemand bevestigt.
 - **1.319.0**: **"Agent stil" zegt waarom**: de bewaker meldt elke minuut of de server leeft en wat er met de agent is; Suricata wordt niet meer elke ronde herstart.
 - **1.318.0**: **Windows-agent met reserve-RzSense** en overstappen naar een ander adres, net als Linux; daarmee is de Windows-agent compleet.
 - **1.317.0**: **Uitrollen naar veel Windows-servers** met één uitrolcode en een MSI, voor groepsbeleid of een beheerprogramma.
-- **1.316.0**: **Windows-updates installeren** vanuit Updates (met de hand, in het onderhoudsvenster of elke dag) en **kwetsbaarheden op Windows** uit de ontbrekende beveiligingsupdates.
 - **1.311.0**: **Aanvallen live**: boven Dashboard, IDS en Netwerk zie je aanvallen van buiten en binnen onderweg, met elke stip een echte gebeurtenis.
+
+## 1.320.0 – 2026-11-24
+### Nieuw
+- **🚨 Beveiligingskanaal** (*Instellingen → Meldingen en rapporten → Beveiligingskanaal*, standaard uit). Een apart kanaal voor wat nú je aandacht nodig heeft: een isolatie die op jouw keuze wacht, ransomware of malware, een webshell of verdacht proces, een login of nieuwe beheerder van buiten, een aanval die niet tegengehouden is (en desgewenst een lek dat je echt draait). Afgehandelde aanvallen van buiten komen er nooit door.
+  - **Harder binnen:** Pushover als noodmelding (herhaalt elke minuut tot je bevestigt), Web Push die blijft staan, ntfy op urgent, e-mail als vangnet, en nieuw: de **Home Assistant-app als kritieke melding**, die door Niet storen en het stille knopje heen gaat.
+  - **Tot iemand bevestigt:** Web Push en Home Assistant komen elke 5 minuten terug, hooguit een uur. **Ik kijk ernaar** bovenaan de pagina IDS (of bevestigen in de Pushover-app) stopt het overal. De knop in de melding opent alleen RzSense.
+  - Gaat door stille uren heen; optioneel 's nachts alleen isolatie, ransomware en malware.
+  - De pagina zegt hoe vaak het kanaal de afgelopen 30 dagen afgegaan zou zijn met jouw keuze. Met een proefmelding test je alles.
 
 ## 1.319.0 – 2026-11-24
 ### Nieuw

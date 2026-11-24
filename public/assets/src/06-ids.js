@@ -242,6 +242,7 @@ async function loadIds() {
   keepOpen(tab, () => renderIds());
   if (!had) showIdsTab();   // Live en Regels worden daar (opnieuw) geladen
   loadWebSites();   // 1.222.0: los, zodat het de pagina niet ophoudt
+  secActiveBar($('#sec-active'));   // 1.320.0: beveiligingsmeldingen die nog op bevestiging wachten
   const t2 = performance.now();
   await accP;
   if (accData) keepOpen(tab, () => { renderIds(); renderAccess(); });

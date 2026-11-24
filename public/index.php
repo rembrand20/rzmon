@@ -344,6 +344,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
     </section>
 
     <section id="tab-ids" class="tab-panel" role="tabpanel" hidden>
+      <div id="sec-active"></div><!-- 1.320.0: beveiligingsmeldingen die nog op bevestiging wachten -->
       <!-- 1.67.0: zelfde opbouw als het dashboard -->
       <div class="dash-counters"><div class="dash-in">
         <span class="ids-state" id="ids-state"></span>
@@ -946,6 +947,12 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
             <label class="switch"><input type="checkbox" name="ids_digest_on"><span></span> <?= th('Dagelijkse samenvatting (stil, zonder geluid)') ?></label>
             <label><?= th('Tijdstip') ?><input type="time" name="ids_digest_time"></label>
           </div>
+        </div>
+
+        <div data-sk="secch" class="card" id="secch-card">
+          <h2>🚨 <?= th('Beveiligingskanaal') ?></h2>
+          <?= xp(t('Een apart kanaal voor wat nú je aandacht nodig heeft. Gaat door Niet storen heen en blijft komen tot iemand bevestigt.'), t('<b>Wat het is:</b> alleen voor iets op een server zelf (webshell, malware, inbraak), een aanval die niet tegengehouden is, of een isolatie die op jouw keuze wacht. Afgehandelde aanvallen van buiten komen hier nooit. <b>Hoe:</b> Pushover als noodmelding, Web Push die blijft staan, ntfy op urgent, de Home Assistant-app als kritieke melding en e-mail als vangnet. Web Push en Home Assistant komen elke 5 minuten terug tot iemand bevestigt, hooguit een uur. <b>Bevestigen:</b> bovenaan de pagina IDS (<i>Ik kijk ernaar</i>) of in de Pushover-app. De knop in de melding opent alleen RzSense.')) ?>
+          <div id="secch-body"><p class="muted"><?= th('Laden…') ?></p></div>
         </div>
 
         <div data-sk="alarm" class="card">

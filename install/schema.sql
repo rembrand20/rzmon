@@ -1926,3 +1926,24 @@ CREATE TABLE IF NOT EXISTS agent_enroll (
     revoked     TINYINT(1)   NOT NULL DEFAULT 0,
     UNIQUE KEY uq_enroll_kid (kid)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.320.0: het beveiligingskanaal: meldingen die blijven komen tot iemand bevestigt (standaard uit)
+CREATE TABLE IF NOT EXISTS sec_alerts (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    kind        VARCHAR(12)  NOT NULL,
+    incident_id INT UNSIGNED NULL,
+    iso_id      INT UNSIGNED NULL,
+    host_id     INT UNSIGNED NULL,
+    title       VARCHAR(250) NOT NULL,
+    body        VARCHAR(1000) NOT NULL,
+    receipt     VARCHAR(64)  NULL,
+    created_at  DATETIME     NOT NULL,
+    last_sent   DATETIME     NOT NULL,
+    sends       SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+    ack_at      DATETIME     NULL,
+    ack_by      VARCHAR(64)  NULL,
+    test        TINYINT(1)   NOT NULL DEFAULT 0,
+    INDEX idx_sec_open (ack_at, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO settings (name, value) VALUES ('sec_ch_on', '0'), ('sec_ch_mode', 'action'), ('sec_ch_kinds', 'iso,malware,edr,login,unhandled'),
+    ('sec_ch_classic', '1'), ('sec_ch_web', '1'), ('sec_ch_mail', '1'), ('sec_ch_ha', '0'), ('sec_ch_ha_url', ''), ('sec_ch_ha_service', ''), ('sec_ch_night', '0');
