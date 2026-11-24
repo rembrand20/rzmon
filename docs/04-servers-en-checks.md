@@ -111,8 +111,8 @@ Laat RzSense zelf verbinding maken met MariaDB of MySQL, maak dan een eigen gebr
 CREATE USER 'rzmon_check'@'%' IDENTIFIED BY '…';
 ```
 
-Alleen `USAGE` is genoeg. Let op: een export van je instellingen (zie
-[Exporteren en importeren](#exporteren-en-importeren)) bevat dit wachtwoord niet, je vult het op een nieuwe RzSense opnieuw in.
+Alleen `USAGE` is genoeg. Let op: een [export](#exporteren-en-importeren) van je servers en checks bevat dit wachtwoord
+wel. Bewaar dat bestand dus veilig.
 
 ## Omgekeerde status
 
@@ -774,7 +774,8 @@ Bij *Instellingen → Systeem → Exporteren en importeren* zet je servers, chec
 in één JSON-bestand. Handig om naar een tweede RzSense te kopiëren, of als leesbare reserve naast de back-up.
 
 - **Zonder geheimen:** wachtwoorden, tokens, sleutels en de SNMP-community gaan niet mee. Agents koppel je op de nieuwe
-  RzSense opnieuw.
+  RzSense opnieuw. Uitzondering: het wachtwoord van een database-check staat in de instellingen van de check en gaat wel
+  mee. Bewaar het bestand dus veilig.
 - **Importeren voegt alleen toe.** Een server of sjabloon met dezelfde naam blijft zoals hij is, en een check die er al is
   (zelfde type, doel en soort) wordt overgeslagen. Je ziet eerst wat er gebeurt; importeren vraagt je wachtwoord.
 
