@@ -827,7 +827,7 @@ Reageert de hulpdienst niet, kijk dan met `systemctl status rzmon-helper.path rz
 - Elke pagina krijgt een Content-Security-Policy: alleen de eigen scripts van RzSense mogen draaien. Daarnaast
   *nosniff*, een zuinige *Referrer-Policy* en geen toegang tot camera, microfoon of locatie.
 - CSRF-bescherming en sessiecookies met `HttpOnly` en `SameSite` (en `Secure` via https).
-- API-sleutels en agent-tokens worden alleen als hash bewaard.
+- API-sleutels, *Onthoud mij*-sleutels en herstellinks worden alleen als hash bewaard.
 - Agent en installatiescript zijn ondertekend; een agent installeert alleen een update met een geldige handtekening. Zie
   `SECURITY.md`.
 
