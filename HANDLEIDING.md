@@ -3995,12 +3995,14 @@ De andere checks van die server worden *onbekend* (*geen gegevens: de agent is s
 
 **Nachtlogboek** (vanaf agent 1.118.0): lukt het versturen niet, dan houdt de agent bij sinds wanneer, hoe vaak en waarom. Is hij terug, dan staat in het **Logboek** één regel als *Geen contact met RzSense van 00:38 tot 07:12* met het aantal pogingen en de reden (bv. *geen verbinding (poort dicht of RzSense uit)* of *RzSense weigerde het rapport (HTTP 403)*). Pas vanaf 2 minuten; korte haperingen niet.
 
-**🩺 Bewaker** (vanaf agent 1.118.0, systemd-timer `rzmon-agent-guard`, elke 5 minuten): los van de gewone ronde kijkt hij of de agent nog rapporteert. Is het laatste goede rapport ouder dan 15 minuten (`GUARD_MIN` in `/etc/default/rzmon-agent`):
+**🩺 Bewaker** (vanaf agent 1.118.0, systemd-timer `rzmon-agent-guard`, sinds agent 1.119.0 elke minuut): los van de gewone ronde kijkt hij of de agent nog rapporteert. Is het laatste goede rapport ouder dan 6 minuten (`GUARD_MIN` in `/etc/default/rzmon-agent`; tot agent 1.119.0: 15):
 - loopt er een ronde die al meer dan 10 minuten bezig is: die stopt hij;
 - staat de timer van de agent stil: die zet hij weer aan;
 - is er al 5 minuten geen ronde geweest: dan start hij er een;
 - lopen de rondes gewoon, maar komt het rapport niet aan (netwerk, reverse proxy, RzSense weigert): dan helpt herstarten niet, en zet hij alleen een notitie met de reden in het logboek (één per uur);
 - hooguit **3 ingrepen per uur**; daarna alleen een notitie.
+
+**Levensteken** (vanaf agent 1.119.0): blijft het rapport langer dan 3 minuten uit, dan stuurt de bewaker elke minuut een klein, versleuteld levensteken. Bij *agent stil* zie je dan waarom: *de server leeft · er loopt al 12 min een ronde (meestal traag: containers 95 s) · laatste fout … · bewaker: ronde hing, gestopt*. Staat er geen levensteken bij, dan is de server zelf of het netwerk weg. Het levensteken telt niet als rapport: de checks blijven *onbekend* tot het echte rapport komt.
 
 Elke ingreep staat in het **Logboek** (*Bewaker: ronde hing, gestopt* …). Uitzetten op een server: `GUARD=0` in `/etc/default/rzmon-agent`. De bewaker komt mee bij `--update` en bij de update vanuit RzSense.
 

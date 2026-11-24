@@ -231,6 +231,7 @@ if [ "$MODE" = "uninstall" ]; then
         systemctl daemon-reload
     fi
     rm -f "$CRON" "$BIN" "$SETUP" /usr/local/bin/rzmon-hb
+    [ -L /usr/sbin/rzmon-agent-setup ] && rm -f /usr/sbin/rzmon-agent-setup
     rm -rf /var/spool/rzmon-agent
     rm -rf /var/cache/rzmon-agent /var/lib/rzmon-agent   # ook de eigen sleutel: opnieuw installeren = opnieuw koppelen
     if [ -f "$CONF" ]; then
@@ -811,8 +812,9 @@ ProtectSystem=full
 [Install]
 WantedBy=multi-user.target
 EOF
-    # Agent 1.118.0: de bewaker: elke 5 minuten kijken of de agent nog rapporteert, en zo niet, een vastgelopen ronde
-    # stoppen, de timer weer starten of een ronde starten (hooguit 3 keer per uur). GUARD=0 in de instellingen = uit.
+    # Agent 1.118.0: de bewaker: kijken of de agent nog rapporteert, en zo niet, een vastgelopen ronde stoppen, de timer
+    # weer starten of een ronde starten (hooguit 3 keer per uur). GUARD=0 in de instellingen = uit.
+    # Agent 1.119.0: elke minuut, en zolang het rapport uitblijft een levensteken naar RzSense (waarom de agent stil is).
     cat > "$GUARD_UNIT" <<EOF
 [Unit]
 Description=RzSense agent: bewaker (herstelt de agent als hij te lang niet rapporteert)
@@ -829,12 +831,12 @@ ProtectSystem=full
 EOF
     cat > "$GUARD_TIMER" <<EOF
 [Unit]
-Description=RzSense agent: bewaker (elke 5 minuten)
+Description=RzSense agent: bewaker (elke minuut)
 
 [Timer]
-OnBootSec=10min
-OnUnitActiveSec=5min
-AccuracySec=30s
+OnBootSec=3min
+OnUnitActiveSec=1min
+AccuracySec=10s
 Unit=rzmon-agent-guard.service
 
 [Install]
@@ -852,7 +854,7 @@ EOF
     rm -f "$CRON"   # oude cron-installatie opruimen
     ok "systemd-timer klaar (gaat aan na het testrapport; start elke 30 s; rapporteert volgens de tik in RzSense). Logboek: journalctl -u rzmon-agent"
     ok "realtime-watcher rzmon-watch klaar (aan/uit per server in RzSense → Agent Manager)"
-    ok "bewaker rzmon-agent-guard klaar (elke 5 min; herstelt de agent als hij 15 min niet rapporteert)"
+    ok "bewaker rzmon-agent-guard klaar (elke minuut; meldt RzSense waarom de agent stil is, en herstelt hem na 6 min)"
 else
     sched="* * * * *"   # elke minuut; de agent rapporteert volgens de tik uit RzSense
     printf '# RzSense agent\n%s root set -a; . %s; %s >/dev/null 2>&1\n' "$sched" "$CONF" "$BIN" > "$CRON"
@@ -894,6 +896,11 @@ elif [ -f "${BASH_SOURCE[0]:-}" ] && [ "$(realpath "${BASH_SOURCE[0]}")" != "$SE
     install -m 755 -o root -g root "${BASH_SOURCE[0]}" "$SETUP"
 fi
 rm -f "$tmp.setup"
+# Agent 1.118.1: op Rocky/RHEL zit /usr/local/sbin niet in het pad van sudo ("sudo: rzmon-agent-setup: command not found"):
+# dan ook een koppeling in /usr/sbin (nooit over een echt bestand heen; niet op TrueNAS, daar is /usr alleen-lezen)
+if [ "$TRUENAS" = 0 ] && [ -x "$SETUP" ] && [ ! -e /usr/sbin/rzmon-agent-setup ] && [ -d /usr/sbin ]; then
+    ln -s "$SETUP" /usr/sbin/rzmon-agent-setup 2>/dev/null || true
+fi
 
 # ----------------------------------------------------------------- 5. testrapport
 step "5/5 Testrapport naar RzSense"

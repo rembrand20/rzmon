@@ -865,12 +865,24 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
             if [ "$(ndx inspect -f '{{.State.Running}}' "$nd_ctr" 2>/dev/null)" = true ]; then
                 # 4. Regels bijwerken (nieuw profiel of ouder dan een dag), op de achtergrond; daarna herstarten om ze te laden
                 nd_rf="$nd_dir/lib/rules/suricata.rules"
+                # Agent 1.118.1: "ouder dan een dag" telt vanaf het laatste bijwerken (update.at), niet vanaf de datum van het
+                # regelbestand: suricata-update herschrijft dat niet als er niets veranderd is. Daardoor werd elke ronde opnieuw
+                # bijgewerkt en Suricata herstart (lange rondes, "agent stil"). Herstarten alleen als de regels echt veranderden.
                 if [ -f "$nd_dir/update.rc" ]; then
                     if [ "$(cat "$nd_dir/update.rc")" = 0 ]; then
-                        ndx restart "$nd_ctr" >/dev/null 2>&1 && act_log proxy 1 "Suricata (proxynetwerk): regels bijgewerkt" "profiel $nd_prof"
-                    else nd_msg="regels bijwerken mislukt: $(tail -n 1 "$nd_dir/update.out" 2>/dev/null | cut -c1-150)"; fi
+                        touch "$nd_dir/update.at"
+                        nd_new=$(sha1sum <"$nd_rf" 2>/dev/null | cut -c1-40)
+                        if [ -n "$nd_new" ] && [ "$nd_new" != "$(cat "$nd_dir/rules.sum" 2>/dev/null)" ]; then
+                            echo "$nd_new" >"$nd_dir/rules.sum"
+                            ndx restart "$nd_ctr" >/dev/null 2>&1 && act_log proxy 1 "Suricata (proxynetwerk): regels bijgewerkt" "profiel $nd_prof"
+                        fi
+                    else
+                        nd_msg="regels bijwerken mislukt: $(tail -n 1 "$nd_dir/update.out" 2>/dev/null | cut -c1-150)"
+                        touch "$nd_dir/update.at"   # niet elke ronde opnieuw proberen: over een dag weer (of bij een ander profiel)
+                    fi
                     rm -f "$nd_dir/update.rc"
-                elif [ ! -f "$nd_dir/update.run" ] && { [ ! -s "$nd_rf" ] || [ "$(cat "$nd_dir/rules.hash" 2>/dev/null)" != "$nd_rhash" ] || [ -n "$(find "$nd_rf" -mmin +1440 2>/dev/null)" ]; }; then
+                elif [ ! -f "$nd_dir/update.run" ] && { [ ! -s "$nd_rf" ] && [ -z "$(find "$nd_dir/update.at" -mmin -60 2>/dev/null)" ] \
+                    || [ "$(cat "$nd_dir/rules.hash" 2>/dev/null)" != "$nd_rhash" ] || [ -z "$(find "$nd_dir/update.at" -mmin -1440 2>/dev/null)" ]; }; then
                     echo "$nd_rhash" >"$nd_dir/rules.hash"; touch "$nd_dir/update.run"
                     nohup sh -c 'timeout 600 "$0" exec "$1" suricata-update --no-test --no-reload >"$2/update.out" 2>&1; echo $? >"$2/update.rc"; rm -f "$2/update.run"' \
                         "$nd_eng" "$nd_ctr" "$nd_dir" >/dev/null 2>&1 &

@@ -4,6 +4,23 @@
 # De lijst wordt elke 10 minuten bij RzSense opgehaald, en meteen als RzSense meldt dat er iets veranderd is
 # (tests_rev in het antwoord). Commando's van RzSense worden alleen uitgevoerd bij commando-checks, als RzSense
 # ze voor deze server toestaat en COMMANDS (hierboven) dat niet blokkeert; zie "Commando-checks" verderop.
+# Agent 1.119.0: levensteken van de bewaker (zie 16-bewaker.sh): alleen versleuteld met de eigen sleutel, dan meteen klaar
+if [ "${ALIVE-}" = 1 ]; then
+    [ -n "$kid" ] || exit 0
+    a_file=$(mktemp "${TMPDIR:-/tmp}/rzmon-alive.XXXXXX") || exit 0
+    printf '{"alive":1,"agent_version":"%s","hostname":"%s","last_ok":%s,"last_run":%s,"run":%s,"err":"%s","act":"%s","load":"%s"}' \
+        "$AGENT_VERSION" "$(json_escape "$(hostname)")" "${g_ok:-0}" "${g_last:-0}" "${g_run:-0}" "$(json_escape "${g_err-}" | head -c 200)" \
+        "$(json_escape "${g_act-}" | head -c 120)" "$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null | tr -dc '0-9. ')" >"$a_file"
+    if seal "$a_file" "$a_file.enc"; then
+        curl -fsS -m 15 -X POST "${tls[@]}" -H "Content-Type: application/json" -H "X-Agent-Beat: 1" "${auth[@]}" --data-binary "@$a_file.enc" \
+            "${MONITOR_URL%/}/api.php?action=agent" >/dev/null 2>&1 \
+            || { [ -n "$MONITOR_URL_FALLBACK" ] && seal "$a_file" "$a_file.enc" && spec_tls "$MONITOR_URL_FALLBACK" "$(url_spec "$MONITOR_URL_FALLBACK")" \
+                && curl -fsS -m 15 -X POST "${s_tls[@]}" -H "Content-Type: application/json" -H "X-Agent-Beat: 1" -H "X-Agent-Fallback: 1" "${auth[@]}" \
+                    --data-binary "@$a_file.enc" "$MONITOR_URL_FALLBACK/api.php?action=agent" >/dev/null 2>&1; }
+    fi
+    rm -f "$a_file" "$a_file.enc"
+    exit 0
+fi
 if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ -e "$t_dir/tests.stale" ] || [ $(( $(date +%s) - $(stat -c %Y "$t_cache") )) -ge 600 ]; then
     get_auth agent_tests
     t_k=("${tls[@]}" "${ga[@]}"); t_n=$get_n

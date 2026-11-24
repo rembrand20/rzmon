@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.319.0**: **"Agent stil" zegt waarom**: de bewaker meldt elke minuut of de server leeft en wat er met de agent is; Suricata wordt niet meer elke ronde herstart.
 - **1.318.0**: **Windows-agent met reserve-RzSense** en overstappen naar een ander adres, net als Linux; daarmee is de Windows-agent compleet.
 - **1.317.0**: **Uitrollen naar veel Windows-servers** met één uitrolcode en een MSI, voor groepsbeleid of een beheerprogramma.
 - **1.316.0**: **Windows-updates installeren** vanuit Updates (met de hand, in het onderhoudsvenster of elke dag) en **kwetsbaarheden op Windows** uit de ontbrekende beveiligingsupdates.
-- **1.315.0**: **Windows-agent fase 3**: IDS en EDR op Windows (Defender, Sysmon, nieuwe services en beheerders, brute force op RDP), blokkeren en isoleren via de Windows Firewall, en IIS-logs.
 - **1.311.0**: **Aanvallen live**: boven Dashboard, IDS en Netwerk zie je aanvallen van buiten en binnen onderweg, met elke stip een echte gebeurtenis.
+
+## 1.319.0 – 2026-11-24
+### Nieuw
+- **"Agent stil" zegt waarom** (nieuwe agent 1.119.0). De bewaker op de server stuurt, zolang het rapport uitblijft, elke minuut een levensteken. Bij "agent stil" staat dan bijvoorbeeld: *de server leeft · er loopt al 12 min een ronde (meestal traag: containers 95 s, suricata 41 s) · bewaker: ronde hing, gestopt*. Zonder levensteken is de server zelf of het netwerk weg.
+- De bewaker grijpt na 6 minuten in (was 15) en kijkt elke minuut (was elke 5 minuten).
+- Nieuwe agent 1.119.0.
+### Opgelost
+- **Suricata op het proxynetwerk werd elke ronde herstart** (de regels werden steeds opnieuw opgehaald). Daardoor duurden de rondes minuten en viel de agent soms stil.
+- `sudo rzmon-agent-setup` werkt nu ook op Rocky/RHEL.
 
 ## 1.318.1 – 2026-11-24
 ### Opgelost

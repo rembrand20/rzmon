@@ -5,6 +5,12 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.119.0 – 2026-11-24
+- **Levensteken bij "agent stil":** de bewaker (`rzmon-agent-guard`) draait nu elke minuut. Blijft het rapport langer dan 3 minuten uit, dan stuurt hij een klein levensteken naar RzSense (alleen versleuteld met de eigen sleutel): de server leeft, of er een ronde loopt en hoe lang, de laatste fout, wat de bewaker deed en de belasting. Het telt niet als rapport.
+- **Bewaker grijpt eerder in:** na 6 minuten zonder rapport (was 15; `GUARD_MIN`).
+- **Opgelost: Suricata (proxynetwerk) werd steeds herstart.** De regels werden elke ronde opnieuw opgehaald, omdat `suricata-update` het regelbestand niet herschrijft als er niets veranderd is (het bleef dus "ouder dan een dag"). Elke herstart maakte de ronde minuten langer, en soms kwam er daardoor te lang geen rapport ("agent stil"). Nu één keer per dag, en alleen herstarten als de regels echt veranderden.
+- **Opgelost: `sudo rzmon-agent-setup` werkte niet op Rocky/RHEL** ("command not found": `/usr/local/sbin` zit daar niet in het pad van sudo). Nu ook een koppeling in `/usr/sbin`.
+
 ## 1.118.0 – 2026-11-21
 - **🩺 Bewaker:** een eigen systemd-timer (`rzmon-agent-guard`, elke 5 minuten), los van de gewone ronde. Rapporteert de agent 15 minuten niet (`GUARD_MIN`):
   - een ronde die al meer dan 10 minuten loopt: stoppen;

@@ -1085,12 +1085,67 @@ final class Checks
         if (empty($host['id']) || empty($host['agent_seen'])) {
             return '';
         }
+        // 1.319.0 (agent 1.119.0): levensteken van de bewaker: de server leeft, en waarom de agent niet rapporteert
+        $alive = self::aliveWhy($host);
+        if ($alive !== '') {
+            return $alive;
+        }
         $r = q('SELECT COUNT(*) AS n, MIN(created_at) AS first, (SELECT reason FROM agent_log WHERE host_id = ? AND created_at >= ? ORDER BY id DESC LIMIT 1) AS reason
                 FROM agent_log WHERE host_id = ? AND created_at >= ?', [$host['id'], $host['agent_seen'], $host['id'], $host['agent_seen']])->fetch();
         if (!$r || !(int) $r['n']) {
             return ' · ' . t('RzSense kreeg geen rapporten (geen weigeringen): netwerk, reverse proxy of de agent zelf; de agent vertelt het zodra hij terug is');
         }
         return ' · ' . t('rapporten geweigerd ({n}× sinds {t}): {why}', ['n' => (int) $r['n'], 't' => date('H:i', (int) strtotime((string) $r['first'])), 'why' => (string) $r['reason']]);
+    }
+
+    /**
+     * 1.319.0: wat de bewaker van de agent meldde (hooguit 5 minuten oud, na het laatste rapport), als tekst bij "agent stil".
+     * @param array<string, mixed> $host
+     */
+    public static function aliveWhy(array $host): string
+    {
+        $row = q("SELECT value, updated_at FROM agent_data WHERE host_id = ? AND metric = 'alive'", [$host['id']])->fetch();
+        if (!$row || (string) $row['updated_at'] <= (string) $host['agent_seen'] || strtotime((string) $row['updated_at']) < time() - 300) {
+            return '';
+        }
+        $a = json_decode((string) $row['value'], true);
+        if (!is_array($a)) {
+            return '';
+        }
+        $parts = [t('de server leeft (bewaker {t})', ['t' => date('H:i', (int) strtotime((string) $row['updated_at']))])];
+        $run = (int) ($a['run'] ?? 0);
+        if ($run >= 60) {
+            $parts[] = t('er loopt al {n} min een ronde', ['n' => intdiv($run, 60)]) . (($slow = self::slowParts((int) $host['id'])) !== '' ? ' (' . t('meestal traag: {p}', ['p' => $slow]) . ')' : '');
+        } elseif ((int) ($a['last_run'] ?? 0) > 0 && (int) $a['last_run'] < time() - 300) {
+            $parts[] = t('er start geen ronde meer (laatste {t})', ['t' => date('H:i', (int) $a['last_run'])]);
+        } else {
+            $parts[] = t('de rondes lopen, maar het rapport komt niet aan');
+        }
+        if (($a['err'] ?? '') !== '') {
+            $parts[] = t('laatste fout: {e}', ['e' => (string) $a['err']]);
+        }
+        if (($a['act'] ?? '') !== '') {
+            $parts[] = t('bewaker: {a}', ['a' => (string) $a['act']]);
+        }
+        if (($a['load'] ?? '') !== '') {
+            $parts[] = t('belasting {l}', ['l' => (string) $a['load']]);
+        }
+        return ' · ' . implode(' · ', $parts);
+    }
+
+    /** De traagste onderdelen van de laatste ronde (uit timing), bv. "containers 95 s, suricata 40 s" */
+    public static function slowParts(int $hostId): string
+    {
+        $t = json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'timing'", [$hostId])->fetchColumn(), true);
+        $parts = is_array($t['parts'] ?? null) ? array_filter($t['parts'], 'is_numeric') : [];
+        arsort($parts);
+        $out = [];
+        foreach (array_slice($parts, 0, 2, true) as $k => $ms) {
+            if ($ms >= 5000) {
+                $out[] = $k . ' ' . round($ms / 1000) . ' s';
+            }
+        }
+        return implode(', ', $out);
     }
 
     public static function agentStale(array $host): ?array

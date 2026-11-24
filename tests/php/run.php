@@ -4512,5 +4512,20 @@ $w6o = agent_url_report($w6h, ['url' => 'https://oud.voorbeeld', 'os' => 'window
 ok(($w6u['url'] ?? '') === 'https://nieuw.voorbeeld' && $w6o === null, 'Windows-agent 0.6.0 krijgt de opdracht om over te stappen, 0.5.0 niet');
 q('DELETE FROM hosts WHERE id = ?', [$w6]);
 
+// 1.319.0: levensteken van de bewaker bij "agent stil": de server leeft, en waarom de agent niet rapporteert
+q("INSERT INTO hosts (name, address, mode, agent_seen) VALUES ('alive-unit', '192.0.2.30', 'agent', ?)", [date('Y-m-d H:i:s', time() - 900)]);
+$al = (int) db()->lastInsertId();
+$alh = q('SELECT * FROM hosts WHERE id = ?', [$al])->fetch();
+q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'timing', ?, ?)", [$al, json_encode(['total' => 200000, 'parts' => ['containers' => 95000, 'suricata' => 41000, 'cpu' => 300]]), now()]);
+ok(AgentQueue::alive($alh, ['alive' => 1, 'run' => 720, 'err' => "curl 28\ntime-out", 'act' => 'ronde hing, gestopt', 'load' => '7.20 6.10 5.00']), 'levensteken bewaard');
+$aw = Checks::staleWhy($alh);
+ok(str_contains($aw, 'de server leeft') && str_contains($aw, 'er loopt al 12 min een ronde') && str_contains($aw, 'containers 95 s, suricata 41 s')
+    && str_contains($aw, 'laatste fout: curl 28 time-out') && str_contains($aw, 'bewaker: ronde hing, gestopt'), 'agent stil met de reden van de bewaker: ronde loopt, traagste onderdelen, fout');
+$aStale = Checks::agentStale($alh);
+ok(($aStale['status'] ?? null) === STATUS_CRIT && strtotime((string) q('SELECT agent_seen FROM hosts WHERE id = ?', [$al])->fetchColumn()) < time() - 800, 'levensteken telt niet als rapport: agent blijft stil');
+q("UPDATE agent_data SET updated_at = ? WHERE host_id = ? AND metric = 'alive'", [date('Y-m-d H:i:s', time() - 600), $al]);
+ok(!str_contains(Checks::staleWhy($alh), 'de server leeft'), 'oud levensteken (10 min): niet meer genoemd');
+q('DELETE FROM hosts WHERE id = ?', [$al]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

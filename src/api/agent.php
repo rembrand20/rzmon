@@ -265,6 +265,11 @@ if ($action === 'agent') {
         $GLOBALS['agent_noreply'] = true;
         out(['ok' => true, 'light' => AgentQueue::backlog($host, $items)]);
     }
+    // 1.319.0 (agent 1.119.0): levensteken van de bewaker als het rapport uitblijft; telt niet als rapport. Alleen versleuteld.
+    if (!empty($in['alive'])) {
+        $GLOBALS['agent_noreply'] = true;
+        out(['ok' => true, 'alive' => $encrypted ? AgentQueue::alive($host, $in) : false]);
+    }
     // 1.137.0 (agent 1.69.0): hartslag tijdens een lange run: alleen "ik leef", de gegevens blijven staan
     if (!empty($in['beat'])) {
         $GLOBALS['agent_noreply'] = true;   // 1.292.0: via een relay waar RzSense ophaalt: dit antwoord hoeft niet terug

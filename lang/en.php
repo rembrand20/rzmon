@@ -12029,4 +12029,12 @@ return [
     'Met de MSI (opstartscript of beheerprogramma)' => 'With the MSI (startup script or management tool)',
     'Met de .exe' => 'With the .exe',
     'Zet hem in een gedeelde map die de computers kunnen lezen (bv. <code>\\\\domein\\NETLOGON\\RzSense</code>).' => 'Put it in a shared folder the computers can read (e.g. <code>\\\\domain\\NETLOGON\\RzSense</code>).',
+    'de server leeft (bewaker {t})' => 'the server is alive (guard {t})',
+    'er loopt al {n} min een ronde' => 'a round has been running for {n} min',
+    'meestal traag: {p}' => 'usually slow: {p}',
+    'er start geen ronde meer (laatste {t})' => 'no round starts any more (last {t})',
+    'de rondes lopen, maar het rapport komt niet aan' => 'the rounds run, but the report does not arrive',
+    'laatste fout: {e}' => 'last error: {e}',
+    'bewaker: {a}' => 'guard: {a}',
+    'belasting {l}' => 'load {l}',
 ];

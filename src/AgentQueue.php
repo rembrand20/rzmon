@@ -17,6 +17,25 @@ final class AgentQueue
     /** Ouder dan dit wordt niet meer ingehaald */
     private const BACKLOG_MAX_AGE = 2 * 86400;
 
+    /**
+     * 1.319.0 (agent 1.119.0): levensteken van de bewaker. De agent rapporteert niet, maar de server leeft: bewaren wat de
+     * bewaker zag (loopt er een ronde en hoe lang, de laatste fout, wat hij deed). Telt NIET als contact: "agent stil"
+     * blijft, met deze uitleg erbij (Checks::staleWhy).
+     * @param array<string, mixed> $host
+     * @param array<string, mixed> $in
+     */
+    public static function alive(array $host, array $in): bool
+    {
+        $clean = static fn($v, int $n) => mb_substr(trim(preg_replace('/[\x00-\x1f]+/', ' ', (string) $v)), 0, $n);
+        $num = static fn($v) => max(0, min(PHP_INT_MAX, (int) $v));
+        $d = ['at' => time(), 'last_ok' => $num($in['last_ok'] ?? 0), 'last_run' => $num($in['last_run'] ?? 0), 'run' => min(86400, $num($in['run'] ?? 0)),
+            'err' => $clean($in['err'] ?? '', 200), 'act' => $clean($in['act'] ?? '', 120),
+            'load' => preg_match('/^[0-9. ]{1,40}$/', (string) ($in['load'] ?? '')) ? trim((string) $in['load']) : ''];
+        q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'alive', ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)",
+            [$host['id'], json_encode($d, JSON_UNESCAPED_UNICODE), now()]);
+        return true;
+    }
+
     /** Hartslag verwerken: true = als contact geteld */
     public static function beat(array $host, array $in): bool
     {

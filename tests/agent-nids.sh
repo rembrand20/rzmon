@@ -56,6 +56,13 @@ cp "$work/nids/etc/disable.conf" "$work/dis-web"
 for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "$work/nids/update.rc" ] && break; sleep 0.3; done
 printf '{"timestamp":"2026-11-14T10:00:00","event_type":"alert","src_ip":"198.51.100.4","src_port":4444,"dest_ip":"10.89.0.5","dest_port":80,"proto":"TCP","alert":{"action":"allowed","signature_id":2012345,"signature":"ET WEB_SERVER SQL Injection","category":"Web Application Attack","severity":1}}\n{"event_type":"flow"}\n' >"$work/nids/log/eve.json"
 NIDS_MIN_MB=1 run alerts
+# 1.319.0 (agent 1.119.0): daarna niet elke ronde opnieuw ophalen, en bij ongewijzigde regels niet herstarten
+cp "$work/state/restarted" "$work/restarted-1" 2>/dev/null; rm -f "$work/state/restarted"
+NIDS_MIN_MB=1 run again1
+[ -f "$work/nids/update.run" ] || [ -f "$work/nids/update.rc" ] && bad_again="opnieuw regels opgehaald terwijl ze vers zijn | " || bad_again=""
+echo 0 >"$work/nids/update.rc"; NIDS_MIN_MB=1 run again2
+[ -f "$work/state/restarted" ] && bad_again+="herstart terwijl de regels niet veranderden | "
+cp "$work/restarted-1" "$work/state/restarted" 2>/dev/null
 printf '0\tnids\ton\tfull\tlo,nope0\n' >"$work/cache/tests.cache"
 NIDS_MIN_MB=1 NIDS_EVE_MB=0 run full
 cp "$work/nids/etc/disable.conf" "$work/dis-full"
@@ -79,6 +86,7 @@ printf '0\tnids\toff\tweb\tauto\n' >"$work/cache/tests.cache"
 run off
 bad=""
 [ "$bad_retry" = 1 ] && bad+="binnen 10 minuten opnieuw gestart | "
+bad+=$bad_again
 python3 - "$work" <<'PY' || bad+="$(cat "$work/py.err" 2>/dev/null) | "
 import json, sys, os
 w = sys.argv[1]
@@ -113,4 +121,4 @@ except AssertionError as e:
 PY
 grep -q 'achtergebleven container opgeruimd' "$work/cache/act.log" && grep -q 'rm --storage --force rzsense-suricata' "$work/podman.log" && grep -q 'Suricata (proxynetwerk) gestart' "$work/cache/act.log" && grep -q 'opnieuw gestart' "$work/cache/act.log" && grep -q 'Suricata (proxynetwerk) uit' "$work/cache/act.log" || bad+="logboek mist regels | "
 if [ -n "$bad" ]; then echo "✘ Suricata (proxynetwerk): ${bad% | } $(tail -n 3 "$work/err" 2>/dev/null)"; exit 1; fi
-echo "✔ Suricata (proxynetwerk): netwerkbrug van de proxy gevonden (niet die van de WAF), te weinig geheugen = niet starten, --network host op de brug, regelprofiel (web/full), regels op de achtergrond bijgewerkt en herstart, meldingen uit eve.json, groot eve.json geleegd, achtergebleven container in de opslag opgeruimd (ook gekoppeld: --force en koppeling los, anders andere naam), gestopt = reden en logregels + na 10 minuten opnieuw starten, onbekende interface genegeerd, uit = container weg, in het logboek"
+echo "✔ Suricata (proxynetwerk): netwerkbrug van de proxy gevonden (niet die van de WAF), te weinig geheugen = niet starten, --network host op de brug, regelprofiel (web/full), regels op de achtergrond bijgewerkt en herstart (één keer per dag, alleen bij nieuwe regels), meldingen uit eve.json, groot eve.json geleegd, achtergebleven container in de opslag opgeruimd (ook gekoppeld: --force en koppeling los, anders andere naam), gestopt = reden en logregels + na 10 minuten opnieuw starten, onbekende interface genegeerd, uit = container weg, in het logboek"

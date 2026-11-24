@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.118.0"
+AGENT_VERSION="1.119.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -113,10 +113,12 @@ HEAL_DIR="${HEAL_DIR:-/etc/rzmon-agent/heal.d}"
 # Waakhond (agent 1.62.0, per agent in RzSense aan te zetten): Pushover als RzSense onbereikbaar is of de checks stilstaan.
 # WATCHDOG=0 = op deze server nooit.
 WATCHDOG="${WATCHDOG:-1}"
-# Bewaker (agent 1.118.0, systemd-timer rzmon-agent-guard): rapporteert de agent GUARD_MIN minuten niet (standaard 15), dan
-# een vastgelopen ronde stoppen, de timer weer starten of een ronde starten. GUARD=0 = op deze server nooit.
+# Bewaker (agent 1.118.0, systemd-timer rzmon-agent-guard): rapporteert de agent GUARD_MIN minuten niet (standaard 6; tot
+# agent 1.119.0: 15), dan een vastgelopen ronde stoppen, de timer weer starten of een ronde starten. Agent 1.119.0: de bewaker
+# draait elke minuut en stuurt, zolang het rapport uitblijft, een levensteken naar RzSense (de server leeft, en waarom de
+# agent niet rapporteert). GUARD=0 = op deze server nooit.
 GUARD="${GUARD:-1}"
-GUARD_MIN="${GUARD_MIN:-15}"
+GUARD_MIN="${GUARD_MIN:-6}"
 PUSHOVER_API="${PUSHOVER_API:-https://api.pushover.net/1/messages.json}"
 # Logins (SSH en console), sudo en su melden op de pagina Meldingen, als dat in RzSense aan staat
 # (Instellingen → Alarmgedrag). AUTH_EVENTS=0 zet het op deze server altijd uit.
@@ -676,8 +678,12 @@ json_text() {
 }
 
 # ---------------------------------------------------------------- Bewaker (--guard, agent 1.118.0)
-# Draait als eigen systemd-timer (rzmon-agent-guard, elke 5 minuten), los van de gewone ronde: als de agent zelf vastzit of
-# niet meer start, ziet de bewaker dat nog wel. Is het laatste geslaagde rapport ouder dan GUARD_MIN minuten (standaard 15):
+# Draait als eigen systemd-timer (rzmon-agent-guard, elke minuut; tot agent 1.119.0 elke 5 minuten), los van de gewone
+# ronde: als de agent zelf vastzit of niet meer start, ziet de bewaker dat nog wel.
+# Agent 1.119.0: is het laatste geslaagde rapport ouder dan 3 minuten, dan stuurt de bewaker een levensteken naar RzSense
+# (alleen versleuteld, met de eigen sleutel): de server leeft, of er een ronde loopt (en hoe lang), de laatste fout en
+# wat de bewaker deed. RzSense zet dat bij "agent stil", in plaats van alleen "stil". Het telt niet als rapport.
+# Is het laatste geslaagde rapport ouder dan GUARD_MIN minuten (standaard 6):
 #  - een ronde die al meer dan 10 minuten loopt: stoppen (de timer start de volgende);
 #  - de timer staat stil: weer starten;
 #  - er is al 5 minuten geen ronde meer geweest: er een starten.
@@ -693,12 +699,15 @@ if [ "${1-}" = "--guard" ]; then
     g_now=$(date +%s)
     g_ok=$(cat "$g_st/ok" 2>/dev/null | tr -dc '0-9'); g_ok=${g_ok:-0}
     [ "$g_ok" -gt 0 ] || exit 0   # nog nooit gerapporteerd (installeren of koppelen): niets te herstellen
-    [ $(( g_now - g_ok )) -lt $(( g_min * 60 )) ] && exit 0
+    g_behind=$(( g_now - g_ok ))
+    [ "$g_behind" -lt 180 ] && exit 0
+    g_act=
     g_last=$(sed -n 's/^time=//p' "$g_st/last" 2>/dev/null | tr -dc '0-9'); g_last=${g_last:-0}
     g_err=$(sed -n 's/^error=//p' "$g_st/last" 2>/dev/null | head -c 200)
     g_log="$g_dir/guard.log"
     g_recent=$(awk -F'\t' -v t=$(( g_now - 3600 )) '$1 > t && $2 == "fix"' "$g_log" 2>/dev/null | wc -l)
     g_note() {  # g_note <fix|note> <actie> <detail>: in guard.log en in het logboek dat met het volgende rapport meegaat
+        g_act=$2
         printf '%s\t%s\t%s\n' "$g_now" "$1" "$2" >>"$g_log" 2>/dev/null
         [ "$(wc -l <"$g_log" 2>/dev/null || echo 0)" -gt 200 ] && { tail -n 200 "$g_log" >"$g_log.tmp" && mv -f "$g_log.tmp" "$g_log"; }
         printf '{"id":"%s","t":%s,"m":"agent","ok":%s,"a":"%s","d":"%s"}\n' "$g_now-$$-guard-$RANDOM" "$g_now" "$( [ "$1" = fix ] && echo 1 || echo 2)" \
@@ -708,7 +717,9 @@ if [ "${1-}" = "--guard" ]; then
     g_state=$(systemctl show -p ActiveState --value rzmon-agent.service 2>/dev/null)
     g_start=$(systemctl show -p ExecMainStartTimestamp --value rzmon-agent.service 2>/dev/null)
     g_start=$(date -d "$g_start" +%s 2>/dev/null || echo 0)
-    if [ "$g_recent" -ge 3 ]; then
+    if [ "$g_behind" -lt $(( g_min * 60 )) ]; then
+        :   # nog niet lang genoeg om in te grijpen; alleen het levensteken
+    elif [ "$g_recent" -ge 3 ]; then
         # Al 3 keer ingegrepen dit uur: dan zit het probleem ergens anders; alleen een notitie (één keer per uur)
         awk -F'\t' -v t=$(( g_now - 3600 )) '$1 > t && $2 == "limit"' "$g_log" 2>/dev/null | grep -q . \
             || g_note limit "na 3 ingrepen dit uur gestopt" "geen rapport meer sinds $g_mins min; laatste fout: ${g_err:-onbekend}"
@@ -726,7 +737,9 @@ if [ "${1-}" = "--guard" ]; then
         awk -F'\t' -v t=$(( g_now - 3600 )) '$1 > t && $2 == "note"' "$g_log" 2>/dev/null | grep -q . \
             || g_note note "rondes lopen, maar het rapport komt niet aan" "al $g_mins min; laatste fout: ${g_err:-onbekend}"
     fi
-    exit 0
+    # Agent 1.119.0: verder naar het levensteken (na het inlezen van de sleutels, in 40-basis-meten); alleen met de eigen sleutel
+    ALIVE=1
+    g_run=$( [ "$g_state" = activating ] && [ "$g_start" -gt 0 ] && echo $(( g_now - g_start )) || echo 0)
 fi
 # ---------------------------------------------------------------- Logins lezen (agent 1.74.0)
 # Regels "epoch <tab> programma <tab> bericht" (stdin, uit journal of auth-log) → auth_json voor RzSense:
@@ -1595,6 +1608,23 @@ sv() { curl -fsS -m 10 -H "Authorization: Bearer $SUPERVISOR_TOKEN" "$SUPERVISOR
 # De lijst wordt elke 10 minuten bij RzSense opgehaald, en meteen als RzSense meldt dat er iets veranderd is
 # (tests_rev in het antwoord). Commando's van RzSense worden alleen uitgevoerd bij commando-checks, als RzSense
 # ze voor deze server toestaat en COMMANDS (hierboven) dat niet blokkeert; zie "Commando-checks" verderop.
+# Agent 1.119.0: levensteken van de bewaker (zie 16-bewaker.sh): alleen versleuteld met de eigen sleutel, dan meteen klaar
+if [ "${ALIVE-}" = 1 ]; then
+    [ -n "$kid" ] || exit 0
+    a_file=$(mktemp "${TMPDIR:-/tmp}/rzmon-alive.XXXXXX") || exit 0
+    printf '{"alive":1,"agent_version":"%s","hostname":"%s","last_ok":%s,"last_run":%s,"run":%s,"err":"%s","act":"%s","load":"%s"}' \
+        "$AGENT_VERSION" "$(json_escape "$(hostname)")" "${g_ok:-0}" "${g_last:-0}" "${g_run:-0}" "$(json_escape "${g_err-}" | head -c 200)" \
+        "$(json_escape "${g_act-}" | head -c 120)" "$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null | tr -dc '0-9. ')" >"$a_file"
+    if seal "$a_file" "$a_file.enc"; then
+        curl -fsS -m 15 -X POST "${tls[@]}" -H "Content-Type: application/json" -H "X-Agent-Beat: 1" "${auth[@]}" --data-binary "@$a_file.enc" \
+            "${MONITOR_URL%/}/api.php?action=agent" >/dev/null 2>&1 \
+            || { [ -n "$MONITOR_URL_FALLBACK" ] && seal "$a_file" "$a_file.enc" && spec_tls "$MONITOR_URL_FALLBACK" "$(url_spec "$MONITOR_URL_FALLBACK")" \
+                && curl -fsS -m 15 -X POST "${s_tls[@]}" -H "Content-Type: application/json" -H "X-Agent-Beat: 1" -H "X-Agent-Fallback: 1" "${auth[@]}" \
+                    --data-binary "@$a_file.enc" "$MONITOR_URL_FALLBACK/api.php?action=agent" >/dev/null 2>&1; }
+    fi
+    rm -f "$a_file" "$a_file.enc"
+    exit 0
+fi
 if [ "$TEST" = 1 ] || [ ! -r "$t_cache" ] || [ -e "$t_dir/tests.stale" ] || [ $(( $(date +%s) - $(stat -c %Y "$t_cache") )) -ge 600 ]; then
     get_auth agent_tests
     t_k=("${tls[@]}" "${ga[@]}"); t_n=$get_n
@@ -4934,12 +4964,24 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
             if [ "$(ndx inspect -f '{{.State.Running}}' "$nd_ctr" 2>/dev/null)" = true ]; then
                 # 4. Regels bijwerken (nieuw profiel of ouder dan een dag), op de achtergrond; daarna herstarten om ze te laden
                 nd_rf="$nd_dir/lib/rules/suricata.rules"
+                # Agent 1.118.1: "ouder dan een dag" telt vanaf het laatste bijwerken (update.at), niet vanaf de datum van het
+                # regelbestand: suricata-update herschrijft dat niet als er niets veranderd is. Daardoor werd elke ronde opnieuw
+                # bijgewerkt en Suricata herstart (lange rondes, "agent stil"). Herstarten alleen als de regels echt veranderden.
                 if [ -f "$nd_dir/update.rc" ]; then
                     if [ "$(cat "$nd_dir/update.rc")" = 0 ]; then
-                        ndx restart "$nd_ctr" >/dev/null 2>&1 && act_log proxy 1 "Suricata (proxynetwerk): regels bijgewerkt" "profiel $nd_prof"
-                    else nd_msg="regels bijwerken mislukt: $(tail -n 1 "$nd_dir/update.out" 2>/dev/null | cut -c1-150)"; fi
+                        touch "$nd_dir/update.at"
+                        nd_new=$(sha1sum <"$nd_rf" 2>/dev/null | cut -c1-40)
+                        if [ -n "$nd_new" ] && [ "$nd_new" != "$(cat "$nd_dir/rules.sum" 2>/dev/null)" ]; then
+                            echo "$nd_new" >"$nd_dir/rules.sum"
+                            ndx restart "$nd_ctr" >/dev/null 2>&1 && act_log proxy 1 "Suricata (proxynetwerk): regels bijgewerkt" "profiel $nd_prof"
+                        fi
+                    else
+                        nd_msg="regels bijwerken mislukt: $(tail -n 1 "$nd_dir/update.out" 2>/dev/null | cut -c1-150)"
+                        touch "$nd_dir/update.at"   # niet elke ronde opnieuw proberen: over een dag weer (of bij een ander profiel)
+                    fi
                     rm -f "$nd_dir/update.rc"
-                elif [ ! -f "$nd_dir/update.run" ] && { [ ! -s "$nd_rf" ] || [ "$(cat "$nd_dir/rules.hash" 2>/dev/null)" != "$nd_rhash" ] || [ -n "$(find "$nd_rf" -mmin +1440 2>/dev/null)" ]; }; then
+                elif [ ! -f "$nd_dir/update.run" ] && { [ ! -s "$nd_rf" ] && [ -z "$(find "$nd_dir/update.at" -mmin -60 2>/dev/null)" ] \
+                    || [ "$(cat "$nd_dir/rules.hash" 2>/dev/null)" != "$nd_rhash" ] || [ -z "$(find "$nd_dir/update.at" -mmin -1440 2>/dev/null)" ]; }; then
                     echo "$nd_rhash" >"$nd_dir/rules.hash"; touch "$nd_dir/update.run"
                     nohup sh -c 'timeout 600 "$0" exec "$1" suricata-update --no-test --no-reload >"$2/update.out" 2>&1; echo $? >"$2/update.rc"; rm -f "$2/update.run"' \
                         "$nd_eng" "$nd_ctr" "$nd_dir" >/dev/null 2>&1 &
