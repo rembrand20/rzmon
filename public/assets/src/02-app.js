@@ -592,7 +592,7 @@ function showTab(name) {
   // 1.197.0: diepe links (o.a. vanuit de Home Assistant-kaart): #net/map, #net/list, #net/disc en #dashboard/paths, /avail, /cont
   let netReq = null, monReq = null;
   if (/^net\/(map|list|disc)$/.test(name)) { netReq = name.slice(4); name = 'net'; }
-  if (/^dashboard\/(paths|avail|cont|checks)$/.test(name)) { monReq = name.slice(10); name = 'dashboard'; }
+  if (/^dashboard\/(paths|avail|cont|shelly|checks)$/.test(name)) { monReq = name.slice(10); name = 'dashboard'; }
   if (/^(ids|vulns)\//.test(name)) {
     const [tab, s] = name.split('/');
     name = tab;

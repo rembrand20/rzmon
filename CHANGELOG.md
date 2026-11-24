@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.321.0**: **Shelly's bewaken**: stroom, oververhitting en afwijkingen van het normale verbruik, rechtstreeks uitgelezen.
 - **1.320.0**: **🚨 Beveiligingskanaal**: wat nú je aandacht nodig heeft gaat door Niet storen heen (ook als kritieke melding in de Home Assistant-app) en blijft komen tot iemand bevestigt.
 - **1.319.0**: **"Agent stil" zegt waarom**: de bewaker meldt elke minuut of de server leeft en wat er met de agent is; Suricata wordt niet meer elke ronde herstart.
 - **1.318.0**: **Windows-agent met reserve-RzSense** en overstappen naar een ander adres, net als Linux; daarmee is de Windows-agent compleet.
 - **1.317.0**: **Uitrollen naar veel Windows-servers** met één uitrolcode en een MSI, voor groepsbeleid of een beheerprogramma.
-- **1.311.0**: **Aanvallen live**: boven Dashboard, IDS en Netwerk zie je aanvallen van buiten en binnen onderweg, met elke stip een echte gebeurtenis.
+
+## 1.321.0 – 2026-11-24
+### Nieuw
+- **Shelly's bewaken: stroom en oververhitting.** Een nieuw checktype **Shelly** en het overzicht *Monitoring → Shelly's*. RzSense leest elke Shelly rechtstreeks uit (Gen 1 tot en met Gen 4, Plus, Pro, Mini, EM en 3EM; zonder cloud, Home Assistant of MQTT) en schakelt nooit iets. Zie [Servers en checks](docs/04-servers-en-checks.md#shellys).
+  - **Oververhitting:** de temperatuur van de Shelly zelf is de waarde van de check (standaard warning 70 °C, critical 80 °C); meldt de Shelly zelf oververhitting, dan altijd critical.
+  - **Afwijkingen van het normale verbruik:** RzSense leert per Shelly wat normaal is voor elk uur van de week en meldt onverwacht 0 W (vriezer of pomp die stil valt), aan terwijl het normaal uit is, of veel meer dan normaal.
+  - Verder: een vermogensgrens, het relais dat aan moet staan, en de fouten die de Shelly zelf meldt.
+  - **Overzicht:** verbruik nu en vandaag, afwijkingen, de warmste Shelly, en per Shelly de grafieken van vandaag (verbruik met de normale band, temperatuur met de grenzen).
+  - **Zoeken op het netwerk:** RzSense vindt de Shelly's die de netwerkscan kent en voegt ze in één keer toe.
 
 ## 1.320.1 – 2026-11-24
 ### Nieuw

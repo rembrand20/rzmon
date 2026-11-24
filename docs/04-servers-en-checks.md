@@ -89,6 +89,7 @@ meet het op de server zelf. Bij *Drempels* staan de standaardwaarden voor warnin
 | **VPN: WireGuard** | Tijd sinds de laatste handshake per peer; kies een peer, een interface (`wg0`) of alle | Agent (als root) | 300 / 900 seconden. Nog nooit een handshake = CRITICAL |
 | **SNMP** | Switches, access points, NAS, UPS, printers en Proxmox. Zie [SNMP](#snmp) | RzSense | Per meting |
 | **Internet** | Je internetlijn: ping, responstijd, download en upload. Zie [Internet](#internet) | RzSense | Ping 50 / 150 ms, responstijd 500 / 2000 ms, snelheid in % van je abonnement |
+| **Shelly** | Stroom en temperatuur van een Shelly, rechtstreeks uitgelezen; afwijkingen van het normale verbruik. Zie [Shelly's](#shellys) | RzSense | Temperatuur van de Shelly 70 / 80 °C; oververhitting = CRITICAL |
 | **Verkeer (UniFi)** | Hoeveel verkeer een apparaat doet, volgens UniFi: de snelheid nu of de hoeveelheid vandaag. Zie [Netwerk](10-netwerk.md) | RzSense (via UniFi) | Snelheid 50 / 200 Mbit/s, per dag 20 / 50 GB |
 | **Containers (algemeen)** | Podman en/of Docker: gestopte, ongezonde of gepauzeerde containers en pods | Agent | Probleem = WARNING |
 | **Container (Podman/Docker)** | Eén container: status, plus naar keuze CPU, RAM en disk | Agent | CPU 80 / 95 %, RAM 85 / 95 %, disk 5000 / 10000 MB |
@@ -755,6 +756,68 @@ Op dezelfde pagina stel je in:
 
 Je ziet er ook de laatste test, wanneer de volgende is, een lijn van 30 dagen met je abonnement als stippellijn, en je
 router. Met **⚡ Nu testen** doe je meteen een test. Lukt de test 2 dagen niet, dan krijg je een melding.
+
+## Shelly's
+
+RzSense leest je Shelly's rechtstreeks uit, via hun eigen lokale API: geen cloud, geen Home Assistant of MQTT ertussen.
+Je ziet wat ze verbruiken, of ze te warm worden, en wanneer het verbruik afwijkt van wat normaal is. RzSense leest
+alleen; het schakelt nooit iets. Het werkt met Gen 1 tot en met Gen 4: Plus, Pro, Mini, Plug, EM en 3EM door elkaar.
+
+### Toevoegen
+
+1. Open *Monitoring → Shelly's* en klik op **Zoeken op het netwerk**. RzSense vraagt elk apparaat dat de netwerkscan
+   kent of het een Shelly is. Staat een Shelly er niet bij, vul dan zijn IP-adres in.
+2. Vink aan welke je wilt bewaken, geef ze eventueel een naam, en vul bij een Shelly met een wachtwoord dat wachtwoord in.
+3. Klik op **toevoegen**. Elke Shelly wordt een server (*Remote*, soort *Smart home*) met een check van het type
+   **Shelly**.
+
+Met de hand kan het ook: maak een server met het IP-adres van de Shelly en voeg een check van het type **Shelly** toe.
+Het doel mag leeg blijven (dan het adres van de server), of `IP-adres:poort`.
+
+### Wat de check meldt
+
+| | Melding |
+|---|---|
+| **Temperatuur van de Shelly** | De waarde van de check. Warning en critical stel je in (standaard 70 en 80 °C). Meldt de Shelly zelf oververhitting, dan is het altijd CRITICAL. |
+| **Fouten van de Shelly** | Te veel vermogen, te hoge of te lage spanning: WARNING. |
+| **Vermogen boven** | Optioneel: een grens in watt, bijvoorbeeld 2000 W voor een stopcontact. Erboven: WARNING. |
+| **Relais moet aan staan** | Optioneel: CRITICAL als het relais uit staat, bijvoorbeeld bij de stroom naar je serverkast. |
+| **Afwijkingen** | Zie hieronder: WARNING. |
+| **Onbereikbaar** | Geeft de Shelly geen antwoord: CRITICAL. |
+
+In het bericht staan ook het vermogen, of het relais aan staat, het type en de generatie, en of er een firmware-update
+klaarstaat.
+
+### Afwijkingen van het normale verbruik
+
+RzSense leert per Shelly wat normaal is voor elk uur van de week, uit de metingen van de afgelopen twee weken. Na een
+week meten meldt hij als het verbruik daar een tijd buiten valt (standaard 15 minuten, in te stellen bij de check):
+
+- **Onverwacht 0 W**: een apparaat dat dit uur normaal geregeld aan gaat, zoals een vriezer of pomp, verbruikt al
+  minstens een uur niets.
+- **Aan terwijl het normaal uit is**: bijvoorbeeld de wasmachine om 03:40 op een nacht waarop hij altijd uit staat.
+- **Veel meer dan normaal**: de hele tijd ruim boven wat dit uur normaal is.
+
+De eerste twee zet je per check aan of uit; afwijkingen helemaal uitzetten kan ook (*niet melden*).
+
+### Het overzicht
+
+*Monitoring → Shelly's* toont:
+
+- het totale verbruik nu, de kWh van vandaag, het aantal afwijkingen en de warmste Shelly;
+- **Wat aandacht vraagt**: Shelly's die te warm zijn, een fout melden of afwijken;
+- per Shelly: het verbruik nu, wat normaal is voor dit uur, de kWh van vandaag, de temperatuur, en verder het relais,
+  de fasen (3EM), het wifi-signaal en een klaarstaande firmware-update.
+
+Klik op een Shelly voor de grafieken van vandaag: het verbruik met de normale band, en de temperatuur met de grenzen.
+
+### Goed om te weten
+
+- RzSense moet de Shelly kunnen bereiken op poort 80. Een Shelly in een eigen VLAN kan, als RzSense erbij mag.
+- Met een wachtwoord op de Shelly: vul het in bij de check. Bij Gen 2 en nieuwer is de gebruiker altijd `admin`; bij
+  Gen 1 vul je ook de gebruikersnaam in. Het wachtwoord blijft op de server van RzSense en gaat nooit naar de browser.
+- Shelly's op batterij (zoals de H&T) slapen en zijn niet uit te lezen.
+- De metingen worden 15 dagen bewaard; de temperatuur staat ook in de gewone grafiek van de check.
 
 ## Wijzigingen terugzetten
 

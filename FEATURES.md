@@ -143,6 +143,7 @@ en een knop naar de plek waar je hem instelt.
 | 🌐 Netwerk | **Internetlijn per maand** | Verkeer van je internetlijn per dag (UniFi-gateway), met een datalimiet en een verwachting voor de maand. | 1.187.0 |
 | 🌐 Netwerk | **Diensten per apparaat (DPI)** | Welke soort verkeer een apparaat doet (streaming, updates, sociale media …), uit UniFi. | 1.187.0 |
 | 🧩 Checks en monitoring | **Check Verkeer** | Warning of critical als een apparaat te veel verkeer doet (nu of vandaag). | 1.187.0 |
+| 🧩 Checks en monitoring | **Shelly's** | Stroom en oververhitting van je Shelly's, rechtstreeks uitgelezen, met afwijkingen van het normale verbruik. | 1.321.0 |
 | 🌐 Netwerk | **Ontdekken** | Nieuwe apparaten, veranderingen (IP, poorten, domeinen, weg of terug), voorstellen met één klik en aanwezigheid per uur. | 1.183.0 |
 | 🌐 Netwerk | **Apparaten groeperen** | Per soort, fabrikant of verbinding (wifi-netwerk of bedraad). | 1.183.0 |
 | 🌐 Netwerk | **UniFi** | Namen, wifi, access point, verkeer en weren uit je UniFi-controller. | 1.104.0 |

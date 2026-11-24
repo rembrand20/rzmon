@@ -41,7 +41,7 @@ switch ($action) {
             if (!$isAdmin) {
                 unset($c['hb_token']);   // geheime heartbeat-URL alleen voor beheerders
             }
-            if (in_array($c['type'], ['mysql', 'mqtt', 'vpn'], true)) {
+            if (in_array($c['type'], ['mysql', 'mqtt', 'vpn', 'shelly'], true)) {
                 $c['options'] = ExtraChecks::maskOptions($c['options']);   // 1.138.0: wachtwoord nooit naar de browser (1.170.0: ook MQTT en Gluetun)
             }
             $byHost[$c['host_id']][] = $c;
@@ -143,7 +143,7 @@ switch ($action) {
             $end = $ch['created_at'];
         }
         unset($ch);
-        if (in_array($c['type'], ['mysql', 'mqtt', 'vpn'], true)) {
+        if (in_array($c['type'], ['mysql', 'mqtt', 'vpn', 'shelly'], true)) {
             $c['options'] = ExtraChecks::maskOptions($c['options']);
         }
         if (!$isAdmin) {
@@ -329,6 +329,25 @@ switch ($action) {
         }
         I18n::remember($lang);
         out(['ok' => true, 'lang' => $lang]);
+
+    // 1.321.0: Shelly's (Monitoring → Shelly's)
+    case 'shelly_overview':
+        out(Shelly::overview());
+
+    case 'shelly_day':
+        $sid = (int) ($_GET['id'] ?? 0);
+        if (!q("SELECT 1 FROM checks WHERE id = ? AND type = 'shelly'", [$sid])->fetchColumn()) {
+            out(['error' => t('Check niet gevonden')], 404);
+        }
+        out(Shelly::day($sid));
+
+    case 'shelly_discover':
+        out(['found' => Shelly::discover((string) (input()['extra'] ?? ''))]);
+
+    case 'shelly_add':
+        $r = Shelly::add(array_values(array_filter((array) (input()['list'] ?? []), 'is_array')));
+        AgentCommands::audit((string) $user['username'], "Shelly's toegevoegd", (string) $r['added']);
+        out(['ok' => true] + $r);
 
     case 'host_save':
         $in = input();

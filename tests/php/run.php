@@ -4573,5 +4573,80 @@ foreach ($scPrev as $k => $v) {
 }
 save_setting('sec_ch_ha_token', '');
 
+// 1.321.0: Shelly's: uitlezen (Gen 1, Gen 2, Pro 3EM), oordeel, normaal verbruik leren en afwijkingen
+$sh2 = Shelly::parse(['switch:0' => ['output' => true, 'apower' => 412.3, 'voltage' => 230.1, 'aenergy' => ['total' => 1500.0], 'temperature' => ['tC' => 78.2], 'errors' => ['overtemp']],
+    'switch:1' => ['output' => false, 'apower' => 0, 'aenergy' => ['total' => 500.0], 'temperature' => ['tC' => 70.0]], 'temperature:100' => ['tC' => 21.0],
+    'wifi' => ['rssi' => -58], 'sys' => ['uptime' => 99, 'available_updates' => ['stable' => ['version' => '1.5.0']]]], 2);
+ok($sh2['w'] == 412.3 && $sh2['wh'] == 2000.0 && $sh2['tc'] == 78.2 && $sh2['overtemp'] && $sh2['relays'] === [true, false] && $sh2['rssi'] === -58 && $sh2['update'] === '1.5.0',
+    'Shelly Gen 2: vermogen en energie opgeteld, warmste interne temperatuur (niet de sensor van de Add-on), oververhitting, relais, update');
+$sh3 = Shelly::parse(['em:0' => ['total_act_power' => 1284.0, 'a_act_power' => 612.0, 'b_act_power' => 288.0, 'c_act_power' => 384.0, 'a_voltage' => 231.0],
+    'emdata:0' => ['total_act' => 98765.0], 'temperature:0' => ['tC' => 44.0]], 2);
+ok($sh3['w'] == 1284.0 && $sh3['phases'] === [612.0, 288.0, 384.0] && $sh3['wh'] == 98765.0 && $sh3['tc'] == 44.0, 'Shelly Pro 3EM: totaal, per fase, energie en temperatuur');
+$sh1 = Shelly::parse(['relays' => [['ison' => true]], 'meters' => [['power' => 18.5, 'total' => 600]], 'temperature' => 52.0, 'overtemperature' => true, 'wifi_sta' => ['rssi' => -61],
+    'update' => ['has_update' => true, 'new_version' => '1.14.1']], 1);
+ok($sh1['w'] == 18.5 && $sh1['wh'] == 10.0 && $sh1['tc'] == 52.0 && $sh1['overtemp'] && $sh1['relays'] === [true] && $sh1['update'] === '1.14.1', 'Shelly Gen 1: vermogen, wattminuten naar Wh, temperatuur, oververhitting');
+ok(Shelly::info(['gen' => 3, 'model' => 'S3PM-001', 'ver' => '1.4']) ['gen'] === 3 && Shelly::info(['type' => 'SHPLG-S', 'mac' => 'x'])['gen'] === 1 && Shelly::info(['foo' => 1]) === null,
+    'Shelly herkennen: Gen 1, Gen 2+ of geen Shelly');
+$shInfo = ['gen' => 2, 'model' => 'SNSW-001P16EU', 'name' => '', 'fw' => '', 'auth' => false];
+$shO = Shelly::opts(['options' => json_encode(['pmax' => 300, 'relay' => 1])]);
+$shJ = Shelly::judge(['warn_threshold' => 70, 'crit_threshold' => 80], $shO, $shInfo, ['w' => 412.0, 'wh' => null, 'tc' => 72.0, 'overtemp' => false, 'errors' => [], 'relays' => [false], 'v' => null, 'rssi' => null, 'uptime' => null, 'update' => '', 'phases' => []], null);
+ok($shJ['status'] === STATUS_CRIT && $shJ['value'] == 72.0 && str_contains($shJ['message'], 'relais staat uit') && str_contains($shJ['message'], 'meer dan 300 W'), 'Shelly-oordeel: relais moet aan (critical), boven de vermogensgrens, temperatuur is de waarde');
+$shJ2 = Shelly::judge(['warn_threshold' => 70, 'crit_threshold' => 80], Shelly::opts([]), $shInfo, ['w' => 10.0, 'wh' => null, 'tc' => 40.0, 'overtemp' => true, 'errors' => ['overtemp'], 'relays' => [true], 'v' => null, 'rssi' => null, 'uptime' => null, 'update' => '', 'phases' => []], null);
+ok($shJ2['status'] === STATUS_CRIT && str_contains($shJ2['message'], 'oververhitting'), 'Shelly-oordeel: oververhitting van de Shelly zelf is altijd critical');
+
+// Leren en afwijkingen: twee weken een vriezer die elk uur 20 minuten 100 W trekt, en een wasmachine die 's nachts uit is
+q("INSERT INTO hosts (name, address, mode) VALUES ('shelly-unit', '192.0.2.70', 'remote')");
+$shH = (int) db()->lastInsertId();
+q("INSERT INTO checks (host_id, type, name, target, warn_threshold, crit_threshold, interval_sec, enabled) VALUES (?, 'shelly', 'Vriezer', '', 70, 80, 60, 1)", [$shH]);
+$shF = (int) db()->lastInsertId();
+q("INSERT INTO checks (host_id, type, name, target, warn_threshold, crit_threshold, interval_sec, enabled) VALUES (?, 'shelly', 'Was', '', 70, 80, 60, 1)", [$shH]);
+$shW = (int) db()->lastInsertId();
+$shNow = strtotime(date('Y-m-d 03:40:00'));
+$shIns = db()->prepare('INSERT INTO shelly_samples (check_id, at, w, wh, tc) VALUES (?, ?, ?, NULL, 30)');
+for ($d = 14; $d >= 1; $d--) {
+    for ($m = 0; $m < 24 * 60; $m += 2) {
+        $t = strtotime(date('Y-m-d 00:00:00', $shNow - $d * 86400)) + $m * 60;
+        $shIns->execute([$shF, date('Y-m-d H:i:s', $t), ($m % 60) < 20 ? 100 : 0]);
+        $shIns->execute([$shW, date('Y-m-d H:i:s', $t), (int) date('G', $t) < 7 ? 0 : 500]);
+    }
+}
+$shB = Shelly::band($shF, $shNow);
+ok(is_array($shB) && $shB['hi'] == 100.0 && $shB['on'] > 0.3 && $shB['on'] < 0.4, 'normaal verbruik per uur van de week geleerd (band en hoe vaak hij aan staat)');
+for ($m = 70; $m >= 0; $m -= 1) {
+    $shIns->execute([$shF, date('Y-m-d H:i:s', $shNow - $m * 60), 0]);
+    $shIns->execute([$shW, date('Y-m-d H:i:s', $shNow - $m * 60), $m <= 20 ? 2100 : 0]);
+}
+$shA = Shelly::anomaly($shF, Shelly::opts([]), $shNow);
+$shA2 = Shelly::anomaly($shW, Shelly::opts([]), $shNow);
+ok(($shA['k'] ?? '') === 'zero' && ($shA2['k'] ?? '') === 'on', 'afwijking: de vriezer al een uur 0 W, de wasmachine aan terwijl hij dit uur normaal uit is');
+ok(Shelly::anomaly($shW, Shelly::opts(['options' => json_encode(['anom' => 'off'])]), $shNow) === null && Shelly::band($shF, $shNow - 10 * 86400) === null,
+    'afwijkingen uit, of nog geen week gemeten: niets melden');
+
+// Een echte rondgang tegen een nagebootste Shelly (Gen 2 en Gen 1)
+$shPort = 18000 + random_int(0, 999);
+foreach ([2, 1] as $shGen) {
+    $shProc = proc_open([PHP_BINARY, '-S', "127.0.0.1:$shPort", SM_ROOT . '/tests/fixtures/shelly-fake.php'], [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $shPipes, null, ['SHELLY_GEN' => (string) $shGen] + getenv());
+    usleep(400000);
+    q("INSERT INTO checks (host_id, type, name, target, warn_threshold, crit_threshold, interval_sec, enabled) VALUES (?, 'shelly', 'Echt', ?, 70, 80, 60, 1)", [$shH, "127.0.0.1:$shPort"]);
+    $shC = q('SELECT * FROM checks WHERE id = ?', [(int) db()->lastInsertId()])->fetch();
+    $shR = Shelly::check($shC, q('SELECT * FROM hosts WHERE id = ?', [$shH])->fetch());
+    $shSt = q('SELECT gen, model FROM shelly_state WHERE check_id = ?', [$shC['id']])->fetch();
+    if ($shGen === 2) {
+        ok($shR['status'] === STATUS_CRIT && $shR['value'] == 78.2 && str_contains($shR['message'], '412 W') && ($shSt['gen'] ?? 0) == 2, 'Shelly Gen 2 uitgelezen via de lokale API: 412 W, 78,2 °C, oververhitting = critical');
+    } else {
+        ok($shR['status'] === STATUS_OK && $shR['value'] == 52.0 && str_contains($shR['message'], 'relais uit') && ($shSt['gen'] ?? 0) == 1, 'Shelly Gen 1 uitgelezen: 18,5 W, 52 °C, relais uit');
+    }
+    proc_terminate($shProc);
+    proc_close($shProc);
+}
+$shOv = Shelly::overview();
+ok(count(array_filter($shOv['devices'], static fn($x) => $x['name'] === 'shelly-unit')) >= 2 && isset($shOv['w'], $shOv['anomalies']) && ($shOv['warmest']['tc'] ?? 0) >= 52,
+    "overzicht van de Shelly's: apparaten, totaal en de warmste");
+$shFound = Shelly::discover('127.0.0.1');
+ok($shFound === [], 'zoeken: geen Shelly meer op een adres zonder Shelly');
+ok(Shelly::add([['ip' => '192.0.2.71', 'name' => 'Plug', 'pass' => 'x']])['added'] === 1 && Shelly::add([['ip' => '192.0.2.71']])['skipped'] === ['192.0.2.71'],
+    'Shelly toevoegen (server + check), niet dubbel');
+q("DELETE FROM hosts WHERE name IN ('shelly-unit', 'Plug')");
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

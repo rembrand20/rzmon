@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /** 1.224.1: acties die met GET mogen (alleen lezen of downloaden). Al het andere moet een POST met CSRF-token zijn. */
 const API_GET = [
-    'sec_ch_get', 'sec_active', 'agent_enroll_list', 'access_info', 'actlog', 'actlog_csv', 'advice_list', 'eol', 'ransom_info', 'ransom_overview', 'apps', 'apps_info', 'ioc_get', 'ioc_hunts', 'patch', 'sudo_list', 'dnsbl_status', 'nis2', 'nis2_report', 'pick_sources', 'agent_cert', 'agent_cert_renew_status', 'agent_certs', 'agent_commands', 'agent_procs', 'agent_selftest_get',
+    'shelly_overview', 'shelly_day', 'sec_ch_get', 'sec_active', 'agent_enroll_list', 'access_info', 'actlog', 'actlog_csv', 'advice_list', 'eol', 'ransom_info', 'ransom_overview', 'apps', 'apps_info', 'ioc_get', 'ioc_hunts', 'patch', 'sudo_list', 'dnsbl_status', 'nis2', 'nis2_report', 'pick_sources', 'agent_cert', 'agent_cert_renew_status', 'agent_certs', 'agent_commands', 'agent_procs', 'agent_selftest_get',
     'agent_services', 'agent_status', 'relay_overview', 'relay_bundle', 'reserve_overview', 'exposure_overview', 'agent_url_options', 'ai_get', 'ai_info', 'alerts', 'analytics', 'api_keys', 'availability', 'backup_download',
     'backup_info', 'backup_dir_test', 'blocks_overview', 'changelog', 'check_info', 'checks_all', 'cleanup', 'connections', 'contacts', 'containers', 'db_info',
     'db_rotate_status', 'discover', 'edr_feed', 'edr_host', 'edr_rules', 'exc_export', 'exc_list', 'exc_proposals', 'export', 'features',
@@ -82,7 +82,7 @@ $need = match ($action) {
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename', 'proxy_tag_fix',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save',
     'webpush_key', 'webpush_subscribe', 'webpush_unsubscribe', 'webpush_devices', 'webpush_test', 'webpush_delete', 'webpush_what', 'sec_active' => 'readonly',   // 1.285.0: je eigen apparaten (1.301.0: wat elk apparaat krijgt)
-    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'alert_seen', 'log_sources', 'log_source_lines', 'log_search', 'log_context', 'log_export', 'log_facets', 'log_overview', 'log_watches', 'log_watch_save', 'log_library', 'log_library_add', 'log_watch_toggle', 'log_watch_delete', 'log_watch_test', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'job_status', 'job_stop', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_search', 'vuln_where', 'vuln_software', 'vuln_csv', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'actlog', 'actlog_csv', 'eol', 'ransom_info', 'ransom_overview', 'apps', 'apps_info', 'ioc_get', 'ioc_hunts', 'patch', 'sudo_list', 'nis2', 'nis2_report', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi', 'quiet_now', 'sec_ack' => 'user',
+    'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'alert_seen', 'log_sources', 'log_source_lines', 'log_search', 'log_context', 'log_export', 'log_facets', 'log_overview', 'log_watches', 'log_watch_save', 'log_library', 'log_library_add', 'log_watch_toggle', 'log_watch_delete', 'log_watch_test', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'job_status', 'job_stop', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_search', 'vuln_where', 'vuln_software', 'vuln_csv', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'actlog', 'actlog_csv', 'eol', 'ransom_info', 'ransom_overview', 'apps', 'apps_info', 'ioc_get', 'ioc_hunts', 'patch', 'sudo_list', 'nis2', 'nis2_report', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi', 'quiet_now', 'sec_ack', 'shelly_overview', 'shelly_day' => 'user',
     default => 'admin',
 };
 if (!has_role($user, $need)) {
@@ -184,7 +184,7 @@ $confirm = static function (string $word) use ($user): void {
 $checkCols = static function (array $in, bool $dry = false) use ($user): array {   // $dry: alleen proberen (geen logboek)
             $type = $in['type'] ?? '';
             if (!in_array($type, ['ping', 'tcp', 'http', 'ssl', 'disk', 'service', 'cpu', 'ram', 'podman', 'container', 'log', 'ha', 'command', 'snmp', 'reboot', 'heartbeat', 'process', 'pve',
-                'dns', 'ntp', 'smart', 'ups', 'mysql', 'internet', 'domain', 'mqtt', 'vpn', 'truenas', 'path', 'traffic'], true)) {
+                'dns', 'ntp', 'smart', 'ups', 'mysql', 'internet', 'domain', 'mqtt', 'vpn', 'truenas', 'path', 'traffic', 'shelly'], true)) {
                 out(['error' => t('Ongeldig type')], 422);
             }
             // Commando-check: commando, verwacht antwoord, manier van vergelijken, time-out en status bij afwijking
@@ -245,7 +245,7 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                     out(['error' => t('Ongeldig adres')], 422);
                 }
             }
-            if ($type === 'mqtt' && $target !== '' && !preg_match('/^(\[[0-9a-fA-F:]+\]|[A-Za-z0-9._-]+)(:\d{1,5})?$/', $target)) {
+            if (in_array($type, ['mqtt', 'shelly'], true) && $target !== '' && !preg_match('/^(\[[0-9a-fA-F:]+\]|[A-Za-z0-9._-]+)(:\d{1,5})?$/', $target)) {
                 out(['error' => t('Ongeldig adres')], 422);
             }
             // Internet (1.157.0): ping, responstijd, download of upload; altijd vanaf de server van RzSense
@@ -565,6 +565,20 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                 $options = json_encode(array_filter(['rtype' => isset(ExtraChecks::DNS_TYPES[$in['dns_type'] ?? '']) ? $in['dns_type'] : 'A', 'server' => $srv,
                     'expect' => mb_substr(trim((string) ($in['dns_expect'] ?? '')), 0, 200)], static fn($v) => $v !== ''), JSON_UNESCAPED_SLASHES);
             }
+            // 1.321.0: Shelly: wachtwoord (blijft bij ••••), vermogensgrens, afwijkingen, relais
+            if ($type === 'shelly') {
+                $old = (int) ($in['id'] ?? 0) ? json_decode((string) q('SELECT options FROM checks WHERE id = ?', [(int) $in['id']])->fetchColumn(), true) ?: [] : [];
+                $pass = (string) ($in['sh_pass'] ?? '');
+                $pass = $pass === ExtraChecks::MASK ? (string) ($old['pass'] ?? '') : mb_substr($pass, 0, 200);
+                $pmax = trim((string) ($in['sh_pmax'] ?? ''));
+                if ($pmax !== '' && (!is_numeric($pmax) || (float) $pmax <= 0 || (float) $pmax > 100000)) {
+                    out(['error' => t('Vermogensgrens: een getal in watt, bv. 2000')], 422);
+                }
+                $anom = in_array($in['sh_anom'] ?? '', ['5', '15', '30', '60', 'off'], true) ? (string) $in['sh_anom'] : '15';
+                $options = json_encode(['user' => mb_substr(trim((string) ($in['sh_user'] ?? '')), 0, 60), 'pass' => $pass, 'pmax' => $pmax === '' ? '' : (float) $pmax,
+                    'anom' => $anom, 'zero' => !empty($in['sh_zero']) ? 1 : 0, 'on' => !empty($in['sh_on']) ? 1 : 0, 'relay' => !empty($in['sh_relay']) ? 1 : 0],
+                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            }
             // 1.170.0: MQTT (gebruiker, wachtwoord, TLS, rondgang, topic) en VPN (API-sleutel van Gluetun, land); geheimen blijven bij ••••
             if (in_array($type, ['mqtt', 'vpn'], true)) {
                 $old = (int) ($in['id'] ?? 0) ? json_decode((string) q('SELECT options FROM checks WHERE id = ?', [(int) $in['id']])->fetchColumn(), true) ?: [] : [];
@@ -618,7 +632,7 @@ $checkCols = static function (array $in, bool $dry = false) use ($user): array {
                 $in['name'] = ['overview' => 'Proxmox', 'guest' => $g ? ($g['kind'] === 'ct' ? '📦 ' : '🖥️ ') . ($g['name'] ?: "VM $target") : "VM $target",
                     'backups' => $target !== '' ? t('Back-up {id}', ['id' => $target]) : t('Proxmox-back-ups'), 'storage' => t('Proxmox-opslag') . ($target !== '' ? " $target" : ''), 'zfs' => 'ZFS'][$metric];
             }
-            $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'process' => t('Proces'), 'http' => 'HTTP', 'dns' => 'DNS', 'ntp' => t('Tijd'), 'smart' => t('Schijfgezondheid'), 'ups' => 'UPS', 'mysql' => (($in['db_engine'] ?? '') === 'pgsql' ? 'PostgreSQL' : 'MariaDB') . ($metric ? ' · ' . t(Db::LABELS[$metric] ?? $metric) : ''), 'domain' => $metric === 'mail' ? t('E-mailbeveiliging') : t('Domein'), 'mqtt' => 'MQTT', 'vpn' => $metric === 'wg' ? 'WireGuard' : 'Gluetun',
+            $name = trim((string) ($in['name'] ?? '')) ?: ['ping' => 'Ping', 'tcp' => 'Poort', 'process' => t('Proces'), 'http' => 'HTTP', 'dns' => 'DNS', 'ntp' => t('Tijd'), 'smart' => t('Schijfgezondheid'), 'ups' => 'UPS', 'mysql' => (($in['db_engine'] ?? '') === 'pgsql' ? 'PostgreSQL' : 'MariaDB') . ($metric ? ' · ' . t(Db::LABELS[$metric] ?? $metric) : ''), 'domain' => $metric === 'mail' ? t('E-mailbeveiliging') : t('Domein'), 'mqtt' => 'MQTT', 'shelly' => 'Shelly', 'vpn' => $metric === 'wg' ? 'WireGuard' : 'Gluetun',
                 'truenas' => ['alerts' => t('TrueNAS-meldingen'), 'tasks' => t('TrueNAS-taken'), 'apps' => t('TrueNAS-apps'), 'update' => t('TrueNAS-update'), 'temp' => t('Schijftemperatuur')][$metric] ?? 'TrueNAS', 'ssl' => 'Certificaat', 'disk' => 'Disk', 'service' => 'Service', 'podman' => 'Podman',
                 'container' => '📦', 'cpu' => 'CPU', 'ram' => 'RAM', 'log' => 'Log', 'command' => 'Commando', 'reboot' => t('Herstart'), 'heartbeat' => 'Heartbeat', 'snmp' => t(SnmpMonitor::METRICS[$metric]['label'] ?? 'SNMP'),
                 'ha' => ['backup' => 'HA back-up', 'integrations' => 'HA integraties', 'repairs' => 'HA systeemstatus', 'reboot' => 'HA OS herstart',

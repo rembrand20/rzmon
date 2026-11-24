@@ -1259,6 +1259,7 @@ final class Monitor
         Retention::deleteBatched('DELETE FROM status_changes WHERE created_at < NOW() - INTERVAL ? DAY', [self::alertDays()]);
         q('DELETE FROM access_log WHERE created_at < NOW() - INTERVAL ? DAY', [self::alertDays()]);
         SshEvents::purge();   // 1.152.0: 30 dagen
+        Shelly::cleanup();   // 1.321.0: metingen van Shelly's, 15 dagen
         try {
             LogStore::purge();   // 1.210.0: logs: bewaartermijn en maximum
         } catch (Throwable $e) {

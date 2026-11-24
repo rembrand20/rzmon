@@ -1517,7 +1517,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
   c = c || { type: 'ping', target: '', name: '', warn_threshold: pt.warn ?? null, crit_threshold: pt.crit ?? null, interval_sec: 60, enabled: 1, ...preset };
   const quietOwn = quietOf(c);
   const cmdCfg = (() => { try { return JSON.parse(c.command || '{}') || {}; } catch (e) { return {}; } })();
-  const allowed = (h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl', 'dns', 'ntp', 'mysql', 'domain', 'mqtt', 'vpn', 'snmp', 'heartbeat', 'internet', 'traffic']
+  const allowed = (h.mode === 'remote' ? ['ping', 'tcp', 'http', 'ssl', 'dns', 'ntp', 'mysql', 'domain', 'mqtt', 'vpn', 'snmp', 'heartbeat', 'internet', 'traffic', 'shelly']
     : Object.keys(TYPES).filter((k) => h.mode === 'agent' || !['podman', 'container', 'log', 'ha', 'command', 'pve', 'truenas', 'smart', 'ups', 'path'].includes(k))
       .filter((k) => k !== 'pve' || isPveHost(h) || c?.type === 'pve')
       .filter((k) => k !== 'truenas' || isTnHost(h) || c?.type === 'truenas')   // 1.174.0
@@ -1681,6 +1681,20 @@ function checkForm(c, h, preset = {}, tpl = null) {
           <label>${L('API-sleutel')} <span class="hint">${L('(optioneel)')}</span><input name="vpn_key" type="password" maxlength="200" autocomplete="new-password" value="${esc(c.type === 'vpn' ? opts.pass || '' : '')}"></label>
           <label>${L('Verwacht land')} <span class="hint">${L('(optioneel)')}</span><input name="vpn_country" maxlength="60" value="${esc(opts.country || '')}" placeholder="${L('bv. Netherlands')}"></label>
         </div>
+      </div>
+      <div id="shelly-x-wrap" hidden>
+        <div class="row2">
+          <label>${L('Wachtwoord van de Shelly')} <span class="hint">${L('(alleen als je er een instelde)')}</span><input name="sh_pass" type="password" maxlength="200" autocomplete="new-password" value="${esc(c.type === 'shelly' ? opts.pass || '' : '')}"></label>
+          <label>${L('Gebruiker')} <span class="hint">${L('(alleen Gen 1)')}</span><input name="sh_user" maxlength="60" autocomplete="off" value="${esc(c.type === 'shelly' ? opts.user || '' : '')}" placeholder="admin"></label>
+        </div>
+        <div class="row2">
+          <label>${L('Vermogen boven (W)')} <span class="hint">${L('(leeg = geen grens)')}</span><input name="sh_pmax" type="number" min="1" max="100000" step="any" value="${esc(c.type === 'shelly' && opts.pmax !== undefined ? opts.pmax : '')}"></label>
+          <label>${L('Afwijkingen van het normale verbruik')}<select name="sh_anom">${[['5', L('melden na 5 minuten')], ['15', L('melden na 15 minuten')], ['30', L('melden na 30 minuten')], ['60', L('melden na 1 uur')], ['off', L('niet melden')]]
+            .map(([v, t]) => `<option value="${v}" ${(c.type === 'shelly' ? opts.anom || '15' : '15') === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+        </div>
+        <label class="chk"><input type="checkbox" name="sh_zero" ${c.type !== 'shelly' || opts.zero === undefined || opts.zero ? 'checked' : ''}> ${L('Onverwacht 0 W melden (bv. een vriezer of pomp die stil valt)')}</label>
+        <label class="chk"><input type="checkbox" name="sh_on" ${c.type !== 'shelly' || opts.on === undefined || opts.on ? 'checked' : ''}> ${L('Melden als hij aan staat terwijl hij dit uur normaal uit is')}</label>
+        <label class="chk"><input type="checkbox" name="sh_relay" ${c.type === 'shelly' && opts.relay ? 'checked' : ''}> ${L('Het relais moet aan staan (critical als het uit staat)')}</label>
       </div>
       <div id="mqtt-x-wrap" hidden>
         <div class="row2">
@@ -2030,6 +2044,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     $('#vpn-help').textContent = isVpn ? VPN_METRICS[vpnSel.value].help : '';
     $('#glu-x-wrap').hidden = !(isVpn && vpnSel.value === 'gluetun');
     $('#mqtt-x-wrap').hidden = typeSel.value !== 'mqtt';
+    $('#shelly-x-wrap').hidden = typeSel.value !== 'shelly';   // 1.321.0
     $('#pve-per-wrap').hidden = !isPve || pveSel.value !== 'backups';
     $('[name=pve_per]', form).disabled = !isPve || pveSel.value !== 'backups';
     $('#pve-help').textContent = isPve ? PVE_METRICS[pveSel.value].help : '';
@@ -2115,7 +2130,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
     $('#test-expect-wrap').hidden = tt !== 'url';
     $('[name=test_target]', form).placeholder = tt === 'port' ? L('8080 of localhost:8080') : 'http://localhost:8080/health';
     $('[name=test_target]', form).required = deep && !!tt;
-    $('[name=target]', form).required = !!t.target && !['http', 'ssl', 'ntp', 'smart', 'ups', 'mysql', 'mqtt', 'vpn', 'traffic'].includes(typeSel.value);   // 1.247.5: traffic leeg = adres van de server
+    $('[name=target]', form).required = !!t.target && !['http', 'ssl', 'ntp', 'smart', 'ups', 'mysql', 'mqtt', 'vpn', 'traffic', 'shelly'].includes(typeSel.value);   // 1.247.5: traffic leeg = adres van de server
     $('[name=target]', form).disabled = !t.target;   // niet meesturen als er geen doel is (bv. HA-checks zonder doel)
     const haLogs = ['ha:host', 'ha:core', 'ha:supervisor', ...svcs.filter((x) => x.startsWith('addon:')).map((x) => `ha:${x}`)];
     const usbs = h.metrics.filter((m) => m.startsWith('usb:')).map((m) => m.slice(4));

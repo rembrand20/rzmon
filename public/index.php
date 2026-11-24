@@ -268,6 +268,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <button type="button" class="seg-btn active" data-msub="checks" role="tab" aria-selected="true"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><?= th('Monitoring') ?></button>
         <button type="button" class="seg-btn" data-msub="cont" role="tab" aria-selected="false"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg><?= th('Containers') ?></button>
         <button type="button" class="seg-btn" data-msub="paths" role="tab" aria-selected="false"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 6h7a4 4 0 0 1 0 8h-4a4 4 0 0 0 0 8h7"/></svg><?= th('Netwerkpaden') ?></button>
+        <button type="button" class="seg-btn" data-msub="shelly" role="tab" aria-selected="false"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><?= th("Shelly's") ?></button>
         <button type="button" class="seg-btn" data-msub="avail" role="tab" aria-selected="false"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V14M10 20V9M16 20V12M22 20V5"/></svg><?= th('Beschikbaarheid') ?></button>
       </div>
       <div class="pg-tools" data-pgtools="mon"></div>
@@ -299,6 +300,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       </div>
       <div id="avail" class="avail" aria-live="polite"></div>
       <div id="containers" class="containers"></div>
+      <div id="shellys" class="shellys"></div><!-- 1.321.0 -->
       <div id="netpaths" class="netpaths"></div>
     </section>
 

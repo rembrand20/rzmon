@@ -365,7 +365,9 @@ const avPct = (v) => (v === null || v === undefined ? '–' : dec(v >= 99.9995 ?
 const avMean = (a) => { const v = a.filter((x) => x !== null && x !== undefined); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
 
 function setMonSub(s) {
-  monSub = s === 'avail' || s === 'cont' || s === 'paths' ? s : 'checks';
+  monSub = s === 'avail' || s === 'cont' || s === 'paths' || s === 'shelly' ? s : 'checks';
+  $('#tab-dashboard').classList.toggle('mon-sh', monSub === 'shelly');   // 1.321.0
+  if (monSub === 'shelly') withPageWait('dashboard', shLoad);
   $('#tab-dashboard').classList.toggle('mon-av', monSub === 'avail');
   $('#tab-dashboard').classList.toggle('mon-ct', monSub === 'cont');   // 1.176.0
   if (monSub === 'cont') withPageWait('dashboard', ctLoad);
@@ -1679,6 +1681,7 @@ function renderNow() {
   if (monSub === 'avail') avLoad();   // 1.169.0
   if (monSub === 'cont') ctLoad();   // 1.176.0 (elke 30 s opnieuw)
   if (monSub === 'paths') npLoad();   // 1.177.0
+  if (monSub === 'shelly') shLoad();   // 1.321.0
   const banner = $('#maint-banner');
   banner.hidden = !state.maintenance;
   if (state.maintenance) {

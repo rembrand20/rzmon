@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS hosts (
 CREATE TABLE IF NOT EXISTS checks (
     id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     host_id         INT UNSIGNED NOT NULL,
-    type            ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat','process','pve','dns','ntp','smart','ups','mysql','internet','domain','mqtt','vpn','truenas','path','traffic') NOT NULL,
+    type            ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat','process','pve','dns','ntp','smart','ups','mysql','internet','domain','mqtt','vpn','truenas','path','traffic','shelly') NOT NULL,
     target          VARCHAR(255) NOT NULL DEFAULT '',
     name            VARCHAR(100) NOT NULL,
     warn_threshold  DOUBLE NULL,
@@ -221,7 +221,7 @@ INSERT IGNORE INTO settings (name, value) VALUES ('notify_fails', '1');
 INSERT IGNORE INTO settings (name, value) VALUES ('notify_lang', 'nl');
 
 -- Upgrade van oudere versies (veilig om opnieuw uit te voeren)
-ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat','process','pve','dns','ntp','smart','ups','mysql','internet','domain','mqtt','vpn','truenas','path','traffic') NOT NULL;
+ALTER TABLE checks MODIFY type ENUM('ping','tcp','http','ssl','disk','service','cpu','ram','podman','container','log','ha','command','snmp','reboot','heartbeat','process','pve','dns','ntp','smart','ups','mysql','internet','domain','mqtt','vpn','truenas','path','traffic','shelly') NOT NULL;
 ALTER TABLE agent_data MODIFY value TEXT NOT NULL;
 -- 1.157.4: de lijst met MQTT-topics werd bij veel checks groter dan 64 KB (TEXT)
 ALTER TABLE settings MODIFY value MEDIUMTEXT NULL;
@@ -1947,3 +1947,24 @@ CREATE TABLE IF NOT EXISTS sec_alerts (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT IGNORE INTO settings (name, value) VALUES ('sec_ch_on', '0'), ('sec_ch_mode', 'action'), ('sec_ch_kinds', 'iso,malware,edr,login,unhandled'),
     ('sec_ch_classic', '1'), ('sec_ch_web', '1'), ('sec_ch_mail', '1'), ('sec_ch_ha', '0'), ('sec_ch_ha_url', ''), ('sec_ch_ha_service', ''), ('sec_ch_night', '0');
+
+-- 1.321.0: Shelly's: metingen (vermogen, energieteller, temperatuur) voor het leren, de grafieken en het overzicht (15 dagen)
+CREATE TABLE IF NOT EXISTS shelly_samples (
+    check_id INT UNSIGNED NOT NULL,
+    at       DATETIME     NOT NULL,
+    w        FLOAT        NULL,
+    wh       DOUBLE       NULL,
+    tc       FLOAT        NULL,
+    INDEX idx_shelly_s (check_id, at),
+    CONSTRAINT fk_shelly_s FOREIGN KEY (check_id) REFERENCES checks(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS shelly_state (
+    check_id   INT UNSIGNED NOT NULL PRIMARY KEY,
+    gen        TINYINT UNSIGNED NOT NULL,
+    model      VARCHAR(80)  NOT NULL DEFAULT '',
+    fw         VARCHAR(80)  NOT NULL DEFAULT '',
+    name       VARCHAR(80)  NOT NULL DEFAULT '',
+    last       TEXT         NULL,
+    updated_at DATETIME     NOT NULL,
+    CONSTRAINT fk_shelly_st FOREIGN KEY (check_id) REFERENCES checks(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

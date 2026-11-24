@@ -50,6 +50,7 @@ final class Checks
                 'internet' => Internet::run($check),   // 1.157.0: vanaf de server van RzSense
                 'domain', 'mqtt', 'vpn' => NetChecks::run($check, $host),   // 1.170.0
                 'traffic' => NetTraffic::check($check, $host),   // 1.187.0
+                'shelly' => Shelly::check($check, $host),   // 1.321.0: stroom en oververhitting
                 default => self::result(STATUS_UNKNOWN, null, t('Onbekend checktype')),
             };
         } catch (Throwable $e) {
