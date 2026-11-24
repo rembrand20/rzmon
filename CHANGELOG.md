@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.310.0**: **Beweging in heel RzSense** (Stil · Rustig · Vol): statuswissels, knoppen, grafieken en overgangen; gevaarlijke acties bevestig je door ingedrukt te houden.
 - **1.309.0**: **Dagritme**: overdag licht, 's avonds Schemer, 's nachts donker, op je eigen tijden.
 
+## 1.313.1 – 2026-11-24
+### Opgelost
+- De test van de Windows-agent op een echte Windows-machine (GitHub Actions) liep vast op de regeleinden: Git zette de Go-code daar om naar Windows-regeleinden. De code houdt nu overal dezelfde regeleinden; aan RzSense en de agent zelf verandert niets.
+
 ## 1.313.0 – 2026-11-24
 ### Nieuw
 - **Windows-agent (fase 1: monitoring).** Windows Server 2019, 2022 en 2025 (64-bit) geven nu ook hun gegevens aan RzSense, met een eigen agent (`rzsense-agent.exe`, Windows-agent 0.1.0) die als service *RzSense Agent* draait. Zie HANDLEIDING 8.16.

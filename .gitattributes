@@ -1,0 +1,5 @@
+# 1.313.1: Go-code en de Windows-agent altijd met LF (op Windows zette git ze om naar CRLF en dan keurde gofmt alles af)
+agent-win/*.go text eol=lf
+agent-win/go.mod text eol=lf
+agent-win/go.sum text eol=lf
+agent-win/dist/* binary
