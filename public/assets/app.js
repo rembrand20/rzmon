@@ -15123,7 +15123,7 @@ const SET_NAV = [
     ['exposure', L('Van buitenaf'), ['exposure'], L('Wat er van je netwerk open staat op internet: je publieke IP en je domeinen, met een melding als er iets nieuws open gaat.')],
     ['vulns', L('Kwetsbaarheden en datalekken'), ['vulns', 'eol', 'cvebuzz', 'hibp'], L('Bekende lekken en verouderde software op je servers, en datalekken met je e-mailadressen.'),
       [['lekken', L('Kwetsbaarheden'), ['vulns', 'eol', 'cvebuzz']], ['datalekken', L('Datalekken'), ['hibp']]]],
-    ['patch', L('Updatebeleid'), ['patch'], L('Hoe updates worden geïnstalleerd: met de hand, in het onderhoudsvenster of elke dag; snapshot en Home Assistant met back-up.')],
+    ['patch', L('Updatebeleid'), ['patch'], L('Hoe updates worden geïnstalleerd: met de hand, in het onderhoudsvenster of elke dag; Home Assistant met back-up.')],
     ['mailsec', L('E-mailbeveiliging'), ['mailsec'], L('SPF, DKIM en DMARC van je domeinen: kan iemand mailen namens jou?')],
     ['nis2set', L('NIS2'), ['nis2'], L('Het NIS2-overzicht aanzetten en je organisatie invullen. Het overzicht zelf staat op de pagina Compliance.')],
     ['netscan', L('Netwerkscan'), ['netscan'], L('Nieuwe apparaten en open poorten in je netwerk.')]]],

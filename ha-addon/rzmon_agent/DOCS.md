@@ -49,11 +49,11 @@ Valt Home Assistant helemaal uit, dan stopt de agent ook met rapporteren. RzSens
 | Optie | Uitleg |
 |---|---|
 | `monitor_url` | Adres van RzSense, zonder `/api.php` |
-| `monitor_url_fallback` | Reserve-adres als `monitor_url` niet bereikbaar is (agent 1.51.0), bv. `monitor_url` = `https://rzmon.example.nl` en reserve `http://192.168.1.10`. RzSense kan het adres ook zelf wijzigen (*Beveiligde verbinding → 🌐*); dat staat dan in `/data/rzmon-keys/url` |
+| `monitor_url_fallback` | Reserve-adres als `monitor_url` niet bereikbaar is, bv. `monitor_url` = `https://rzmon.example.nl` en reserve `http://192.168.1.10`. RzSense kan het adres ook zelf wijzigen (*Beveiligde verbinding → 🌐*); dat staat dan in `/data/rzmon-keys/url` |
 | `pair_code` | Koppelcode van deze server in RzSense (Agent Manager → 🔗 Koppelcode) |
 | `pin` | Alleen bij een eigen (self-signed) certificaat van RzSense: de vingerafdruk (staat bij de koppelcode) |
 | `token` | Oude manier: agent-token, alleen zonder koppelcode |
-| `interval` | Alleen voor oudere RzSense-versies. Vanaf RzSense 1.41.0 kies je in RzSense hoe vaak de add-on rapporteert (*Agent Manager → Rapporteren elke …*; standaard 60 s) |
+| `interval` | Wordt niet meer gebruikt: hoe vaak de add-on rapporteert, kies je in RzSense (*Agent Manager → Rapporteren elke …*; standaard 60 s) |
 | `stats_interval` | Hoe vaak (in minuten) de add-on CPU, geheugen en netwerk van Core, Supervisor en elke add-on ophaalt; standaard 5, 1 = elke minuut, 0 = nooit. Elke vraag kost de Supervisor ~2 s en een regel in zijn log. Of een add-on draait, wordt altijd elke minuut gecontroleerd |
 | `verify_ssl` | Uitzetten bij een self-signed certificaat |
 | `certs` | Certificaten waarvan RzSense de vervaldatum bewaakt: bestanden in `/ssl` (standaard `/ssl/fullchain.pem`, van de Let's Encrypt- of DuckDNS-add-on) en/of `host:poort`, ook op internet, bv. `mijndomein.duckdns.org:443`. Kies ze in RzSense bij een check van het type *SSL-certificaat* |
@@ -62,5 +62,5 @@ Valt Home Assistant helemaal uit, dan stopt de agent ook met rapporteren. RzSens
 
 - Zet in RzSense ook een **ping-check** en een **TCP-check op poort 8123** op dezelfde server. Die werken onafhankelijk van de agent.
 - Een add-on die je bewust uit hebt staan geeft alleen een melding als je er een check voor aanmaakt.
-- **Heartbeat-checks** (RzSense 1.77.0): in de add-on is er geen `rzmon-hb`. Laat een automatisering zich melden via de geheime URL van de check, met een `rest_command` (zie de handleiding van RzSense, §7.8).
-- Rechten: de add-on gebruikt de Supervisor-rol `default` (alleen lezen) en host-netwerk (voor de poortlijst). Hij kan niets aan je installatie veranderen.
+- **Heartbeat-checks:** in de add-on is er geen `rzmon-hb`. Laat een automatisering zich melden via de geheime URL van de check, met een `rest_command` (zie [Servers en checks](https://github.com/rembrand20/rzmon/blob/main/docs/04-servers-en-checks.md) in de handleiding van RzSense).
+- Rechten: de add-on gebruikt de Supervisor-rol `manager` (om statistieken, logs en hardware te lezen) en het host-netwerk (voor de poortlijst). Hij leest alleen en verandert niets aan je installatie.

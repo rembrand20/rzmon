@@ -14,6 +14,12 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.317.0**: **Uitrollen naar veel Windows-servers** met één uitrolcode en een MSI, voor groepsbeleid of een beheerprogramma.
 - **1.311.0**: **Aanvallen live**: boven Dashboard, IDS en Netwerk zie je aanvallen van buiten en binnen onderweg, met elke stip een echte gebeurtenis.
 
+## 1.320.1 – 2026-11-24
+### Nieuw
+- **Nieuwe documentatie.** De handleiding staat nu in leesbare hoofdstukken in `docs/` (installatie, de interface, meldingen, servers en checks, Linux-agent, Windows-agent, Home Assistant, beveiliging, kwetsbaarheden en updates, netwerk, toegang en beheer), zonder versienummers en verouderde stappen. De README is kort en wijst de weg; de installatiehandleiding (`docs/01-installatie.md`) beschrijft het script, de container en handmatig installeren op Rocky/RHEL/Alma en Debian/Ubuntu. `HANDLEIDING.md` verwijst nu naar de hoofdstukken; `INSTALL-ROCKY-LINUX-10.md` is opgegaan in de installatiehandleiding.
+### Opgelost
+- Uitleg bij *Updatebeleid* noemde nog een snapshot vooraf; dat doet RzSense niet (meer). Een paar teksten verwezen nog naar *Meldingen → Systeeminfo*; dat is nu *Meldingen en rapporten → Systeemmeldingen*.
+
 ## 1.320.0 – 2026-11-24
 ### Nieuw
 - **🚨 Beveiligingskanaal** (*Instellingen → Meldingen en rapporten → Beveiligingskanaal*, standaard uit). Een apart kanaal voor wat nú je aandacht nodig heeft: een isolatie die op jouw keuze wacht, ransomware of malware, een webshell of verdacht proces, een login of nieuwe beheerder van buiten, een aanval die niet tegengehouden is (en desgewenst een lek dat je echt draait). Afgehandelde aanvallen van buiten komen er nooit door.

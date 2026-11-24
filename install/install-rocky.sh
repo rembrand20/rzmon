@@ -480,7 +480,7 @@ EOF
         [ -n "$ip_addr" ] && echo "    ServerAlias $ip_addr"
         vhost_dir_block
         echo "    SSLEngine on"
-        echo "    # Self-signed certificaat van mod_ssl; vervang door Let's Encrypt (zie INSTALL-ROCKY-LINUX-10.md)"
+        echo "    # Self-signed certificaat van mod_ssl; vervang door Let's Encrypt (zie docs/01-installatie.md)"
         echo "    SSLCertificateFile    /etc/pki/tls/certs/localhost.crt"
         echo "    SSLCertificateKeyFile /etc/pki/tls/private/localhost.key"
         echo "    ErrorLog  /var/log/httpd/rzmon_ssl_error.log"
@@ -593,7 +593,7 @@ else
 fi )
 
   3. Daarna: Pushover koppelen, servers en checks toevoegen
-     → $INSTALL_DIR/HANDLEIDING.md (vanaf hoofdstuk 6)
+     → $INSTALL_DIR/docs/README.md (begin bij 03-meldingen.md en 04-servers-en-checks.md)
 
   Databasegegevens staan in ${SUMMARY_FILE} (alleen leesbaar voor root).
   Bijwerken naar een nieuwe versie: voer dit script gewoon opnieuw uit.
