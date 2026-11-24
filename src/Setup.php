@@ -37,7 +37,7 @@ final class Setup
             [t('Extensie {ext}', ['ext' => 'mbstring']), extension_loaded('mbstring'), extension_loaded('mbstring') ? t('Geladen') : 'apt install php-mbstring'],
             // 1.147.2: niet verplicht, wel nodig voor de controle van de ondertekende agent en voor gecomprimeerde rapporten
             [t('Extensie {ext}', ['ext' => 'sodium']), extension_loaded('sodium') ?: null, extension_loaded('sodium') ? t('Geladen')
-                : 'dnf install php-sodium / apt install php-sodium (' . t('om de handtekening van de agent te controleren') . ')'],
+                : 'dnf install epel-release php-sodium / apt install php-sodium (' . t('om de handtekening van de agent te controleren') . ')'],
             [t('Extensie {ext}', ['ext' => 'zlib']), extension_loaded('zlib') ?: null, extension_loaded('zlib') ? t('Geladen') : t('nodig voor gecomprimeerde rapporten van agents')],
             [t('exec() / shell_exec() toegestaan'), self::fnEnabled('exec') && self::fnEnabled('shell_exec'),
                 self::fnEnabled('exec') && self::fnEnabled('shell_exec') ? t('Toegestaan') : t('Nodig voor ping en services; verwijder uit disable_functions')],

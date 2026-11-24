@@ -6288,7 +6288,7 @@ return [
     'Een schatting: RzSense kent je firewall niet. Een poort die op alle adressen luistert, kan van buiten toch dicht zijn.' => 'An estimate: RzSense does not know your firewall. A port listening on all addresses may still be closed from outside.',
     'Aanvalspad' => 'Attack path',
     'gecomprimeerd rapport is kapot of te groot' => 'compressed report is broken or too large',
-    'RzSense kan de handtekening niet controleren: de PHP-extensie sodium ontbreekt (Rocky: sudo dnf install php-sodium, daarna sudo systemctl restart php-fpm). De agents controleren hem zelf wel.' => 'RzSense cannot verify the signature: the PHP extension sodium is missing (Rocky: sudo dnf install php-sodium, then sudo systemctl restart php-fpm). The agents still verify it themselves.',
+    'RzSense kan de handtekening niet controleren: de PHP-extensie sodium ontbreekt. Rocky: sudo dnf install epel-release, daarna sudo dnf install php-sodium en sudo systemctl restart php-fpm (of draai install-rocky.sh opnieuw). De agents controleren hem zelf wel.' => 'RzSense cannot verify the signature: the PHP extension sodium is missing. Rocky: sudo dnf install epel-release, then sudo dnf install php-sodium and sudo systemctl restart php-fpm (or run install-rocky.sh again). The agents still verify it themselves.',
     'om de handtekening van de agent te controleren' => 'to verify the agent signature',
     'nodig voor gecomprimeerde rapporten van agents' => 'needed for compressed reports from agents',
     '🗺️ Aanvalskaart' => '🗺️ Attack map',

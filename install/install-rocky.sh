@@ -33,6 +33,7 @@ DO_UPDATE=0                # dnf update vooraf
 WRITE_CONFIG=1             # 0 = databasegegevens zelf in de browser invullen
 ASSUME_YES=0
 QUICK=0                    # 1.221.0: bij een update vanuit RzSense alleen doen wat nodig is
+USE_EPEL=1                 # 1.312.2: EPEL aanzetten als php-sodium er anders niet is (Rocky/RHEL 9 en 10)
 STATE_DIR=/var/lib/rzmon   # onthoudt wat er al staat (pakketlijst, hulpdienst)
 MODE="install"             # install | lock | unlock
 REPO_SET=0
@@ -75,6 +76,7 @@ Opties:
   --no-config          Geen config.php schrijven: database zelf in de browser invullen
   --update             Eerst het systeem bijwerken (dnf update)
   --quick              Bij een update: pakketten, SELinux-instellingen en hulpdienst alleen als er iets veranderd is
+  --no-epel            EPEL niet aanzetten (dan geen php-sodium: de handtekening van de agent wordt niet gecontroleerd)
   -y, --yes            Niet om bevestiging vragen
   --lock               Na de browser-setup: schrijfrechten van de webserver weer intrekken
   --unlock             Schrijfrechten tijdelijk teruggeven (om via Setup config.php te wijzigen)
@@ -99,6 +101,7 @@ while [ $# -gt 0 ]; do
         --update) DO_UPDATE=1 ;;
         -y|--yes) ASSUME_YES=1 ;;
         --quick) QUICK=1 ;;
+        --no-epel) USE_EPEL=0 ;;
         --lock) MODE="lock" ;;
         --unlock) MODE="unlock" ;;
         -h|--help) usage; exit 0 ;;
@@ -238,6 +241,21 @@ if [ "$QUICK" -eq 1 ] && [ "$DO_UPDATE" -eq 0 ] && [ "$(cat "$STATE_DIR/pkgs.sum
 else
     dnf -y install "${PKGS[@]}"
     ok "httpd, PHP-FPM, MariaDB en hulpprogramma's geïnstalleerd"
+    # 1.312.2: php-sodium zit op Rocky/RHEL 9 en 10 niet in de pakketbronnen van Rocky zelf, maar in EPEL (de extra
+    # pakketbron van Fedora, met dezelfde PHP-versie). Staat EPEL nog niet aan, dan zetten we hem aan (met CRB, waar
+    # EPEL op leunt), zodat de handtekening van de agent gecontroleerd kan worden. Niet gewenst: --no-epel.
+    if ! rpm -q php-sodium >/dev/null 2>&1 && ! dnf -q list --available php-sodium >/dev/null 2>&1; then
+        if [ "$USE_EPEL" -eq 1 ]; then
+            if dnf -y install epel-release >/dev/null 2>&1; then
+                if command -v crb >/dev/null 2>&1; then crb enable >/dev/null 2>&1 || true; fi
+                info "EPEL aangezet (voor php-sodium)"
+            else
+                warn "EPEL kon niet worden aangezet; php-sodium wordt overgeslagen"
+            fi
+        else
+            info "--no-epel: php-sodium overgeslagen (de handtekening van de agent wordt niet gecontroleerd)"
+        fi
+    fi
     # In één keer (sneller); lukt dat niet, dan per pakket zodat één ontbrekend pakket de rest niet tegenhoudt
     if ! dnf -y install --skip-unavailable "${EXTRA_PKGS[@]}" >/dev/null 2>&1; then
         for pkg in "${EXTRA_PKGS[@]}"; do
@@ -246,7 +264,15 @@ else
     else
         info "extra: ${EXTRA_PKGS[*]}"
     fi
-    if [ -d "$STATE_DIR" ]; then printf '%s\n' "$pkg_sum" > "$STATE_DIR/pkgs.sum"; fi
+    # 1.312.2: alleen onthouden als ook de extra pakketten er zijn; anders probeert een snelle update het niet opnieuw
+    if [ -d "$STATE_DIR" ]; then
+        if rpm -q "${EXTRA_PKGS[@]}" >/dev/null 2>&1; then printf '%s\n' "$pkg_sum" > "$STATE_DIR/pkgs.sum"; else rm -f "$STATE_DIR/pkgs.sum"; fi
+    fi
+fi
+if php -r "exit(extension_loaded('sodium') ? 0 : 1);"; then
+    ok "PHP-extensie sodium aanwezig (handtekening van de agent controleren)"
+else
+    warn "PHP-extensie sodium ontbreekt: RzSense kan de handtekening van de agent niet controleren (de agents doen het zelf wel)"
 fi
 
 php_version=$(php -r 'echo PHP_VERSION;')

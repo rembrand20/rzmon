@@ -14,6 +14,12 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.309.0**: **Dagritme**: overdag licht, 's avonds Schemer, 's nachts donker, op je eigen tijden.
 - **1.308.0**: **kleurenschema Schemer**: licht, maar warm en zacht voor je ogen; ook automatisch 's avonds.
 
+## 1.312.2 – 2026-11-24
+### Opgelost
+- **php-sodium werd niet geïnstalleerd** op Rocky Linux 9 en 10, waardoor *Status → Ondertekende agent* bleef zeggen dat RzSense de handtekening niet kan controleren. Het pakket staat daar in **EPEL**, niet in de pakketbronnen van Rocky zelf. `install-rocky.sh` zet EPEL daarvoor nu aan (niet gewenst: `--no-epel`) en meldt aan het eind of sodium er is.
+- Na één mislukte poging probeerde een snelle update vanuit RzSense de extra pakketten nooit meer; dat gebeurt nu weer tot ze er zijn.
+- Met de hand: `sudo dnf -y install epel-release && sudo dnf -y install php-sodium && sudo systemctl restart php-fpm`.
+
 ## 1.312.1 – 2026-11-22
 ### Opgelost
 - **Het menu onderaan op een telefoon schoof mee met de pagina** (Safari op iPhone): het bleef dan midden in beeld hangen. Het menu staat op een telefoon nu los van de bovenbalk en blijft altijd onderaan.
