@@ -1278,7 +1278,7 @@ async function lpSearch() {
     words.forEach((w) => { const e = esc(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); h = h.replace(new RegExp(e, 'gi'), (m) => `<mark>${m}</mark>`); });
     return h.replace(/••••/g, '<span class="lp-mask">••••</span>');
   };
-  $('#lp-res').innerHTML = r.hits.length ? `<div class="lp-rh" aria-hidden="true"><span></span><span>${L('Tijd')}</span><span>${L('Regel')}</span></div>` + r.hits.map((h) => lpRow(h, mark)).join('')
+  $('#lp-res').innerHTML = r.hits.length ? `<div class="lp-rh" aria-hidden="true"><span>${L('Tijd')}</span><span>${L('Regel')}</span></div>` + r.hits.map((h) => lpRow(h, mark)).join('')
     : `<p class="muted lp-empty">${(LP.facets && LP.facets.sources.length) ? L('Niets gevonden in deze periode.') : L('Nog geen logs. Kies per server welke logs hij stuurt: Agent Manager › kaart Logs.')}</p>`;
   $$('#lp-res > .lp-r').forEach((ln, k) => { if (k < 40) ln.style.setProperty('--i', k); });   // 1.214.0: na elkaar binnenkomen
   // Pagina's

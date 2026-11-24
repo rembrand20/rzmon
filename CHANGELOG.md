@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.315.0**: **Windows-agent fase 3**: IDS en EDR op Windows (Defender, Sysmon, nieuwe services en beheerders, brute force op RDP), blokkeren en isoleren via de Windows Firewall, en IIS-logs.
 - **1.311.0**: **Aanvallen live**: boven Dashboard, IDS en Netwerk zie je aanvallen van buiten en binnen onderweg, met elke stip een echte gebeurtenis.
 
+## 1.318.1 – 2026-11-24
+### Opgelost
+- **Logs**: de regel stond in een smalle kolom van een paar woorden breed (sinds het detailpaneel, 1.304.0, rekende de tabel nog op een uitklapknop). Tijd en regel staan nu naast elkaar en de regel gebruikt de hele breedte; op de telefoon staat de tijd erboven.
+
 ## 1.318.0 – 2026-11-24
 ### Nieuw
 - **Windows-agent: reserve-RzSense en overstappen naar een ander adres** (nieuwe Windows-agent 0.6.0 nodig), net als de Linux-agent. Zie HANDLEIDING 8.16.

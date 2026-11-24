@@ -4991,7 +4991,7 @@ body.no-anim .al2-badge .al2-shape { animation: none !important; }
 .lp-pg:hover:not(:disabled) { border-color: var(--border); }
 .lp-pg.on { border-color: var(--primary); color: var(--primary); font-weight: 600; }
 .lp-pg:disabled { color: var(--muted); cursor: default; opacity: .6; }
-.lp-rh, .lp-r { display: grid; grid-template-columns: 34px 104px minmax(0, 1fr); gap: .6rem; padding: .5rem .75rem; }
+.lp-rh, .lp-r { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: .75rem; padding: .5rem .75rem; }   /* 1.318.1: zonder uitklapknop (sinds het detailpaneel): tijd en regel */
 .lp-rh { font-size: .74rem; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--border); padding-block: .4rem; }
 .lp-r { border-bottom: 1px solid var(--border); align-items: start; }
 .lp-lines > .lp-r:last-child { border-bottom: 0; }
@@ -5021,8 +5021,8 @@ body.no-anim .al2-badge .al2-shape { animation: none !important; }
   .lp-body { flex-direction: column; }
   .lp-fields { width: 100%; }
   .lp-rh { display: none; }
-  .lp-r { grid-template-columns: 30px minmax(0, 1fr); }
-  .lp-r .lp-c { grid-column: 1 / -1; }
+  .lp-r { grid-template-columns: minmax(0, 1fr); gap: .3rem; }
+  .lp-t2 { flex-direction: row; gap: .5rem; align-items: baseline; }
   .lp-xt td:first-child { width: auto; }
 }
 @media (max-width: 720px) {
