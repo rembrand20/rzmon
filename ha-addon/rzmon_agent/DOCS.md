@@ -63,4 +63,4 @@ Valt Home Assistant helemaal uit, dan stopt de agent ook met rapporteren. RzSens
 - Zet in RzSense ook een **ping-check** en een **TCP-check op poort 8123** op dezelfde server. Die werken onafhankelijk van de agent.
 - Een add-on die je bewust uit hebt staan geeft alleen een melding als je er een check voor aanmaakt.
 - **Heartbeat-checks:** in de add-on is er geen `rzmon-hb`. Laat een automatisering zich melden via de geheime URL van de check, met een `rest_command` (zie [Servers en checks](https://github.com/rembrand20/rzmon/blob/main/docs/04-servers-en-checks.md) in de handleiding van RzSense).
-- Rechten: de add-on gebruikt de Supervisor-rol `default` (alleen lezen) en host-netwerk (voor de poortlijst). Hij kan niets aan je installatie veranderen.
+- Rechten: de add-on gebruikt de Supervisor-rol `manager` (om statistieken, logs en hardware te lezen) en het host-netwerk (voor de poortlijst). Hij leest alleen en verandert niets aan je installatie.
