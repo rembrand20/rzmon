@@ -236,7 +236,7 @@ final class Insights
     private static function context(): array
     {
         $hosts = [];
-        foreach (q('SELECT id, name, address, agent_ip, mode, kind, kind_auto, agent_version, agent_seen, enc, agent_update_via, commands FROM hosts WHERE enabled = 1')->fetchAll() as $h) {
+        foreach (q('SELECT id, name, address, agent_ip, mode, os, kind, kind_auto, agent_version, agent_seen, enc, agent_update_via, commands FROM hosts WHERE enabled = 1')->fetchAll() as $h) {
             $h['id'] = (int) $h['id'];
             $hosts[$h['id']] = $h;
         }
@@ -901,7 +901,7 @@ final class Insights
             if ($h['mode'] !== 'agent') {
                 continue;
             }
-            if ($h['agent_version'] && version_compare((string) $h['agent_version'], AGENT_LATEST, '<')) {
+            if ($h['agent_version'] && version_compare((string) $h['agent_version'], agent_latest($h['os'] ?? null), '<')) {
                 $old[] = $h['name'] . ' (' . $h['agent_version'] . ')';
             }
             if ($h['agent_seen'] && strtotime((string) $h['agent_seen']) < time() - 6 * 3600) {

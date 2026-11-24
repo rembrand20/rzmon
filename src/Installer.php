@@ -185,6 +185,7 @@ final class Installer
         ['checks', 'quiet_until', 'DATETIME NULL'],
         // Info-meldingen: per server uit te zetten voor agent-updates (1 = volgt de algemene info-regel)
         ['hosts', 'info_agent', 'TINYINT(1) NOT NULL DEFAULT 1'],
+        ['hosts', 'os', 'VARCHAR(10) NULL'],   // 1.313.0: windows of linux (uit het rapport van de agent)
         // Info-check: geeft alleen info-meldingen, telt nooit als storing
         ['checks', 'info_only', 'TINYINT(1) NOT NULL DEFAULT 0'],
         // Kwetsbaarheden: pakketten bijwerken via de agent (opdracht als JSON, en de uitkomst)

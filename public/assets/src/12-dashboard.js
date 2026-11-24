@@ -82,7 +82,7 @@ function renderHome() {
   if (agents.length) {
     const now = Date.now() / 1000;
     const stil = agents.filter((h) => !h.contact || !h.contact.seen || now - h.contact.seen > h.contact.stale).length;
-    const old = agents.filter((h) => h.agent_version && state.agent_latest && verCmp(h.agent_version, state.agent_latest) < 0).length;
+    const old = agents.filter((h) => h.agent_version && agentLatestFor(h) && verCmp(h.agent_version, agentLatestFor(h)) < 0).length;
     tiles.push({ go: isAdmin() ? 'settings/agents' : 'dashboard', label: L('Agents'), st: stil ? 'warn' : 'ok', big: `${agents.length - stil}<small>/${agents.length}</small>`, unit: L('rapporteren'),
       sub: [stil ? L('{n} stil', { n: stil }) : L('allemaal actief'), old && L('{n} op een oudere versie', { n: old })].filter(Boolean).join(' · '), spark: '' });
   }
@@ -296,7 +296,7 @@ function ccOverview(d, c) {
   const agents = state.hosts.filter((h) => h.mode === 'agent' && +h.enabled !== 0);
   const nowS = Date.now() / 1000;
   const stil = agents.filter((h) => !h.contact || !h.contact.seen || nowS - h.contact.seen > h.contact.stale).length;
-  const old = agents.filter((h) => h.agent_version && state.agent_latest && verCmp(h.agent_version, state.agent_latest) < 0).length;
+  const old = agents.filter((h) => h.agent_version && agentLatestFor(h) && verCmp(h.agent_version, agentLatestFor(h)) < 0).length;
   const probs = live.n[1] + live.n[2];
   const atk = c.sec.ssh_fail.n + c.sec.web.n;
   const tiles = [

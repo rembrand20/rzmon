@@ -9760,6 +9760,19 @@ function pairCommand(base, r, extra = '') {
     + ` && echo '${r.setup_sha256}  rzmon-install.sh' | sha256sum -c -`
     + ` && sudo bash rzmon-install.sh --url '${base}' --pair '${r.code}' --agent-sha '${r.agent_sha256}'${pin ? ` --pin '${pin}'` : ''}${extra}`;
 }
+/**
+ * 1.313.0: Windows-agent. Twee regels voor PowerShell (als beheerder): de .exe van je eigen RzSense halen (met het
+ * certificaat vastgezet, net als bij Linux; curl.exe zit in Windows Server 2019 en nieuwer) en installeren met de koppelcode.
+ */
+function winPairCommand(base, r) {
+  const pin = r.pin && base.startsWith('https') ? r.pin : '';
+  return `curl.exe -fsS${pin ? ` -k --pinnedpubkey "sha256//${pin}"` : ''} -o "$env:TEMP\\rzsense-agent.exe" "${base}/api.php?action=agent_win_exe${dlArg()}"\n`
+    + `& "$env:TEMP\\rzsense-agent.exe" install --url "${base}" --pair "${r.code}"${pin ? ` --pin "sha256//${pin}"` : ''}`;
+}
+/** 1.313.0: de nieuwste agent voor deze server (Windows en Linux hebben elk een eigen nummer) */
+function agentLatestFor(h) {
+  return h && h.os === 'windows' ? state.agent_win_latest : state.agent_latest;
+}
 const pairButton = () => `<div class="pair-box"><button type="button" class="btn primary" data-make-pair>🔗 ${L('Koppelcode maken')}</button>
   <span class="muted small">${L('Eenmalig en 15 minuten geldig. De agent haalt er zijn eigen sleutel mee op; er gaat geen token of sleutel leesbaar over de lijn.')}</span></div>`;
 
@@ -9873,7 +9886,8 @@ function agentInstructions(h, pairNow = false) {
       </div>
       <details class="am-sec am-install" ${pairNow || !h.agent_seen ? 'open' : ''}><summary><h3 class="am-h">${L('Installeren of opnieuw koppelen')}</h3></summary>
       <div class="seg" role="tablist">
-        <button type="button" class="seg-btn active" data-seg="linux">🐧 ${L('Linux-server')}</button>
+        <button type="button" class="seg-btn ${h.os === 'windows' ? '' : 'active'}" data-seg="linux">🐧 ${L('Linux-server')}</button>
+        <button type="button" class="seg-btn ${h.os === 'windows' ? 'active' : ''}" data-seg="windows">⊞ Windows Server</button>
         <button type="button" class="seg-btn" data-seg="ha">🏠 Home Assistant OS</button>
         <button type="button" class="seg-btn" data-seg="truenas">🗄️ TrueNAS SCALE</button>
         <button type="button" class="seg-btn" data-seg="proxmox">🖥️ Proxmox VE</button>
@@ -9913,7 +9927,17 @@ function agentInstructions(h, pairNow = false) {
         </ol>
         <p class="muted small">${L('Tip: zet er ook een ping-check en een TCP-check op poort 8123 bij. Die werken los van de agent.')}</p>
       </div>
-      <div data-pane="linux">
+      <div data-pane="windows" ${h.os === 'windows' ? '' : 'hidden'}>
+        <p>${L('Op Windows Server 2019, 2022 en 2025 (64-bit) draait de agent als Windows-service <b>RzSense Agent</b>. Hij meldt CPU, geheugen, schijven, services, processen, open poorten en of Windows op een herstart wacht.')}</p>
+        <ol class="steps">
+          <li>${L('Open <b>PowerShell als beheerder</b> op {name}.', { name: esc(h.name) })}</li>
+          <li>${L('Maak een koppelcode en plak de twee regels:')}
+            <div data-pair-pane="windows">${pairButton()}</div></li>
+          <li>${L('Daarna: voeg checks toe met <b>＋</b>: <i>Service</i> (bv. <code>W3SVC</code> of <code>MSSQLSERVER</code>), <i>Diskruimte</i> <code>C:</code>, CPU en RAM.')}</li>
+        </ol>
+        ${xpHtml(L('Testen, bijwerken en verwijderen op Windows.'), L('<b>Testen:</b> <code>rzsense-agent.exe once</code> in <code>C:\\Program Files\\RzSense</code> verstuurt één rapport en zegt wat er misgaat; <code>status</code> toont de instellingen en de laatste meldingen. <b>Bijwerken:</b> met de knop hierboven (alleen een ondertekende .exe). <b>Verwijderen:</b> <code>rzsense-agent.exe uninstall</code> (met <code>--purge</code> ook de instellingen en de sleutel). <b>Logboek:</b> Logboeken → Windows-logboeken → Toepassing, bron <i>RzSenseAgent</i>, of <code>C:\\ProgramData\\RzSense\\agent.log</code>.'))}
+      </div>
+      <div data-pane="linux" ${h.os === 'windows' ? 'hidden' : ''}>
       <p>${L('Voer dit één commando uit op <b>{name}</b> (Rocky/RHEL/Alma, Debian/Ubuntu, Raspberry Pi OS, Proxmox). Het installeert de agent, stelt de services voor die er draaien, zet een systemd-timer aan en stuurt een testrapport.', { name: esc(h.name) })}</p>
       <div data-pair-pane="linux">${pairButton()}</div>
       ${xpHtml(L('Daarna: checks toevoegen, bijwerken of verwijderen.'), L('<b>Checks:</b> klik hier op <b>＋</b> en voeg checks toe (CPU, RAM, diskruimte, services). <b>Bijwerken:</b> met de knop hierboven, of <code>sudo rzmon-agent-setup --update</code>. <b>Verwijderen:</b> <code>sudo rzmon-agent-setup --uninstall</code>.'))}
@@ -9981,8 +10005,9 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
       const ha = `monitor_url: ${b}\npair_code: ${r.code}${rr.pin && b.startsWith('https') ? `\npin: ${rr.pin}` : ''}`;
       $$('[data-pair-pane]', body).forEach((p) => {
         const k = p.dataset.pairPane;
-        p.innerHTML = head + (k === 'ha' ? copyLine(ha) : copyLine(pairCommand(b, rr, k === 'truenas' ? ' --truenas' : '')))
+        p.innerHTML = head + (k === 'ha' ? copyLine(ha) : k === 'windows' ? copyLine(winPairCommand(b, rr)) : copyLine(pairCommand(b, rr, k === 'truenas' ? ' --truenas' : '')))
           + `<p class="muted small">${k === 'ha' ? L('Opslaan en de add-on (her)starten. In het logboek moet <code>Gekoppeld met RzSense</code> staan.')
+            : k === 'windows' ? L('De agent komt van je eigen RzSense; bijwerken doet hij alleen met een ondertekende .exe. Daarna staat de service RzSenseAgent aan.')
             : L('Het commando controleert eerst het installatiescript en de agent (SHA-256)')}${rl ? ' · 🛰️ ' + L('via relay {n}: alleen het certificaat van die relay', { n: esc(rl.name) })
             : (r.pin && b.startsWith('https') ? ' · 📌 ' + L('alleen het certificaat van deze RzSense') : '')}${!rl && b.startsWith('https') && !String(state.base_url || '').startsWith('https') ? ' · 🔒 ' + L('agents mogen alleen via https: daarom {url}', { url: `<code>${esc(b)}</code>` }) : ''}</p>`;
       });
@@ -10335,7 +10360,8 @@ function verCmp(a, b) {
 function agentVer(h) {
   const busy = h.agent_update_req ? ' <span title="' + L('Wordt bijgewerkt') + '">⏳</span>' : '';
   if (!h.agent_version) return h.agent_seen ? ` · ${L('versie onbekend')} ⬆${busy}` : '';
-  return ` · v${esc(h.agent_version)}${state.agent_latest && verCmp(h.agent_version, state.agent_latest) < 0 ? ' ⬆' : ''}${busy}`;
+  const latest = agentLatestFor(h);
+  return `${h.os === 'windows' ? ' · ⊞ Windows' : ''} · v${esc(h.agent_version)}${latest && verCmp(h.agent_version, latest) < 0 ? ' ⬆' : ''}${busy}`;
 }
 
 /** Endpoint-bewaking in de Agent Manager: welke sensoren werken, wat ontbreekt (met installeren), en de voortgang */
@@ -16015,7 +16041,7 @@ function initSmartFields(f) {
 /** Kaart "Agents": hoeveel agents verouderd zijn, en de knop om ze allemaal bij te werken. */
 function renderAgentUpdates() {
   const agents = state.hosts.filter((h) => h.mode === 'agent' && +h.enabled && h.agent_seen);
-  const old = agents.filter((h) => !h.agent_version || verCmp(h.agent_version, state.agent_latest) < 0);
+  const old = agents.filter((h) => !h.agent_version || verCmp(h.agent_version, agentLatestFor(h)) < 0);
   const busy = agents.filter((h) => h.agent_update_req);
   $('#agents-status').innerHTML = !agents.length ? L('Nog geen agents.')
     : (old.length ? `<b class="warn-txt">${L('{n} van {m} agent(s) verouderd', { n: old.length, m: agents.length })}</b>: ${old.map((h) => esc(h.name) + (h.agent_version ? ` (${esc(h.agent_version)})` : '')).join(', ')}`
@@ -20431,7 +20457,7 @@ function renderHome() {
   if (agents.length) {
     const now = Date.now() / 1000;
     const stil = agents.filter((h) => !h.contact || !h.contact.seen || now - h.contact.seen > h.contact.stale).length;
-    const old = agents.filter((h) => h.agent_version && state.agent_latest && verCmp(h.agent_version, state.agent_latest) < 0).length;
+    const old = agents.filter((h) => h.agent_version && agentLatestFor(h) && verCmp(h.agent_version, agentLatestFor(h)) < 0).length;
     tiles.push({ go: isAdmin() ? 'settings/agents' : 'dashboard', label: L('Agents'), st: stil ? 'warn' : 'ok', big: `${agents.length - stil}<small>/${agents.length}</small>`, unit: L('rapporteren'),
       sub: [stil ? L('{n} stil', { n: stil }) : L('allemaal actief'), old && L('{n} op een oudere versie', { n: old })].filter(Boolean).join(' · '), spark: '' });
   }
@@ -20645,7 +20671,7 @@ function ccOverview(d, c) {
   const agents = state.hosts.filter((h) => h.mode === 'agent' && +h.enabled !== 0);
   const nowS = Date.now() / 1000;
   const stil = agents.filter((h) => !h.contact || !h.contact.seen || nowS - h.contact.seen > h.contact.stale).length;
-  const old = agents.filter((h) => h.agent_version && state.agent_latest && verCmp(h.agent_version, state.agent_latest) < 0).length;
+  const old = agents.filter((h) => h.agent_version && agentLatestFor(h) && verCmp(h.agent_version, agentLatestFor(h)) < 0).length;
   const probs = live.n[1] + live.n[2];
   const atk = c.sec.ssh_fail.n + c.sec.web.n;
   const tiles = [

@@ -24,6 +24,13 @@ define('SM_CONFIG_FILE', getenv('RZMON_CONFIG') ?: SM_ROOT . '/config.php');
 define('RZMON_VERSION', trim((string) @file_get_contents(SM_ROOT . '/VERSION')) ?: '0.0.0');
 // Nieuwste agent: eigen nummer, los van RzSense (agent/VERSION; bijwerken met tools/bump-version.sh agent …)
 define('AGENT_LATEST', trim((string) @file_get_contents(SM_ROOT . '/agent/VERSION')) ?: RZMON_VERSION);
+// 1.313.0: de Windows-agent (agent-win, Go) heeft een eigen versienummer
+define('AGENT_WIN_LATEST', trim((string) @file_get_contents(SM_ROOT . '/agent-win/VERSION')) ?: '0.0.0');
+/** 1.313.0: de nieuwste agent voor dit besturingssysteem (windows of linux) */
+function agent_latest(?string $os): string
+{
+    return $os === 'windows' ? AGENT_WIN_LATEST : AGENT_LATEST;
+}
 
 /** 1.281.0: draait RzSense als container (container/Containerfile)? Dan geen hulpdienst, geen git-updates en geen SELinux-acties. */
 function rz_container(): bool

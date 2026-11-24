@@ -81,6 +81,10 @@ final class Checks
         $s = max(0, time() - $boot);
         $h = round($s / 3600, 2);
         $res = self::result(STATUS_OK, $h, t('Aan sinds {t} · uptime {dur}', ['t' => date('d-m-Y H:i', $boot), 'dur' => SnmpMonitor::duration($s)]));
+        // 1.313.0: de Windows-agent meldt ook of Windows op een herstart wacht (na updates of een installatie)
+        if ($host['mode'] === 'agent' && self::agentMetric($host, 'reboot_req') === '1') {
+            $res = self::result(STATUS_WARN, $h, t('Wacht op een herstart (na updates of een installatie)') . ' · ' . t('Aan sinds {t} · uptime {dur}', ['t' => date('d-m-Y H:i', $boot), 'dur' => SnmpMonitor::duration($s)]));
+        }
         return ($info = self::restartInfo($check, $h)) ? $res + ['info' => $info] : $res;
     }
 

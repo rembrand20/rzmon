@@ -1,0 +1,67 @@
+# Windows-agent bouwen en ondertekenen (RzSense 1.313.0). Bij elke wijziging aan agent-win: de .exe bouwen (altijd
+# hetzelfde resultaat: -trimpath, zonder build-id), ondertekenen met dezelfde geheime sleutel als de Linux-agent
+# (AGENT_SIGN_KEY), de handtekening controleren met de publieke sleutel die in de agent zelf staat, en beide in
+# agent-win/dist zetten. RzSense levert die .exe aan de servers; de agent installeert een update alleen als de
+# handtekening klopt.
+name: Windows-agent bouwen
+on:
+  push:
+    branches: [main]
+    paths: ['agent-win/**', '!agent-win/dist/**']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: sign-agent
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: agent-win/go.mod
+          cache-dependency-path: agent-win/go.sum
+      - name: Testen en bouwen
+        working-directory: agent-win
+        env:
+          CGO_ENABLED: '0'
+          GOOS: windows
+          GOARCH: amd64
+        run: |
+          set -eu
+          GOOS= GOARCH= go test -count=1 ./...
+          mkdir -p dist
+          go build -trimpath -ldflags "-s -w -buildid=" -o dist/rzsense-agent.exe .
+          echo "✔ gebouwd: $(stat -c %s dist/rzsense-agent.exe) bytes, versie $(cat VERSION)"
+      - name: Ondertekenen en controleren
+        env:
+          AGENT_SIGN_KEY: ${{ secrets.AGENT_SIGN_KEY }}
+        run: |
+          set -eu
+          if [ -z "$AGENT_SIGN_KEY" ]; then
+            echo "::error title=Geen sleutel::Het geheim AGENT_SIGN_KEY ontbreekt (Settings → Secrets and variables → Actions)"; exit 1
+          fi
+          work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
+          (umask 077; printf '%s\n' "$AGENT_SIGN_KEY" >"$work/key.pem")
+          pub=$(sed -n 's/^const agentSignPub = "\([A-Za-z0-9+\/=]*\)"$/\1/p' agent-win/update.go)
+          [ -n "$pub" ] || { echo "::error title=Publieke sleutel::agentSignPub niet gevonden in agent-win/update.go"; exit 1; }
+          printf -- '-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----\n' "$pub" >"$work/pub.pem"
+          f=agent-win/dist/rzsense-agent.exe
+          openssl pkeyutl -sign -inkey "$work/key.pem" -rawin -in "$f" -out "$work/sig"
+          openssl pkeyutl -verify -pubin -inkey "$work/pub.pem" -rawin -in "$f" -sigfile "$work/sig" >/dev/null \
+            || { echo "::error title=Sleutels passen niet::De geheime sleutel past niet bij agentSignPub in de Windows-agent"; exit 1; }
+          base64 -w0 "$work/sig" >"$f.sig"
+          echo "✔ $f ondertekend"
+      - name: Vastleggen
+        run: |
+          set -eu
+          git config user.name 'rzmon-ondertekening'
+          git config user.email 'rzmon-ondertekening@users.noreply.github.com'
+          git add agent-win/dist/rzsense-agent.exe agent-win/dist/rzsense-agent.exe.sig
+          if git diff --cached --quiet; then echo "Windows-agent ongewijzigd"; exit 0; fi
+          git commit -m "Windows-agent $(cat agent-win/VERSION) gebouwd en ondertekend [skip ci]"
+          pushed=0
+          for i in 1 2 3; do if git push; then pushed=1; break; fi; git pull --rebase; done
+          [ "$pushed" = 1 ] || git push

@@ -50,6 +50,13 @@ same agent/rzmon-agent.sh "$ADDON/rzmon-agent.sh"
 # 1.147.0: de agent wordt gebouwd uit agent/src; het gebouwde bestand moet daar precies mee kloppen
 if tools/build-agent.sh --check >/dev/null 2>&1; then echo "  ✔ agent/rzmon-agent.sh gebouwd uit agent/src"; else echo "  ✘ agent/rzmon-agent.sh wijkt af van agent/src (voer tools/build-agent.sh uit)"; fail=1; fi
 same agent/CHANGELOG.md "$ADDON/CHANGELOG.md"
+# 1.313.0: de Windows-agent (Go) heeft een eigen nummer; de .exe bouwt en ondertekent GitHub Actions
+win=$(tr -d '[:space:]' < agent-win/VERSION)
+echo "Windows-agent: $win"
+[[ "$win" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "  ✘ agent-win/VERSION is geen X.Y.Z"; fail=1; }
+check "agent-win/agent.go (Version)" "$(sed -n 's/^const Version = "\([^"]*\)".*/\1/p' agent-win/agent.go)" "$win"
+check "agent-win/CHANGELOG.md (bovenste versie)" "$(top agent-win/CHANGELOG.md)" "$win"
+filled agent-win/CHANGELOG.md "$win"
 echo "Interface:"
 # 1.225.0: de interface wordt gebouwd uit public/assets/src; het gebouwde app.js moet daar precies mee kloppen
 if tools/build-js.sh --check >/dev/null 2>&1; then echo "  ✔ public/assets/app.js gebouwd uit public/assets/src"; else echo "  ✘ public/assets/app.js wijkt af van public/assets/src (voer tools/build-js.sh uit)"; fail=1; fi

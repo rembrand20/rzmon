@@ -4326,5 +4326,39 @@ ok(!$abSrc || (isset($abBy[$abSrc['address']]) && $abBy[$abSrc['address']]['inte
 ok(count($ab['hosts']) <= 5 && in_array($abH, array_column($ab['hosts'], 'id'), true), 'aanvalsband: hooguit 5 servers, met de aangevallen server');
 q("DELETE FROM ids_incidents WHERE dkey IN ('abt1', 'abt2', 'abt3', 'abt4')");
 
+// 1.313.0: Windows-agent: eigen nieuwste versie, en bijwerken alleen met een gebouwde en ondertekende .exe
+section('Windows-agent');
+if (!function_exists('agent_update_instruction')) {
+    require_once SM_ROOT . '/src/api/functies.php';
+}
+ok(agent_latest('windows') === AGENT_WIN_LATEST && agent_latest('linux') === AGENT_LATEST && agent_latest(null) === AGENT_LATEST
+    && preg_match('/^\d+\.\d+\.\d+$/', AGENT_WIN_LATEST), 'Windows-agent: eigen nieuwste versie (agent-win/VERSION)');
+q("INSERT INTO hosts (name, address, mode, os) VALUES ('win-unit', '192.0.2.11', 'agent', 'windows')");
+$wId = (int) db()->lastInsertId();
+$wDist = SM_ROOT . '/agent-win/dist';
+$wHad = is_file("$wDist/rzsense-agent.exe");
+if (!$wHad) {
+    q('UPDATE hosts SET agent_update_req = NOW(), agent_update_sent = NULL WHERE id = ?', [$wId]);
+    $wNone = agent_update_instruction($wId, '0.0.1', ['os' => 'windows', 'update' => ['via' => 'winsvc']]);
+    $wSt = (string) q('SELECT agent_update_status FROM hosts WHERE id = ?', [$wId])->fetchColumn();
+    ok($wNone === null && str_contains($wSt, 'nog niet gebouwd'), 'Windows-agent: zonder gebouwde .exe geen update, wel de reden');
+    @mkdir($wDist, 0755, true);
+    file_put_contents("$wDist/rzsense-agent.exe", 'MZ-test');
+    file_put_contents("$wDist/rzsense-agent.exe.sig", 'c2ln');
+}
+q('UPDATE hosts SET agent_update_req = NOW(), agent_update_sent = NULL WHERE id = ?', [$wId]);
+$wIns = agent_update_instruction($wId, '0.0.1', ['os' => 'windows', 'update' => ['via' => 'winsvc']]);
+ok(is_array($wIns) && $wIns['version'] === AGENT_WIN_LATEST && $wIns['exe_sha256'] === hash_file('sha256', "$wDist/rzsense-agent.exe") && !isset($wIns['agent_sha256']),
+    'Windows-agent: update-opdracht met de versie van de Windows-agent en de SHA-256 van de .exe');
+q('UPDATE hosts SET agent_update_req = NULL, agent_update_sent = NULL WHERE id = ?', [$wId]);
+ok(agent_update_instruction($wId, AGENT_WIN_LATEST, ['os' => 'windows', 'update' => ['via' => 'winsvc']]) === null,
+    'Windows-agent: op de nieuwste versie geen update (niet vergeleken met de Linux-agent)');
+if (!$wHad) {
+    @unlink("$wDist/rzsense-agent.exe");
+    @unlink("$wDist/rzsense-agent.exe.sig");
+    @rmdir($wDist);
+}
+q('DELETE FROM hosts WHERE id = ?', [$wId]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

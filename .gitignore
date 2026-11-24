@@ -4,3 +4,6 @@ config.php.tmp
 *.log
 .DS_Store
 __pycache__/
+
+# 1.313.0: lokaal gebouwde Windows-agent (de echte staat in agent-win/dist, gebouwd en ondertekend door GitHub Actions)
+agent-win/rzsense-agent.exe

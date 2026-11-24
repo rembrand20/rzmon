@@ -3,6 +3,7 @@
 #
 #   tools/bump-version.sh rzmon patch|minor|major|X.Y.Z   # RzMon (webinterface, API, database)
 #   tools/bump-version.sh agent patch|minor|major|X.Y.Z   # de agent en de Home Assistant-add-on
+#   tools/bump-version.sh agentwin patch|minor|major|X.Y.Z  # 1.313.0: de Windows-agent (agent-win, Go)
 #   tools/bump-version.sh sync                            # agent en agent-changelog naar de add-on kopiëren
 #
 # rzmon: werkt VERSION bij en zet een lege sectie bovenaan CHANGELOG.md.
@@ -27,6 +28,7 @@ changelog_section() {
     grep -q "^## $2\( \|$\)" "$1" && return 0
     local sub='\n### Nieuw'
     [ "$1" = agent/CHANGELOG.md ] && sub=''   # de agent-changelog heeft geen kopjes per soort
+    [ "$1" = agent-win/CHANGELOG.md ] && sub=''
     awk -v head="## $2 – $(date +%F)$sub" '
         !done && /^## [0-9]/ { print head "\n- \n"; done = 1 }
         { print }' "$1" >"$1.tmp" && mv "$1.tmp" "$1"
@@ -37,8 +39,9 @@ what=${1-}
 case "$what" in
     rzmon) file=VERSION; log=CHANGELOG.md ;;
     agent) file=agent/VERSION; log=agent/CHANGELOG.md ;;
-    *) echo "Gebruik: $0 rzmon|agent patch|minor|major|X.Y.Z   of   $0 sync" >&2
-       echo "  (nu: RzMon $(tr -d '[:space:]' < VERSION), agent $(tr -d '[:space:]' < agent/VERSION))" >&2
+    agentwin) file=agent-win/VERSION; log=agent-win/CHANGELOG.md ;;
+    *) echo "Gebruik: $0 rzmon|agent|agentwin patch|minor|major|X.Y.Z   of   $0 sync" >&2
+       echo "  (nu: RzMon $(tr -d '[:space:]' < VERSION), agent $(tr -d '[:space:]' < agent/VERSION), Windows-agent $(tr -d '[:space:]' < agent-win/VERSION))" >&2
        exit 1 ;;
 esac
 
@@ -58,8 +61,11 @@ if [ "$what" = agent ]; then
     sed -i "s/^AGENT_VERSION=\"[^\"]*\"/AGENT_VERSION=\"$new\"/" agent/src/00-kop.sh   # de bron; sync bouwt de agent
     sed -i "s/^version: \"[^\"]*\"/version: \"$new\"/" "$ADDON/config.yaml"
 fi
+# De Windows-agent: de versie staat ook in de code (de .exe bouwt GitHub Actions, en ondertekent hem)
+[ "$what" = agentwin ] && sed -i "s/^const Version = \"[^\"]*\"/const Version = \"$new\"/" agent-win/agent.go
 changelog_section "$log" "$new"
 [ "$what" = agent ] && sync
 
 echo "Versie van $what: $current → $new"
 echo "Vul nu $log in$([ "$what" = agent ] && echo ", voer '$0 sync' uit") en controleer met: tools/check-version.sh"
+[ "$what" = agentwin ] && echo "Een nieuwe Windows-agent komt pas bij de gebruiker met een nieuwe RzSense-versie (tools/bump-version.sh rzmon patch)."

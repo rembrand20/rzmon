@@ -54,9 +54,9 @@ switch ($action) {
         $newer = !empty($cache['latest']) && version_compare($cache['latest'], RZMON_VERSION, '>');
         $add('update', $newer ? 'warn' : 'ok', t('RzSense-versie'), $newer
             ? t('{v} staat klaar (je hebt {cur})', ['v' => $cache['latest'], 'cur' => RZMON_VERSION]) : t('{cur} is de nieuwste', ['cur' => RZMON_VERSION]), 'update');
-        $agents = q("SELECT name, agent_version, enc, enc_seen, agent_key_seen, agent_ip_new FROM hosts WHERE mode = 'agent' AND enabled = 1 AND agent_seen IS NOT NULL")->fetchAll();
+        $agents = q("SELECT name, os, agent_version, enc, enc_seen, agent_key_seen, agent_ip_new FROM hosts WHERE mode = 'agent' AND enabled = 1 AND agent_seen IS NOT NULL")->fetchAll();
         if ($agents) {
-            $old = array_column(array_filter($agents, static fn($h) => $h['agent_version'] && version_compare($h['agent_version'], AGENT_LATEST, '<')), 'name');
+            $old = array_column(array_filter($agents, static fn($h) => $h['agent_version'] && version_compare($h['agent_version'], agent_latest($h['os']), '<')), 'name');
             $add('agents', $old ? 'warn' : 'ok', t('Agents bijgewerkt'), $old
                 ? t('{n} van {t} op een oudere versie: {names}', ['n' => count($old), 't' => count($agents), 'names' => implode(', ', array_slice($old, 0, 5)) . (count($old) > 5 ? ' …' : '')])
                 : t('alle {t} op {v}', ['t' => count($agents), 'v' => AGENT_LATEST]), 'agents');
@@ -248,7 +248,7 @@ switch ($action) {
             'blocks' => Security::blocks(),
             'my_ip' => client_ip(),
             'now_ts' => time(),
-            'agent_latest' => AGENT_LATEST,   // 1.131.3: het overzicht kan er al zijn voordat de rest van de pagina geladen is
+            'agent_latest' => AGENT_LATEST, 'agent_win_latest' => AGENT_WIN_LATEST,   // 1.131.3: het overzicht kan er al zijn voordat de rest van de pagina geladen is
         ]);
 
     case 'enc_mode':
@@ -702,8 +702,8 @@ switch ($action) {
         $in = input();
         if (!empty($in['all'])) {
             $ids = [];
-            foreach (q("SELECT id, agent_version FROM hosts WHERE mode = 'agent' AND enabled = 1 AND agent_seen IS NOT NULL") as $h) {
-                if ($h['agent_version'] === null || version_compare($h['agent_version'], AGENT_LATEST, '<')) {
+            foreach (q("SELECT id, os, agent_version FROM hosts WHERE mode = 'agent' AND enabled = 1 AND agent_seen IS NOT NULL") as $h) {
+                if ($h['agent_version'] === null || version_compare($h['agent_version'], agent_latest($h['os']), '<')) {
                     $ids[] = (int) $h['id'];
                 }
             }
@@ -748,7 +748,7 @@ switch ($action) {
                       AND (? IS NULL OR created_at > ?)
                     GROUP BY ip, reason ORDER BY MAX(id) DESC LIMIT 6', [$id, $h['agent_seen'], $h['agent_seen']])->fetchAll();
         out(['seen' => $h['agent_seen'], 'ip' => $h['agent_ip'], 'mode' => $h['mode'], 'failures' => $fails, 'now' => now(),
-             'agent_version' => $h['agent_version'], 'version' => AGENT_LATEST,
+             'agent_version' => $h['agent_version'], 'version' => agent_latest($h['os'] ?? null), 'os' => $h['os'] ?? null,
              'update' => ['pending' => $h['agent_update_req'] !== null, 'status' => $h['agent_update_status'], 'via' => $h['agent_update_via']],
              'audit' => AgentAudit::items(q('SELECT ' . AgentAudit::HOST_COLS . ' FROM hosts WHERE id = ?', [$id])->fetch() ?: [], AgentAudit::cfg($id)),
              'report_warn' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'report_warn'", [$id])->fetchColumn(), true),

@@ -4083,6 +4083,45 @@ In een **DMZ** mag het netwerk meestal niet naar binnen bellen, maar je eigen ne
   - De relay zelf werk je bij met een nieuwe bundel (`sudo bash install-relay.sh --src . --update`) of een nieuwe image.
 
 
+### 8.16 Windows-agent ⊞ (vanaf 1.313.0, Windows-agent 0.1.0)
+
+Ook een **Windows Server 2019, 2022 of 2025** (64-bit) kan zijn gegevens aan RzSense geven, met een eigen agent: één programma (`rzsense-agent.exe`, geschreven in Go) dat als **Windows-service** *RzSense Agent* draait. Hij stuurt hetzelfde rapport als de Linux-agent, en RzSense verwerkt het met dezelfde code: checks, dashboard, meldingen en de Agent Manager werken zoals bij een Linux-server.
+
+**Installeren** (bij de server: *Agent Manager → Installeren of opnieuw koppelen → ⊞ Windows Server*):
+1. Maak een **koppelcode** (eenmalig, 15 minuten geldig).
+2. Open **PowerShell als beheerder** op de Windows-server en plak de twee regels. De eerste haalt de agent van je eigen RzSense (met `curl.exe`, dat in Windows Server 2019 en nieuwer zit; een eigen certificaat van RzSense wordt vastgezet). De tweede installeert, koppelt en start de service:
+   `rzsense-agent.exe install --url https://… --pair CODE [--pin sha256//…]`
+3. Binnen een minuut staat de server in RzSense. Voeg checks toe met **＋**: *Service* (bv. `W3SVC`, `MSSQLSERVER` of `MSSQL$SQLEXPRESS`), *Diskruimte* `C:`, CPU, RAM, *Proces* (bv. `sqlservr.exe`) en *Herstart*.
+
+**Wat hij meet (fase 1, monitoring):**
+| Onderdeel | Op Windows |
+| --- | --- |
+| CPU | gebruik over 2 seconden, aantal kernen (Windows kent geen *load*) |
+| Geheugen | totaal en beschikbaar; het wisselbestand telt als swap |
+| Schijven | elke vaste schijf (`C:`, `D:` …) |
+| Herstart | opstarttijd; de check *Herstart* geeft ook een **warning** als Windows op een herstart wacht (na updates of een installatie) |
+| Services | status van de bewaakte Windows-services (*active*, *inactive*, *not-found* …) en de lijst om uit te kiezen |
+| Processen | proces-checks (aantal) en de lijst om uit te kiezen |
+| Poorten | luisterende TCP-poorten (IPv4 en IPv6) met het proces |
+| Windows-versie | naam, versie en build (bv. *Windows Server 2022 Standard*, build 20348) |
+
+**Veilig, net als de Linux-agent:**
+- Alles gaat **versleuteld en ondertekend** (dezelfde AES-256 en HMAC-SHA256 als de Linux-agent); de eigen sleutel staat versleuteld met **DPAPI** in `C:\ProgramData\RzSense\agent.conf`, met rechten alleen voor SYSTEM en Administrators.
+- **Bijwerken** met de knop in de Agent Manager (of automatisch, als dat aan staat): de agent haalt de nieuwe `.exe` bij RzSense en gebruikt hem alleen als de **ed25519-handtekening** klopt (dezelfde sleutel als de Linux-agent). Daarna start Windows de service opnieuw.
+- De service draait als **LocalSystem** en herstart vanzelf bij een fout (herstelopties van de service); dat vervangt de bewaker van de Linux-agent.
+- De Windows-agent heeft een **eigen versienummer** (los van RzSense en de Linux-agent); de Agent Manager vergelijkt hem met de nieuwste Windows-agent.
+
+**Op de server zelf** (in `C:\Program Files\RzSense`, als beheerder):
+- `rzsense-agent.exe once` verstuurt één rapport en zegt wat er misgaat; met `--show` zie je wat er verstuurd wordt.
+- `rzsense-agent.exe collect` laat zien wat de agent meet, zonder iets te versturen.
+- `rzsense-agent.exe status` toont de instellingen en de laatste meldingen.
+- `rzsense-agent.exe uninstall` verwijdert de service (met `--purge` ook de instellingen en de sleutel).
+- Logboek: *Logboeken → Windows-logboeken → Toepassing*, bron **RzSenseAgent**, of `C:\ProgramData\RzSense\agent.log`.
+
+**Windows Defender of SmartScreen:** de `.exe` heeft (nog) geen Windows-handtekening (Authenticode). Installeer je met de PowerShell-regels, dan vraagt Windows meestal niets; download je hem met de browser, dan kan SmartScreen één keer vragen of je hem wilt starten.
+
+**Volgende fases:** logs en logins (Event Log), IDS en EDR (aanvallen, Defender, Sysmon, blokkeren en isoleren via de Windows Firewall), en daarna updates installeren, kwetsbaarheden en een MSI voor groepsbeleid.
+
 ## 9. Agent op Home Assistant OS
 
 Op Home Assistant OS kun je geen scripts of cron op het systeem zelf zetten. De agent draait daarom als **add-on**.

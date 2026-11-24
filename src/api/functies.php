@@ -370,7 +370,7 @@ function agent_tests_text(int $hostId, bool $secure = false): string
     }
     // Services met een service-check: id <tab> svc <tab> servicenaam
     foreach (q("SELECT id, target FROM checks WHERE host_id = ? AND type = 'service' AND enabled = 1", [$hostId]) as $c) {
-        if (preg_match('/^[A-Za-z0-9@._:-]{1,100}$/', $c['target'])) {
+        if (preg_match('/^[A-Za-z0-9@._:$-]{1,100}$/', $c['target'])) {   // 1.313.0: ook Windows-namen met een $
             $out[] = implode("\t", [$c['id'], 'svc', $c['target']]);
         }
     }
@@ -468,8 +468,10 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
     if ($via === 'test' || Reserve::active()) {   // 1.287.0: niet bijwerken via een reserve die het werk overnam
         return null;   // verbindingstest (rzmon-agent-setup --test): niets veranderen
     }
-    $via = in_array($via, ['systemd', 'direct', 'off', 'ha', 'none', 'relay', 'relaysd'], true) ? $via : null;   // null: agent van vóór 1.19.0
-    $h = q('SELECT id, name, info_agent, agent_update_req, agent_update_sent, agent_update_status FROM hosts WHERE id = ?', [$hostId])->fetch();
+    $via = in_array($via, ['systemd', 'direct', 'off', 'ha', 'none', 'relay', 'relaysd', 'winsvc'], true) ? $via : null;   // null: agent van vóór 1.19.0; winsvc: Windows (1.313.0)
+    $h = q('SELECT id, name, info_agent, os, agent_update_req, agent_update_sent, agent_update_status FROM hosts WHERE id = ?', [$hostId])->fetch();
+    $win = ($in['os'] ?? '') === 'windows';
+    $latest = $win ? AGENT_WIN_LATEST : AGENT_LATEST;
     $status = null;
     $req = $h['agent_update_req'];
     $sent = $h['agent_update_sent'];
@@ -495,7 +497,7 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
         $req = null;
     }
 
-    $outdated = $version === null || version_compare($version, AGENT_LATEST, '<');
+    $outdated = $version === null || version_compare($version, $latest, '<');
     // 1.130.1: staat er nog een mislukte of hangende update (✘/⏳), maar draait de agent inmiddels de nieuwste versie
     // (bv. met de hand bijgewerkt), dan is die melding achterhaald
     if ($status === null && !$outdated && $req === null && preg_match('/^(✘|⏳)/u', (string) $h['agent_update_status'])) {
@@ -507,7 +509,15 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
     $wanted = ($req !== null && $sent === null) || ($req === null && $outdated && setting('agent_auto_update', '0') === '1'
         && isset($GLOBALS['agent_seal']) && ($sent === null || strtotime($sent) < time() - 6 * 3600));   // automatisch: hooguit elke 6 uur een poging
     $instruction = null;
-    if ($wanted && in_array($via, ['systemd', 'direct', 'relaysd'], true)) {
+    $winExe = SM_ROOT . '/agent-win/dist/rzsense-agent.exe';
+    if ($wanted && $via === 'winsvc' && is_file($winExe) && is_file($winExe . '.sig')) {
+        // 1.313.0: de Windows-agent haalt de .exe en zijn handtekening op en controleert ze allebei
+        $instruction = ['version' => $latest, 'exe_sha256' => hash_file('sha256', $winExe)];
+        $sent = now();
+        $req ??= now();
+        $status = '⏳ ' . t('Bijwerken naar {v} gestart…', ['v' => $latest]);
+        ActionLog::add($hostId, $h['agent_update_req'] !== null ? 'user' : 'rzsense', 'update', t('Agent bijwerken naar {v} gestuurd', ['v' => $latest]), $version ? t('nu {v}', ['v' => $version]) : '', null, '', null, 'RzSense');
+    } elseif ($wanted && in_array($via, ['systemd', 'direct', 'relaysd'], true)) {
         $instruction = [
             'version' => AGENT_LATEST,
             'agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh'),
@@ -520,7 +530,9 @@ function agent_update_instruction(int $hostId, ?string $version, array $in): ?ar
     } elseif ($req !== null && $sent === null) {
         // Gevraagd, maar deze agent kan het niet: uitleggen waarom
         $status = '✘ ' . match ($via) {
-            'off' => t('Bijwerken op afstand staat uit op deze server (REMOTE_UPDATE=0 in /etc/default/rzmon-agent)'),
+            'off' => $win ? t('Bijwerken op afstand staat uit op deze server (REMOTE_UPDATE=0 in C:\\ProgramData\\RzSense\\agent.conf)')
+                : t('Bijwerken op afstand staat uit op deze server (REMOTE_UPDATE=0 in /etc/default/rzmon-agent)'),
+            'winsvc' => t('De Windows-agent is nog niet gebouwd in deze RzSense-versie; probeer het na de volgende update'),
             'ha' => t('Home Assistant-add-on: bijwerken via de add-on winkel'),
             'relay' => t('RzSense Relay in een container: bijwerken met een nieuwe image (podman pull)'),
             'none' => t('De agent kan zichzelf hier niet bijwerken (geen root of rzmon-agent-setup ontbreekt): sudo rzmon-agent-setup --update'),

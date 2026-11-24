@@ -176,9 +176,44 @@ jobs:
           npx playwright install --with-deps chromium >/dev/null
           BASE=http://127.0.0.1:8099 RZ_USER=admin RZ_PASS=ci-geheim-123 node tests/e2e/smoke.js 2>&1 | tee /tmp/e2e.out
           [ "${PIPESTATUS[0]}" = 0 ] || { echo "::error title=Browserrondje::$(tail -n 15 /tmp/e2e.out | tr '\n' '|' | cut -c1-3000) || php: $(tail -n 5 /tmp/php.log | tr '\n' '|')"; exit 1; }
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: agent-win/go.mod
+          cache-dependency-path: agent-win/go.sum
+      - name: Windows-agent tegen RzSense (koppelen, testlijst, versleutelde rapporten)
+        run: |
+          BASE=http://127.0.0.1:8099 bash tests/agent-win-e2e.sh 2>&1 | tee /tmp/agentwin.out
+          [ "${PIPESTATUS[0]}" = 0 ] || { echo "::error title=Windows-agent tegen RzSense::$(tail -n 15 /tmp/agentwin.out | tr '\n' '|' | cut -c1-3000)"; exit 1; }
       - name: PHP-log bij een fout
         if: failure()
         run: cat /tmp/php.log || true
+
+  # 1.313.0: de Windows-agent op een echte Windows-machine: controleren, testen, bouwen en meten
+  windows-agent:
+    name: Windows-agent op Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: agent-win/go.mod
+          cache-dependency-path: agent-win/go.sum
+      - name: gofmt, vet en tests
+        shell: bash
+        working-directory: agent-win
+        run: |
+          test -z "$(gofmt -l .)" || { echo "::error title=gofmt::$(gofmt -l . | tr '\n' ' ')"; exit 1; }
+          go vet ./...
+          go test -count=1 ./...
+      - name: Bouwen
+        shell: bash
+        working-directory: agent-win
+        env:
+          CGO_ENABLED: '0'
+        run: go build -trimpath -ldflags "-s -w -buildid=" -o rzsense-agent.exe .
+      - name: Meten zoals op een Windows Server
+        shell: pwsh
+        run: ./tests/agent-win-collect.ps1
 
   # 1.281.0: de container bouwen, met MariaDB opstarten (zoals de quadlets: host-netwerk) en het browserrondje erop
   container:

@@ -24,7 +24,7 @@ switch ($action) {
         out(['hosts' => (object) $out, 'now_ts' => time()]);
 
     case 'state':
-        $hosts = q('SELECT id, name, address, mode, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime, info_agent, enc, enc_seen, watchdog, watchdog_min,
+        $hosts = q('SELECT id, name, address, mode, os, parent_id, agent_token, agent_seen, agent_version, agent_update_req, agent_update_status, agent_update_via, agent_tick, realtime, info_agent, enc, enc_seen, watchdog, watchdog_min,
                     agent_key_seen, agent_key_at, agent_ip_new, pin_mode, ip_lock, agent_https, agent_conn, agent_fb_at, agent_url, agent_url_fb, agent_url_want, agent_url_status, agent_url_at, agent_url_pin, agent_url_fb_pin,
                     enabled, maintenance_until, maintenance_reason, snmp, kind, kind_auto, grp, agent_beats, edr_on, edr_info, iperf_ok, quiet, quiet_until FROM hosts
                     WHERE NOT (relay_on = 1 AND relay_of IS NOT NULL) ORDER BY name')->fetchAll();   // 1.283.0: een losse relay-agent staat bij zijn server
@@ -74,7 +74,7 @@ switch ($action) {
         $lastRun = q('SELECT MAX(last_checked) FROM checks')->fetchColumn();
         out(['hosts' => $hosts, 'badges' => tab_badges($user, $hosts, (string) ($_GET['seen'] ?? '')), 'last_run' => $lastRun, 'user' => $user['username'],
              'base_url' => config('base_url', ''), 'snmp_global' => ($sg = SnmpMonitor::global()) ? array_intersect_key($sg, array_flip(['v', 'port', 'user', 'level', 'auth_proto', 'priv_proto'])) : null, 'agent_https_only' => setting('agent_https_only', '0') === '1', 'lan_session' => is_lan_session(), 'maintenance' => $global,
-             'version' => RZMON_VERSION, 'agent_latest' => AGENT_LATEST, 'edr_note_hide' => json_decode((string) setting('edr_note_hide', '{}'), true) ?: (object) [], 'role' => $user['role'], 'user_id' => $user['id'], 'ai' => Ai::stateInfo($user), 'isolated' => Ids::isolated(), 'iso_ask' => IsoAsk::pending(), 'health' => Health::current(), 'health_groups' => Health::groups(),
+             'version' => RZMON_VERSION, 'agent_latest' => AGENT_LATEST, 'agent_win_latest' => AGENT_WIN_LATEST, 'edr_note_hide' => json_decode((string) setting('edr_note_hide', '{}'), true) ?: (object) [], 'role' => $user['role'], 'user_id' => $user['id'], 'ai' => Ai::stateInfo($user), 'isolated' => Ids::isolated(), 'iso_ask' => IsoAsk::pending(), 'health' => Health::current(), 'health_groups' => Health::groups(),
              'agent_tick' => agent_tick(null), 'now_ts' => time(), 'confirm' => Confirm::state($user),   // 1.206.0
              // Sjablonen (1.94.0): item → naam van het sjabloon, en welke sjablonen per server
              'templates' => q('SELECT id, name FROM check_templates ORDER BY name')->fetchAll(),

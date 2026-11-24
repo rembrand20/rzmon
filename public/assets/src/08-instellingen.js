@@ -1784,7 +1784,7 @@ function initSmartFields(f) {
 /** Kaart "Agents": hoeveel agents verouderd zijn, en de knop om ze allemaal bij te werken. */
 function renderAgentUpdates() {
   const agents = state.hosts.filter((h) => h.mode === 'agent' && +h.enabled && h.agent_seen);
-  const old = agents.filter((h) => !h.agent_version || verCmp(h.agent_version, state.agent_latest) < 0);
+  const old = agents.filter((h) => !h.agent_version || verCmp(h.agent_version, agentLatestFor(h)) < 0);
   const busy = agents.filter((h) => h.agent_update_req);
   $('#agents-status').innerHTML = !agents.length ? L('Nog geen agents.')
     : (old.length ? `<b class="warn-txt">${L('{n} van {m} agent(s) verouderd', { n: old.length, m: agents.length })}</b>: ${old.map((h) => esc(h.name) + (h.agent_version ? ` (${esc(h.agent_version)})` : '')).join(', ')}`

@@ -16,7 +16,7 @@ if ($action === 'ping') {
     if (!Stealth::pingFull()) {
         Stealth::notFound();
     }
-    out(['ok' => true, 'app' => 'RzMon', 'agent_version' => AGENT_LATEST, 'version' => RZMON_VERSION, 'configured' => is_configured(), 'time' => date('c')]);
+    out(['ok' => true, 'app' => 'RzMon', 'agent_version' => AGENT_LATEST, 'agent_win_version' => AGENT_WIN_LATEST, 'version' => RZMON_VERSION, 'configured' => is_configured(), 'time' => date('c')]);
 }
 // 1.139.0: handtekening (ed25519, base64) van de agent en het installatiescript, gemaakt in GitHub; de agent controleert hem
 // 1.287.0: een reserve in stand-by neemt alleen na een geldig rapport het werk over; al het andere: 503
@@ -62,6 +62,29 @@ if ($action === 'agent_script' || $action === 'agent_install') {
     header('Cache-Control: no-store');
     // Het installatiescript krijgt de downloadsleutel mee, zodat het daarna ook de agent zelf kan ophalen
     echo $action === 'agent_install' && is_configured() ? Stealth::installScript() : file_get_contents(SM_ROOT . '/agent/' . ($action === 'agent_script' ? 'rzmon-agent.sh' : 'install-agent.sh'));
+    exit;
+}
+
+// 1.313.0: de Windows-agent (.exe, gebouwd en ondertekend door GitHub Actions) en zijn handtekening
+if ($action === 'agent_win_exe' || $action === 'agent_win_sig') {
+    if (!Stealth::scriptAllowed()) {
+        Stealth::notFound();
+    }
+    $f = SM_ROOT . '/agent-win/dist/rzsense-agent.exe' . ($action === 'agent_win_sig' ? '.sig' : '');
+    if (!is_file($f)) {
+        http_response_code(404);
+        exit;
+    }
+    header('Cache-Control: no-store');
+    if ($action === 'agent_win_exe') {
+        header('Content-Type: application/vnd.microsoft.portable-executable');
+        header('Content-Disposition: attachment; filename="rzsense-agent.exe"');
+        header('Content-Length: ' . filesize($f));
+        readfile($f);
+    } else {
+        header('Content-Type: text/plain; charset=utf-8');
+        echo trim((string) file_get_contents($f));
+    }
     exit;
 }
 
@@ -366,7 +389,7 @@ if ($action === 'agent') {
             $prev[substr($r['metric'], 8)] = json_decode($r['value'], true) ?: [];
         }
         foreach (array_slice($in['svc'], 0, 100, true) as $name => $d) {
-            if (!is_array($d) || !preg_match('/^[A-Za-z0-9@._:-]{1,150}$/', (string) $name)) {
+            if (!is_array($d) || !preg_match('/^[A-Za-z0-9@._:$-]{1,150}$/', (string) $name)) {
                 continue;
             }
             $d = array_intersect_key($d, array_flip(['sub', 'type', 'pid', 'restarts', 'since', 'ports', 'ports_fail', 'manual', 'sockets', 'sockets_fail', 'probe', 'probe_rc',
@@ -499,7 +522,7 @@ if ($action === 'agent') {
     if (isset($in['svc_list']) && is_array($in['svc_list'])) {
         $list = [];
         foreach (array_slice($in['svc_list'], 0, 1000) as $e) {
-            if (is_array($e) && preg_match('/^[A-Za-z0-9@._:-]{1,100}$/', (string) ($e[0] ?? ''))) {
+            if (is_array($e) && preg_match('/^[A-Za-z0-9@._:$-]{1,100}$/', (string) ($e[0] ?? ''))) {
                 $list[] = [(string) $e[0], preg_replace('/[^a-z-]/', '', (string) ($e[1] ?? '')), (int) !empty($e[2])];
             }
         }
@@ -566,6 +589,17 @@ if ($action === 'agent') {
     $prevSec = q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'sec_state'", [$host['id']])->fetchColumn();
     Paths::cleanAgentData((int) $host['id'], $now);   // 1.189.2: oude regels weg, de pad-metingen blijven
     $agentVersion = preg_match('/^\d+\.\d+\.\d+$/', (string) ($in['agent_version'] ?? '')) ? $in['agent_version'] : null;
+    // 1.313.0: Windows-agent: het besturingssysteem, en de Windows-versie (naam, build) voor de Agent Manager
+    $os = ($in['os'] ?? '') === 'windows' ? 'windows' : 'linux';
+    if (is_array($in['os_info'] ?? null)) {
+        $oi = $in['os_info'];
+        $st->execute([$host['id'], 'osinfo', json_encode(['name' => mb_substr((string) ($oi['name'] ?? ''), 0, 120), 'version' => mb_substr((string) ($oi['version'] ?? ''), 0, 40),
+            'build' => mb_substr((string) ($oi['build'] ?? ''), 0, 20), 'ubr' => (int) ($oi['ubr'] ?? 0), 'edition' => mb_substr((string) ($oi['edition'] ?? ''), 0, 60),
+            'install_type' => mb_substr((string) ($oi['install_type'] ?? ''), 0, 40)], JSON_UNESCAPED_UNICODE), $now]);
+    }
+    if (!empty($in['reboot_required'])) {
+        $st->execute([$host['id'], 'reboot_req', '1', $now]);
+    }
     // ℹ️ als de agent (opnieuw) verbindt: de eerste keer, na stil te zijn geweest, of vanaf een ander IP
     Security::agentConnected($host, $encrypted);
     // 1.146.0: was de agent langer stil dan de grens? Dan het gat bewaren (SLO "agents stil")
@@ -573,8 +607,8 @@ if ($action === 'agent') {
     Quality::noteCtrBusy((int) $host['id'], $in['ctr_busy'] ?? null);   // 1.291.0 (agent 1.113.0)
     // Contactmomenten (1.99.0): de laatste 21, om het echte ritme te zien
     $beats = array_slice([...array_filter(explode(',', (string) ($host['agent_beats'] ?? ''))), (string) time()], -21);
-    q('UPDATE hosts SET agent_seen = ?, agent_busy = NULL, agent_ip = ?, agent_version = ?, enc_seen = ?, agent_beats = ? WHERE id = ?',
-        [$now, mb_substr(client_ip(), 0, 45), $agentVersion, $encrypted ? 1 : 0, implode(',', $beats), $host['id']]);
+    q('UPDATE hosts SET agent_seen = ?, agent_busy = NULL, agent_ip = ?, agent_version = ?, enc_seen = ?, agent_beats = ?, os = ? WHERE id = ?',
+        [$now, mb_substr(client_ip(), 0, 45), $agentVersion, $encrypted ? 1 : 0, implode(',', $beats), $os, $host['id']]);
     // Andere versie dan vorige keer: bijgewerkt (met de knop, automatisch, via de add-on winkel of met de hand) → info
     if ($agentVersion !== null && $host['agent_version'] !== null && $agentVersion !== $host['agent_version']) {
         $from = (string) $host['agent_version'];

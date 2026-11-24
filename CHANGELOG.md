@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.313.0**: **Windows-agent** (fase 1): Windows Server 2019–2025 als service, met hetzelfde versleutelde rapport als Linux.
 - **1.312.0**: **rustige nieuwe indeling** van de instellingen, eerst bij Meldingen en rapporten: kop met label en aan/uit, velden naast elkaar, overzicht van de kanalen.
 - **1.311.0**: **Aanvallen live**: boven Dashboard, IDS en Netwerk zie je aanvallen van buiten en binnen onderweg, met elke stip een echte gebeurtenis.
 - **1.310.0**: **Beweging in heel RzSense** (Stil · Rustig · Vol): statuswissels, knoppen, grafieken en overgangen; gevaarlijke acties bevestig je door ingedrukt te houden.
 - **1.309.0**: **Dagritme**: overdag licht, 's avonds Schemer, 's nachts donker, op je eigen tijden.
-- **1.308.0**: **kleurenschema Schemer**: licht, maar warm en zacht voor je ogen; ook automatisch 's avonds.
+
+## 1.313.0 – 2026-11-24
+### Nieuw
+- **Windows-agent (fase 1: monitoring).** Windows Server 2019, 2022 en 2025 (64-bit) geven nu ook hun gegevens aan RzSense, met een eigen agent (`rzsense-agent.exe`, Windows-agent 0.1.0) die als service *RzSense Agent* draait. Zie HANDLEIDING 8.16.
+  - Installeren met twee regels in PowerShell (als beheerder) bij *Agent Manager → Installeren of opnieuw koppelen → ⊞ Windows Server*, met een koppelcode.
+  - Hetzelfde rapport als de Linux-agent, versleuteld en ondertekend op dezelfde manier: CPU, geheugen, schijven (`C:` …), services, processen, open poorten, opstarttijd en de Windows-versie. Checks, dashboard en meldingen werken zoals bij Linux.
+  - De check *Herstart* waarschuwt als Windows op een herstart wacht.
+  - Bijwerken vanuit RzSense, alleen met een `.exe` met een geldige handtekening. De Windows-agent heeft een eigen versienummer; de Agent Manager vergelijkt hem daarmee.
+  - Service-checks kennen nu ook namen met een `$` (bv. `MSSQL$SQLEXPRESS`).
 
 ## 1.312.2 – 2026-11-24
 ### Opgelost

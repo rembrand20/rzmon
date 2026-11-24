@@ -64,8 +64,9 @@ final class AgentAudit
         $lock = AgentCrypto::ipLockOn($h);
         $add('iplock', $lock, t('IP-slot'), $lock ? t('alleen vanaf {ip}', ['ip' => trim((string) ($h['agent_ips'] ?? '')) ?: '?']) : t('staat uit voor deze server'));
         $v = (string) ($h['agent_version'] ?? '');
-        $add('version', $v === '' ? null : version_compare($v, AGENT_LATEST, '>='), t('Versie'),
-            $v === '' ? t('onbekend') : (version_compare($v, AGENT_LATEST, '>=') ? $v : t('{v}, nieuwste is {latest}', ['v' => $v, 'latest' => AGENT_LATEST])));
+        $latest = agent_latest($h['os'] ?? null);   // 1.313.0: Windows-agent: zijn eigen nummer
+        $add('version', $v === '' ? null : version_compare($v, $latest, '>='), t('Versie'),
+            $v === '' ? t('onbekend') : (version_compare($v, $latest, '>=') ? $v : t('{v}, nieuwste is {latest}', ['v' => $v, 'latest' => $latest])));
         $days = (int) setting('agent_key_days', '30');
         if ($own) {
             $age = !empty($h['agent_key_at']) ? (int) floor((time() - strtotime((string) $h['agent_key_at'])) / 86400) : null;
@@ -112,7 +113,7 @@ final class AgentAudit
     }
 
     /** Kolommen van hosts die de controle nodig heeft */
-    public const HOST_COLS = 'id, name, mode, agent_version, agent_key_seen, agent_key_at, agent_token, enc_seen, agent_conn, agent_fb_at, agent_ips, pin_mode, ip_lock, agent_https';
+    public const HOST_COLS = 'id, name, mode, os, agent_version, agent_key_seen, agent_key_at, agent_token, enc_seen, agent_conn, agent_fb_at, agent_ips, pin_mode, ip_lock, agent_https';
 
     /**
      * Bij elk rapport: cfg bewaren, SERVICES omzetten, meldingen bij een wisseling. @return list<string> regels voor de agent
