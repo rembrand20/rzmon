@@ -545,7 +545,7 @@ const LS_LVL_PILL = ['debug', 'info', 'warning', 'error', 'critical'];
 
 // ---------------------------------------------------------------- 1.213.0: logs die de agent op de server vond, om uit te kiezen
 const LF = { tab: 'dirs', timer: 0, waitUntil: 0, sel: new Set(), host: 0 };
-const LF_TABS = () => [['dirs', '📁', L('Logmappen')], ['docker', '🐳', L('Containers')], ['units', '⚙️', L('Services')], ['ha', '🏠', 'Home Assistant']];
+const LF_TABS = () => [['dirs', '📁', L('Logmappen')], ['docker', '🐳', L('Containers')], ['units', '⚙️', L('Services')], ['ha', '🏠', 'Home Assistant'], ['winevt', '⊞', L('Windows-logboeken')]];   // 1.314.0: Windows
 const lfAgo = (ts) => { const s = Math.max(0, Date.now() / 1000 - ts); return s < 90 ? L('nu') : s < 3600 ? L('{n} min', { n: Math.round(s / 60) }) : s < 86400 ? L('{n} uur', { n: Math.round(s / 3600) }) : s < 60 * 86400 ? (Math.round(s / 86400) === 1 ? L('1 dag') : L('{n} dagen', { n: Math.round(s / 86400) })) : L('{n} mnd', { n: Math.round(s / (30 * 86400)) }); };
 
 async function lfLoad(h, keepChecks = false) {
@@ -563,7 +563,7 @@ async function lfLoad(h, keepChecks = false) {
   }
   const names = new Map();
   Object.values(g).flat().forEach((i) => { names.set(i.kind + ':' + i.spec, i); (i.files || []).forEach((f) => names.set('file:' + f.path, { name: f.path.split('/').pop() })); });
-  if (!g[LF.tab] || (!g[LF.tab].length && g.dirs.length)) LF.tab = 'dirs';
+  if (!g[LF.tab] || !g[LF.tab].length) LF.tab = (LF_TABS().find(([k]) => (g[k] || []).length) || ['dirs'])[0];   // 1.314.0: het eerste tabblad met iets erin (op Windows: Windows-logboeken)
   const key = (it) => it.kind + ':' + it.spec;
   const tag = (it) => [it.have ? `<span class="lf-tag have">✓ ${L('verzameld')}</span>` : '', it.rec && !it.have ? `<span class="lf-tag rec">${L('aanbevolen')}</span>` : '',
     it.new && !it.have ? `<span class="lf-tag new">${L('nieuw')}</span>` : '', it.quiet ? `<span class="lf-tag">${it.kind === 'docker' || it.kind === 'ha' ? esc(it.state || L('gestopt')) : L('stil sinds {t}', { t: lfAgo(it.mtime) })}</span>` : ''].join(' ');
@@ -573,6 +573,7 @@ async function lfLoad(h, keepChecks = false) {
     if (it.kind === 'file') info = it.folder ? `${esc(it.spec)} · ${it.files.length === 1 ? L('1 bestand') : L('{n} bestanden', { n: it.files.length })}` : esc(it.spec);
     else if (it.kind === 'docker') info = `${esc(it.engine)} · ${esc(it.image)} · ${esc(it.state)}`;
     else if (it.kind === 'unit' || it.kind === 'journal') info = `journal · ${L('{n} regels in 24 uur', { n: dec(it.lines) })}`;
+    else if (it.kind === 'winevt') info = `${L('Windows-logboek')} · ${L('{n} gebeurtenissen', { n: dec(it.lines) })}`;
     else info = `ha:${esc(it.spec)} · ${esc(it.state)}`;
     if (it.folder) {
       sub = it.files.map((f) => `<div class="lf-it lf-sub" data-lf-of="${esc(it.spec)}" hidden>${it.have ? '<span></span>' : `<input type="checkbox" data-lf="file:${esc(f.path)}" ${LF.sel.has('file:' + f.path) ? 'checked' : ''} aria-label="${esc(f.path)}">`}
@@ -657,7 +658,7 @@ async function amLogs(h) {
       : `<span class="lg-pill mut">${L('wacht op de agent')}</span>`;
     return `<tr data-ls="${s.id}">
       <td>${amSw('ls-on-' + s.id, s.enabled, `data-ls-on="${s.id}"`)}</td>
-      <td><div class="lg-src"><b>${esc(s.name)}</b>${s.spec ? `<span class="mono muted small">${esc(s.kind === 'ha' ? 'ha:' + s.spec : s.kind === 'docker' ? 'docker:' + s.spec : s.kind === 'unit' ? 'journal:' + s.spec : s.spec)}</span>` : ''}
+      <td><div class="lg-src"><b>${esc(s.name)}</b>${s.spec ? `<span class="mono muted small">${esc(s.kind === 'ha' ? 'ha:' + s.spec : s.kind === 'docker' ? 'docker:' + s.spec : s.kind === 'unit' ? 'journal:' + s.spec : s.kind === 'winevt' ? L('Windows-logboek') + ': ' + s.spec : s.spec)}</span>` : ''}
         ${s.enabled && s.status === 'err' && s.status_msg ? `<span class="danger-txt small">${esc(s.status_msg)}</span>` : ''}
         ${s.dropped_today ? `<span class="warn-txt small">${L('{n} regels niet opgeslagen (daglimiet)', { n: dec(s.dropped_today) })}</span>` : ''}</div></td>
       <td class="nowrap">${esc(kinds[s.kind] ? kinds[s.kind][0] : s.kind)}</td>
@@ -2417,9 +2418,19 @@ async function pollAgentStatus(hostId, gen = ++agentPollGen) {
     if (s.mode === 'agent' && s.seen) {
       const old = !s.agent_version || verCmp(s.agent_version, s.version) < 0;
       const u = s.update || {};
-      const canRemote = u.via === 'systemd' || u.via === 'direct';
+      const canRemote = u.via === 'systemd' || u.via === 'direct' || u.via === 'winsvc';   // 1.313.0: ook de Windows-agent
       html += `<div class="small">${L('Agent-versie <b>{v}</b>', { v: s.agent_version ? esc(s.agent_version) : L('onbekend (ouder dan 1.6.0)') })}${old ? ', ' + L('nieuwste agent {v}', { v: esc(s.version) }) : ' ✔ ' + L('nieuwste')}</div>`;
       if (u.status) html += `<div class="small agent-upd-status">${esc(u.status)}</div>`;
+      if (s.win) {   // 1.314.0: Windows-versie en Windows Update
+        const wi = s.win.info || {}, wu = s.win.wu;
+        const when = wu && wu.at ? new Date(wu.at * 1000).toLocaleString(LOCALE, { dateStyle: 'short', timeStyle: 'short' }) : '';
+        html += `<div class="small">⊞ ${esc(wi.name || 'Windows')}${wi.version ? ' ' + esc(wi.version) : ''}${wi.build ? ' · build ' + esc(wi.build) + (wi.ubr ? '.' + esc(wi.ubr) : '') : ''}</div>`;
+        html += `<div class="small">${!wu ? L('Windows Update: wordt bevraagd (op de achtergrond, eens per 6 uur)')
+          : wu.error ? `<span class="warn-txt">${esc(wu.error)}</span>`
+          : wu.n ? `<span class="warn-txt">${L('Windows Update: {n} update(s) klaar', { n: wu.n })}${wu.crit || wu.imp ? ' (' + L('{c} kritiek, {i} belangrijk', { c: wu.crit, i: wu.imp }) + ')' : ''}</span>`
+          : '✔ ' + L('Windows Update: alles bijgewerkt')}${when ? ` <span class="muted">· ${L('bevraagd {t}', { t: esc(when) })}</span>` : ''}</div>`;
+        if (wu && wu.n && wu.list && wu.list.length) html += `<details class="small"><summary>${L('Welke updates')}</summary><ul class="small">${wu.list.map((x) => `<li>${esc(x.t)}${x.s ? ` <span class="muted">(${esc(x.s)})</span>` : ''}</li>`).join('')}</ul></details>`;
+      }
       html += `<div class="small">${realtimeText(s.realtime)}</div>`;
       // 🐕 Waakhond: werkt alleen met Pushover en een versleutelde verbinding (de gegevens gaan naar de agent)
       const wdi = $('#host-wd-info');

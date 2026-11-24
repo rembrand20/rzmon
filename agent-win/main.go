@@ -70,7 +70,8 @@ func main() {
 		fmt.Println("✔ Rapport verstuurd en het antwoord van RzSense klopt (🔒)")
 	case "collect":
 		// Wat de agent op deze computer meet, zonder iets te versturen (ook voor de test in GitHub Actions)
-		t := tests{Tick: 60, Svc: map[string]string{"1": "EventLog", "2": "Dhcp", "3": "BestaatNiet"}, Procs: []procWant{{ID: "4", Value: "svchost.exe"}}}
+		t := tests{Tick: 60, Svc: map[string]string{"1": "EventLog", "2": "Dhcp", "3": "BestaatNiet"}, Procs: []procWant{{ID: "4", Value: "svchost.exe"}},
+			Auth: true, Logs: []logCheck{{ID: "5", Source: "Application", Pattern: "RzSenseTest"}}, LogScan: 1, CertScan: 1}
 		b, _ := json.MarshalIndent(buildReport(&Config{RemoteUpdate: true}, t, map[string]int{}), "", "  ")
 		fmt.Println(string(b))
 	case "status":

@@ -8,7 +8,7 @@ declare(strict_types=1);
  */
 final class AuthEvents
 {
-    private const LABELS = ['ssh' => 'SSH-login', 'console' => 'Console-login', 'sudo' => 'sudo', 'su' => 'su'];
+    private const LABELS = ['ssh' => 'SSH-login', 'console' => 'Console-login', 'sudo' => 'sudo', 'su' => 'su', 'rdp' => 'RDP-login', 'net' => 'Netwerk-login'];   // 1.314.0: rdp en net (Windows)
     private const METHODS = ['publickey' => 'sleutel', 'password' => 'wachtwoord', 'keyboard-interactive/pam' => 'wachtwoord', 'gssapi-with-mic' => 'Kerberos'];
 
     public static function enabled(): bool
@@ -61,6 +61,8 @@ final class AuthEvents
                 'sudo' => ['⚡ ' . t('sudo: {u} op {host}', ['u' => $u, 'host' => $name]), t('als {as}', ['as' => $as]) . ': ' . $str($e['cmd'] ?? '', 500)
                     . (($e['pwd'] ?? '') !== '' ? ' · ' . t('in') . ' ' . $str($e['pwd'], 200) : '') . (($e['tty'] ?? '') !== '' ? ' · ' . $str($e['tty'], 30) : '')],
                 'su' => ['🔀 ' . t('su: {u} op {host}', ['u' => $u, 'host' => $name]) . " → $as", t('{u} werd {as}', ['u' => $u, 'as' => $as])],
+                'rdp' => ['🖥️ ' . t('RDP-login: {u} op {host}', ['u' => $u, 'host' => $name]), t('vanaf {ip}', ['ip' => $ip !== '' ? $ip : '?'])],
+                'net' => ['🔗 ' . t('Netwerk-login: {u} op {host}', ['u' => $u, 'host' => $name]), t('vanaf {ip}', ['ip' => $ip !== '' ? $ip : '?'])],
             };
             self::insert($host, 'auth', $title, $msg, $when($e['t'] ?? 0),
                 ['type' => $k, 'user' => $u, 'ip' => $ip, 'as' => $as, 'cmd' => $str($e['cmd'] ?? '', 500)]);
@@ -81,7 +83,7 @@ final class AuthEvents
             $as = $str($f['as'] ?? '');
             $cmd = $str($f['cmd'] ?? '', 300);
             // Zelfde soort mislukking op dezelfde server binnen een uur: optellen bij de bestaande regel
-            $key = $k . '|' . match ($k) { 'ssh' => $ip, 'console' => $str($f['tty'] ?? ''), 'sudo' => ($users[0] ?? '') . "|$as|$cmd", 'su' => ($users[0] ?? '') . "|$as" };
+            $key = $k . '|' . match ($k) { 'ssh', 'rdp', 'net' => $ip, 'console' => $str($f['tty'] ?? ''), 'sudo' => ($users[0] ?? '') . "|$as|$cmd", 'su' => ($users[0] ?? '') . "|$as" };
             $prev = q("SELECT id, detail FROM access_log WHERE host_id = ? AND kind = 'authfail' AND created_at >= NOW() - INTERVAL 1 HOUR
                        AND JSON_UNQUOTE(JSON_EXTRACT(detail, '$.key')) = ? ORDER BY id DESC LIMIT 1", [$host['id'], $key])->fetch();
             if ($prev) {
@@ -99,6 +101,10 @@ final class AuthEvents
                 'sudo' => ["❌ $times" . t('mislukte sudo: {u} op {host}', ['u' => $who, 'host' => $name]),
                     (isset($f['why']) ? $str($f['why'], 150) : t('geweigerd')) . ($as !== '' ? ' · ' . t('als {as}', ['as' => $as]) : '') . ($cmd !== '' ? ": $cmd" : '')],
                 'su' => ["❌ $times" . t('mislukte su: {u} op {host}', ['u' => $who, 'host' => $name]) . " → $as", t('verkeerd wachtwoord')],
+                'rdp' => ["❌ $times" . t('mislukte RDP-login op {host}', ['host' => $name]),
+                    t('vanaf {ip}', ['ip' => $ip !== '' ? $ip : '?']) . ' · ' . (count($users) === 1 ? t('gebruiker') : t('gebruikers')) . ": $who"],
+                'net' => ["❌ $times" . t('mislukte netwerk-login op {host}', ['host' => $name]),
+                    t('vanaf {ip}', ['ip' => $ip !== '' ? $ip : '?']) . ' · ' . (count($users) === 1 ? t('gebruiker') : t('gebruikers')) . ": $who"],
             };
             $detail = ['type' => $k, 'key' => $key, 'n' => $count, 'users' => $users, 'ip' => $ip, 'as' => $as, 'cmd' => $cmd, 'last' => $when($f['t'] ?? 0)];
             if ($prev) {

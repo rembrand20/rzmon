@@ -6,6 +6,7 @@ package main
 // De echte agent is er alleen voor Windows.
 
 import (
+	"crypto/x509"
 	"errors"
 	"fmt"
 )
@@ -31,7 +32,18 @@ func serviceList() [][]any                     { return [][]any{} }
 func processInfo([]procWant) ([][]any, map[string]any) {
 	return [][]any{}, map[string]any{}
 }
-func runService() error             { return errors.New("alleen op Windows") }
-func isService() bool               { return false }
-func install(*Config, string) error { return errors.New("alleen op Windows") }
-func uninstall(bool) error          { return errors.New("alleen op Windows") }
+
+type noEvents struct{}
+
+func (noEvents) read(string, string, uint64, int, bool) ([]winEvent, uint64, error) {
+	return nil, 0, nil
+}
+func (noEvents) close()                     {}
+func newEventReader() eventReader           { return noEvents{} }
+func channelInfo(string) (uint64, bool)     { return 0, false }
+func storeCerts(string) []*x509.Certificate { return nil }
+func windowsUpdate() map[string]any         { return nil }
+func runService() error                     { return errors.New("alleen op Windows") }
+func isService() bool                       { return false }
+func install(*Config, string) error         { return errors.New("alleen op Windows") }
+func uninstall(bool) error                  { return errors.New("alleen op Windows") }

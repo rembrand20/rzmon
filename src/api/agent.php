@@ -298,7 +298,8 @@ if ($action === 'agent') {
         $found = [];
         foreach (array_slice($in['cert_found'], 0, 300) as $c) {
             $path = (string) ($c['path'] ?? '');
-            if (is_array($c) && preg_match('#^/[^\s]{1,250}$#', $path)) {
+            // 1.314.0: ook een certificaat uit de Windows-certificaatopslag (cert:LocalMachine\My\<vingerafdruk>)
+            if (is_array($c) && (preg_match('#^/[^\s]{1,250}$#', $path) || preg_match(Checks::WIN_CERT, $path))) {
                 $found[] = ['path' => $path, 'cn' => mb_substr((string) ($c['cn'] ?? ''), 0, 120), 'issuer' => mb_substr((string) ($c['issuer'] ?? ''), 0, 120),
                     'not_after' => is_numeric($c['not_after'] ?? null) ? (int) $c['not_after'] : null, 'n' => (int) ($c['n'] ?? 1),
                     'chain_min' => is_numeric($c['chain_min'] ?? null) ? (int) $c['chain_min'] : null];
@@ -596,6 +597,17 @@ if ($action === 'agent') {
         $st->execute([$host['id'], 'osinfo', json_encode(['name' => mb_substr((string) ($oi['name'] ?? ''), 0, 120), 'version' => mb_substr((string) ($oi['version'] ?? ''), 0, 40),
             'build' => mb_substr((string) ($oi['build'] ?? ''), 0, 20), 'ubr' => (int) ($oi['ubr'] ?? 0), 'edition' => mb_substr((string) ($oi['edition'] ?? ''), 0, 60),
             'install_type' => mb_substr((string) ($oi['install_type'] ?? ''), 0, 40)], JSON_UNESCAPED_UNICODE), $now]);
+    }
+    if (is_array($in['winupdate'] ?? null)) {   // 1.314.0: Windows Update (aantal wachtende updates)
+        $wu = $in['winupdate'];
+        $list = [];
+        foreach (array_slice((array) ($wu['list'] ?? []), 0, 20) as $u) {
+            if (is_array($u)) {
+                $list[] = ['t' => mb_substr((string) ($u['t'] ?? ''), 0, 200), 's' => mb_substr((string) ($u['s'] ?? ''), 0, 20), 'kb' => mb_substr((string) ($u['kb'] ?? ''), 0, 40)];
+            }
+        }
+        $st->execute([$host['id'], 'winupdate', json_encode(['n' => (int) ($wu['n'] ?? 0), 'crit' => (int) ($wu['crit'] ?? 0), 'imp' => (int) ($wu['imp'] ?? 0),
+            'at' => (int) ($wu['at'] ?? 0), 'error' => mb_substr((string) ($wu['error'] ?? ''), 0, 200), 'list' => $list], JSON_UNESCAPED_UNICODE), $now]);
     }
     if (!empty($in['reboot_required'])) {
         $st->execute([$host['id'], 'reboot_req', '1', $now]);

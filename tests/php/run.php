@@ -4360,5 +4360,34 @@ if (!$wHad) {
 }
 q('DELETE FROM hosts WHERE id = ?', [$wId]);
 
+// 1.314.0: Windows-agent fase 2: Windows-logboeken (Logs), logins (RDP), certificaten uit de certificaatopslag
+q("INSERT INTO hosts (name, address, mode, os) VALUES ('win-unit2', '192.0.2.12', 'agent', 'windows')");
+$w2 = (int) db()->lastInsertId();
+$w2h = q('SELECT * FROM hosts WHERE id = ?', [$w2])->fetch();
+ok(LogStore::cleanSpec('winevt', 'Microsoft-Windows-Sysmon/Operational') === 'Microsoft-Windows-Sysmon/Operational' && LogStore::cleanSpec('winevt', '../etc') === null
+    && LogStore::cleanSpec('winevt', 'System') === 'System', 'Windows-logboek als logbron: geldige namen, geen paden');
+LogStore::storeScan($w2, ['at' => time(), 'winevt' => [['System', 1200], ['Application', 5], ['Leeg', 0], ['../x', 3]]]);
+$wf = LogStore::found($w2)['groups']['winevt'] ?? [];
+$wfBy = array_column($wf, null, 'spec');
+ok(count($wf) === 3 && $wfBy['System']['rec'] && $wfBy['Leeg']['quiet'] && !isset($wfBy['../x']), 'Windows-logboeken om uit te kiezen: aanbevolen, leeg, ongeldige naam weg');
+q("INSERT INTO log_sources (host_id, name, kind, spec, level) VALUES (?, 'System', 'winevt', 'System', 0)", [$w2]);
+$wsid = (int) db()->lastInsertId();
+$wnow = time();
+$wpkg = "rzlogs1\tb{$wnow}abc\t$wnow\t0\t+0100\nS\t$wsid\tok\t1\t\nL\t$wsid\t$wnow\t" . date('Y-m-d\TH:i:sP', $wnow) . " ERROR Service Control Manager[7034]: De service Spooler is onverwacht beëindigd.\n";
+$wing = LogStore::ingest($w2h, $wpkg);
+ok(!empty($wing['ok']) && (int) ($wing['stored'] ?? 0) === 1 && q('SELECT status FROM log_sources WHERE id = ?', [$wsid])->fetchColumn() === 'ok',
+    'logpakket met een Windows-logboek: opgeslagen, bron ok');
+ok(LogStore::level('2026-11-24T10:00:00+01:00 ERROR Service Control Manager[7034]: x') === 3 && LogStore::level('2026-11-24T10:00:00+01:00 WARNING Disk[51]: x') === 2,
+    'niveau uit een Windows-logregel (ERROR, WARNING)');
+$wa = AuthEvents::store($w2h, ['events' => [['k' => 'rdp', 'u' => 'CORP\\jan', 'ip' => '192.0.2.50', 't' => time(), 'm' => 'Negotiate']],
+    'fails' => [['k' => 'rdp', 'n' => 3, 'users' => ['administrator'], 'ip' => '198.51.100.9', 't' => time()], ['k' => 'net', 'n' => 2, 'users' => ['x'], 'ip' => '198.51.100.10', 't' => time()]]]);
+$wt = q('SELECT title FROM access_log WHERE host_id = ? ORDER BY id', [$w2])->fetchAll(PDO::FETCH_COLUMN);
+ok($wa === 3 && str_contains(implode(' | ', $wt), 'RDP-login: CORP\\jan') && str_contains(implode(' | ', $wt), '3× mislukte RDP-login') && str_contains(implode(' | ', $wt), 'netwerk-login'),
+    'logins van Windows: RDP gelukt, RDP en netwerk mislukt');
+$wcert = 'cert:LocalMachine\\My\\' . str_repeat('A1', 20);
+ok(Checks::agentCertSource(['target' => $wcert, 'options' => null]) === $wcert && Checks::agentCertSource(['target' => 'cert:LocalMachine\\My\\xyz', 'options' => null]) === null,
+    'certificaat uit de Windows-certificaatopslag als bron voor een SSL-check');
+q('DELETE FROM hosts WHERE id = ?', [$w2]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.314.0**: **Windows-agent fase 2**: Windows-logboeken op de pagina Logs, RDP-logins, certificaten uit de opslag en Windows Update.
 - **1.313.0**: **Windows-agent** (fase 1): Windows Server 2019–2025 als service, met hetzelfde versleutelde rapport als Linux.
 - **1.312.0**: **rustige nieuwe indeling** van de instellingen, eerst bij Meldingen en rapporten: kop met label en aan/uit, velden naast elkaar, overzicht van de kanalen.
 - **1.311.0**: **Aanvallen live**: boven Dashboard, IDS en Netwerk zie je aanvallen van buiten en binnen onderweg, met elke stip een echte gebeurtenis.
 - **1.310.0**: **Beweging in heel RzSense** (Stil · Rustig · Vol): statuswissels, knoppen, grafieken en overgangen; gevaarlijke acties bevestig je door ingedrukt te houden.
-- **1.309.0**: **Dagritme**: overdag licht, 's avonds Schemer, 's nachts donker, op je eigen tijden.
+
+## 1.314.0 – 2026-11-24
+### Nieuw
+- **Windows-agent fase 2: logs, logins, certificaten en Windows Update** (Windows-agent 0.2.0 nodig; nieuwe Windows-agent 0.2.0). Zie HANDLEIDING 8.16.
+  - **Windows-logboeken op de pagina Logs**: System, Application, Security, Sysmon, Defender, PowerShell en meer, te kiezen in de Agent Manager onder *⊞ Windows-logboeken*.
+  - **Log-checks** op een Windows-logboek (doel bv. `System`).
+  - **Logins**: gelukte console- en RDP-logins en mislukte logins (ook via het netwerk) op de pagina Meldingen, net als SSH op Linux.
+  - **Certificaten** uit de certificaatopslag van Windows voor een SSL-check (`cert:LocalMachine\My\…`).
+  - **Windows Update**: de Agent Manager toont hoeveel updates er klaarstaan, en welke.
 
 ## 1.313.1 – 2026-11-24
 ### Opgelost

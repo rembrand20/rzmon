@@ -737,7 +737,7 @@ switch ($action) {
 
     case 'agent_status':
         $id = (int) ($_GET['id'] ?? 0);
-        $h = q('SELECT agent_seen, agent_busy, agent_ip, agent_version, mode, agent_update_req, agent_update_status, agent_update_via, realtime, watchdog, watchdog_min, enc_seen FROM hosts WHERE id = ?', [$id])->fetch();
+        $h = q('SELECT id, os, agent_seen, agent_busy, agent_ip, agent_version, mode, agent_update_req, agent_update_status, agent_update_via, realtime, watchdog, watchdog_min, enc_seen FROM hosts WHERE id = ?', [$id])->fetch();
         if (!$h) {
             out(['error' => t('Server niet gevonden')], 404);
         }
@@ -749,6 +749,7 @@ switch ($action) {
                     GROUP BY ip, reason ORDER BY MAX(id) DESC LIMIT 6', [$id, $h['agent_seen'], $h['agent_seen']])->fetchAll();
         out(['seen' => $h['agent_seen'], 'ip' => $h['agent_ip'], 'mode' => $h['mode'], 'failures' => $fails, 'now' => now(),
              'agent_version' => $h['agent_version'], 'version' => agent_latest($h['os'] ?? null), 'os' => $h['os'] ?? null,
+             'win' => ($h['os'] ?? null) === 'windows' ? ['info' => json_decode((string) Checks::agentMetric($h, 'osinfo'), true), 'wu' => json_decode((string) Checks::agentMetric($h, 'winupdate'), true)] : null,   // 1.314.0
              'update' => ['pending' => $h['agent_update_req'] !== null, 'status' => $h['agent_update_status'], 'via' => $h['agent_update_via']],
              'audit' => AgentAudit::items(q('SELECT ' . AgentAudit::HOST_COLS . ' FROM hosts WHERE id = ?', [$id])->fetch() ?: [], AgentAudit::cfg($id)),
              'report_warn' => json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'report_warn'", [$id])->fetchColumn(), true),

@@ -16,7 +16,7 @@ import (
 )
 
 // Version: wordt bijgewerkt met tools/bump-version.sh agentwin (gelijk aan agent-win/VERSION)
-const Version = "0.1.0"
+const Version = "0.2.0"
 
 // ---------------------------------------------------------------- koppelen
 
@@ -71,14 +71,22 @@ type procWant struct {
 }
 
 type tests struct {
-	Tick  int               // seconden tussen rapporten
-	Svc   map[string]string // check-id → servicenaam
-	Procs []procWant
-	Rev   string
+	Tick     int               // seconden tussen rapporten
+	Svc      map[string]string // check-id → servicenaam
+	Procs    []procWant
+	Rev      string
+	LogSrc   []logSrc   // fase 2: logboeken naar de pagina Logs
+	LogShip  int        // om de hoeveel seconden versturen
+	LogPause int64      // tot wanneer niets lezen (daglimiet bereikt)
+	LogScan  int        // "Opnieuw zoeken" (teller)
+	Logs     []logCheck // log-checks
+	Auth     bool       // logins doorgeven
+	Certs    []string   // certificaten om te lezen
+	CertScan int        // "Opnieuw zoeken" naar certificaten (teller)
 }
 
 func parseTests(text string) tests {
-	t := tests{Tick: 60, Svc: map[string]string{}}
+	t := tests{Tick: 60, Svc: map[string]string{}, LogShip: 60}
 	for _, line := range strings.Split(strings.ReplaceAll(text, "\r", ""), "\n") {
 		f := strings.Split(line, "\t")
 		if len(f) < 3 {
@@ -91,6 +99,32 @@ func parseTests(text string) tests {
 			}
 		case "svc":
 			t.Svc[f[0]] = f[2]
+		case "logsrc":
+			if len(f) >= 5 {
+				spec := f[3]
+				if spec == "-" {
+					spec = ""
+				}
+				t.LogSrc = append(t.LogSrc, logSrc{ID: f[0], Kind: f[2], Spec: spec, Level: atoiDef(f[4], 0)})
+			}
+		case "logship":
+			if n := atoiDef(f[2], 60); n >= 10 {
+				t.LogShip = n
+			}
+		case "logpause":
+			t.LogPause = int64(atoiDef(f[2], 0))
+		case "logscan":
+			t.LogScan = atoiDef(f[2], 0)
+		case "log":
+			if len(f) >= 4 {
+				t.Logs = append(t.Logs, logCheck{ID: f[0], Source: f[2], Pattern: f[3]})
+			}
+		case "auth":
+			t.Auth = f[2] == "1"
+		case "cert":
+			t.Certs = append(t.Certs, f[2])
+		case "certscan":
+			t.CertScan = atoiDef(f[2], 0)
 		case "proc":
 			if len(f) >= 4 {
 				if v, err := base64.StdEncoding.DecodeString(f[3]); err == nil {
@@ -170,6 +204,37 @@ func buildReport(c *Config, t tests, parts map[string]int) map[string]any {
 	if r := readState("update.result"); r != "" {
 		rep["update_result"] = r
 	}
+	// Fase 2: logins, log-checks, certificaten, de logboeken om uit te kiezen, en Windows Update
+	t0 = time.Now()
+	if t.Auth {
+		if a := collectAuth(); a != nil {
+			rep["auth"] = a
+		}
+	}
+	if len(t.Logs) > 0 {
+		rep["logs"] = runLogChecks(t.Logs)
+	}
+	lap("logs", t0)
+	t0 = time.Now()
+	if len(t.Certs) > 0 {
+		rep["certs"] = collectCerts(t.Certs)
+	}
+	// Certificaten en logboeken zoeken: als RzSense erom vraagt, en verder eens per dag
+	day := time.Now().Unix() / 86400
+	if fmt.Sprint(t.CertScan) != readState("certscan.req") || readState("certscan.day") != fmt.Sprint(day) {
+		rep["cert_found"] = certFound()
+		writeState("certscan.req", fmt.Sprint(t.CertScan))
+		writeState("certscan.day", fmt.Sprint(day))
+	}
+	if fmt.Sprint(t.LogScan) != readState("logscan.req") || readState("logscan.day") != fmt.Sprint(day) {
+		rep["log_scan"] = logScan(t.LogScan)
+		writeState("logscan.req", fmt.Sprint(t.LogScan))
+		writeState("logscan.day", fmt.Sprint(day))
+	}
+	lap("certificaten", t0)
+	if wu := windowsUpdate(); wu != nil {
+		rep["winupdate"] = wu
+	}
 	return rep
 }
 
@@ -201,6 +266,7 @@ func round(c *Config, force bool) (int, error) {
 	}
 	dropState("update.result")
 	handleReply(c, t, body)
+	shipLogs(c, t) // logboeken naar de pagina Logs (eigen verzoek, zoals de Linux-agent)
 	return t.Tick, nil
 }
 

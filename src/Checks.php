@@ -262,9 +262,15 @@ final class Checks
      * Wat de agent voor deze SSL-check uitleest (1.98.0), of null als RzSense het zelf via het netwerk doet:
      * een bestand altijd; host:poort als "controleren vanaf" op de agent staat, of automatisch bij localhost/127.x.
      */
+    /** 1.314.0: een certificaat uit de Windows-certificaatopslag van de computer, gelezen door de Windows-agent */
+    public const WIN_CERT = '#^cert:LocalMachine\\\\(My|WebHosting|Remote Desktop)\\\\[0-9A-F]{40}$#';
+
     public static function agentCertSource(array $check): ?string
     {
         $target = trim((string) $check['target']);
+        if (preg_match(self::WIN_CERT, $target)) {
+            return $target;
+        }
         $from = (json_decode((string) ($check['options'] ?? ''), true) ?: [])['from'] ?? '';
         if ($target !== '' && $target[0] === '/') {
             return preg_match('#^/\S{1,250}$#', $target) ? $target : null;

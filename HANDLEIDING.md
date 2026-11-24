@@ -4120,7 +4120,15 @@ Ook een **Windows Server 2019, 2022 of 2025** (64-bit) kan zijn gegevens aan RzS
 
 **Windows Defender of SmartScreen:** de `.exe` heeft (nog) geen Windows-handtekening (Authenticode). Installeer je met de PowerShell-regels, dan vraagt Windows meestal niets; download je hem met de browser, dan kan SmartScreen één keer vragen of je hem wilt starten.
 
-**Volgende fases:** logs en logins (Event Log), IDS en EDR (aanvallen, Defender, Sysmon, blokkeren en isoleren via de Windows Firewall), en daarna updates installeren, kwetsbaarheden en een MSI voor groepsbeleid.
+**Fase 2: logs, logins, certificaten en Windows Update** (vanaf 1.314.0, Windows-agent 0.2.0):
+- **Windows-logboeken op de pagina Logs.** In de Agent Manager → *Logs verzamelen* → *Gevonden op deze server* → tabblad **⊞ Windows-logboeken**: System, Application, Security, en wat er verder is (Sysmon, Windows Defender, PowerShell, Extern bureaublad, Taakplanner, Windows Update, DNS Server …). Kies met het niveau of je alles wilt, of alleen waarschuwingen of fouten. Elke regel krijgt de tijd, het niveau, de bron en het gebeurtenisnummer, bv. `ERROR Service Control Manager[7034]: …`, met de tekst zoals Logboeken hem toont.
+- **Log-check op een logboek:** maak een check *Log* met als doel de naam van het logboek (bv. `System` of `Application`) en een zoekpatroon (bv. `onverwacht beëindigd`). De check telt de nieuwe treffers en toont de laatste regels.
+- **Logins** (pagina Meldingen, zoals bij SSH op Linux): gelukte **console-** en **RDP-logins**, en **mislukte** logins (console, RDP en via het netwerk, bv. SMB), per IP-adres opgeteld. Computeraccounts (`naam$`) en systeemaccounts worden overgeslagen.
+- **Certificaten:** een SSL-check kan het certificaat lezen via `host:poort` vanaf de server zelf, of uit de **certificaatopslag** van de computer (*Persoonlijk*, *Webhosting*, *Extern bureaublad*), als `cert:LocalMachine\My\<vingerafdruk>`. Bij *Opnieuw zoeken* toont RzSense de certificaten die er zijn om uit te kiezen.
+- **Windows Update:** de Agent Manager toont hoeveel updates er klaarstaan (en hoeveel kritiek of belangrijk), met de lijst. Windows Update wordt op de achtergrond bevraagd, eens per 6 uur.
+- Logbestanden op Windows (zoals die van IIS) komen in fase 3, samen met de webaanvallen.
+
+**Volgende fases:** IDS en EDR (brute force op RDP en SMB, Defender, Sysmon, nieuwe services en taken, blokkeren en isoleren via de Windows Firewall), en daarna updates installeren, kwetsbaarheden en een MSI voor groepsbeleid.
 
 ## 9. Agent op Home Assistant OS
 
