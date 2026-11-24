@@ -92,10 +92,74 @@ final class Vulns
                 $out['packages_resend'] = true;   // RzSense heeft deze stand niet (bv. net aangezet): alles opnieuw
             }
         }
+        if (is_array($in['win_vulns'] ?? null) && ($host['os'] ?? '') === 'windows') {   // 1.316.0: Windows-agent 0.4.0
+            self::fromWindows($host, $in['win_vulns']);
+        }
         if ($u = self::pendingUpgrade((int) $host['id'])) {
             $out['pkg_upgrade'] = $u;
         }
         return $out;
+    }
+
+    /**
+     * 1.316.0 (Windows-agent 0.4.0): kwetsbaarheden van een Windows-server = de beveiligingsupdates die nog ontbreken.
+     * Windows Update zegt per update welke CVE's hij oplost; elke CVE wordt een bevinding met het KB-nummer als
+     * "pakket" en als oplossing. Ernst uit Microsoft (MSRC), daarna CVSS, EPSS en KEV zoals bij Linux. Geen OSV-scan.
+     * @param array<string, mixed> $host
+     * @param array<string, mixed> $wv ['at' => tijd, 'list' => [[KB, titel, ernst, [CVE …]] …]]
+     */
+    public static function fromWindows(array $host, array $wv): void
+    {
+        if (!self::enabled()) {
+            return;
+        }
+        $hid = (int) $host['id'];
+        $list = [];
+        foreach (array_slice((array) ($wv['list'] ?? []), 0, 300) as $u) {
+            if (!is_array($u) || !preg_match('/^(KB\d{4,10}|upd-[0-9a-fA-F-]{8})$/', (string) ($u[0] ?? ''))) {
+                continue;
+            }
+            $cves = array_values(array_filter(array_slice((array) ($u[3] ?? []), 0, 100), static fn($c) => is_string($c) && preg_match('/^CVE-\d{4}-\d{4,7}$/', $c)));
+            if ($cves) {
+                $list[] = [(string) $u[0], mb_substr(preg_replace('/[\x00-\x1f]/', '', (string) ($u[1] ?? '')), 0, 150), (string) ($u[2] ?? ''), $cves];
+            }
+        }
+        $hash = substr(sha1((string) json_encode($list)), 0, 16);
+        $oi = (array) json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'osinfo'", [$hid])->fetchColumn(), true);
+        $prev = q('SELECT hash FROM vuln_inventory WHERE host_id = ?', [$hid])->fetchColumn();
+        // scanned_at meteen gezet: de OSV-scan slaat deze server over (Windows staat niet in OSV)
+        q("INSERT INTO vuln_inventory (host_id, mgr, os_id, os_version, os_name, ecosystem, hash, packages, updated_at, scanned_at, scan_error)
+           VALUES (?, 'wu', 'windows', ?, ?, NULL, ?, '[]', ?, ?, NULL)
+           ON DUPLICATE KEY UPDATE mgr = 'wu', os_id = 'windows', os_version = VALUES(os_version), os_name = VALUES(os_name), ecosystem = NULL, hash = VALUES(hash),
+             packages = '[]', updated_at = VALUES(updated_at), scanned_at = VALUES(scanned_at), scan_error = NULL",
+            [$hid, mb_substr((string) ($oi['build'] ?? ''), 0, 40), mb_substr((string) ($oi['name'] ?? 'Windows'), 0, 120), $hash, now(), now()]);
+        if ($prev === $hash) {
+            return;   // niets veranderd (Windows Update zoekt eens per 6 uur)
+        }
+        $sevOf = ['critical' => 4, 'important' => 3, 'moderate' => 2, 'low' => 1];
+        $old = [];
+        foreach (q('SELECT f.id, f.package, f.version, f.vuln_id, f.cve, f.first_seen, COALESCE(c.severity, 0) AS severity
+                    FROM vuln_findings f LEFT JOIN vuln_cve c ON c.cve = f.cve WHERE f.host_id = ?', [$hid]) as $f) {
+            $old[$f['package'] . "\t" . $f['vuln_id']] = $f;
+        }
+        $ins = db()->prepare('INSERT INTO vuln_findings (host_id, package, version, source, vuln_id, cve, fixed_version, first_seen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                              ON DUPLICATE KEY UPDATE source = VALUES(source), fixed_version = VALUES(fixed_version)');
+        $keep = [];
+        foreach ($list as [$kb, $title, $sev, $cves]) {
+            foreach ($cves as $cve) {
+                q('INSERT INTO vuln_cve (cve, severity) VALUES (?, ?) ON DUPLICATE KEY UPDATE severity = IF(severity = 0, VALUES(severity), severity)',
+                    [$cve, $sevOf[strtolower($sev)] ?? 0]);
+                $ins->execute([$hid, $kb, t('ontbreekt'), $title, $cve, $cve, $kb, now()]);
+                $keep[$kb . "\t" . $cve] = true;
+            }
+        }
+        // Wat verdwenen is, is geïnstalleerd: bewaren voor "opgelost"
+        $res = db()->prepare('INSERT INTO vuln_resolved (host_id, package, version, cve, severity, first_seen, resolved_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        foreach (array_diff_key($old, $keep) as $f) {
+            $res->execute([$hid, $f['package'], $f['version'], $f['cve'], (int) $f['severity'], $f['first_seen'], now()]);
+            q('DELETE FROM vuln_findings WHERE id = ?', [$f['id']]);
+        }
+        self::verifyUpgrade($hid);
     }
 
     /** Softwarelijst van een server opslaan; bij een andere lijst wordt hij opnieuw gescand */
@@ -906,6 +970,7 @@ final class Vulns
     {
         return match (true) {
             $host['mode'] !== 'agent' => t('alleen bij servers met een agent'),
+            ($host['os'] ?? '') === 'windows' => t('Op Windows installeer je updates via Updates (Windows Update)'),
             ($host['agent_update_via'] ?? '') === 'ha' => t('Home Assistant werk je bij via Home Assistant zelf'),
             Truenas::is((int) ($host['host_id'] ?? $host['id'] ?? 0)) => t('TrueNAS werk je bij met een TrueNAS-update (System → Update), nooit met apt'),
             !$host['agent_version'] || version_compare((string) $host['agent_version'], self::AGENT_MIN, '<') => t('agent {v} of nieuwer nodig', ['v' => self::AGENT_MIN]),
@@ -1033,6 +1098,9 @@ final class Vulns
     public static function upgradeCommand(string $mgr, array $pkgs): string
     {
         $p = implode(' ', $pkgs);
+        if ($mgr === 'wu') {   // 1.316.0: Windows (de "pakketten" zijn KB-nummers): Windows Update, of Updates in RzSense
+            return t('Windows Update (Instellingen → Windows Update), of Updates in RzSense: {p}', ['p' => $p]);
+        }
         return $mgr === 'rpm' ? "sudo dnf upgrade $p" : "sudo apt update && sudo apt install --only-upgrade $p";
     }
 

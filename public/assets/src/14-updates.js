@@ -3,7 +3,7 @@
 // Instellingen → Bescherming → Updatebeleid. Bijwerken zelf loopt via dezelfde opdracht als "pakketten bijwerken" (Vulns),
 // dus de voortgang is hetzelfde venster (vulnUpgradeDialog).
 const PATCH_MODE = { manual: () => L('met de hand'), window: () => L('in het onderhoudsvenster'), auto: () => L('elke dag') };
-const PATCH_KIND = { ha: () => '🏠 Home Assistant', truenas: () => '🗄️ TrueNAS', linux: () => '🐧 Linux' };
+const PATCH_KIND = { ha: () => '🏠 Home Assistant', truenas: () => '🗄️ TrueNAS', linux: () => '🐧 Linux', windows: () => '⊞ Windows' };   // 1.316.0: Windows Update (Windows-agent 0.4.0)
 let patchData = null;
 
 const patchModeTxt = (h) => (h.mode === 'auto' ? L('elke dag om {t}', { t: h.time }) : (PATCH_MODE[h.mode] || (() => h.mode))());
@@ -23,7 +23,7 @@ async function loadPatch() {
   try { patchData = await api('patch'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const d = patchData;
   const hs = d.hosts;
-  const sec = hs.reduce((n, h) => n + (h.kind === 'linux' ? h.sec : 0), 0);
+  const sec = hs.reduce((n, h) => n + ((h.kind === 'linux' || h.kind === 'windows') ? h.sec : 0), 0);
   if ($('#vt-n-patch')) $('#vt-n-patch').textContent = sec || '';
   box.innerHTML = `${!d.on ? `<div class="callout small">${L('Updates installeren staat uit (Instellingen → Bescherming → Updatebeleid). Je ziet wel wat er klaarstaat.')}</div>` : ''}
     <div class="app-sum"><span class="app-sum-b">🛡 <b>${sec}</b> ${L('beveiligingsupdates')}</span><span class="app-sum-b">⬆ <b>${hs.reduce((n, h) => n + h.avail, 0)}</b> ${L('updates')}</span>
@@ -33,11 +33,11 @@ async function loadPatch() {
     <div class="table-scroll"><table class="vuln-table small patch-table"><thead><tr><th class="need-admin"><input type="checkbox" id="ph-all" aria-label="${esc(L('Alles'))}"></th><th>${L('Server')}</th><th>${L('Klaar')}</th><th>${L('Hoe')}</th><th>${L('Laatst')}</th><th></th></tr></thead><tbody>
       ${hs.map((h) => `<tr data-ph="${h.id}"><td class="need-admin"><input type="checkbox" data-ph-sel="${h.id}" aria-label="${esc(h.name)}"></td><td><b>${esc(h.name)}</b><br><span class="muted">${(PATCH_KIND[h.kind] || (() => h.kind))()}${h.self ? ' · ' + L('RzSense zelf') : ''}</span></td>
         <td>${patchBadge(h)}${h.rb ? `<br><span class="warn small">↻ ${L('herstart nodig (doe dat zelf)')}</span>` : ''}${h.list.length ? `<br><button type="button" class="linkish small" data-ph-list="${h.id}">${L('lijst')}</button>` : ''}</td>
-        <td>${h.kind === 'truenas' ? '–' : esc(patchModeTxt(h)) + (h.kind === 'linux' ? `<br><span class="muted">${h.scope === 'all' ? L('alle updates') : L('alleen beveiligingsupdates')}</span>` : '')}
+        <td>${h.kind === 'truenas' ? '–' : esc(patchModeTxt(h)) + ((h.kind === 'linux' || h.kind === 'windows') ? `<br><span class="muted">${h.scope === 'all' ? L('alle updates') : L('alleen beveiligingsupdates')}</span>` : '')}
           ${h.mode === 'window' && !h.windows.length ? `<br><span class="warn small">${L('geen onderhoudsvenster ingesteld')}</span>` : ''}</td>
         <td>${h.status && ['queued', 'running'].includes(h.status.state) ? `<button type="button" class="linkish" data-ph-prog="1" title="${esc(L('Voortgang tonen'))}">${agentSteps(h.status)}</button>`
           : h.ha_req ? agentSteps({ state: 'queued' }) : h.last ? agoSpan(h.last) : '–'}</td>
-        <td class="nowrap need-admin">${!h.blocked && patchCount({ ...h, scope: 'security' }) && h.kind === 'linux' ? `<button type="button" class="btn small-btn primary" data-ph-now="security">🛡 ${L('Beveiliging')}</button> ` : ''}
+        <td class="nowrap need-admin">${!h.blocked && patchCount({ ...h, scope: 'security' }) && (h.kind === 'linux' || h.kind === 'windows') ? `<button type="button" class="btn small-btn primary" data-ph-now="security">🛡 ${L('Beveiliging')}</button> ` : ''}
           ${!h.blocked && h.avail ? `<button type="button" class="btn small-btn" data-ph-now="all">⬆ ${h.kind === 'ha' ? L('Core en add-ons') : L('Alles')}</button> ` : ''}
           ${h.kind !== 'truenas' ? `<button type="button" class="btn small-btn" data-ph-am="1">${L('Instellen')} →</button>` : ''}
           ${h.blocked && h.kind !== 'truenas' && h.agent_ok ? `<br><span class="muted small">${esc(h.blocked)}</span>` : ''}</td></tr>`).join('')}
@@ -107,7 +107,7 @@ function patchList(h) {
       ${h.list.map((x) => `<tr><td><code>${esc(x[3] || x[0])}</code></td><td>${esc(x[1])}</td><td>${+x[2] ? `<b class="bad">🛡 ${L('beveiliging')}</b>` : ''}${x[0] === 'os' ? `<span class="muted">${L('in Home Assistant zelf (herstart alles)')}</span>` : ''}</td></tr>`).join('')}
       </tbody></table>${h.list.length >= 300 ? `<p class="muted small">${L('De eerste 300.')}</p>` : ''}</div>`,
     buttons: [
-      ...(isAdmin() && !h.blocked && patchCount({ ...h, scope: 'security' }) && h.kind === 'linux' ? [{ label: '🛡 ' + L('Beveiligingsupdates installeren'), cls: 'primary', onClick: () => patchNow(h, 'security', loadPatch) }] : []),
+      ...(isAdmin() && !h.blocked && patchCount({ ...h, scope: 'security' }) && (h.kind === 'linux' || h.kind === 'windows') ? [{ label: '🛡 ' + L('Beveiligingsupdates installeren'), cls: 'primary', onClick: () => patchNow(h, 'security', loadPatch) }] : []),
       ...(isAdmin() && !h.blocked && h.avail ? [{ label: '⬆ ' + (h.kind === 'ha' ? L('Core en add-ons') : L('Alles')), onClick: () => patchNow(h, 'all', loadPatch) }] : []),
       ...(isAdmin() && h.kind !== 'truenas' ? [{ label: L('Instellen') + ' →', onClick: () => agentInstructions(findHost(h.id)) }] : []),
       { label: L('Sluiten'), style: 'margin-left:auto', onClick: () => $('#modal').close() },
@@ -147,7 +147,7 @@ async function amPatch(h, body) {
   if (d.kind === 'truenas') { amSum('patch', esc(L('via TrueNAS zelf'))); box.innerHTML = `<p class="muted small">${L('TrueNAS werk je bij met een TrueNAS-update (System → Update), nooit met apt. RzSense doet hier niets.')}</p>`; return; }
   const ha = d.kind === 'ha';
   amSum('patch', patchBadge(d) + (d.rb ? ` · <span class="warn">↻ ${L('herstart nodig')}</span>` : ''), !!(d.sec || d.rb));   // 1.246.0
-  box.innerHTML = `${!d.agent_ok ? `<div class="callout small">${L('Agent 1.92.0 of nieuwer nodig; werk de agent bij.')}</div>` : ''}
+  box.innerHTML = `${!d.agent_ok ? `<div class="callout small">${d.kind === 'windows' ? L('Windows-agent 0.4.0 of nieuwer nodig; werk de agent bij.') : L('Agent 1.92.0 of nieuwer nodig; werk de agent bij.')}</div>` : ''}
     <p class="small">${patchBadge(d)}${d.rb ? ` · <span class="warn">↻ ${L('herstart nodig (doe dat zelf)')}</span>` : ''}${d.at ? ` · <span class="muted">${L('bekeken')} ${agoSpan(new Date(d.at * 1000).toISOString())}</span>` : ''}</p>
     ${amRow('🤖 ' + L('Wanneer'), d.self ? L('dit is de RzSense-server zelf: alleen met de hand') : L('met de hand, in het vaste onderhoudsvenster van deze server, of elke dag om een tijd'),
     `<select id="pt-mode" ${d.self ? 'disabled' : ''}>${['manual', 'window', 'auto'].map((m) => `<option value="${m}" ${d.mode === m ? 'selected' : ''}>${esc(PATCH_MODE[m]())}</option>`).join('')}</select> <input id="pt-time" type="time" value="${esc(d.time)}" ${d.mode === 'auto' ? '' : 'hidden'} aria-label="${esc(L('Tijd'))}">`)}

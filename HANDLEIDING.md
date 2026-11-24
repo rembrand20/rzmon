@@ -4152,7 +4152,12 @@ Ook een **Windows Server 2019, 2022 of 2025** (64-bit) kan zijn gegevens aan RzS
 - **Windows-logbestanden op de pagina Logs:** in de Agent Manager → *Logs verzamelen* → tabblad **📄 Windows-logbestanden**: IIS (per site), de Windows Firewall (`pfirewall.log`, als logging aan staat), SMTP en DNS. Let op: IIS schrijft zijn tijden in **UTC**.
 - In een **domein** (beide aanbevolen): zet procesaudit en PowerShell-logging liever met **groepsbeleid** (*Computerconfiguratie → Beleid → Windows-instellingen → Beveiligingsinstellingen → Geavanceerde controlebeleidsconfiguratie → Gedetailleerde tracering → Procescreatie controleren*, en *Beheersjablonen → Windows-onderdelen → Windows PowerShell → Logboekregistratie van PowerShell-scriptblokken inschakelen*). Op een domeincontroller ziet de agent ook nieuwe domeingebruikers en leden van *Domain Admins*.
 
-**Volgende fase:** updates installeren vanuit RzSense, kwetsbaarheden (geïnstalleerde software), een MSI voor groepsbeleid, en de relay en het reserve-adres.
+**Fase 4: updates en kwetsbaarheden** (vanaf 1.316.0, Windows-agent 0.4.0):
+- **Updates** (pagina *Kwetsbaarheden → Updates*, en per server in de Agent Manager): een Windows-server staat er als **⊞ Windows**, met de klaarstaande updates (KB-nummers) en hoeveel daarvan beveiligingsupdates zijn. Kies, net als bij Linux, **wanneer** (met de hand, in het vaste onderhoudsvenster van de server, of elke dag om een tijd) en **wat** (alleen beveiligingsupdates, of alles). De agent installeert via de Windows Update-API, op de achtergrond, met een vast script; licenties van updates worden geaccepteerd. **Hij herstart nooit**: vraagt een update om een herstart, dan zie je *↻ herstart nodig* en doe je dat zelf (op een moment dat het uitkomt).
+- **Kwetsbaarheden**: Windows Update zegt per ontbrekende beveiligingsupdate welke CVE's hij oplost. Die staan bij *Kwetsbaarheden* met het KB-nummer als pakket en als oplossing, met de ernst van Microsoft (*Critical*, *Important* …) en daarna CVSS, EPSS en KEV zoals bij Linux. Is de update geïnstalleerd, dan staan ze bij *opgelost*. Software van anderen (bv. 7-Zip of een browser) ziet RzSense op Windows nog niet.
+- Gebruik je **WSUS** of **Windows Update for Business**, dan ziet en installeert de agent wat die beschikbaar stellen.
+
+**Volgende fase:** een MSI voor groepsbeleid met een uitrolcode, en de relay en het reserve-adres.
 
 ## 9. Agent op Home Assistant OS
 

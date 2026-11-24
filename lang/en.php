@@ -11986,4 +11986,8 @@ return [
     'Vul een volledig Windows-pad in, bv. C:\\inetpub\\logs\\LogFiles\\W3SVC1\\*.log (zonder ..)' => 'Enter a full Windows path, e.g. C:\\inetpub\\logs\\LogFiles\\W3SVC1\\*.log (without ..)',
     'Windows-logbestanden' => 'Windows log files',
     'gewijzigd {t}' => 'changed {t}',
+    'Windows-agent {v} of nieuwer nodig' => 'Windows agent {v} or newer required',
+    'Op Windows installeer je updates via Updates (Windows Update)' => 'On Windows you install updates via Updates (Windows Update)',
+    'Windows Update (Instellingen → Windows Update), of Updates in RzSense: {p}' => 'Windows Update (Settings → Windows Update), or Updates in RzSense: {p}',
+    'Windows-agent 0.4.0 of nieuwer nodig; werk de agent bij.' => 'Windows agent 0.4.0 or newer required; update the agent.',
 ];

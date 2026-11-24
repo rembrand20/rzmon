@@ -53,3 +53,4 @@ func runService() error                                   { return errors.New("a
 func isService() bool                                     { return false }
 func install(*Config, string) error                       { return errors.New("alleen op Windows") }
 func uninstall(bool) error                                { return errors.New("alleen op Windows") }
+func installWindowsUpdates(c *Config, id, mode string)    {}

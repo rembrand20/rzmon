@@ -16,7 +16,7 @@ import (
 )
 
 // Version: wordt bijgewerkt met tools/bump-version.sh agentwin (gelijk aan agent-win/VERSION)
-const Version = "0.3.0"
+const Version = "0.4.0"
 
 // ---------------------------------------------------------------- koppelen
 
@@ -87,6 +87,7 @@ type tests struct {
 	Blocks   []blockWant
 	Isolate  *isolateWant
 	WebLog   string // fase 3: IIS-logs bekijken op webaanvallen (pad, of "auto"); leeg = niet
+	Patch    bool   // fase 4: Windows Update meedoen met Updates in RzSense
 }
 
 func parseTests(text string) tests {
@@ -131,6 +132,8 @@ func parseTests(text string) tests {
 			t.CertScan = atoiDef(f[2], 0)
 		case "ids":
 			t.IDS = f[2]
+		case "patch":
+			t.Patch = f[2] == "1"
 		case "weblog":
 			if f[2] == "swag" { // de reverse proxy van Linux = de webserver (IIS) op Windows
 				t.WebLog = "auto"
@@ -257,8 +260,17 @@ func buildReport(c *Config, t tests, parts map[string]int) map[string]any {
 		writeState("logscan.day", fmt.Sprint(day))
 	}
 	lap("certificaten", t0)
-	if wu := windowsUpdate(); wu != nil {
-		rep["winupdate"] = wu
+	if short, patch := splitWU(windowsUpdate()); short != nil {
+		rep["winupdate"] = short
+		if patch != nil && t.Patch {
+			rep["patch"] = patch // fase 4: voor Updates in RzSense
+		}
+		if patch != nil {
+			rep["win_vulns"] = map[string]any{"at": short["at"], "list": wuCVEs(windowsUpdate())} // fase 4: Kwetsbaarheden
+		}
+	}
+	if r := readState("wu.result"); r != "" {
+		rep["pkg_result"] = json.RawMessage(r) // uitkomst van installeren die nog niet aangekomen was
 	}
 	// Fase 3: IDS en EDR (gebeurtenissen, Defender, blokkeren via de firewall) en isoleren (los van het IDS)
 	t0 = time.Now()
@@ -324,6 +336,10 @@ type reply struct {
 		Version string `json:"version"`
 		ExeSHA  string `json:"exe_sha256"`
 	} `json:"update"`
+	PkgUpgrade *struct { // fase 4: Windows-updates installeren (patchbeheer)
+		ID   string `json:"id"`
+		Mode string `json:"mode"`
+	} `json:"pkg_upgrade"`
 }
 
 func handleReply(c *Config, t tests, body []byte) {
@@ -366,6 +382,12 @@ func handleReply(c *Config, t tests, body []byte) {
 	// De testlijst veranderde: meteen opnieuw ophalen (volgende ronde)
 	if r.TestsRev != "" && r.TestsRev != t.Rev {
 		dropState("tests.txt.b64")
+	}
+	if r.OK {
+		dropState("wu.result") // is met dit rapport aangekomen
+	}
+	if r.PkgUpgrade != nil {
+		installWindowsUpdates(c, r.PkgUpgrade.ID, r.PkgUpgrade.Mode)
 	}
 	if r.Update != nil && c.RemoteUpdate {
 		selfUpdate(c, r.Update.Version, r.Update.ExeSHA)

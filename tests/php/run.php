@@ -4441,5 +4441,39 @@ ok(q("SELECT kind FROM weblog_state WHERE host_id = ? AND src = 'swag'", [$w4])-
 save_setting('ids_enabled', $w4prev);
 q('DELETE FROM hosts WHERE id = ?', [$w4]);
 
+// 1.316.0: Windows-agent fase 4: Windows-updates installeren via Updates (patchbeheer)
+$p4prev = setting('patch_on', '1');
+save_setting('patch_on', '1');
+q("INSERT INTO hosts (name, address, mode, os, agent_version) VALUES ('win-unit5', '192.0.2.15', 'agent', 'windows', '0.3.0')");
+$p4 = (int) db()->lastInsertId();
+$p4h = q('SELECT * FROM hosts WHERE id = ?', [$p4])->fetch();
+ok(Patch::kind($p4h) === 'windows' && str_contains((string) Patch::blocked($p4h), '0.4.0'), 'Windows: eigen soort, en Windows-agent 0.4.0 nodig');
+q("UPDATE hosts SET agent_version = '0.4.0' WHERE id = ?", [$p4]);
+$p4h = q('SELECT * FROM hosts WHERE id = ?', [$p4])->fetch();
+$p4st = db()->prepare('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)');
+Patch::fromAgent($p4h, ['patch' => ['mgr' => 'wu', 'avail' => 2, 'sec' => 1, 'rb' => false, 'list' => [['KB5034441', '2026-11 Cumulatieve update', true, 'Security Updates'], ['KB890830', 'MSRT', false, 'Update Rollups']]]], $p4st, now());
+ok(Patch::blocked($p4h) === null && Patch::info($p4h)['sec'] === 1 && Patch::info($p4h)['mgr'] === 'wu', 'Windows Update in Updates: 2 klaar, 1 beveiliging');
+$p4r = Patch::request($p4h, 'security', 'admin');
+$p4a = Vulns::agentReport($p4h, []);
+ok($p4r === true && ($p4a['pkg_upgrade']['mode'] ?? '') === 'security' && ($p4a['pkg_upgrade']['pkgs'] ?? null) === [], 'Windows: beveiligingsupdates installeren gaat als opdracht naar de agent');
+Vulns::upgradeProgress($p4h, ['id' => $p4a['pkg_upgrade']['id'], 'done' => 1, 'ok' => true, 'log_b64' => base64_encode("2026-11 Cumulatieve update: gelukt")]);
+$p4s = json_decode((string) q('SELECT vuln_upgrade_status FROM hosts WHERE id = ?', [$p4])->fetchColumn(), true);
+ok(($p4s['state'] ?? '') === 'ok' && !q('SELECT vuln_upgrade_req FROM hosts WHERE id = ?', [$p4])->fetchColumn(), 'Windows: uitkomst van installeren verwerkt');
+ok(str_contains((string) Vulns::upgradeBlocked($p4h), 'Windows Update'), 'Windows: losse pakketten bijwerken via Kwetsbaarheden kan niet (dat gaat via Updates)');
+// 1.316.0: kwetsbaarheden op Windows = ontbrekende beveiligingsupdates met hun CVE's
+$p4v = setting('vuln_enabled', '0');
+save_setting('vuln_enabled', '1');
+Vulns::agentReport($p4h, ['win_vulns' => ['at' => time(), 'list' => [['KB5034441', '2026-11 Cumulatieve update', 'Critical', ['CVE-2026-21001', 'CVE-2026-21002', 'x']], ['rm -rf', 'x', 'Low', ['CVE-2026-1111']]]]]);
+$p4f = q('SELECT package, cve, fixed_version FROM vuln_findings WHERE host_id = ? ORDER BY cve', [$p4])->fetchAll();
+$p4i = q('SELECT mgr, scanned_at FROM vuln_inventory WHERE host_id = ?', [$p4])->fetch();
+ok(count($p4f) === 2 && $p4f[0]['package'] === 'KB5034441' && $p4f[0]['fixed_version'] === 'KB5034441' && ($p4i['mgr'] ?? '') === 'wu' && $p4i['scanned_at'] !== null
+    && (int) q("SELECT severity FROM vuln_cve WHERE cve = 'CVE-2026-21001'")->fetchColumn() === 4, 'Windows: ontbrekende beveiligingsupdate wordt kwetsbaarheden (CVE, KB, ernst van Microsoft), zonder OSV-scan');
+Vulns::agentReport($p4h, ['win_vulns' => ['at' => time(), 'list' => []]]);
+ok(!q('SELECT COUNT(*) FROM vuln_findings WHERE host_id = ?', [$p4])->fetchColumn() && (int) q('SELECT COUNT(*) FROM vuln_resolved WHERE host_id = ?', [$p4])->fetchColumn() === 2,
+    'Windows: update geïnstalleerd = kwetsbaarheden opgelost');
+save_setting('vuln_enabled', $p4v);
+q('DELETE FROM hosts WHERE id = ?', [$p4]);
+save_setting('patch_on', $p4prev);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

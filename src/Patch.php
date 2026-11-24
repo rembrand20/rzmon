@@ -14,6 +14,8 @@ declare(strict_types=1);
 final class Patch
 {
     public const AGENT = '1.92.0';
+    /** 1.316.0: Windows-agent die Windows-updates kan installeren */
+    public const AGENT_WIN = '0.4.0';
     public const MODES = ['manual', 'window', 'auto'];
     public const SCOPES = ['security', 'all'];
 
@@ -22,10 +24,11 @@ final class Patch
         return setting('patch_on', '1') === '1';
     }
 
-    /** linux, ha (Home Assistant-add-on) of truenas */
+    /** linux, windows (1.316.0), ha (Home Assistant-add-on) of truenas */
     public static function kind(array $host): string
     {
         return match (true) {
+            ($host['os'] ?? '') === 'windows' => 'windows',
             ($host['agent_update_via'] ?? '') === 'ha' => 'ha',
             Truenas::is((int) $host['id']) => 'truenas',
             default => 'linux',
@@ -42,7 +45,7 @@ final class Patch
 
     public static function agentOk(array $host): bool
     {
-        return !empty($host['agent_version']) && version_compare((string) $host['agent_version'], self::AGENT, '>=');
+        return !empty($host['agent_version']) && version_compare((string) $host['agent_version'], self::kind($host) === 'windows' ? self::AGENT_WIN : self::AGENT, '>=');
     }
 
     public static function agentLines(int $hostId): array
@@ -116,6 +119,7 @@ final class Patch
         return match (true) {
             !self::enabled() => t('Updates installeren staat uit (Instellingen → Bescherming → Updatebeleid)'),
             $kind === 'truenas' => t('TrueNAS werk je bij met een TrueNAS-update (System → Update), nooit met apt'),
+            !self::agentOk($host) && $kind === 'windows' => t('Windows-agent {v} of nieuwer nodig', ['v' => self::AGENT_WIN]),
             !self::agentOk($host) => t('agent {v} of nieuwer nodig', ['v' => self::AGENT]),
             $kind === 'linux' && ($why = Vulns::upgradeBlocked($host)) !== null => $why,
             default => null,

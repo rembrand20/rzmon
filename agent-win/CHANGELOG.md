@@ -4,6 +4,11 @@ Wijzigingen aan de RzSense-agent voor Windows (`rzsense-agent.exe`), per versie.
 De Windows-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de Linux-agent.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.4.0 – 2026-11-24
+- **Fase 4: Windows-updates installeren** als RzSense erom vraagt (Updates: met de hand, in het onderhoudsvenster of elke dag): alleen beveiligings- en kritieke updates, of alles. Op de achtergrond via de Windows Update-API, met een vast, ingebouwd script; licenties worden geaccepteerd; nooit een herstart. De uitkomst gaat meteen naar RzSense (lukt dat niet, dan met het volgende rapport).
+- De lijst met klaarstaande updates gaat nu ook naar **Updates** (KB-nummer, titel, beveiliging, soort), en per beveiligingsupdate de **CVE's** naar **Kwetsbaarheden**.
+- Na installeren zoekt de agent meteen opnieuw naar updates.
+
 ## 0.3.0 – 2026-11-24
 - **Fase 3: IDS en EDR.** Leest de belangrijke beveiligingsgebeurtenissen (System, Security, Microsoft Defender, PowerShell en Sysmon) en stuurt alleen wat ertoe doet: nieuwe services en geplande taken, nieuwe gebruikers en groepsleden, gewiste logboeken, malware, Defender uitgezet, verdachte PowerShell-scripts en een webserver of database die een shell start.
 - **Microsoft Defender**: status van de realtime-bescherming en leeftijd van de definities (eens per 15 minuten).

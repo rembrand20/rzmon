@@ -8,11 +8,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.316.0**: **Windows-updates installeren** vanuit Updates (met de hand, in het onderhoudsvenster of elke dag) en **kwetsbaarheden op Windows** uit de ontbrekende beveiligingsupdates.
 - **1.315.0**: **Windows-agent fase 3**: IDS en EDR op Windows (Defender, Sysmon, nieuwe services en beheerders, brute force op RDP), blokkeren en isoleren via de Windows Firewall, en IIS-logs.
 - **1.314.0**: **Windows-agent fase 2**: Windows-logboeken op de pagina Logs, RDP-logins, certificaten uit de opslag en Windows Update.
 - **1.313.0**: **Windows-agent** (fase 1): Windows Server 2019–2025 als service, met hetzelfde versleutelde rapport als Linux.
-- **1.312.0**: **rustige nieuwe indeling** van de instellingen, eerst bij Meldingen en rapporten: kop met label en aan/uit, velden naast elkaar, overzicht van de kanalen.
 - **1.311.0**: **Aanvallen live**: boven Dashboard, IDS en Netwerk zie je aanvallen van buiten en binnen onderweg, met elke stip een echte gebeurtenis.
+
+## 1.316.0 – 2026-11-24
+### Nieuw
+- **Windows-agent fase 4: updates en kwetsbaarheden** (nieuwe Windows-agent 0.4.0 nodig). Zie HANDLEIDING 8.16.
+  - **Windows-updates installeren vanuit RzSense**: Windows-servers staan nu bij **Updates**, met de klaarstaande updates (KB-nummers) en de beveiligingsupdates. Installeren met de hand, in het onderhoudsvenster of elke dag om een tijd; alleen beveiligingsupdates (standaard) of alles. Nooit een herstart: die doe je zelf.
+  - **Kwetsbaarheden op Windows**: elke ontbrekende beveiligingsupdate met de CVE's die hij oplost, met de ernst van Microsoft, CVSS, EPSS en KEV zoals bij Linux. Na installeren staan ze bij *opgelost*.
 
 ## 1.315.0 – 2026-11-24
 ### Nieuw
