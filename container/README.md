@@ -1,6 +1,6 @@
 # RzSense als container (Podman op Rocky Linux)
 
-Vanaf **1.281.0** draait RzSense ook als container, **naast** de gewone serverinstallatie (`install/install-rocky.sh`, die blijft bestaan).
+RzSense draait ook als container, als alternatief voor de gewone serverinstallatie (`install/install-rocky.sh`). Alle installatiemanieren staan in de [installatiehandleiding](../docs/01-installatie.md).
 Twee containers:
 
 | Container | Image | Wat |
@@ -51,7 +51,7 @@ sudo podman pull ghcr.io/rembrand20/rzsense:latest && sudo systemctl restart rzs
 
 Bij het starten van een nieuwe versie maakt RzSense eerst een **snelle back-up** (in het datavolume) en werkt daarna de database bij. **MariaDB** werk je los bij: `sudo podman pull docker.io/library/mariadb:11.4 && sudo systemctl restart rzsense-db`.
 
-Een bepaalde versie vastzetten: zet in `rzsense.container` `Image=ghcr.io/rembrand20/rzsense:1.281.2`.
+Een bepaalde versie vastzetten: zet in `rzsense.container` `Image=ghcr.io/rembrand20/rzsense:<versie>`.
 
 ## Verhuizen van een gewone installatie
 
@@ -60,9 +60,9 @@ Een bepaalde versie vastzetten: zet in `rzsense.container` `Image=ghcr.io/rembra
 3. *Instellingen → Systeem → Back-up* → **⬆ Zip uploaden** → **↺ Terugzetten**. `config.php` uit de zip wordt in een container niet overgenomen: de container houdt zijn eigen database-instellingen.
 4. Werkt alles, zet dan de oude installatie uit. Wijzigt het adres van RzSense, zet dan bij de agents het nieuwe adres (*Servers → adres wisselen*).
 
-## Als reserve van je hoofdserver (vanaf 1.286.0)
+## Als reserve van je hoofdserver
 
-Een container op een andere machine is een goede **reserve-RzSense**: hij houdt een kopie bij van je hoofdserver. Start hem zoals hierboven en log in. Maak op de hoofdserver bij *Instellingen → Systeem → Reserve-RzSense* een koppelcode, en vul die met het adres van de hoofdserver in op dezelfde pagina van de container. Zie HANDLEIDING, hoofdstuk 13 (*Reserve-RzSense*). Houd de reserve op dezelfde versie als de hoofdserver of nieuwer: een oudere reserve zet geen kopieën terug.
+Een container op een andere machine is een goede **reserve-RzSense**: hij houdt een kopie bij van je hoofdserver. Start hem zoals hierboven en log in. Maak op de hoofdserver bij *Instellingen → Systeem → Reserve-RzSense* een koppelcode, en vul die met het adres van de hoofdserver in op dezelfde pagina van de container. Zie [Reserve-RzSense](../docs/11-toegang-en-beheer.md) in de handleiding. Houd de reserve op dezelfde versie als de hoofdserver of nieuwer: een oudere reserve zet geen kopieën terug.
 
 ## Wat in een container anders is
 
