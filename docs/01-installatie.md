@@ -161,7 +161,7 @@ RzSense draait ook als container, naast de gewone installatie. Het zijn er twee:
 - **Gegevens:** in de volumes `rzsense-data` (`config.php`, back-ups, certificaat en sleutels) en `rzsense-db`
   (de database).
 - **Veilig:** RzSense draait als `www-data`, niet als root. Het bestandssysteem is alleen-lezen, behalve het
-  datavolume en `/tmp`. De enige extra recht is `NET_RAW`, voor ping. Er wordt geen Podman-socket aangekoppeld.
+  datavolume en `/tmp`. Het enige extra recht is `NET_RAW`, voor ping. Er wordt geen Podman-socket aangekoppeld.
 
 ### Zo installeer je (Podman met quadlets)
 
