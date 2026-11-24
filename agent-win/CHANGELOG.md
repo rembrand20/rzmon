@@ -4,6 +4,12 @@ Wijzigingen aan de RzSense-agent voor Windows (`rzsense-agent.exe`), per versie.
 De Windows-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de Linux-agent.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.6.0 – 2026-11-24
+- **Reserve-RzSense**: RzSense geeft het adres door; zijn het gewone adres en het reserve-adres allebei niet bereikbaar, dan gaat het rapport (versleuteld met de eigen sleutel) daarheen. Een antwoord van de reserve verandert geen sleutel, adressen of opdrachten.
+- **Overstappen naar een ander adres** als RzSense erom vraagt (Agent Manager → Adres van RzSense): eerst een ondertekende proef, alleen bij een kloppend antwoord overstappen; de uitkomst gaat mee met het volgende rapport.
+- **Twee vingerafdrukken** per adres (`sha256//A;sha256//B`): het huidige en een klaargezet nieuw certificaat.
+- Het rapport zegt per adres hoe het certificaat gecontroleerd wordt (`url_pin`, `url_fb_pin`).
+
 ## 0.5.0 – 2026-11-24
 - **Aanmelden met een uitrolcode**: `rzsense-agent.exe install --url … --enroll CODE`. RzSense maakt de server dan zelf aan (naam = computernaam). Is de agent al gekoppeld, dan wordt de code niet gebruikt (alleen bijwerken).
 - **MSI** (`rzsense-agent.msi`, gebouwd met WiX door GitHub Actions) met de eigenschappen `URL`, `ENROLL` en `PIN`, voor groepsbeleid of een beheerprogramma. De MSI stopt de service bij bijwerken en verwijdert hem bij verwijderen; de uitrolcode komt niet in de logboeken van Windows Installer.

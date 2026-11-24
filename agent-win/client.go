@@ -22,7 +22,14 @@ const maxBody = 32 << 20
 func httpClient(pin string, timeout time.Duration) *http.Client {
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	tr.Proxy = http.ProxyFromEnvironment
-	if want, ok := strings.CutPrefix(pin, "sha256//"); ok && want != "" {
+	// Fase 4: ook twee vingerafdrukken ("sha256//A;sha256//B"): het huidige en een klaargezet nieuw certificaat
+	var wants []string
+	for _, p := range strings.Split(pin, ";") {
+		if w, ok := strings.CutPrefix(strings.TrimSpace(p), "sha256//"); ok && w != "" {
+			wants = append(wants, w)
+		}
+	}
+	if len(wants) > 0 {
 		tr.TLSClientConfig = &tls.Config{
 			InsecureSkipVerify: true, // vervangen door de controle hieronder: alleen dit ene certificaat
 			VerifyPeerCertificate: func(raw [][]byte, _ [][]*x509.Certificate) error {
@@ -32,8 +39,11 @@ func httpClient(pin string, timeout time.Duration) *http.Client {
 						continue
 					}
 					sum := sha256.Sum256(cert.RawSubjectPublicKeyInfo)
-					if base64.StdEncoding.EncodeToString(sum[:]) == want {
-						return nil
+					got := base64.StdEncoding.EncodeToString(sum[:])
+					for _, want := range wants {
+						if got == want {
+							return nil
+						}
 					}
 				}
 				return errPin
@@ -119,13 +129,24 @@ func sealedCall(c *Config, action string, plain []byte, hdr map[string]string, t
 		out, err := openReply(r.Body, c.Key, nonce, time.Now())
 		return out, r.Code, err, false
 	}
+	lastVia = ""
 	out, code, err, down := try(c.URL, c.Pin, nil)
 	if down && c.URLFallback != "" {
 		logf("RzSense niet bereikbaar via %s (%v); via het reserve-adres %s", c.URL, err, c.URLFallback)
-		out, code, err, _ = try(c.URLFallback, c.PinFallback, map[string]string{"X-Agent-Fallback": "1"})
+		lastVia = "fallback"
+		out, code, err, down = try(c.URLFallback, c.PinFallback, map[string]string{"X-Agent-Fallback": "1"})
+	}
+	// Fase 4: ook dat niet? Dan de reserve-RzSense (een tweede RzSense die het werk overneemt; alleen RzSense zet dit adres)
+	if ru, rpin := reserveURL(c); down && ru != "" {
+		logf("RzSense niet bereikbaar (%v); via de reserve-RzSense %s", err, ru)
+		lastVia = "reserve"
+		out, code, err, _ = try(ru, rpin, map[string]string{"X-Agent-Reserve": "1"})
 	}
 	return out, code, err
 }
+
+// lastVia: hoe het laatste versleutelde verzoek aankwam ("" = gewone adres, fallback, reserve)
+var lastVia string
 
 // signedGet: GET met X-Agent-Auth; het antwoord komt versleuteld terug (bv. de lijst met tests)
 func signedGet(c *Config, action string, timeout time.Duration) ([]byte, error) {

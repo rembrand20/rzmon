@@ -16,7 +16,7 @@ import (
 )
 
 // Version: wordt bijgewerkt met tools/bump-version.sh agentwin (gelijk aan agent-win/VERSION)
-const Version = "0.5.0"
+const Version = "0.6.0"
 
 // ---------------------------------------------------------------- koppelen
 
@@ -203,6 +203,8 @@ func buildReport(c *Config, t tests, parts map[string]int) map[string]any {
 		"os":            "windows",
 		"url":           c.URL,
 		"url_fallback":  c.URLFallback,
+		"url_pin":       pinSpec(c.Pin),
+		"url_fb_pin":    pinSpec(c.PinFallback),
 		"update":        map[string]any{"via": map[bool]string{true: "winsvc", false: "off"}[c.RemoteUpdate]},
 		"caps":          []string{"windows"},
 	}
@@ -233,6 +235,9 @@ func buildReport(c *Config, t tests, parts map[string]int) map[string]any {
 		rep["procs"] = procs
 	}
 	lap("processen", t0)
+	if r := readState("url.result"); r != "" {
+		rep["url_result"] = r // fase 4: uitkomst van overstappen naar een ander adres
+	}
 	if r := readState("update.result"); r != "" {
 		rep["update_result"] = r
 	}
@@ -340,6 +345,11 @@ type reply struct {
 		Version string `json:"version"`
 		ExeSHA  string `json:"exe_sha256"`
 	} `json:"update"`
+	Reserve *struct { // fase 4: de reserve-RzSense ("" = geen)
+		URL string `json:"url"`
+		Pin string `json:"pin"`
+	} `json:"reserve"`
+	URLSet     *urlSet   `json:"url_set"` // fase 4: overstappen naar een ander adres
 	PkgUpgrade *struct { // fase 4: Windows-updates installeren (patchbeheer)
 		ID   string `json:"id"`
 		Mode string `json:"mode"`
@@ -353,6 +363,10 @@ func handleReply(c *Config, t tests, body []byte) {
 		return
 	}
 	writeState("gz", fmt.Sprint(r.Gz))
+	dropState("url.result") // de uitkomst van een overstap is doorgegeven
+	if lastVia == "reserve" {
+		return // fase 4: de reserve-RzSense verandert geen sleutel, adressen of opdrachten
+	}
 	// Nieuwe sleutel (RzSense vernieuwt hem af en toe); de vorige blijft daar nog 24 uur geldig
 	if hexKeyRe.MatchString(r.AgentKey) && r.AgentKey != c.Key {
 		c.Key = r.AgentKey
@@ -382,6 +396,12 @@ func handleReply(c *Config, t tests, body []byte) {
 	}
 	if changed {
 		_ = c.save()
+	}
+	if r.Reserve != nil {
+		setReserve(r.Reserve.URL, r.Reserve.Pin)
+	}
+	if r.URLSet != nil {
+		switchURL(c, *r.URLSet)
 	}
 	// De testlijst veranderde: meteen opnieuw ophalen (volgende ronde)
 	if r.TestsRev != "" && r.TestsRev != t.Rev {

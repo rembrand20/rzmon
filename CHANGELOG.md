@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.318.0**: **Windows-agent met reserve-RzSense** en overstappen naar een ander adres, net als Linux; daarmee is de Windows-agent compleet.
 - **1.317.0**: **Uitrollen naar veel Windows-servers** met één uitrolcode en een MSI, voor groepsbeleid of een beheerprogramma.
 - **1.316.0**: **Windows-updates installeren** vanuit Updates (met de hand, in het onderhoudsvenster of elke dag) en **kwetsbaarheden op Windows** uit de ontbrekende beveiligingsupdates.
 - **1.315.0**: **Windows-agent fase 3**: IDS en EDR op Windows (Defender, Sysmon, nieuwe services en beheerders, brute force op RDP), blokkeren en isoleren via de Windows Firewall, en IIS-logs.
-- **1.314.0**: **Windows-agent fase 2**: Windows-logboeken op de pagina Logs, RDP-logins, certificaten uit de opslag en Windows Update.
 - **1.311.0**: **Aanvallen live**: boven Dashboard, IDS en Netwerk zie je aanvallen van buiten en binnen onderweg, met elke stip een echte gebeurtenis.
+
+## 1.318.0 – 2026-11-24
+### Nieuw
+- **Windows-agent: reserve-RzSense en overstappen naar een ander adres** (nieuwe Windows-agent 0.6.0 nodig), net als de Linux-agent. Zie HANDLEIDING 8.16.
+  - Is RzSense via het gewone adres en het reserve-adres niet bereikbaar, dan rapporteert de Windows-agent aan de **reserve-RzSense** (alleen versleuteld met zijn eigen sleutel).
+  - **Adres van RzSense** in de Agent Manager werkt nu ook voor Windows-servers: de agent test het nieuwe adres eerst en stapt alleen over als het antwoord klopt.
+  - Twee vingerafdrukken per adres (het huidige en een klaargezet nieuw certificaat), zodat een nieuw certificaat van RzSense geen onderbreking geeft.
+### Opgelost
+- De Windows-agent werd voor de versleuteling met Linux-nummers vergeleken (0.x tegen 1.x): hij kreeg daardoor geen vernieuwde sleutel en geen vingerafdrukken per adres. Nu wel, ook voor oudere Windows-agents.
 
 ## 1.317.0 – 2026-11-24
 ### Nieuw

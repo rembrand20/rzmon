@@ -686,11 +686,12 @@ if ($action === 'agent') {
     } catch (Throwable $e) {
         error_log('RzSense: update-aankondiging: ' . $e->getMessage());
     }
-    $resp += agent_enc_fields($host, $agentVersion);
-    if (!Reserve::active() && ($u = agent_url_report($host, $in, $agentVersion, $encrypted))) {   // 1.287.0: een actieve reserve verandert geen adressen
+    $capVersion = AgentCrypto::capVersion($agentVersion, $os);   // 1.318.0: Windows-agent (eigen versienummer)
+    $resp += agent_enc_fields($host, $capVersion);
+    if (!Reserve::active() && ($u = agent_url_report($host, $in, $capVersion, $encrypted))) {   // 1.287.0: een actieve reserve verandert geen adressen
         $resp['url_set'] = $u;
     }
-    if ($encrypted && ($rf = Reserve::agentField($agentVersion)) !== null) {
+    if ($encrypted && ($rf = Reserve::agentField($capVersion)) !== null) {
         $resp['reserve'] = $rf;   // 1.287.0 (agent 1.111.0): het adres van de reserve-RzSense
     }
     // Verbindingscontrole (1.100.0): instellingen op de server, SERVICES omzetten, ⚠️/✅ bij een wisseling; de uitkomst
@@ -701,7 +702,7 @@ if ($action === 'agent') {
         error_log('RzSense: verbindingscontrole mislukt: ' . $e->getMessage());
     }
     // Agent 1.53.0: per adres hoe hij het moet controleren (vastzetten of gewoon); alleen versleuteld
-    if ($encrypted && $agentVersion && version_compare($agentVersion, AgentCrypto::PINURL_MIN, '>=')) {
+    if ($encrypted && $capVersion && version_compare($capVersion, AgentCrypto::PINURL_MIN, '>=')) {
         $pins = [];
         foreach ([(string) ($in['url'] ?? ''), (string) ($in['url_fallback'] ?? '')] as $u2) {
             $u2 = rtrim($u2, '/');

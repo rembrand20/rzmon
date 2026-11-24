@@ -4167,7 +4167,11 @@ Ook een **Windows Server 2019, 2022 of 2025** (64-bit) kan zijn gegevens aan RzS
 - **Let op:** iedereen in het domein kan een opstartscript lezen, dus ook de uitrolcode. Beperk hem tot je eigen netwerken en het aantal servers dat je uitrolt, en **trek hem in** zodra de uitrol klaar is (servers die al aangemeld zijn, blijven werken).
 - Zonder MSI kan het ook met de .exe: `rzsense-agent.exe install --url "https://…" --enroll "CODE"`.
 
-**Volgende fase:** de relay en het reserve-adres voor Windows-servers.
+**Adressen, relay en reserve-RzSense** (vanaf 1.318.0, Windows-agent 0.6.0), net als bij de Linux-agent:
+- **Reserve-adres** (`--fallback`, bv. het LAN-adres van RzSense): gebruikt als het gewone adres niet bereikbaar is.
+- **Reserve-RzSense** (§10.1): is een reserve ingesteld, dan krijgt de Windows-agent het adres vanzelf en rapporteert hij daarheen als RzSense via beide adressen onbereikbaar is.
+- **Adres van RzSense wijzigen** (Agent Manager → *Adres van RzSense*): werkt ook voor Windows-servers. De agent test het nieuwe adres eerst met een ondertekend verzoek en stapt alleen over als het antwoord klopt; de uitkomst zie je in de Agent Manager.
+- **Via een relay**: kies in het installatievenster bij *Verbinden via* de relay; de opdracht krijgt dan het adres en de vingerafdruk van de relay (`--url https://relay… --pin sha256//…`). Nog niet getest op een echte relay. Een relay waar RzSense zelf ophaalt (DMZ) werkt nog niet voor Windows.
 
 ## 9. Agent op Home Assistant OS
 

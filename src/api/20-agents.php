@@ -514,12 +514,13 @@ switch ($action) {
             }
         }
         $all = ($in['id'] ?? '') === 'all';
-        $rows = q("SELECT id, name, agent_version, agent_url, agent_url_fb FROM hosts WHERE mode = 'agent'" . ($all ? '' : ' AND id = ?'), $all ? [] : [(int) ($in['id'] ?? 0)])->fetchAll();
+        $rows = q("SELECT id, name, agent_version, os, agent_url, agent_url_fb FROM hosts WHERE mode = 'agent'" . ($all ? '' : ' AND id = ?'), $all ? [] : [(int) ($in['id'] ?? 0)])->fetchAll();
         $n = 0;
         $skip = [];
         $min = $own ? AgentCrypto::PINURL_MIN : AgentCrypto::URL_MIN;
         foreach ($rows as $r) {
-            if (!$r['agent_version'] || version_compare($r['agent_version'], $min, '<')) {
+            $cv = AgentCrypto::capVersion($r['agent_version'], $r['os']);   // 1.318.0: Windows-agent 0.6.0
+            if (!$cv || version_compare($cv, $min, '<')) {
                 $skip[] = $r['name'];
                 continue;
             }

@@ -475,10 +475,12 @@ async function agentUrlDialog(h = null) {
     const httpsOnly = hosts.filter((x) => x.agent_https === 'on' || (!x.agent_https && c.https_only));
     if (urls.some((u) => /^http:/.test(u)) && httpsOnly.length) out.push(`⚠️ ${L('"Alleen via https" staat aan voor: {names}. Via http weigert RzSense hun rapporten.', { names: httpsOnly.map((x) => esc(x.name)).join(', ') })}`);
     const pinMin = o.pinurl_min || '1.53.0';
-    const old = hosts.filter((x) => !x.agent_version || verCmp(x.agent_version, pinMin) < 0);
+    // 1.318.0: de Windows-agent heeft een eigen nummer; vanaf 0.6.0 kan hij overstappen (zoals Linux-agent 1.111.0)
+    const capV = (x) => (x.os === 'windows' ? (x.agent_version && verCmp(x.agent_version, '0.6.0') >= 0 ? '1.111.0' : '1.50.0') : x.agent_version);
+    const old = hosts.filter((x) => !capV(x) || verCmp(capV(x), pinMin) < 0);
     if (urls.some((u) => (trust.get(u) || {}).kind === 'own') && old.length) out.push(`⚠️ ${L('Voor het eigen certificaat is agent {v} nodig; deze worden overgeslagen: {names}. Werk ze eerst bij.', { v: pinMin, names: old.map((x) => esc(x.name)).join(', ') })}`);
     else {
-      const old2 = hosts.filter((x) => !x.agent_version || verCmp(x.agent_version, o.url_min || '1.51.0') < 0);
+      const old2 = hosts.filter((x) => !capV(x) || verCmp(capV(x), o.url_min || '1.51.0') < 0);
       if (old2.length) out.push(`⚠️ ${L('Agent {v} of nieuwer nodig; deze worden overgeslagen: {names}. Werk ze eerst bij, of pas het adres op de server zelf aan.', { v: o.url_min || '1.51.0', names: old2.map((x) => esc(x.name)).join(', ') })}`);
     }
     if (urls.length === 2 && urls[0] === urls[1]) out.push(`⚠️ ${L('Het reserve-adres is hetzelfde als het gewone adres')}`);

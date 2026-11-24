@@ -24,6 +24,21 @@ final class AgentCrypto
     public const MODES = ['off', 'on', 'required'];
     public const AGENT_MIN = '1.49.0';
     public const OWNKEY_MIN = '1.50.0';
+    /** 1.318.0: Windows-agent met overstappen naar een ander adres, twee vingerafdrukken en de reserve-RzSense */
+    public const WIN_URL_MIN = '0.6.0';
+
+    /**
+     * 1.318.0: met welke versie van de Linux-agent een agent vergeleken wordt voor de versleuteling, de adressen en de
+     * reserve. De Windows-agent heeft een eigen nummer (0.x): eigen sleutel (en vernieuwen) vanaf de eerste versie, en
+     * vanaf 0.6.0 ook overstappen, vingerafdrukken per adres en de reserve-RzSense.
+     */
+    public static function capVersion(?string $version, ?string $os): ?string
+    {
+        if ($version === null || $os !== 'windows') {
+            return $version;
+        }
+        return version_compare($version, self::WIN_URL_MIN, '>=') ? Reserve::AGENT_MIN : self::OWNKEY_MIN;
+    }
     public const PAIR_MINUTES = 15;
     private const GRACE = 86400;
     private const MAX_AGE = 300;

@@ -4499,5 +4499,18 @@ ok(AgentEnroll::find($enRow['kid']) === null, 'uitrolcode ingetrokken = niet mee
 q("DELETE FROM hosts WHERE name IN ('win-unit-e1', 'win-unit-e2')");
 q('DELETE FROM agent_enroll');
 
+// 1.318.0: de Windows-agent (0.x) wordt voor sleutels, adressen en de reserve niet met Linux-nummers (1.x) vergeleken
+ok(AgentCrypto::capVersion('0.2.0', 'windows') === AgentCrypto::OWNKEY_MIN && AgentCrypto::capVersion('0.6.0', 'windows') === Reserve::AGENT_MIN
+    && AgentCrypto::capVersion('1.40.0', 'linux') === '1.40.0' && AgentCrypto::capVersion(null, 'windows') === null,
+    'Windows-agent: eigen sleutel vanaf de eerste versie, overstappen en reserve vanaf 0.6.0; Linux ongewijzigd');
+q("INSERT INTO hosts (name, address, mode, os, agent_version) VALUES ('win-unit6', '192.0.2.16', 'agent', 'windows', '0.6.0')");
+$w6 = (int) db()->lastInsertId();
+q("UPDATE hosts SET agent_url_want = 'https://nieuw.voorbeeld' WHERE id = ?", [$w6]);
+$w6h = q('SELECT * FROM hosts WHERE id = ?', [$w6])->fetch();
+$w6u = agent_url_report($w6h, ['url' => 'https://oud.voorbeeld', 'os' => 'windows'], AgentCrypto::capVersion('0.6.0', 'windows'), true);
+$w6o = agent_url_report($w6h, ['url' => 'https://oud.voorbeeld', 'os' => 'windows'], AgentCrypto::capVersion('0.5.0', 'windows'), true);
+ok(($w6u['url'] ?? '') === 'https://nieuw.voorbeeld' && $w6o === null, 'Windows-agent 0.6.0 krijgt de opdracht om over te stappen, 0.5.0 niet');
+q('DELETE FROM hosts WHERE id = ?', [$w6]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);
