@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  RzSense Agent als MSI (RzSense 1.317.0, Windows-agent 0.5.0), voor uitrollen met groepsbeleid of een beheerprogramma.
+  Gebouwd door GitHub Actions (WiX 4) met dezelfde .exe die RzSense aan de servers levert.
+    msiexec /i rzsense-agent.msi /qn URL="https://rzsense.voorbeeld" ENROLL="UITROLCODE" [PIN="sha256//…"]
+  Na het kopiëren draait de MSI "rzsense-agent.exe install": die meldt de server aan met de uitrolcode (alleen als hij nog
+  niet gekoppeld is) en zet de service op. Een bestaande installatie wordt alleen bijgewerkt. ENROLL staat niet in logboeken.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="RzSense Agent" Manufacturer="RzSense" Version="$(var.Version)" UpgradeCode="7d3c2b8e-5a41-4f0e-9c6d-2e8b1a4f9c10"
+           Scope="perMachine" Compressed="yes" Language="1043">
+    <SummaryInformation Description="RzSense Agent voor Windows Server" />
+    <MajorUpgrade DowngradeErrorMessage="Er is al een nieuwere RzSense Agent geïnstalleerd." />
+    <MediaTemplate EmbedCab="yes" />
+    <Property Id="URL" Secure="yes" />
+    <Property Id="ENROLL" Secure="yes" Hidden="yes" />
+    <Property Id="PIN" Secure="yes" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="RzSense">
+        <Component Id="AgentExe" Bitness="always64">
+          <File Id="RzExe" Source="$(var.ExePath)" KeyPath="yes" />
+          <!-- De service maakt de agent zelf aan (install); de MSI stopt hem bij bijwerken en verwijdert hem bij verwijderen -->
+          <ServiceControl Id="RzSvc" Name="RzSenseAgent" Stop="both" Remove="uninstall" Wait="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+    <Feature Id="Main">
+      <ComponentRef Id="AgentExe" />
+    </Feature>
+    <CustomAction Id="RzInstall" FileRef="RzExe" ExeCommand="install --url &quot;[URL]&quot; --enroll &quot;[ENROLL]&quot; --pin &quot;[PIN]&quot;"
+                  Execute="deferred" Impersonate="no" Return="check" HideTarget="yes" />
+    <InstallExecuteSequence>
+      <Custom Action="RzInstall" After="InstallFiles" Condition="NOT (REMOVE~=&quot;ALL&quot;)" />
+    </InstallExecuteSequence>
+  </Package>
+</Wix>

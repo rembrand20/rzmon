@@ -1907,3 +1907,22 @@ INSERT IGNORE INTO settings (name, value) VALUES ('webpush_fallback', '1');
 
 -- 1.307.0: IDS-pushmeldingen via Pushover/ntfy en/of Web Push
 INSERT IGNORE INTO settings (name, value) VALUES ('ids_push_classic', '1'), ('ids_push_web', '1');
+
+-- 1.317.0: uitrolcodes (één code voor veel servers, bv. de Windows-agent via groepsbeleid). Alleen de afgeleide sleutel.
+CREATE TABLE IF NOT EXISTS agent_enroll (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name        VARCHAR(100) NOT NULL,
+    kid         CHAR(16)     NOT NULL,
+    ekey        CHAR(64)     NOT NULL,
+    os          VARCHAR(10)  NOT NULL DEFAULT 'windows',
+    max_hosts   INT UNSIGNED NOT NULL DEFAULT 50,
+    used        INT UNSIGNED NOT NULL DEFAULT 0,
+    until       DATETIME     NOT NULL,
+    nets        TEXT         NULL,
+    grp         VARCHAR(60)  NULL,
+    created_by  VARCHAR(100) NOT NULL,
+    created_at  DATETIME     NOT NULL,
+    last_at     DATETIME     NULL,
+    revoked     TINYINT(1)   NOT NULL DEFAULT 0,
+    UNIQUE KEY uq_enroll_kid (kid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

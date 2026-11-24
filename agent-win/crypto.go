@@ -53,14 +53,19 @@ func keyID(keyHex string) string {
 }
 
 // pairKey: sleutel bij een koppelcode
-func pairKey(code string) string {
+func pairKey(code string) string { return codeKey("rzpair1|", code) }
+
+// enrollKey: sleutel bij een uitrolcode (fase 4: één code voor veel servers, bv. via groepsbeleid)
+func enrollKey(code string) string { return codeKey("rzenroll1|", code) }
+
+func codeKey(prefix, code string) string {
 	var b strings.Builder
 	for _, r := range strings.ToUpper(code) {
 		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
 			b.WriteRune(r)
 		}
 	}
-	h := sha256.Sum256([]byte("rzpair1|" + b.String()))
+	h := sha256.Sum256([]byte(prefix + b.String()))
 	return hex.EncodeToString(h[:])
 }
 

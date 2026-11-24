@@ -27,7 +27,7 @@ final class RelayPull
     /** Agent die antwoorden van een eerdere ronde aanneemt */
     public const AGENT_MIN = '1.114.0';
     /** Acties die via de relay naar RzSense gaan (de rest levert de relay zelf uit) */
-    public const ACTIONS = ['agent', 'agent_check', 'agent_tests', 'agent_pair', 'agent_logs', 'agent_pkg_progress'];
+    public const ACTIONS = ['agent', 'agent_check', 'agent_tests', 'agent_pair', 'agent_enroll', 'agent_logs', 'agent_pkg_progress'];
     /** Kopteksten van de agent die meegaan (zoals relay.py ze doorstuurt) */
     public const HEADERS = ['Content-Type', 'X-Agent-Token', 'X-Agent-Key', 'X-Agent-Auth', 'X-Agent-Enc', 'X-Agent-Pair', 'X-Agent-Fallback', 'X-Agent-Pin-Fail'];
     private const MAX_ITEMS = 60;

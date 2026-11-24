@@ -4475,5 +4475,29 @@ save_setting('vuln_enabled', $p4v);
 q('DELETE FROM hosts WHERE id = ?', [$p4]);
 save_setting('patch_on', $p4prev);
 
+// 1.317.0: uitrolcodes (veel Windows-servers via groepsbeleid)
+ok(is_string(AgentEnroll::create(['nets' => '10.0.0.0/33'], 'admin')) && is_string(AgentEnroll::create(['nets' => 'geen-net'], 'admin')), 'uitrolcode: ongeldig netwerk geweigerd');
+$en = AgentEnroll::create(['name' => 'unit', 'max' => 2, 'days' => 5, 'nets' => '192.0.2.0/24', 'grp' => 'Kantoor'], 'admin');
+$enRow = AgentEnroll::find(AgentCrypto::keyId(AgentEnroll::key($en['code'])));
+ok(is_array($enRow) && (int) $enRow['max_hosts'] === 2 && (int) $enRow['used'] === 0 && !str_contains(json_encode(AgentEnroll::all()), $en['code'])
+    && !str_contains((string) q('SELECT CONCAT_WS(" ", name, kid, ekey) FROM agent_enroll WHERE id = ?', [$en['id']])->fetchColumn(), $en['code']),
+    'uitrolcode: alleen de afgeleide sleutel bewaard, de code zelf niet');
+ok(AgentEnroll::find(AgentCrypto::keyId(AgentEnroll::key(strtolower(str_replace('-', '', $en['code']))))) !== null, 'uitrolcode: kleine letters en zonder streepjes werkt ook');
+$e1 = AgentEnroll::enroll($enRow, ['hostname' => 'WIN-UNIT-E1', 'os' => 'windows'], '198.51.100.5');
+$e2 = AgentEnroll::enroll($enRow, ['hostname' => 'win-unit-e1', 'os' => 'linux'], '192.0.2.50');
+$e3 = AgentEnroll::enroll($enRow, ['hostname' => 'win-unit-e1', 'os' => 'windows'], '192.0.2.50');
+ok(is_string($e1) && is_string($e2) && is_array($e3) && $e3['name'] === 'win-unit-e1' && $e3['os'] === 'windows' && $e3['grp'] === 'Kantoor' && $e3['mode'] === 'agent',
+    'uitrolcode: alleen vanaf de netwerken, alleen voor Windows; maakt de server aan met de computernaam en de groep');
+$enRow = AgentEnroll::find($enRow['kid']);
+ok(is_string(AgentEnroll::enroll($enRow, ['hostname' => 'WIN-UNIT-E1', 'os' => 'windows'], '192.0.2.51')) && is_string(AgentEnroll::enroll($enRow, ['hostname' => 'x;rm', 'os' => 'windows'], '192.0.2.51')),
+    'uitrolcode: een bestaande servernaam wordt nooit overgenomen, en geen rare namen');
+AgentEnroll::enroll($enRow, ['hostname' => 'win-unit-e2', 'os' => 'windows'], '192.0.2.52');
+$enRow = AgentEnroll::find($enRow['kid']);
+ok(is_string(AgentEnroll::enroll($enRow, ['hostname' => 'win-unit-e3', 'os' => 'windows'], '192.0.2.53')), 'uitrolcode: op na het maximum');
+AgentEnroll::revoke((int) $en['id'], 'admin');
+ok(AgentEnroll::find($enRow['kid']) === null, 'uitrolcode ingetrokken = niet meer geldig');
+q("DELETE FROM hosts WHERE name IN ('win-unit-e1', 'win-unit-e2')");
+q('DELETE FROM agent_enroll');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

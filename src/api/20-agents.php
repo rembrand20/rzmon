@@ -373,6 +373,21 @@ switch ($action) {
     case 'relay_disable':
         Relay::disable((int) (input()['id'] ?? 0), (string) $user['username']) ? out(['ok' => true]) : out(['error' => t('Relay niet gevonden')], 404);
 
+    // 1.317.0: uitrolcodes (één code voor veel servers: de Windows-agent via groepsbeleid)
+    case 'agent_enroll_list':
+        $pin = AgentCrypto::pin(false, false, null) ?? '';
+        if ($pin === '' && AgentCrypto::pinOn(null)) {
+            $pin = AgentCrypto::pin(true, true, null) ?? '';
+        }
+        out(['codes' => AgentEnroll::all(), 'pin' => $pin, 'msi' => is_file(SM_ROOT . '/agent-win/dist/rzsense-agent.msi')]);
+
+    case 'agent_enroll_create':
+        $r = AgentEnroll::create(input(), (string) $user['username']);
+        is_string($r) ? out(['error' => $r], 422) : out(['ok' => true] + $r);
+
+    case 'agent_enroll_revoke':
+        AgentEnroll::revoke((int) (input()['id'] ?? 0), (string) $user['username']) ? out(['ok' => true]) : out(['error' => t('Uitrolcode niet gevonden')], 404);
+
     // Koppelcode voor een server (15 minuten geldig) en wat er nodig is voor het installatiecommando
     case 'agent_pair_code':
         $id = (int) (input()['id'] ?? 0);

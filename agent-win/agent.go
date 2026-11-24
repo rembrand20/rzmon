@@ -16,7 +16,7 @@ import (
 )
 
 // Version: wordt bijgewerkt met tools/bump-version.sh agentwin (gelijk aan agent-win/VERSION)
-const Version = "0.4.0"
+const Version = "0.5.0"
 
 // ---------------------------------------------------------------- koppelen
 
@@ -30,15 +30,19 @@ type pairReply struct {
 
 // pair: eenmalig koppelen met een koppelcode (RzSense → Agent Manager → 🔗 Koppelcode). Het verzoek is versleuteld met
 // een sleutel uit de code; RzSense antwoordt, ook versleuteld, met de eigen sleutel van deze server.
+// Met "enroll:CODE" (fase 4) meldt de server zich aan met een uitrolcode: RzSense maakt de server dan zelf aan.
 func pair(c *Config, code string) (string, error) {
-	pk := pairKey(code)
+	pk, action, hdr := pairKey(code), "agent_pair", "X-Agent-Pair"
+	if strings.HasPrefix(code, "enroll:") {
+		pk, action, hdr = enrollKey(strings.TrimPrefix(code, "enroll:")), "agent_enroll", "X-Agent-Enroll"
+	}
 	host, _ := os.Hostname()
 	plain, _ := json.Marshal(map[string]string{"agent_version": Version, "hostname": host, "os": "windows"})
 	env, nonce, err := seal(plain, pk, time.Now())
 	if err != nil {
 		return "", err
 	}
-	r, err := call(c.URL, c.Pin, "POST", "agent_pair", env, map[string]string{"X-Agent-Pair": keyID(pk)}, 20*time.Second)
+	r, err := call(c.URL, c.Pin, "POST", action, env, map[string]string{hdr: keyID(pk)}, 20*time.Second)
 	if err != nil {
 		return "", err
 	}

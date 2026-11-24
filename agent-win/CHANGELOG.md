@@ -4,6 +4,10 @@ Wijzigingen aan de RzSense-agent voor Windows (`rzsense-agent.exe`), per versie.
 De Windows-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de Linux-agent.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.5.0 – 2026-11-24
+- **Aanmelden met een uitrolcode**: `rzsense-agent.exe install --url … --enroll CODE`. RzSense maakt de server dan zelf aan (naam = computernaam). Is de agent al gekoppeld, dan wordt de code niet gebruikt (alleen bijwerken).
+- **MSI** (`rzsense-agent.msi`, gebouwd met WiX door GitHub Actions) met de eigenschappen `URL`, `ENROLL` en `PIN`, voor groepsbeleid of een beheerprogramma. De MSI stopt de service bij bijwerken en verwijdert hem bij verwijderen; de uitrolcode komt niet in de logboeken van Windows Installer.
+
 ## 0.4.0 – 2026-11-24
 - **Fase 4: Windows-updates installeren** als RzSense erom vraagt (Updates: met de hand, in het onderhoudsvenster of elke dag): alleen beveiligings- en kritieke updates, of alles. Op de achtergrond via de Windows Update-API, met een vast, ingebouwd script; licenties worden geaccepteerd; nooit een herstart. De uitkomst gaat meteen naar RzSense (lukt dat niet, dan met het volgende rapport).
 - De lijst met klaarstaande updates gaat nu ook naar **Updates** (KB-nummer, titel, beveiliging, soort), en per beveiligingsupdate de **CVE's** naar **Kwetsbaarheden**.

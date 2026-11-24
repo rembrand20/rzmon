@@ -32,4 +32,18 @@ if [ "$row" != "$ver 1 1 windows" ]; then
     exit 1
 fi
 php -r 'require "src/bootstrap.php"; q("DELETE FROM hosts WHERE name = ?", ["win-e2e"]);'
-echo "✔ Windows-agent $ver: gekoppeld, testlijst opgehaald, twee rapporten en een logpakket versleuteld verstuurd; RzSense ziet een Windows-server"
+# 1.317.0: aanmelden met een uitrolcode (de server wordt aangemaakt met de computernaam)
+hn=$(hostname | tr '[:upper:]' '[:lower:]')
+enroll=$(HN="$hn" php -r '
+require "src/bootstrap.php";
+q("DELETE FROM hosts WHERE LOWER(name) = ?", [getenv("HN")]);
+echo AgentEnroll::create(["name" => "e2e", "max" => 5, "days" => 1], "e2e")["code"];')
+(cd agent-win && RZ_E2E_URL="$BASE" RZ_E2E_ENROLL="$enroll" go test -count=1 -run 'EnrollEndToEnd' ./...)
+er=$(HN="$hn" php -r 'require "src/bootstrap.php"; $h = q("SELECT os, agent_key_seen, enc_seen FROM hosts WHERE LOWER(name) = ?", [getenv("HN")])->fetch() ?: [];
+echo implode(" ", [$h["os"] ?? "-", $h["agent_key_seen"] ?? "-", $h["enc_seen"] ?? "-", q("SELECT used FROM agent_enroll WHERE name = ?", ["e2e"])->fetchColumn()]);
+q("DELETE FROM hosts WHERE LOWER(name) = ?", [getenv("HN")]); q("DELETE FROM agent_enroll WHERE name = ?", ["e2e"]);')
+if [ "$er" != "windows 1 1 1" ]; then
+    echo "✘ aanmelden met een uitrolcode: RzSense bewaarde $er (verwacht: windows 1 1 1)"
+    exit 1
+fi
+echo "✔ Windows-agent $ver: gekoppeld, testlijst opgehaald, twee rapporten en een logpakket versleuteld verstuurd; RzSense ziet een Windows-server; aanmelden met een uitrolcode werkt"

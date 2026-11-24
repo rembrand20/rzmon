@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.317.0**: **Uitrollen naar veel Windows-servers** met één uitrolcode en een MSI, voor groepsbeleid of een beheerprogramma.
 - **1.316.0**: **Windows-updates installeren** vanuit Updates (met de hand, in het onderhoudsvenster of elke dag) en **kwetsbaarheden op Windows** uit de ontbrekende beveiligingsupdates.
 - **1.315.0**: **Windows-agent fase 3**: IDS en EDR op Windows (Defender, Sysmon, nieuwe services en beheerders, brute force op RDP), blokkeren en isoleren via de Windows Firewall, en IIS-logs.
 - **1.314.0**: **Windows-agent fase 2**: Windows-logboeken op de pagina Logs, RDP-logins, certificaten uit de opslag en Windows Update.
-- **1.313.0**: **Windows-agent** (fase 1): Windows Server 2019–2025 als service, met hetzelfde versleutelde rapport als Linux.
 - **1.311.0**: **Aanvallen live**: boven Dashboard, IDS en Netwerk zie je aanvallen van buiten en binnen onderweg, met elke stip een echte gebeurtenis.
+
+## 1.317.0 – 2026-11-24
+### Nieuw
+- **Uitrollen naar veel Windows-servers: uitrolcode en MSI** (nieuwe Windows-agent 0.5.0 nodig). Zie HANDLEIDING 8.16.
+  - Een **uitrolcode** geldt voor veel servers: tot een datum (hooguit 90 dagen), voor hooguit zoveel servers, en desgewenst alleen vanaf je eigen netwerken. Een server die zich aanmeldt, wordt in RzSense aangemaakt met zijn computernaam (en eventueel een groep) en krijgt zijn eigen sleutel. Een bestaande servernaam wordt nooit overgenomen; intrekken kan altijd.
+  - **MSI** voor groepsbeleid of een beheerprogramma (Intune, SCCM, PDQ …): `msiexec /i rzsense-agent.msi /qn URL=… ENROLL=…`. Een bestaande installatie wordt alleen bijgewerkt. Gebouwd en ondertekend door GitHub Actions.
+  - In de Agent Manager → *Installeren* → *⊞ Windows Server* → **Uitrolcode en MSI**.
+  - RzSense bewaart alleen een sleutel die uit de code is afgeleid, niet de code zelf. Elke aanmelding staat in het logboek en geeft een melding.
 
 ## 1.316.0 – 2026-11-24
 ### Nieuw

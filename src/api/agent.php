@@ -66,17 +66,23 @@ if ($action === 'agent_script' || $action === 'agent_install') {
 }
 
 // 1.313.0: de Windows-agent (.exe, gebouwd en ondertekend door GitHub Actions) en zijn handtekening
-if ($action === 'agent_win_exe' || $action === 'agent_win_sig') {
+if ($action === 'agent_win_exe' || $action === 'agent_win_sig' || $action === 'agent_win_msi') {
     if (!Stealth::scriptAllowed()) {
         Stealth::notFound();
     }
-    $f = SM_ROOT . '/agent-win/dist/rzsense-agent.exe' . ($action === 'agent_win_sig' ? '.sig' : '');
+    // 1.317.0: ook de MSI voor groepsbeleid (zelfde agent, gebouwd door GitHub Actions)
+    $f = SM_ROOT . '/agent-win/dist/rzsense-agent.' . ($action === 'agent_win_msi' ? 'msi' : 'exe') . ($action === 'agent_win_sig' ? '.sig' : '');
     if (!is_file($f)) {
         http_response_code(404);
         exit;
     }
     header('Cache-Control: no-store');
-    if ($action === 'agent_win_exe') {
+    if ($action === 'agent_win_msi') {
+        header('Content-Type: application/x-msi');
+        header('Content-Disposition: attachment; filename="rzsense-agent.msi"');
+        header('Content-Length: ' . filesize($f));
+        readfile($f);
+    } elseif ($action === 'agent_win_exe') {
         header('Content-Type: application/vnd.microsoft.portable-executable');
         header('Content-Disposition: attachment; filename="rzsense-agent.exe"');
         header('Content-Length: ' . filesize($f));
@@ -140,6 +146,38 @@ if ($action === 'agent_pair') {
     // zet de agent het vastzetten uit
     out(['ok' => true, 'host' => $host['name'], 'agent_key' => $key] + ($viaRelay !== null && $pairPin === '' ? [] : ['pin' => $pairPin])
         + ['agent_sha256' => hash_file('sha256', SM_ROOT . '/agent/rzmon-agent.sh')]);
+}
+
+// 1.317.0 (Windows-agent 0.5.0): aanmelden met een uitrolcode (groepsbeleid): maakt de server aan en geeft hem een eigen sleutel
+if ($action === 'agent_enroll') {
+    $ip = client_ip();
+    $e = AgentEnroll::find((string) ($_SERVER['HTTP_X_AGENT_ENROLL'] ?? ''));
+    $deny = static function (string $reason) use ($ip): never {
+        q('INSERT INTO agent_log (host_id, ip, reason) VALUES (NULL, ?, ?)', [mb_substr($ip, 0, 45), mb_substr($reason, 0, 255)]);
+        Security::unauthorized('agent', $reason, []);
+        out(['error' => t('Geweigerd') . ": $reason", 'reason' => $reason], 403);
+    };
+    if (!$e) {
+        $deny(t('ongeldige, verlopen of ingetrokken uitrolcode'));
+    }
+    try {
+        [$plain, $pkey, $nonce] = AgentCrypto::open(request_body(), [(string) $e['ekey']]);
+    } catch (RuntimeException $ex) {
+        $deny($ex->getMessage());
+    }
+    $in = json_decode($plain, true) ?: [];
+    $GLOBALS['agent_seal'] = [$pkey, $nonce];
+    $host = AgentEnroll::enroll($e, $in, $ip);
+    if (is_string($host)) {
+        $deny($host);
+    }
+    $key = AgentCrypto::newHostKey((int) $host['id'], false);
+    q('UPDATE hosts SET agent_key_seen = 1, agent_ips = ? WHERE id = ?', [mb_substr($ip, 0, 45), $host['id']]);
+    $ver = preg_match('/^\d+\.\d+\.\d+$/', (string) ($in['agent_version'] ?? '')) ? $in['agent_version'] : '?';
+    AgentCommands::audit('agent', 'Server aangemeld met uitrolcode', "{$host['name']} vanaf $ip (agent $ver) · {$e['name']}");
+    Monitor::sysInfo('agent_connect', (int) $host['id'], (string) $host['name'], 'ℹ️ ' . t('Nieuwe server aangemeld: {name}', ['name' => $host['name']]),
+        fn() => t('{name} meldde zich aan met de uitrolcode {code}', ['name' => $host['name'], 'code' => $e['name']]) . " · IP $ip · agent $ver", $ip);
+    out(['ok' => true, 'host' => $host['name'], 'agent_key' => $key, 'pin' => AgentCrypto::pin(false, true, $host) ?? '']);
 }
 
 if ($action === 'agent_tests') {

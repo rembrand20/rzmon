@@ -1889,6 +1889,7 @@ function agentInstructions(h, pairNow = false) {
             <div data-pair-pane="windows">${pairButton()}</div></li>
           <li>${L('Daarna: voeg checks toe met <b>＋</b>: <i>Service</i> (bv. <code>W3SVC</code> of <code>MSSQLSERVER</code>), <i>Diskruimte</i> <code>C:</code>, CPU en RAM.')}</li>
         </ol>
+        <p class="small">🏢 ${L('Veel servers tegelijk (groepsbeleid, Intune …)?')} <button type="button" class="btn small-btn" data-win-enroll>${L('Uitrolcode en MSI')} →</button></p>
         ${xpHtml(L('Testen, bijwerken en verwijderen op Windows.'), L('<b>Testen:</b> <code>rzsense-agent.exe once</code> in <code>C:\\Program Files\\RzSense</code> verstuurt één rapport en zegt wat er misgaat; <code>status</code> toont de instellingen en de laatste meldingen. <b>Bijwerken:</b> met de knop hierboven (alleen een ondertekende .exe). <b>Verwijderen:</b> <code>rzsense-agent.exe uninstall</code> (met <code>--purge</code> ook de instellingen en de sleutel). <b>Logboek:</b> Logboeken → Windows-logboeken → Toepassing, bron <i>RzSenseAgent</i>, of <code>C:\\ProgramData\\RzSense\\agent.log</code>.'))}
       </div>
       <div data-pane="linux" ${h.os === 'windows' ? 'hidden' : ''}>
@@ -1985,6 +1986,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   };
   body.addEventListener('click', async (e) => {   // 1.224.4: alleen voor dit venster (signal)
     if (e.target.closest('[data-make-pair]')) return makePair();
+    if (e.target.closest('[data-win-enroll]')) return winEnroll();   // 1.317.0
     if (e.target.closest('[data-am-pair]')) { const det = $('.am-install', body); det.open = true; det.scrollIntoView({ behavior: 'smooth', block: 'start' }); return makePair(); }
     if (e.target.closest('[data-am-test]')) return agentTestDialog(findHost(h.id));
     if (e.target.closest('[data-am-rec]')) return recommendedChecks(findHost(h.id));

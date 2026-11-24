@@ -3,6 +3,8 @@
 # (AGENT_SIGN_KEY), de handtekening controleren met de publieke sleutel die in de agent zelf staat, en beide in
 # agent-win/dist zetten. RzSense levert die .exe aan de servers; de agent installeert een update alleen als de
 # handtekening klopt.
+# 1.317.0: daarna ook een MSI (WiX 4, op een Windows-machine van GitHub) met precies die .exe, voor groepsbeleid; ook
+# ondertekend (.msi.sig), zodat je kunt controleren dat hij van RzSense komt.
 name: Windows-agent bouwen
 on:
   push:
@@ -35,6 +37,47 @@ jobs:
           mkdir -p dist
           go build -trimpath -ldflags "-s -w -buildid=" -o dist/rzsense-agent.exe .
           echo "✔ gebouwd: $(stat -c %s dist/rzsense-agent.exe) bytes, versie $(cat VERSION)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exe
+          path: agent-win/dist/rzsense-agent.exe
+          retention-days: 1
+  msi:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: exe
+          path: exe
+      - name: MSI bouwen (WiX 4)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet tool install --global wix --version 4.0.5
+          $v = (Get-Content agent-win/VERSION -Raw).Trim()
+          wix build -arch x64 -d "Version=$v" -d "ExePath=exe\rzsense-agent.exe" agent-win/msi/rzsense-agent.wxs -o rzsense-agent.msi
+          if (-not (Test-Path rzsense-agent.msi)) { throw 'geen MSI' }
+          Write-Host "✔ MSI gebouwd: $((Get-Item rzsense-agent.msi).Length) bytes, versie $v"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: msi
+          path: rzsense-agent.msi
+          retention-days: 1
+  sign:
+    needs: [build, msi]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: exe
+          path: agent-win/dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: msi
+          path: agent-win/dist
       - name: Ondertekenen en controleren
         env:
           AGENT_SIGN_KEY: ${{ secrets.AGENT_SIGN_KEY }}
@@ -48,18 +91,19 @@ jobs:
           pub=$(sed -n 's/^const agentSignPub = "\([A-Za-z0-9+\/=]*\)"$/\1/p' agent-win/update.go)
           [ -n "$pub" ] || { echo "::error title=Publieke sleutel::agentSignPub niet gevonden in agent-win/update.go"; exit 1; }
           printf -- '-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----\n' "$pub" >"$work/pub.pem"
-          f=agent-win/dist/rzsense-agent.exe
-          openssl pkeyutl -sign -inkey "$work/key.pem" -rawin -in "$f" -out "$work/sig"
-          openssl pkeyutl -verify -pubin -inkey "$work/pub.pem" -rawin -in "$f" -sigfile "$work/sig" >/dev/null \
-            || { echo "::error title=Sleutels passen niet::De geheime sleutel past niet bij agentSignPub in de Windows-agent"; exit 1; }
-          base64 -w0 "$work/sig" >"$f.sig"
-          echo "✔ $f ondertekend"
+          for f in agent-win/dist/rzsense-agent.exe agent-win/dist/rzsense-agent.msi; do
+            openssl pkeyutl -sign -inkey "$work/key.pem" -rawin -in "$f" -out "$work/sig"
+            openssl pkeyutl -verify -pubin -inkey "$work/pub.pem" -rawin -in "$f" -sigfile "$work/sig" >/dev/null \
+              || { echo "::error title=Sleutels passen niet::De geheime sleutel past niet bij agentSignPub in de Windows-agent"; exit 1; }
+            base64 -w0 "$work/sig" >"$f.sig"
+            echo "✔ $f ondertekend"
+          done
       - name: Vastleggen
         run: |
           set -eu
           git config user.name 'rzmon-ondertekening'
           git config user.email 'rzmon-ondertekening@users.noreply.github.com'
-          git add agent-win/dist/rzsense-agent.exe agent-win/dist/rzsense-agent.exe.sig
+          git add agent-win/dist/rzsense-agent.exe agent-win/dist/rzsense-agent.exe.sig agent-win/dist/rzsense-agent.msi agent-win/dist/rzsense-agent.msi.sig
           if git diff --cached --quiet; then echo "Windows-agent ongewijzigd"; exit 0; fi
           git commit -m "Windows-agent $(cat agent-win/VERSION) gebouwd en ondertekend [skip ci]"
           pushed=0

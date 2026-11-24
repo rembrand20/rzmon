@@ -132,6 +132,7 @@ func usage() {
 	fmt.Println(`RzSense-agent voor Windows ` + Version + `
 
   rzsense-agent.exe install --url https://rzsense.voorbeeld --pair CODE [--pin sha256//…] [--fallback URL]
+  rzsense-agent.exe install --url https://rzsense.voorbeeld --enroll CODE [--pin sha256//…]   (uitrolcode, veel servers)
   rzsense-agent.exe uninstall [--purge]
   rzsense-agent.exe once [--show]
   rzsense-agent.exe status
@@ -147,6 +148,7 @@ func cmdInstall(args []string) int {
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
 	url := fs.String("url", "", "adres van RzSense, bv. https://rzsense.voorbeeld")
 	code := fs.String("pair", "", "koppelcode uit RzSense (Agent Manager → 🔗 Koppelcode)")
+	enroll := fs.String("enroll", "", "uitrolcode uit RzSense, voor veel servers (Agent Manager → Windows → Uitrolcode en MSI)")
 	pin := fs.String("pin", "", "vingerafdruk van het certificaat van RzSense (sha256//…), bij een eigen certificaat")
 	fb := fs.String("fallback", "", "reserve-adres van RzSense (optioneel)")
 	noUpd := fs.Bool("no-remote-update", false, "niet bijwerken vanuit RzSense")
@@ -170,8 +172,15 @@ func cmdInstall(args []string) int {
 		fmt.Fprintln(os.Stderr, "Geef het adres van RzSense op: --url https://…")
 		return 2
 	}
+	if *code == "" && *enroll != "" {
+		if c.Key == "" {
+			*code = "enroll:" + *enroll
+		} else {
+			fmt.Println("Al gekoppeld met RzSense: de uitrolcode is niet nodig (alleen bijwerken).")
+		}
+	}
 	if *code == "" && c.Key == "" {
-		fmt.Fprintln(os.Stderr, "Geef een koppelcode op: --pair CODE (RzSense → Agent Manager → 🔗 Koppelcode)")
+		fmt.Fprintln(os.Stderr, "Geef een koppelcode op: --pair CODE (RzSense → Agent Manager → 🔗 Koppelcode), of een uitrolcode: --enroll CODE")
 		return 2
 	}
 	if err := install(c, *code); err != nil {

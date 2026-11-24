@@ -4157,7 +4157,17 @@ Ook een **Windows Server 2019, 2022 of 2025** (64-bit) kan zijn gegevens aan RzS
 - **Kwetsbaarheden**: Windows Update zegt per ontbrekende beveiligingsupdate welke CVE's hij oplost. Die staan bij *Kwetsbaarheden* met het KB-nummer als pakket en als oplossing, met de ernst van Microsoft (*Critical*, *Important* …) en daarna CVSS, EPSS en KEV zoals bij Linux. Is de update geïnstalleerd, dan staan ze bij *opgelost*. Software van anderen (bv. 7-Zip of een browser) ziet RzSense op Windows nog niet.
 - Gebruik je **WSUS** of **Windows Update for Business**, dan ziet en installeert de agent wat die beschikbaar stellen.
 
-**Volgende fase:** een MSI voor groepsbeleid met een uitrolcode, en de relay en het reserve-adres.
+**Uitrollen naar veel servers: uitrolcode en MSI** (vanaf 1.317.0, Windows-agent 0.5.0). Voor een paar servers is een koppelcode per server het veiligst. Voor veel servers tegelijk (groepsbeleid, Intune, SCCM, PDQ …) is er de **uitrolcode**: *Agent Manager → Installeren → ⊞ Windows Server → Uitrolcode en MSI*.
+- Een uitrolcode geldt **tot een datum** (hooguit 90 dagen), voor **hooguit zoveel servers**, en desgewenst **alleen vanaf je eigen netwerken** (bv. `10.0.0.0/8`). Je ziet de code één keer; RzSense bewaart alleen een sleutel die eruit is afgeleid.
+- Een server die zich aanmeldt, komt in RzSense met zijn **computernaam** (en de groep die je opgaf) en krijgt meteen zijn eigen sleutel, net als na een koppelcode. Elke aanmelding staat in het logboek en geeft een melding *Nieuwe server aangemeld*.
+- **Een bestaande servernaam wordt nooit overgenomen**: staat er al een server met die naam, dan wordt de aanmelding geweigerd (koppel die met een koppelcode). Zo kan iemand met de code geen bestaande server "kapen".
+- **De MSI** (`rzsense-agent.msi`, te downloaden in hetzelfde venster) installeert de agent in `C:\Program Files\RzSense` en meldt de server aan:
+  `msiexec /i "\\domein\NETLOGON\RzSense\rzsense-agent.msi" /qn URL="https://…" ENROLL="CODE" [PIN="sha256//…"]`
+  Software-installatie in groepsbeleid kan geen eigenschappen meegeven: gebruik een **opstartscript** (*Computerconfiguratie → Beleid → Windows-instellingen → Scripts → Opstarten*) met die regel, of je beheerprogramma. Is de agent er al, dan werkt de MSI hem alleen bij en gebruikt hij de code niet. Verwijderen via *Programma's en onderdelen* (of `msiexec /x`) verwijdert ook de service; de instellingen in `C:\ProgramData\RzSense` blijven staan (`rzsense-agent.exe uninstall --purge` haalt ze weg).
+- **Let op:** iedereen in het domein kan een opstartscript lezen, dus ook de uitrolcode. Beperk hem tot je eigen netwerken en het aantal servers dat je uitrolt, en **trek hem in** zodra de uitrol klaar is (servers die al aangemeld zijn, blijven werken).
+- Zonder MSI kan het ook met de .exe: `rzsense-agent.exe install --url "https://…" --enroll "CODE"`.
+
+**Volgende fase:** de relay en het reserve-adres voor Windows-servers.
 
 ## 9. Agent op Home Assistant OS
 

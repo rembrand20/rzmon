@@ -56,3 +56,28 @@ func TestVerifyExeRejects(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Fase 4: aanmelden met een uitrolcode (RZ_E2E_ENROLL): RzSense maakt de server zelf aan, met de computernaam
+func TestEnrollEndToEnd(t *testing.T) {
+	url, code := os.Getenv("RZ_E2E_URL"), os.Getenv("RZ_E2E_ENROLL")
+	if url == "" || code == "" {
+		t.Skip("geen RZ_E2E_URL/RZ_E2E_ENROLL")
+	}
+	t.Setenv("RZSENSE_DATA", t.TempDir())
+	c, _ := loadConfig()
+	c.URL = url
+	host, err := pair(c, "enroll:"+code)
+	if err != nil || c.Key == "" || host == "" {
+		t.Fatalf("aanmelden met de uitrolcode: %v", err)
+	}
+	if _, err := round(c, true); err != nil {
+		t.Fatalf("rapport na aanmelden: %v", err)
+	}
+	// Een tweede keer met dezelfde naam: geweigerd (een bestaande server wordt nooit overgenomen)
+	t.Setenv("RZSENSE_DATA", t.TempDir())
+	c2, _ := loadConfig()
+	c2.URL = url
+	if _, err := pair(c2, "enroll:"+code); err == nil {
+		t.Fatal("tweede aanmelding met dezelfde naam had geweigerd moeten worden")
+	}
+}
