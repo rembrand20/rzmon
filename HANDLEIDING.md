@@ -4126,9 +4126,33 @@ Ook een **Windows Server 2019, 2022 of 2025** (64-bit) kan zijn gegevens aan RzS
 - **Logins** (pagina Meldingen, zoals bij SSH op Linux): gelukte **console-** en **RDP-logins**, en **mislukte** logins (console, RDP en via het netwerk, bv. SMB), per IP-adres opgeteld. Computeraccounts (`naam$`) en systeemaccounts worden overgeslagen.
 - **Certificaten:** een SSL-check kan het certificaat lezen via `host:poort` vanaf de server zelf, of uit de **certificaatopslag** van de computer (*Persoonlijk*, *Webhosting*, *Extern bureaublad*), als `cert:LocalMachine\My\<vingerafdruk>`. Bij *Opnieuw zoeken* toont RzSense de certificaten die er zijn om uit te kiezen.
 - **Windows Update:** de Agent Manager toont hoeveel updates er klaarstaan (en hoeveel kritiek of belangrijk), met de lijst. Windows Update wordt op de achtergrond bevraagd, eens per 6 uur.
-- Logbestanden op Windows (zoals die van IIS) komen in fase 3, samen met de webaanvallen.
 
-**Volgende fases:** IDS en EDR (brute force op RDP en SMB, Defender, Sysmon, nieuwe services en taken, blokkeren en isoleren via de Windows Firewall), en daarna updates installeren, kwetsbaarheden en een MSI voor groepsbeleid.
+**Fase 3: IDS en EDR** (vanaf 1.315.0, Windows-agent 0.3.0). Zet het IDS aan zoals bij Linux (*IDS → Instellingen*); de Windows-agent doet dan mee.
+
+| Wat | Bron in Windows | Incident |
+| --- | --- | --- |
+| Nieuwe service | System 7045 | warning |
+| Nieuwe geplande taak | Security 4698 | warning |
+| Nieuwe of aangezette gebruiker | Security 4720, 4722 | warning |
+| Lid van een groep | Security 4728, 4732, 4756 | warning; **critical** bij een beheerdersgroep (Administrators, Domain Admins, Remote Desktop Users …) |
+| Logboek gewist | Security 1102, System 104 | critical |
+| Malware gevonden | Defender 1116, 1117 | critical |
+| Defender uitgezet of definities te oud | Defender 5001 en de status van Defender | critical / warning (ouder dan 7 dagen) |
+| Verdacht PowerShell-script (versleuteld, gedownload, Mimikatz, AMSI omzeilen …) | PowerShell 4104 | critical |
+| Webserver of database start een shell (bv. `w3wp.exe → cmd.exe`, een webshell) | Sysmon 1 of Security 4688 | critical |
+| Brute force | mislukte logins via RDP of het netwerk (SMB) | warning, en blokkeren in de modus *blokkeren* |
+| Webaanval | IIS-logs: aanvalspaden (`/.env`, `wp-login.php` …), scanners, veel 404 of 401/403 | warning, en blokkeren als *blokkeren* aan staat bij de webdiensten |
+
+- **Blokkeren** gaat via de **Windows Firewall**, in de regelgroep **RzSense** (inkomend en uitgaand). Haal je een blokkade weg in RzSense, dan verdwijnt de regel ook.
+- **Isoleren** zet regels in de groep **RzSense-isolatie**: alles dicht behalve RzSense zelf (het gewone en het reserve-adres), loopback en de netwerken die je toestaat. Kan de agent het adres van RzSense niet vinden, dan isoleert hij niet (anders zou hij zichzelf buitensluiten). Opheffen in RzSense haalt de regels weg. In nood: `Remove-NetFirewallRule -Group RzSense-isolatie` als beheerder.
+- **Meer zien met Sysmon en procesaudit** (aanbevolen): zonder deze twee ziet de agent geen nieuwe processen en geen PowerShell-scripts.
+  - `rzsense-agent.exe audit` zet *procesaudit met opdrachtregel* (4688) en *PowerShell-scriptlogging* (4104) aan. In een domein kan dat beter met groepsbeleid (zie hieronder).
+  - `rzsense-agent.exe sysmon C:\pad\Sysmon64.exe` installeert **Sysmon** met een ingebouwde, rustige instelling (alleen nieuwe processen, zonder de bekende Windows-ruis). Download Sysmon zelf bij Microsoft (Sysinternals); de agent haalt het nooit zelf op. Staat Sysmon er al, dan krijgt het alleen de nieuwe instelling.
+- **Webaanvallen in IIS:** de agent leest de logs in `C:\inetpub\logs\LogFiles\W3SVC*` (alleen nieuwe regels, per site een eigen plek) en stuurt per IP een samenvatting, zoals de reverse proxy op Linux. Alleen het pad gaat mee, nooit de querystring. Achter een load balancer ziet IIS alleen dat adres, tenzij je het veld *X-Forwarded-For* toevoegt; RzSense blokkeert je eigen netwerk nooit.
+- **Windows-logbestanden op de pagina Logs:** in de Agent Manager → *Logs verzamelen* → tabblad **📄 Windows-logbestanden**: IIS (per site), de Windows Firewall (`pfirewall.log`, als logging aan staat), SMTP en DNS. Let op: IIS schrijft zijn tijden in **UTC**.
+- In een **domein** (beide aanbevolen): zet procesaudit en PowerShell-logging liever met **groepsbeleid** (*Computerconfiguratie → Beleid → Windows-instellingen → Beveiligingsinstellingen → Geavanceerde controlebeleidsconfiguratie → Gedetailleerde tracering → Procescreatie controleren*, en *Beheersjablonen → Windows-onderdelen → Windows PowerShell → Logboekregistratie van PowerShell-scriptblokken inschakelen*). Op een domeincontroller ziet de agent ook nieuwe domeingebruikers en leden van *Domain Admins*.
+
+**Volgende fase:** updates installeren vanuit RzSense, kwetsbaarheden (geïnstalleerde software), een MSI voor groepsbeleid, en de relay en het reserve-adres.
 
 ## 9. Agent op Home Assistant OS
 

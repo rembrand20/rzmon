@@ -16,7 +16,7 @@ import (
 )
 
 // Version: wordt bijgewerkt met tools/bump-version.sh agentwin (gelijk aan agent-win/VERSION)
-const Version = "0.2.0"
+const Version = "0.3.0"
 
 // ---------------------------------------------------------------- koppelen
 
@@ -83,6 +83,10 @@ type tests struct {
 	Auth     bool       // logins doorgeven
 	Certs    []string   // certificaten om te lezen
 	CertScan int        // "Opnieuw zoeken" naar certificaten (teller)
+	IDS      string     // fase 3: "learn" of "block" (leeg = IDS uit)
+	Blocks   []blockWant
+	Isolate  *isolateWant
+	WebLog   string // fase 3: IIS-logs bekijken op webaanvallen (pad, of "auto"); leeg = niet
 }
 
 func parseTests(text string) tests {
@@ -125,6 +129,27 @@ func parseTests(text string) tests {
 			t.Certs = append(t.Certs, f[2])
 		case "certscan":
 			t.CertScan = atoiDef(f[2], 0)
+		case "ids":
+			t.IDS = f[2]
+		case "weblog":
+			if f[2] == "swag" { // de reverse proxy van Linux = de webserver (IIS) op Windows
+				t.WebLog = "auto"
+				if len(f) >= 4 {
+					t.WebLog = f[3]
+				}
+			}
+		case "block":
+			if len(f) >= 4 {
+				t.Blocks = append(t.Blocks, blockWant{IP: f[2], Until: int64(atoiDef(f[3], 0))})
+			}
+		case "isolate":
+			if len(f) >= 3 {
+				w := &isolateWant{Until: int64(atoiDef(f[2], 0))}
+				if len(f) >= 4 {
+					w.Allow = strings.Fields(f[3])
+				}
+				t.Isolate = w
+			}
 		case "proc":
 			if len(f) >= 4 {
 				if v, err := base64.StdEncoding.DecodeString(f[3]); err == nil {
@@ -235,6 +260,25 @@ func buildReport(c *Config, t tests, parts map[string]int) map[string]any {
 	if wu := windowsUpdate(); wu != nil {
 		rep["winupdate"] = wu
 	}
+	// Fase 3: IDS en EDR (gebeurtenissen, Defender, blokkeren via de firewall) en isoleren (los van het IDS)
+	t0 = time.Now()
+	if t.IDS != "" {
+		ids := map[string]any{"win": toJSONList(collectIDS())}
+		if av := defenderStatus(); av != nil {
+			ids["win_av"] = av
+		}
+		if t.IDS == "block" {
+			ids["fw"] = syncBlocks(t.Blocks, hostIPs(c.URL, c.URLFallback))
+		}
+		rep["ids"] = ids
+		if t.WebLog != "" {
+			rep["weblog"] = map[string]any{"swag": iisWeblog(t.WebLog)}
+		}
+	}
+	if iso := applyIsolation(c, t.Isolate); iso != nil {
+		rep["iso"] = iso
+	}
+	lap("ids", t0)
 	return rep
 }
 

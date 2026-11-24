@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.315.0**: **Windows-agent fase 3**: IDS en EDR op Windows (Defender, Sysmon, nieuwe services en beheerders, brute force op RDP), blokkeren en isoleren via de Windows Firewall, en IIS-logs.
 - **1.314.0**: **Windows-agent fase 2**: Windows-logboeken op de pagina Logs, RDP-logins, certificaten uit de opslag en Windows Update.
 - **1.313.0**: **Windows-agent** (fase 1): Windows Server 2019–2025 als service, met hetzelfde versleutelde rapport als Linux.
 - **1.312.0**: **rustige nieuwe indeling** van de instellingen, eerst bij Meldingen en rapporten: kop met label en aan/uit, velden naast elkaar, overzicht van de kanalen.
 - **1.311.0**: **Aanvallen live**: boven Dashboard, IDS en Netwerk zie je aanvallen van buiten en binnen onderweg, met elke stip een echte gebeurtenis.
-- **1.310.0**: **Beweging in heel RzSense** (Stil · Rustig · Vol): statuswissels, knoppen, grafieken en overgangen; gevaarlijke acties bevestig je door ingedrukt te houden.
+
+## 1.315.0 – 2026-11-24
+### Nieuw
+- **Windows-agent fase 3: IDS en EDR op Windows** (nieuwe Windows-agent 0.3.0 nodig). Zie HANDLEIDING 8.16.
+  - **Beveiligingsgebeurtenissen** worden IDS-incidenten: nieuwe service of geplande taak, nieuwe of aangezette gebruiker, lid van een groep (een beheerdersgroep = critical), logboek gewist, malware gevonden door Microsoft Defender, Defender uitgezet, verdacht PowerShell-script, en een webserver of database die een shell start (met Sysmon of procesaudit).
+  - **Microsoft Defender**: melding als de realtime-bescherming uit staat of de definities ouder zijn dan 7 dagen.
+  - **Brute force op RDP en via het netwerk (SMB)**, net als op SSH, met automatisch blokkeren in de modus *blokkeren*.
+  - **Blokkeren en isoleren** via de Windows Firewall, in eigen regelgroepen (*RzSense* en *RzSense-isolatie*); RzSense zelf blijft altijd bereikbaar.
+  - **Webaanvallen in de IIS-logs** (aanvalspaden, scanners, veel 404 of 401/403), net als bij nginx op Linux.
+  - **Windows-logbestanden op de pagina Logs**: IIS, Windows Firewall, SMTP en DNS, in de Agent Manager onder *📄 Windows-logbestanden*.
+  - Op de server: `rzsense-agent.exe sysmon <Sysmon64.exe>` installeert Sysmon met een passende instelling, `rzsense-agent.exe audit` zet procesaudit en PowerShell-logging aan.
 
 ## 1.314.0 – 2026-11-24
 ### Nieuw

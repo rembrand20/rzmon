@@ -4389,5 +4389,57 @@ ok(Checks::agentCertSource(['target' => $wcert, 'options' => null]) === $wcert &
     'certificaat uit de Windows-certificaatopslag als bron voor een SSL-check');
 q('DELETE FROM hosts WHERE id = ?', [$w2]);
 
+// 1.315.0: Windows-agent fase 3: Windows-gebeurtenissen worden IDS-incidenten, brute force op RDP
+$w3prev = setting('ids_enabled', '0');
+save_setting('ids_enabled', '1');
+q("INSERT INTO hosts (name, address, mode, os) VALUES ('win-unit3', '192.0.2.13', 'agent', 'windows')");
+$w3 = (int) db()->lastInsertId();
+$w3h = q('SELECT * FROM hosts WHERE id = ?', [$w3])->fetch();
+q('INSERT INTO ids_state (host_id, baseline_until, fim_epoch) VALUES (?, ?, ?)', [$w3, date('Y-m-d H:i:s', time() - 60), time()]);   // leerperiode voorbij
+$wt = time();
+Ids::process($w3h, ['win' => [
+    ['k' => 'service', 'name' => 'evilsvc', 'path' => 'C:\\Temp\\x.exe', 'user' => 'LocalSystem', 'id' => 7045, 'ch' => 'System', 't' => $wt],
+    ['k' => 'group', 'name' => 'CORP\\mallory', 'group' => 'Administrators', 'user' => 'jan', 'id' => 4732, 'ch' => 'Security', 't' => $wt],
+    ['k' => 'logclear', 'user' => 'mallory', 'id' => 1102, 'ch' => 'Security', 't' => $wt],
+    ['k' => 'malware', 'name' => 'Trojan:Win32/Test', 'path' => 'C:\\x.exe', 'act' => 'Quarantine', 'id' => 1116, 'ch' => 'Microsoft-Windows-Windows Defender/Operational', 't' => $wt],
+    ['k' => 'proc', 'name' => 'C:\\Windows\\System32\\cmd.exe', 'parent' => 'C:\\Windows\\System32\\inetsrv\\w3wp.exe', 'cmd' => 'cmd /c whoami', 'id' => 1, 'ch' => 'Microsoft-Windows-Sysmon/Operational', 't' => $wt],
+    ['k' => 'onbekend'],
+], 'win_av' => ['present' => true, 'on' => true, 'rt' => false, 'sig_age' => 9]], [], []);
+$w3i = q('SELECT type, severity, title FROM ids_incidents WHERE host_id = ? ORDER BY id', [$w3])->fetchAll();
+$w3t = array_column($w3i, 'severity', 'type');
+ok(($w3t['win_service'] ?? 0) === 1 && ($w3t['win_group'] ?? 0) === 2 && ($w3t['win_logclear'] ?? 0) === 2 && ($w3t['win_malware'] ?? 0) === 2
+    && ($w3t['proc_suspicious'] ?? 0) === 2 && ($w3t['win_av_off'] ?? 0) === 2 && ($w3t['win_av_old'] ?? 0) === 1,
+    'Windows-gebeurtenissen worden IDS-incidenten (service, beheerdersgroep, logboek gewist, malware, webshell, Defender)');
+ok(str_contains(implode(' | ', array_column($w3i, 'title')), 'w3wp.exe → cmd.exe'), 'webserver die een shell start: w3wp.exe → cmd.exe');
+Ids::process($w3h, [], ['fails' => [['k' => 'rdp', 'n' => 12, 'users' => ['administrator'], 'ip' => '198.51.100.77', 't' => time()]]], []);
+$w3b = q("SELECT title FROM ids_incidents WHERE host_id = ? AND type = 'bruteforce'", [$w3])->fetchColumn();
+ok(is_string($w3b) && str_contains($w3b, 'Brute force op RDP vanaf 198.51.100.77'), 'brute force op RDP herkend');
+q('DELETE FROM hosts WHERE id = ?', [$w3]);
+save_setting('ids_enabled', $w3prev);
+
+// 1.315.0: logbestanden op Windows (IIS, Windows Firewall) als logbron
+ok(LogStore::cleanSpec('winfile', 'C:\inetpub\logs\LogFiles\W3SVC1\*.log') === 'C:\inetpub\logs\LogFiles\W3SVC1\*.log'
+    && LogStore::cleanSpec('winfile', 'C:\inetpub\..\Windows\x.log') === null && LogStore::cleanSpec('winfile', '\\\\server\share\x.log') === null
+    && LogStore::cleanSpec('winfile', '/var/log/x.log') === null, 'Windows-logbestand als logbron: Windows-pad, geen .. en geen netwerkpad');
+q("INSERT INTO hosts (name, address, mode, os) VALUES ('win-unit4', '192.0.2.14', 'agent', 'windows')");
+$w4 = (int) db()->lastInsertId();
+LogStore::storeScan($w4, ['at' => time(), 'winfiles' => [['C:\inetpub\logs\LogFiles\W3SVC1\*.log', 52000, time() - 60], ['C:\Windows\System32\dns\dns.log', 10, time() - 90 * 86400], ['C:\..\x', 1, 1]]]);
+$w4f = array_column(LogStore::found($w4)['groups']['winfile'] ?? [], null, 'spec');
+ok(count($w4f) === 2 && $w4f['C:\inetpub\logs\LogFiles\W3SVC1\*.log']['rec'] && $w4f['C:\inetpub\logs\LogFiles\W3SVC1\*.log']['name'] === 'W3SVC1'
+    && $w4f['C:\Windows\System32\dns\dns.log']['quiet'], 'Windows-logbestanden om uit te kiezen: IIS aanbevolen, oude stil, ongeldig weg');
+$w4s = LogStore::save($w4, ['kind' => 'winfile', 'spec' => 'C:\inetpub\logs\LogFiles\W3SVC1\*.log']);
+ok(is_int($w4s) && q('SELECT name FROM log_sources WHERE id = ?', [$w4s])->fetchColumn() === 'alle.log'
+    && in_array("$w4s\tlogsrc\twinfile\tC:\\inetpub\\logs\\LogFiles\\W3SVC1\\*.log\t0", LogStore::agentLines($w4) ?: [], true) === LogStore::enabled(),
+    'Windows-logbestand toevoegen en naar de agent sturen');
+// 1.315.0: webaanvallen in de IIS-logs (zelfde samenvatting als nginx op Linux)
+$w4prev = setting('ids_enabled', '0');
+save_setting('ids_enabled', '1');
+$w4h = q('SELECT * FROM hosts WHERE id = ?', [$w4])->fetch();
+WebLog::process($w4h, ['swag' => ['path' => 'C:\inetpub\logs\LogFiles', 'kind' => 'iis', 'ips' => ['203.0.113.29' => [2, 1, 0, 0, 'sqlmap', ['/.env']]]]]);
+ok(q("SELECT kind FROM weblog_state WHERE host_id = ? AND src = 'swag'", [$w4])->fetchColumn() === 'iis'
+    && (bool) q("SELECT 1 FROM ids_incidents WHERE host_id = ? AND type = 'web_attack' AND title LIKE '%/.env%'", [$w4])->fetchColumn(), 'IIS: aanvalspad wordt een webaanval');
+save_setting('ids_enabled', $w4prev);
+q('DELETE FROM hosts WHERE id = ?', [$w4]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

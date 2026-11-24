@@ -5,6 +5,8 @@
 //	rzsense-agent.exe once                  één ronde in dit venster, met wat er verstuurd wordt
 //	rzsense-agent.exe status                instellingen en de laatste meldingen
 //	rzsense-agent.exe collect               laat zien wat de agent meet (zonder te versturen)
+//	rzsense-agent.exe sysmon <Sysmon64.exe> Sysmon installeren met de configuratie van RzSense
+//	rzsense-agent.exe audit                 procescontrole (4688) en PowerShell-scripts (4104) laten loggen
 //	rzsense-agent.exe version
 //
 // Als service (RzSenseAgent, LocalSystem) start Windows hem met "run".
@@ -74,6 +76,24 @@ func main() {
 			Auth: true, Logs: []logCheck{{ID: "5", Source: "Application", Pattern: "RzSenseTest"}}, LogScan: 1, CertScan: 1}
 		b, _ := json.MarshalIndent(buildReport(&Config{RemoteUpdate: true}, t, map[string]int{}), "", "  ")
 		fmt.Println(string(b))
+	case "sysmon":
+		// Sysmon installeren met de ingebouwde configuratie (het bestand download je zelf van Microsoft Sysinternals)
+		if len(os.Args) < 3 {
+			fmt.Fprintln(os.Stderr, "Gebruik: rzsense-agent.exe sysmon C:\\pad\\naar\\Sysmon64.exe")
+			os.Exit(2)
+		}
+		if err := installSysmon(os.Args[2]); err != nil {
+			fmt.Fprintln(os.Stderr, "✘ Sysmon installeren mislukt:", err)
+			os.Exit(1)
+		}
+		fmt.Println("✔ Sysmon draait met de configuratie van RzSense; de agent leest zijn gebeurtenissen voortaan mee")
+	case "audit":
+		// Procescontrole (4688, met opdrachtregel) en PowerShell-scripts (4104) laten loggen
+		if err := enableAudit(); err != nil {
+			fmt.Fprintln(os.Stderr, "✘ Aanzetten mislukt:", err)
+			os.Exit(1)
+		}
+		fmt.Println("✔ Windows logt nu nieuwe processen (4688, met opdrachtregel) en PowerShell-scripts (4104)")
 	case "status":
 		c, err := loadConfig()
 		fmt.Printf("RzSense-agent %s\nInstellingen: %s\n", Version, configPath())
@@ -116,6 +136,8 @@ func usage() {
   rzsense-agent.exe once [--show]
   rzsense-agent.exe status
   rzsense-agent.exe collect
+  rzsense-agent.exe sysmon C:\pad\Sysmon64.exe
+  rzsense-agent.exe audit
   rzsense-agent.exe version
 
 Starten als beheerder. De koppelcode maak je in RzSense: Agent Manager → 🔗 Koppelcode.`)

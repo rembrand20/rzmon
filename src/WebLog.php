@@ -15,7 +15,7 @@ final class WebLog
 {
     public const SOURCES = ['swag' => 'Reverse proxy (nginx)', 'ha' => 'Home Assistant', 'vw' => 'Vaultwarden'];
     /** 1.222.0: soorten reverse proxy die de agent herkent (agent 1.86.0) */
-    public const PROXIES = ['swag' => 'SWAG', 'npm' => 'Nginx Proxy Manager', 'nginx' => 'nginx'];
+    public const PROXIES = ['swag' => 'SWAG', 'npm' => 'Nginx Proxy Manager', 'nginx' => 'nginx', 'iis' => 'IIS'];   // 1.315.0: IIS (Windows-agent 0.3.0)
     /** Paden die alleen aanvallers proberen (alleen geteld met een foutcode: een site die het echt heeft, geeft 200) */
     private const ATTACK = '#(/\.env|/\.git/|/\.aws/|/\.ssh/|/\.htpasswd|wp-login\.php|/wp-admin|xmlrpc\.php|phpmyadmin|/pma/|/cgi-bin/|/boaform|/vendor/phpunit|eval-stdin|/actuator|/hnap1|setup\.cgi|/solr/|/owa/|/autodiscover/|/remote/login|/etc/passwd|\.\./|/manager/html|/wls-wsat|/\.vscode/|/server-status|/geoserver|/telescope)#i';
 

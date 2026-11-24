@@ -8593,7 +8593,7 @@ const LS_LVL_PILL = ['debug', 'info', 'warning', 'error', 'critical'];
 
 // ---------------------------------------------------------------- 1.213.0: logs die de agent op de server vond, om uit te kiezen
 const LF = { tab: 'dirs', timer: 0, waitUntil: 0, sel: new Set(), host: 0 };
-const LF_TABS = () => [['dirs', '📁', L('Logmappen')], ['docker', '🐳', L('Containers')], ['units', '⚙️', L('Services')], ['ha', '🏠', 'Home Assistant'], ['winevt', '⊞', L('Windows-logboeken')]];   // 1.314.0: Windows
+const LF_TABS = () => [['dirs', '📁', L('Logmappen')], ['docker', '🐳', L('Containers')], ['units', '⚙️', L('Services')], ['ha', '🏠', 'Home Assistant'], ['winevt', '⊞', L('Windows-logboeken')], ['winfile', '📄', L('Windows-logbestanden')]];   // 1.314.0: Windows
 const lfAgo = (ts) => { const s = Math.max(0, Date.now() / 1000 - ts); return s < 90 ? L('nu') : s < 3600 ? L('{n} min', { n: Math.round(s / 60) }) : s < 86400 ? L('{n} uur', { n: Math.round(s / 3600) }) : s < 60 * 86400 ? (Math.round(s / 86400) === 1 ? L('1 dag') : L('{n} dagen', { n: Math.round(s / 86400) })) : L('{n} mnd', { n: Math.round(s / (30 * 86400)) }); };
 
 async function lfLoad(h, keepChecks = false) {
@@ -8622,6 +8622,7 @@ async function lfLoad(h, keepChecks = false) {
     else if (it.kind === 'docker') info = `${esc(it.engine)} · ${esc(it.image)} · ${esc(it.state)}`;
     else if (it.kind === 'unit' || it.kind === 'journal') info = `journal · ${L('{n} regels in 24 uur', { n: dec(it.lines) })}`;
     else if (it.kind === 'winevt') info = `${L('Windows-logboek')} · ${L('{n} gebeurtenissen', { n: dec(it.lines) })}`;
+    else if (it.kind === 'winfile') info = `<span class="mono">${esc(it.spec)}</span> · ${fmtBytes(it.size)}${it.mtime ? ' · ' + L('gewijzigd {t}', { t: lfAgo(it.mtime) }) : ''}`;
     else info = `ha:${esc(it.spec)} · ${esc(it.state)}`;
     if (it.folder) {
       sub = it.files.map((f) => `<div class="lf-it lf-sub" data-lf-of="${esc(it.spec)}" hidden>${it.have ? '<span></span>' : `<input type="checkbox" data-lf="file:${esc(f.path)}" ${LF.sel.has('file:' + f.path) ? 'checked' : ''} aria-label="${esc(f.path)}">`}

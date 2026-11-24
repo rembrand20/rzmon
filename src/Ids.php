@@ -89,6 +89,74 @@ final class Ids
         return $out;
     }
 
+    // ------------------------------------------------------------------ Windows (1.315.0, Windows-agent 0.3.0)
+
+    /** Groepen waar een nieuw lid een critical is: beheerders van de server of het domein */
+    private const WIN_ADMIN_GROUPS = '/^(administrators|administrateurs|administratoren|domain admins|enterprise admins|schema admins|backup operators|remote desktop users|dnsadmins)$/i';
+
+    /**
+     * Beveiligingsgebeurtenissen van een Windows-server (de agent stuurt alleen wat ertoe doet): nieuwe service of
+     * geplande taak, nieuwe gebruiker, lid van een beheerdersgroep, logboek gewist, malware, Defender uitgezet,
+     * verdacht PowerShell-script, en een webserver of database die een shell start.
+     * @param array<string, mixed> $ctx
+     * @param array<int|string, mixed> $events
+     */
+    private static function windowsEvents(array $ctx, array $events): void
+    {
+        $s = static fn($v, int $n = 200) => mb_substr(trim((string) $v), 0, $n);
+        foreach (array_slice($events, 0, 200) as $e) {
+            if (!is_array($e)) {
+                continue;
+            }
+            $name = $s($e['name'] ?? '');
+            $by = $s($e['user'] ?? '', 100);
+            $byTxt = $by !== '' && $by !== '-' ? ' · ' . t('door {u}', ['u' => $by]) : '';
+            match ((string) ($e['k'] ?? '')) {
+                'service' => self::incident($ctx, 1, 'win_service', $name, t('Nieuwe service geïnstalleerd: {n}', ['n' => $name]),
+                    t('Programma') . ': ' . $s($e['path'] ?? '', 300) . ($by !== '' ? ' · ' . t('account') . ' ' . $by : '') . ' · '
+                    . t('Zo blijft een aanvaller na een herstart aanwezig. Kwam hij van een installatie of van jou? Dan kun je dit afhandelen.')),
+                'task' => self::incident($ctx, 1, 'win_task', $name, t('Nieuwe geplande taak: {n}', ['n' => $name]) . $byTxt,
+                    t('Een taak die op een vaste tijd of bij het opstarten draait. Aanvallers gebruiken dit om terug te komen.')),
+                'user' => self::incident($ctx, 1, 'win_user', $name, t('Nieuwe of aangezette gebruiker: {n}', ['n' => $name]) . $byTxt, t('Een account op deze server.')),
+                'group' => self::incident($ctx, preg_match(self::WIN_ADMIN_GROUPS, $s($e['group'] ?? '')) ? 2 : 1, 'win_group', $name . '|' . $s($e['group'] ?? ''),
+                    t('{n} toegevoegd aan de groep {g}', ['n' => $name, 'g' => $s($e['group'] ?? '')]) . $byTxt,
+                    t('Lid van een beheerdersgroep = alle rechten op deze server (of het domein). Was jij dit niet, dan is dit een teken van inbraak.')),
+                'logclear' => self::incident($ctx, 2, 'win_logclear', (string) ($e['ch'] ?? ''), t('Logboek gewist ({c})', ['c' => $s($e['ch'] ?? '', 60)]) . $byTxt,
+                    t('Aanvallers wissen het logboek om hun sporen uit te wissen.')),
+                'malware' => self::incident($ctx, 2, 'win_malware', $name . '|' . $s($e['path'] ?? ''), t('Microsoft Defender vond malware: {n}', ['n' => $name]),
+                    t('Bestand') . ': ' . $s($e['path'] ?? '', 300) . (($e['act'] ?? '') !== '' ? ' · ' . t('actie') . ': ' . $s($e['act'], 60) : '')),
+                'av_off' => self::incident($ctx, 2, 'win_av_off', 'rt', t('Realtime-bescherming van Microsoft Defender uitgezet'),
+                    t('Malware zet de virusscanner vaak eerst uit. Zet hem weer aan, tenzij je een andere virusscanner gebruikt.')),
+                'ps' => self::incident($ctx, 2, 'win_ps', $name . '|' . md5((string) ($e['cmd'] ?? '')), t('Verdacht PowerShell-script ({n})', ['n' => $name]),
+                    $s($e['cmd'] ?? '', 400) . (($e['path'] ?? '') !== '' ? ' · ' . $s($e['path'], 200) : '')),
+                'proc' => self::incident($ctx, 2, 'proc_suspicious', basename(str_replace('\\', '/', (string) ($e['parent'] ?? ''))) . '|' . basename(str_replace('\\', '/', $name)),
+                    t('Webserver of database start een shell: {p} → {c}', ['p' => basename(str_replace('\\', '/', (string) ($e['parent'] ?? ''))), 'c' => basename(str_replace('\\', '/', $name))]),
+                    $s($e['cmd'] ?? '', 400) . ($by !== '' ? ' · ' . t('gebruiker') . ' ' . $by : '') . ' · ' . t('Een webserver of database die een opdrachtregel start, is vaak een webshell of een aanval.')),
+                default => null,
+            };
+        }
+    }
+
+    /**
+     * Microsoft Defender: realtime-bescherming uit, of definities ouder dan 7 dagen
+     * @param array<string, mixed> $ctx
+     * @param array<string, mixed> $av
+     */
+    private static function windowsDefender(array $ctx, array $av): void
+    {
+        if (empty($av['present'])) {
+            return;   // geen Defender: een andere virusscanner (die ziet RzSense niet)
+        }
+        if (empty($av['rt']) || empty($av['on'])) {
+            self::incident($ctx, 2, 'win_av_off', 'rt', t('Microsoft Defender staat uit (realtime-bescherming)'),
+                t('Zonder realtime-bescherming wordt malware niet tegengehouden. Zet hem weer aan, tenzij je een andere virusscanner gebruikt.'));
+        }
+        if (is_numeric($av['sig_age'] ?? null) && (int) $av['sig_age'] > 7) {
+            self::incident($ctx, 1, 'win_av_old', 'sig', t('Definities van Microsoft Defender zijn {n} dagen oud', ['n' => (int) $av['sig_age']]),
+                t('Windows Update haalt nieuwe definities; staat die uit of lukt hij niet?'));
+        }
+    }
+
     // ------------------------------------------------------------------ isoleren en gebruikers (1.88.0)
 
     /** Regels voor de agent: isoleren (tot, toegestane netwerken) en te vergrendelen of vrij te geven gebruikers */
@@ -358,6 +426,13 @@ final class Ids
         // Agent 1.56.0 (RzSense 1.87.0): webshell, automatisch startende diensten, uitgaande verbindingen, gestopte processen
         if (setting('ids_webshell', '1') === '1') {
             self::webshells($ctx, (array) ($ids['web'] ?? []));
+        }
+        // 1.315.0: Windows-agent: beveiligingsgebeurtenissen uit de Windows-logboeken, en Microsoft Defender
+        if (isset($ids['win']) && is_array($ids['win'])) {
+            self::windowsEvents($ctx, $ids['win']);
+        }
+        if (is_array($ids['win_av'] ?? null)) {
+            self::windowsDefender($ctx, $ids['win_av']);
         }
         self::killResults($hid, (array) ($ids['killed'] ?? []));
         if (setting('ids_persist', '1') === '1' && isset($ids['units'])) {
@@ -934,9 +1009,11 @@ final class Ids
         $limit = max(2, (int) setting('ids_fail_count', 10));
         foreach (array_slice((array) ($auth['fails'] ?? []), 0, 100) as $f) {
             $ip = (string) ($f['ip'] ?? '');
-            if (($f['k'] ?? '') !== 'ssh' || @inet_pton($ip) === false) {
+            $fk = (string) ($f['k'] ?? '');
+            if (!in_array($fk, ['ssh', 'rdp', 'net'], true) || @inet_pton($ip) === false) {   // 1.315.0: ook RDP en het netwerk (Windows)
                 continue;
             }
+            $via = ['ssh' => 'SSH', 'rdp' => 'RDP', 'net' => t('het netwerk (SMB)')][$fk];
             q('INSERT INTO ids_attempts (host_id, ip, n) VALUES (?, ?, ?)', [$hid, $ip, max(1, (int) ($f['n'] ?? 1))]);
             // Honeypot-gebruiker (1.81.0): een naam die hier niet bestaat en die alleen aanvallers proberen; meteen blokkeren
             $decoy = array_values(array_diff(array_intersect(array_map(static fn($u) => strtolower((string) $u), (array) ($f['users'] ?? [])), self::decoyUsers()), $ctx['users'] ?? []));
@@ -950,20 +1027,20 @@ final class Ids
             $n = (int) q('SELECT SUM(n) FROM ids_attempts WHERE host_id = ? AND ip = ? AND at >= NOW() - INTERVAL ? MINUTE', [$hid, $ip, $win])->fetchColumn();
             if ($n >= $limit) {
                 $users = implode(', ', array_slice((array) ($f['users'] ?? []), 0, 5));
-                $blocked = self::autoBlock($ctx['host'], $ip, t('Brute force: {n} mislukte SSH-logins in {win} min', ['n' => $n, 'win' => $win]));
-                self::incident($ctx, 1, 'bruteforce', $ip, t('Brute force op SSH vanaf {ip} ({n} pogingen in {win} min)', ['ip' => $ip, 'n' => $n, 'win' => $win]),
+                $blocked = self::autoBlock($ctx['host'], $ip, t('Brute force: {n} mislukte logins via {via} in {win} min', ['n' => $n, 'via' => $via, 'win' => $win]));
+                self::incident($ctx, 1, 'bruteforce', $ip, t('Brute force op {via} vanaf {ip} ({n} pogingen in {win} min)', ['via' => $via, 'ip' => $ip, 'n' => $n, 'win' => $win]),
                     t('Gebruikers') . ': ' . ($users ?: '?') . ($blocked ? " · ⛔ $blocked" : ''), $ip);
             }
         }
         foreach (array_slice((array) ($auth['events'] ?? []), 0, 300) as $e) {
             $k = (string) ($e['k'] ?? '');
-            if ($k !== 'ssh' && $k !== 'console') {
+            if ($k !== 'ssh' && $k !== 'console' && $k !== 'rdp') {   // 1.315.0: ook RDP (Windows)
                 continue;
             }
             $ip = (string) ($e['ip'] ?? '');
             $user = mb_substr((string) ($e['u'] ?? '?'), 0, 64);
             $special = false;   // al een incident voor deze login (dan geen 🔑-incident of info erbij)
-            if ($k === 'ssh') {
+            if ($k === 'ssh' || $k === 'rdp') {
                 // Gelukt na veel mislukte pogingen vanaf hetzelfde IP (afgelopen uur): mogelijk ingebroken
                 $fails = (int) q('SELECT COALESCE(SUM(n), 0) FROM ids_attempts WHERE host_id = ? AND ip = ? AND at >= NOW() - INTERVAL 1 HOUR', [$hid, $ip])->fetchColumn();
                 if ($fails >= max(3, intdiv($limit, 2))) {
@@ -971,7 +1048,7 @@ final class Ids
                     self::incident($ctx, 2, 'breakin', "$user|$ip", t('Inlog na brute force: {user} vanaf {ip}', ['user' => $user, 'ip' => $ip]),
                         t('Eerst {n} mislukte pogingen vanaf dit IP in het afgelopen uur, daarna een geslaagde login. Controleer of jij dit was.', ['n' => $fails]), $ip, true);
                 }
-                if ($user === 'root') {
+                if ($user === 'root' && $k === 'ssh') {
                     $special = true;
                     self::incident($ctx, 1, 'rootlogin', $ip, t('Root-login via SSH vanaf {ip}', ['ip' => $ip]), t('Inloggen als root via SSH; liever als gewone gebruiker en daarna sudo.'), $ip);
                 }
@@ -1017,7 +1094,7 @@ final class Ids
             $bad = IpIntel::bad($ip);
             $sev = $foreign || $bad ? 2 : 1;
             $where = $cc !== null ? ' (' . IpIntel::flag($cc) . ')' : '';
-            $title = t('SSH-login van buiten: {user} vanaf {ip}', ['user' => $user, 'ip' => $ip]) . $where;
+            $title = ($kind === 'rdp' ? t('RDP-login van buiten: {user} vanaf {ip}', ['user' => $user, 'ip' => $ip]) : t('SSH-login van buiten: {user} vanaf {ip}', ['user' => $user, 'ip' => $ip])) . $where;
             $why = $foreign ? ' ' . t('Vanuit {cc}: dat staat niet bij je normale landen.', ['cc' => IpIntel::flag($cc)]) : '';
             $new = self::incident($ctx, $sev, 'ssh_login', "$user|$ip", $title,
                 t('Geslaagde login van buiten je netwerk{how}. Was jij dit? Klik dan Gezien, of Dit is normaal voor deze gebruiker en dit IP-adres.',
@@ -1027,8 +1104,11 @@ final class Ids
             }
             return;
         }
-        $title = $kind === 'console' ? '🖥️ ' . t('Console-login: {u} op {host}', ['u' => $user, 'host' => $host])
-            : '🔑 ' . t('SSH-login: {u} op {host}', ['u' => $user, 'host' => $host]);
+        $title = match ($kind) {
+            'console' => '🖥️ ' . t('Console-login: {u} op {host}', ['u' => $user, 'host' => $host]),
+            'rdp' => '🖥️ ' . t('RDP-login: {u} op {host}', ['u' => $user, 'host' => $host]),   // 1.315.0
+            default => '🔑 ' . t('SSH-login: {u} op {host}', ['u' => $user, 'host' => $host]),
+        };
         Monitor::sysInfo('server_login', (int) $ctx['host']['id'], $host, $title,
             fn() => $kind === 'console' ? t('aan de console') : t('vanaf {ip}', ['ip' => $ip]) . ($how !== '' ? " ($how)" : ''), $ip !== '' ? $ip : null);
     }

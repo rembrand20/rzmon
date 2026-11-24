@@ -132,10 +132,25 @@ func shipLogs(c *Config, t tests) {
 	var body strings.Builder
 	var status strings.Builder
 	marks := map[string]uint64{}
+	fileMarks := map[string]string{}
 	n := 0
 	r := newEventReader()
 	defer r.close()
 	for _, s := range t.LogSrc {
+		if s.Kind == "winfile" && winPathRe.MatchString(s.Spec) && !strings.Contains(s.Spec, "..") {
+			lines, mark, err := readWinFile(s.ID, s.Spec, 4<<20)
+			if err != nil {
+				fmt.Fprintf(&status, "S\t%s\terr\t\t%s\n", s.ID, oneLine(err.Error()))
+				continue
+			}
+			for _, l := range lines {
+				fmt.Fprintf(&body, "L\t%s\t%d\t%s\n", s.ID, now.Unix(), l)
+				n++
+			}
+			fileMarks["wf."+s.ID] = mark
+			fmt.Fprintf(&status, "S\t%s\tok\t%d\t\n", s.ID, len(lines))
+			continue
+		}
 		if s.Kind != "winevt" || !channelRe.MatchString(s.Spec) {
 			fmt.Fprintf(&status, "S\t%s\terr\t\t%s\n", s.ID, "deze bron kan de Windows-agent niet lezen: "+s.Kind)
 			continue
@@ -168,6 +183,9 @@ func shipLogs(c *Config, t tests) {
 	for k, v := range marks {
 		writeState(k, strconv.FormatUint(v, 10))
 	}
+	for k, v := range fileMarks {
+		writeState(k, v)
+	}
 	writeState("logs.last", fmt.Sprint(now.Unix()))
 }
 
@@ -179,7 +197,7 @@ func logScan(req int) map[string]any {
 			list = append(list, []any{ch, n})
 		}
 	}
-	return map[string]any{"at": time.Now().Unix(), "req": req, "files": [][]any{}, "docker": [][]any{}, "units": [][]any{}, "ha": [][]any{}, "winevt": list, "dirs": ""}
+	return map[string]any{"at": time.Now().Unix(), "req": req, "files": [][]any{}, "docker": [][]any{}, "units": [][]any{}, "ha": [][]any{}, "winevt": list, "winfiles": winFileScan(), "dirs": ""}
 }
 
 // ---------------------------------------------------------------- log-checks

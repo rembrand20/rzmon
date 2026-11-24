@@ -17,7 +17,7 @@ declare(strict_types=1);
 final class LogStore
 {
     /** Soorten bronnen: bestand of map met *, de journal, de journal van één service, een container, Home Assistant */
-    public const KINDS = ['file', 'journal', 'unit', 'docker', 'ha', 'winevt'];   // 1.314.0: winevt = een Windows-logboek (Windows-agent)
+    public const KINDS = ['file', 'journal', 'unit', 'docker', 'ha', 'winevt', 'winfile'];   // 1.314.0: winevt = een Windows-logboek; 1.315.0: winfile = een logbestand op Windows (IIS, firewall)
     /** Niveaus: 0 alles, 1 info en erger, 2 warning en erger, 3 alleen errors (filter op de agent) */
     public const LEVELS = [0, 1, 2, 3];
     private const MAX_LINE = 8000;
@@ -64,6 +64,8 @@ final class LogStore
             'docker' => preg_match('/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/', $spec) ? $spec : null,
             'ha' => preg_match('/^(host|core|supervisor|addon:[a-z0-9_]{1,64})$/', $spec) ? $spec : null,
             'winevt' => preg_match('#^[A-Za-z0-9][A-Za-z0-9 ._/-]{0,199}$#', $spec) && !str_contains($spec, '..') ? $spec : null,   // bv. System, Microsoft-Windows-Sysmon/Operational
+            // 1.315.0: bv. C:\inetpub\logs\LogFiles\W3SVC1\*.log (met * of ?), zonder ".." en zonder netwerkpad
+            'winfile' => preg_match('#^[A-Za-z]:\\\\[A-Za-z0-9 ._()$*?\\\\-]{1,290}$#', $spec) && !str_contains($spec, '..') && !str_contains($spec, '\\\\\\\\') ? $spec : null,
             default => null,
         };
     }
@@ -511,10 +513,12 @@ final class LogStore
                 'file' => t('Vul een volledig pad in, bv. /var/log/nginx/*.log (zonder ..)'),
                 'unit' => t('Vul de naam van de service in, bv. mariadb.service'),
                 'docker' => t('Vul de naam van de container in'),
+                'winevt' => t('Vul de naam van het Windows-logboek in, bv. System'),
+                'winfile' => t('Vul een volledig Windows-pad in, bv. C:\\inetpub\\logs\\LogFiles\\W3SVC1\\*.log (zonder ..)'),
                 default => t('Kies wat je uit Home Assistant wilt: host, core, supervisor of addon:<slug>'),
             };
         }
-        $name = trim((string) ($in['name'] ?? '')) ?: ($kind === 'journal' ? t('Systeem (journal)') : basename(str_replace('*', 'alle', $spec)));
+        $name = trim((string) ($in['name'] ?? '')) ?: ($kind === 'journal' ? t('Systeem (journal)') : basename(str_replace(['*', '\\'], ['alle', '/'], $spec)));
         $level = (int) ($in['level'] ?? 0);
         $level = in_array($level, self::LEVELS, true) ? $level : 0;
         $id = (int) ($in['id'] ?? 0);
@@ -628,6 +632,12 @@ final class LogStore
                 $winevt[] = [(string) $w[0], (int) ($w[1] ?? 0)];
             }
         }
+        $winfile = [];   // 1.315.0: logbestanden op Windows (per map): patroon, grootte, laatst gewijzigd
+        foreach (array_slice((array) ($in['winfiles'] ?? []), 0, 100) as $w) {
+            if (is_array($w) && self::cleanSpec('winfile', (string) ($w[0] ?? '')) !== null) {
+                $winfile[] = [(string) $w[0], (int) ($w[1] ?? 0), (int) ($w[2] ?? 0)];
+            }
+        }
         $noread = [];
         foreach (array_slice((array) ($in['noread'] ?? []), 0, 50) as $p) {
             if (self::cleanSpec('file', (string) $p) !== null) {
@@ -641,7 +651,7 @@ final class LogStore
             }
         }
         $scan = ['at' => (int) ($in['at'] ?? 0) ?: time(), 'req' => (int) ($in['req'] ?? 0), 'dirs' => $clean($in['dirs'] ?? '', 2000),
-            'files' => $files, 'docker' => $docker, 'units' => $units, 'ha' => $ha, 'winevt' => $winevt, 'noread' => $noread,
+            'files' => $files, 'docker' => $docker, 'units' => $units, 'ha' => $ha, 'winevt' => $winevt, 'winfile' => $winfile, 'noread' => $noread,
             // 1.251.0 (agent 1.96.0): mappen van de server zelf, het plafond, en geweigerde mappen uit RzSense (null = oude agent)
             'local' => isset($in['local']) ? $clean($in['local'], 1000) : null, 'max' => isset($in['max']) ? $clean($in['max'], 1000) : null, 'refused' => $refused,
             'ok' => $clean($in['ok'] ?? '', 2000)];
@@ -696,6 +706,9 @@ final class LogStore
         foreach ((array) ($scan['winevt'] ?? []) as $w) {
             $k[] = 'winevt:' . $w[0];
         }
+        foreach ((array) ($scan['winfile'] ?? []) as $w) {
+            $k[] = 'winfile:' . $w[0];
+        }
         return $k;
     }
 
@@ -708,7 +721,7 @@ final class LogStore
         $req = (int) q('SELECT logscan_req FROM hosts WHERE id = ?', [$hostId])->fetchColumn();
         $scan = self::scanRead($hostId);
         if ($scan === null) {
-            return ['at' => null, 'pending' => $req > 0, 'groups' => ['dirs' => [], 'docker' => [], 'units' => [], 'ha' => [], 'winevt' => []], 'noread' => [], 'dirs' => '', 'new' => 0]
+            return ['at' => null, 'pending' => $req > 0, 'groups' => ['dirs' => [], 'docker' => [], 'units' => [], 'ha' => [], 'winevt' => [], 'winfile' => []], 'noread' => [], 'dirs' => '', 'new' => 0]
                 + self::dirsInfo($hostId, null);
         }
         $have = [];
@@ -796,7 +809,16 @@ final class LogStore
                 'have' => $isHave('winevt', (string) $ch), 'new' => isset($new['winevt:' . $ch]), 'quiet' => (int) $n === 0];
         }
         usort($winevt, static fn($a, $b) => [$a['quiet'], !$a['rec'], mb_strtolower($a['name'])] <=> [$b['quiet'], !$b['rec'], mb_strtolower($b['name'])]);
-        $groups = ['dirs' => $dirs, 'docker' => $docker, 'units' => $units, 'ha' => $ha, 'winevt' => $winevt];
+        $winfile = [];   // 1.315.0: logbestanden op Windows (IIS, Windows Firewall …); IIS en de firewall zijn aanbevolen
+        foreach ((array) ($scan['winfile'] ?? []) as [$sp, $size, $mt]) {
+            $sp = (string) $sp;
+            $dir = substr($sp, 0, (int) strrpos($sp, '\\'));
+            $winfile[] = ['kind' => 'winfile', 'spec' => $sp, 'name' => substr($dir, (int) strrpos($dir, '\\') + 1) ?: $sp, 'size' => (int) $size, 'mtime' => (int) $mt,
+                'rec' => (bool) preg_match('#\\\\(W3SVC\d+|Firewall)\\\\#i', $sp), 'have' => $isHave('winfile', $sp), 'new' => isset($new['winfile:' . $sp]),
+                'quiet' => (int) $mt < time() - 30 * 86400];
+        }
+        usort($winfile, static fn($a, $b) => [$a['quiet'], !$a['rec'], mb_strtolower($a['spec'])] <=> [$b['quiet'], !$b['rec'], mb_strtolower($b['spec'])]);
+        $groups = ['dirs' => $dirs, 'docker' => $docker, 'units' => $units, 'ha' => $ha, 'winevt' => $winevt, 'winfile' => $winfile];
         $nNew = 0;
         foreach ($groups as $g) {
             $nNew += count(array_filter($g, static fn($i) => $i['new'] && !$i['have']));
