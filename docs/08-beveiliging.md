@@ -966,7 +966,9 @@ zijpaneel per onderdeel met **Opnieuw controleren**). Er gaat niets naar een ext
   (5), Permissions-Policy (5), geen softwareversies in `Server` of `X-Powered-By` (10).
 - **Cijfer**: A vanaf 90, B 75, C 60, D 45, E 30, anders F. Werkt https niet of klopt het certificaat niet, dan altijd F.
 - Bij namen als `app.*` (SWAG) vult RzSense het domein in uit het veld *Domein voor namen als naam.\** of anders het
-  domein van RzSense.
+  domein van RzSense. Draait RzSense op een IP-adres, dan neemt hij het domein over van een andere site van dezelfde proxy
+  met een volledige naam (bv. `ha.example.nl`). Lukt geen van drieën, dan zegt de site dat in het zijpaneel en wordt hij
+  niet gecontroleerd: vul dan het veld in.
 - Aan of uit bij *Instellingen → Bescherming → Reverse proxy en WAF*.
 
 ### WAF

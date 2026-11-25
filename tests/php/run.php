@@ -2241,6 +2241,17 @@ $wcW = WebCheck::score(['content-security-policy' => "default-src * 'unsafe-inli
 ok($wcW['n'] === 73 && $wcW['grade'] === 'C', 'webcheck: zwakke CSP (zonder frame-ancestors) en een bijna verlopen certificaat kosten punten');
 ok(WebCheck::validSite('app.example.nl') && !WebCheck::validSite('*.example.nl') && !WebCheck::validSite('_') && !WebCheck::validSite('a/b.nl'), 'webcheck: alleen echte sitenamen');
 ok(isset(WebCheck::run(0, '_')['error']), 'webcheck: een ongeldige site wordt niet opgevraagd');
+// 1.322.2: naam.* zonder ingesteld domein en RzSense op een IP-adres: het domein van een andere site van de proxy
+$wcSave = [setting('webcheck_domain', ''), setting('base_url', '')];
+save_setting('webcheck_domain', '');
+save_setting('base_url', 'http://192.168.2.10/');
+$wcSites = [['site' => 'frigate.*', 'names' => ['frigate.*']], ['site' => 'ha.thuis.example.nl', 'names' => ['ha.thuis.example.nl']]];
+ok(WebCheck::target($wcSites[0], WebCheck::domain([$wcSites[0]])) === null, 'webcheck: naam.* zonder domein: geen adres (de site toont waarom)');
+ok(WebCheck::target($wcSites[0], WebCheck::domain($wcSites)) === 'frigate.thuis.example.nl', 'webcheck: naam.* krijgt het domein van een andere site');
+save_setting('webcheck_domain', 'example.org');
+ok(WebCheck::target($wcSites[0], WebCheck::domain($wcSites)) === 'frigate.example.org', 'webcheck: het ingestelde domein gaat voor');
+save_setting('webcheck_domain', $wcSave[0]);
+save_setting('base_url', $wcSave[1]);
 
 section('Logs: patronen, statistiek en OR (1.297.0)');
 ok(LogFields::pattern('Nov 20 10:00:01 sshd[123]: Failed password for root from 10.0.0.5 port 2222')

@@ -18,11 +18,37 @@ final class WebCheck
     }
 
     /**
-     * Welke naam opvragen voor een site uit de proxy: de eerste echte naam, of bij "naam.*" (SWAG) de naam met je domein
-     * (instelling webcheck_domain, anders het domein van het adres van RzSense). Null als dat niet lukt.
+     * Het domein voor namen als "naam.*" (SWAG): de instelling webcheck_domain, anders het domein van het adres van
+     * RzSense, anders (1.322.2) het domein van een andere site van dezelfde proxy met een volledige naam. Leeg als geen lukt.
+     * @param list<array<string, mixed>> $sites de sites van de proxy
+     */
+    public static function domain(array $sites = []): string
+    {
+        $dom = strtolower(trim((string) setting('webcheck_domain', ''), ". \t"));
+        if (self::validSite($dom)) {
+            return $dom;
+        }
+        $dom = ProxyOpen::parentDomain((string) parse_url((string) setting('base_url', ''), PHP_URL_HOST));
+        if ($dom !== '') {
+            return $dom;
+        }
+        foreach ($sites as $s) {
+            foreach (array_merge((array) ($s['names'] ?? []), [(string) ($s['site'] ?? '')]) as $n) {
+                $n = strtolower((string) $n);
+                if (self::validSite($n) && ($d = ProxyOpen::parentDomain($n)) !== '' && $d !== $n) {
+                    return $d;
+                }
+            }
+        }
+        return '';
+    }
+
+    /**
+     * Welke naam opvragen voor een site uit de proxy: de eerste echte naam, of bij "naam.*" (SWAG) de naam met het
+     * domein uit domain(). Null als dat niet lukt.
      * @param array{site: string, names?: list<string>} $s
      */
-    public static function target(array $s): ?string
+    public static function target(array $s, ?string $dom = null): ?string
     {
         $names = array_map('strtolower', array_merge($s['names'] ?? [], [$s['site']]));
         foreach ($names as $n) {
@@ -30,10 +56,7 @@ final class WebCheck
                 return $n;
             }
         }
-        $dom = strtolower(trim((string) setting('webcheck_domain', ''), ". \t"));
-        if (!self::validSite($dom)) {
-            $dom = ProxyOpen::parentDomain((string) parse_url((string) setting('base_url', ''), PHP_URL_HOST));
-        }
+        $dom ??= self::domain();
         foreach ($names as $n) {
             if ($dom !== '' && preg_match('/^([a-z0-9-]{1,63})\.\*$/', $n, $m) && self::validSite($m[1] . '.' . $dom)) {
                 return $m[1] . '.' . $dom;
@@ -134,11 +157,12 @@ final class WebCheck
      */
     public static function run(int $hostId, string $key): array
     {
-        $found = array_values(array_filter(ProxyGuard::sites($hostId, ProxyGuard::report($hostId)), static fn($s) => strtolower((string) $s['site']) === strtolower($key)));
+        $all = ProxyGuard::sites($hostId, ProxyGuard::report($hostId));
+        $found = array_values(array_filter($all, static fn($s) => strtolower((string) $s['site']) === strtolower($key)));
         if (!$found) {
             return ['error' => t('Die site staat niet in de proxy')];
         }
-        $site = self::target($found[0]);
+        $site = self::target($found[0], self::domain($all));
         if ($site === null) {
             return ['error' => t('Geen volledige naam voor deze site. Vul bij Instellingen → Reverse proxy het domein in voor namen als naam.*')];
         }
@@ -191,9 +215,11 @@ final class WebCheck
             foreach (q('SELECT site, checked_at FROM web_check WHERE host_id = ?', [$hid]) as $r) {
                 $last[(string) $r['site']] = strtotime((string) $r['checked_at']);
             }
-            foreach (ProxyGuard::sites($hid, ProxyGuard::report($hid)) as $s) {
+            $sites = ProxyGuard::sites($hid, ProxyGuard::report($hid));
+            $dom = self::domain($sites);
+            foreach ($sites as $s) {
                 $key = strtolower((string) $s['site']);
-                if (self::target($s) === null || ($last[$key] ?? 0) > time() - 86400) {
+                if (self::target($s, $dom) === null || ($last[$key] ?? 0) > time() - 86400) {
                     continue;
                 }
                 self::run($hid, $key);

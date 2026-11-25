@@ -12169,4 +12169,6 @@ return [
     'geheugen' => 'memory',
     'Alle {n} servers' => 'All {n} servers',
     'Nog geen servers' => 'No servers yet',
+    'Deze site heeft geen volledige naam ({s}), dus RzSense weet niet welk adres het moet opvragen.' => 'This site has no full name ({s}), so RzSense does not know which address to request.',
+    'Vul bij Instellingen → Bescherming → Reverse proxy en WAF het veld Domein voor namen als naam.* in (bv. example.nl). Daarna controleert RzSense de site elke dag.' => 'Fill in the field Domain for names like name.* under Settings → Protection → Reverse proxy and WAF (e.g. example.com). RzSense then checks the site every day.',
 ];

@@ -368,8 +368,10 @@ final class ProxyGuard
                 $sv['vp_agent_ok'] = version_compare((string) q('SELECT agent_version FROM hosts WHERE id = ?', [$sv['id']])->fetchColumn(), '1.100.0', '>=');
                 $sv['sites'] = SiteScore::addAll($sv['id'], $sv['sites'], $sv['waf_stats'], $sv['av']['dirs'] ?? [], $sv['vpatch']['active']);
                 $wc = WebCheck::forHost($sv['id']);   // 1.299.0
+                $wdom = WebCheck::domain($sv['sites']);   // 1.322.2
                 foreach ($sv['sites'] as &$st) {
                     $st['web'] = $wc[strtolower((string) $st['site'])] ?? null;
+                    $st['web_target'] = WebCheck::target($st, $wdom);   // null: geen volledige naam, dan slaat de dagelijkse check hem over
                 }
                 unset($st);
                 $sv['av_agent_ok'] = version_compare((string) q('SELECT agent_version FROM hosts WHERE id = ?', [$sv['id']])->fetchColumn(), '1.99.0', '>=');
