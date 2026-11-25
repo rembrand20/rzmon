@@ -75,6 +75,23 @@ const BASE = process.env.BASE || 'http://127.0.0.1:8099';
   const n = await pg.$$eval('.cmdk-item', (x) => x.length);
   console.log(`✔ Ctrl+K opent, ${n} resultaten`);
   await pg.keyboard.press('Escape');
+  // 1.322.4: linkjes naar een andere pagina werken op elke pagina (data-goto, href="#…" en het adres zelf)
+  const linkTo = async (html, want) => {
+    await pg.evaluate(() => showTab('proxy'));
+    await pg.waitForTimeout(400);
+    await pg.evaluate((h) => { const d = document.createElement('div'); d.id = 'smoke-link'; d.innerHTML = h; (document.querySelector('#tab-proxy') || document.body).append(d); }, html);
+    await pg.click('#smoke-link a');
+    await pg.waitForTimeout(500);
+    const vis = await pg.evaluate((w) => !document.querySelector('#tab-' + w).hidden, want);
+    await pg.evaluate(() => document.querySelector('#smoke-link')?.remove());
+    return vis;
+  };
+  if (!(await linkTo('<a href="#settings/outside" data-goto="settings/outside">x</a>', 'settings'))) throw new Error('linkje met data-goto op Reverse proxy reageert niet');
+  if (!(await linkTo('<a href="#alerts">x</a>', 'alerts'))) throw new Error('linkje met href="#alerts" reageert niet');
+  await pg.evaluate(() => { location.hash = 'logboek'; });
+  await pg.waitForTimeout(500);
+  if (await pg.evaluate(() => document.querySelector('#tab-logboek').hidden)) throw new Error('het adres #logboek opent de pagina niet');
+  console.log('✔ linkjes naar een andere pagina werken overal (ook op Reverse proxy en via het adres)');
   await b.close();
   if (errs.length) { console.log('✘ fouten:\n  ' + errs.join('\n  ')); process.exit(1); }
   console.log('✔ geen fouten in de browser');

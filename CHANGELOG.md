@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.319.0**: **"Agent stil" zegt waarom**: de bewaker meldt elke minuut of de server leeft en wat er met de agent is; Suricata wordt niet meer elke ronde herstart.
 - **1.318.0**: **Windows-agent met reserve-RzSense** en overstappen naar een ander adres, net als Linux; daarmee is de Windows-agent compleet.
 
+## 1.322.4 – 2026-11-25
+### Opgelost
+- **Linkjes naar een andere pagina deden niets** op een deel van de pagina's, zoals *Toegestane apparaten →* op *Reverse proxy*. Ze werkten alleen waar de pagina er zelf naar luisterde. Nu werken ze overal, en RzSense volgt ook het adres als je *Terug* gebruikt of een link met `#…` plakt.
+
 ## 1.322.3 – 2026-11-25
 ### Opgelost
 - Nieuwe agent 1.119.1: kan de agent het netwerk `rzsense` voor de WAF niet aanmaken, dan staat nu de echte reden bij *Reverse proxy → WAF* (in plaats van alleen *network not found*), met de opdracht om het zelf te proberen.

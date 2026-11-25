@@ -31,6 +31,20 @@ function init() {
   initMainTabs();
   // 1.194.0: op een telefoon altijd de mDS als startpagina (behalve een diepe link als #alerts?server=… of #ids/inc)
 { const h = location.hash.slice(1); showTab(MDS_MQ.matches && (!h || /^[a-z]+$/.test(h)) ? 'mds' : (h || 'home')); }
+  // 1.322.4: linkjes naar een andere pagina (data-goto of href="#pagina/…") werken overal, niet alleen op de pagina's die
+  // er zelf naar luisteren. Een eigen afhandeling op de pagina gaat voor (die roept preventDefault aan).
+  const hashPage = (to) => { const p = String(to).split(/[/?]/)[0].replace(/^monitoring$/, 'dashboard'); return p && $('#tab-' + p) ? p : ''; };
+  document.addEventListener('click', (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.target.closest && e.target.closest('[data-goto], a[href^="#"]');
+    if (!a) return;
+    const to = a.dataset.goto || (a.getAttribute('href') || '').slice(1);
+    if (!to || !hashPage(to)) return;
+    e.preventDefault();
+    showTab(to);
+  });
+  // Het adres zelf veranderd (Terug, of een link met #… geplakt): die pagina openen. showTab zelf gebruikt replaceState, dus geen lus.
+  window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h && hashPage(h)) showTab(h); });
 
   initAccountMenu();
   initSideToggle(); initSideResize(); initSideAdmin();
