@@ -12,6 +12,24 @@ declare(strict_types=1);
 defined('RZ_API') || exit;
 
 switch ($action) {
+    // ---------------------------------------------------------------- 1.323.0: Aan de slag (wizard en checklist; alleen advies)
+    case 'onboard_get':
+        out(Onboard::data());
+
+    case 'onboard_save':
+        $in = input();
+        if (isset($in['profile'])) {
+            $p = (string) $in['profile'];
+            if (!in_array($p, Onboard::PROFILES, true)) {
+                out(['error' => t('Onbekend profiel')], 422);
+            }
+            save_setting('onboard_profile', $p);
+        }
+        if (isset($in['done'])) {
+            save_setting('onboard_done', !empty($in['done']) ? '1' : '0');
+        }
+        out(Onboard::data());
+
     // ---------------------------------------------------------------- 1.290.0: van buitenaf (aanvalsoppervlak)
     case 'exposure_overview':
         out(Exposure::overview());

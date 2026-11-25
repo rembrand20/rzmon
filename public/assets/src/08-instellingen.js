@@ -1179,6 +1179,7 @@ async function loadSettingsHealth() {
   const box = $('#set-overview');
   if (!box.innerHTML) box.innerHTML = `<p class="muted">${L('Laden…')}</p>`;
   let items;
+  const obP = isAdmin() ? api('onboard_get').catch(() => null) : null;   // 1.323.0: Aan de slag
   try { items = (await api('settings_health')).items; } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const https = location.protocol === 'https:';
   items.push({ key: 'https_client', status: https ? 'ok' : 'warn', title: 'HTTPS', detail: https ? L('de verbinding met RzSense is versleuteld') : L('je opent RzSense via http: wachtwoorden gaan onversleuteld over het netwerk'), section: 'access' });
@@ -1198,6 +1199,11 @@ async function loadSettingsHealth() {
     }
   }
   renderSetAttn();
+  // 1.323.0: bovenaan Aan de slag (zolang niet alles klaar is); die punten staan dan niet nog eens in de lijst eronder
+  const ob = obP ? await obP : null;
+  if (ob) { obData = ob; obHealth = items.slice(); }
+  const ads = ob ? obChecklist(ob, items) : { html: '', keys: [] };
+  if (ads.html) items = items.filter((i) => !ads.keys.includes(i.key) && i.key !== 'https_client');
   // 1.122.0: punten die bij elkaar horen als één regel (de losse punten eronder)
   items = ovGroup(items, rank);
   const counted = items.filter((i) => i.status !== 'info');
@@ -1205,8 +1211,8 @@ async function loadSettingsHealth() {
   const todo = items.filter((i) => i.status === 'bad' || i.status === 'warn').length;
   const cls = score >= 90 ? 'good' : score >= 60 ? 'warn' : 'bad';
   const icon = { ok: '✔', warn: '!', bad: '✘', info: 'i' };
-  box.innerHTML = `<div class="ov-head"><div class="ov-score ${cls}" style="--p:${score}"><span><b>${score}<small>%</small></b></span></div>
-      <div><h2>${todo ? L('{n} aandachtspunten', { n: todo }) : L('Alles staat goed ingesteld')}</h2>
+  box.innerHTML = ads.html + `<div class="ov-head"><div class="ov-score ${cls}" style="--p:${score}"><span><b>${score}<small>%</small></b></span></div>
+      <div><h2>${todo ? (ads.html ? L('{n} overige aandachtspunten', { n: todo }) : L('{n} aandachtspunten', { n: todo })) : L('Alles staat goed ingesteld')}</h2>
       <p class="muted small">${L('Klik op een punt om het meteen te regelen. Grijze punten zijn optioneel en tellen niet mee.')}</p></div></div>
     <div class="ov-list">${items.map((i, n) => `<div class="ov-cell"><button type="button" class="ov-item ${i.status}" data-set-go="${esc(i.section)}">
       <span class="ov-ic">${icon[i.status]}</span><span class="ov-txt"><b>${esc(i.title)}</b><small>${esc(i.detail)}</small></span><span class="ov-go">›</span></button>

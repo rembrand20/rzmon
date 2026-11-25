@@ -6848,3 +6848,120 @@ body.sk-s.lay-def .hosts.layout-l1nes { box-shadow: var(--s-shadow); }
 .hd-srv .hd-txt { flex-direction: row; align-items: baseline; gap: .75rem; }
 .hd-srv .hd-txt b { flex: 0 1 auto; max-width: 55%; }
 .hd-srv .hd-txt small { flex: 1 1 auto; min-width: 0; }
+
+/* ---------------------------------------------------------------- 1.323.0: Aan de slag (wizard, checklist, rondleiding) */
+.wz { position: fixed; inset: 0; z-index: 800; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.wz[hidden] { display: none; }
+.wz-scrim { position: absolute; inset: 0; background: rgba(10, 16, 28, .5); }
+.wz-box { position: relative; width: min(920px, 100%); height: min(640px, calc(100vh - 32px)); display: flex; background: var(--card); color: var(--text);
+  border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 24px 60px rgba(10, 16, 28, .3); overflow: hidden; }
+body.lg .wz-box { background: var(--bg-2); }
+.wz-nav { width: 240px; flex: none; padding: 26px 16px; background: var(--card-2); border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
+.wz-eyebrow { margin: 0 10px 14px; font-size: .74rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.wz-step { font: inherit; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 0 10px; border: 0; border-radius: 9px; background: none;
+  color: var(--muted); text-align: left; cursor: pointer; font-size: .9rem; }
+.wz-step:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.wz-step.on { background: var(--card); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
+.wz-step.ok { color: var(--text); }
+.wz-dot { width: 22px; height: 22px; flex: none; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .74rem; font-weight: 600;
+  background: color-mix(in srgb, var(--text) 9%, transparent); color: var(--muted); }
+.wz-step.on .wz-dot { background: var(--primary); color: #fff; }
+.wz-step.ok .wz-dot { background: var(--ok); color: #fff; }
+.wz-note { margin: auto 10px 0; padding-top: 12px; font-size: .78rem; line-height: 1.5; color: var(--muted); }
+.wz-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.wz-top { display: flex; justify-content: flex-end; padding: 12px 14px 0; }
+.wz-later { font: inherit; font-size: .84rem; color: var(--muted); background: none; border: 0; padding: 8px 10px; border-radius: 8px; cursor: pointer; min-height: 36px; }
+.wz-later:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.wz-body { flex: 1; overflow-y: auto; padding: 2px 36px 12px; }
+.wz-count { margin: 0; font-size: .82rem; color: var(--muted); }
+.wz-body h1 { margin: 6px 0 8px; font-size: 1.6rem; font-weight: 600; letter-spacing: -.01em; outline: none; }
+.wz-lead { margin: 0 0 20px; font-size: .95rem; line-height: 1.55; color: var(--muted); }
+.wz-profiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.wz-prof { font: inherit; color: inherit; text-align: left; display: flex; flex-direction: column; gap: 8px; padding: 16px; min-height: 130px; border-radius: 12px; cursor: pointer;
+  background: var(--card); border: 1px solid var(--border); }
+.wz-prof span { font-size: .84rem; color: var(--muted); line-height: 1.5; }
+.wz-prof.on { border: 2px solid var(--primary); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 14%, transparent); }
+.wz-card { border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.wz-card-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; }
+.wz-card p { margin: 0; line-height: 1.5; }
+.wz-pill-st { font-size: .74rem; font-weight: 600; padding: 3px 10px; border-radius: 99px; }
+.wz-pill-st.ok { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
+.wz-pill-st.warn { background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
+.wz-wait, .wz-ok { display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 13px 16px; border-radius: 10px; font-size: .9rem; }
+.wz-wait { border: 1px dashed var(--border); }
+.wz-ok { background: color-mix(in srgb, var(--ok) 13%, transparent); }
+.wz-spin { width: 14px; height: 14px; flex: none; border-radius: 50%; border: 2px solid var(--primary); border-right-color: transparent; animation: wz-spin 1s linear infinite; }
+@keyframes wz-spin { to { transform: rotate(360deg); } }
+body.no-anim .wz-spin { animation: none; }
+@media (prefers-reduced-motion: reduce) { .wz-spin { animation: none; } }
+.wz-tip, .wz-sub { margin: 14px 0 0; font-size: .84rem; color: var(--muted); line-height: 1.55; }
+.wz-sub b { color: var(--text); }
+.wz-list { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.wz-li { display: flex; align-items: center; gap: 14px; padding: 12px 16px; }
+.wz-li + .wz-li { border-top: 1px solid var(--border); }
+.wz-recs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.wz-rec { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.wz-tag { font-size: .7rem; font-weight: 600; padding: 3px 8px; border-radius: 99px; background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--muted); }
+.wz-tag.rec { background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--primary); }
+.wz-sum { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: .92rem; }
+.wz-sum .todo { color: var(--warn); }
+.wz-foot { display: flex; align-items: center; gap: 10px; padding: 14px 36px 20px; border-top: 1px solid var(--border); }
+.wz-foot .btn { min-height: 44px; }
+.wz-flex { flex: 1; }
+@media (max-width: 760px) {
+  .wz { padding: 0; }
+  .wz-box { height: 100%; border-radius: 0; flex-direction: column; }
+  .wz-nav { width: auto; flex-direction: row; padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--border); overflow-x: auto; }
+  .wz-eyebrow, .wz-note, .wz-step span:not(.wz-dot) { display: none; }
+  .wz-step { width: auto; min-width: 44px; justify-content: center; }
+  .wz-body { padding: 2px 18px 12px; }
+  .wz-foot { padding: 12px 18px 16px; }
+  .wz-profiles, .wz-recs { grid-template-columns: minmax(0, 1fr); }
+}
+/* Knopje rechtsonder als je vanuit de wizard naar een pagina ging */
+.wz-pill { position: fixed; right: 18px; bottom: 18px; z-index: 790; display: flex; align-items: center; background: var(--card); color: var(--text);
+  border: 1px solid var(--border); border-radius: 999px; box-shadow: 0 10px 30px rgba(10, 16, 28, .22); }
+.wz-pill button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; min-height: 44px; }
+.wz-pill-go { padding: 0 8px 0 16px; font-size: .88rem; }
+.wz-pill-go b { color: var(--primary); margin-left: 6px; }
+.wz-pill-x { padding: 0 14px; color: var(--muted); }
+@media (max-width: 720px) { .wz-pill { bottom: 84px; right: 12px; left: 12px; justify-content: space-between; } }
+
+/* Checklist bovenaan Status en functies */
+.ads { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 1.1rem; overflow: hidden; }
+.ads-head { display: flex; align-items: center; gap: 1rem; padding: 1rem 1.15rem .8rem; }
+.ads-hl { flex: 1; min-width: 0; }
+.ads-head h2 { margin: 0; font-size: 1.05rem; font-weight: 600; }
+.ads-head h2 .muted { font-weight: 400; }
+.ads-bar { margin-top: .6rem; height: 6px; border-radius: 99px; background: color-mix(in srgb, var(--text) 8%, transparent); overflow: hidden; }
+.ads-bar i { display: block; height: 100%; background: var(--ok); }
+.ads-row { display: flex; align-items: center; gap: .85rem; padding: .75rem 1.15rem; border-top: 1px solid var(--border); min-height: 48px; box-sizing: border-box; }
+.ads-ic { width: 24px; height: 24px; flex: none; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .74rem; font-weight: 700; }
+.ads-ic.ok { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
+.ads-ic.warn { background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
+.ads-ic.bad { background: color-mix(in srgb, var(--crit) 15%, transparent); color: var(--crit); }
+.ads-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .1rem; }
+.ads-txt b { font-weight: 600; }
+.ads-txt small { color: var(--muted); font-size: .82rem; }
+.ads-row.done .ads-txt b { font-weight: 500; }
+.ads-foot { margin: 0; padding: .7rem 1.15rem .9rem; border-top: 1px solid var(--border); }
+body.lg .ads { -webkit-backdrop-filter: blur(20px) saturate(165%); backdrop-filter: blur(20px) saturate(165%); }
+body.sk-neo .ads { background: linear-gradient(160deg, var(--fx-bg2), var(--fx-bg)); border-color: var(--fx-bd); }
+
+/* Rondleiding: een uitgelicht deel en een ballon met uitleg */
+.tour { position: fixed; inset: 0; z-index: 820; }
+.tour[hidden] { display: none; }
+.tour-spot { position: fixed; border-radius: 12px; box-shadow: 0 0 0 200vmax rgba(10, 16, 28, .55), 0 0 0 3px var(--primary); transition: all .25s ease; pointer-events: none; }
+body.no-anim .tour-spot { transition: none; }
+@media (prefers-reduced-motion: reduce) { .tour-spot { transition: none; } }
+.tour-pop { position: fixed; width: min(340px, calc(100vw - 24px)); box-sizing: border-box; padding: 16px 16px 10px; background: var(--card); color: var(--text);
+  border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 18px 44px rgba(10, 16, 28, .3); display: flex; flex-direction: column; gap: 6px; }
+body.lg .tour-pop { background: var(--bg-2); }
+.tour-pop h2 { margin: 0; font-size: 1.05rem; font-weight: 600; outline: none; }
+.tour-pop p { margin: 0; font-size: .9rem; line-height: 1.5; }
+.tour-n { font-size: .76rem !important; font-weight: 600; color: var(--muted); }
+.tour-acts { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.tour-acts .btn { min-height: 40px; }
+:is(.wz, .ads, .tour) .link-btn { font: inherit; background: none; border: 0; padding: .4rem .5rem; min-height: 36px; color: var(--primary); cursor: pointer; font-weight: 600; border-radius: 8px; }
+:is(.wz, .ads, .tour) .link-btn:hover { background: color-mix(in srgb, var(--primary) 9%, transparent); }
+:is(.wz-foot, .tour-acts) .link-btn { color: var(--muted); font-weight: 500; }

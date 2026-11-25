@@ -175,6 +175,9 @@ switch ($action) {
         $res['ntfy'] = setting('ntfy_enabled', '0') === '1' ? Ntfy::send($title, $body, 0) : null;
         $res['webpush'] = WebPush::enabled() ? WebPush::send($title, $body, 0) : null;   // 1.285.0
         $res['email'] = setting('email_enabled', '0') === '1' ? Mailer::send($title, $body) : null;
+        if ($res['email'] && $res['email']['ok']) {
+            Onboard::mailTested();   // 1.323.0
+        }
         $res['chat'] = Chat::enabled() ? Chat::send($title, $body, STATUS_OK, 'test', public_url(), null, false, array_keys(Chat::KINDS)) : null;   // 1.284.0
         if ($res['chat'] !== null) {
             $res['chat'] = ['ok' => (bool) $res['chat']['ok'], 'error' => implode('; ', $res['chat']['errors'])];
@@ -741,6 +744,9 @@ switch ($action) {
         }
         session_write_close();
         $res = Mailer::send('🧪 RzSense test', t('Als je dit leest, werken e-mailmeldingen van RzSense! 🎉') . "\n\n" . t('Verstuurd op {time}.', ['time' => date('d-m-Y H:i:s')]), $cfg);
+        if ($res['ok']) {
+            Onboard::mailTested();   // 1.323.0: vinkje bij Aan de slag
+        }
         out($res, $res['ok'] ? 200 : 422);
 
     case 'mqtt_test':

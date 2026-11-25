@@ -683,6 +683,9 @@ Klik op je naam (onderaan de zijbalk, of rechtsboven op een smaller scherm). Je 
 
 - je naam, je rol en vanaf welk IP-adres je bent ingelogd, met de versie van RzSense en een link *wat is er nieuw?*;
 - **👤 Mijn account** en **⚙️ Instellingen**;
+- **🧭 Aan de slag** (alleen beheerders): de wizard die je op weg helpt, zie [Installatie](01-installatie.md#aan-de-slag);
+- **💡 Rondleiding**: een korte rondleiding langs het Dashboard, Monitoring, Meldingen en dit menu. Een gewone gebruiker
+  krijgt hem vanzelf de eerste keer dat hij inlogt;
 - snelle keuzes voor **Lay-out**, **Thema**, **Licht/donker** en **Taal**;
 - **⏻ Uitloggen**.
 

@@ -582,6 +582,26 @@ vind je later terug bij *Instellingen → Systeem → Database en server*. Ga ve
 [Meldingen](03-meldingen.md) en [Servers en checks](04-servers-en-checks.md). Andere Linux-servers bewaak je met de
 [Linux-agent](05-linux-agent.md).
 
+## Aan de slag
+
+Log je voor het eerst in als beheerder op een nieuwe installatie (nog geen servers en nog geen meldkanaal), dan opent de
+wizard **Aan de slag**. Hij geeft alleen advies: elke knop brengt je naar de pagina waar je het zelf instelt, en hij zet
+niets aan of uit.
+
+1. **Profiel**: *Thuis*, *Homelab* of *Bedrijf*. Dat bepaalt alleen welke aanraders je bij stap 5 krijgt.
+2. **Eerste server**: met **Server toevoegen** open je het gewone venster en krijg je de installatieopdracht. De wizard
+   ziet vanzelf wanneer de agent zich meldt.
+3. **Meldingen**: het advies is om met **e-mail** te beginnen, en daarna een proefmelding te sturen.
+4. **RzSense beveiligen**: HTTPS, inloggen in twee stappen, een back-up en of RzSense bijgewerkt is.
+5. **Aanraders** die bij je profiel passen, met de pagina waar je ze aanzet.
+6. **Klaar**: wat er gedaan is en wat nog openstaat.
+
+Ga je vanuit de wizard naar een pagina, dan staat rechtsonder het knopje **Aan de slag · Verder** om terug te gaan.
+**Later verder** sluit de wizard; je vindt hem terug in het accountmenu onder **🧭 Aan de slag**.
+
+Wat nog openstaat, zie je bovenaan *Instellingen → Status en functies* in het blok **Aan de slag**. Een vinkje komt pas
+als het echt werkt (bijvoorbeeld een proefmail die verstuurd is). Is alles klaar, dan verdwijnt het blok vanzelf.
+
 ## HTTPS en Nginx
 
 Op je eigen netwerk is HTTP prima. Wil je RzSense van buitenaf gebruiken, doe dat dan via HTTPS of een VPN zoals

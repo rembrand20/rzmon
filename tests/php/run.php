@@ -2229,6 +2229,25 @@ ok(WebPush::setWhat($pmWid, 'ids', $pmUid, false) && !WebPush::setWhat($pmWid, '
 q("DELETE FROM webpush_subs WHERE name = 'ci-telefoon'");
 save_setting('webpush_enabled', '1');
 
+section('Aan de slag (1.323.0)');
+$obSave = [setting('onboard_profile', ''), setting('onboard_done', '0'), setting('onboard_mail_ok', '0'), setting('email_enabled', '0')];
+save_setting('onboard_profile', 'bestaat-niet');
+save_setting('onboard_done', '0');
+$ob = Onboard::data();
+ok($ob['profile'] === '' && array_key_exists('fresh', $ob) && is_int($ob['agents']), 'aan de slag: een onbekend profiel telt niet, de velden zijn er');
+$obHosts = (int) q("SELECT COUNT(*) FROM hosts WHERE mode <> 'local'")->fetchColumn();
+ok($ob['fresh'] === ($obHosts === 0 && Push::names() === '' && !$ob['mail']), 'aan de slag: nieuwe installatie = geen servers (behalve RzSense zelf) en geen meldkanaal');
+save_setting('onboard_done', '1');
+ok(Onboard::data()['fresh'] === false, 'aan de slag: na Klaar opent de wizard niet meer vanzelf');
+save_setting('email_enabled', '0');
+save_setting('onboard_mail_ok', '0');
+Onboard::mailTested();
+ok(setting('onboard_mail_ok', '0') === '1' && Onboard::data()['mail_tested'] === false, 'aan de slag: een proefmail telt pas als e-mail ook echt aan staat');
+save_setting('onboard_profile', $obSave[0]);
+save_setting('onboard_done', $obSave[1]);
+save_setting('onboard_mail_ok', $obSave[2]);
+save_setting('email_enabled', $obSave[3]);
+
 section('Webcheck per site (1.299.0)');
 $wcGood = ['strict-transport-security' => 'max-age=31536000; includeSubDomains', 'content-security-policy' => "default-src 'self'; frame-ancestors 'self'",
     'x-content-type-options' => 'nosniff', 'referrer-policy' => 'same-origin', 'permissions-policy' => 'camera=()', 'server' => 'nginx'];

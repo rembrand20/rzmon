@@ -6,6 +6,8 @@ const BASE = process.env.BASE || 'http://127.0.0.1:8099';
   const errs = [];
   const b = await chromium.launch();
   const pg = await (await b.newContext({ locale: 'nl-NL', viewport: { width: 1280, height: 900 } })).newPage();
+  // 1.323.0: op een verse database opent de wizard Aan de slag vanzelf; die test staat apart hieronder, de rest zonder
+  await pg.addInitScript(() => { try { sessionStorage.setItem('rzs-wz-later', '1'); } catch (e) { /* geen opslag */ } });
   pg.on('pageerror', (e) => errs.push('pageerror: ' + e.message + (e.stack ? ' @ ' + String(e.stack).split('\n').slice(1, 4).map((s) => s.trim()).join(' < ') : '')));
   pg.on('console', (m) => { if (m.type() === 'error' && !/favicon/.test(m.text())) errs.push('console: ' + m.text()); });
   await pg.goto(BASE + '/?login=1');
@@ -92,6 +94,26 @@ const BASE = process.env.BASE || 'http://127.0.0.1:8099';
   await pg.waitForTimeout(500);
   if (await pg.evaluate(() => document.querySelector('#tab-logboek').hidden)) throw new Error('het adres #logboek opent de pagina niet');
   console.log('✔ linkjes naar een andere pagina werken overal (ook op Reverse proxy en via het adres)');
+  // 1.323.0: Aan de slag: de wizard (alleen advies), het knopje om verder te gaan, de checklist en de rondleiding
+  await pg.evaluate(() => { sessionStorage.removeItem('rzs-wz-later'); wzOpen(1); });
+  await pg.waitForSelector('#wz:not([hidden]) .wz-prof', { timeout: 10000 });
+  await pg.click('.wz-prof[data-wz-prof="thuis"]');
+  await pg.waitForSelector('.wz-prof.on[data-wz-prof="thuis"]');
+  await pg.click('.wz-foot .btn.primary[data-wz-next]');
+  await pg.click('.wz-foot .btn.primary[data-wz-next]');
+  await pg.click('[data-wz-go="settings/channels"]');
+  await pg.waitForSelector('#wz-pill');
+  if (await pg.evaluate(() => document.querySelector('#tab-settings').hidden)) throw new Error('wizard: Open Instellingen → Kanalen opent de pagina niet');
+  await pg.click('#wz-pill .wz-pill-go');
+  if (await pg.evaluate(() => document.querySelector('#wz').hidden || wzStep !== 3)) throw new Error('wizard: Verder gaat niet terug naar stap 3');
+  await pg.click('[data-wz-later]');
+  await pg.evaluate(() => showTab('settings/overview'));
+  await pg.waitForSelector('#set-overview .ads .ads-row', { timeout: 15000 });
+  await pg.click('#acct-btn');
+  await pg.click('[data-ob-open="tour"]');
+  for (let i = 0; i < 5; i++) { await pg.waitForSelector('#tour:not([hidden]) [data-tour="next"]'); await pg.click('#tour [data-tour="next"]'); }
+  if (!(await pg.evaluate(() => document.querySelector('#tour').hidden))) throw new Error('rondleiding gaat niet dicht na de laatste stap');
+  console.log('✔ Aan de slag: wizard, verder-knopje, checklist en rondleiding');
   await b.close();
   if (errs.length) { console.log('✘ fouten:\n  ' + errs.join('\n  ')); process.exit(1); }
   console.log('✔ geen fouten in de browser');

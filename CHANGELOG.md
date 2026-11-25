@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.323.0**: **Aan de slag**: een wizard die je na de installatie op weg helpt (alleen advies), een checklist bij Status en functies, en een rondleiding voor gewone gebruikers.
 - **1.322.0**: **Lay-out Default**: rustig en kaal, met één zin hoe het ervoor staat en de servers als rijen; vervangt Blox en werkt met elk thema.
 - **1.321.0**: **Shelly's bewaken**: stroom, oververhitting en afwijkingen van het normale verbruik, rechtstreeks uitgelezen.
 - **1.320.0**: **🚨 Beveiligingskanaal**: wat nú je aandacht nodig heeft gaat door Niet storen heen (ook als kritieke melding in de Home Assistant-app) en blijft komen tot iemand bevestigt.
 - **1.319.0**: **"Agent stil" zegt waarom**: de bewaker meldt elke minuut of de server leeft en wat er met de agent is; Suricata wordt niet meer elke ronde herstart.
-- **1.318.0**: **Windows-agent met reserve-RzSense** en overstappen naar een ander adres, net als Linux; daarmee is de Windows-agent compleet.
+
+## 1.323.0 – 2026-11-25
+### Nieuw
+- **Aan de slag: een wizard voor een nieuwe installatie.** Een beheerder krijgt bij de eerste keer inloggen (nog geen servers en nog geen meldkanaal) een wizard in zes stappen: profiel (thuis, homelab of bedrijf), eerste server (met live *"RL03 meldt zich!"*), meldingen (e-mail eerst), RzSense beveiligen (HTTPS, 2FA, back-up, bijgewerkt), aanraders voor je profiel, en klaar.
+  - De wizard geeft **alleen advies**: elke knop opent de pagina waar je het zelf aanzet. Ga je naar zo'n pagina, dan staat rechtsonder **Aan de slag · Verder** om terug te gaan.
+  - Terug te vinden in het accountmenu onder **🧭 Aan de slag**.
+- **Checklist bovenaan *Instellingen → Status en functies*.** Het blok *Aan de slag* met wat er al klaar is en wat nog openstaat. Een vinkje komt pas als het echt werkt (zoals een verstuurde proefmail), en het blok verdwijnt vanzelf als alles klaar is.
+- **Rondleiding voor gewone gebruikers.** Bij de eerste keer inloggen een korte rondleiding langs het Dashboard, Monitoring, Meldingen en het accountmenu; daarna via **💡 Rondleiding** in het accountmenu.
 
 ## 1.322.4 – 2026-11-25
 ### Opgelost
