@@ -503,13 +503,20 @@ $(for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_c
         wf_chash=$(cat "$wf_dir/rzsense.yaml" "$wf_dir/acquis.d/rzsense-appsec.yaml" "$wf_dir/whitelist.yaml" | sha1sum | cut -c1-12)
         wf_ehash=$(printf '%s|%s|%s' "$wf_img" "$wf_share" "$wf_key" | sha1sum | cut -c1-12)
         # 3. Netwerk: rzsense, en SWAG eraan (ook opnieuw als SWAG opnieuw is aangemaakt)
-        wfx network inspect "$wf_net" >/dev/null 2>&1 || wfx network create "$wf_net" >/dev/null 2>&1
-        if ! wfx inspect -f '{{json .NetworkSettings.Networks}}' "$px_ctr" 2>/dev/null | grep -q "\"$wf_net\""; then
+        # Agent 1.119.1: mislukt het aanmaken, dan de echte fout tonen en de container niet starten (anders alleen "network not found")
+        wf_netok=1
+        if ! wfx network inspect "$wf_net" >/dev/null 2>&1; then
+            if out=$(wfx network create "$wf_net" 2>&1); then act_log proxy 1 "WAF: netwerk $wf_net aangemaakt" ""
+            else wf_netok=0; wf_msg="netwerk $wf_net aanmaken mislukt: $(tail -n 2 <<<"$out" | tr '\n' ' ' | cut -c1-200) · probeer: sudo $wf_eng network create $wf_net"; fi
+        fi
+        if [ "$wf_netok" = 1 ] && ! wfx inspect -f '{{json .NetworkSettings.Networks}}' "$px_ctr" 2>/dev/null | grep -q "\"$wf_net\""; then
             if wfx network connect "$wf_net" "$px_ctr" >/dev/null 2>&1; then act_log proxy 1 "WAF: $px_ctr aan het netwerk $wf_net gehangen" ""
             else wf_msg="kon $px_ctr niet aan het netwerk $wf_net hangen"; fi
         fi
         # 4. Container: (opnieuw) aanmaken als hij er niet is of de omgeving veranderde; herstarten als alleen de regels veranderden
-        if ! wf_exists || [ "$(cat "$wf_dir/env.hash" 2>/dev/null)" != "$wf_ehash" ]; then
+        if [ "$wf_netok" = 0 ]; then
+            :   # zonder netwerk heeft starten geen zin; de fout staat al in wf_msg
+        elif ! wf_exists || [ "$(cat "$wf_dir/env.hash" 2>/dev/null)" != "$wf_ehash" ]; then
             wfx rm -f "$wf_ctr" >/dev/null 2>&1
             wf_env=(-e "COLLECTIONS=crowdsecurity/appsec-virtual-patching crowdsecurity/appsec-generic-rules crowdsecurity/appsec-crs" -e "BOUNCER_KEY_swag=$wf_key")
             [ "$wf_share" = 1 ] || wf_env+=(-e "DISABLE_ONLINE_API=true")

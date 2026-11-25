@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.319.0**: **"Agent stil" zegt waarom**: de bewaker meldt elke minuut of de server leeft en wat er met de agent is; Suricata wordt niet meer elke ronde herstart.
 - **1.318.0**: **Windows-agent met reserve-RzSense** en overstappen naar een ander adres, net als Linux; daarmee is de Windows-agent compleet.
 
+## 1.322.3 – 2026-11-25
+### Opgelost
+- Nieuwe agent 1.119.1: kan de agent het netwerk `rzsense` voor de WAF niet aanmaken, dan staat nu de echte reden bij *Reverse proxy → WAF* (in plaats van alleen *network not found*), met de opdracht om het zelf te proberen.
+
 ## 1.322.2 – 2026-11-25
 ### Opgelost
 - **Webcheck bleef op "Nog niet gecontroleerd" staan** bij sites met een naam als `frigate.*` (SWAG) als er geen domein bekend was, bijvoorbeeld omdat RzSense op een IP-adres draait. De dagelijkse check sloeg zo'n site stilletjes over.

@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.119.1 – 2026-11-25
+- **WAF: de echte fout als het netwerk niet aangemaakt kan worden.** Lukte `podman network create rzsense` (of `docker`) niet, dan gooide de agent de fout weg en startte hij de WAF toch, met alleen *network not found* als gevolg. Nu staat de echte reden bij de WAF, met de opdracht om het zelf te proberen, en start hij de container pas als het netwerk er is.
+
 ## 1.119.0 – 2026-11-24
 - **Levensteken bij "agent stil":** de bewaker (`rzmon-agent-guard`) draait nu elke minuut. Blijft het rapport langer dan 3 minuten uit, dan stuurt hij een klein levensteken naar RzSense (alleen versleuteld met de eigen sleutel): de server leeft, of er een ronde loopt en hoe lang, de laatste fout, wat de bewaker deed en de belasting. Het telt niet als rapport.
 - **Bewaker grijpt eerder in:** na 6 minuten zonder rapport (was 15; `GUARD_MIN`).
