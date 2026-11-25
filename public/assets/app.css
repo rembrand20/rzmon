@@ -6756,3 +6756,92 @@ body.sk-s .cs2-ovi { border-color: transparent; box-shadow: var(--shadow); }
 .sh-crit { stroke: var(--crit); stroke-dasharray: 4 4; }
 @media (max-width: 720px) { .sh-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .sh-table td.mono, .sh-tcell .mono { white-space: nowrap; }
+
+/* ---------------------------------------------------------------- 1.322.0: lay-out Default (vroeger Blox)
+   Rustig: weinig kleur, dunne randen, geen schaduw. Alles via :where(body.lay-def), zodat de thema's (@S, Liquid Glass,
+   Neo) altijd winnen: die houden hun eigen kaarten, gloed en randjes. Schemer, licht en donker volgen de kleurtokens. */
+:where(body.lay-def) { --shadow: none; }
+/* Zijbalk: het actieve onderdeel krijgt een licht vlakje, zonder streep of accentkleur */
+:where(body.lay-def) .app-top .tab-ind { background: color-mix(in srgb, var(--text) 8%, transparent); box-shadow: none; }
+:where(body.lay-def) .app-top .main-tabs .tab { font-weight: 500; }
+:where(body.lay-def) .app-top .main-tabs .tab.active { font-weight: 600; }
+:where(body.lay-def) .main-tabs .tab.active .tab-ic { color: var(--text); }
+/* Kop van het Dashboard: één zin, de tweede helft rustiger */
+:where(body.lay-def) .hm-title { font-weight: 600; font-size: 1.55rem; line-height: 1.3; }
+.hd-tail { color: var(--muted); font-weight: 400; }
+
+/* Dashboard in Default: vier cijfers in één strook, Aandacht nodig en de servers als rijen */
+.hd { display: grid; gap: 1.25rem; margin-top: 1rem; }
+.hd-strip, .hd-box { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); position: relative; overflow: hidden; }
+.hd-strip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.hd-num { font: inherit; color: inherit; background: none; border: 0; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: .3rem;
+  padding: 1.15rem 1.35rem; min-width: 0; }
+.hd-num + .hd-num { border-left: 1px solid var(--border); }
+.hd-num:hover, .hd-row:hover, .hd-more:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.hd-num:focus-visible, .hd-row:focus-visible, .hd-more:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.hd-lbl, .hd-sub { font-size: .82rem; color: var(--muted); }
+.hd-val { font-size: 2.3rem; font-weight: 600; letter-spacing: -.02em; line-height: 1.1; color: var(--text); font-variant-numeric: tabular-nums; }
+.hd-val.crit { color: var(--crit); }
+.hd-val.warn { color: var(--warn); }
+.hd-duo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 1.25rem; align-items: start; }
+.hd-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .95rem 1.1rem .65rem; }
+.hd-head h2 { margin: 0; font-size: 1rem; font-weight: 600; }
+.hd-count { font-size: .78rem; padding: .1rem .55rem; border-radius: 99px; background: var(--card-2); color: var(--muted); }
+.hd-cols { display: flex; font-size: .78rem; color: var(--muted); }
+.hd-cols span, .hd-pct { width: 4.6rem; text-align: right; flex: none; }
+.hd-row { font: inherit; color: inherit; background: none; border: 0; border-top: 1px solid var(--border); width: 100%; min-height: 48px; display: flex;
+  align-items: center; gap: .75rem; padding: .7rem 1.1rem; text-align: left; cursor: pointer; }
+.hd-row .hm-shape { flex: none; }
+.hd-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: .1rem; }
+.hd-txt b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hd-txt small { color: var(--muted); font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hd-go { color: var(--muted); font-size: 1.1rem; }
+.hd-pct { font-variant-numeric: tabular-nums; }
+.hd-more { font: inherit; background: none; border: 0; border-top: 1px solid var(--border); width: 100%; min-height: 44px; padding: .65rem 1.1rem; text-align: left;
+  color: var(--primary); cursor: pointer; }
+.hd-empty { margin: 0; padding: .35rem 1.1rem 1.1rem; color: var(--muted); display: flex; align-items: center; gap: .5rem; }
+@media (max-width: 960px) { .hd-duo { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 720px) {
+  .hd-strip { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hd-num { padding: .9rem 1rem; }
+  .hd-num + .hd-num { border-left: 0; }
+  .hd-num:nth-child(even) { border-left: 1px solid var(--border); }
+  .hd-num:nth-child(n+3) { border-top: 1px solid var(--border); }
+  .hd-val { font-size: 1.75rem; }
+  .hd-cols span, .hd-pct { width: 3.4rem; }
+}
+/* De thema's: dezelfde opbouw, in hun eigen stijl */
+body.lg :is(.hd-strip, .hd-box) { -webkit-backdrop-filter: blur(20px) saturate(165%); backdrop-filter: blur(20px) saturate(165%);
+  box-shadow: inset 0 1px 0 var(--lg-rim), 0 14px 36px rgba(0,0,0,.22); }
+body.sk-neo :is(.hd-strip, .hd-box) { background: linear-gradient(160deg, var(--fx-bg2), var(--fx-bg)); border-color: var(--fx-bd); box-shadow: var(--fx-shadow); border-radius: 16px; }
+body.sk-neo :is(.hd-strip, .hd-box)::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--fx-cy) 65%, transparent), transparent); }
+body.sk-neo :is(.hd-lbl, .hd-head h2) { letter-spacing: .12em; text-transform: uppercase; font-size: .74rem; color: var(--fx-cy); }
+body.sk-neo .hd-val { font-family: var(--mono, ui-monospace, "JetBrains Mono", monospace); font-weight: 500; }
+body.sk-s :is(.hd-strip, .hd-box) { box-shadow: var(--s-shadow); border-color: var(--s-hair, var(--border)); }
+/* Zijbalk op een computer: het actieve onderdeel rustig (de vaste cyaan streep is voor de andere lay-outs); Neo houdt zijn streep */
+@media (min-width: 1101px) {
+  :root body.lay-def .app-top .main-tabs .tab.active { background: color-mix(in srgb, var(--text) 8%, transparent); box-shadow: none; color: var(--text); }
+  :root body.lay-def .app-top .main-tabs .tab.active .tab-ic { color: var(--text); }
+  :root body.lay-def.sk-neo .app-top .main-tabs .tab.active { box-shadow: inset 3px 0 0 var(--fx-cy); }
+  :root body.lay-def.sk-neo .app-top .main-tabs .tab.active .tab-ic { color: var(--fx-cy); }
+}
+/* Monitoring in Default: de servers als rijen in één kader, met dunne lijnen ertussen (zoals de mockup) */
+:where(body.lay-def) .hosts.layout-l1nes { gap: 0; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+:where(body.lay-def) .hosts.layout-l1nes > .host { border: 0; border-top: 1px solid var(--border); border-radius: 0; box-shadow: none; background: transparent; }
+:where(body.lay-def) .hosts.layout-l1nes > :first-child { border-top: 0; }
+:where(body.lay-def) .hosts.layout-l1nes > .line-head { padding-top: .7rem; padding-bottom: .5rem; }
+:where(body.lay-def) .host.line .line-row:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+:where(body.lay-def) .host.line .line-row .dot { width: 9px; height: 9px; box-shadow: none; }
+:where(body.lay-def) .host.line .sum-line.s0 { color: var(--muted); font-weight: 500; }
+:where(body.lay-def) .host.line .km { background: transparent; border-color: transparent; padding: .25rem .4rem; }
+:where(body.lay-def) .host.line .km:hover { border-color: var(--border); }
+:where(body.lay-def) .host.line .km-v { font-weight: 600; }
+body.lg.lay-def .hosts.layout-l1nes { -webkit-backdrop-filter: blur(20px) saturate(165%); backdrop-filter: blur(20px) saturate(165%);
+  box-shadow: inset 0 1px 0 var(--lg-rim), 0 14px 36px rgba(0,0,0,.22); }
+body.sk-neo.lay-def .hosts.layout-l1nes { background: linear-gradient(160deg, var(--fx-bg2), var(--fx-bg)); border-color: var(--fx-bd); box-shadow: var(--fx-shadow); border-radius: 16px; }
+body.sk-neo.lay-def .hosts.layout-l1nes > .host { background: transparent; border-color: var(--fx-bd); border-radius: 0; box-shadow: none; }
+body.sk-s.lay-def .hosts.layout-l1nes { box-shadow: var(--s-shadow); }
+.hd-srv .hd-txt { flex-direction: row; align-items: baseline; gap: .75rem; }
+.hd-srv .hd-txt b { flex: 0 1 auto; max-width: 55%; }
+.hd-srv .hd-txt small { flex: 1 1 auto; min-width: 0; }

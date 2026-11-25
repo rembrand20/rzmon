@@ -1741,12 +1741,13 @@ function renderNow() {
   const { layout, density } = viewPrefs();
   const okHost = (h) => +h.enabled && hostStatus(h) === 0 && !h.maintenance && !h.autoOpen;
   const head = (title, n) => `<div class="sec-h hosts-h"><h2>${title}</h2><span>${n}</span></div>`;
-  const lines = layout === 'l1nes';
+  const def = layoutPref() === 'blox';   // 1.322.0: Default (vroeger Blox): servers als rijen, zoals L1nes
+  const lines = layout === 'l1nes' || def;
   if (layout === 'compact') { el.className = 'dash-hosts'; el.innerHTML = compactView(hosts); return; }
   const cc = isCC();   // 1.164.0: in CC compacte blokken die openklappen tot een tabel
   const list = (arr) => (cc ? arr.map(ccHostCard).join('') : lines ? (density === 'large' ? lineHeader() : '') + arr.map((h) => hostLine(h, density === 'large')).join('')
     : arr.map((h) => hostCard(h, density === 'small')).join(''));
-  const cls = cc ? 'hosts hb-grid' : `hosts layout-${layout} density-${density}`;
+  const cls = cc ? 'hosts hb-grid' : `hosts layout-${lines ? 'l1nes' : layout} density-${density}`;
   const block = (arr, grouped) => {
     // 1.168.0: drie groepen: open problemen (zoals bij Nu aandacht nodig), alles al bevestigd, en in orde
     const good = arr.filter(okHost), acked = arr.filter((h) => !okHost(h) && ackedOnly(h)), bad = arr.filter((h) => !okHost(h) && !ackedOnly(h));
@@ -1870,6 +1871,7 @@ function pgTools(page) {
 const PG_PAGES = ['mon', 'alerts', 'ids', 'inc', 'vuln', 'net', 'an', 'set', 'acct', 'am'];   // 1.159.0: IDS t/m Analyse; 1.160.0: instellingen (per onderdeel), Mijn account en Agent Manager
 function applyLayout() {
   document.body.classList.toggle('lay-cc', isCC());
+  document.body.classList.toggle('lay-def', layoutPref() === 'blox');   // 1.322.0: Default (vroeger Blox): de stille stijl
   PG_PAGES.forEach((p) => { pgApply(p); pgTools(p); });
 }
 function initPageGrid() {

@@ -3974,12 +3974,13 @@ function renderNow() {
   const { layout, density } = viewPrefs();
   const okHost = (h) => +h.enabled && hostStatus(h) === 0 && !h.maintenance && !h.autoOpen;
   const head = (title, n) => `<div class="sec-h hosts-h"><h2>${title}</h2><span>${n}</span></div>`;
-  const lines = layout === 'l1nes';
+  const def = layoutPref() === 'blox';   // 1.322.0: Default (vroeger Blox): servers als rijen, zoals L1nes
+  const lines = layout === 'l1nes' || def;
   if (layout === 'compact') { el.className = 'dash-hosts'; el.innerHTML = compactView(hosts); return; }
   const cc = isCC();   // 1.164.0: in CC compacte blokken die openklappen tot een tabel
   const list = (arr) => (cc ? arr.map(ccHostCard).join('') : lines ? (density === 'large' ? lineHeader() : '') + arr.map((h) => hostLine(h, density === 'large')).join('')
     : arr.map((h) => hostCard(h, density === 'small')).join(''));
-  const cls = cc ? 'hosts hb-grid' : `hosts layout-${layout} density-${density}`;
+  const cls = cc ? 'hosts hb-grid' : `hosts layout-${lines ? 'l1nes' : layout} density-${density}`;
   const block = (arr, grouped) => {
     // 1.168.0: drie groepen: open problemen (zoals bij Nu aandacht nodig), alles al bevestigd, en in orde
     const good = arr.filter(okHost), acked = arr.filter((h) => !okHost(h) && ackedOnly(h)), bad = arr.filter((h) => !okHost(h) && !ackedOnly(h));
@@ -4103,6 +4104,7 @@ function pgTools(page) {
 const PG_PAGES = ['mon', 'alerts', 'ids', 'inc', 'vuln', 'net', 'an', 'set', 'acct', 'am'];   // 1.159.0: IDS t/m Analyse; 1.160.0: instellingen (per onderdeel), Mijn account en Agent Manager
 function applyLayout() {
   document.body.classList.toggle('lay-cc', isCC());
+  document.body.classList.toggle('lay-def', layoutPref() === 'blox');   // 1.322.0: Default (vroeger Blox): de stille stijl
   PG_PAGES.forEach((p) => { pgApply(p); pgTools(p); });
 }
 function initPageGrid() {
@@ -20462,9 +20464,77 @@ function hmLive() {
   return { checks, n, total: checks.length };
 }
 
+/** 1.322.0: waar een knop of rij op het Dashboard heen gaat (data-hm-go) */
+function hmGoTo(go) {
+  if (go.startsWith('check:')) checkInfo(go.slice(6));
+  else if (go.startsWith('incident:')) { showTab('incidents'); caseDialog(+go.slice(9)); }
+  else showTab(go);
+}
+
+/**
+ * 1.322.0: het Dashboard in de lay-out Default: één zin hoe het ervoor staat, vier cijfers in één strook, wat aandacht
+ * nodig heeft en de servers als rustige rijen. Wordt bijgewerkt (morph), niet opnieuw opgebouwd: geen flits.
+ */
+function renderHomeDef() {
+  const d = hmData, live = hmLive(), hl = state.health || {};
+  const day = new Date().toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' });
+  const todo = live.checks.filter((c) => +c.status === 2 || +c.status === 1).sort((a, b) => b.status - a.status)
+    .map((c) => ({ sev: +c.status, text: `${(state.hosts.find((h) => +h.id === +c.host_id) || {}).name || ''} · ${c.name}`, why: [], go: 'check:' + c.id }));
+  let items = (d.full && d.now ? d.now : todo).filter((t) => t.sev >= 1);
+  const probHosts = hmProblemHosts(d);
+  if (!items.length) items = probHosts.map((x) => ({ sev: x.st === 'crit' ? 2 : 1, text: x.h.name, why: [], go: 'dashboard?server=' + encodeURIComponent(x.h.name) }));
+  const down = Math.max(0, (hl.hosts_total || 0) - (hl.hosts_up || 0));
+  const lead = down ? (down === 1 ? L('1 server is onbereikbaar.') : L('{n} servers zijn onbereikbaar.', { n: down }))
+    : items.length ? L('Bijna alles draait.') : L('Alles draait.');
+  const tail = items.length ? (items.length === 1 ? L('1 ding vraagt aandacht.') : L('{n} dingen vragen aandacht.', { n: items.length })) : L('Er is niets te doen.');
+  $('.hm-title').innerHTML = `${esc(lead)} <span class="hd-tail">${esc(tail)}</span>`;
+  $('#hm-sub').textContent = day.charAt(0).toUpperCase() + day.slice(1);
+
+  // Vier cijfers in één strook
+  const probs = live.n[1] + live.n[2];
+  const perLbl = (HM_PERIODS.find(([k]) => k === hmPeriod) || HM_PERIODS[0])[1]();
+  const nums = [
+    { go: 'dashboard', lbl: L('Servers online'), val: hmNum(hl.hosts_up || 0), sub: L('van {n}', { n: hl.hosts_total || 0 }), st: down ? 'crit' : '' },
+    { go: 'alerts', lbl: L('Open problemen'), val: hmNum(probs), sub: live.n[2] ? L('{n} kritiek', { n: live.n[2] }) : probs ? L('{n} aandacht', { n: live.n[1] }) : L('alles in orde'), st: live.n[2] ? 'crit' : live.n[1] ? 'warn' : '' },
+    ...(d.ids && d.ids.blk_today !== undefined ? [{ go: 'ids', lbl: L('Geblokkeerd vandaag'), val: hmNum(d.ids.blk_today), sub: L('{n} nu geblokkeerd', { n: hmNum(d.ids.blk_now) }), st: '' }] : []),
+    { go: 'dashboard/avail', lbl: L('Beschikbaarheid'), val: d.full && d.avail && d.avail.now !== null ? dec(Number(d.avail.now).toFixed(2)) + '%' : '–', sub: L('afgelopen {p}', { p: perLbl }), st: '' },
+  ];
+  const strip = `<section class="hd-strip" aria-label="${esc(L('Samenvatting'))}">${nums.map((x) => `<button type="button" class="hd-num" data-k="${esc(x.go)}" data-hm-go="${esc(x.go)}">
+      <span class="hd-lbl">${esc(x.lbl)}</span><b class="hd-val${x.st ? ' ' + x.st : ''}" data-flash>${x.val}</b><span class="hd-sub">${esc(x.sub)}</span></button>`).join('')}</section>`;
+
+  // Wat aandacht nodig heeft
+  const shown = items.slice(0, 8);
+  const attn = `<section class="hd-box" aria-labelledby="hd-h-attn">
+    <div class="hd-head"><h2 id="hd-h-attn">${esc(L('Aandacht nodig'))}</h2>${items.length ? `<span class="hd-count">${items.length}</span>` : ''}</div>
+    ${shown.length ? shown.map((t, i) => `<button type="button" class="hd-row" data-k="a${i}-${esc(t.go)}" data-hm-go="${esc(t.go)}">
+        ${hmShape(t.sev === 2 ? 'crit' : 'warn')}<span class="hd-txt"><b>${esc(t.text)}</b>${(t.why || []).length > 1 ? `<small>${esc(t.why.slice(1).join(' · '))}</small>` : ''}</span><span class="hd-go" aria-hidden="true">›</span></button>`).join('')
+      + (items.length > shown.length ? `<button type="button" class="hd-more" data-hm-go="incidents">${esc(L('en nog {n}', { n: items.length - shown.length }))} →</button>` : '')
+    : `<p class="hd-empty">${hmShape('ok', 12)} ${esc(L('Niets dat nu aandacht nodig heeft'))}</p>`}
+  </section>`;
+
+  // De servers als rijen: eerst wat aandacht vraagt
+  const rank = { crit: 0, warn: 1, unk: 2, ok: 3 };
+  const hosts = hmAllHosts().sort((a, b) => rank[a.st] - rank[b.st] || a.h.name.localeCompare(b.h.name));
+  const pctOf = (v) => (v === null ? '–' : v + '%');
+  const srv = `<section class="hd-box" aria-labelledby="hd-h-srv">
+    <div class="hd-head"><h2 id="hd-h-srv">${esc(L('Servers'))}</h2><span class="hd-cols" aria-hidden="true"><span>${esc(L('cpu'))}</span><span>${esc(L('geheugen'))}</span></span></div>
+    ${hosts.slice(0, 10).map((x) => `<button type="button" class="hd-row hd-srv" data-k="h${x.h.id}" data-hm-go="dashboard?server=${encodeURIComponent(x.h.name)}">
+        ${hmShape(x.st)}<span class="hd-txt"><b>${esc(x.h.name)}</b><small>${esc(GROUP_INFO[hostGroup(x.h)] ? GROUP_INFO[hostGroup(x.h)][1]() : '')}</small></span>
+        <span class="hd-pct" title="CPU">${pctOf(x.cpu)}</span><span class="hd-pct" title="RAM">${pctOf(x.ram)}</span></button>`).join('')}
+    ${hosts.length > 10 ? `<button type="button" class="hd-more" data-hm-go="dashboard">${esc(L('Alle {n} servers', { n: hosts.length }))} →</button>` : ''}
+    ${hosts.length ? '' : `<p class="hd-empty">${esc(L('Nog geen servers'))}</p>`}
+  </section>`;
+
+  const box = $('#home');
+  const html = `<div class="hd">${strip}<div class="hd-duo">${attn}${srv}</div></div>`;
+  if ($('.hd', box)) withMorph(() => { box.innerHTML = html; }); else box.innerHTML = html;
+  $$('[data-hm-go]', box).forEach((b) => (b.onclick = () => hmGoTo(b.dataset.hmGo)));
+}
+
 function renderHome() {
   if (!hmData || !state || !state.hosts) return;
   if (dashMode() === 'cc') return hmData.cc ? renderCC() : loadHome();   // 1.154.0
+  if (layoutPref() === 'blox') return renderHomeDef();   // 1.322.0: Default (vroeger Blox)
   $('.hm-title').textContent = L('Zo staat het ervoor');
   const d = hmData, live = hmLive();
   $('#hm-sub').textContent = L('Monitoring, beveiliging, kwetsbaarheden en netwerk op één plek') + ' · '

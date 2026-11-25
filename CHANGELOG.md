@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.322.0**: **Lay-out Default**: rustig en kaal, met één zin hoe het ervoor staat en de servers als rijen; vervangt Blox en werkt met elk thema.
 - **1.321.0**: **Shelly's bewaken**: stroom, oververhitting en afwijkingen van het normale verbruik, rechtstreeks uitgelezen.
 - **1.320.0**: **🚨 Beveiligingskanaal**: wat nú je aandacht nodig heeft gaat door Niet storen heen (ook als kritieke melding in de Home Assistant-app) en blijft komen tot iemand bevestigt.
 - **1.319.0**: **"Agent stil" zegt waarom**: de bewaker meldt elke minuut of de server leeft en wat er met de agent is; Suricata wordt niet meer elke ronde herstart.
 - **1.318.0**: **Windows-agent met reserve-RzSense** en overstappen naar een ander adres, net als Linux; daarmee is de Windows-agent compleet.
-- **1.317.0**: **Uitrollen naar veel Windows-servers** met één uitrolcode en een MSI, voor groepsbeleid of een beheerprogramma.
+
+## 1.322.0 – 2026-11-25
+### Nieuw
+- **Lay-out Default (vervangt Blox).** Een rustige lay-out: weinig kleur, dunne randen, geen schaduw. Kies hem bij *Mijn account → Weergave → Lay-out* of in het accountmenu. Wie Blox had, heeft nu vanzelf Default; je instellingen blijven zoals ze waren.
+  - **Dashboard:** één zin hoe het ervoor staat (*Bijna alles draait. 3 dingen vragen aandacht.*), vier cijfers in één strook (servers online, open problemen, geblokkeerd vandaag, beschikbaarheid), *Aandacht nodig* en de servers als rijen met CPU en geheugen.
+  - **Monitoring:** de servers als rustige rijen in één kader, in plaats van een tegel per server.
+  - **Zijbalk:** het onderdeel waar je bent krijgt een licht vlakje, zonder gekleurde streep. Inklappen tot iconen kan zoals altijd.
+  - Werkt met elk thema (Standaard, @S, Liquid Glass, Neo) en met licht, donker en Schemer.
+  - Het dashboard in Default wordt live bijgewerkt zonder opnieuw op te bouwen: geen flits meer bij elke ronde.
 
 ## 1.321.0 – 2026-11-24
 ### Nieuw

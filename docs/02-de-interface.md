@@ -116,8 +116,22 @@ TELEFOON*), de titel met de hoofdschakelaar rechts, de velden naast elkaar en on
 ## Het dashboard
 
 Het **Dashboard** is de pagina waarop RzSense opent: monitoring, beveiliging, kwetsbaarheden en netwerk op één plek,
-onder de titel *Zo staat het ervoor*. Welk dashboard je ziet, hangt af van je lay-out: met *Blox*, *L1nes* of *Compact*
-het klassieke dashboard, met *CC* het Command center (zie [Lay-out](#lay-out)).
+onder de titel *Zo staat het ervoor*. Welk dashboard je ziet, hangt af van je lay-out: met *Default* het rustige
+dashboard, met *L1nes* of *Compact* het klassieke dashboard, met *CC* het Command center (zie [Lay-out](#lay-out)).
+
+### Het rustige dashboard (Default)
+
+Met de lay-out *Default* is het dashboard kaal en rustig:
+
+1. **Eén zin** bovenaan zegt hoe het ervoor staat, bijvoorbeeld *Bijna alles draait. 3 dingen vragen aandacht.* of
+   *Alles draait. Er is niets te doen.* Daaronder de datum.
+2. **Vier cijfers in één strook**: *Servers online*, *Open problemen*, *Geblokkeerd vandaag* (door de IDS) en
+   *Beschikbaarheid* over de gekozen periode. Klik op een cijfer voor de pagina erachter.
+3. **Aandacht nodig**: wat je nu moet doen, het ergste eerst. Klik op een regel om hem te openen.
+4. **Servers**: elke server als een rij met zijn status, de soort apparaat, CPU en geheugen. Wat aandacht vraagt staat
+   bovenaan. Klik op een server om hem op *Monitoring* te zien.
+
+Het dashboard wordt live bijgewerkt zonder dat de pagina opnieuw opbouwt: alleen wat verandert, verandert.
 
 ### Het klassieke dashboard
 
@@ -280,8 +294,8 @@ storing mist. De sortering wordt per gebruiker onthouden.
 
 Hoe de servers getoond worden, hangt af van je [lay-out](#lay-out):
 
-- **Blox**: een tegel per server. *Large* toont de drie belangrijkste checks met hun waarde en een lijntje van 24 uur;
-  *Small* is compacter, zodat er meer servers in beeld passen.
+- **Default**: servers onder elkaar, als rustige rijen in één kader, zonder gekleurde randen. *Large* heeft kolommen voor
+  de belangrijkste checks en de status van 24 uur; *Small* is één regel per server.
 - **L1nes**: servers onder elkaar, als rijen. *Large* heeft kolommen voor de belangrijkste checks en de status van 24
   uur; *Small* is één regel per server.
 - **Compact**: per server één regel met een blokje per check in de kleur van de status. Handig bij veel checks of op een
@@ -703,13 +717,17 @@ De lay-out is hoe de pagina's zijn opgebouwd. Kies hem hier of in het accountmen
 
 | Lay-out | Dashboard | Monitoring |
 |---|---|---|
-| ▦ **Blox** | klassiek | een tegel per server |
+| ▢ **Default** | rustig: één zin, vier cijfers, *Aandacht nodig* en de servers | servers als rustige rijen |
 | ☰ **L1nes** | klassiek | servers onder elkaar, als een tabel |
 | ▪ **Compact** | klassiek | een blokje per check; voor veel checks of een TV-scherm |
 | ◈ **CC** | Command center | tegels in CC-stijl, met versleepbare kaarten op elke pagina |
 
 Bij **Grootte** kies je *Small* (compact, meer in beeld) of *Large* (meer informatie). Dat geldt per lay-out, apart voor
 je telefoon en je computer.
+
+**Default** is de rustigste lay-out: weinig kleur, dunne randen, geen schaduw, en in de zijbalk een licht vlakje achter
+het onderdeel waar je bent. Elk thema werkt ermee; Liquid Glass, @S en Neo houden hun eigen stijl. Default heette
+vroeger *Blox*: wie Blox had, heeft nu vanzelf Default.
 
 ### Thema en licht/donker
 
