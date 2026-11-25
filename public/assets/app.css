@@ -3105,8 +3105,11 @@ body.lay-cc #tab-settings .set-off { display: none !important; }
 .rule-view .rule-table td:first-child, .rule-view .rule-table th:first-child { display: none; }
 .wl-link { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-top: 1rem; }
 /* 1.163.1: accountmenu iets breder, zodat de vier lay-outs en het label op één regel passen */
-.acct-menu { width: 360px; max-width: calc(100vw - 24px); }   /* 1.245.1: vier thema's op één regel */
+.acct-menu { width: 380px; max-width: calc(100vw - 24px); }   /* 1.245.1: vier thema's op één regel */
 .acct-row { white-space: nowrap; }
+/* 1.322.1: past een keuze niet naast zijn naam (Licht/donker heeft vijf knoppen, in het Engels langer), dan op de regel eronder */
+.acct-row { flex-wrap: wrap; row-gap: .3rem; }
+.acct-row .seg { margin-left: auto; max-width: 100%; }
 /* 1.164.0: Monitoring in CC: compacte blokken; open = servertabel met de checks eronder */
 .hb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; align-items: start; }
 .hb { --st: var(--fx-ok, var(--ok)); position: relative; background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); }

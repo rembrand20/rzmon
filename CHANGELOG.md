@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.319.0**: **"Agent stil" zegt waarom**: de bewaker meldt elke minuut of de server leeft en wat er met de agent is; Suricata wordt niet meer elke ronde herstart.
 - **1.318.0**: **Windows-agent met reserve-RzSense** en overstappen naar een ander adres, net als Linux; daarmee is de Windows-agent compleet.
 
+## 1.322.1 – 2026-11-25
+### Opgelost
+- Het accountmenu was te smal: bij *Licht/donker* viel de laatste knop (*dagritme*, in het Engels *daily rhythm*) buiten het menu. Past een keuze niet naast zijn naam, dan staat hij nu op de regel eronder.
+
 ## 1.322.0 – 2026-11-25
 ### Nieuw
 - **Lay-out Default (vervangt Blox).** Een rustige lay-out: weinig kleur, dunne randen, geen schaduw. Kies hem bij *Mijn account → Weergave → Lay-out* of in het accountmenu. Wie Blox had, heeft nu vanzelf Default; je instellingen blijven zoals ze waren.
