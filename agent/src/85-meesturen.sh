@@ -182,3 +182,42 @@ for nic_d in /sys/class/net/*; do
     nic_ifs+="\"$nic_i\","
 done
 [ -n "$nic_ifs" ] && nic_json="{\"rx\":$nic_rx,\"tx\":$nic_tx,\"ifs\":[${nic_ifs%,}]}"
+
+# Uitvoer van "iw dev <kaart> link" als JSON (leeg als de kaart niet verbonden is)
+wifi_parse() {
+    LC_ALL=C awk -v i="$1" '
+        function esc(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); gsub(/[\001-\037]/, "", s); return substr(s, 1, 64) }
+        function num(v) { return v == "" ? "null" : v }
+        /^Connected to / { b = $3 }
+        /^[ \t]*SSID:/ { sub(/^[ \t]*SSID:[ \t]*/, ""); s = $0 }
+        /^[ \t]*freq:/ { f = $2 + 0 }
+        /^[ \t]*signal:/ { g = $2 + 0 }
+        /^[ \t]*(tx|rx) bitrate:/ {
+            if ($1 == "tx") tx = $3 + 0; else rx = $3 + 0
+            for (k = 4; k <= NF; k++) {
+                if ($k ~ /^[0-9]+MHz$/) w = $k + 0
+                if ($k ~ /^EHT/) st = "be"; else if ($k ~ /^HE/ && st != "be") st = "ax"; else if ($k ~ /^VHT/ && st == "") st = "ac"; else if ($k == "MCS" && st == "") st = "n"
+            }
+        }
+        END {
+            if (b == "") exit
+            band = f >= 5925 ? "6" : (f >= 4900 ? "5" : (f > 0 ? "2.4" : ""))
+            ch = f >= 5925 ? (f - 5950) / 5 : (f >= 4900 ? (f - 5000) / 5 : (f == 2484 ? 14 : (f > 0 ? (f - 2407) / 5 : "")))
+            printf "{\"if\":\"%s\",\"ssid\":\"%s\",\"bssid\":\"%s\",\"band\":\"%s\",\"chan\":%s,\"width\":%s,\"sig\":%s,\"tx\":%s,\"rx\":%s,\"std\":\"%s\"}",
+                esc(i), esc(s), esc(b), band, num(ch), num(w), g ? g : "null", tx ? tx : "null", rx ? rx : "null", st
+        }'
+}
+
+# Wifi (agent 1.122.0): SSID, access point (BSSID), band, kanaal, kanaalbreedte, signaal en verbindingssnelheid van de
+# eigen wifi-kaart (iw), voor Netwerk → Netwerksnelheid in RzSense. Alleen met iw en een verbonden wifi-kaart.
+wifi_json=""
+if command -v iw >/dev/null 2>&1; then
+    for wf_d in /sys/class/net/*; do
+        wf_i=${wf_d##*/}
+        [ -d "$wf_d/wireless" ] || [ -e "$wf_d/phy80211" ] || continue
+        [[ "$wf_i" =~ ^[A-Za-z0-9_.-]{1,15}$ ]] || continue
+        [ "$(cat "$wf_d/operstate" 2>/dev/null)" = up ] || continue
+        wifi_json=$(LC_ALL=C timeout 5 iw dev "$wf_i" link 2>/dev/null | wifi_parse "$wf_i")
+        [ -n "$wifi_json" ] && break
+    done
+fi

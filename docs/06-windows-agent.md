@@ -125,6 +125,7 @@ rzsense-agent.exe install --url "https://rzsense.voorbeeld" --enroll "CODE"
 | Certificaten | Via `host:poort` vanaf de server zelf, of uit de certificaatopslag van de computer |
 | Windows Update | Hoeveel updates er klaarstaan, hoeveel daarvan kritiek of belangrijk, met de lijst |
 | Microsoft Defender | Of de realtime-bescherming aan staat en hoe oud de definities zijn |
+| Wifi | Het wifi-netwerk, het access point, de band, het kanaal, het signaal en de verbindingssnelheid (voor *Netwerk → Netwerksnelheid*) |
 
 **Logins** zie je op de pagina Meldingen, zoals SSH-logins bij Linux. Computeraccounts (`naam$`) en systeemaccounts slaat
 de agent over.

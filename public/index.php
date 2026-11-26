@@ -772,6 +772,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <button type="button" class="seg-btn" data-nsub="map" role="tab" aria-selected="false">🗺️ <?= th('Overzicht') ?></button>
         <button type="button" class="seg-btn active" data-nsub="list" role="tab" aria-selected="true">📋 <?= th('Apparaten') ?></button>
         <button type="button" class="seg-btn" data-nsub="disc" role="tab" aria-selected="false">🔍 <?= th('Ontdekken') ?> <span class="tab-badge" id="net-disc-badge" hidden></span></button>
+        <button type="button" class="seg-btn" data-nsub="speed" role="tab" aria-selected="false">⚡ <?= th('Netwerksnelheid') ?></button>
       </div>
       <!-- 1.103.0: netwerkscan, zelfde opbouw als het dashboard -->
       <?= xp(t('Alle apparaten in je netwerk, met naam, soort, IP-adres en fabrikant.'), t('<b>Wat het doet:</b> RzSense scant je netwerk (en leest UniFi of SNMP uit als je die hebt) en houdt bij welke apparaten er zijn en wanneer ze online waren. <b>Zo gebruik je het:</b> geef een nieuw apparaat een naam en zet het op bekend; een apparaat dat je niet kent, onderzoek je. <b>Goed om te weten:</b> deze apparaten kun je ook kiezen bij het adres van een server of het doel van een check.'), 'xp-net-list') ?>
@@ -807,6 +808,8 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <div id="net-disc" class="net-disc" aria-live="polite"></div>
       <?= xp(t('Hoe je netwerk in elkaar zit: router, switches en accesspoints, met de apparaten erachter.'), t('<b>Wat het doet:</b> RzSense tekent de kaart uit de gegevens van UniFi, SNMP en de netwerkscan. <b>Zo gebruik je het:</b> klik op een apparaat voor de details. <b>Goed om te weten:</b> zonder UniFi of SNMP weet RzSense niet achter welke switch een apparaat zit; het staat dan direct onder de router.'), 'xp-net-map') ?>
       <div id="net-map" class="net-map"></div>
+      <?= xp(t('Hoe snel je netwerk en je internetlijn zijn, van RzSense (of een andere bron) tot het doel.'), t('<b>Wat het doet:</b> per schakel van de route zie je de vertraging, de linksnelheid en wat er echt gemeten is, en welke schakel de smalste is. Daaronder de wifi per access point. <b>Zo gebruik je het:</b> kies een route; beheerders maken routes bij Routes beheren en meten met Nu meten. <b>Goed om te weten:</b> de snelheid van switch- en routerpoorten komt uit UniFi of SNMP; zonder die zie je bij die schakel "snelheid onbekend".'), 'xp-net-speed') ?>
+      <div id="net-speed" class="net-speed" aria-live="polite"></div>
     </section>
     <?php endif; ?>
 

@@ -16,7 +16,7 @@ import (
 )
 
 // Version: wordt bijgewerkt met tools/bump-version.sh agentwin (gelijk aan agent-win/VERSION)
-const Version = "0.6.0"
+const Version = "0.7.0"
 
 // ---------------------------------------------------------------- koppelen
 
@@ -217,6 +217,11 @@ func buildReport(c *Config, t tests, parts map[string]int) map[string]any {
 	t0 = time.Now()
 	rep["ports"] = collectPorts()
 	lap("ports", t0)
+	t0 = time.Now()
+	if w := wifiInfo(); w != nil {
+		rep["wifi"] = w // 0.7.0: de eigen wifi, voor Netwerk → Netwerksnelheid
+	}
+	lap("wifi", t0)
 	t0 = time.Now()
 	names := make([]string, 0, len(t.Svc))
 	for _, n := range t.Svc {

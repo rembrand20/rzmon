@@ -11,7 +11,7 @@ const API_GET = [
     'ids_attack_flow', 'ids_flows', 'ids_band', 'ids_incident_info', 'ids_ip_events', 'ids_mitre', 'ids_protect', 'incident_info', 'incidents', 'inet_state',
     'insight_analyses', 'insights', 'ip_info', 'ip_timeline', 'ipintel_status', 'log_context', 'log_export', 'log_facets', 'log_found', 'log_browse_get', 'job_status', 'proxy_overview', 'proxy_stats',
     'log_overview', 'log_search', 'log_source_lines', 'log_sources', 'log_library', 'log_watches', 'mds', 'my_access', 'my_logins', 'net_devices', 'net_discover',
-    'net_domains', 'net_dpi', 'net_traffic_device', 'path_info', 'paths', 'podman', 'pve_overview', 'pw_reset_info', 'quiet_get', 'report',
+    'net_domains', 'net_dpi', 'net_traffic_device', 'path_info', 'paths', 'speed', 'podman', 'pve_overview', 'pw_reset_info', 'quiet_get', 'report',
     'report_preview', 'reports_get', 'rev', 'security', 'self_status', 'sessions', 'sessions_all', 'settings', 'settings_health', 'setup_info',
     'smart_proposals', 'snmp_discover', 'snmp_global', 'ssh_sessions', 'state', 'stats', 'status_get', 'stealth_info', 'templates', 'ti_status',
     'trends', 'truenas_overview', 'update_info', 'update_status', 'users', 'vuln_csv', 'vuln_detail', 'vuln_packages', 'vuln_sbom', 'vuln_search', 'vuln_software', 'vuln_upgrade_status', 'vuln_where',
@@ -78,7 +78,7 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'home', 'mds', 'self_status', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_band', 'ids_attack_flow', 'web_sites', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'trends', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'home', 'mds', 'self_status', 'state', 'availability', 'containers', 'path_info', 'paths', 'speed', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_band', 'ids_attack_flow', 'web_sites', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'trends', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
     'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename', 'proxy_tag_fix',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save',
     'webpush_key', 'webpush_subscribe', 'webpush_unsubscribe', 'webpush_devices', 'webpush_test', 'webpush_delete', 'webpush_what', 'sec_active' => 'readonly',   // 1.285.0: je eigen apparaten (1.301.0: wat elk apparaat krijgt)

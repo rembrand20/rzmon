@@ -4,6 +4,9 @@ Wijzigingen aan de RzSense-agent voor Windows (`rzsense-agent.exe`), per versie.
 De Windows-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de Linux-agent.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.7.0 – 2026-11-26
+- **Wifi:** de agent meldt zijn eigen wifi-verbinding (wifi-netwerk, access point, band, kanaal, Wi-Fi-standaard, signaal en verbindingssnelheid, uit `netsh wlan show interfaces`, ook in een Nederlandse of Duitse Windows). RzSense 1.328.0 toont dat bij *Netwerk → Netwerksnelheid*.
+
 ## 0.6.0 – 2026-11-24
 - **Reserve-RzSense**: RzSense geeft het adres door; zijn het gewone adres en het reserve-adres allebei niet bereikbaar, dan gaat het rapport (versleuteld met de eigen sleutel) daarheen. Een antwoord van de reserve verandert geen sleutel, adressen of opdrachten.
 - **Overstappen naar een ander adres** als RzSense erom vraagt (Agent Manager → Adres van RzSense): eerst een ondertekende proef, alleen bij een kloppend antwoord overstappen; de uitkomst gaat mee met het volgende rapport.

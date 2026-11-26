@@ -60,6 +60,17 @@ function hmGoTo(go) {
  * 1.322.0: het Dashboard in de lay-out Default: één zin hoe het ervoor staat, vier cijfers in één strook, wat aandacht
  * nodig heeft en de servers als rustige rijen. Wordt bijgewerkt (morph), niet opnieuw opgebouwd: geen flits.
  */
+/** 1.328.0: de tegel Netwerksnelheid: internet ↓/↑ en de smalste schakel (of wat er mis is) */
+function hmSpeed(d) {
+  const s = d.speed;
+  if (!s || !s.tiles || (s.tiles.down === null && s.tiles.tp === null)) return null;
+  const t = s.tiles;
+  const low = (v, p) => v !== null && p && v / p * 100 < t.warn_pct;
+  const val = t.down !== null ? `${Math.round(t.down)}<small> / ${t.up !== null ? Math.round(t.up) : '–'}</small>` : String(Math.round(t.tp));
+  const sub = s.problems ? L('{n} aandachtspunten', { n: s.problems }) : t.down !== null ? L('↓ / ↑ internet · ping {ms} ms', { ms: t.ms !== null && t.ms !== undefined ? dec(String(Math.round(t.ms * 10) / 10)) : '–' }) : L('doorvoer in je netwerk');
+  return { go: 'net/speed', lbl: L('Netwerksnelheid'), val, sub, st: s.problems || low(t.down, t.plan_down) || low(t.up, t.plan_up) ? 'warn' : '' };
+}
+
 function renderHomeDef() {
   const d = hmData, live = hmLive(), hl = state.health || {};
   const day = new Date().toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' });
@@ -83,6 +94,7 @@ function renderHomeDef() {
     { go: 'alerts', lbl: L('Open problemen'), val: hmNum(probs), sub: live.n[2] ? L('{n} kritiek', { n: live.n[2] }) : probs ? L('{n} aandacht', { n: live.n[1] }) : L('alles in orde'), st: live.n[2] ? 'crit' : live.n[1] ? 'warn' : '' },
     ...(d.ids && d.ids.blk_today !== undefined ? [{ go: 'ids', lbl: L('Geblokkeerd vandaag'), val: hmNum(d.ids.blk_today), sub: L('{n} nu geblokkeerd', { n: hmNum(d.ids.blk_now) }), st: '' }] : []),
     { go: 'dashboard/avail', lbl: L('Beschikbaarheid'), val: d.full && d.avail && d.avail.now !== null ? dec(Number(d.avail.now).toFixed(2)) + '%' : '–', sub: L('afgelopen {p}', { p: perLbl }), st: '' },
+    ...(hmSpeed(d) ? [hmSpeed(d)] : []),   // 1.328.0
   ];
   const strip = `<section class="hd-strip" aria-label="${esc(L('Samenvatting'))}">${nums.map((x) => `<button type="button" class="hd-num" data-k="${esc(x.go)}" data-hm-go="${esc(x.go)}">
       <span class="hd-lbl">${esc(x.lbl)}</span><b class="hd-val${x.st ? ' ' + x.st : ''}" data-flash>${x.val}</b><span class="hd-sub">${esc(x.sub)}</span></button>`).join('')}</section>`;
@@ -146,6 +158,8 @@ function renderHome() {
     tiles.push({ go: 'vulns', label: L('Kritieke CVE'), st: v.sev[4] ? 'crit' : v.sev[3] ? 'warn' : 'ok', big: hmNum(v.sev[4]), unit: v.kev ? L('{n} in KEV', { n: v.kev }) : L('geen in KEV'),
       sub: L('{n} open · {f} met een update', { n: hmNum(v.total), f: hmNum(v.fix) }), spark: hmSpark(hmVals(v.series), 'crit') });
   }
+  const sp = hmSpeed(d);   // 1.328.0: Netwerksnelheid
+  if (sp) tiles.push({ go: sp.go, label: L('Netwerksnelheid'), st: sp.st || 'ok', big: sp.val, unit: 'Mbit/s', sub: sp.sub, spark: '' });
   const agents = state.hosts.filter((h) => h.mode === 'agent' && +h.enabled !== 0);
   if (agents.length) {
     const now = Date.now() / 1000;

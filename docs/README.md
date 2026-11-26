@@ -18,7 +18,7 @@ elk hoofdstuk los lezen.
 8. [Beveiliging](08-beveiliging.md) — inbraakdetectie (IDS), endpoint-bewaking (EDR), ransomware, de reverse proxy en
    je aanvalsoppervlak.
 9. [Kwetsbaarheden en updates](09-kwetsbaarheden-en-updates.md) — bekende lekken, end-of-life en updates installeren.
-10. [Netwerk](10-netwerk.md) — wat er op je netwerk zit.
+10. [Netwerk](10-netwerk.md) — wat er op je netwerk zit, en hoe snel je netwerk en internet zijn.
 11. [Toegang en beheer](11-toegang-en-beheer.md) — inloggen, gebruikers en tweestapsverificatie, back-up en herstel,
     de reserve-RzSense, de REST API en een beveiligingschecklist.
 

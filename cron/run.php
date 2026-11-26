@@ -181,6 +181,14 @@ try {
 } catch (Throwable $e) {
     cron_err('Snelheidstest', $e);
 }
+// 1.328.0: Netwerksnelheid: meten vanaf RzSense zelf, SNMP van switches en routers, metingen bewaren en melden
+try {
+    if ($msg = NetSpeed::cron()) {
+        echo date('c') . " $msg\n";
+    }
+} catch (Throwable $e) {
+    cron_err('Netwerksnelheid', $e);
+}
 Perf::lap('internet');
 // Dagelijks kijken of er een nieuwe versie is; eventueel automatisch bijwerken (Instellingen → RzSense bijwerken)
 if ($msg = Updater::cron()) {

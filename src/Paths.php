@@ -26,7 +26,7 @@ final class Paths
             'via' => array_slice($via, 0, 6),
             'tp' => !array_key_exists('tp', $o) || !empty($o['tp']),
             'tp_host' => (int) ($o['tp_host'] ?? 0),
-            'tp_every' => in_array((int) ($o['tp_every'] ?? 3600), [0, 3600, 86400], true) ? (int) ($o['tp_every'] ?? 3600) : 3600,
+            'tp_every' => in_array((int) ($o['tp_every'] ?? 3600), [0, 3600, 21600, 86400], true) ? (int) ($o['tp_every'] ?? 3600) : 3600,
             'tp_min' => isset($o['tp_min']) && $o['tp_min'] !== '' ? max(1, (int) $o['tp_min']) : 200,
             'loss_warn' => isset($o['loss_warn']) ? max(1, min(100, (int) $o['loss_warn'])) : 5,
             'loss_crit' => isset($o['loss_crit']) ? max(1, min(100, (int) $o['loss_crit'])) : 20,
@@ -71,11 +71,11 @@ final class Paths
      */
     public static function cleanAgentData(int $hostId, string $now): void
     {
-        $keep = '^(path|pathtp|pathmax|pathreq):[0-9]+$';
+        $keep = '^((path|pathtp|pathmax|pathreq):[0-9]+|speedreq:[0-9]+)$';   // 1.328.0: speedreq = doorvoertest van een route vanaf RzSense zelf
         q("DELETE FROM agent_data WHERE host_id = ? AND updated_at < ? AND metric NOT REGEXP '$keep' AND metric NOT IN ('iperfs', 'selftest', 'selftest_req', 'iperf_inst', 'logscan', 'logbrowse', 'proxy', 'waf', 'av', 'av_full', 'nids', 'patch', 'heal_seen', 'relay')", [$hostId, $now]);   // 1.213.0: logscan komt maar één keer per dag mee; 1.281.3: updates (patch) komen eens per uur mee
         $ids = array_map('intval', q("SELECT id FROM checks WHERE host_id = ? AND type = 'path'", [$hostId])->fetchAll(PDO::FETCH_COLUMN));
         foreach (q("SELECT metric FROM agent_data WHERE host_id = ? AND metric REGEXP '$keep'", [$hostId])->fetchAll(PDO::FETCH_COLUMN) as $m) {
-            if (!in_array((int) substr((string) $m, strpos((string) $m, ':') + 1), $ids, true)) {
+            if (!str_starts_with((string) $m, 'speedreq:') && !in_array((int) substr((string) $m, strpos((string) $m, ':') + 1), $ids, true)) {
                 self::put($hostId, (string) $m, null);
             }
         }
@@ -118,7 +118,7 @@ final class Paths
         }
         // Dit apparaat is het doel van een doorvoertest: kort een ontvanger starten
         $until = 0;
-        foreach (q("SELECT value FROM agent_data WHERE metric LIKE 'pathreq:%'") as $r) {
+        foreach (q("SELECT value FROM agent_data WHERE metric LIKE 'pathreq:%' OR metric LIKE 'speedreq:%'") as $r) {   // 1.328.0: ook voor een route vanaf RzSense
             $q = json_decode((string) $r['value'], true);
             if (is_array($q) && (int) ($q['host'] ?? 0) === $hostId && (int) ($q['until'] ?? 0) > time()) {
                 $until = max($until, (int) $q['until']);
@@ -399,18 +399,20 @@ final class Paths
     /**
      * Het pad met namen en per knooppunt een status, in de volgorde van links naar rechts:
      * bron, virtuele laag, switch (UniFi of LLDP), de opgegeven tussenliggende apparaten, de hops en het doel.
+     * 1.328.0: $pre = een meting die niet van een agent komt (Netwerksnelheid vanaf RzSense zelf): d, tp en max; dan niets opslaan.
+     * @param array<string, mixed>|null $pre
      * @return array<string, mixed>|null
      */
-    public static function model(array $check, array $host): ?array
+    public static function model(array $check, array $host, ?array $pre = null): ?array
     {
-        $d = self::data((int) $host['id'], 'path:' . $check['id']);
+        $d = $pre !== null ? ($pre['d'] ?? null) : self::data((int) $host['id'], 'path:' . $check['id']);
         if (!$d) {
             return null;
         }
         $o = self::opts($check);
         $u = self::unifi();
         $names = self::names();
-        $tp = self::data((int) $host['id'], 'pathtp:' . $check['id']);
+        $tp = $pre !== null ? ($pre['tp'] ?? null) : self::data((int) $host['id'], 'pathtp:' . $check['id']);
         $nodes = [];
         $nodes[] = ['kind' => 'src', 'name' => (string) $host['name'], 'ip' => $d['src'] ?: (string) $host['address'], 'speed' => $d['speed'], 'dev' => $d['dev'], 'st' => 'g'];
         if ($d['virt'] !== '' && $d['virt'] !== 'docker') {
@@ -418,7 +420,7 @@ final class Paths
             $nodes[] = ['kind' => 'virt', 'name' => $parent ? $parent . ' · bridge' : t('virtuele laag'), 'ip' => $d['virt'], 'st' => 'v'];
         }
         $ul = self::unifiLink($u, $d['src'] ?: (string) $host['address']);
-        $max = self::data((int) $host['id'], 'pathmax:' . $check['id']) ?: [];
+        $max = ($pre !== null ? ($pre['max'] ?? null) : self::data((int) $host['id'], 'pathmax:' . $check['id'])) ?: [];
         $slow = [];
         if ($ul) {
             $st = 'g';
@@ -482,13 +484,13 @@ final class Paths
         // Hoogste snelheden onthouden (om een zakking te zien)
         $nm = ['nic' => max((int) ($max['nic'] ?? 0), (int) ($d['speed'] ?? 0)), 'port' => max((int) ($max['port'] ?? 0), (int) ($ul['speed'] ?? 0)),
             'uplink' => max((int) ($max['uplink'] ?? 0), (int) ($ul['uplink_speed'] ?? 0))];
-        if ($nm != $max && array_filter($nm)) {
+        if ($pre === null && $nm != $max && array_filter($nm)) {
             self::put((int) $host['id'], 'pathmax:' . $check['id'], $nm);
         }
-        $req = self::data((int) $host['id'], 'pathreq:' . $check['id']);
+        $req = $pre !== null ? ($pre['req'] ?? null) : self::data((int) $host['id'], 'pathreq:' . $check['id']);
         return ['at' => $d['at'], 'tool' => $d['tool'], 'dst' => $d['dst'], 'nodes' => $nodes, 'slow' => $slow, 'down' => $down, 'tp' => $tp,
             'tp_busy' => $req !== null, 'hops' => count($d['hops']), 'intern' => count(array_filter($nodes, static fn($n) => in_array($n['kind'], ['virt', 'switch', 'via', 'router', 'hop'], true))),
-            'unifi' => $u === null ? null : ($u['error'] ?? null ? ['error' => $u['error']] : ['ok' => true]), 'ul' => $ul, 'opts' => $o];
+            'unifi' => $u === null ? null : ($u['error'] ?? null ? ['error' => $u['error']] : ['ok' => true]), 'ul' => $ul, 'opts' => $o, 'max' => $nm, 'gw' => $d['gw'], 'src' => $d['src']];
     }
 
     public static function speed(int|float $mbit): string

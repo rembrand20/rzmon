@@ -27,6 +27,7 @@ func collectBasics() map[string]any {
 	return map[string]any{"hostname": "test", "os_info": map[string]any{}}
 }
 func collectPorts() []map[string]any           { return nil }
+func wifiInfo() map[string]any                 { return nil }
 func serviceStates([]string) map[string]string { return map[string]string{} }
 func serviceList() [][]any                     { return [][]any{} }
 func processInfo([]procWant) ([][]any, map[string]any) {

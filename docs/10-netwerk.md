@@ -40,7 +40,7 @@ sudo apt install fping avahi-utils
 
 ## De pagina Netwerk
 
-De pagina Netwerk heeft drie tabbladen: **🗺️ Overzicht**, **📋 Apparaten** en **🔍 Ontdekken**. RzSense onthoudt (per browser) welk tabblad je laatst open had. Het tabblad Netwerk krijgt een oranje teller voor apparaten die je nog niet beoordeeld hebt; dat aantal staat ook in *Hoe staat het ervoor?*.
+De pagina Netwerk heeft vier tabbladen: **🗺️ Overzicht**, **📋 Apparaten**, **🔍 Ontdekken** en **⚡ Netwerksnelheid** (zie [Netwerksnelheid](#netwerksnelheid)). RzSense onthoudt (per browser) welk tabblad je laatst open had. Het tabblad Netwerk krijgt een oranje teller voor apparaten die je nog niet beoordeeld hebt; dat aantal staat ook in *Hoe staat het ervoor?*.
 
 ### Overzicht
 
@@ -248,6 +248,84 @@ Wil je een melding als één apparaat te veel verkeer doet, voeg dan een check t
 ### Rapport Netwerkverkeer
 
 Bij *Instellingen → Meldingen en rapporten → Rapporten* zet je het rapport **Netwerkverkeer** aan; je kunt het ook aanvinken in het Maandoverzicht. Het toont het verkeer van je internetlijn en de top 10 apparaten over de periode, met de verandering ten opzichte van de periode ervoor (+100% of meer is gemarkeerd). Zie [Meldingen](03-meldingen.md).
+
+## Netwerksnelheid
+
+Op *Netwerk → ⚡ Netwerksnelheid* zie je in één keten hoe snel je netwerk en je internetlijn zijn: van RzSense (of een
+andere bron) tot het doel, in de stijl van een traceroute. Bovenaan kies je de **route**, en of je het verloop van de
+laatste **7 of 30 dagen** wilt zien.
+
+### Wat je ziet
+
+- **Vier tegels:** de download en upload van je internetlijn (in procent van je abonnement), de ping naar het doel
+  (met jitter en verlies) en de gemeten doorvoer in je eigen netwerk (iperf3).
+- **De keten:** elk knooppunt (de bron, een switch, de router, de provider, het doel) met de lijn naar het volgende.
+  - **Boven de lijn:** de vertraging tot dat punt.
+  - **Onder de lijn:** de linksnelheid (bijvoorbeeld *1 Gbit*), wat er echt gemeten is, fouten op de poort, waar het
+    getal vandaan komt (*agent*, *SNMP*, *UniFi*, *snelheidstest*) en een lijntje met het verloop.
+  - **Kleur:** groen is goed. Oranje is de smalste schakel, of een poort die op een lagere snelheid draait dan eerder
+    (vaak een slechte kabel). Een grijze stippellijn betekent dat de snelheid van die lijn niet bekend is.
+- **Smalste schakel:** één zin met de traagste schakel van de route. Is dat je internetlijn en haal je wat je abonnement
+  belooft, dan staat erbij dat het niet aan je eigen netwerk ligt.
+- **Tips:** wat RzSense nog mist, bijvoorbeeld mtr op de RzSense-server of SNMP op de router.
+
+### Waar de snelheden vandaan komen
+
+| Wat | Bron |
+|---|---|
+| Netwerkkaart van de bron, vertraging per hop | De agent (mtr of traceroute), of RzSense zelf als de bron RzSense is |
+| Switchpoorten en de WAN-poort van de router | **SNMP** (het apparaat staat in RzSense met SNMP aan) of **UniFi** |
+| Doorvoer in je netwerk | **iperf3**: de agent op het doel start kort een ontvanger |
+| Internetlijn | De snelheidstest van de check **Internet** (zie [Internet](04-servers-en-checks.md#internet)) |
+
+Met SNMP zoekt RzSense in de MAC-tabel van je switches op welke poort de bron zit. Zo komt een switch in de keten, ook
+al zie je hem niet in een traceroute. De WAN-poort van de router herkent RzSense aan de naam (*wan*, *ppp*, *dsl* …);
+lukt dat niet, dan kies je hem bij *Routes beheren*. De snelheid van de internetlijn vergelijkt RzSense met je
+abonnement (*Instellingen → Monitoring → Internetcheck*).
+
+### Routes
+
+Standaard is er één route: **RzSense → Internet**. Beheerders maken meer routes met **⚙️ Routes beheren**:
+
+1. Kies **Van**: RzSense of een server met de agent.
+2. Kies **Naar**: internet, een server in RzSense of een IP-adres of naam.
+3. Bij een server kun je **Doorvoer meten** aanzetten (elk uur, elke 6 uur of elke dag). Zet bij die server *Mag
+   doorvoertest ontvangen* aan; ontbreekt iperf3, dan installeert de agent het zelf (zie de pad-check bij
+   [Linux-agent](05-linux-agent.md)).
+4. Geef de route eventueel een naam en klik **Opslaan**.
+
+Vanaf een server met de agent (ook als de agent op de RzSense-server zelf draait) maakt RzSense voor de route een
+**pad-check** met de naam *Netwerksnelheid → …*. Die check is alleen informatief: hij meldt zelf niets. Meet RzSense zelf
+(zonder agent op de RzSense-server), dan gebruikt het mtr of traceroute als die op de server staan; anders zie je alleen
+de router en het doel. Voor een doorvoertest vanaf RzSense moet iperf3 op de RzSense-server staan.
+
+**▶ Nu meten** (alleen beheerders) meet het pad meteen, vraagt een doorvoertest aan en doet bij een route naar internet
+een snelheidstest. Die gebruikt je lijn even helemaal (± 15 seconden).
+
+### Wifi per access point
+
+Onder de keten staat de wifi, per access point:
+
+- **Zonder UniFi** meldt elke laptop of pc met de agent (Linux of Windows) zijn eigen wifi: het wifi-netwerk, de band,
+  het kanaal, de verbindingssnelheid en het signaal. RzSense groepeert ze per access point. Op Linux is daarvoor `iw`
+  nodig (`sudo apt install iw` of `sudo dnf install iw`).
+- **Met UniFi** zie je alle access points, met hoe ze aan het netwerk hangen (kabel of mesh, met de snelheid), en per
+  apparaat de snelheid en het signaal. De zwakste staan bovenaan.
+
+Een signaal zwakker dan −72 dBm krijgt *zwak signaal*, zwakker dan −80 dBm *slecht signaal*. Heeft het apparaat een
+route met een doorvoertest, dan staat de gemeten doorvoer erbij.
+
+### Melding
+
+Een melding is niet nodig om het overzicht te gebruiken, maar je kunt hem per route aanzetten bij *Routes beheren →
+Melding*. Je krijgt dan één melding als een link terugvalt, het doel onbereikbaar is of de smalste schakel onder de
+grens zakt die je invulde, en één melding als het weer in orde is. De melding gaat via je gewone kanalen; welke dat
+zijn, stel je in bij *Instellingen → Meldingen en rapporten → Systeemmeldingen → Netwerksnelheid*.
+
+### Op het dashboard
+
+Op het dashboard staat de tegel **Netwerksnelheid**: download en upload van je internetlijn en de ping, of hoeveel
+aandachtspunten er zijn. Klik erop om naar de pagina te gaan.
 
 ## Zie ook
 

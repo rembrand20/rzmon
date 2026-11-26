@@ -2260,6 +2260,93 @@ q('DELETE FROM users WHERE id = ?', [$raUid]);
 $_SERVER['REMOTE_ADDR'] = $raSave[0]; $_SERVER['HTTP_USER_AGENT'] = $raSave[1];
 save_setting('ids_geo_allowed', $raSave[2]); save_setting('stealth_requests', $raSave[3]);
 
+section('Netwerksnelheid (1.328.0)');
+$nsMtr = NetSpeed::parseMtr("Start: 2026-11-26\nHOST: rz                Loss%   Snt   Last   Avg  Best  Wrst StDev\n  1.|-- 192.168.1.1   0.0%     5    0.5   0.6   0.4   0.9   0.1\n  2.|-- ???          100.0     5    0.0   0.0   0.0   0.0   0.0\n  3.|-- 1.1.1.1      0.0%     5    7.9   7.8   7.1   8.9   0.6\n");
+ok(count($nsMtr) === 3 && $nsMtr[0]['ip'] === '192.168.1.1' && $nsMtr[0]['avg'] == 0.6 && $nsMtr[1]['ip'] === '' && $nsMtr[1]['avg'] === null && $nsMtr[2]['loss'] == 0.0,
+    'mtr-rapport gelezen: hop, verlies en vertraging; ??? = geen antwoord');
+$nsTr = NetSpeed::parseTraceroute("traceroute to 1.1.1.1 (1.1.1.1), 20 hops max\n 1  192.168.1.1  0.512 ms  0.433 ms  0.401 ms\n 2  * * *\n 3  * 84.116.200.1  3.1 ms  2.9 ms\n");
+ok(count($nsTr) === 3 && $nsTr[0]['ip'] === '192.168.1.1' && abs($nsTr[0]['avg'] - 0.449) < 0.01 && $nsTr[1]['loss'] == 100.0 && $nsTr[2]['ip'] === '84.116.200.1' && $nsTr[2]['loss'] > 30,
+    'traceroute gelezen: tijden, sterretjes als verlies, het IP ook na een sterretje');
+ok(NetSpeed::idxMac('0.17.50.1.2.3') === '00:11:32:01:02:03' && NetSpeed::idxMac('1.0.17.50.1.2.3') === '00:11:32:01:02:03' && NetSpeed::idxMac('1.2.3') === null,
+    'MAC uit de index van de MAC-tabel (ook met VLAN ervoor)');
+// De standaardroute, één keer
+NetSpeed::seed();
+$nsR = NetSpeed::routes();
+ok(count(array_filter($nsR, static fn($r) => $r['src'] === 'RzSense' && $r['dst_kind'] === 'internet')) >= 1, 'standaardroute RzSense → Internet');
+// Een route vanaf een server met de agent: een eigen pad-check, alleen informatief
+q("INSERT INTO hosts (name, address, mode) VALUES ('ns-bron', '198.51.100.61', 'agent'), ('ns-nas', '198.51.100.62', 'agent'), ('ns-switch', '10.99.0.2', 'remote'), ('ns-router', '10.99.0.1', 'remote')");
+$nsH = q("SELECT name, id FROM hosts WHERE name LIKE 'ns-%'")->fetchAll(PDO::FETCH_KEY_PAIR);
+$nsId = NetSpeed::save(['src_host_id' => $nsH['ns-bron'], 'dst_kind' => 'host', 'dst_host_id' => $nsH['ns-nas'], 'tp' => true, 'every_sec' => 21600], 'test');
+$nsRow = q('SELECT * FROM speed_routes WHERE id = ?', [$nsId])->fetch();
+$nsC = q('SELECT * FROM checks WHERE id = ?', [(int) $nsRow['check_id']])->fetch();
+$nsO = json_decode((string) ($nsC['options'] ?? ''), true) ?: [];
+ok($nsC && $nsC['type'] === 'path' && (int) $nsC['host_id'] === (int) $nsH['ns-bron'] && (int) $nsC['info_only'] === 1 && $nsC['target'] === '198.51.100.62'
+    && !empty($nsO['tp']) && (int) $nsO['tp_host'] === (int) $nsH['ns-nas'] && Paths::opts($nsC)['tp_every'] === 21600, 'route vanaf een agent: pad-check (alleen info) met doorvoertest naar het doel, elke 6 uur');
+$nsErr = static function (array $in): bool {
+    try {
+        NetSpeed::save($in, 'test');
+        return false;
+    } catch (InvalidArgumentException) {
+        return true;
+    }
+};
+ok($nsErr(['src_host_id' => $nsH['ns-switch'], 'dst_kind' => 'internet']) && $nsErr(['dst_kind' => 'addr', 'dst_addr' => '-x; rm']) && $nsErr(['src_host_id' => $nsH['ns-nas'], 'dst_kind' => 'host', 'dst_host_id' => $nsH['ns-nas']]),
+    'route: bron moet RzSense of een agent zijn, een geldig adres, bron en doel niet hetzelfde');
+ok(NetSpeed::delete($nsId, 'test') && !q('SELECT 1 FROM checks WHERE id = ?', [(int) $nsRow['check_id']])->fetchColumn(), 'route verwijderd: de pad-check gaat mee');
+// Doorvoertest vanaf RzSense: de aanvraag bij het doel blijft staan na een rapport van dat doel
+q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'speedreq:7', '{}', NOW() - INTERVAL 1 HOUR)", [$nsH['ns-nas']]);
+Paths::cleanAgentData((int) $nsH['ns-nas'], now());
+ok((bool) q("SELECT 1 FROM agent_data WHERE host_id = ? AND metric = 'speedreq:7'", [$nsH['ns-nas']])->fetchColumn(), 'doorvoertest vanaf RzSense: de aanvraag bij het doel blijft staan (agent start de ontvanger)');
+// De keten vanaf RzSense, met SNMP van een switch en de router, en de snelheidstest
+q("DELETE FROM net_devices WHERE ip IN ('10.99.0.1', '10.99.0.20')");
+q("INSERT INTO net_devices (mac, ip, kind, status, first_seen, last_seen) VALUES ('02:00:00:00:00:01', '10.99.0.1', 'router', 'known', NOW(), NOW())");
+$nsPut = static fn($h, $v) => q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'speed_snmp', ?, NOW()) ON DUPLICATE KEY UPDATE value = VALUES(value)", [$h, json_encode($v)]);
+$nsPut($nsH['ns-switch'], ['at' => time(), 'if' => ['5' => ['n' => 'Port 5', 'a' => '', 's' => 100, 'up' => true, 'e' => 3], '1' => ['n' => 'Port 1', 'a' => '', 's' => 1000, 'up' => true, 'e' => 0]],
+    'fdb' => ['02:00:00:00:00:20' => '5', '02:00:00:00:00:01' => '1'], 'max' => ['5' => 1000, '1' => 1000]]);
+$nsPut($nsH['ns-router'], ['at' => time(), 'if' => ['2' => ['n' => 'wan', 'a' => '', 's' => 1000, 'up' => true, 'e' => 0]], 'fdb' => [], 'max' => ['2' => 1000]]);
+q('INSERT INTO inet_speed (at, down, up, lat, mb_down, mb_up, colo, err) VALUES (NOW(), 900, 40, 8, 100, 20, \'AMS\', NULL)');
+(new ReflectionProperty(Internet::class, 'lastRow'))->setValue(null, null);
+$nsSave = [setting('inet_down', '1000'), setting('inet_up', '1000')];
+save_setting('inet_down', '1000');
+save_setting('inet_up', '100');
+$nsD = ['at' => time(), 'tool' => 'mtr', 'dst' => '1.1.1.1', 'dev' => 'eth0', 'src' => '10.99.0.20', 'gw' => '10.99.0.1', 'speed' => 1000, 'virt' => '', 'mac' => '02:00:00:00:00:20', 'via' => [], 'lldp' => null,
+    'hops' => [['n' => 1, 'ip' => '10.99.0.1', 'loss' => 0, 'avg' => 0.6, 'best' => 0.4, 'worst' => 0.9, 'jit' => 0.1], ['n' => 2, 'ip' => '84.116.200.1', 'loss' => 0, 'avg' => 3.0, 'best' => 2.5, 'worst' => 3.4, 'jit' => 0.3]],
+    'ping' => ['ip' => '1.1.1.1', 'loss' => 0, 'avg' => 7.8, 'best' => 7.1, 'worst' => 8.9, 'jit' => 0.6]];
+$nsRoute = ['id' => 0, 'name' => '', 'src_host_id' => null, 'dst_kind' => 'internet', 'dst_host_id' => null, 'dst_addr' => '', 'check_id' => null, 'tp' => 1, 'every_sec' => 3600,
+    'notify' => 0, 'notify_min' => 500, 'wan_if' => null, 'last_data' => json_encode(['d' => $nsD, 'max' => ['nic' => 1000]]), 'last_tp' => null, 'last_state' => null];
+$nsCh = NetSpeed::chain($nsRoute);
+$nsK = array_column($nsCh['nodes'], 'k');
+ok($nsK[0] === 'src' && $nsK[1] === 'switch' && end($nsK) === 'net' && $nsCh['nodes'][1]['name'] === 'ns-switch', 'keten: de switch uit de MAC-tabel (SNMP) staat tussen de bron en de router');
+ok($nsCh['links'][0]['spd'] == 100 && $nsCh['links'][0]['spd_src'] === 'snmp' && $nsCh['links'][0]['err'] === 3 && $nsCh['links'][0]['st'] === 'w',
+    'keten: de poort van de switch op 100 Mbit (was 1 Gbit) = de snelheid van die lijn, met fouten en oranje');
+$nsLast = end($nsCh['links']);
+ok($nsLast['down'] == 900 && $nsLast['up'] == 40, 'keten: de laatste lijn heeft de snelheidstest (↓ 900 / ↑ 40)');
+$nsKeys = array_column($nsCh['problems'], 'k');
+ok(in_array('inet_up', $nsKeys, true) && in_array('min', $nsKeys, true) && count(array_filter($nsKeys, static fn($k) => str_starts_with($k, 'fall:'))) >= 1
+    && $nsCh['verdict']['st'] === 'w', 'keten: aandachtspunten: upload onder je abonnement, een poort die terugviel, smalste schakel onder de grens');
+ok(str_contains(implode(' ', array_column($nsCh['problems'], 't')), '100 Mbit'), 'keten: de smalste schakel is de switchpoort van 100 Mbit (onder de 500)');
+save_setting('inet_down', $nsSave[0]);
+save_setting('inet_up', $nsSave[1]);
+q("DELETE FROM inet_speed WHERE colo = 'AMS' AND mb_down = 100");
+(new ReflectionProperty(Internet::class, 'lastRow'))->setValue(null, null);
+// Wifi van een apparaat met de agent
+NetSpeed::fromAgent(['id' => $nsH['ns-bron']], ['wifi' => ['ssid' => "Thuis\x01", 'bssid' => '3C-84-6A-11-22-31', 'if' => 'wlan0;x', 'band' => '9', 'chan' => 36, 'width' => 80, 'sig' => -78, 'tx' => 866.7, 'rx' => 'x', 'std' => 'ac']]);
+$nsW = json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'wifi'", [$nsH['ns-bron']])->fetchColumn(), true) ?: [];
+ok(($nsW['ssid'] ?? '') === 'Thuis' && ($nsW['bssid'] ?? '') === '3c:84:6a:11:22:31' && ($nsW['band'] ?? '') === '5' && array_key_exists('rx', $nsW) && $nsW['rx'] === null && ($nsW['if'] ?? '') === 'wlan0x',
+    'wifi van de agent opgeslagen en netjes gemaakt (band uit het kanaal, rare waarden weg)');
+$nsWf = NetSpeed::wifi(7);
+$nsAp = array_values(array_filter($nsWf['aps'], static fn($a) => str_starts_with((string) $a['mac'], '3c:84:6a:11:22')));
+ok($nsAp && $nsAp[0]['src'] === 'agent' && $nsAp[0]['clients'][0]['name'] === 'ns-bron' && $nsAp[0]['clients'][0]['weak'] && $nsAp[0]['clients'][0]['rate'] === 867 && $nsAp[0]['weak'] === 1,
+    'wifi per access point (op het BSSID): het apparaat, zijn snelheid en zwak signaal');
+// UniFi (voorbereid)
+$nsU = NetLinks::unifiWifiParse([['mac' => 'AA:BB:CC:00:00:01', 'type' => 'uap', 'name' => 'AP Zolder', 'uplink' => ['type' => 'wireless', 'speed' => 300, 'uplink_mac' => 'aa:bb:cc:00:00:02'], 'radio_table' => [['radio' => 'na', 'channel' => 36, 'ht' => 80]]],
+    ['mac' => 'aa:bb:cc:00:00:02', 'type' => 'uap', 'name' => 'AP Woonkamer']], [['mac' => '11:22:33:44:55:66', 'ap_mac' => 'aa:bb:cc:00:00:01', 'hostname' => 'pc', 'radio' => 'na', 'signal' => -61, 'tx_rate' => 433300, 'rx_rate' => 390000, 'channel' => 36],
+    ['mac' => '11:22:33:44:55:67', 'is_wired' => true, 'sw_mac' => 'aa:bb:cc:00:00:09']]);
+ok(count($nsU['aps']) === 2 && $nsU['aps']['aa:bb:cc:00:00:01']['uplink']['mesh'] && $nsU['aps']['aa:bb:cc:00:00:01']['uplink']['to_name'] === 'AP Woonkamer'
+    && count($nsU['clients']) === 1 && $nsU['clients'][0]['tx'] == 433.3 && $nsU['clients'][0]['band'] === '5', 'UniFi-wifi gelezen: access points (mesh en waar naartoe) en wifi-apparaten (geen bekabelde)');
+q("DELETE FROM net_devices WHERE ip = '10.99.0.1'");
+q("DELETE FROM hosts WHERE name LIKE 'ns-%'");
+
 section('Aan de slag (1.323.0)');
 $obSave = [setting('onboard_profile', ''), setting('onboard_done', '0'), setting('onboard_mail_ok', '0'), setting('email_enabled', '0')];
 save_setting('onboard_profile', 'bestaat-niet');

@@ -107,8 +107,8 @@ final class Internet
             'jitter' => count($times) > 1 ? $jit / (count($times) - 1) : 0.0, 'sent' => max(1, (int) (preg_match('/(\d+) packets transmitted/', $out, $s) ? $s[1] : 5))];
     }
 
-    /** Een paar adressen tegelijk pingen (5 keer, binnen ~2 seconden) */
-    private static function pingMany(array $targets): array
+    /** Een paar adressen tegelijk pingen (5 keer, binnen ~2 seconden). 1.328.0: ook voor Netwerksnelheid */
+    public static function pingMany(array $targets): array
     {
         $bin = (string) config('ping_bin', '/bin/ping');
         $procs = [];

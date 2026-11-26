@@ -361,6 +361,7 @@ Met **＋ Check → Pad (traceroute)** meet de agent het pad van die server naar
 - **Installeren:** `sudo apt install mtr-tiny iperf3` (Debian/Ubuntu) of `sudo dnf install mtr iperf3` (Rocky/RHEL).
 - **Melding bij:** te veel vertraging of verlies naar het doel, een tussenliggend apparaat dat niet reageert (CRITICAL), een linksnelheid die zakt (vaak een slechte kabel) en doorvoer onder de grens. Verlies bij een tussenhop van je provider telt niet zolang de hops erna niets verliezen.
 - **Zien:** in de popup van de check en op *Monitoring → Netwerkpaden* (zie [Netwerk](10-netwerk.md)).
+- **Netwerksnelheid:** een route op *Netwerk → Netwerksnelheid* vanaf deze server maakt zelf zo'n pad-check (alleen informatief). Heeft de server wifi en staat `iw` erop, dan meldt de agent ook zijn wifi: band, kanaal, signaal en verbindingssnelheid (zie [Netwerk](10-netwerk.md#netwerksnelheid)).
 
 ### Databases
 

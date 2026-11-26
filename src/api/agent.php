@@ -379,6 +379,7 @@ if ($action === 'agent') {
     // 1.177.0 (agent 1.78.0): pad-checks, doorvoer en de iperf3-ontvanger
     try {
         Paths::fromAgent($host, $in);
+        NetSpeed::fromAgent($host, $in);   // 1.328.0 (agent 1.122.0, Windows-agent 0.7.0): wifi van dit apparaat
         Db::fromAgent($host, $in, $now);   // 1.200.0 (agent 1.81.0): databases
     } catch (Throwable $e) {
         error_log('RzSense: pad-gegevens niet verwerkt: ' . $e->getMessage());

@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.328.0**: **Netwerksnelheid**: de snelheid van je netwerk en internet als keten van bron tot doel, met de smalste schakel, SNMP-poorten en de wifi per access point.
 - **1.327.0**: **Toegang aanvragen van buiten**: een onbekend apparaat vraagt met één knop toegang, jij krijgt een e-mail en staat het toe voor een bestaande of nieuwe gebruiker.
 - **1.326.0**: **Rustigere pop-ups**: één scrollbalk, kop en knoppen vast, en in het midden zo breed als de pagina.
 - **1.325.0**: **Vensters in het midden**: details en een site openen over de pagina heen; liever rechts kan bij Weergave.
 - **1.324.0**: **ClamAV: mappen per app**: per container zie je zijn mappen en waar ze in de app zitten, en voeg je een uploadmap met één klik toe.
-- **1.323.0**: **Aan de slag**: een wizard die je na de installatie op weg helpt (alleen advies), een checklist bij Status en functies, en een rondleiding voor gewone gebruikers.
+
+## 1.328.0 – 2026-11-26
+### Nieuw
+- **Netwerk → Netwerksnelheid.** Eén overzicht hoe snel je netwerk en je internetlijn zijn, als keten van de bron naar het doel (in de stijl van een traceroute). Per schakel zie je de vertraging, de linksnelheid (bijvoorbeeld *1 Gbit*), wat er echt gemeten is, fouten op de poort, waar het getal vandaan komt en het verloop van 7 of 30 dagen. Eén zin noemt de **smalste schakel**; is dat je internetlijn en haal je je abonnement, dan staat erbij dat het niet aan je eigen netwerk ligt. Bovenaan vier tegels: internet download en upload (in procent van je abonnement), ping en de doorvoer in je netwerk.
+- **Routes.** Standaard RzSense → Internet. Beheerders maken bij *Routes beheren* routes van RzSense of een server met de agent naar internet, een server of een adres, met een doorvoertest (iperf3) naar een server. Vanaf een agent maakt RzSense daarvoor een pad-check die alleen informeert. **▶ Nu meten** meet meteen, met een snelheidstest bij internet.
+- **SNMP vult de snelheden aan:** RzSense zoekt in de MAC-tabel van je switches op welke poort de bron zit (zo komt een switch in de keten die je in een traceroute niet ziet) en leest de snelheid en fouten van die poort, de poort richting de router en de WAN-poort van de router. Een poort die op een lagere snelheid draait dan eerder, wordt oranje.
+- **Wifi per access point:** laptops en pc's met de agent melden hun eigen wifi (band, kanaal, signaal, verbindingssnelheid), gegroepeerd per access point, met *zwak signaal* waar dat zo is. Met UniFi (voorbereid) alle access points, of ze bekabeld of via mesh hangen, en alle wifi-apparaten.
+- **Melding (optioneel):** per route aan te zetten: één melding als een link terugvalt, het doel onbereikbaar is of de smalste schakel onder je grens zakt, en één als het weer goed is (systeemmelding *Netwerksnelheid*).
+- **Dashboard:** de tegel *Netwerksnelheid* met internet ↓/↑ en de ping.
+- Nieuwe agent 1.122.0 en Windows-agent 0.7.0 (nodig voor de wifi van een apparaat; de rest werkt met de huidige agents).
 
 ## 1.327.0 – 2026-11-26
 ### Nieuw

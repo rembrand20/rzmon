@@ -339,6 +339,11 @@ switch ($action) {
 
     case 'home':   // 1.134.0: het Dashboard: alles samen (monitoring, IDS, CVE's, netwerk)
         $hd = Home::data(has_role($user, 'user'), (string) ($_GET['period'] ?? '7d'), !empty($_GET['fresh']));
+        try {
+            $hd['speed'] = NetSpeed::tile();   // 1.328.0: de tegel Netwerksnelheid
+        } catch (Throwable) {
+            $hd['speed'] = null;
+        }
         if (!empty($_GET['cc'])) {   // 1.154.0: het Command center (tweede dashboard)
             $hd['cc'] = CommandCenter::data((string) ($_GET['ccp'] ?? 'today'), mb_substr((string) ($_GET['seen'] ?? ''), 0, 30));
         }
@@ -528,6 +533,34 @@ switch ($action) {
 
     case 'net_approve_all':
         out(['ok' => true, 'n' => NetScan::approveAll($user['username'])]);
+
+    // 1.328.0: Netwerk → Netwerksnelheid
+    case 'speed':
+        $q = $_GET;
+        out(NetSpeed::view((int) ($q['id'] ?? 0), (int) ($q['days'] ?? 7)) + ['wifi' => NetSpeed::wifi((int) ($q['days'] ?? 7)), 'admin' => $isAdmin,
+            'hosts' => $isAdmin ? array_map(static fn($h) => ['id' => (int) $h['id'], 'name' => $h['name'], 'agent' => $h['mode'] === 'agent'],
+                q('SELECT id, name, mode FROM hosts WHERE enabled = 1 ORDER BY name')->fetchAll()) : [],
+            'local_agent' => NetSpeed::localAgent()['name'] ?? null]);
+
+    case 'speed_route_save':
+        try {
+            out(['ok' => true, 'id' => NetSpeed::save(input(), (string) $user['username'])]);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
+    case 'speed_route_delete':
+        NetSpeed::delete((int) (input()['id'] ?? 0), (string) $user['username']) ? out(['ok' => true]) : out(['error' => t('Niet gevonden')], 404);
+
+    case 'speed_measure':   // nu meten: het pad, de doorvoertest en bij internet de snelheidstest (tot ~60 seconden)
+        session_write_close();
+        ignore_user_abort(true);
+        @set_time_limit(180);
+        try {
+            out(['ok' => true, 'message' => NetSpeed::measureNow((int) (input()['id'] ?? 0))]);
+        } catch (InvalidArgumentException $e) {
+            out(['error' => $e->getMessage()], 404);
+        }
 
     case 'net_forget':
         NetScan::forget((int) (input()['id'] ?? 0), $user['username']) ? out(['ok' => true]) : out(['error' => t('Niet gevonden')], 404);

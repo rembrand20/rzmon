@@ -144,3 +144,18 @@ if ! python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); a=d["act"]; as
     echo "✘ logboek: regels niet (goed) meegestuurd, of na een geslaagd rapport niet weg"; ls -la "$work/cache" | grep act; exit 1
 fi
 echo "✔ logboek: wat de agent veranderde gaat mee met het rapport en is daarna weg (kapotte regels niet)"
+# Agent 1.122.0: wifi uit "iw dev <kaart> link" (de awk van de distributie telt mee): geldige JSON, ook met een
+# aanhalingsteken in de SSID; band, kanaal en breedte uit de frequentie en de bitrate; niet verbonden = leeg.
+eval "$(sed -n '/^wifi_parse() {/,/^}/p' agent/rzmon-agent.sh)"
+wf_a=$(printf 'Connected to 3c:84:6a:11:22:31 (on wlan0)\n\tSSID: Thuis "5G"\n\tfreq: 5180.0\n\tsignal: -52 dBm\n\trx bitrate: 780.0 MBit/s VHT-MCS 8 80MHz short GI VHT-NSS 2\n\ttx bitrate: 866.7 MBit/s VHT-MCS 9 80MHz short GI VHT-NSS 2\n' | wifi_parse wlan0)
+wf_b=$(printf 'Connected to aa:bb:cc:dd:ee:01 (on wlp2s0)\n\tSSID: Y\n\tfreq: 2437\n\tsignal: -71 dBm\n\ttx bitrate: 72.2 MBit/s MCS 7 short GI\n' | wifi_parse wlp2s0)
+wf_c=$(printf 'Not connected.\n' | wifi_parse wlan0)
+if ! python3 -c '
+import json, sys
+a, b = json.loads(sys.argv[1]), json.loads(sys.argv[2])
+assert a["ssid"] == "Thuis \"5G\"" and a["band"] == "5" and a["chan"] == 36 and a["width"] == 80 and a["sig"] == -52 and a["tx"] == 866.7 and a["rx"] == 780 and a["std"] == "ac", a
+assert b["band"] == "2.4" and b["chan"] == 6 and b["width"] is None and b["rx"] is None and b["std"] == "n", b
+assert sys.argv[3] == ""' "$wf_a" "$wf_b" "$wf_c"; then
+    echo "✘ wifi: uitvoer van iw niet goed gelezen: $wf_a | $wf_b | $wf_c"; exit 1
+fi
+echo "✔ wifi: SSID (ook met aanhalingsteken), band, kanaal, breedte, signaal en snelheid uit iw; niet verbonden = niets"

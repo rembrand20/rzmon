@@ -1968,3 +1968,47 @@ CREATE TABLE IF NOT EXISTS shelly_state (
     updated_at DATETIME     NOT NULL,
     CONSTRAINT fk_shelly_st FOREIGN KEY (check_id) REFERENCES checks(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.328.0: Netwerk → Netwerksnelheid. Een route meet van een bron (NULL = RzSense zelf) naar internet, een server of een adres.
+-- Vanaf een server met de agent loopt de meting via een eigen pad-check (check_id, alleen informatief).
+CREATE TABLE IF NOT EXISTS speed_routes (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name        VARCHAR(100) NOT NULL DEFAULT '',
+    src_host_id INT UNSIGNED NULL,
+    dst_kind    VARCHAR(10)  NOT NULL DEFAULT 'internet',
+    dst_host_id INT UNSIGNED NULL,
+    dst_addr    VARCHAR(253) NOT NULL DEFAULT '',
+    every_sec   INT UNSIGNED NOT NULL DEFAULT 3600,
+    tp          TINYINT(1)   NOT NULL DEFAULT 1,
+    notify      TINYINT(1)   NOT NULL DEFAULT 0,
+    notify_min  INT UNSIGNED NULL,
+    wan_if      VARCHAR(20)  NULL,
+    check_id    INT UNSIGNED NULL,
+    enabled     TINYINT(1)   NOT NULL DEFAULT 1,
+    last_run    DATETIME     NULL,
+    last_tp_at  DATETIME     NULL,
+    last_data   TEXT         NULL,
+    last_tp     TEXT         NULL,
+    last_state  VARCHAR(64)  NULL,
+    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_speed_src FOREIGN KEY (src_host_id) REFERENCES hosts(id) ON DELETE CASCADE,
+    CONSTRAINT fk_speed_dst FOREIGN KEY (dst_host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- Per meting van een route: per schakel vertraging, linksnelheid en gemeten doorvoer (35 dagen)
+CREATE TABLE IF NOT EXISTS speed_samples (
+    id       BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    route_id INT UNSIGNED NOT NULL,
+    at       DATETIME     NOT NULL,
+    data     TEXT         NOT NULL,
+    INDEX idx_speed_s (route_id, at),
+    CONSTRAINT fk_speed_s FOREIGN KEY (route_id) REFERENCES speed_routes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- Wifi van een apparaat met de agent (agent 1.122.0, Windows-agent 0.7.0): verbindingssnelheid en signaal (35 dagen)
+CREATE TABLE IF NOT EXISTS wifi_samples (
+    host_id INT UNSIGNED NOT NULL,
+    at      DATETIME     NOT NULL,
+    rate    INT UNSIGNED NULL,
+    sig     SMALLINT     NULL,
+    INDEX idx_wifi_s (host_id, at),
+    CONSTRAINT fk_wifi_s FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

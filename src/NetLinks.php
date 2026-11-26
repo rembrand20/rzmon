@@ -374,6 +374,72 @@ final class NetLinks
         return ['switches' => $sw, 'clients' => $cl, 'error' => null];
     }
 
+    /**
+     * 1.328.0 (Netwerksnelheid, voorbereid): access points met hun verbinding (kabel of mesh, snelheid) en per wifi-apparaat
+     * band, kanaal, signaal en verbindingssnelheid. Alleen met een lokaal account (stat/device en stat/sta).
+     * @return array{aps: array<string, array<string, mixed>>, clients: list<array<string, mixed>>, error?: string}|null
+     */
+    public static function unifiWifi(): ?array
+    {
+        if (!self::unifiOn() || !self::unifiAccount()) {
+            return null;
+        }
+        [$devs, $err] = self::unifiCall('stat/device');
+        if ($err) {
+            return ['aps' => [], 'clients' => [], 'error' => $err];
+        }
+        [$sta] = self::unifiCall('stat/sta');
+        return self::unifiWifiParse((array) $devs, (array) $sta);
+    }
+
+    /**
+     * @param array<int|string, mixed> $devs
+     * @param array<int|string, mixed> $sta
+     * @return array{aps: array<string, array<string, mixed>>, clients: list<array<string, mixed>>}
+     */
+    public static function unifiWifiParse(array $devs, array $sta): array
+    {
+        $band = static fn(string $r): string => match ($r) { 'ng' => '2.4', 'na' => '5', '6e' => '6', default => '' };
+        $names = [];
+        $aps = [];
+        foreach ($devs as $d) {
+            $mac = is_array($d) ? NetScan::normMac($d['mac'] ?? null) : null;
+            if (!$mac) {
+                continue;
+            }
+            $names[$mac] = mb_substr((string) ($d['name'] ?? $d['model'] ?? $mac), 0, 80);
+            if (($d['type'] ?? '') !== 'uap') {
+                continue;
+            }
+            $up = is_array($d['uplink'] ?? null) ? $d['uplink'] : [];
+            $radios = [];
+            foreach ((array) ($d['radio_table'] ?? []) as $rt) {
+                if (is_array($rt) && ($b = $band((string) ($rt['radio'] ?? ''))) !== '') {
+                    $radios[] = ['band' => $b, 'chan' => (int) ($rt['channel'] ?? 0) ?: null, 'width' => (int) ($rt['ht'] ?? 0) ?: null];
+                }
+            }
+            $aps[$mac] = ['name' => $names[$mac], 'mac' => $mac, 'model' => (string) ($d['model'] ?? ''), 'radios' => $radios,
+                'uplink' => ['mesh' => ($up['type'] ?? '') === 'wireless', 'speed' => (int) ($up['speed'] ?? 0) ?: null,
+                    'to' => NetScan::normMac($up['uplink_mac'] ?? null), 'port' => (int) ($up['uplink_remote_port'] ?? 0) ?: null]];
+        }
+        foreach ($aps as &$ap) {
+            $ap['uplink']['to_name'] = $ap['uplink']['to'] !== null ? ($names[$ap['uplink']['to']] ?? '') : '';
+        }
+        unset($ap);
+        $clients = [];
+        foreach ($sta as $c) {
+            if (!is_array($c) || !empty($c['is_wired']) || !($ap = NetScan::normMac($c['ap_mac'] ?? null))) {
+                continue;
+            }
+            $sig = isset($c['signal']) && is_numeric($c['signal']) ? (int) $c['signal'] : (isset($c['rssi']) && is_numeric($c['rssi']) ? (int) $c['rssi'] - 95 : null);
+            $clients[] = ['name' => mb_substr((string) (($c['name'] ?? '') !== '' ? $c['name'] : ($c['hostname'] ?? $c['mac'] ?? '?')), 0, 80), 'ip' => (string) ($c['ip'] ?? ''),
+                'ap' => $ap, 'ssid' => mb_substr((string) ($c['essid'] ?? ''), 0, 64), 'band' => $band((string) ($c['radio'] ?? '')), 'chan' => (int) ($c['channel'] ?? 0) ?: null,
+                'width' => null, 'sig' => $sig, 'tx' => isset($c['tx_rate']) ? round((float) $c['tx_rate'] / 1000, 1) : null,
+                'rx' => isset($c['rx_rate']) ? round((float) $c['rx_rate'] / 1000, 1) : null, 'std' => (string) ($c['radio_proto'] ?? '')];
+        }
+        return ['aps' => $aps, 'clients' => $clients];
+    }
+
     /** Client blokkeren of weer toelaten op het wifi (op MAC-adres). @return true|string */
     public static function unifiBlock(string $mac, bool $block): true|string
     {

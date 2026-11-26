@@ -597,6 +597,7 @@ function initNet() {
   $('#net-group').onchange = (e) => { try { localStorage.setItem('rzmon-net-group', e.target.value); } catch (ex) { /* niet erg */ } renderNet(); };
   $('#net-disc').onclick = ndClick;
   $('#net-map').onclick = nmClick;
+  initNetSpeed();   // 1.328.0
   setNetSub(netSub);
   $('#net-search').oninput = () => renderNet();
   $('#net-filter').onclick = (e) => { const b = e.target.closest('[data-nf]'); if (b) { netFilter = b.dataset.nf; renderNet(); } };
@@ -624,13 +625,15 @@ let ndData = null;
 let ndFilter = '';
 let ndPresKind = '';
 function setNetSub(s) {
-  netSub = ['disc', 'map'].includes(s) ? s : 'list';
+  netSub = ['disc', 'map', 'speed'].includes(s) ? s : 'list';
   try { localStorage.setItem('rzmon-net-sub', netSub); } catch (ex) { /* niet erg */ }
   $('#tab-net').classList.toggle('net-dc', netSub === 'disc');
   $('#tab-net').classList.toggle('net-mp', netSub === 'map');
+  $('#tab-net').classList.toggle('net-sp', netSub === 'speed');   // 1.328.0: Netwerksnelheid
   if (netSub === 'map') renderNetMap();
   $$('#net-tabs [data-nsub]').forEach((b) => { const on = b.dataset.nsub === netSub; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
   if (netSub === 'disc') withPageWait('net', ndLoad);
+  if (netSub === 'speed') withPageWait('net', nsLoad);
   crumbs();   // 1.199.0
 }
 async function ndLoad() {

@@ -660,7 +660,7 @@ wat je aangevinkt hebt, ook tijdens stille uren. Een kanaal dat helemaal uit sta
 | Beveiliging | Certificaat verloopt binnenkort · Datalek · Inlogpoging van buiten op een lokaal account · Niet-geautoriseerde verbinding |
 | Onzichtbaar van buiten | Geweigerd apparaat van buiten · Apparaat toegestaan of ingetrokken · Passkey aangemaakt of verwijderd · Noodlink aangevraagd of gebruikt |
 | IDS | Server geïsoleerd of opgeheven |
-| Netwerk | Nieuw apparaat op het netwerk · Ongewoon netwerkverkeer · Datalimiet internet bijna of helemaal op · Pad naar een doel gewijzigd |
+| Netwerk | Nieuw apparaat op het netwerk · Ongewoon netwerkverkeer · Datalimiet internet bijna of helemaal op · Pad naar een doel gewijzigd · Netwerksnelheid (als de route dat mag) |
 | Checks | Normaalwaarde stijgt sluipend · Drempels zelf aangepast · Melden na N zelf aangepast · Zelf hersteld · Waakhond · Trend · End-of-life · NIS2 |
 | Logs | Daglimiet van een server bereikt · Maximum bereikt · Vaste zoekactie te traag, uitgezet |
 | AI-advies | Samenvatting van een automatisch advies · Weekoverzicht · Tegoed of budget bijna op of op |

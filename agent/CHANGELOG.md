@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.122.0 – 2026-11-26
+- **Wifi:** heeft de server een verbonden wifi-kaart en staat `iw` erop, dan meldt de agent zijn wifi: wifi-netwerk, access point, band, kanaal, kanaalbreedte, Wi-Fi-standaard, signaal en verbindingssnelheid. RzSense 1.328.0 toont dat bij *Netwerk → Netwerksnelheid*.
+
 ## 1.121.0 – 2026-11-26
 - **Reverse proxy: knop "Toegang aanvragen".** Op de pagina *Geen toegang* van de site van RzSense staat nu een knop waarmee een onbekend apparaat toegang vraagt (RzSense 1.327.0). Op je andere sites staat de knop er niet. Het beleid wordt één keer opnieuw doorgevoerd.
 
