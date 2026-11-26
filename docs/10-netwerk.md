@@ -308,7 +308,10 @@ Onder de keten staat de wifi, per access point:
 
 - **Zonder UniFi** meldt elke laptop of pc met de agent (Linux of Windows) zijn eigen wifi: het wifi-netwerk, de band,
   het kanaal, de verbindingssnelheid en het signaal. RzSense groepeert ze per access point. Op Linux is daarvoor `iw`
-  nodig (`sudo apt install iw` of `sudo dnf install iw`).
+  nodig. Heeft een apparaat een wifi-kaart maar geen `iw`, dan laat RzSense de agent het zelf installeren (via apt of
+  dnf, zoals iperf3), als *commando's als root* aan staan voor dat apparaat. Lukt dat niet (bijvoorbeeld op TrueNAS of
+  Home Assistant), dan zie je dat onder de wifi, met hoe je het zelf installeert (`sudo apt install iw` of
+  `sudo dnf install iw`).
 - **Met UniFi** zie je alle access points, met hoe ze aan het netwerk hangen (kabel of mesh, met de snelheid), en per
   apparaat de snelheid en het signaal. De zwakste staan bovenaan.
 

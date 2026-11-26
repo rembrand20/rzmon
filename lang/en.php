@@ -12457,4 +12457,5 @@ return [
     'Via je gewone meldingskanalen (Systeemmeldingen → Netwerksnelheid). Staat standaard uit.' => 'Through your normal notification channels (System notifications → Network speed). Off by default.',
     'Route aan' => 'Route on',
     'Route {n} verwijderen? De metingen gaan ook weg.' => 'Delete route {n}? The measurements are removed too.',
+    '{h} heeft wifi, maar iw kon niet geïnstalleerd worden ({e}). Installeer het zelf: sudo apt install iw of sudo dnf install iw.' => '{h} has wifi, but iw could not be installed ({e}). Install it yourself: sudo apt install iw or sudo dnf install iw.',
 ];

@@ -8,11 +8,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.329.0**: **iw vanzelf installeren**: een Linux-apparaat met wifi maar zonder iw krijgt het van de agent, zodat zijn wifi bij Netwerksnelheid verschijnt.
 - **1.328.0**: **Netwerksnelheid**: de snelheid van je netwerk en internet als keten van bron tot doel, met de smalste schakel, SNMP-poorten en de wifi per access point.
 - **1.327.0**: **Toegang aanvragen van buiten**: een onbekend apparaat vraagt met één knop toegang, jij krijgt een e-mail en staat het toe voor een bestaande of nieuwe gebruiker.
 - **1.326.0**: **Rustigere pop-ups**: één scrollbalk, kop en knoppen vast, en in het midden zo breed als de pagina.
 - **1.325.0**: **Vensters in het midden**: details en een site openen over de pagina heen; liever rechts kan bij Weergave.
-- **1.324.0**: **ClamAV: mappen per app**: per container zie je zijn mappen en waar ze in de app zitten, en voeg je een uploadmap met één klik toe.
+
+## 1.329.0 – 2026-11-26
+### Nieuw
+- **iw vanzelf installeren:** heeft een Linux-apparaat met de agent een wifi-kaart maar geen `iw`, dan laat RzSense de agent `iw` installeren (via apt of dnf, met voortgang en een melding achteraf, zoals iperf3 bij de doorvoertest). Daarna verschijnt de wifi van dat apparaat bij *Netwerk → Netwerksnelheid*. Dat gebeurt alleen als *commando's als root* aan staan voor dat apparaat, niet op TrueNAS of Home Assistant, en hooguit eens per 12 uur. Lukt het niet, dan staat onder de wifi waarom en hoe je het zelf installeert.
+- Nieuwe agent 1.123.0 (nodig om een wifi-kaart zonder iw te melden).
 
 ## 1.328.0 – 2026-11-26
 ### Nieuw

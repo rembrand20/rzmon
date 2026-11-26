@@ -72,7 +72,7 @@ final class Paths
     public static function cleanAgentData(int $hostId, string $now): void
     {
         $keep = '^((path|pathtp|pathmax|pathreq):[0-9]+|speedreq:[0-9]+)$';   // 1.328.0: speedreq = doorvoertest van een route vanaf RzSense zelf
-        q("DELETE FROM agent_data WHERE host_id = ? AND updated_at < ? AND metric NOT REGEXP '$keep' AND metric NOT IN ('iperfs', 'selftest', 'selftest_req', 'iperf_inst', 'logscan', 'logbrowse', 'proxy', 'waf', 'av', 'av_full', 'nids', 'patch', 'heal_seen', 'relay')", [$hostId, $now]);   // 1.213.0: logscan komt maar één keer per dag mee; 1.281.3: updates (patch) komen eens per uur mee
+        q("DELETE FROM agent_data WHERE host_id = ? AND updated_at < ? AND metric NOT REGEXP '$keep' AND metric NOT IN ('iperfs', 'selftest', 'selftest_req', 'iperf_inst', 'iw_inst', 'logscan', 'logbrowse', 'proxy', 'waf', 'av', 'av_full', 'nids', 'patch', 'heal_seen', 'relay')", [$hostId, $now]);   // 1.213.0: logscan komt maar één keer per dag mee; 1.281.3: updates (patch) komen eens per uur mee
         $ids = array_map('intval', q("SELECT id FROM checks WHERE host_id = ? AND type = 'path'", [$hostId])->fetchAll(PDO::FETCH_COLUMN));
         foreach (q("SELECT metric FROM agent_data WHERE host_id = ? AND metric REGEXP '$keep'", [$hostId])->fetchAll(PDO::FETCH_COLUMN) as $m) {
             if (!str_starts_with((string) $m, 'speedreq:') && !in_array((int) substr((string) $m, strpos((string) $m, ':') + 1), $ids, true)) {

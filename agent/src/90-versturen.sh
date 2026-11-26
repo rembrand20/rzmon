@@ -8,7 +8,7 @@ boot_ts=0; [ "${boot_up%.*}" -gt 0 ] 2>/dev/null && boot_ts=$(( $(date +%s) - ${
 parts="processen=$(grep -o '\["' <<<"$proc_list" | wc -l) certificaatbestanden=$(grep -o '"path"' <<<"$cert_found" | wc -l) softwarelijst=$( [ -n "$pkgs_json" ] && echo ja || echo ongewijzigd) heartbeats=${#hb_files[@]} ids=$( [ -n "$ids_json" ] && echo ja || echo nee)"
 # Agent 1.69.0: wat deze agent hier kan (RzSense toont het in de Agent Manager en kiest er checks bij)
 caps=""
-for c_tool in podman docker zpool smartctl nvme auditctl nft upsc chronyc timedatectl systemctl apt-get dnf apk pveversion midclt mtr traceroute iperf3 lldpctl; do
+for c_tool in podman docker zpool smartctl nvme auditctl nft upsc chronyc timedatectl systemctl apt-get dnf apk pveversion midclt mtr traceroute iperf3 lldpctl iw; do
     command -v "$c_tool" >/dev/null 2>&1 && caps+="\"$c_tool\","
 done
 # Wachtrij (store-and-forward): metingen van rapporten die niet aankwamen gaan met dit rapport mee (hooguit 120)

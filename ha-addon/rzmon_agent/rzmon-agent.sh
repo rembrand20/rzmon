@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.122.0"
+AGENT_VERSION="1.123.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -6428,6 +6428,15 @@ if command -v iw >/dev/null 2>&1; then
         wifi_json=$(LC_ALL=C timeout 5 iw dev "$wf_i" link 2>/dev/null | wifi_parse "$wf_i")
         [ -n "$wifi_json" ] && break
     done
+else
+    # Agent 1.123.0: wel een wifi-kaart, maar geen iw: RzSense vraagt dan zelf om iw te installeren (zoals iperf3)
+    for wf_d in /sys/class/net/*; do
+        wf_i=${wf_d##*/}
+        if { [ -d "$wf_d/wireless" ] || [ -e "$wf_d/phy80211" ]; } && [[ "$wf_i" =~ ^[A-Za-z0-9_.-]{1,15}$ ]]; then
+            wifi_json="{\"noiw\":1,\"if\":\"$wf_i\"}"
+            break
+        fi
+    done
 fi
 # ---------------------------------------------------------------- Diagnose voor AI-advies (agent 1.76.0)
 # Op verzoek van RzSense (regel "0 <tab> diag <tab> id <tab> soort <tab> doel" in de lijst) bij een storing: een VASTE set
@@ -6598,7 +6607,7 @@ boot_ts=0; [ "${boot_up%.*}" -gt 0 ] 2>/dev/null && boot_ts=$(( $(date +%s) - ${
 parts="processen=$(grep -o '\["' <<<"$proc_list" | wc -l) certificaatbestanden=$(grep -o '"path"' <<<"$cert_found" | wc -l) softwarelijst=$( [ -n "$pkgs_json" ] && echo ja || echo ongewijzigd) heartbeats=${#hb_files[@]} ids=$( [ -n "$ids_json" ] && echo ja || echo nee)"
 # Agent 1.69.0: wat deze agent hier kan (RzSense toont het in de Agent Manager en kiest er checks bij)
 caps=""
-for c_tool in podman docker zpool smartctl nvme auditctl nft upsc chronyc timedatectl systemctl apt-get dnf apk pveversion midclt mtr traceroute iperf3 lldpctl; do
+for c_tool in podman docker zpool smartctl nvme auditctl nft upsc chronyc timedatectl systemctl apt-get dnf apk pveversion midclt mtr traceroute iperf3 lldpctl iw; do
     command -v "$c_tool" >/dev/null 2>&1 && caps+="\"$c_tool\","
 done
 # Wachtrij (store-and-forward): metingen van rapporten die niet aankwamen gaan met dit rapport mee (hooguit 120)

@@ -122,6 +122,7 @@ function nsWifiHtml(w) {
   }).join('');
   return `<div class="card ns-card"><h2>📶 ${esc(L('Wifi per access point'))}</h2><p class="muted small">${esc(sub)}</p>
     ${list || `<p class="muted">${esc(L('Nog geen wifi-gegevens. Een laptop of pc met de agent (Linux of Windows) meldt hier zijn eigen wifi.'))}</p>`}
+    ${(w.no_iw || []).map((x) => `<p class="muted small">💡 ${esc(L('{h} heeft wifi, maar iw kon niet geïnstalleerd worden ({e}). Installeer het zelf: sudo apt install iw of sudo dnf install iw.', { h: x.name, e: x.err }))}</p>`).join('')}
     ${w.unifi ? '' : `<div class="ns-empty">🔌 <b>${esc(L('Alle access points en wifi-apparaten zien?'))}</b> ${esc(L('Koppel UniFi bij Instellingen → Agents en koppelingen → UniFi. Dan komen hier ook de bekabeling of mesh van elk access point en de snelheid en het signaal van elk apparaat.'))}</div>`}
   </div>`;
 }

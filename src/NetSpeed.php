@@ -1139,6 +1139,10 @@ final class NetSpeed
             return;
         }
         $w = $in['wifi'];
+        if (!empty($w['noiw'])) {
+            self::ensureIw((int) $host['id']);   // agent 1.123.0: wifi-kaart zonder iw
+            return;
+        }
         $num = static fn($v, float $lo, float $hi): ?float => is_numeric($v) && (float) $v >= $lo && (float) $v <= $hi ? round((float) $v, 1) : null;
         $d = ['ssid' => mb_substr((string) preg_replace('/[\x00-\x1f]/u', '', (string) ($w['ssid'] ?? '')), 0, 64), 'bssid' => NetScan::normMac((string) ($w['bssid'] ?? '')),
             'if' => mb_substr((string) preg_replace('/[^\w.@ -]/u', '', (string) ($w['if'] ?? '')), 0, 40), 'band' => in_array((string) ($w['band'] ?? ''), ['2.4', '5', '6'], true) ? (string) $w['band'] : '',
@@ -1152,11 +1156,35 @@ final class NetSpeed
             return;
         }
         self::aput((int) $host['id'], 'wifi', $d);
+        self::aput((int) $host['id'], 'iw_inst', null);   // iw is er (weer): geen oude foutmelding meer
         $rate = max((float) ($d['tx'] ?? 0), (float) ($d['rx'] ?? 0));
         $lastAt = (int) q('SELECT UNIX_TIMESTAMP(MAX(at)) FROM wifi_samples WHERE host_id = ?', [$host['id']])->fetchColumn();
         if ($lastAt < time() - self::SAMPLE_GAP) {
             q('INSERT INTO wifi_samples (host_id, at, rate, sig) VALUES (?, NOW(), ?, ?)', [$host['id'], $rate > 0 ? (int) round($rate) : null, $d['sig']]);
         }
+    }
+
+    /**
+     * 1.329.0: iw laten installeren door de agent (zoals iperf3 bij de doorvoertest): via apt of dnf, als root, met voortgang
+     * en een melding achteraf. Niet bij Home Assistant, TrueNAS of zonder commando's als root, niet terwijl er al iets
+     * loopt, en hooguit eens per 12 uur per apparaat. Uit te zetten met de instelling iw_install.
+     */
+    public static function ensureIw(int $hostId): bool
+    {
+        if (setting('iw_install', '1') !== '1') {
+            return false;
+        }
+        $h = q('SELECT * FROM hosts WHERE id = ?', [$hostId])->fetch();
+        if (!$h || $h['mode'] !== 'agent' || !empty($h['vuln_upgrade_req']) || Vulns::upgradeBlocked($h)) {
+            return false;
+        }
+        $m = self::adata($hostId, 'iw_inst');
+        if ($m && (int) ($m['at'] ?? 0) > time() - 43200) {
+            return false;
+        }
+        $r = Vulns::requestInstall($h, ['iw'], 'RzSense (wifi)', true);
+        self::aput($hostId, 'iw_inst', ['at' => time(), 'err' => $r === true ? '' : (string) $r]);
+        return $r === true;
     }
 
     /** dBm naar 0–4 streepjes */
@@ -1253,7 +1281,15 @@ final class NetSpeed
             $ap['weak'] = count(array_filter($ap['clients'], static fn($c) => $c['weak']));
         }
         unset($ap);
-        return ['aps' => array_values($aps), 'unifi' => NetLinks::unifiOn(), 'agents' => count($agents)];
+        // 1.329.0: apparaten met een wifi-kaart waar iw niet geïnstalleerd kon worden
+        $noIw = [];
+        foreach (q("SELECT h.name, a.value FROM agent_data a JOIN hosts h ON h.id = a.host_id WHERE a.metric = 'iw_inst'")->fetchAll() as $r) {
+            $x = json_decode((string) $r['value'], true);
+            if (is_array($x) && ($x['err'] ?? '') !== '') {
+                $noIw[] = ['name' => (string) $r['name'], 'err' => (string) $x['err']];
+            }
+        }
+        return ['aps' => array_values($aps), 'unifi' => NetLinks::unifiOn(), 'agents' => count($agents), 'no_iw' => $noIw];
     }
 
     /** Naam bij een BSSID: een apparaat uit de netwerkscan met (bijna) hetzelfde MAC-adres, anders "Access point" + het begin */

@@ -220,4 +220,13 @@ if command -v iw >/dev/null 2>&1; then
         wifi_json=$(LC_ALL=C timeout 5 iw dev "$wf_i" link 2>/dev/null | wifi_parse "$wf_i")
         [ -n "$wifi_json" ] && break
     done
+else
+    # Agent 1.123.0: wel een wifi-kaart, maar geen iw: RzSense vraagt dan zelf om iw te installeren (zoals iperf3)
+    for wf_d in /sys/class/net/*; do
+        wf_i=${wf_d##*/}
+        if { [ -d "$wf_d/wireless" ] || [ -e "$wf_d/phy80211" ]; } && [[ "$wf_i" =~ ^[A-Za-z0-9_.-]{1,15}$ ]]; then
+            wifi_json="{\"noiw\":1,\"if\":\"$wf_i\"}"
+            break
+        fi
+    done
 fi

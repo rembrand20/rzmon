@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.123.0 – 2026-11-26
+- **Wifi zonder iw:** heeft de server een wifi-kaart maar geen `iw`, dan meldt de agent dat. RzSense 1.329.0 laat de agent `iw` dan zelf installeren (via apt of dnf, zoals iperf3), zodat de wifi bij *Netwerk → Netwerksnelheid* verschijnt. `iw` staat nu ook in de lijst met hulpmiddelen die de agent meldt.
+
 ## 1.122.0 – 2026-11-26
 - **Wifi:** heeft de server een verbonden wifi-kaart en staat `iw` erop, dan meldt de agent zijn wifi: wifi-netwerk, access point, band, kanaal, kanaalbreedte, Wi-Fi-standaard, signaal en verbindingssnelheid. RzSense 1.328.0 toont dat bij *Netwerk → Netwerksnelheid*.
 

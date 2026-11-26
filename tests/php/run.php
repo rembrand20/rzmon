@@ -2344,6 +2344,16 @@ $nsU = NetLinks::unifiWifiParse([['mac' => 'AA:BB:CC:00:00:01', 'type' => 'uap',
     ['mac' => '11:22:33:44:55:67', 'is_wired' => true, 'sw_mac' => 'aa:bb:cc:00:00:09']]);
 ok(count($nsU['aps']) === 2 && $nsU['aps']['aa:bb:cc:00:00:01']['uplink']['mesh'] && $nsU['aps']['aa:bb:cc:00:00:01']['uplink']['to_name'] === 'AP Woonkamer'
     && count($nsU['clients']) === 1 && $nsU['clients'][0]['tx'] == 433.3 && $nsU['clients'][0]['band'] === '5', 'UniFi-wifi gelezen: access points (mesh en waar naartoe) en wifi-apparaten (geen bekabelde)');
+// Wifi-kaart zonder iw: RzSense laat de agent iw installeren (één keer per 12 uur)
+q("UPDATE hosts SET agent_version = '1.123.0', commands = 'root', vuln_upgrade_req = NULL WHERE id = ?", [$nsH['ns-nas']]);
+NetSpeed::fromAgent(['id' => $nsH['ns-nas']], ['wifi' => ['noiw' => 1, 'if' => 'wlan0']]);
+$nsReq = json_decode((string) q('SELECT vuln_upgrade_req FROM hosts WHERE id = ?', [$nsH['ns-nas']])->fetchColumn(), true) ?: [];
+ok(($nsReq['pkgs'] ?? []) === ['iw'] && ($nsReq['mode'] ?? '') === 'install' && !empty($nsReq['own']), 'wifi-kaart zonder iw: de agent krijgt de opdracht iw te installeren');
+q('UPDATE hosts SET vuln_upgrade_req = NULL WHERE id = ?', [$nsH['ns-nas']]);
+NetSpeed::fromAgent(['id' => $nsH['ns-nas']], ['wifi' => ['noiw' => 1, 'if' => 'wlan0']]);
+ok(q('SELECT vuln_upgrade_req FROM hosts WHERE id = ?', [$nsH['ns-nas']])->fetchColumn() === null, 'iw: niet opnieuw binnen 12 uur');
+Paths::cleanAgentData((int) $nsH['ns-nas'], date('Y-m-d H:i:s', time() + 5));
+ok((bool) q("SELECT 1 FROM agent_data WHERE host_id = ? AND metric = 'iw_inst'", [$nsH['ns-nas']])->fetchColumn(), 'iw: de aanvraag blijft onthouden na een rapport van de agent');
 q("DELETE FROM net_devices WHERE ip = '10.99.0.1'");
 q("DELETE FROM hosts WHERE name LIKE 'ns-%'");
 
