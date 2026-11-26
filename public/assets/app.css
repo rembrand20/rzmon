@@ -7005,3 +7005,28 @@ body.lg .tour-pop { background: var(--bg-2); }
 }
 @media (min-width: 761px) and (pointer: fine) and (prefers-reduced-motion: reduce) { body:not(.win-right) .al2-drawer { transition: none; } }
 body.no-anim:not(.win-right) .al2-drawer { transition: none; }
+
+/* ---------------------------------------------------------------- 1.326.0: pop-ups: één scrollbalk, kop en knoppen vast
+   Het venster zelf scrolt nooit: alleen het middenstuk (#modal-body). Titel, ✕, ← →, het pad en de knoppen onderaan blijven staan. */
+#modal { overflow: hidden; }
+#modal > .modal-inner { display: flex; flex-direction: column; max-height: calc(100vh - 2rem); min-height: 0; }
+#modal > .modal-inner > * { flex: none; }
+#modal > .modal-inner > #modal-body { flex: 1 1 auto; min-height: 0; max-height: none; overflow: auto; }
+#modal.drawer > .modal-inner { max-height: 100vh; height: 100%; }
+#modal.page > .modal-inner { max-height: calc(100vh - 1.5rem); }
+#modal.upd-modal > .modal-inner { max-height: min(88vh, 860px); }
+/* binnenin geen tweede scrollvlak (stukken van een pagina in het paneel) */
+#modal-body :is(.al2-db, .in-panel .table-scroll) { max-height: none; }
+/* een dunne scrollbalk in de kleuren van het thema, alleen in pop-ups */
+:is(#modal-body, .wz-body, .wz-nav, .al2-drawer .al2-db, .av-apps) { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text) 28%, transparent) transparent; }
+:is(#modal-body, .wz-body, .wz-nav, .al2-drawer .al2-db, .av-apps)::-webkit-scrollbar { width: 8px; height: 8px; }
+:is(#modal-body, .wz-body, .wz-nav, .al2-drawer .al2-db, .av-apps)::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text) 28%, transparent); border-radius: 99px; }
+:is(#modal-body, .wz-body, .wz-nav, .al2-drawer .al2-db, .av-apps)::-webkit-scrollbar-track { background: transparent; }
+
+/* Vensters in het midden: zo breed als de inhoud van de pagina en precies daarboven (de zijbalk blijft links zichtbaar) */
+@media (min-width: 761px) and (pointer: fine) {
+  body:not(.win-right) #modal.drawer, body:not(.win-right) #modal.drawer.detail {
+    width: var(--pop-w, min(860px, calc(100vw - 2rem))); margin: auto auto auto var(--pop-l, auto); }
+  body:not(.win-right) .al2-drawer { left: var(--pop-l, 50%); width: var(--pop-w, min(780px, calc(100vw - 2rem))); transform: translate(0, -48%) scale(.99); }
+  body:not(.win-right) .al2-drawer.on { transform: translate(0, -50%); }
+}

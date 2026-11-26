@@ -8,11 +8,16 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.326.0**: **Rustigere pop-ups**: één scrollbalk, kop en knoppen vast, en in het midden zo breed als de pagina.
 - **1.325.0**: **Vensters in het midden**: details en een site openen over de pagina heen; liever rechts kan bij Weergave.
 - **1.324.0**: **ClamAV: mappen per app**: per container zie je zijn mappen en waar ze in de app zitten, en voeg je een uploadmap met één klik toe.
 - **1.323.0**: **Aan de slag**: een wizard die je na de installatie op weg helpt (alleen advies), een checklist bij Status en functies, en een rondleiding voor gewone gebruikers.
 - **1.322.0**: **Lay-out Default**: rustig en kaal, met één zin hoe het ervoor staat en de servers als rijen; vervangt Blox en werkt met elk thema.
-- **1.321.0**: **Shelly's bewaken**: stroom, oververhitting en afwijkingen van het normale verbruik, rechtstreeks uitgelezen.
+
+## 1.326.0 – 2026-11-26
+### Nieuw
+- **Pop-ups: één scrollbalk, kop en knoppen vast.** In elk venster scrolt alleen het middenstuk, met één dunne scrollbalk in de kleuren van het thema. De titel, ✕, ← → en de knoppen onderaan blijven staan. Het venster zelf scrolt nooit meer mee (dat gaf soms twee scrollbalken naast elkaar).
+- **Vensters in het midden zo breed als de pagina.** Het detailpaneel en een site bij *Reverse proxy* staan nu precies boven de inhoud van de pagina, even breed, met de zijbalk links nog zichtbaar.
 
 ## 1.325.2 – 2026-11-26
 ### Opgelost

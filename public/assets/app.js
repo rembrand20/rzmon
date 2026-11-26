@@ -5971,6 +5971,21 @@ function initCmdk() {
  * ze op: na een paar keer openen deed één klik het twee keer, of voor een andere server.
  */
 let modalGen = 0, modalAC = null, pairTok = 0;
+/**
+ * 1.326.0: een venster in het midden staat precies boven de inhoud van de pagina (zelfde breedte en plek, de zijbalk blijft
+ * zichtbaar); hooguit het scherm min een rand, minstens 680 px. Zet --pop-l en --pop-w (gebruikt door de CSS).
+ */
+function modalFit() {
+  const m = document.querySelector('main.container');
+  if (!m || !m.getBoundingClientRect().width) return;
+  const r = m.getBoundingClientRect(), W = window.innerWidth;
+  const w = Math.round(Math.min(W - 32, Math.max(680, r.width)));
+  const l = Math.round(Math.min(Math.max(16, r.left), W - w - 16));
+  document.documentElement.style.setProperty('--pop-w', w + 'px');
+  document.documentElement.style.setProperty('--pop-l', l + 'px');
+}
+window.addEventListener('resize', modalFit, { passive: true });
+setTimeout(modalFit, 0);
 const modalSignal = () => (modalAC || (modalAC = new AbortController())).signal;
 function modal({ title, body, buttons = [], wide = false, page = false, drawer = false, split = false, onSubmit, isDetail = false }) {
   const dlg = $('#modal');
@@ -5993,6 +6008,7 @@ function modal({ title, body, buttons = [], wide = false, page = false, drawer =
   dlg.classList.remove('upd-modal');   // 1.204.0: alleen de bijwerk-vensters
   dlg.classList.toggle('page', page);   // 1.121.0: als pagina (bijna het hele scherm), bv. de Agent Manager
   dlg.classList.toggle('drawer', drawer);   // 1.296.0: als zijpaneel rechts (bv. een site op de pagina Reverse proxy)
+  if (drawer) modalFit();   // 1.326.0: in het midden: boven de inhoud van de pagina
   dlg.classList.toggle('split', split);
   document.body.classList.toggle('split-open', split);
   $('#modal-title').textContent = title;
@@ -14065,6 +14081,7 @@ async function al2Open(aid) {
   if (row) row.classList.add('al2-sel');
   al2MarkSeen(it);
   const d = al2Drawer(), a = it.first, k = it.k;
+  if (typeof modalFit === 'function') modalFit();   // 1.326.0
   const { host, check } = alertCols(a);
   const t0 = a.created_at, t1 = it.rec ? it.rec.created_at : null;
   const sub = it.ep ? (t1 ? L('{from} → hersteld {to} ({d})', { from: fmtDateTime(t0), to: t1.slice(11, 16), d: al2Dur(al2Ts(t1) - al2Ts(t0)) })

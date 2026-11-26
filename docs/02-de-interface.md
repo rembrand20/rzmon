@@ -243,7 +243,9 @@ erachter als knopje (*CRITICAL ✕* of *2 filters ✕*); een klik haalt het filt
 dan zie je in het kruimelpad een teller (*IDS laden · 0,8 s*).
 
 **Detailpaneel.** Klik je op een item (een server, check, incident, IDS-treffer, apparaat, logregel, container, advies,
-melding, regel van het Logboek …), dan openen de details in een **venster in het midden** over de pagina. Een site
+melding, regel van het Logboek …), dan openen de details in een **venster over de pagina**, precies zo breed als de
+inhoud van de pagina (de zijbalk blijft links zichtbaar). Alleen het middenstuk scrolt; de titel en de knoppen onderaan
+blijven staan. Een site
 op *Reverse proxy* opent op dezelfde manier. Liever een **paneel rechts**, zoals vroeger? Kies bij *Mijn account →
 Weergave → Vensters* **Rechts**. Knoppen in een rij (✔ Bevestig, 🔧, ＋) doen meteen wat ze zeggen, zonder venster.
 

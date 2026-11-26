@@ -97,6 +97,7 @@ async function al2Open(aid) {
   if (row) row.classList.add('al2-sel');
   al2MarkSeen(it);
   const d = al2Drawer(), a = it.first, k = it.k;
+  if (typeof modalFit === 'function') modalFit();   // 1.326.0
   const { host, check } = alertCols(a);
   const t0 = a.created_at, t1 = it.rec ? it.rec.created_at : null;
   const sub = it.ep ? (t1 ? L('{from} → hersteld {to} ({d})', { from: fmtDateTime(t0), to: t1.slice(11, 16), d: al2Dur(al2Ts(t1) - al2Ts(t0)) })
