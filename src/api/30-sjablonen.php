@@ -129,11 +129,6 @@ switch ($action) {
     case 'changelog':
         out(['items' => ChangeLog::list(preg_replace('/[^a-z]/', '', (string) ($_GET['kind'] ?? ''))), 'days' => (int) setting('changelog_days', '90')]);
 
-    case 'changelog_days':
-        $d = (int) (input()['days'] ?? 90);
-        save_setting('changelog_days', (string) (in_array($d, [30, 90, 365, 1095], true) ? $d : 90));
-        out(['ok' => true]);
-
     case 'changelog_undo':
         try {
             out(['ok' => true, 'message' => ChangeLog::undo((int) (input()['id'] ?? 0))]);

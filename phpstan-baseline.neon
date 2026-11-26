@@ -9289,12 +9289,6 @@ parameters:
 			path: src/Truenas.php
 
 		-
-			message: '#^Method Truenas\:\:ids\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Truenas.php
-
-		-
 			message: '#^Method Truenas\:\:overview\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1

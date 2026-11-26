@@ -146,11 +146,6 @@ final class I18n
         return self::$lang === 'en' ? $v : str_replace('.', ',', $v);
     }
 
-    /** Locale voor datums en getallen in de browser */
-    public static function locale(): string
-    {
-        return self::$lang === 'en' ? 'en-GB' : 'nl-NL';
-    }
 }
 
 /** Tekst in de taal van de gebruiker; {naam} wordt vervangen door $vars['naam'] */

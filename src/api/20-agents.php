@@ -536,10 +536,6 @@ switch ($action) {
         AgentCommands::audit($user['username'], 'Adres van RzSense voor agents', ($all ? 'alle' : $rows[0]['name']) . ": $url" . ($fb !== '' ? " (reserve $fb)" : ''));
         out(['ok' => true, 'n' => $n, 'skipped' => $skip]);
 
-    case 'agent_url_cancel':
-        q('UPDATE hosts SET agent_url_want = NULL, agent_url_want_fb = NULL, agent_url_status = NULL WHERE id = ?', [(int) (input()['id'] ?? 0)]);
-        out(['ok' => true]);
-
     case 'agent_key_renew':
         $id = (int) (input()['id'] ?? 0);
         $h = q("SELECT name, agent_key FROM hosts WHERE id = ? AND mode = 'agent'", [$id])->fetch();
@@ -659,10 +655,6 @@ switch ($action) {
         $in = input();
         $r = Security::block((string) ($in['net'] ?? ''), (string) ($in['reason'] ?? ''), $user['username']);
         $r === true ? out(['ok' => true]) : out(['error' => $r], 422);
-
-    case 'block_remove':
-        Security::unblock((int) (input()['id'] ?? 0), $user['username']);
-        out(['ok' => true]);
 
     // Blokkades en whitelist (1.83.0)
     case 'blocks_overview':

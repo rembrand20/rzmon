@@ -15,7 +15,7 @@ const API_GET = [
     'report_preview', 'reports_get', 'rev', 'security', 'self_status', 'sessions', 'sessions_all', 'settings', 'settings_health', 'setup_info',
     'smart_proposals', 'snmp_discover', 'snmp_global', 'ssh_sessions', 'state', 'stats', 'status_get', 'stealth_info', 'templates', 'ti_status',
     'trends', 'truenas_overview', 'update_info', 'update_status', 'users', 'vuln_csv', 'vuln_detail', 'vuln_packages', 'vuln_sbom', 'vuln_search', 'vuln_software', 'vuln_upgrade_status', 'vuln_where',
-    'vulns', 'web_sites', 'weblog_status',
+    'vulns', 'weblog_status',
 ];
 
 require __DIR__ . '/../src/bootstrap.php';
@@ -78,8 +78,8 @@ if (must_change_password($user) && !in_array($action, ['pw_forced', 'logout', 'l
 
 // Rechten per actie. Alles wat hier niet staat, is alleen voor beheerders.
 $need = match ($action) {
-    'home', 'mds', 'self_status', 'state', 'availability', 'containers', 'path_info', 'paths', 'speed', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_band', 'ids_attack_flow', 'web_sites', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'trends', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
-    'devices', 'device_forget', 'device_forget_all', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename', 'proxy_tag_fix',
+    'home', 'mds', 'self_status', 'state', 'availability', 'containers', 'path_info', 'paths', 'speed', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_band', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info', 'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'podman', 'logout', 'insights', 'insight_analyses', 'trends', 'password', 'users', 'totp_setup', 'totp_confirm', 'totp_reset',
+    'devices', 'device_forget', 'sessions', 'my_access', 'device_trust', 'device_revoke', 'device_rename', 'proxy_tag_fix',
     'passkey_reg_options', 'passkey_reg_finish', 'passkey_delete', 'passkey_rename', 'session_logout', 'sessions_logout_user', 'user_email', 'lang_set', 'my_logins', 'pw_forced', 'prefs_save',
     'webpush_key', 'webpush_subscribe', 'webpush_unsubscribe', 'webpush_devices', 'webpush_test', 'webpush_delete', 'webpush_what', 'sec_active' => 'readonly',   // 1.285.0: je eigen apparaten (1.301.0: wat elk apparaat krijgt)
     'net_devices', 'pve_overview', 'truenas_overview', 'analytics', 'smart_proposals', 'ack', 'ack_host', 'unack', 'alert_seen', 'log_sources', 'log_source_lines', 'log_search', 'log_context', 'log_export', 'log_facets', 'log_overview', 'log_watches', 'log_watch_save', 'log_library', 'log_library_add', 'log_watch_toggle', 'log_watch_delete', 'log_watch_test', 'check_run', 'run_all', 'maintenance_set', 'port_scan', 'job_status', 'job_stop', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_search', 'vuln_where', 'vuln_software', 'vuln_csv', 'vuln_ignore', 'vuln_unignore', 'vuln_upgrade_status', 'vuln_sbom', 'vuln_buzz_now', 'incidents', 'incident_info', 'incident_set', 'report', 'host_exposure', 'insight_set', 'ai_ask', 'ai_run', 'ai_feedback', 'path_tp_now', 'reports_get', 'report_me', 'report_preview', 'settings_health', 'changelog', 'actlog', 'actlog_csv', 'eol', 'ransom_info', 'ransom_overview', 'apps', 'apps_info', 'ioc_get', 'ioc_hunts', 'patch', 'sudo_list', 'nis2', 'nis2_report', 'advice_list', 'features', 'net_discover', 'net_traffic_device', 'net_dpi', 'quiet_now', 'sec_ack', 'shelly_overview', 'shelly_day' => 'user',
@@ -92,7 +92,7 @@ $isAdmin = has_role($user, 'admin');
 I18n::init($user);
 // 1.119.0: alleen lezen? Dan de sessie meteen vrijgeven. PHP laat andere verzoeken van dezelfde browser anders wachten
 // tot dit verzoek klaar is; één trage pagina maakte zo alles traag.
-if ($method === 'GET' && in_array($action, ['insights', 'insight_analyses', 'trends', 'home', 'self_status', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_band', 'ids_attack_flow', 'web_sites', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
+if ($method === 'GET' && in_array($action, ['insights', 'insight_analyses', 'trends', 'home', 'self_status', 'state', 'availability', 'containers', 'path_info', 'paths', 'ai_get', 'rev', 'contacts', 'alerts', 'ids', 'ids_incident_info', 'ids_flows', 'ids_band', 'ids_attack_flow', 'ids_ip_events', 'ssh_sessions', 'edr_feed', 'ids_anom', 'ids_mitre', 'ids_protect', 'ip_info',
     'ids_access', 'harden_detail', 'ip_timeline', 'check_info', 'history', 'stats', 'analytics', 'vulns', 'vuln_packages', 'vuln_detail', 'vuln_search', 'vuln_where', 'vuln_software', 'vuln_csv', 'net_devices', 'pve_overview', 'truenas_overview', 'incidents', 'incident_info', 'report',
     'smart_proposals', 'setup_info', 'settings', 'edr_rules', 'ti_status'], true)) {
     session_write_close();

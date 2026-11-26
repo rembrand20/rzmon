@@ -494,11 +494,6 @@ switch ($action) {
         out(['ok' => true, 'result' => implode(' · ', $msg)] + IpIntel::status());
 
     // Wekelijks IDS-overzicht nu versturen (1.81.0). 1.234.2: via Rapporten (eigen ontvangers, push, logboek)
-    case 'ids_weekly_test':
-        $r = Reports::send('ids_week');
-        Reports::log('ids_week', $r, (string) $user['username']);
-        out(['ok' => $r['ok'], 'result' => $r['ok'] ? t('Verstuurd via {c}', ['c' => implode(' + ', $r['sent'])]) : ($r['error'] ?? t('Versturen mislukt')), 'text' => Ids::weeklyText()[1]]);
-
     case 'ids_incident':
         $in = input();
         $act = (string) ($in['action'] ?? '');
@@ -674,9 +669,6 @@ switch ($action) {
 
     case 'weblog_status':
         out(WebLog::status());
-
-    case 'web_sites':   // 1.222.0: IDS → Overzicht: aanvallen per site
-        out(memo('web_sites_' . (int) ($_GET['hours'] ?? 24), 60, static fn() => WebLog::sites((int) ($_GET['hours'] ?? 24))));
 
     case 'ids_attack_flow':   // 1.152.0: Attack Flow (aanvaller → doelwit → dienst → afloop), met tijdlijn
         out(AttackFlow::build(['days' => (int) ($_GET['days'] ?? 1), 'mins' => (int) ($_GET['mins'] ?? 0), 'host' => (int) ($_GET['host'] ?? 0), 'cc' => strtoupper(mb_substr((string) ($_GET['cc'] ?? ''), 0, 3)),

@@ -118,19 +118,6 @@ final class Hibp
         return $hit;
     }
 
-    /** Bij het instellen (geen account of controle uit): alleen het aantal, niets bewaren. null = niet gecontroleerd */
-    public static function checkNew(string $password, ?int $userId = null): ?int
-    {
-        if (!self::enabled()) {
-            return null;
-        }
-        if ($userId !== null && !(int) q('SELECT hibp FROM users WHERE id = ?', [$userId])->fetchColumn()) {
-            return null;
-        }
-        $n = self::pwnedCount($password);
-        return $n === null ? null : ($n >= self::threshold() ? $n : 0);
-    }
-
     // ------------------------------------------------------------------ e-mailadressen
 
     private static function apiHeaders(): array

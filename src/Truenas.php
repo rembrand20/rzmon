@@ -31,12 +31,6 @@ final class Truenas
         return self::$cache[$hostId] = $yes;
     }
 
-    /** Alle TrueNAS-servers (id's) */
-    public static function ids(): array
-    {
-        return array_values(array_filter(array_map('intval', q("SELECT id FROM hosts WHERE mode = 'agent'")->fetchAll(PDO::FETCH_COLUMN)), [self::class, 'is']));
-    }
-
     /**
      * Debian-versie onder een afgeleide distributie (TrueNAS, of iets dat "like debian" is) uit het pakket base-files.
      * @param array<mixed> $list de softwarelijst [naam, versie, …] (van buitenaf: velden kunnen ontbreken)

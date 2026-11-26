@@ -9473,12 +9473,6 @@ function lpRow(h, mark) {
       </div></div></div>`;
 }
 
-const lpLine = (h, mark, ctx = false) => `<div class="lp-ln lv${h.level}${ctx ? ' ctx' : ''}" ${h.ref ? `data-ref="${esc(h.ref)}" tabindex="0"` : ''}>
-  <span class="lp-t" title="${esc(h.time)}">${esc(h.time.slice(5, 16).replace('-', '/'))}<small>${esc(h.time.slice(16))}</small></span>
-  <span><span class="lp-lv lp-lv${h.level}">${LP_LV[h.level] || ''}</span></span>
-  <span class="lp-h">${h.host ? esc(h.host) + ' <small>› ' + esc(h.source) + '</small>' : `<small>${esc(h.source || '')}</small>`}</span>
-  <span class="lp-m">${mark(h.msg)}</span>${h.ref ? '<span class="lp-o" aria-hidden="true">›</span>' : '<span></span>'}</div>`;
-
 /**
  * 1.304.0: een logregel in het detailpaneel: de hele regel, alle velden (＋ zoeken, − uitsluiten), de regels eromheen
  * (zelfde bron) en andere bronnen van die server in dezelfde minuut, en alle regels van hetzelfde patroon.
@@ -9521,25 +9515,6 @@ async function lpDetail(ref, opt = {}) {
   } catch (ex) { if (box.isConnected) box.innerHTML = `<p class="danger-txt small">${esc(ex.message)}</p>`; }
 }
 DETAIL_OPEN.log = (ref, o) => lpDetail(ref, o);
-
-async function lpContext(ln) {
-  const next = ln.nextElementSibling;
-  if (next && next.classList.contains('lp-ctx')) { next.remove(); ln.classList.remove('ctxon'); return; }
-  ln.classList.add('ctxon');
-  const box = document.createElement('div');
-  box.className = 'lp-ctx';
-  box.innerHTML = `<p class="muted small">${L('Laden…')}</p>`;
-  ln.after(box);
-  try {
-    const c = await api('log_context', null, { ref: ln.dataset.ref });
-    const plain = (s) => esc(s).replace(/••••/g, '<span class="lp-mask">••••</span>');
-    const row = (x) => lpLine({ ...x, host: '', source: x.source || '' }, plain, true);
-    box.innerHTML = (c.before.length ? c.before.map(row).join('') : '')
-      + `<div class="lp-ctx-here small muted">▲ ${L('ervoor')} · ${L('erna')} ▼</div>`
-      + (c.after.length ? c.after.map(row).join('') : `<p class="muted small">${L('Geen regels erna.')}</p>`)
-      + (c.other.length ? `<div class="lp-ctx-h small"><b>${L('Andere bronnen van deze server, zelfde minuut')}</b></div>${c.other.map(row).join('')}` : '');
-  } catch (ex) { box.innerHTML = `<p class="danger-txt small">${esc(ex.message)}</p>`; }
-}
 
 /** CSV: de huidige zoekopdracht, tot 5000 regels (downloaden via een link, zoals de SBOM) */
 function lpCsv() {

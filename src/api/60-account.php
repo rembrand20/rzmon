@@ -70,7 +70,6 @@ switch ($action) {
         out(['ok' => true]);
 
     // Alles van een gebruiker uitloggen (sessies en onthouden apparaten), behalve dit apparaat
-    case 'device_forget_all':
     case 'sessions_logout_user':
         $uid = (int) (input()['user_id'] ?? $user['id']);
         $ownOnly($uid);

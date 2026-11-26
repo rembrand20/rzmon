@@ -127,13 +127,6 @@ final class UpdateHold
         }
     }
 
-    /** Staat er een aangekondigde update klaar die nog niet aan de hulpdienst is gegeven? */
-    public static function pending(): bool
-    {
-        $h = self::get();
-        return $h !== null && empty($h['started']) && empty($h['done']);
-    }
-
     /** Antwoord aan een agent: rz_hold zolang de update loopt (alleen versleuteld), en zijn eigen melding na afloop bewaren */
     public static function forAgent(array $host, bool $encrypted, array $in): array
     {

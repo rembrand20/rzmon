@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.328.0**: **Netwerksnelheid**: de snelheid van je netwerk en internet als keten van bron tot doel, met de smalste schakel, SNMP-poorten en de wifi per access point.
 - **1.327.0**: **Toegang aanvragen van buiten**: een onbekend apparaat vraagt met één knop toegang, jij krijgt een e-mail en staat het toe voor een bestaande of nieuwe gebruiker.
 
+## 1.331.1 – 2026-11-26
+### Opgelost
+- **Opruimen (je merkt er niets van):** 7 functies en 7 API-acties die nergens meer gebruikt werden zijn weg, net als 533 vertalingen van teksten die niet meer bestaan. Dit is de eerste stap van het simpeler maken van RzSense.
+
 ## 1.331.0 – 2026-11-26
 ### Nieuw
 - **Netwerk → Van buitenaf.** Wat er van je netwerk open staat op internet (goedkeuren met *Hoort zo*, wat Shodan ziet, wat weer dicht ging, *Nu bekijken*) staat nu als tabblad bij Netwerk, voor beheerders. In de portal (*Web en buitenkant → Van buitenaf*) staan alleen nog de bronnen, de doelen, hoe vaak en de melding.

@@ -86,9 +86,4 @@ final class Mitre
         return self::TYPES[$type] ?? [];
     }
 
-    /** Link naar de techniek bij MITRE */
-    public static function url(string $id): string
-    {
-        return 'https://attack.mitre.org/techniques/' . str_replace('.', '/', $id) . '/';
-    }
 }

@@ -957,12 +957,6 @@ final class Vulns
         return (int) max(0, min(100, round($r)));
     }
 
-    /** Woord bij een risicoscore */
-    public static function riskLevel(int $r): string
-    {
-        return $r >= 70 ? 'high' : ($r >= 40 ? 'medium' : 'low');
-    }
-
     // ------------------------------------------------------------------ bijwerken via de agent
 
     /** Mag RzSense deze server via de agent laten bijwerken? @return string|null de reden waarom niet */

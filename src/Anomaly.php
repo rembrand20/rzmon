@@ -299,13 +299,6 @@ final class Anomaly
         return $out;
     }
 
-    /** In de tests */
-    public static function reset(): void
-    {
-        self::$hourly = [];
-        self::$active = [];
-    }
-
     public static function purge(): void
     {
         q('DELETE FROM edr_hourly WHERE hr < NOW() - INTERVAL 31 DAY');

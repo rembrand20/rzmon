@@ -412,11 +412,6 @@ switch ($action) {
         echo isset(Reports::LIST[$k]) ? I18n::forNotify(fn() => Reports::build($k))['html'] : htmlspecialchars(t('Onbekend rapport'));
         exit;
 
-    case 'analytics_report_send':   // 1.234.2: via Rapporten (eigen ontvangers, push, logboek)
-        $r = Reports::send('month');
-        Reports::log('month', $r, (string) $user['username']);
-        $r['ok'] ? out(['ok' => true]) : out(['error' => $r['error'] ?? t('Versturen mislukt')], 422);
-
     // 1.105.0: Proxmox VE – overzicht van een node (of de cluster) en losse nodes als cluster aanmerken
     case 'pve_overview':
         $o = Pve::overview((int) ($_GET['host_id'] ?? 0));
