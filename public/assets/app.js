@@ -5895,9 +5895,10 @@ const CMDK_VERBS = {
   run: ['nu', 'check', 'checken', 'run', 'now'], maint: ['onderhoud', 'maintenance', 'pauze'], ack: ['bevestig', 'bevestigen', 'ack', 'acknowledge'],
   graph: ['grafiek', 'graph', 'chart', 'historie'], edit: ['bewerk', 'bewerken', 'edit', 'wijzig'], block: ['blokkeer', 'blokkeren', 'block'], agent: ['agent', 'manager'],
 };
-let cmdkSel = 0, cmdkItems = [];
+const CMDK_QWORDS = ['waarom', 'hoe', 'wat', 'welke', 'welk', 'wanneer', 'wie', 'waar', 'hoeveel', 'is', 'zijn', 'kan', 'moet', 'why', 'how', 'what', 'which', 'when', 'who', 'where', 'are', 'can', 'should', 'does', 'do'];
+let cmdkSel = 0, cmdkItems = [], cmdkAskGen = 0;
 function cmdkRole() { return document.body.dataset.role || 'readonly'; }
-function cmdkBuild(q) {
+function cmdkBuild(q, loose = false) {
   const role = cmdkRole(), user = role !== 'readonly', admin = role === 'admin';
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const verb = (k) => words.some((w) => CMDK_VERBS[k].includes(w));
@@ -5942,10 +5943,53 @@ function cmdkBuild(q) {
   }
   if (user && !free.length && verb('run')) items.push({ score: 80, icon: '↻', label: L('Alles nu checken'), sub: '', run: () => $('#run-all')?.click() });
   if (admin && !free.length && verb('maint')) items.push({ score: 80, icon: '🔧', label: L('Onderhoud: alles'), sub: L('alle meldingen pauzeren'), run: () => maintenanceDialog('all', 0, L('alle servers'), state.maintenance) });
+  // 1.335.0: Vraag het RzSense. Met AI-advies aan beantwoordt het model je vraag uit je eigen gegevens; een vraag
+  // (vraagwoord of vraagteken) staat bovenaan, een gewone zoekopdracht houdt de zoekresultaten bovenaan.
+  const qt = q.trim();
+  if (user && qt.length >= 8 && words.length >= 2) {
+    const isQ = /\?\s*$/.test(qt) || CMDK_QWORDS.includes(words[0]);
+    if (aiOn() && state.ai.ask) items.push({ score: isQ ? 120 : 1, icon: '✨', label: L('Vraag het RzSense: {q}', { q: qt }), sub: L('antwoord in gewone taal, uit je eigen gegevens'), run: () => cmdkAsk(qt), keep: true });
+    else if (admin && isQ) items.push({ score: 1, icon: '✨', label: L('Vragen stellen in gewone taal?'), sub: L('Zet AI-advies aan met je eigen sleutel: Instellingen › Systeem › AI-advies'), run: () => showTab('settings/ai') });
+  }
+  // Een hele zin vindt als geheel niets: dan zoeken op de losse woorden (zonder vraagwoorden), zodat "waarom is nas traag?"
+  // toch de server nas vindt, ook zonder AI
+  if (!loose && words.length >= 2 && !items.some((it) => it.icon !== '✨')) {
+    const seen = new Set();
+    for (const w of words.map((x) => x.replace(/[?!.,;:]+$/, '')).filter((x) => x.length >= 3 && !CMDK_QWORDS.includes(x))) {
+      for (const it of cmdkBuild(w, true).filter((x) => x.icon !== '📑' && x.score >= 50).slice(0, 4)) {
+        if (!seen.has(it.label + it.sub)) { seen.add(it.label + it.sub); items.push({ ...it, score: it.score - 20 }); }
+      }
+    }
+  }
   // Beste eerst: hogere score, en een naam die met de zoekterm begint
   const first = (plain[0] || '');
   items.forEach((it) => { if (first && it.label.toLowerCase().startsWith(first)) it.score += 5; });
   return items.sort((a, b) => b.score - a.score || a.label.localeCompare(b.label)).slice(0, 40);
+}
+/** 1.335.0: de vraag naar het AI-model; het antwoord en de feiten waar het op gebaseerd is komen in de zoekbalk zelf */
+async function cmdkAsk(q) {
+  const box = $('#cmdk-ans'), gen = ++cmdkAskGen;
+  $('#cmdk-list').hidden = true;
+  box.hidden = false;
+  box.innerHTML = `<p class="cmdk-q">✨ ${esc(q)}</p><p class="muted cmdk-wait">${esc(L('RzSense zoekt het uit…'))}</p>`;
+  let r;
+  try { r = await api('ask', { q }); } catch (ex) {
+    if (gen !== cmdkAskGen) return;
+    box.innerHTML = `<p class="cmdk-q">✨ ${esc(q)}</p><p class="form-error">${esc(ex.message)}</p><p><button type="button" class="btn small-btn" data-cmdk-back>← ${esc(L('Terug naar zoeken'))}</button></p>`;
+    return;
+  }
+  if (gen !== cmdkAskGen) return;   // intussen iets anders gezocht of gesloten
+  box.innerHTML = `<p class="cmdk-q">✨ ${esc(q)}</p>
+    <div class="cmdk-a">${esc(r.answer).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>').replace(/^/, '<p>').replace(/$/, '</p>')}</div>
+    <details class="cmdk-facts"><summary>${esc(L('Gebaseerd op {n} feiten uit je eigen gegevens', { n: r.facts.length }))}</summary><ul>${r.facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul></details>
+    <p class="muted small cmdk-via">${esc(L('via {p} ({m})', { p: r.provider, m: r.model }))}${r.masked ? ' · ' + esc(L('namen, IP-adressen en domeinen gingen als labels naar het model')) : ''}${r.note ? ' · ' + esc(r.note) : ''}</p>
+    <p><button type="button" class="btn small-btn" data-cmdk-back>← ${esc(L('Nieuwe vraag of zoeken'))}</button></p>`;
+}
+function cmdkAnsClose() {
+  cmdkAskGen++;
+  const box = $('#cmdk-ans');
+  if (box) { box.hidden = true; box.innerHTML = ''; }
+  if ($('#cmdk-list')) $('#cmdk-list').hidden = false;
 }
 function cmdkRender() {
   const q = $('#cmdk-in').value;
@@ -5963,6 +6007,7 @@ function cmdkOpen() {
   el.hidden = false;
   $('#cmdk-in').value = '';
   cmdkSel = 0;
+  cmdkAnsClose();
   cmdkRender();
   $('#cmdk-in').focus();
 }
@@ -5970,7 +6015,7 @@ function cmdkClose() { const el = $('#cmdk'); if (el) el.hidden = true; }
 function cmdkDo(i) {
   const it = cmdkItems[i];
   if (!it) return;
-  cmdkClose();
+  if (!it.keep) cmdkClose();
   it.run();
 }
 function initCmdk() {
@@ -5980,7 +6025,8 @@ function initCmdk() {
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); el.hidden ? cmdkOpen() : cmdkClose(); }
   });
-  $('#cmdk-in').addEventListener('input', () => { cmdkSel = 0; cmdkRender(); });
+  $('#cmdk-in').addEventListener('input', () => { cmdkSel = 0; cmdkAnsClose(); cmdkRender(); });
+  $('#cmdk-ans').addEventListener('click', (e) => { if (e.target.closest('[data-cmdk-back]')) { cmdkAnsClose(); $('#cmdk-in').focus(); $('#cmdk-in').select(); } });
   $('#cmdk-in').addEventListener('keydown', (e) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); cmdkSel = Math.min(cmdkSel + 1, cmdkItems.length - 1); cmdkRender(); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); cmdkSel = Math.max(cmdkSel - 1, 0); cmdkRender(); }
@@ -15092,7 +15138,7 @@ const SET_NAV = [
     ['idspush', L('IDS-pushmeldingen'), ['idspush'], L('Wanneer een aanval je telefoon laat trillen, en de dagelijkse samenvatting.')],
     ['secch', L('Beveiligingskanaal'), ['secch'], L('Wat nú je aandacht nodig heeft: door Niet storen heen, tot iemand bevestigt.')],   // 1.320.0
     ['sysinfo', L('Systeemmeldingen'), ['sysinfo'], L('Meldingen over RzSense zelf, zoals updates en certificaten.')],
-    ['reports', L('Rapporten'), ['reports'], L('Alle overzichten die RzSense per e-mail of push verstuurt, en het Maandoverzicht.')]]],
+    ['reports', L('Rapporten'), ['reports', 'morning'], L('Alle overzichten die RzSense per e-mail of push verstuurt, het Maandoverzicht en de ochtendsamenvatting.')]]],
   ['toegang', SET_IC('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'), L('Toegang tot RzSense'), [
     ['access', L('Inloggen'), ['access'], L('Lokaal netwerk, uitloggen en blokkeren na mislukte pogingen.')],
     ['outside', L('Beheer van buiten'), ['https', 'outside'], L('Veilig beheren van buiten je netwerk: https, toegestane apparaten en de noodlink.')],
@@ -16490,7 +16536,7 @@ const SYSINFO_ROWS = [
   [L('Netwerk'), [['net_new', '🆕 ' + L('Nieuw apparaat op het netwerk')], ['net_traffic', '📈 ' + L('Ongewoon netwerkverkeer (veel of \'s nachts)')], ['net_cap', '📶 ' + L('Datalimiet internet bijna of helemaal op')], ['path_change', '🛣️ ' + L('Pad naar een doel gewijzigd (pad-check, als die dat mag)')], ['net_speed', '⚡ ' + L('Netwerksnelheid: smalste schakel te laag of een link valt terug (als de route dat mag)')]]],
   [L('Checks'), [['smart_drift', '🧠 ' + L('Normaalwaarde stijgt sluipend (slimme drempels)')], ['smart_auto', '🧠 ' + L('Drempels zelf aangepast (naar slim)')], ['alert_auto', '🔔 ' + L('Melden na N zelf aangepast')], ['heal', '🩹 ' + L('Zelf hersteld (of herstel mislukt)')],
     ['watchdog', '🐕 ' + L('Waakhond: RzSense was onbereikbaar of de checks stonden stil')], ['trend', '📉 ' + L('Trend: een grens wordt binnenkort bereikt (Analyse → Trends)')], ['eol', '⏳ ' + L('End-of-life: software krijgt binnenkort of geen updates meer')], ['nis2', '🇪🇺 ' + L('NIS2: een meldtermijn komt dichtbij of is verlopen')]]],
-  ['RzSense', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],
+  ['RzSense', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')], ['morning', '☀️ ' + L('Ochtendsamenvatting')]]],
   [L('Logs'), [['logs_limit', '📜 ' + L('Daglimiet van een server bereikt')], ['logs_full', '📜 ' + L('Maximum bereikt: oudste dag weggegooid')], ['logs_watch_off', '📜 ' + L('Vaste zoekactie te traag, uitgezet')]]],   // 1.210.0
   [L('AI-advies'), [['ai_advice', '🤖 ' + L('Samenvatting van een automatisch advies')], ['ai_week', '📅 ' + L('Weekoverzicht')], ['ai_credit', '💳 ' + L('Tegoed of budget bijna op of op')]]],   // 1.173.0
 ];
@@ -20577,7 +20623,13 @@ function renderHomeDef() {
   </section>`;
 
   const box = $('#home');
-  const html = `<div class="hd">${strip}<div class="hd-duo">${attn}${srv}</div>${advBox(d)}</div>`;   // 1.333.0: Advies
+  // 1.335.0: de ochtendsamenvatting van vandaag (weg te klikken tot morgen) en de zoek- en vraagbalk
+  const mHide = (() => { try { return localStorage.getItem('rzmon-morning-hide') === (d.morning || {}).day; } catch (e) { return false; } })();
+  const morning = d.morning && !mHide ? `<section class="hd-box hd-morning" aria-labelledby="hd-h-mor"><div class="hd-mtxt"><h2 id="hd-h-mor">☀️ ${esc(L('Vanochtend'))}</h2><p>${esc(d.morning.text)}</p></div>
+      <button type="button" class="hd-x" data-morning-hide="${esc(d.morning.day)}" aria-label="${esc(L('Verbergen tot morgen'))}" title="${esc(L('Verbergen tot morgen'))}">×</button></section>` : '';
+  const ask = `<button type="button" class="hd-ask" data-cmdk-open><span aria-hidden="true">${aiOn() && state.ai.ask ? '✨' : '🔍'}</span>
+      <span class="hd-ask-t">${esc(aiOn() && state.ai.ask ? L('Zoek of vraag het RzSense…') : L('Zoek een server, check of instelling…'))}</span><kbd>Ctrl K</kbd></button>`;
+  const html = `<div class="hd">${ask}${morning}${strip}<div class="hd-duo">${attn}${srv}</div>${advBox(d)}</div>`;   // 1.333.0: Advies
   if ($('.hd', box)) withMorph(() => { box.innerHTML = html; }); else box.innerHTML = html;
   $$('[data-hm-go]', box).forEach((b) => (b.onclick = () => hmGoTo(b.dataset.hmGo)));
 }
@@ -22508,6 +22560,8 @@ const FH_SHORT = () => ({
   thresh_default: L("Hoe een nieuwe check zijn grenzen bepaalt: zelf leren, met of zonder vaste grens als vangnet."),
   smart_sens: L("Hoe snel een slimme drempel iets afwijkends ziet. Scherp = sneller een melding."),
   smart_auto: L("Een handmatige check gaat na 7 dagen leren vanzelf naar slim, als dat minder meldingen geeft."),
+  morning_on: L("Elke ochtend één alinea over hoe het ervoor staat: bovenaan het dashboard en als melding."),
+  morning_time: L("Het tijdstip waarop de samenvatting gemaakt wordt. In stille uren wacht de melding tot die voorbij zijn."),
   smart_interval: L("Bij een probleem vaker controleren; als alles een uur goed is minder vaak."),
   anomaly_on: L("Een ℹ️-melding als een waarde zonder drempel flink anders is dan normaal."),
   disk_jump_on: L("Een ℹ️-melding als een disk in een uur hard groeit."),
@@ -26588,6 +26642,7 @@ function advCard(d) {
   const a = d.advice;
   if (!a) return '';
   return ccCard('advice', `${ccHead(L('Advies'), `<span class="cc-mu small">${esc(L('{n} open', { n: a.n }))}</span>`)}
+    ${d.morning ? `<p class="cc-morning">☀️ ${esc(d.morning.text)}</p>` : ''}
     ${a.top.length ? `<ul class="cc-list">${a.top.map((x) => `<li><button type="button" class="cc-row" data-adv-all><i class="cc-bar ${x.sev === 2 ? 'crit' : x.sev === 1 ? 'warn' : 'cy'}"></i>
       <span><b>${esc(x.title)}</b><small class="cc-mu">${esc([x.sub, ADV_SRC[x.src]().toLowerCase()].filter(Boolean).join(' · '))}</small></span></button></li>`).join('')}</ul>`
     : `<p class="cc-mu">${esc(L('Geen advies: RzSense heeft niets gevonden om te verbeteren'))}</p>`}
@@ -26629,6 +26684,10 @@ async function advDialog() {
 }
 
 document.addEventListener('click', async (e) => {
+  // 1.335.0: de zoek- en vraagbalk en het wegklikken van de ochtendsamenvatting op het dashboard
+  const o = e.target.closest ? e.target.closest('[data-cmdk-open], [data-morning-hide]') : null;
+  if (o && o.dataset.cmdkOpen !== undefined) return cmdkOpen();
+  if (o) { try { localStorage.setItem('rzmon-morning-hide', o.dataset.morningHide); } catch (ex) { /* geen opslag: dan alleen nu */ } if (hmData) hmData.morning = null; return renderHome(); }
   const b = e.target.closest ? e.target.closest('[data-adv-act], [data-adv-all], [data-adv-reset]') : null;
   if (!b) return;
   if (b.dataset.advAll !== undefined) { e.stopPropagation(); return advDialog(); }

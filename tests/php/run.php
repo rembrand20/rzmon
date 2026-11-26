@@ -4911,5 +4911,107 @@ q('DELETE FROM advice WHERE ref_id IN (?, ?, ?)', [$stA, $stB, $stC]);
 q('DELETE FROM hosts WHERE id = ?', [$stH]);
 AdviceHub::forget();
 
+section('Ochtendsamenvatting en Vraag het RzSense (1.335.0)');
+q("INSERT INTO hosts (name, address, mode, enabled) VALUES ('brief-nas', 'nas.thuis.example', 'remote', 1)");
+$brH = (int) db()->lastInsertId();
+q("INSERT INTO checks (host_id, type, name, target, interval_sec, enabled, status, last_message, problem_since, last_checked) VALUES (?, 'disk', 'Disk /volume1', '/volume1', 60, 1, 2, ?, NOW() - INTERVAL 1 HOUR, NOW())",
+    [$brH, '91% vol op 192.0.2.44, zie https://nas.thuis.example/disk en wachtwoord=geheim123']);
+$brC = (int) db()->lastInsertId();
+$brF = Brief::facts();
+$brK = array_column($brF, 'k');
+ok(in_array('servers', $brK, true) && in_array('problems', $brK, true) && in_array('problem', $brK, true)
+    && !array_filter($brF, static fn($f) => !isset($f['k'], $f['t'], $f['go'], $f['w']) || $f['t'] === ''), 'feiten uit je eigen gegevens: servers, open problemen en elk probleem apart');
+ok((bool) array_filter($brF, static fn($f) => $f['k'] === 'problem' && str_contains($f['t'], 'Disk /volume1') && str_contains($f['t'], 'brief-nas') && str_contains($f['t'], 'CRITICAL')), 'een open probleem met server, check en melding');
+$brM = Brief::compose($brF);
+ok($brM['day'] === date('Y-m-d') && $brM['n'] >= 1 && $brM['n'] <= 5 && str_contains($brM['text'], 'open') && !str_contains($brM['text'], 'CRITICAL:'), 'samenvatting: hooguit vijf zinnen, de zwaarste eerst, zonder de losse details');
+ok(Brief::compose([['k' => 'a', 't' => 'Eerst.', 'go' => '', 'w' => 10], ['k' => 'b', 't' => 'Belangrijk.', 'go' => '', 'w' => 90], ['k' => 'c', 't' => 'Detail.', 'go' => '', 'w' => 0]])['text'] === 'Belangrijk. Eerst.',
+    'de zwaarste feiten staan vooraan; details zonder gewicht vallen weg');
+$brOld = [];
+foreach (['morning_on', 'morning_time', 'morning_day', 'morning_sent', 'morning_nl', 'morning_en', 'ai_on', 'ai_provider', 'ai_claude_key', 'ai_claude_model', 'ai_daily', 'ai_budget_month', 'ai_mask'] as $brKey) {
+    $brOld[$brKey] = setting($brKey, '');
+}
+save_setting('morning_on', '1');
+save_setting('morning_day', '');
+save_setting('morning_time', '23:59');
+ok(date('H:i') >= '23:59' || (Brief::cron() === false && Brief::today() === null || setting('morning_nl', '') !== ''), 'vóór het ingestelde tijdstip gebeurt er niets');
+save_setting('morning_time', '00:00');
+save_setting('morning_nl', '');
+save_setting('morning_sent', '');
+ok(Brief::cron(false, true) === true && setting('morning_sent', '') === '' && Brief::cron(false, true) === false, 'op het tijdstip één keer per dag gemaakt; tijdens stille uren wacht de melding');
+ok(Brief::cron(false, false) === true && setting('morning_sent', '') === date('Y-m-d') && Brief::cron(false, false) === false, 'na de stille uren gaat de melding alsnog uit, één keer');
+$brNl = json_decode((string) setting('morning_nl', ''), true);
+$brEn = json_decode((string) setting('morning_en', ''), true);
+ok(($brNl['day'] ?? '') === date('Y-m-d') && str_contains((string) $brNl['text'], 'probl') && str_contains((string) ($brEn['text'] ?? ''), 'problem') && $brNl['text'] !== $brEn['text'], 'bewaard in het Nederlands en in het Engels');
+ok((Brief::today()['text'] ?? '') === $brNl['text'], 'het dashboard krijgt de samenvatting van vandaag');
+save_setting('morning_on', '0');
+ok(Brief::today() === null && Brief::cron(true) === false, 'uitgezet: geen samenvatting en geen melding');
+save_setting('morning_time', 'onzin');
+ok(Brief::time() === '07:30', 'een ongeldig tijdstip valt terug op 07:30');
+ok(in_array('morning', NotifyRules::SYSINFO, true), 'de melding volgt Systeemmeldingen (kanalen en stille uren)');
+
+// Vraag het RzSense: naar een cloudmodel alleen labels, geen namen, adressen, domeinen of geheimen
+save_setting('ai_on', '0');
+$brErr = '';
+try {
+    Brief::ask('waarom is brief-nas traag?', 'unit', static fn() => ['text' => 'x']);
+} catch (RuntimeException $e) {
+    $brErr = $e->getMessage();
+}
+ok($brErr !== '', 'zonder AI-sleutel geen antwoord (dan is het een gewone zoekfunctie)');
+save_setting('ai_on', '1');
+save_setting('ai_provider', 'claude');
+save_setting('ai_claude_key', 'test');
+save_setting('ai_claude_model', 'test-model');
+save_setting('ai_daily', '0');
+save_setting('ai_budget_month', '0');
+save_setting('ai_mask', '0');   // ook als maskeren bij AI-advies uit staat
+$brOld['ai_fallback'] = setting('ai_fallback', '');
+save_setting('ai_fallback', '0');
+$brSent = [];
+$brFake = static function (array $cfg, string $system, string $prompt) use (&$brSent): array {
+    $brSent = [$cfg, $system, $prompt];
+    preg_match('/Waarom is (server-\d+) traag/', $prompt, $m);
+    return ['text' => 'De schijf van ' . ($m[1] ?? '?') . " is bijna vol.\n\nKijk bij Analyse.", 'in' => 100, 'out' => 20, 'ms' => 5];
+};
+$brA = Brief::ask('Waarom is brief-nas traag? Zie 192.0.2.44 en nas.thuis.example', 'unit', $brFake);
+$brP = (string) ($brSent[2] ?? '');
+ok($brP !== '' && !str_contains($brP, 'brief-nas') && !str_contains($brP, '192.0.2.44') && !str_contains($brP, 'thuis.example') && !str_contains($brP, 'geheim123')
+    && !preg_match('/(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?!\d)/', $brP),
+    'naar het cloudmodel gaan geen servernamen, IP-adressen, domeinnamen of wachtwoorden');
+ok(str_contains($brP, 'server-') && str_contains($brP, 'ip-1') && str_contains($brP, 'Disk /volume1') && str_contains($brP, '<gegevens>') && (int) $brSent[0]['max_tokens'] <= 700,
+    'wel de feiten, met labels, en de checks van de genoemde server');
+ok(str_contains($brA['answer'], 'brief-nas') && !preg_match('/server-\d/', $brA['answer']) && $brA['masked'] === true && $brA['cloud'] === true, 'in het antwoord staan de echte namen weer');
+ok($brA['facts'] !== [] && (bool) array_filter($brA['facts'], static fn($f) => str_contains($f, 'brief-nas')) && !array_filter($brA['facts'], static fn($f) => str_contains($f, 'geheim123')),
+    'de feiten waar het antwoord op gebaseerd is komen mee (zonder geheimen)');
+$brRow = q("SELECT * FROM ai_advice WHERE kind = 'ask' ORDER BY id DESC LIMIT 1")->fetch();
+ok($brRow && $brRow['status'] === 'done' && $brRow['provider'] === 'claude' && (int) $brRow['tok_in'] === 100 && $brRow['created_by'] === 'unit', 'de vraag telt mee voor het verbruik en de daglimiet');
+save_setting('ai_daily', '1');
+$brErr = '';
+try {
+    Brief::ask('nog een vraag over de servers', 'unit', $brFake);
+} catch (RuntimeException $e) {
+    $brErr = $e->getMessage();
+}
+ok($brErr !== '', 'de daglimiet geldt ook voor vragen');
+$brErr = '';
+try {
+    Brief::ask('x', 'unit', $brFake);
+} catch (RuntimeException $e) {
+    $brErr = $e->getMessage();
+}
+ok($brErr !== '', 'een te korte vraag wordt geweigerd');
+$brMap = [];
+$brD = Brief::maskDomains('zie mail.example.org en versie 1.2.3 en rzmon-agent.sh en www.example.org/pad', $brMap);
+ok(!str_contains($brD, 'example.org') && str_contains($brD, '1.2.3') && str_contains($brD, 'rzmon-agent.sh') && count($brMap) === 2, 'domeinnamen worden labels; een versienummer of bestandsnaam niet');
+[$brMk] = Ai::mask('verbinding met 198.51.100.66. En 10.0.0.1, versie 1.2.3.', []);
+ok(!str_contains($brMk, '198.51.100.66') && !str_contains($brMk, '10.0.0.1') && str_contains($brMk, '1.2.3'), 'een IP-adres aan het eind van een zin wordt ook gemaskeerd (een versienummer niet)');
+ok(str_contains(Brief::system('nl'), 'nooit commando') && str_contains(Brief::system('en'), 'Never give commands'), 'de opdracht aan het model: geen commando\'s, alleen de feiten');
+foreach ($brOld as $brKey => $brVal) {
+    save_setting($brKey, $brVal);
+}
+q("DELETE FROM ai_advice WHERE kind = 'ask'");
+q('DELETE FROM hosts WHERE id = ?', [$brH]);
+AdviceHub::forget();
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

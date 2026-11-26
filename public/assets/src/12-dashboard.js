@@ -121,7 +121,13 @@ function renderHomeDef() {
   </section>`;
 
   const box = $('#home');
-  const html = `<div class="hd">${strip}<div class="hd-duo">${attn}${srv}</div>${advBox(d)}</div>`;   // 1.333.0: Advies
+  // 1.335.0: de ochtendsamenvatting van vandaag (weg te klikken tot morgen) en de zoek- en vraagbalk
+  const mHide = (() => { try { return localStorage.getItem('rzmon-morning-hide') === (d.morning || {}).day; } catch (e) { return false; } })();
+  const morning = d.morning && !mHide ? `<section class="hd-box hd-morning" aria-labelledby="hd-h-mor"><div class="hd-mtxt"><h2 id="hd-h-mor">☀️ ${esc(L('Vanochtend'))}</h2><p>${esc(d.morning.text)}</p></div>
+      <button type="button" class="hd-x" data-morning-hide="${esc(d.morning.day)}" aria-label="${esc(L('Verbergen tot morgen'))}" title="${esc(L('Verbergen tot morgen'))}">×</button></section>` : '';
+  const ask = `<button type="button" class="hd-ask" data-cmdk-open><span aria-hidden="true">${aiOn() && state.ai.ask ? '✨' : '🔍'}</span>
+      <span class="hd-ask-t">${esc(aiOn() && state.ai.ask ? L('Zoek of vraag het RzSense…') : L('Zoek een server, check of instelling…'))}</span><kbd>Ctrl K</kbd></button>`;
+  const html = `<div class="hd">${ask}${morning}${strip}<div class="hd-duo">${attn}${srv}</div>${advBox(d)}</div>`;   // 1.333.0: Advies
   if ($('.hd', box)) withMorph(() => { box.innerHTML = html; }); else box.innerHTML = html;
   $$('[data-hm-go]', box).forEach((b) => (b.onclick = () => hmGoTo(b.dataset.hmGo)));
 }

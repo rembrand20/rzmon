@@ -484,6 +484,8 @@ const FH_SHORT = () => ({
   thresh_default: L("Hoe een nieuwe check zijn grenzen bepaalt: zelf leren, met of zonder vaste grens als vangnet."),
   smart_sens: L("Hoe snel een slimme drempel iets afwijkends ziet. Scherp = sneller een melding."),
   smart_auto: L("Een handmatige check gaat na 7 dagen leren vanzelf naar slim, als dat minder meldingen geeft."),
+  morning_on: L("Elke ochtend één alinea over hoe het ervoor staat: bovenaan het dashboard en als melding."),
+  morning_time: L("Het tijdstip waarop de samenvatting gemaakt wordt. In stille uren wacht de melding tot die voorbij zijn."),
   smart_interval: L("Bij een probleem vaker controleren; als alles een uur goed is minder vaak."),
   anomaly_on: L("Een ℹ️-melding als een waarde zonder drempel flink anders is dan normaal."),
   disk_jump_on: L("Een ℹ️-melding als een disk in een uur hard groeit."),

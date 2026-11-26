@@ -6477,6 +6477,29 @@ body.sk-s .cs2-ovi { border-color: transparent; box-shadow: var(--shadow); }
   color: var(--primary); cursor: pointer; }
 .hd-empty { margin: 0; padding: .35rem 1.1rem 1.1rem; color: var(--muted); display: flex; align-items: center; gap: .5rem; }
 @media (max-width: 960px) { .hd-duo { grid-template-columns: minmax(0, 1fr); } }
+/* 1.335.0: de zoek- en vraagbalk en de ochtendsamenvatting op het dashboard; het antwoord in de zoekbalk */
+.hd-ask { font: inherit; color: var(--muted); background: var(--card); border: 1px solid var(--border); border-radius: 999px; min-height: 46px; padding: .55rem 1.1rem;
+  display: flex; align-items: center; gap: .7rem; width: 100%; text-align: left; cursor: text; box-shadow: var(--shadow); }
+.hd-ask:hover { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); }
+.hd-ask:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.hd-ask-t { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hd-ask kbd { font: inherit; font-size: .75rem; padding: .1rem .45rem; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); background: var(--card-2); }
+.hd-morning { display: flex; align-items: flex-start; gap: .75rem; padding: 1rem 1.1rem; }
+.hd-mtxt { flex: 1 1 auto; min-width: 0; }
+.hd-morning h2 { margin: 0 0 .3rem; font-size: 1rem; font-weight: 600; }
+.hd-morning p { margin: 0; line-height: 1.55; }
+.hd-x { font: inherit; font-size: 1.2rem; line-height: 1; background: none; border: 0; color: var(--muted); cursor: pointer; min-width: 36px; min-height: 36px; border-radius: 8px; flex: none; }
+.hd-x:hover { background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text); }
+.cc-morning { margin: 0 0 .7rem; line-height: 1.5; }
+.cmdk-ans { padding: .9rem 1.1rem 1rem; overflow: auto; max-height: min(60vh, 520px); }
+.cmdk-q { margin: 0 0 .6rem; font-weight: 600; }
+.cmdk-a p { margin: 0 0 .6rem; line-height: 1.55; }
+.cmdk-facts { margin: .4rem 0 .6rem; font-size: .88rem; }
+.cmdk-facts summary { cursor: pointer; color: var(--primary); }
+.cmdk-facts ul { margin: .5rem 0 0; padding-left: 1.2rem; color: var(--muted); }
+.cmdk-facts li { margin: .15rem 0; overflow-wrap: anywhere; }
+.cmdk-via { margin: 0 0 .7rem; }
+@media (max-width: 720px) { .hd-ask kbd { display: none; } }
 /* 1.334.0: Zelf instellen: de drie soorten hangen onder de hoofdschakelaar */
 .st-kinds { margin: .5rem 0 0 1.1rem; padding-left: 1rem; border-left: 2px solid var(--border); display: grid; gap: .5rem; }
 .st-kinds.off { opacity: .55; }

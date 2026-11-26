@@ -652,7 +652,7 @@ wat je aangevinkt hebt, ook tijdens stille uren. Een kanaal dat helemaal uit sta
 
 | Groep | Meldingen |
 |---|---|
-| RzSense | RzSense bijgewerkt · Achtergrondtaak lukt niet (en weer gelukt) |
+| RzSense | RzSense bijgewerkt · Achtergrondtaak lukt niet (en weer gelukt) · Ochtendsamenvatting |
 | Agents | Agent bijgewerkt · Agent bijwerken mislukt · Agent verbonden · Agent verbindt niet veilig (en weer veilig) |
 | Inloggen | Ingelogd · Mislukte login · Login op een server, van binnen (SSH of console) |
 | Blokkades | Account geblokkeerd · Account gedeblokkeerd · IP geblokkeerd · Blokkade opgeheven |
@@ -676,6 +676,21 @@ wat je aangevinkt hebt, ook tijdens stille uren. Een kanaal dat helemaal uit sta
   in de Agent Manager; zie [Linux-agent](05-linux-agent.md). Als RzSense terug is, krijg je de systeemmelding *Waakhond*.
 - Meer over de onderwerpen zelf staat in [Beveiliging](08-beveiliging.md), [Netwerk](10-netwerk.md),
   [Kwetsbaarheden en updates](09-kwetsbaarheden-en-updates.md) en [Toegang en beheer](11-toegang-en-beheer.md).
+
+## Ochtendsamenvatting
+
+Elke ochtend zet RzSense de stand van zaken in één alinea, bijvoorbeeld: *Alle 14 servers zijn bereikbaar. Er staat 1
+probleem open: Disk /volume1 op NAS. De afgelopen 24 uur zijn 3 aanvallers geblokkeerd.* Hooguit vijf zinnen, het
+belangrijkste eerst.
+
+- **Waar je hem ziet:** die dag bovenaan het dashboard (*☀️ Vanochtend*), en als melding.
+- **Instellen:** *Instellingen → Meldingen en rapporten → Rapporten*, kaart **☀️ Ochtendsamenvatting**: aan of uit en
+  het tijdstip (standaard 07:30).
+- **Kanalen:** de melding is een systeemmelding. Bij *Systeemmeldingen → RzSense → Ochtendsamenvatting* kies je de
+  kanalen, of zet je alleen de melding uit.
+- **Stille uren:** valt het tijdstip in je stille uren, dan wacht de melding tot die voorbij zijn. Op het dashboard
+  staat de samenvatting er wel meteen.
+- **Zonder AI:** de tekst komt rechtstreeks uit je eigen gegevens. Er gaat niets naar een AI-dienst en het kost niets.
 
 ## Rapporten en overzichten
 

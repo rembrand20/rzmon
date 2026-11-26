@@ -335,6 +335,14 @@ try {
 } catch (Throwable $e) {
     cron_err('Slimme drempels', $e);
 }
+// Ochtendsamenvatting (1.335.0): één keer per dag op het ingestelde tijdstip
+try {
+    if (Brief::cron()) {
+        echo date('c') . " ochtendsamenvatting gemaakt\n";
+    }
+} catch (Throwable $e) {
+    cron_err('Ochtendsamenvatting', $e);
+}
 // Slimme voorstellen (1.108.0): één keer per nacht vanaf 4:30
 try {
     if ($n = Advice::cron()) {

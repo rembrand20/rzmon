@@ -41,6 +41,7 @@ function advCard(d) {
   const a = d.advice;
   if (!a) return '';
   return ccCard('advice', `${ccHead(L('Advies'), `<span class="cc-mu small">${esc(L('{n} open', { n: a.n }))}</span>`)}
+    ${d.morning ? `<p class="cc-morning">☀️ ${esc(d.morning.text)}</p>` : ''}
     ${a.top.length ? `<ul class="cc-list">${a.top.map((x) => `<li><button type="button" class="cc-row" data-adv-all><i class="cc-bar ${x.sev === 2 ? 'crit' : x.sev === 1 ? 'warn' : 'cy'}"></i>
       <span><b>${esc(x.title)}</b><small class="cc-mu">${esc([x.sub, ADV_SRC[x.src]().toLowerCase()].filter(Boolean).join(' · '))}</small></span></button></li>`).join('')}</ul>`
     : `<p class="cc-mu">${esc(L('Geen advies: RzSense heeft niets gevonden om te verbeteren'))}</p>`}
@@ -82,6 +83,10 @@ async function advDialog() {
 }
 
 document.addEventListener('click', async (e) => {
+  // 1.335.0: de zoek- en vraagbalk en het wegklikken van de ochtendsamenvatting op het dashboard
+  const o = e.target.closest ? e.target.closest('[data-cmdk-open], [data-morning-hide]') : null;
+  if (o && o.dataset.cmdkOpen !== undefined) return cmdkOpen();
+  if (o) { try { localStorage.setItem('rzmon-morning-hide', o.dataset.morningHide); } catch (ex) { /* geen opslag: dan alleen nu */ } if (hmData) hmData.morning = null; return renderHome(); }
   const b = e.target.closest ? e.target.closest('[data-adv-act], [data-adv-all], [data-adv-reset]') : null;
   if (!b) return;
   if (b.dataset.advAll !== undefined) { e.stopPropagation(); return advDialog(); }

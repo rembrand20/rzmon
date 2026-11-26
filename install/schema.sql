@@ -2015,3 +2015,6 @@ CREATE TABLE IF NOT EXISTS wifi_samples (
 
 -- 1.334.0: Zelf instellen: de hoofdschakelaar en ruis dempen (drempels = smart_auto, melden na N = alert_auto bestonden al)
 INSERT IGNORE INTO settings (name, value) VALUES ('self_tune', '1'), ('noise_auto', '1');
+
+-- 1.335.0: ochtendsamenvatting (dashboard en melding), elke dag op dit tijdstip
+INSERT IGNORE INTO settings (name, value) VALUES ('morning_on', '1'), ('morning_time', '07:30');

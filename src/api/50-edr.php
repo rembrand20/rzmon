@@ -335,6 +335,14 @@ switch ($action) {
         Insights::setStatus((string) ($in['key'] ?? ''), (string) ($in['status'] ?? ''), (string) $user['username'])
             ? out(['ok' => true]) : out(['error' => t('Ongeldig advies of status')], 422);
 
+    case 'ask':   // 1.335.0: Vraag het RzSense: een vraag in gewone taal, beantwoord door het ingestelde AI-model
+        session_write_close();
+        try {
+            out(['ok' => true] + Brief::ask((string) (input()['q'] ?? ''), (string) $user['username']));
+        } catch (RuntimeException $e) {
+            out(['error' => $e->getMessage()], 422);
+        }
+
     case 'advice_hub':   // 1.333.0: Advies op één plek (dashboard)
         out(['items' => AdviceHub::items($isAdmin), 'hidden' => AdviceHub::hiddenCount(), 'admin' => $isAdmin]);
 
@@ -357,6 +365,11 @@ switch ($action) {
             $hd['advice'] = AdviceHub::summary($isAdmin);   // 1.333.0: het blok Advies
         } catch (Throwable) {
             $hd['advice'] = null;
+        }
+        try {
+            $hd['morning'] = Brief::today();   // 1.335.0: de ochtendsamenvatting van vandaag
+        } catch (Throwable) {
+            $hd['morning'] = null;
         }
         if (!empty($_GET['cc'])) {   // 1.154.0: het Command center (tweede dashboard)
             $hd['cc'] = CommandCenter::data((string) ($_GET['ccp'] ?? 'today'), mb_substr((string) ($_GET['seen'] ?? ''), 0, 30));

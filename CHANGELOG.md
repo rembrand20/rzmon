@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.335.0**: **Vraag het RzSense en de ochtendsamenvatting**: een vraag in gewone taal in de zoekbalk (met je eigen AI-sleutel), en elke ochtend één alinea over hoe het ervoor staat.
 - **1.334.0**: **Zelf instellen**: één kaart voor wat RzSense zelf aanpast, met ruis dempen, terugdraaien in het logboek en *Weer slim*.
 - **1.333.0**: **Advies op één plek**: één blok op het dashboard met alles wat RzSense je aanraadt uit zeven bronnen, de belangrijkste bovenaan.
 - **1.332.0**: **Twee lay-outs**: L1nes (rustig, de standaard) en Bloxzz (tegels en het live dashboard); Compact en de oude L1nes zijn weg.
 - **1.331.0**: **Netwerk → Van buitenaf**: wat er open staat op internet als eigen tabblad; de WAF start weer (agent 1.123.1).
-- **1.330.0**: **Nieuwe indeling**: alles op één logische plek, zonder dubbele onderdelen; de beheerportal in kleinere groepen, met een eigen groep Netwerk.
+
+## 1.335.0 – 2026-11-26
+### Nieuw
+- **Vraag het RzSense.** In de zoekbalk (Ctrl+K) kun je met AI-advies aan een vraag stellen in gewone taal, zoals *waarom is de NAS traag?*. Het antwoord komt in de balk zelf, met de feiten uit je eigen gegevens waar het op gebaseerd is. Zonder AI-sleutel blijft het een gewone zoekfunctie.
+- **Wat er naar een cloudmodel gaat:** servernamen, IP-adressen, domeinnamen en e-mailadressen gaan als labels (*server-1*, *ip-2*), wachtwoorden en sleutels worden weggehaald, en het antwoord krijgt de echte namen terug. Dat gebeurt bij een vraag altijd. Het model geeft alleen tekst; RzSense voert er nooit iets mee uit. Een vraag telt mee voor de daglimiet en het maandbudget.
+- **Ochtendsamenvatting.** Elke ochtend (standaard 07:30) één alinea over hoe het ervoor staat: bereikbare servers, open problemen, geblokkeerde aanvallers, trends, netwerksnelheid en advies. Hij staat die dag bovenaan het dashboard en gaat als melding uit (*Systeemmeldingen › RzSense › Ochtendsamenvatting*). Tijdens stille uren wacht de melding tot die voorbij zijn. De tekst komt uit je eigen gegevens, zonder AI.
+- Instellen: *Instellingen › Meldingen en rapporten › Rapporten*, kaart **☀️ Ochtendsamenvatting** (aan of uit, en het tijdstip).
+- Het dashboard (L1nes) heeft bovenaan een **zoek- en vraagbalk**.
+- Een hele zin in de zoekbalk, zoals *waarom is nas traag?*, vindt nu ook zonder AI de server die erin genoemd wordt.
+
+### Opgelost
+- **AI-advies: een IP-adres aan het eind van een zin werd niet gemaskeerd.** Stond er in de gegevens voor een cloudmodel bijvoorbeeld *verbinding met 198.51.100.66.*, dan hield de punt erachter het maskeren tegen en ging het adres ongemaskeerd mee. Dat is verholpen voor alle AI-functies.
 
 ## 1.334.0 – 2026-11-26
 ### Nieuw

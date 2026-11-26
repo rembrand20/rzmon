@@ -841,7 +841,7 @@ const SET_NAV = [
     ['idspush', L('IDS-pushmeldingen'), ['idspush'], L('Wanneer een aanval je telefoon laat trillen, en de dagelijkse samenvatting.')],
     ['secch', L('Beveiligingskanaal'), ['secch'], L('Wat nú je aandacht nodig heeft: door Niet storen heen, tot iemand bevestigt.')],   // 1.320.0
     ['sysinfo', L('Systeemmeldingen'), ['sysinfo'], L('Meldingen over RzSense zelf, zoals updates en certificaten.')],
-    ['reports', L('Rapporten'), ['reports'], L('Alle overzichten die RzSense per e-mail of push verstuurt, en het Maandoverzicht.')]]],
+    ['reports', L('Rapporten'), ['reports', 'morning'], L('Alle overzichten die RzSense per e-mail of push verstuurt, het Maandoverzicht en de ochtendsamenvatting.')]]],
   ['toegang', SET_IC('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'), L('Toegang tot RzSense'), [
     ['access', L('Inloggen'), ['access'], L('Lokaal netwerk, uitloggen en blokkeren na mislukte pogingen.')],
     ['outside', L('Beheer van buiten'), ['https', 'outside'], L('Veilig beheren van buiten je netwerk: https, toegestane apparaten en de noodlink.')],
@@ -2239,7 +2239,7 @@ const SYSINFO_ROWS = [
   [L('Netwerk'), [['net_new', '🆕 ' + L('Nieuw apparaat op het netwerk')], ['net_traffic', '📈 ' + L('Ongewoon netwerkverkeer (veel of \'s nachts)')], ['net_cap', '📶 ' + L('Datalimiet internet bijna of helemaal op')], ['path_change', '🛣️ ' + L('Pad naar een doel gewijzigd (pad-check, als die dat mag)')], ['net_speed', '⚡ ' + L('Netwerksnelheid: smalste schakel te laag of een link valt terug (als de route dat mag)')]]],
   [L('Checks'), [['smart_drift', '🧠 ' + L('Normaalwaarde stijgt sluipend (slimme drempels)')], ['smart_auto', '🧠 ' + L('Drempels zelf aangepast (naar slim)')], ['alert_auto', '🔔 ' + L('Melden na N zelf aangepast')], ['heal', '🩹 ' + L('Zelf hersteld (of herstel mislukt)')],
     ['watchdog', '🐕 ' + L('Waakhond: RzSense was onbereikbaar of de checks stonden stil')], ['trend', '📉 ' + L('Trend: een grens wordt binnenkort bereikt (Analyse → Trends)')], ['eol', '⏳ ' + L('End-of-life: software krijgt binnenkort of geen updates meer')], ['nis2', '🇪🇺 ' + L('NIS2: een meldtermijn komt dichtbij of is verlopen')]]],
-  ['RzSense', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')]]],
+  ['RzSense', [['task_fail', '⚠️ ' + L('Achtergrondtaak lukt niet (en weer gelukt)')], ['morning', '☀️ ' + L('Ochtendsamenvatting')]]],
   [L('Logs'), [['logs_limit', '📜 ' + L('Daglimiet van een server bereikt')], ['logs_full', '📜 ' + L('Maximum bereikt: oudste dag weggegooid')], ['logs_watch_off', '📜 ' + L('Vaste zoekactie te traag, uitgezet')]]],   // 1.210.0
   [L('AI-advies'), [['ai_advice', '🤖 ' + L('Samenvatting van een automatisch advies')], ['ai_week', '📅 ' + L('Weekoverzicht')], ['ai_credit', '💳 ' + L('Tegoed of budget bijna op of op')]]],   // 1.173.0
 ];

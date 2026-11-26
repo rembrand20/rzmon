@@ -139,6 +139,10 @@ Met de lay-out *L1nes* is het dashboard kaal en rustig:
 
 5. **Advies**: alles wat RzSense je aanraadt, op één plek. Zie hieronder.
 
+Bovenaan staat de **zoek- en vraagbalk** (zie [Zoeken, doen en vragen](#zoeken-doen-en-vragen-ctrlk)) en, als hij aan
+staat, **☀️ Vanochtend**: de [ochtendsamenvatting](03-meldingen.md#ochtendsamenvatting) van vandaag. Met × verberg je
+hem tot morgen.
+
 Het dashboard wordt live bijgewerkt zonder dat de pagina opnieuw opbouwt: alleen wat verandert, verandert.
 
 Rechtsboven kies je de periode (7, 30 of 90 dagen). Het lampje **● Live** laat zien dat de pagina live meeloopt; het
@@ -631,10 +635,10 @@ Overal waar RzSense iets voor je doet (opslaan, testen, scannen, bijwerken) zie 
 - **Een pagina laden:** duurt het langer dan 0,4 seconde, dan zie je een dun balkje bovenaan en een teller in het
   kruimelpad. Na 8 seconden staat er *Dit duurt langer dan normaal* met **↻ Opnieuw**.
 
-## Zoeken en doen (Ctrl+K)
+## Zoeken, doen en vragen (Ctrl+K)
 
-Druk op **Ctrl+K** (op een Mac **⌘K**), of klik op het vergrootglas. Typ een deel van een server, check, IP-adres,
-pagina of instelling en druk op Enter.
+Druk op **Ctrl+K** (op een Mac **⌘K**), klik op het vergrootglas, of klik op de balk bovenaan het dashboard. Typ een
+deel van een server, check, IP-adres, pagina of instelling en druk op Enter.
 
 Met een werkwoord erbij krijg je meteen de actie:
 
@@ -650,6 +654,29 @@ Met een werkwoord erbij krijg je meteen de actie:
 
 Bijvoorbeeld `rl02 disk onderhoud` of `nas nu`. Typ je een IP-adres, dan krijg je de tijdlijn van dat adres (IDS,
 logins en blokkades). Je ziet alleen wat je met je rol mag. Met ↑ ↓ kies je, Esc sluit.
+
+Typ je een hele zin, zoals *waarom is nas traag?*, dan zoekt RzSense op de losse woorden en vind je de server *nas*
+toch.
+
+### Vraag het RzSense
+
+Staat [AI-advies](#ai-advies) aan, dan kun je in dezelfde balk een vraag stellen in gewone taal, zoals *waarom is de
+NAS traag?* of *wat gebeurde er vannacht?*. Begint je tekst met een vraagwoord of eindigt hij op een vraagteken, dan
+staat **✨ Vraag het RzSense** bovenaan; bij een gewone zoekopdracht staat het onderaan. Druk op Enter.
+
+- **Het antwoord** komt in de balk zelf, in een paar zinnen.
+- **Gebaseerd op … feiten** klapt uit en laat zien welke gegevens het model kreeg: bereikbare servers, open problemen,
+  meldingen, IDS, trends, netwerksnelheid en het aantal adviezen. Noem je een server bij naam, dan gaan ook zijn checks
+  en de statuswissels van de laatste 7 dagen mee.
+- **Wat er naar buiten gaat:** bij een model in de cloud worden servernamen, IP-adressen, domeinnamen en e-mailadressen
+  eerst labels (*server-1*, *ip-2*); in het antwoord zet RzSense de echte namen terug. Wachtwoorden en sleutels worden
+  weggehaald. Dat gebeurt hier altijd, ook als maskeren bij AI-advies uit staat. Met Ollama blijft alles op je eigen
+  netwerk.
+- **Alleen tekst:** het model krijgt de opdracht geen commando's te geven, en RzSense voert nooit iets uit op basis van
+  een antwoord.
+- Een vraag telt mee voor de daglimiet en het maandbudget van AI-advies.
+
+Zonder AI-advies is het een gewone zoekfunctie; er gaat dan niets naar buiten.
 
 ## Filters
 

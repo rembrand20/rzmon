@@ -1300,7 +1300,7 @@ final class Ai
             $s = preg_replace_callback('/(?<![\w.-])' . preg_quote($name, '/') . '(?![\w-])/iu', static fn($m) => $label('server', $m[0]), $s) ?? $s;
         }
         $s = preg_replace_callback('/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/', static fn($m) => $label('mail', $m[0]), $s) ?? $s;
-        $s = preg_replace_callback('/(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])/', static fn($m) => filter_var($m[0], FILTER_VALIDATE_IP) ? $label('ip', $m[0]) : $m[0], $s) ?? $s;
+        $s = preg_replace_callback('/(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?!\d|\.\d)/', static fn($m) => filter_var($m[0], FILTER_VALIDATE_IP) ? $label('ip', $m[0]) : $m[0], $s) ?? $s;
         $s = preg_replace_callback('/(?<![\w:])[0-9a-f]{0,4}(?::[0-9a-f]{0,4}){2,7}(?![\w:])/i', static fn($m) => filter_var($m[0], FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? $label('ip', $m[0]) : $m[0], $s) ?? $s;
         return [$s, $map];
     }

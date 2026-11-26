@@ -1078,6 +1078,15 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <div id="reports-box"><p class="muted small"><?= th('laden…') ?></p></div>
         </div>
 
+        <!-- 1.335.0: ochtendsamenvatting -->
+        <div data-sk="morning" class="card" id="morning-card">
+          <h2>☀️ <?= th('Ochtendsamenvatting') ?></h2>
+          <?= xp(t('Elke ochtend één alinea: hoe het ervoor staat en wat er vannacht gebeurde.'), t('<b>Wat het doet:</b> elke dag op het ingestelde tijdstip zet RzSense de belangrijkste feiten in één alinea: bereikbare servers, open problemen, geblokkeerde aanvallers, trends, de netwerksnelheid en het advies dat klaarstaat. Hij staat die dag bovenaan het dashboard en gaat als melding naar de kanalen van <i>Meldingen › Systeemmeldingen › Ochtendsamenvatting</i>. <b>Zonder AI:</b> de tekst komt rechtstreeks uit je eigen gegevens; er gaat niets naar buiten en het kost niets. <b>Stille uren:</b> valt het tijdstip in je stille uren, dan wacht de melding tot die voorbij zijn.')) ?>
+          <label class="switch"><input type="checkbox" name="morning_on"><span></span> <span><?= th('Elke ochtend een samenvatting maken') ?></span></label>
+          <label style="max-width:12rem;margin-top:.6rem"><?= th('Tijdstip') ?>
+            <input type="time" name="morning_time" step="300"></label>
+        </div>
+
         <div data-sk="unifi" class="card" id="unifi-card">
           <h2>📡 <?= th('UniFi') ?></h2>
           <?= xp(t('Namen, wifi, verkeer en weren van je apparaten, rechtstreeks uit je UniFi-controller.'), t('<b>Wat het doet:</b> RzSense leest elke 5 minuten de lijst met apparaten uit je UniFi Network-app (op een UniFi OS-console zoals een UDM of Cloud Gateway, of zelf gehost). <b>Waar je het ziet:</b> <i>Netwerk → Apparaten en Ontdekken</i>: de naam, het wifi-netwerk, het access point of de switchpoort van elk apparaat. <i>Verkeer per apparaat</i>: download en upload per uur (30 dagen) en per dag (een jaar), met een melding bij ongewoon veel of nachtelijk verkeer. <i>Diensten (DPI)</i>: welke soort verkeer een apparaat doet, zoals streaming of updates. <i>Internetlijn per maand</i>: het verkeer over je gateway, met een datalimiet. <i>Netwerkpaden</i>: de switchpoort en de snelheid van de verbinding. <b>Weren:</b> bij een apparaat kun je het van het wifi weren; dat gebeurt alleen als jij erop klikt. <b>Veilig:</b> het wachtwoord en de API-sleutel blijven op de RzSense-server en gaan nooit naar de browser. RzSense leest alleen, behalve als je zelf iets weert.')) ?>
@@ -2258,8 +2267,9 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
   <script nonce="<?= csp_nonce() ?>">window.LANG = <?= json_encode(I18n::lang()) ?>; window.I18N = <?= I18n::lang() === 'en' ? json_encode(I18n::dict(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) : '{}' ?>;</script>
 <div class="cmdk" id="cmdk" hidden>
   <div class="cmdk-box" role="dialog" aria-modal="true" aria-label="<?= th('Zoeken en doen') ?>">
-    <input id="cmdk-in" type="search" autocomplete="off" spellcheck="false" placeholder="<?= th('Server, check, IP-adres of instelling… (bv. "rl02 disk onderhoud")') ?>">
+    <input id="cmdk-in" type="search" autocomplete="off" spellcheck="false" placeholder="<?= th('Zoek een server, check, IP-adres of instelling, of stel een vraag…') ?>">
     <div class="cmdk-list" id="cmdk-list" role="listbox"></div>
+    <div class="cmdk-ans" id="cmdk-ans" hidden aria-live="polite"></div>
     <div class="cmdk-foot muted small"><?= th('↑↓ kiezen · Enter doen · Esc sluiten · woorden als "onderhoud", "nu", "bevestig", "grafiek", "blokkeer" geven acties') ?></div>
   </div>
 </div>
