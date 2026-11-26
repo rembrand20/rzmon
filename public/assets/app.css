@@ -6477,6 +6477,19 @@ body.sk-s .cs2-ovi { border-color: transparent; box-shadow: var(--shadow); }
   color: var(--primary); cursor: pointer; }
 .hd-empty { margin: 0; padding: .35rem 1.1rem 1.1rem; color: var(--muted); display: flex; align-items: center; gap: .5rem; }
 @media (max-width: 960px) { .hd-duo { grid-template-columns: minmax(0, 1fr); } }
+/* 1.338.0: telefoon en tablet. Kleine knoppen en koppelingen krijgen een groter aanraakvlak (onzichtbaar, zonder dat de
+   opmaak verschuift), en op Monitoring staat de hoofdactie onder je duim. */
+@media (pointer: coarse) {
+  :is(.crumb, .xp-btn, .linklike, .hl-link, .lp-kv, .lp-tok, .rep, .inc-open, .a-chk, .fh-i, .hd-link, .link-btn) { position: relative; }
+  :is(.crumb, .xp-btn, .linklike, .hl-link, .lp-kv, .lp-tok, .rep, .inc-open, .a-chk, .fh-i, .hd-link, .link-btn)::after { content: ""; position: absolute; left: -4px; right: -4px; top: 50%; height: 40px; transform: translateY(-50%); }
+  :is(.lp-kv, .lp-tok)::after { left: -1px; right: -1px; height: 32px; }
+  select.lp-add { min-height: 36px; }
+}
+@media (max-width: 720px) {
+  #tab-dashboard #add-host { position: fixed; right: 14px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 30; min-height: 48px; padding: 0 1.1rem; border-radius: 999px;
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--primary) 35%, transparent), var(--shadow); }
+  body.tv #tab-dashboard #add-host { display: none; }
+}
 /* 1.337.0: schermmodus: de balk onderaan, en de keuze van schermen bij de schermlink */
 .scr-bar { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 1rem; padding: .45rem .6rem .45rem 1rem;
   background: var(--card); border: 1px solid var(--border); border-radius: 999px; box-shadow: var(--shadow); font-size: .85rem; color: var(--muted); max-width: calc(100vw - 24px); }

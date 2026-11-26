@@ -280,6 +280,27 @@ Instellingen › Monitoring › Slimme drempels en advies*. Elk stuk is een link
 erachter als knopje (*CRITICAL ✕* of *2 filters ✕*); een klik haalt het filter weg. Duurt het laden van een pagina even,
 dan zie je in het kruimelpad een teller (*IDS laden · 0,8 s*).
 
+**Dezelfde opbouw op elke pagina.** Elke hoofdpagina begint hetzelfde: het kruimelpad, de **titel**, en daaronder
+**één zin over hoe het ervoor staat**:
+
+| Pagina | De zin |
+|---|---|
+| Monitoring | het aantal checks en servers, en hoeveel er open staan |
+| Meldingen | hoeveel nieuwe meldingen er zijn sinds je laatste bezoek |
+| Incidenten | hoeveel incidenten er open staan |
+| IDS | hoeveel incidenten op een beoordeling wachten |
+| Kwetsbaarheden | hoeveel er kritiek zijn of actief misbruikt worden |
+| Netwerk | hoeveel nieuwe apparaten nog niet beoordeeld zijn |
+| Servers | het aantal servers, en hoeveel met een agent |
+
+Rood of oranje betekent dat er iets te doen is. RzSense toont de zin alleen als hij het zeker weet; anders staat er
+niets. Daaronder volgen de kerncijfers, de zoek- en filterbalk en de lijst; details openen in een venster.
+
+**Op een telefoon of tablet** staan tabellen als kaartjes onder elkaar en valt geen pagina buiten het scherm. Kleine
+knoppen en koppelingen (het kruimelpad, *Meer info*, de regels van het Logboek, de labels in Logs) hebben een groter
+aanraakvlak, zodat je ze met je duim raakt. Op *Monitoring* staat **＋ Server** rechtsonder, boven de balk met de
+pagina's.
+
 **Detailpaneel.** Klik je op een item (een server, check, incident, IDS-treffer, apparaat, logregel, container, advies,
 melding, regel van het Logboek …), dan openen de details in een **venster over de pagina**, precies zo breed als de
 inhoud van de pagina (de zijbalk blijft links zichtbaar). Alleen het middenstuk scrolt; de titel en de knoppen onderaan

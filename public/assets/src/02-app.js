@@ -716,6 +716,29 @@ function crumbs() {
     sub = [L('{n} checks', { n: c.checks }), L('{n} servers', { n: c.hosts })].map(esc).join(' · ')
       + ' · ' + (open ? `<b class="${c.crit ? 'crit-txt' : 'warn-txt'}">${esc(L('{n} open', { n: open }))}</b>` : esc(L('alles in orde')));
   }
+  // 1.338.0: dezelfde opbouw op elke hoofdpagina: onder de titel één zin over hoe het ervoor staat (alleen wat RzSense
+  // op dat moment zeker weet; anders geen zin)
+  const lead = (n, one, many, none, cls = 'warn-txt') => (n > 0 ? `<b class="${cls}">${esc(n === 1 ? one : many)}</b>` : esc(none));
+  const shown = (id) => { const x = $(id); return x && !x.hidden ? parseInt(x.textContent, 10) || 0 : 0; };
+  if (tab === 'alerts' && state.badges) {
+    const n = state.badges.alerts || 0;
+    sub = lead(n, L('1 nieuwe melding sinds je laatste bezoek'), L('{n} nieuwe meldingen sinds je laatste bezoek', { n }), L('Geen nieuwe meldingen sinds je laatste bezoek'));
+  } else if (tab === 'ids' && state.ids_open !== undefined) {
+    const n = +state.ids_open || 0;
+    sub = lead(n, L('1 incident wacht op een beoordeling'), L('{n} incidenten wachten op een beoordeling', { n }), L('Geen open incidenten'), 'crit-txt');
+  } else if (tab === 'net' && state.net_new !== undefined) {
+    const n = +state.net_new || 0;
+    sub = lead(n, L('1 nieuw apparaat is nog niet beoordeeld'), L('{n} nieuwe apparaten zijn nog niet beoordeeld', { n }), L('Alle apparaten zijn beoordeeld'));
+  } else if (tab === 'servers' && state.hosts) {
+    const all = state.hosts.filter((h) => +h.enabled), ag = all.filter((h) => h.mode === 'agent').length;
+    sub = esc(all.length === 1 ? L('1 server') : L('{n} servers', { n: all.length })) + (ag ? ' · ' + esc(L('{n} met een agent', { n: ag })) : '');
+  } else if (tab === 'incidents' && shown('#inc-badge')) {
+    const n = shown('#inc-badge');
+    sub = lead(n, L('1 incident staat open'), L('{n} incidenten staan open', { n }), '');
+  } else if (tab === 'vulns' && shown('#vuln-badge')) {
+    const n = shown('#vuln-badge');
+    sub = lead(n, L('1 kwetsbaarheid is kritiek of wordt actief misbruikt'), L('{n} kwetsbaarheden zijn kritiek of worden actief misbruikt', { n }), '', 'crit-txt');
+  }
   const live = tab === 'dashboard' && $('#last-run') ? `<span class="ph-live${$('#live-dot.off') ? ' off' : ''}"><i aria-hidden="true"></i><span>${$('#last-run').innerHTML}</span></span>` : '';
   const wait = $('.crumb-wait', el);
   el.innerHTML = `<div class="ph-main"><nav class="ph-path" aria-label="${esc(L('Kruimelpad'))}">` + parts.map((p, i) => {

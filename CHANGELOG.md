@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.338.0**: **Dezelfde opbouw op elke pagina**: onder elke titel één zin over hoe het ervoor staat, en grotere aanraakvlakken op telefoon en tablet.
 - **1.337.0**: **Schermmodus en schermlink**: Monitoring als altijd-aan-scherm dat wisselt tussen Monitoring, Netwerk en IDS, ingelogd of via een geheime link zonder inloggen.
 - **1.336.0**: **Beheerportal Eenvoudig of Uitgebreid**: per kaart alleen wat je nodig hebt, met één schakelaar naar alles.
 - **1.335.0**: **Vraag het RzSense en de ochtendsamenvatting**: een vraag in gewone taal in de zoekbalk (met je eigen AI-sleutel), en elke ochtend één alinea over hoe het ervoor staat.
 - **1.334.0**: **Zelf instellen**: één kaart voor wat RzSense zelf aanpast, met ruis dempen, terugdraaien in het logboek en *Weer slim*.
-- **1.333.0**: **Advies op één plek**: één blok op het dashboard met alles wat RzSense je aanraadt uit zeven bronnen, de belangrijkste bovenaan.
+
+## 1.338.0 – 2026-11-26
+### Nieuw
+- **Dezelfde opbouw op elke pagina.** Onder de titel van elke hoofdpagina staat nu één zin over hoe het ervoor staat: op *Meldingen* hoeveel er nieuw zijn, op *IDS* en *Incidenten* hoeveel incidenten open staan, op *Kwetsbaarheden* hoeveel er kritiek zijn of misbruikt worden, op *Netwerk* hoeveel nieuwe apparaten nog niet beoordeeld zijn en op *Servers* het aantal servers. *Monitoring* had dit al. Rood of oranje betekent dat er iets te doen is.
+- **Telefoon en tablet:** kleine knoppen en koppelingen (kruimelpad, *Meer info*, de regels van het Logboek, de labels in Logs) hebben een groter aanraakvlak, zonder dat de pagina anders oogt. Op *Monitoring* staat **＋ Server** rechtsonder, onder je duim.
+
+### Nagemeten
+- Op telefoonformaat (390 pixels breed) zijn 30 pagina's nagelopen: geen enkele valt buiten het scherm, en de tabellen staan als kaartjes onder elkaar. Dat was al zo; daarom is deze stap kleiner dan in het voorstel stond.
 
 ## 1.337.0 – 2026-11-26
 ### Nieuw
