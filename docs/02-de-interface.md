@@ -85,7 +85,7 @@ instellingen, met bovenaan **← Terug naar RzSense**. Op een telefoon is het me
 | **Kwetsbaarheden en updates** | Kwetsbaarheden · Updatebeleid |
 | **Netwerk** | Netwerkscan · Internetcheck · UniFi · AdGuard Home · SNMP |
 | **Agents** | Standaard voor alle agents · Netwerken en relays · Tijdelijk sudo · Commando-checks · Home Assistant (MQTT) |
-| **Systeem** | Weergave · Bijwerken · Back-up · Reserve-RzSense · Database en server · Prestaties en fouten · Achtergrondtaken · AI-advies · REST API · Statuspagina · Exporteren en importeren |
+| **Systeem** | Weergave · Bijwerken · Back-up · Reserve-RzSense · Database en server · Prestaties en fouten · Achtergrondtaken · AI-advies · REST API · Statuspagina en schermlink · Exporteren en importeren |
 
 *Alle checks* staat als tabblad op de pagina **Monitoring**, de NIS2-instellingen op het tabblad **Instellingen** van
 **Compliance**. Een oud adres (bijvoorbeeld in een melding of een bladwijzer) gaat vanzelf naar de nieuwe plek.
@@ -110,8 +110,7 @@ dan schakelt RzSense vanzelf naar Uitgebreid. Een link naar een onderdeel dat al
 Alleen in Uitgebreid staan in de zijbalk: *Logs verzamelen*, *Beveiligingskanaal*, *Datalekken*,
 *Dreigingsinformatie*, *DNS, Suricata en YARA*, *Ransomware*, *Programma's*, *Netwerk en weblogs*,
 *E-mailbeveiliging*, *SNMP*, *Netwerken en relays*, *Tijdelijk sudo*, *Commando-checks*, *Reserve-RzSense*,
-*Database en server*, *Prestaties en fouten*, *Achtergrondtaken*, *REST API*, *Statuspagina* en *Exporteren en
-importeren*.
+*Database en server*, *Prestaties en fouten*, *Achtergrondtaken*, *REST API* en *Exporteren en importeren*.
 
 **Zo werkt de beheerportal:**
 
@@ -373,6 +372,45 @@ switch, access point, firewall) **· Opslag · Stroom · Camera's · Smart home 
 
 Bij een camera staat de knop **＋ Aanbevolen checks** (ping, RTSP op poort 554 en eventueel de webpagina). Meer over
 checks in [Servers en checks](04-servers-en-checks.md).
+
+## Schermmodus en de schermlink
+
+Voor een scherm dat altijd aan staat, bijvoorbeeld bij een beheerafdeling of in de meterkast, zijn er twee manieren.
+
+### Schermmodus (ingelogd)
+
+Klik op **Monitoring** op **Schermmodus** (naast *Sorteren*). De pagina wordt schermvullend, het menu verdwijnt, de
+letters worden groter en het scherm blijft aan. Elke 30 seconden wisselt de pagina tussen **Monitoring**, **Netwerk**
+(Netwerksnelheid) en **IDS**; komt er een storing bij, dan springt hij terug naar Monitoring. Onderaan staat een smal
+balkje met wat er nu in beeld is. Met **Esc** of *Schermmodus uit* ga je terug.
+
+- Je gebruikt je eigen account, lay-out en thema, en je kunt gewoon ergens op klikken. Staat er een venster open, dan
+  wisselt de pagina niet.
+- Met het adres `#dashboard?scherm=1` start RzSense meteen in schermmodus, handig als startpagina van het scherm.
+- Het scherm aan houden werkt alleen via https (een eis van de browser).
+
+### De schermlink (zonder inloggen)
+
+Wil je geen account op het scherm ingelogd laten, gebruik dan de schermlink: een aparte pagina met een geheime link.
+
+1. Ga naar *Instellingen → Systeem → Statuspagina en schermlink* en zet in de kaart **🖥️ Schermlink** de schakelaar
+   **Schermlink aan**.
+2. Kopieer de **geheime link** en open hem op het scherm.
+
+Op de pagina staat bovenaan de stand (storingen, aandacht, in orde), de klok en hoe oud de laatste meting is. Daaronder
+om de beurt **Monitoring** (elke server als tegel, storingen groot en vooraan), **Netwerk** (internetsnelheid,
+vertraging en of er een schakel terugvalt) en **IDS** (geblokkeerd vandaag en de open incidenten). De gegevens worden
+elke 15 seconden bijgewerkt. Bij een nieuwe storing springt het scherm naar Monitoring.
+
+| Instelling | Betekenis |
+|---|---|
+| **Alleen vanaf mijn netwerk** | Standaard aan: van buiten geeft de link een gewone 404. Op het scherm staan de namen van je servers en incidenten; zet dit alleen uit als het scherm echt buiten je netwerk hangt |
+| **Wisselen elke … seconden** | Standaard 30; 0 = niet wisselen |
+| **Schermen** | Welke schermen meedoen. Monitoring doet altijd mee; Netwerk en IDS alleen als daar iets te zien is |
+| **Nieuwe link** | Maakt een nieuwe sleutel; de oude link werkt dan meteen niet meer |
+
+De schermlink is alleen lezen: er zijn geen knoppen en er kan niets mee veranderd worden. De pagina volgt licht of
+donker van het scherm zelf.
 
 ## Beschikbaarheid per groep
 

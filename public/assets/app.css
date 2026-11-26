@@ -6477,6 +6477,16 @@ body.sk-s .cs2-ovi { border-color: transparent; box-shadow: var(--shadow); }
   color: var(--primary); cursor: pointer; }
 .hd-empty { margin: 0; padding: .35rem 1.1rem 1.1rem; color: var(--muted); display: flex; align-items: center; gap: .5rem; }
 @media (max-width: 960px) { .hd-duo { grid-template-columns: minmax(0, 1fr); } }
+/* 1.337.0: schermmodus: de balk onderaan, en de keuze van schermen bij de schermlink */
+.scr-bar { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 1rem; padding: .45rem .6rem .45rem 1rem;
+  background: var(--card); border: 1px solid var(--border); border-radius: 999px; box-shadow: var(--shadow); font-size: .85rem; color: var(--muted); max-width: calc(100vw - 24px); }
+.scr-bar b { color: var(--text); }
+.scr-views { display: flex; gap: 1rem; flex-wrap: wrap; padding-top: .35rem; }
+.dash-scr { display: inline-flex; align-items: center; gap: .4rem; }
+.dash-scr .st-ic { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+body.tv .dash-scr { display: none; }
+@media (max-width: 900px) { .dash-scr span { display: none; } }
+@media (max-width: 720px) { .dash-scr { display: none; } .scr-bar span { display: none; } }
 /* 1.336.0: beheerportal Eenvoudig of Uitgebreid */
 .set-crumb { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
 .set-mode { margin-left: auto; }

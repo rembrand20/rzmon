@@ -13,7 +13,7 @@ const API_GET = [
     'log_overview', 'log_search', 'log_source_lines', 'log_sources', 'log_library', 'log_watches', 'mds', 'my_access', 'my_logins', 'net_devices', 'net_discover',
     'net_domains', 'net_dpi', 'net_traffic_device', 'path_info', 'paths', 'speed', 'podman', 'pve_overview', 'pw_reset_info', 'quiet_get', 'report',
     'report_preview', 'reports_get', 'rev', 'security', 'self_status', 'sessions', 'sessions_all', 'settings', 'settings_health', 'setup_info',
-    'smart_proposals', 'snmp_discover', 'snmp_global', 'ssh_sessions', 'state', 'stats', 'status_get', 'stealth_info', 'templates', 'ti_status',
+    'smart_proposals', 'snmp_discover', 'snmp_global', 'ssh_sessions', 'state', 'stats', 'status_get', 'screen_get', 'stealth_info', 'templates', 'ti_status',
     'trends', 'truenas_overview', 'update_info', 'update_status', 'users', 'vuln_csv', 'vuln_detail', 'vuln_packages', 'vuln_sbom', 'vuln_search', 'vuln_software', 'vuln_upgrade_status', 'vuln_where',
     'vulns', 'weblog_status',
 ];

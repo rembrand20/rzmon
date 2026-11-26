@@ -8,11 +8,21 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.337.0**: **Schermmodus en schermlink**: Monitoring als altijd-aan-scherm dat wisselt tussen Monitoring, Netwerk en IDS, ingelogd of via een geheime link zonder inloggen.
 - **1.336.0**: **Beheerportal Eenvoudig of Uitgebreid**: per kaart alleen wat je nodig hebt, met één schakelaar naar alles.
 - **1.335.0**: **Vraag het RzSense en de ochtendsamenvatting**: een vraag in gewone taal in de zoekbalk (met je eigen AI-sleutel), en elke ochtend één alinea over hoe het ervoor staat.
 - **1.334.0**: **Zelf instellen**: één kaart voor wat RzSense zelf aanpast, met ruis dempen, terugdraaien in het logboek en *Weer slim*.
 - **1.333.0**: **Advies op één plek**: één blok op het dashboard met alles wat RzSense je aanraadt uit zeven bronnen, de belangrijkste bovenaan.
-- **1.332.0**: **Twee lay-outs**: L1nes (rustig, de standaard) en Bloxzz (tegels en het live dashboard); Compact en de oude L1nes zijn weg.
+
+## 1.337.0 – 2026-11-26
+### Nieuw
+- **Schermmodus.** Op *Monitoring* staat de knop **Schermmodus**: schermvullend, zonder menu, het scherm blijft aan, en de pagina wisselt elke 30 seconden tussen Monitoring, Netwerk en IDS. Bij een nieuwe storing springt hij terug naar Monitoring. Esc zet hem uit. Met het adres `#dashboard?scherm=1` start RzSense er meteen in.
+- **Schermlink.** Een aparte pagina voor een scherm aan de muur, **zonder inloggen**: de stand bovenaan, en om de beurt Monitoring (elke server als tegel), Netwerk en IDS, elke 15 seconden bijgewerkt. Instellen bij *Instellingen › Systeem › Statuspagina en schermlink*.
+- De schermlink werkt zoals de Statuspagina: **standaard uit**, een eigen geheime link, **Nieuwe link** maakt de oude meteen ongeldig, en de pagina is alleen lezen. Omdat er servernamen op staan, werkt de link standaard **alleen vanaf je eigen netwerk**; van buiten of met een verkeerde sleutel krijg je een gewone 404.
+- Je kiest hoe vaak het scherm wisselt (of niet) en welke schermen meedoen.
+
+### Gewijzigd
+- *Statuspagina* in de beheerportal heet nu *Statuspagina en schermlink* en staat ook in Eenvoudig.
 
 ## 1.336.0 – 2026-11-26
 ### Nieuw

@@ -203,6 +203,7 @@ function ccTv(on) {
   if (on && document.documentElement.requestFullscreen && !document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
   if (!on && document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
   if ($('#cc-tvexit')) $('#cc-tvexit').hidden = !on;
+  if (!on) scrStop();   // 1.337.0: schermmodus gaat samen met de TV-weergave uit
 }
 
 function renderCC() {

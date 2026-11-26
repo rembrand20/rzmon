@@ -32,7 +32,7 @@ const SET_BASIC = {
   access: ['lan_no_login', 'session_idle', 'login_lock_fails', 'login_lock_minutes'],
 };
 const SET_ADV = new Set(['logs', 'secch', 'hibp', 'ids_ti', 'ids_dns', 'ids_ransom', 'ids_apps', 'ids_attack', 'mailsec', 'snmp', 'relays', 'sudo', 'commands',
-  'reserve', 'db', 'perf', 'conn', 'api', 'statuspage', 'transfer']);
+  'reserve', 'db', 'perf', 'conn', 'api', 'transfer']);
 const SET_FIELDS = 'input[name]:not([type=hidden]), select[name], textarea[name]';
 let setSimpleBusy = false, setSimpleTimer = null;
 

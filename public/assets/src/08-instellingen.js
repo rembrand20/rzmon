@@ -888,7 +888,7 @@ const SET_NAV = [
     ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzSense elke minuut uitvoert.')],   // 1.330.0: was bij Overzicht
     ['ai', L('AI-advies'), ['ai'], L('Advies van Claude, ChatGPT, Gemini, Grok of Ollama bij storingen.')],
     ['api', L('REST API'), ['api'], L('API-sleutels voor andere toepassingen.')],
-    ['statuspage', L('Statuspagina'), ['statuspage'], L('Een openbare pagina met de status, via een geheime link.')],
+    ['statuspage', L('Statuspagina en schermlink'), ['statuspage', 'screen'], L('Een openbare pagina met de status en een scherm voor aan de muur, elk via een geheime link.')],
     ['transfer', L('Exporteren en importeren'), ['transfer'], L('Servers, checks en instellingen overzetten.')]]],
 ];
 /* 1.181.0: de rol gebruiker ziet alleen deze onderdelen, om te bekijken (de rest is voor beheerders) */
@@ -978,7 +978,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'overview' || Date.now() - setHealthAt > 60000) loadSettingsHealth();
   if (setSection === 'conn') loadConn();
   if (setSection === 'templates') loadTemplates();
-  if (setSection === 'statuspage') loadStatusPage();
+  if (setSection === 'statuspage') { loadStatusPage(); loadScreenSet(); }
   if (setSection === 'internet') loadInet();
   if (setSection === 'logs') loadLogsOverview();   // 1.210.0
   if (setSection === 'ai') loadAiSettings();   // 1.171.0

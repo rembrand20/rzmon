@@ -294,6 +294,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <option value="ram"><?= th('Hoogste RAM') ?></option>
           <option value="disk"><?= th('Volste disk') ?></option>
         </select>
+        <button class="btn dash-scr" type="button" data-scr-on title="<?= th('Schermvullend, zonder menu; wisselt tussen Monitoring, Netwerk en IDS') ?>"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg> <span><?= th('Schermmodus') ?></span></button>
         <div class="dash-more">
           <button class="btn" id="dash-more-btn" type="button" data-menu-btn aria-haspopup="menu" aria-expanded="false" title="<?= th('Meer') ?>">⋯</button>
           <div class="dash-menu" id="dash-menu" role="menu" hidden>
@@ -2060,6 +2061,13 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <h2>🟢 <?= th('Statuspagina') ?></h2>
         <?= xp(t('Een openbare statuspagina voor huisgenoten of klanten, via een geheime link.'), t('<b>Wat het is:</b> een eenvoudige pagina die laat zien of de onderdelen die jij kiest werken, met een balk per dag over de laatste 90 dagen. <b>Privacy:</b> geen IP-adressen, servernamen of foutteksten. <b>Openen:</b> via een <b>geheime link</b>, ook van buiten. Met <i>Onzichtbaar van buiten</i> aan geeft een verkeerde link gewoon een 404.')) ?>
         <div id="statuspage-body"><p class="muted"><?= th('Laden…') ?></p></div>
+      </div>
+
+      <!-- 1.337.0: schermlink -->
+      <div data-sk="screen" class="card need-admin" id="screen-card">
+        <h2>🖥️ <?= th('Schermlink') ?></h2>
+        <?= xp(t('Een scherm aan de muur dat zonder inloggen laat zien hoe het ervoor staat.'), t('<b>Wat het is:</b> een pagina voor een scherm bij de beheerafdeling of in de meterkast: Monitoring, Netwerk en IDS om de beurt, met een klok en de stand bovenaan. Bij een nieuwe storing springt het scherm naar Monitoring. <b>Veilig:</b> de pagina is alleen lezen, heeft een eigen geheime link en werkt standaard alleen vanaf je eigen netwerk. Met <i>Nieuwe link</i> werkt de oude meteen niet meer. <b>Liever ingelogd?</b> Op <i>Monitoring</i> staat de knop <i>Schermmodus</i>: dezelfde gedachte, maar dan met je eigen lay-out en al je pagina\'s.')) ?>
+        <div id="screen-body"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
 
       <div data-sk="chain" class="card need-admin" id="chain-card">

@@ -2018,3 +2018,6 @@ INSERT IGNORE INTO settings (name, value) VALUES ('self_tune', '1'), ('noise_aut
 
 -- 1.335.0: ochtendsamenvatting (dashboard en melding), elke dag op dit tijdstip
 INSERT IGNORE INTO settings (name, value) VALUES ('morning_on', '1'), ('morning_time', '07:30');
+
+-- 1.337.0: schermlink (een scherm aan de muur zonder inloggen): standaard uit, en alleen vanaf het eigen netwerk
+INSERT IGNORE INTO settings (name, value) VALUES ('screen_on', '0'), ('screen_lan_only', '1'), ('screen_rotate', '30'), ('screen_views', 'mon,net,ids');

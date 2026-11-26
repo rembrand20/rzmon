@@ -5013,5 +5013,35 @@ q("DELETE FROM ai_advice WHERE kind = 'ask'");
 q('DELETE FROM hosts WHERE id = ?', [$brH]);
 AdviceHub::forget();
 
+section('Schermlink (1.337.0)');
+$scOld = [];
+foreach (['screen_on', 'screen_token', 'screen_lan_only', 'screen_rotate', 'screen_views'] as $scK) {
+    $scOld[$scK] = setting($scK, '');
+}
+save_setting('screen_on', '0');
+$scT = Screen::newToken();
+ok(preg_match('/^[a-f0-9]{32}$/', $scT) === 1 && !Screen::on() && !Screen::allowed($scT, true), 'standaard uit: ook met de goede sleutel geen toegang');
+Screen::save(['on' => true]);
+ok(Screen::on() && Screen::lanOnly() && Screen::rotate() === 30 && Screen::views() === ['mon', 'net', 'ids'], 'aangezet: alleen vanaf het eigen netwerk, wisselen elke 30 s, alle schermen');
+ok(Screen::allowed($scT, true) && !Screen::allowed($scT, false), 'van binnen wel, van buiten niet');
+ok(!Screen::allowed(str_repeat('0', 32), true) && !Screen::allowed('', true) && !Screen::allowed(strtoupper($scT) . 'x', true), 'een verkeerde of misvormde sleutel wordt geweigerd');
+Screen::save(['on' => true, 'lan_only' => false, 'rotate' => 3, 'views' => ['ids', 'raar']]);
+ok(Screen::allowed($scT, false) && Screen::rotate() === 10 && Screen::views() === ['mon', 'ids'], 'ook van buiten als je dat kiest; wisselen minstens 10 s; Monitoring doet altijd mee');
+Screen::save(['on' => true, 'rotate' => 0]);
+ok(Screen::rotate() === 0 && Screen::lanOnly(), 'niet wisselen kan; zonder keuze weer alleen het eigen netwerk');
+$scNew = Screen::newToken();
+ok($scNew !== $scT && !Screen::allowed($scT, true) && Screen::allowed($scNew, true), 'nieuwe link: de oude werkt meteen niet meer');
+$scD = Screen::data();
+ok(isset($scD['n']['crit'], $scD['n']['warn'], $scD['n']['ok'], $scD['hosts'], $scD['views']) && $scD['total'] === count($scD['hosts'])
+    && !array_filter($scD['hosts'], static fn($h) => !isset($h['name'], $h['st'], $h['text']) || !in_array($h['st'], ['ok', 'warn', 'crit', 'unk'], true)), 'gegevens voor het scherm: de stand en de servers');
+$scRank = array_map(static fn($h) => ['crit' => 0, 'warn' => 1, 'unk' => 2, 'ok' => 3][$h['st']], $scD['hosts']);
+$scSorted = $scRank;
+sort($scSorted);
+ok($scRank === $scSorted, 'storingen staan vooraan');
+ok(!str_contains((string) json_encode($scD), 'token') && !str_contains((string) json_encode($scD), 'address'), 'geen adressen of sleutels in de gegevens van het scherm');
+foreach ($scOld as $scK => $scV) {
+    save_setting($scK, $scV);
+}
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

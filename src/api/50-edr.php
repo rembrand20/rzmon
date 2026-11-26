@@ -200,6 +200,19 @@ switch ($action) {
             'items' => StatusPage::items(), 'url' => $base . $path, 'has_base' => $base !== '',
             'url_ext' => $ext !== '' ? $ext . $path : null, 'link' => setting('status_link', 'local') === 'external' && $ext !== '' ? 'external' : 'local']);
 
+    case 'screen_get':   // 1.337.0: schermlink (instellingen)
+        $base = rtrim((string) config('base_url', ''), '/');
+        out(['on' => setting('screen_on', '0') === '1', 'lan_only' => Screen::lanOnly(), 'rotate' => Screen::rotate(), 'views' => Screen::views(),
+            'url' => $base . '/screen.php?k=' . Screen::token(), 'has_base' => $base !== '']);
+
+    case 'screen_save':
+        Screen::save(input());
+        out(['ok' => true]);
+
+    case 'screen_token_new':
+        Screen::newToken();
+        out(['ok' => true]);
+
     case 'status_save':
         StatusPage::save(input());
         out(['ok' => true]);
