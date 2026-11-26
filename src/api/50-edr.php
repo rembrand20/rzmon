@@ -331,7 +331,16 @@ switch ($action) {
 
     case 'insight_set':
         $in = input();
+        AdviceHub::forget();
         Insights::setStatus((string) ($in['key'] ?? ''), (string) ($in['status'] ?? ''), (string) $user['username'])
+            ? out(['ok' => true]) : out(['error' => t('Ongeldig advies of status')], 422);
+
+    case 'advice_hub':   // 1.333.0: Advies op één plek (dashboard)
+        out(['items' => AdviceHub::items($isAdmin), 'hidden' => AdviceHub::hiddenCount(), 'admin' => $isAdmin]);
+
+    case 'advice_hub_set':   // later (7 dagen), niet van toepassing, of weer open
+        $in = input();
+        AdviceHub::set((string) ($in['id'] ?? ''), (string) ($in['status'] ?? ''), (string) $user['username'])
             ? out(['ok' => true]) : out(['error' => t('Ongeldig advies of status')], 422);
 
     case 'mds':   // 1.194.0: Mobile device summary
@@ -343,6 +352,11 @@ switch ($action) {
             $hd['speed'] = NetSpeed::tile();   // 1.328.0: de tegel Netwerksnelheid
         } catch (Throwable) {
             $hd['speed'] = null;
+        }
+        try {
+            $hd['advice'] = AdviceHub::summary($isAdmin);   // 1.333.0: het blok Advies
+        } catch (Throwable) {
+            $hd['advice'] = null;
         }
         if (!empty($_GET['cc'])) {   // 1.154.0: het Command center (tweede dashboard)
             $hd['cc'] = CommandCenter::data((string) ($_GET['ccp'] ?? 'today'), mb_substr((string) ($_GET['seen'] ?? ''), 0, 30));

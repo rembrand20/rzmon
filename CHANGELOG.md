@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.333.0**: **Advies op één plek**: één blok op het dashboard met alles wat RzSense je aanraadt uit zeven bronnen, de belangrijkste bovenaan.
 - **1.332.0**: **Twee lay-outs**: L1nes (rustig, de standaard) en Bloxzz (tegels en het live dashboard); Compact en de oude L1nes zijn weg.
 - **1.331.0**: **Netwerk → Van buitenaf**: wat er open staat op internet als eigen tabblad; de WAF start weer (agent 1.123.1).
 - **1.330.0**: **Nieuwe indeling**: alles op één logische plek, zonder dubbele onderdelen; de beheerportal in kleinere groepen, met een eigen groep Netwerk.
 - **1.329.0**: **iw vanzelf installeren**: een Linux-apparaat met wifi maar zonder iw krijgt het van de agent, zodat zijn wifi bij Netwerksnelheid verschijnt.
-- **1.328.0**: **Netwerksnelheid**: de snelheid van je netwerk en internet als keten van bron tot doel, met de smalste schakel, SNMP-poorten en de wifi per access point.
+
+## 1.333.0 – 2026-11-26
+### Nieuw
+- **Advies op één plek.** Het dashboard heeft een blok **Advies** (in Bloxzz een eigen kaart) dat alles bij elkaar zet wat RzSense je aanraadt, de belangrijkste bovenaan. Het bundelt zeven bronnen: wat RzSense zelf aanpaste, Aan de slag, de statuscontroles van de beheerportal, slimme voorstellen, trends, voorstellen voor de reverse proxy en *Analyse en advies*.
+- Bij elk advies staan knoppen: **Bekijken** of **Instellen** (naar de plek waar je het regelt), **Toepassen** en **Negeren** voor een slim voorstel, en **Later** (7 dagen verbergen). **Alles bekijken** opent de hele lijst per bron, met onderaan **Weer tonen** voor wat je verborgen hebt.
+- De pagina's waar de adviezen vandaan komen zijn niet veranderd: wat je daar afhandelt, verdwijnt ook uit het blok.
+
+### Intern
+- De statuscontroles van *Instellingen › Status en functies* staan in een eigen klasse (`SetHealth`), zodat het dashboard ze ook kan tonen.
 
 ## 1.332.2 – 2026-11-26
 ### Opgelost

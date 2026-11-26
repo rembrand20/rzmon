@@ -4806,5 +4806,44 @@ ok(Shelly::add([['ip' => '192.0.2.71', 'name' => 'Plug', 'pass' => 'x']])['added
     'Shelly toevoegen (server + check), niet dubbel');
 q("DELETE FROM hosts WHERE name IN ('shelly-unit', 'Plug')");
 
+section('Advies op één plek (1.333.0)');
+AdviceHub::forget();
+save_setting('hub_state', '{}');
+$ahOld = [setting('email_enabled', '0'), setting('backup_freq', 'off')];
+save_setting('email_enabled', '0');
+$ahAll = AdviceHub::items(true);
+$ahIds = array_column($ahAll, 'id');
+$ahSt = array_values(array_filter($ahAll, static fn($x) => $x['src'] === 'status'));
+ok($ahSt !== [] && !array_filter($ahAll, static fn($x) => !isset($x['id'], $x['src'], $x['sev'], $x['title'], $x['go'], $x['acts']) || !in_array($x['src'], AdviceHub::SOURCES, true)),
+    'adviezen uit alle bronnen in één vorm (id, bron, ernst, titel, waar je het regelt, knoppen)');
+$ahSev = array_column($ahAll, 'sev');
+$ahSorted = $ahSev;
+rsort($ahSorted);
+ok($ahSev === $ahSorted, 'de belangrijkste adviezen staan bovenaan');
+ok(count(array_filter(SetHealth::items(), static fn($i) => in_array($i['status'], ['bad', 'warn'], true))) === count($ahSt)
+    && !array_filter($ahSt, static fn($x) => !str_starts_with($x['go'], 'settings/')), 'elke statuscontrole die niet in orde is staat erin, met de kaart in de beheerportal');
+ok(!array_filter(AdviceHub::items(false), static fn($x) => in_array($x['src'], ['status', 'start', 'proxy'], true)), 'een gebruiker ziet geen adviezen over de instellingen');
+$ahOne = $ahSt[0]['id'];
+ok(AdviceHub::set($ahOne, 'later', 'unit') && !in_array($ahOne, array_column(AdviceHub::items(true), 'id'), true) && AdviceHub::hiddenCount() === 1, 'later: het advies is 7 dagen weg');
+$ahState = json_decode((string) setting('hub_state', ''), true);
+$ahState[$ahOne]['until'] = time() - 10;
+save_setting('hub_state', json_encode($ahState));
+AdviceHub::forget();
+ok(in_array($ahOne, array_column(AdviceHub::items(true), 'id'), true), 'na 7 dagen komt het terug');
+ok(AdviceHub::set($ahOne, 'na', 'unit') && !in_array($ahOne, array_column(AdviceHub::items(true), 'id'), true)
+    && AdviceHub::set('all', 'open', 'unit') && in_array($ahOne, array_column(AdviceHub::items(true), 'id'), true), 'negeren, en alles weer tonen');
+ok(!AdviceHub::set('smart:1', 'later', 'unit') && !AdviceHub::set($ahOne, 'done', 'unit') && !AdviceHub::set('raar', 'na', 'unit'), 'een onbekende bron of status wordt geweigerd');
+$ahSum = AdviceHub::summary(true, 2);
+ok($ahSum['n'] === count($ahAll) && count($ahSum['top']) === min(2, $ahSum['n']) && $ahSum['high'] === count(array_filter($ahAll, static fn($x) => $x['sev'] === 2)), 'samenvatting voor het dashboard: aantal en de bovenste');
+q("INSERT INTO change_log (at, username, ip, kind, ref_id, action, label) VALUES (NOW(), 'cli', '', 'check', 1, 'update', '🔔 Zelf ingesteld: melden na 3')");
+$ahLog = (int) db()->lastInsertId();
+AdviceHub::forget();
+$ahAuto = array_values(array_filter(AdviceHub::items(true), static fn($x) => $x['src'] === 'auto'));
+ok(count($ahAuto) === 1 && $ahAuto[0]['go'] === 'logboek' && str_contains($ahAuto[0]['sub'], 'melden na 3'), 'wat RzSense zelf aanpaste staat erbij, met het logboek erachter');
+q('DELETE FROM change_log WHERE id = ?', [$ahLog]);
+save_setting('email_enabled', $ahOld[0]);
+save_setting('hub_state', '{}');
+AdviceHub::forget();
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

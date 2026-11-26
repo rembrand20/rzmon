@@ -502,7 +502,9 @@ switch ($action) {
     case 'advice_decide':
         $in = input();
         try {
-            out(['ok' => true, 'message' => Advice::decide((int) ($in['id'] ?? 0), !empty($in['apply']))]);
+            $msg = Advice::decide((int) ($in['id'] ?? 0), !empty($in['apply']));
+            AdviceHub::forget();
+            out(['ok' => true, 'message' => $msg]);
         } catch (InvalidArgumentException $e) {
             out(['error' => $e->getMessage()], 422);
         }

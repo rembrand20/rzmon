@@ -137,6 +137,8 @@ Met de lay-out *L1nes* is het dashboard kaal en rustig:
 4. **Servers**: elke server als een rij met zijn status, de soort apparaat, CPU en geheugen. Wat aandacht vraagt staat
    bovenaan. Klik op een server om hem op *Monitoring* te zien.
 
+5. **Advies**: alles wat RzSense je aanraadt, op één plek. Zie hieronder.
+
 Het dashboard wordt live bijgewerkt zonder dat de pagina opnieuw opbouwt: alleen wat verandert, verandert.
 
 Rechtsboven kies je de periode (7, 30 of 90 dagen). Het lampje **● Live** laat zien dat de pagina live meeloopt; het
@@ -178,6 +180,31 @@ Klik op het **risicogetal** van een server op het dashboard, of op **🎯 Aanval
 
 Het is een schatting: RzSense kent je firewall niet. Een poort die op alle adressen luistert, kan van buiten toch dicht
 zijn.
+
+### Advies op één plek
+
+RzSense geeft op verschillende plaatsen advies. Het blok **Advies** op het dashboard zet ze bij elkaar, de belangrijkste
+bovenaan. In Bloxzz is het een eigen kaart. Het bundelt:
+
+| Bron | Wat je ziet | Waar het vandaan komt |
+|---|---|---|
+| **Zelf aangepast** | wat RzSense de laatste 24 uur zelf aanpaste (slimme drempels, melden na N) | *Logboek* |
+| **Aan de slag** | wat een nieuwe installatie nog mist: profiel, eerste server, proefmelding | de wizard |
+| **Status van RzSense** | controles die niet in orde zijn: meldkanaal, back-up, 2FA, agents, https | *Instellingen › Status en functies* |
+| **Slimme voorstellen** | melden na N, een vast onderhoudsvenster, een afhankelijkheid | *Instellingen › Monitoring › Slimme drempels en advies* |
+| **Trends** | iets raakt binnenkort een grens, bijvoorbeeld een schijf die vol loopt | *Analyse › Trends* |
+| **Reverse proxy** | open voorstellen voor de bescherming van een site | *Reverse proxy* |
+| **Analyse en advies** | de open adviezen over je beveiliging | *Analyse* |
+
+Bij elk advies staan knoppen:
+
+- **Bekijken** of **Instellen** brengt je naar de plek waar je het regelt.
+- **Toepassen** voert een slim voorstel meteen uit; **Negeren** laat het niet meer terugkomen.
+- **Later** verbergt het advies 7 dagen.
+
+Het dashboard toont de bovenste vijf. **Alles bekijken** opent de hele lijst, per bron. Onderaan dat venster zie je
+hoeveel adviezen verborgen zijn, met **Weer tonen**. De pagina's waar de adviezen vandaan komen werken zoals altijd:
+wat je daar afhandelt, verdwijnt ook hier. Een gebruiker zonder beheerrechten ziet geen adviezen over de instellingen.
 
 ### Het dashboard van Bloxzz
 

@@ -6477,6 +6477,26 @@ body.sk-s .cs2-ovi { border-color: transparent; box-shadow: var(--shadow); }
   color: var(--primary); cursor: pointer; }
 .hd-empty { margin: 0; padding: .35rem 1.1rem 1.1rem; color: var(--muted); display: flex; align-items: center; gap: .5rem; }
 @media (max-width: 960px) { .hd-duo { grid-template-columns: minmax(0, 1fr); } }
+/* 1.333.0: Advies op het dashboard: rijen met knoppen, en het venster met alles per bron */
+.hd-right { display: flex; align-items: center; gap: .7rem; }
+.hd-link { font: inherit; font-size: .85rem; background: none; border: 0; padding: .2rem 0; color: var(--primary); cursor: pointer; }
+.hd-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.hd-arow { cursor: default; }
+.hd-arow:hover { background: none; }
+.hd-ic { flex: none; width: 1.1rem; text-align: center; font-size: .95rem; line-height: 1; }
+.hd-acts { display: flex; gap: .4rem; flex: none; }
+.hd-arow .hd-txt small { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+.adv-h { margin: 1.1rem 0 .4rem; font-size: .95rem; display: flex; align-items: center; gap: .5rem; }
+.adv-grp { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.adv-grp .hd-row:first-child { border-top: 0; }
+.adv-foot { margin-top: 1rem; }
+.adv-foot .link-btn { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font: inherit; text-decoration: underline; }
+@media (max-width: 720px) {
+  .hd-arow { flex-wrap: wrap; }
+  .hd-arow .hd-txt { flex-basis: calc(100% - 2rem); }
+  .hd-acts { margin-left: 1.85rem; }
+  .hd-acts .btn { min-height: 40px; }
+}
 @media (max-width: 720px) {
   .hd-strip { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hd-num { padding: .9rem 1rem; }

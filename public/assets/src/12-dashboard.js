@@ -121,7 +121,7 @@ function renderHomeDef() {
   </section>`;
 
   const box = $('#home');
-  const html = `<div class="hd">${strip}<div class="hd-duo">${attn}${srv}</div></div>`;
+  const html = `<div class="hd">${strip}<div class="hd-duo">${attn}${srv}</div>${advBox(d)}</div>`;   // 1.333.0: Advies
   if ($('.hd', box)) withMorph(() => { box.innerHTML = html; }); else box.innerHTML = html;
   $$('[data-hm-go]', box).forEach((b) => (b.onclick = () => hmGoTo(b.dataset.hmGo)));
 }
@@ -145,7 +145,7 @@ const ccNowStr = () => { const d = new Date(), p = (n) => String(n).padStart(2, 
 /** De kaarten: sleutel, breedte (van 12), titel en of hij er is (alleen-lezen ziet geen analyse, CVE's of netwerk) */
 const CC_W = [
   ['overview', 12, () => L('Overzicht')], ['security', 12, () => L('Beveiliging in één oogopslag')], ['toppers', 12, () => L('De toppers')],
-  ['now', 4, () => L('Nu doen')], ['attacks', 4, () => L('Live aanvallen')], ['logins', 4, () => L('Wie logt er in')],
+  ['advice', 12, () => L('Advies')], ['now', 4, () => L('Nu doen')], ['attacks', 4, () => L('Live aanvallen')], ['logins', 4, () => L('Wie logt er in')],
   ['monitoring', 12, () => L('Monitoring')], ['servers', 12, () => L('Servers')],
   ['idschart', 4, () => L('IDS-gebeurtenissen')], ['avail', 4, () => L('Beschikbaarheid')], ['net', 4, () => L('Netwerk')],
   ['resources', 6, () => L('Resourcegebruik · 24 uur')], ['vulns', 6, () => L('Kwetsbaarheden (CVE)')], ['timeline', 12, () => L('Laatste gebeurtenissen')],
@@ -216,7 +216,7 @@ function renderCC() {
   if (!ccSeenSaved && !prefsLocal) { ccSeenSaved = true; setTimeout(() => savePref('dash_seen', ccNowStr()), 4000); }
   if (!ccSeenSaved && prefsLocal) { ccSeenSaved = true; savePref('dash_seen', ccNowStr()); }
   const lay = ccLayout(), m = afMotion({ live: { motion: c.motion ?? 2 } });
-  const R = { overview: ccOverview, security: ccSecurity, toppers: ccToppers, now: ccNow, attacks: ccAttacks, logins: ccLogins, monitoring: ccMonitoring, servers: ccServers,
+  const R = { overview: ccOverview, security: ccSecurity, toppers: ccToppers, advice: advCard, now: ccNow, attacks: ccAttacks, logins: ccLogins, monitoring: ccMonitoring, servers: ccServers,
     idschart: () => (d.full ? hmIdsChart(d) : ''), avail: () => (d.full ? hmAvailChart(d) : ''), net: () => (d.net ? hmNetCard(d.net) : ''), resources: () => hmResChart(d.resources),
     vulns: () => (d.vulns ? hmVulnCard(d.vulns) : ''), timeline: () => hmTimeline(d.events) };
   const html = [];
