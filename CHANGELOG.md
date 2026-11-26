@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.320.0**: **🚨 Beveiligingskanaal**: wat nú je aandacht nodig heeft gaat door Niet storen heen (ook als kritieke melding in de Home Assistant-app) en blijft komen tot iemand bevestigt.
 - **1.319.0**: **"Agent stil" zegt waarom**: de bewaker meldt elke minuut of de server leeft en wat er met de agent is; Suricata wordt niet meer elke ronde herstart.
 
+## 1.323.2 – 2026-11-26
+### Opgelost
+- Nieuwe agent 1.119.2: de WAF kon met podman het netwerk `rzsense` niet aanmaken (*read-only file system*), omdat de agent-service `/etc/containers` niet mocht schrijven. Dat mag nu; de agent krijgt het bij de update.
+
 ## 1.323.1 – 2026-11-26
 ### Opgelost
 - **Ingeklapte zijbalk: het menu met subpagina's verdween** als je er met de muis naartoe ging (bijvoorbeeld bij IDS). Het blijft nu even staan, zodat je het haalt, en er komt geen los tooltipje meer overheen.

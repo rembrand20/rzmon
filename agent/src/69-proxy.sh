@@ -507,7 +507,15 @@ $(for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_c
         wf_netok=1
         if ! wfx network inspect "$wf_net" >/dev/null 2>&1; then
             if out=$(wfx network create "$wf_net" 2>&1); then act_log proxy 1 "WAF: netwerk $wf_net aangemaakt" ""
-            else wf_netok=0; wf_msg="netwerk $wf_net aanmaken mislukt: $(tail -n 2 <<<"$out" | tr '\n' ' ' | cut -c1-200) · probeer: sudo $wf_eng network create $wf_net"; fi
+            else
+                wf_netok=0
+                if grep -qi 'read-only file system' <<<"$out" && [ -n "${INVOCATION_ID-}" ]; then
+                    # Agent 1.119.2: de agent-service mag /etc/containers niet schrijven (geïnstalleerd vóór 1.119.2)
+                    wf_msg="netwerk $wf_net aanmaken mislukt: /etc/containers is alleen-lezen voor de agent · los op met: sudo rzmon-agent-setup --update (of eenmalig: sudo $wf_eng network create $wf_net)"
+                else
+                    wf_msg="netwerk $wf_net aanmaken mislukt: $(tail -n 2 <<<"$out" | tr '\n' ' ' | cut -c1-200) · probeer: sudo $wf_eng network create $wf_net"
+                fi
+            fi
         fi
         if [ "$wf_netok" = 1 ] && ! wfx inspect -f '{{json .NetworkSettings.Networks}}' "$px_ctr" 2>/dev/null | grep -q "\"$wf_net\""; then
             if wfx network connect "$wf_net" "$px_ctr" >/dev/null 2>&1; then act_log proxy 1 "WAF: $px_ctr aan het netwerk $wf_net gehangen" ""

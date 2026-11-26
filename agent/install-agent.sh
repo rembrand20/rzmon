@@ -743,9 +743,12 @@ fi
 hardening="NoNewPrivileges=yes
 ProtectHome=read-only"
 if command -v podman >/dev/null 2>&1; then
+    # Agent 1.119.2: ProtectSystem=full maakt /etc alleen-lezen; podman (root) bewaart netwerken in /etc/containers/networks.
+    # Zonder dit kon de agent het netwerk voor de WAF niet aanmaken. Het - ervoor: niet erg als de map er niet is.
     hardening="# Podman aanwezig: nodig om ook rootless containers van gebruikers uit te lezen
 NoNewPrivileges=no
-ProtectHome=no"
+ProtectHome=no
+ReadWritePaths=-/etc/containers"
 fi
 
 if [ "$TRUENAS" = 1 ]; then

@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.119.2 – 2026-11-26
+- **WAF: het netwerk `rzsense` kon niet aangemaakt worden met podman** (*read-only file system*). De agent-service maakt `/etc` alleen-lezen (`ProtectSystem=full`), en podman bewaart zijn netwerken in `/etc/containers/networks`. Waar podman staat, mag de agent nu in `/etc/containers` schrijven (`ReadWritePaths`). Bestaande agents krijgen dat bij de update; tot dan noemt de foutmelding `sudo rzmon-agent-setup --update`.
+
 ## 1.119.1 – 2026-11-25
 - **WAF: de echte fout als het netwerk niet aangemaakt kan worden.** Lukte `podman network create rzsense` (of `docker`) niet, dan gooide de agent de fout weg en startte hij de WAF toch, met alleen *network not found* als gevolg. Nu staat de echte reden bij de WAF, met de opdracht om het zelf te proberen, en start hij de container pas als het netwerk er is.
 
