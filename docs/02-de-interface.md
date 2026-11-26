@@ -243,16 +243,17 @@ erachter als knopje (*CRITICAL ✕* of *2 filters ✕*); een klik haalt het filt
 dan zie je in het kruimelpad een teller (*IDS laden · 0,8 s*).
 
 **Detailpaneel.** Klik je op een item (een server, check, incident, IDS-treffer, apparaat, logregel, container, advies,
-melding, regel van het Logboek …), dan openen de details in een **paneel rechts**. Knoppen in een rij (✔ Bevestig, 🔧,
-＋) doen meteen wat ze zeggen, zonder paneel.
+melding, regel van het Logboek …), dan openen de details in een **venster in het midden** over de pagina. Een site
+op *Reverse proxy* opent op dezelfde manier. Liever een **paneel rechts**, zoals vroeger? Kies bij *Mijn account →
+Weergave → Vensters* **Rechts**. Knoppen in een rij (✔ Bevestig, 🔧, ＋) doen meteen wat ze zeggen, zonder venster.
 
 - In het paneel van een server opent een check in hetzelfde paneel, met bovenin een pad terug.
 - **← →** (de knoppen bovenin of de pijltjestoetsen) gaan naar het vorige of volgende item op de pagina.
-- **Sluiten:** Esc, ✕ of naast het paneel klikken.
+- **Sluiten:** Esc, ✕ of naast het venster klikken.
 - **Delen:** het adres krijgt `?open=…` (bijvoorbeeld `#monitoring?open=host:3`). Wie die link opent, ziet hetzelfde
   paneel.
-- Op een scherm van 1920 pixels of breder staat het paneel naast de lijst, zodat je kunt doorklikken. Op een telefoon
-  vult het paneel het scherm.
+- Met *Vensters: Rechts* staat het paneel op een scherm van 1920 pixels of breder naast de lijst, zodat je kunt
+  doorklikken. Op een telefoon of tablet vult het venster het scherm (van onderen omhoog), wat je ook kiest.
 
 ## De pagina Monitoring
 

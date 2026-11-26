@@ -8,11 +8,19 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.325.0**: **Vensters in het midden**: details en een site openen over de pagina heen; liever rechts kan bij Weergave.
 - **1.324.0**: **ClamAV: mappen per app**: per container zie je zijn mappen en waar ze in de app zitten, en voeg je een uploadmap met één klik toe.
 - **1.323.0**: **Aan de slag**: een wizard die je na de installatie op weg helpt (alleen advies), een checklist bij Status en functies, en een rondleiding voor gewone gebruikers.
 - **1.322.0**: **Lay-out Default**: rustig en kaal, met één zin hoe het ervoor staat en de servers als rijen; vervangt Blox en werkt met elk thema.
 - **1.321.0**: **Shelly's bewaken**: stroom, oververhitting en afwijkingen van het normale verbruik, rechtstreeks uitgelezen.
-- **1.320.0**: **🚨 Beveiligingskanaal**: wat nú je aandacht nodig heeft gaat door Niet storen heen (ook als kritieke melding in de Home Assistant-app) en blijft komen tot iemand bevestigt.
+
+## 1.325.0 – 2026-11-26
+### Nieuw
+- **Vensters in het midden.** Het detailpaneel (een check, server, incident of melding) en een site bij *Reverse proxy* openen nu in het midden over de pagina, met een donkere achtergrond, in plaats van als paneel rechts. De knoppen blijven onderaan zichtbaar; sluiten met Esc, ✕ of naast het venster klikken; vorige en volgende werken zoals altijd.
+  - Liever rechts? *Mijn account → Weergave → Vensters → Rechts* geeft het zijpaneel van vroeger terug (ook naast de lijst op een heel breed scherm).
+  - Op een telefoon of tablet blijft het zoals het was.
+### Opgelost
+- De **rondleiding** voor gewone gebruikers (1.323.0) kwam bij elke keer inloggen terug: de server bewaarde *rondleiding gezien* niet. Dat doet hij nu.
 
 ## 1.324.1 – 2026-11-26
 ### Opgelost

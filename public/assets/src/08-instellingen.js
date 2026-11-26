@@ -733,6 +733,21 @@ function setPageWidth(v) {
   window.dispatchEvent(new Event('resize'));   // grafieken en tabbladen rekenen hun breedte opnieuw uit
 }
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-pw-set]'); if (b) setPageWidth(b.dataset.pwSet); });
+// 1.325.0: vensters (details, een site, een melding) in het midden of als zijpaneel rechts; per account. Op een telefoon altijd van onderen.
+const winPref = () => (PREFS.win === 'right' ? 'right' : 'mid');
+function applyWin() {
+  document.body.classList.toggle('win-right', winPref() === 'right');
+  $$('[data-win-set]').forEach((b) => b.classList.toggle('active', b.dataset.winSet === winPref()));
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-win-set]');
+  if (!b) return;
+  const v = b.dataset.winSet === 'right' ? 'right' : 'mid';
+  if ($('#modal').open && $('#modal').classList.contains('drawer')) $('#modal').close();   // een open paneel niet half omzetten
+  savePref('win', v);
+  applyWin();
+});
+applyWin();
 function markTheme() {
   const cur = document.documentElement.dataset.tmode || document.documentElement.dataset.theme || 'auto';
   $$('[data-theme-set]').forEach((b) => b.classList.toggle('active', b.dataset.themeSet === cur));

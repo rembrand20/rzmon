@@ -789,7 +789,8 @@ function detail({ title, body, buttons = [], ref, push = false, onSubmit }) {
 })();
 
 /** 1.298.0: is het scherm breed genoeg om lijst en details naast elkaar te tonen? */
-const splitView = () => window.matchMedia('(min-width: 1900px)').matches;
+// 1.325.0: naast de pagina alleen als je de vensters rechts wilt (standaard staan ze in het midden)
+const splitView = () => PREFS.win === 'right' && window.matchMedia('(min-width: 1900px)').matches;
 
 (function splitWire() {
   const dlg = $('#modal');

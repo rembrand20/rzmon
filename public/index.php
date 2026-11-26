@@ -2144,6 +2144,13 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           </div>
         </div>
         <div class="view-row">
+          <span class="view-label"><?= th('Vensters') ?> <span class="hint"><?= th('(details, een site, een melding; op de telefoon altijd van onderen)') ?></span></span>
+          <div class="seg" role="group" aria-label="<?= th('Vensters') ?>">
+            <button type="button" class="seg-btn" data-win-set="mid" title="<?= th('In het midden over de pagina heen') ?>"><?= th('Midden') ?></button>
+            <button type="button" class="seg-btn" data-win-set="right" title="<?= th('Als zijpaneel aan de rechterkant') ?>"><?= th('Rechts') ?></button>
+          </div>
+        </div>
+        <div class="view-row">
           <span class="view-label"><?= th('Paginabreedte') ?> <span class="hint"><?= th('(op dit apparaat)') ?></span></span>
           <div class="seg" role="group" aria-label="<?= th('Paginabreedte') ?>">
             <button type="button" class="seg-btn" data-pw-set="bounded" title="<?= th('Hooguit 1400 pixels breed, in het midden (standaard)') ?>"><?= th('Begrensd') ?></button>

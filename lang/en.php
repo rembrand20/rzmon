@@ -12271,4 +12271,10 @@ return [
     'Mappen per app' => 'Folders per app',
     'alleen mappen die ClamAV mag scannen; klik op een app om zijn mappen te zien' => 'only folders ClamAV may scan; click an app to see its folders',
     'Zelf een map invullen' => 'Enter a folder yourself',
+    'Vensters' => 'Windows',
+    '(details, een site, een melding; op de telefoon altijd van onderen)' => '(details, a site, an alert; on a phone always from the bottom)',
+    'In het midden over de pagina heen' => 'In the middle, over the page',
+    'Midden' => 'Middle',
+    'Als zijpaneel aan de rechterkant' => 'As a side panel on the right',
+    'Rechts' => 'Right',
 ];

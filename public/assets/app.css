@@ -6985,3 +6985,23 @@ body.lg .tour-pop { background: var(--bg-2); }
 .av-sug-p { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .av-sug-p code { overflow-wrap: anywhere; }
 .av-sug .btn { flex: none; }
+
+/* ---------------------------------------------------------------- 1.325.0: vensters in het midden (standaard)
+   Het detailpaneel (check, server, incident, melding) en een site bij Reverse proxy openen in het midden over de pagina,
+   met een donkere achtergrond. Mijn account → Weergave → Vensters: Rechts = het zijpaneel van vroeger. Op een telefoon
+   of tablet (smal scherm of aanraakscherm) blijft het zoals het was. */
+@media (min-width: 761px) and (pointer: fine) {
+  body:not(.win-right) #modal.drawer, body:not(.win-right) #modal.drawer.detail {
+    margin: auto; width: min(860px, calc(100vw - 2rem)); height: auto; max-height: 85vh; border-radius: 16px; border: 1px solid var(--border); }
+  body:not(.win-right) #modal.drawer .modal-inner { display: flex; flex-direction: column; max-height: 85vh; }
+  body:not(.win-right) #modal.drawer #modal-body { max-height: none; flex: 1 1 auto; min-height: 0; overflow: auto; }
+  body:not(.win-right) #modal.drawer.detail .modal-inner { height: auto; max-height: 85vh; }
+  body:not(.win-right) #modal.drawer::backdrop, body:not(.win-right) #modal.detail::backdrop { background: rgba(5, 10, 20, .45); }
+  /* het losse meldingenpaneel (als het niet in het detailpaneel staat): ook in het midden */
+  body:not(.win-right) .al2-drawer { top: 50%; left: 50%; right: auto; bottom: auto; width: min(780px, calc(100vw - 2rem)); height: min(85vh, 760px);
+    border: 1px solid var(--border); border-radius: 16px; transform: translate(-50%, -48%) scale(.98); opacity: 0; transition: opacity .18s ease, transform .18s ease; }
+  body:not(.win-right) .al2-drawer.on { transform: translate(-50%, -50%); opacity: 1; }
+  body:not(.win-right) .al2-scrim { background: rgba(5, 10, 20, .45); }
+}
+@media (min-width: 761px) and (pointer: fine) and (prefers-reduced-motion: reduce) { body:not(.win-right) .al2-drawer { transition: none; } }
+body.no-anim:not(.win-right) .al2-drawer { transition: none; }

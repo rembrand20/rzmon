@@ -348,7 +348,7 @@ switch ($action) {
         }
         $in = input();
         $key = (string) ($in['key'] ?? '');
-        if (!in_array($key, ['open_mode', 'fx', 'fxviews', 'dash_filter', 'alert_filter', 'vuln_open', 'theme', 'side', 'dash', 'dash_layout', 'dash_seen', 'mon_glow', 'mon_anim', 'mon_glass', 'mon_loader', 'mon_vivid', 'atk_band', 'layout', 'pages', 'ids_modern', 'af_motion', 'ui', 'side_w', 'skin', 'pw'], true)) {
+        if (!in_array($key, ['tour_seen', 'win', 'open_mode', 'fx', 'fxviews', 'dash_filter', 'alert_filter', 'vuln_open', 'theme', 'side', 'dash', 'dash_layout', 'dash_seen', 'mon_glow', 'mon_anim', 'mon_glass', 'mon_loader', 'mon_vivid', 'atk_band', 'layout', 'pages', 'ids_modern', 'af_motion', 'ui', 'side_w', 'skin', 'pw'], true)) {
             out(['error' => t('Onbekende voorkeur')], 422);
         }
         $prefs = json_decode((string) q('SELECT prefs FROM users WHERE id = ?', [$user['id']])->fetchColumn(), true) ?: [];
@@ -358,6 +358,8 @@ switch ($action) {
             'side' => ($in['value'] ?? '') === 'mini' ? 'mini' : 'full',
             'pw' => in_array($in['value'] ?? '', ['wide', 'full'], true) ? $in['value'] : 'bounded',   // 1.294.0: paginabreedte (terugval voor een nieuw apparaat)   // 1.150.0: zijbalk ingeklapt (alleen iconen)
             'dash' => ($in['value'] ?? '') === 'cc' ? 'cc' : 'classic',
+            'tour_seen' => '1',   // 1.325.0: de rondleiding is gezien (stond niet op de lijst, dus kwam hij elke keer terug)
+            'win' => ($in['value'] ?? '') === 'right' ? 'right' : 'mid',   // 1.325.0: vensters in het midden of als zijpaneel rechts
             'mon_glow', 'mon_anim', 'mon_glass', 'mon_loader', 'mon_vivid', 'ids_modern', 'atk_band' => ($in['value'] ?? '') === 'off' ? 'off' : 'on',   // 1.311.0: atk_band = live-aanvalsband
             'af_motion' => (string) max(0, min(2, (int) ($in['value'] ?? 2))),
             'skin' => in_array($in['value'] ?? '', ['s', 'glass', 'neo'], true) ? $in['value'] : 'std',   // 1.244.0/1.245.0: thema (Standaard, @S, Liquid Glass, Neo) per account
