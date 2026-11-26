@@ -831,8 +831,8 @@ const SET_NAV = [
       [['status', L('Status'), ['overview']], ['functies', L('Functies'), ['features']]]]]],
   ['checks', SET_IC('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>'), L('Monitoring'), [
     ['templates', L('Sjablonen'), ['templates'], L('Vaste sets checks voor een nieuwe server.')],
-    ['advice', L('Slimme drempels en advies'), ['smart', 'advice', 'smartmore', 'cleanup'], L('Slimme drempels, voorstellen en checks om op te schonen.'),
-      [['drempels', L('Slimme drempels'), ['smart']], ['voorstellen', L('Voorstellen'), ['advice', 'smartmore']], ['opschonen', L('Opschonen'), ['cleanup']]]],
+    ['advice', L('Slimme drempels en advies'), ['selftune', 'smart', 'advice', 'smartmore', 'cleanup'], L('Zelf instellen, slimme drempels, voorstellen en checks om op te schonen.'),
+      [['drempels', L('Slimme drempels'), ['selftune', 'smart']], ['voorstellen', L('Voorstellen'), ['advice', 'smartmore']], ['opschonen', L('Opschonen'), ['cleanup']]]],
     ['logs', L('Logs verzamelen'), ['logs'], L('Logs van je servers verzamelen: hoe vaak, hoe lang bewaren, hoeveel, maskeren en wat er binnenkomt.')]]],
   ['meldingen', SET_IC('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'), L('Meldingen en rapporten'), [
     ['channels', L('Kanalen'), ['pushover', 'ntfy', 'webpush', 'email', 'webhook', 'chat', 'chain'], L('Waar meldingen heen gaan: Pushover, ntfy, Web Push, e-mail, webhooks, Discord, Slack en Teams.')],
@@ -984,7 +984,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'reports') loadReports();   // 1.180.0
   if (setSection === 'overview' && cards.includes('features')) loadFeatures();   // 1.182.0; 1.236.0 tabblad van Status en functies
   if (cards.includes('quiet')) loadQuiet();   // 1.189.0; 1.276.0 tabblad van Wanneer melden
-  if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
+  if (setSection === 'advice') { if (cards.includes('selftune')) loadSelfTune(); if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
   if (setSection === 'actlog') loadActLog();   // 1.226.0
   if (setSection === 'ids_ransom') loadRansomSet();   // 1.228.0
   if (setSection === 'ids_apps') loadAppsSet();   // 1.229.0

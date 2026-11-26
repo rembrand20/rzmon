@@ -341,7 +341,7 @@ Bijvoorbeeld een back-upcheck die pas na een dag meldt, of een ping die critical
 - De herstelmelding telt niet mee; die volgt de regel bij *Hersteld*.
 
 RzSense kan deze waarde ook zelf voorstellen en instellen (*Melden na N zelf aangepast*, zie
-[Servers en checks](04-servers-en-checks.md)).
+[Zelf instellen](04-servers-en-checks.md#zelf-instellen)).
 
 ### Status bevestigen
 

@@ -5742,20 +5742,49 @@ async function loadSmartProposals() {
   });
 }
 
+// ---------------------------------------------------------------- 🤖 Zelf instellen (1.334.0)
+// Eén kaart voor wat RzSense zelf aanpast: de hoofdschakelaar, drie soorten, en de checks die je zelf instelt (omdat je
+// een aanpassing terugdraaide in het logboek). De schakelaars slaan meteen op.
+async function loadSelfTune() {
+  const card = $('#selftune-card'), box = $('#st-manual');
+  if (!card || !box) return;
+  let r;
+  try { r = await api('selftune_get'); } catch (ex) { box.innerHTML = `<p class="err-txt small">${esc(ex.message)}</p>`; return; }
+  const kinds = $$('#st-kinds input', card);
+  $('#st-on').checked = r.on; $('#st-thresh').checked = r.thresh; $('#st-fails').checked = r.fails; $('#st-noise').checked = r.noise;
+  const paint = () => { const on = $('#st-on').checked; $('#st-kinds').classList.toggle('off', !on); kinds.forEach((i) => (i.disabled = !on)); };
+  paint();
+  $$('[data-st]', card).forEach((i) => (i.onchange = async () => {
+    try { await api('settings_save', { [i.dataset.st]: i.checked ? '1' : '0' }); toast(i.checked ? L('Aangezet') : L('Uitgezet')); paint(); }
+    catch (ex) { toast(ex.message, 'err'); i.checked = !i.checked; }
+  }));
+  const day = (s) => new Date(String(s).replace(' ', 'T')).toLocaleDateString(LOCALE, { day: 'numeric', month: 'long' });
+  $('#st-info').textContent = [
+    r.trial && r.noise ? L('Ruis dempen is in de proefweek tot {d}: tot dan zie je alleen voorstellen bij Advies op het dashboard.', { d: day(r.trial_until) }) : '',
+    r.changes_30d ? L('De laatste 30 dagen paste RzSense {n} keer iets aan; {u} keer draaide je dat terug.', { n: r.changes_30d, u: r.undone_30d }) : L('De laatste 30 dagen paste RzSense niets zelf aan.'),
+  ].filter(Boolean).join(' ');
+  const n = $('#st-n');
+  n.hidden = !r.manual.length; n.textContent = r.manual.length;
+  box.innerHTML = r.manual.length ? `<div class="adv-list">${r.manual.map((c) => `<div class="adv-item">
+      <span class="adv-ic" aria-hidden="true">✋</span>
+      <div class="adv-txt"><b>${esc(c.host)} – ${esc(c.name)}</b><span class="small">${esc(c.off_at ? L('teruggedraaid op {d}', { d: day(c.off_at) }) : L('zelf instellen staat uit'))}</span></div>
+      <div class="adv-btns"><button type="button" class="btn small-btn" data-st-resume="${c.id}">🧠 ${esc(L('Weer slim'))}</button></div></div>`).join('')}</div>`
+    : `<p class="muted small">✔ ${esc(L('RzSense stelt alle checks zelf in. Draai je in het logboek een aanpassing terug, dan komt die check hier te staan.'))}</p>`;
+  $$('[data-st-resume]', box).forEach((b) => (b.onclick = async () => {
+    b.disabled = true;
+    try { await api('selftune_resume', { check_id: +b.dataset.stResume }); toast(L('RzSense stelt deze check weer zelf in')); loadSelfTune(); }
+    catch (ex) { toast(ex.message, 'err'); b.disabled = false; }
+  }));
+}
+
 // ---------------------------------------------------------------- 💡 Slimme voorstellen en vaste onderhoudsvensters (1.108.0)
-const ADVICE_KIND = { fails: ['🔔', L('Melden na N mislukte checks')], maint: ['🗓️', L('Vast onderhoudsvenster')], dep: ['🔗', L('Afhankelijkheid')] };
+const ADVICE_KIND = { fails: ['🔔', L('Melden na N mislukte checks')], noise: ['🔕', L('Ruis dempen')], maint: ['🗓️', L('Vast onderhoudsvenster')], dep: ['🔗', L('Afhankelijkheid')] };
 const WIN_DAYS = () => [L('elke dag'), L('maandag'), L('dinsdag'), L('woensdag'), L('donderdag'), L('vrijdag'), L('zaterdag'), L('zondag')];
 async function loadAdvice() {
   const el = $('#advice-list');
   if (!el) return;
   let r;
   try { r = await api('advice_list'); } catch (ex) { el.innerHTML = `<p class="err-txt small">${esc(ex.message)}</p>`; return; }
-  // 1.156.0: melden na N zelf instellen (staat buiten het instellingenformulier: meteen opslaan)
-  const au = $('#alert-auto');
-  if (au) {
-    au.checked = !!r.auto;
-    au.onchange = async () => { try { await api('settings_save', { alert_auto: au.checked ? '1' : '0' }); toast(au.checked ? L('Aangezet') : L('Uitgezet')); } catch (ex) { toast(ex.message, 'err'); au.checked = !au.checked; } };
-  }
   el.innerHTML = r.list.length ? `<div class="adv-list">${r.list.map((a) => `<div class="adv-item">
       <span class="adv-ic" title="${esc(ADVICE_KIND[a.kind][1])}">${ADVICE_KIND[a.kind][0]}</span>
       <div class="adv-txt"><b>${esc(a.label)}</b><span class="small">${esc(a.text)}</span></div>
@@ -15053,8 +15082,8 @@ const SET_NAV = [
       [['status', L('Status'), ['overview']], ['functies', L('Functies'), ['features']]]]]],
   ['checks', SET_IC('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>'), L('Monitoring'), [
     ['templates', L('Sjablonen'), ['templates'], L('Vaste sets checks voor een nieuwe server.')],
-    ['advice', L('Slimme drempels en advies'), ['smart', 'advice', 'smartmore', 'cleanup'], L('Slimme drempels, voorstellen en checks om op te schonen.'),
-      [['drempels', L('Slimme drempels'), ['smart']], ['voorstellen', L('Voorstellen'), ['advice', 'smartmore']], ['opschonen', L('Opschonen'), ['cleanup']]]],
+    ['advice', L('Slimme drempels en advies'), ['selftune', 'smart', 'advice', 'smartmore', 'cleanup'], L('Zelf instellen, slimme drempels, voorstellen en checks om op te schonen.'),
+      [['drempels', L('Slimme drempels'), ['selftune', 'smart']], ['voorstellen', L('Voorstellen'), ['advice', 'smartmore']], ['opschonen', L('Opschonen'), ['cleanup']]]],
     ['logs', L('Logs verzamelen'), ['logs'], L('Logs van je servers verzamelen: hoe vaak, hoe lang bewaren, hoeveel, maskeren en wat er binnenkomt.')]]],
   ['meldingen', SET_IC('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'), L('Meldingen en rapporten'), [
     ['channels', L('Kanalen'), ['pushover', 'ntfy', 'webpush', 'email', 'webhook', 'chat', 'chain'], L('Waar meldingen heen gaan: Pushover, ntfy, Web Push, e-mail, webhooks, Discord, Slack en Teams.')],
@@ -15206,7 +15235,7 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'reports') loadReports();   // 1.180.0
   if (setSection === 'overview' && cards.includes('features')) loadFeatures();   // 1.182.0; 1.236.0 tabblad van Status en functies
   if (cards.includes('quiet')) loadQuiet();   // 1.189.0; 1.276.0 tabblad van Wanneer melden
-  if (setSection === 'advice') { if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
+  if (setSection === 'advice') { if (cards.includes('selftune')) loadSelfTune(); if (cards.includes('smart')) loadSmartProposals(); if (cards.includes('advice')) loadAdvice(); if (cards.includes('cleanup')) loadCleanup(); }
   if (setSection === 'actlog') loadActLog();   // 1.226.0
   if (setSection === 'ids_ransom') loadRansomSet();   // 1.228.0
   if (setSection === 'ids_apps') loadAppsSet();   // 1.229.0

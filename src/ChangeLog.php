@@ -36,14 +36,14 @@ final class ChangeLog
         }
     }
 
-    public static function record(string $kind, ?int $refId, string $action, string $label, ?array $before, ?array $after): void
+    public static function record(string $kind, ?int $refId, string $action, string $label, ?array $before, ?array $after, bool $auto = false): void
     {
         try {
             $u = PHP_SAPI !== 'cli' && function_exists('current_user') ? current_user() : null;   // 1.226.0: in cron/CLI geen sessie starten
-            q('INSERT INTO change_log (at, username, ip, kind, ref_id, action, label, before_data, after_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+            q('INSERT INTO change_log (at, username, ip, kind, ref_id, action, label, before_data, after_data, auto) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
                 now(), mb_substr((string) ($u['username'] ?? (PHP_SAPI === 'cli' ? 'cli' : '?')), 0, 64), mb_substr(client_ip(), 0, 45), $kind, $refId, $action,
                 mb_substr($label, 0, 200), $before === null ? null : json_encode($before, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-                $after === null ? null : json_encode($after, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
+                $after === null ? null : json_encode($after, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $auto ? 1 : 0]);
         } catch (Throwable) {
             // het logboek mag een wijziging nooit tegenhouden
         }
@@ -78,7 +78,7 @@ final class ChangeLog
     /** Wat er veranderde, als [veld, oud, nieuw] (runtime-velden van checks en servers weggelaten) */
     private static function changes(string $kind, string $action, ?array $b, ?array $a): array
     {
-        $skip = '/^(_|status|last_|fail_count|notified|problem_since|acked|pushover_receipt|status_|flap|quiet_held|suppressed_by|run_ms|agent_seen|agent_ip|agent_version|agent_key|agent_nonce|enc_seen|agent_conn|'
+        $skip = '/^(_|status|last_|fail_count|notified|problem_since|acked|pushover_receipt|status_|self_tuned_at|self_off_at|flap|quiet_held|suppressed_by|run_ms|agent_seen|agent_ip|agent_version|agent_key|agent_nonce|enc_seen|agent_conn|'
             . 'agent_update|agent_fb|agent_url_status|agent_url_at|agent_ip_new|hb_token|agent_token|tpl_override|template_item_id)/';
         $out = [];
         foreach (array_unique([...array_keys((array) $b), ...array_keys((array) $a)]) as $k) {
@@ -139,6 +139,11 @@ final class ChangeLog
             default => throw new InvalidArgumentException(t('Dit kan niet (meer) worden teruggezet')),
         };
         q('UPDATE change_log SET undone_at = ? WHERE id = ?', [now(), $id]);
+        // 1.334.0: een aanpassing van RzSense zelf teruggedraaid: die check stel je voortaan zelf in
+        if ((int) ($r['auto'] ?? 0) === 1 && $r['kind'] === 'check' && $r['ref_id'] !== null && q('SELECT 1 FROM checks WHERE id = ?', [$r['ref_id']])->fetchColumn()) {
+            SelfTune::off((int) $r['ref_id']);
+            $msg .= ' · ' . t('RzSense stelt deze check niet meer zelf in. Weer aanzetten: Instellingen › Monitoring › Slimme drempels en advies.');
+        }
         if ($r['kind'] === 'setting') {
             self::settingsDiff($before, self::settingsSnapshot(), 'undo', t('Teruggezet: {l}', ['l' => $r['label']]));
         } else {

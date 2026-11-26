@@ -110,7 +110,7 @@ final class ActionLog
         }
         // Wijzigingen aan servers en checks (door een beheerder), uit het wijzigingslogboek
         // 1.235.0: ook RzSense-instellingen, sjablonen en systeem (module "config"), zodat het Wijzigingslogboek hier in staat
-        if (($mod === '' || in_array($mod, ['settings', 'checks', 'config'], true)) && ($src === '' || $src === 'user') && !$onlyFail) {
+        if (($mod === '' || in_array($mod, ['settings', 'checks', 'config'], true)) && ($src === '' || $src === 'user' || $src === 'rzsense') && !$onlyFail) {
             $kinds = match ($mod) {
                 'settings' => "('host')",
                 'checks' => "('check')",
@@ -118,12 +118,13 @@ final class ActionLog
                 default => $hid > 0 ? "('host', 'check')" : "('host', 'check', 'setting', 'template', 'system')",
             };
             $args = [$since];
-            $like = '';
+            // 1.334.0: wat RzSense zelf aanpaste (Zelf instellen) hoort bij de bron RzSense
+            $like = $src === 'user' ? ' AND auto = 0' : ($src === 'rzsense' ? ' AND auto = 1' : '');
             if ($qs !== '') {
-                $like = ' AND (label LIKE ? OR username LIKE ?)';
+                $like .= ' AND (label LIKE ? OR username LIKE ?)';
                 array_push($args, "%$qs%", "%$qs%");
             }
-            foreach (q("SELECT id, at, username, ip, kind, ref_id, action, label, before_data, after_data, undone_at FROM change_log WHERE kind IN $kinds AND at >= ?$like ORDER BY id DESC LIMIT " . ($limit * 3), $args)->fetchAll() as $r) {
+            foreach (q("SELECT id, at, username, ip, kind, ref_id, action, label, before_data, after_data, undone_at, auto FROM change_log WHERE kind IN $kinds AND at >= ?$like ORDER BY id DESC LIMIT " . ($limit * 3), $args)->fetchAll() as $r) {
                 $b = json_decode((string) $r['before_data'], true) ?: [];
                 $a = json_decode((string) $r['after_data'], true) ?: [];
                 $h = $r['kind'] === 'host' ? (int) $r['ref_id'] : (int) ($a['host_id'] ?? $b['host_id'] ?? 0);
@@ -131,9 +132,9 @@ final class ActionLog
                     continue;
                 }
                 $out[] = ['kind' => 'change', 'id' => (int) $r['id'], 'at' => $r['at'], 'host_id' => $h ?: null, 'host' => $h ? (string) ($names[$h] ?? ($b['name'] ?? $a['name'] ?? "#$h")) : '',
-                    'source' => 'user', 'module' => match ($r['kind']) { 'host' => 'settings', 'check' => 'checks', default => 'config' },
+                    'source' => (int) $r['auto'] === 1 ? 'rzsense' : 'user', 'module' => match ($r['kind']) { 'host' => 'settings', 'check' => 'checks', default => 'config' },
                     'action' => self::changeTitle($r), 'detail' => self::changeDetail($r['kind'], $b, $a),
-                    'ok' => null, 'username' => $r['username'], 'ip' => $r['ip'], 'undone' => $r['undone_at'] !== null, 'can_undo' => ChangeLog::canUndoRow($r)];
+                    'ok' => null, 'username' => (int) $r['auto'] === 1 ? 'RzSense' : $r['username'], 'ip' => $r['ip'], 'undone' => $r['undone_at'] !== null, 'can_undo' => ChangeLog::canUndoRow($r)];
             }
         }
         usort($out, static fn($x, $y) => strcmp((string) $y['at'], (string) $x['at']) ?: ($y['id'] <=> $x['id']));

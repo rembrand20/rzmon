@@ -138,7 +138,7 @@ final class AdviceHub
      */
     private static function auto(): array
     {
-        $rows = q("SELECT id, label FROM change_log WHERE at >= NOW() - INTERVAL 24 HOUR AND username = 'cli' AND kind = 'check' AND undone_at IS NULL ORDER BY id DESC LIMIT 20")->fetchAll();
+        $rows = q("SELECT id, label FROM change_log WHERE at >= NOW() - INTERVAL 24 HOUR AND auto = 1 AND kind = 'check' AND undone_at IS NULL ORDER BY id DESC LIMIT 20")->fetchAll();
         if (!$rows) {
             return [];
         }
@@ -203,7 +203,7 @@ final class AdviceHub
     {
         $out = [];
         foreach (Advice::list() as $a) {
-            $out[] = ['id' => 'smart:' . $a['id'], 'sev' => 0, 'icon' => ['fails' => '🔔', 'maint' => '🗓️', 'dep' => '🔗'][$a['kind']] ?? '💡', 'title' => (string) $a['label'], 'sub' => (string) $a['text'],
+            $out[] = ['id' => 'smart:' . $a['id'], 'sev' => 0, 'icon' => ['fails' => '🔔', 'noise' => '🔕', 'maint' => '🗓️', 'dep' => '🔗'][$a['kind']] ?? '💡', 'title' => (string) $a['label'], 'sub' => (string) $a['text'],
                 'go' => 'settings/advice', 'acts' => $admin ? ['apply', 'ignore'] : ['go']];
         }
         return $out;

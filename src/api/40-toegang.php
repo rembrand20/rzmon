@@ -497,7 +497,13 @@ switch ($action) {
         out(Pick::sources());
 
     case 'advice_list':   // 1.108.0: slimme voorstellen en vaste onderhoudsvensters
-        out(['list' => Advice::list(), 'windows' => Advice::windows(), 'last' => (string) setting('advice_day', ''), 'auto' => setting('alert_auto', '1') === '1']);
+        out(['list' => Advice::list(), 'windows' => Advice::windows(), 'last' => (string) setting('advice_day', '')]);
+
+    case 'selftune_get':   // 1.334.0: Zelf instellen: schakelaars, proefweek en de checks die je zelf instelt
+        out(SelfTune::state());
+
+    case 'selftune_resume':   // "Weer slim"
+        SelfTune::resume((int) (input()['check_id'] ?? 0)) ? out(['ok' => true]) : out(['error' => t('Deze check stelt RzSense al zelf in')], 422);
 
     case 'advice_decide':
         $in = input();

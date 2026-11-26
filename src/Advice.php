@@ -103,13 +103,20 @@ final class Advice
         }
         save_setting('advice_day', date('Y-m-d'));
         $n = 0;
-        foreach ([self::fails(), self::maint(), self::deps()] as $list) {
+        // 1.334.0: ruis dempen (7 dagen, steeds binnen 5 minuten hersteld) gaat voor het gewone voorstel voor melden na N
+        $noise = setting('noise_auto', '1') === '1' ? SelfTune::noise(self::episodes(7)) : [];
+        $noisy = array_column($noise, 1);
+        $fails = array_values(array_filter(self::fails(), static fn($p) => !in_array($p[1], $noisy, true)));
+        foreach ([$noise, $fails, self::maint(), self::deps()] as $list) {
             foreach ($list as [$kind, $ref, $fp, $data]) {
                 $n += self::propose($kind, $ref, $fp, $data);
             }
         }
-        if (setting('alert_auto', '1') === '1') {
-            self::autoFails();
+        if (SelfTune::on('fails')) {
+            self::autoFails('fails');
+        }
+        if (SelfTune::on('noise') && !SelfTune::inTrial()) {   // de eerste week alleen voorstellen (in Advies)
+            self::autoFails('noise');
         }
         // Wat niet meer klopt (de check is weg, of het voorstel is achterhaald) opruimen
         q("DELETE FROM advice WHERE state = 'open' AND created_at < NOW() - INTERVAL 14 DAY");
@@ -346,7 +353,7 @@ final class Advice
         foreach (q("SELECT * FROM advice WHERE state = 'open' ORDER BY kind, created_at DESC") as $a) {
             $d = json_decode((string) $a['data'], true) ?: [];
             $item = ['id' => (int) $a['id'], 'kind' => $a['kind'], 'ref_id' => (int) $a['ref_id'], 'data' => $d, 'created_at' => $a['created_at']];
-            if ($a['kind'] === 'fails' || ($a['kind'] === 'maint' && ($d['scope'] ?? '') === 'check')) {
+            if (in_array($a['kind'], ['fails', 'noise'], true) || ($a['kind'] === 'maint' && ($d['scope'] ?? '') === 'check')) {
                 $c = q('SELECT c.name, h.name AS host FROM checks c JOIN hosts h ON h.id = c.host_id WHERE c.id = ?', [$a['ref_id']])->fetch();
                 if (!$c) {
                     continue;
@@ -375,6 +382,7 @@ final class Advice
             'fails' => (int) $d['n'] > (int) $d['cur']
                 ? t('Melden na {n} mislukte checks (nu {c}): {s} van de {e} storingen waren binnen 5 minuten vanzelf weer goed', ['n' => $d['n'], 'c' => $d['cur'], 's' => $d['short'], 'e' => $d['episodes']])
                 : t('Meteen melden (nu na {c}): de laatste {e} storingen duurden allemaal lang', ['c' => $d['cur'], 'e' => $d['episodes']]),
+            'noise' => t('Ruis dempen: melden na {n} mislukte checks (nu {c}). {a} meldingen in 7 dagen, elke keer binnen 5 minuten vanzelf weer goed', ['n' => $d['n'], 'c' => $d['cur'], 'a' => $d['alerts'] ?? $d['episodes']]),
             'maint' => t('Vast onderhoudsvenster {d} {s} ({m} min): {n}× op dat moment een storing die vanzelf herstelde', ['d' => self::dayName((int) $d['dow']), 's' => $d['start'], 'm' => $d['minutes'], 'n' => $d['times']]),
             'dep' => ($d['why'] ?? '') === 'unifi'
                 ? t('Hangt af van {p}: hangt er volgens UniFi aan', ['p' => $a['parent'] ?? '?'])
@@ -394,6 +402,7 @@ final class Advice
         if ($apply) {
             switch ($a['kind']) {
                 case 'fails':
+                case 'noise':
                     $before = ChangeLog::checkRow((int) $a['ref_id']);
                     q('UPDATE checks SET notify_fails = ? WHERE id = ?', [max(1, min(100, (int) $d['n'])), $a['ref_id']]);
                     if ($before) {
@@ -424,22 +433,24 @@ final class Advice
      * 1.156.0: "melden na N" zelf toepassen: elk open voorstel van die soort wordt meteen uitgevoerd, met een regel in het
      * wijzigingslogboek (terugzetten kan) en een ℹ️-melding. Een teruggezet voorstel komt niet terug (het is toegepast).
      */
-    private static function autoFails(): void
+    private static function autoFails(string $kind): void
     {
-        foreach (q("SELECT * FROM advice WHERE kind = 'fails' AND state = 'open'")->fetchAll() as $a) {
+        foreach (q("SELECT * FROM advice WHERE kind = ? AND state = 'open'", [$kind])->fetchAll() as $a) {
             $d = json_decode((string) $a['data'], true) ?: [];
             $before = ChangeLog::checkRow((int) $a['ref_id']);
-            if (!$before) {
+            // 1.334.0: alleen als de check het mag (niet teruggedraaid) en hooguit één aanpassing per check per week
+            if (!$before || !SelfTune::allowed((int) $a['ref_id'], $kind)) {
                 continue;
             }
             $n = max(1, min(100, (int) ($d['n'] ?? 1)));
             q('UPDATE checks SET notify_fails = ? WHERE id = ?', [$n, $a['ref_id']]);
             q("UPDATE advice SET state = 'applied', decided_at = ? WHERE id = ?", [now(), $a['id']]);
+            SelfTune::mark((int) $a['ref_id']);
             ChangeLog::record('check', (int) $a['ref_id'], 'update', '🔔 ' . t('Zelf ingesteld: melden na {n} ({h} · {c})', ['n' => $n, 'h' => $before['_host'], 'c' => $before['name']]),
-                $before, ChangeLog::checkRow((int) $a['ref_id']));
-            $why = $n > (int) ($d['cur'] ?? 1)
+                $before, ChangeLog::checkRow((int) $a['ref_id']), true);
+            $why = $kind === 'noise' ? t('{a} meldingen in 7 dagen, elke keer binnen 5 minuten weer voorbij', ['a' => (int) ($d['alerts'] ?? 0)]) : ($n > (int) ($d['cur'] ?? 1)
                 ? t('{s} van de {e} storingen in 30 dagen waren binnen 5 minuten weer voorbij', ['s' => (int) ($d['short'] ?? 0), 'e' => (int) ($d['episodes'] ?? 0)])
-                : t('de storingen duurden bijna altijd lang: je wilt het eerder weten');
+                : t('de storingen duurden bijna altijd lang: je wilt het eerder weten'));
             Monitor::sysInfo('alert_auto', (int) $before['host_id'], (string) $before['_host'], 'ℹ️ INFO: ' . $before['_host'], static fn() => t(
                 '🔔 {c}: melden na {n} mislukte checks (was {o}), want {w}. Terugzetten kan in het wijzigingslogboek.',
                 ['c' => $before['name'], 'n' => $n, 'o' => (int) ($d['cur'] ?? 1), 'w' => $why]));

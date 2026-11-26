@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.334.0**: **Zelf instellen**: één kaart voor wat RzSense zelf aanpast, met ruis dempen, terugdraaien in het logboek en *Weer slim*.
 - **1.333.0**: **Advies op één plek**: één blok op het dashboard met alles wat RzSense je aanraadt uit zeven bronnen, de belangrijkste bovenaan.
 - **1.332.0**: **Twee lay-outs**: L1nes (rustig, de standaard) en Bloxzz (tegels en het live dashboard); Compact en de oude L1nes zijn weg.
 - **1.331.0**: **Netwerk → Van buitenaf**: wat er open staat op internet als eigen tabblad; de WAF start weer (agent 1.123.1).
 - **1.330.0**: **Nieuwe indeling**: alles op één logische plek, zonder dubbele onderdelen; de beheerportal in kleinere groepen, met een eigen groep Netwerk.
-- **1.329.0**: **iw vanzelf installeren**: een Linux-apparaat met wifi maar zonder iw krijgt het van de agent, zodat zijn wifi bij Netwerksnelheid verschijnt.
+
+## 1.334.0 – 2026-11-26
+### Nieuw
+- **Zelf instellen.** Wat RzSense zelf aanpast staat nu op één plek: de kaart **RzSense stelt zelf in** bovenaan *Instellingen › Monitoring › Slimme drempels en advies*. Eén hoofdschakelaar met drie soorten eronder: **Drempels** (was *Zelf omzetten*), **Melden na N** en het nieuwe **Ruis dempen**. De schakelaars slaan meteen op.
+- **Ruis dempen** (standaard aan): een check die in 7 dagen 5 keer of vaker meldde en elke keer binnen 5 minuten vanzelf herstelde, meldt voortaan pas na een paar mislukte metingen. De eerste 7 dagen is het een **proefweek**: je ziet alleen voorstellen bij *Advies* op het dashboard; daarna past RzSense ze zelf toe.
+- **Terugdraaien = zelf instellen.** Draai je in het Logboek een aanpassing van RzSense terug, dan stelt RzSense die check niet meer zelf in. Hij staat dan in de kaart onder **Hier stel jij zelf in**, met de knop **🧠 Weer slim**.
+- **Grenzen:** hooguit één aanpassing per check per week; RzSense zet nooit een check uit en verschuift nooit een bestaand vangnet.
+- In het **Logboek** staan de aanpassingen van RzSense bij de bron *RzSense* (filter *Bron*), niet meer bij de beheerder.
+
+### Gewijzigd
+- De schakelaars *Zelf omzetten* (bij Slimme drempels) en *Melden na N zelf instellen* (bij Slimme voorstellen) zijn verhuisd naar de nieuwe kaart. Wat je had ingesteld blijft zo.
 
 ## 1.333.0 – 2026-11-26
 ### Nieuw

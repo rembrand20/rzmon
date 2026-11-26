@@ -219,7 +219,7 @@ final class Smart
         $t0 = microtime(true);
         $today = date('Y-m-d');
         $rows = q("SELECT c.*, s.model, s.learned_at FROM checks c LEFT JOIN check_smart s ON s.check_id = c.id
-                   WHERE c.enabled = 1 AND c.type IN ('ping','tcp','http','cpu','ram','snmp','process','log','command','container','dns','ntp','mysql','internet') AND c.thresh_mode <> 'auto'
+                   WHERE c.enabled = 1 AND c.type IN ('ping','tcp','http','cpu','ram','snmp','process','log','command','container','dns','ntp','mysql','internet') AND c.thresh_mode <> 'auto' AND c.self_tune = 1
                    AND (s.learned_at IS NULL OR s.learned_at < ?) ORDER BY s.learned_at IS NOT NULL, s.learned_at, c.id LIMIT 200", [$today . ' 00:00:00'])->fetchAll();
         foreach ($rows as $r) {
             if (microtime(true) - $t0 > $budgetSec) {
@@ -465,11 +465,11 @@ final class Smart
     private static function autoSwitch(array $check, array $m): void
     {
         $sim = $m['sim'] ?? [];
-        if (setting('smart_auto', '1') !== '1' || ($sim['fixed'] ?? null) === null || (int) $sim['fixed'] - (int) ($sim['smart'] ?? 0) < 2) {
+        if (($sim['fixed'] ?? null) === null || (int) $sim['fixed'] - (int) ($sim['smart'] ?? 0) < 2) {
             return;
         }
         $id = (int) $check['id'];
-        if (q('SELECT auto_at FROM check_smart WHERE check_id = ?', [$id])->fetchColumn()) {
+        if (!SelfTune::allowed($id, 'thresh') || q('SELECT auto_at FROM check_smart WHERE check_id = ?', [$id])->fetchColumn()) {
             return;
         }
         $before = ChangeLog::checkRow($id);
@@ -479,8 +479,9 @@ final class Smart
         $guard = is_numeric($before['guard_threshold'] ?? null) ? (float) $before['guard_threshold'] : self::guardDefault($check);
         q("UPDATE checks SET thresh_mode = 'guard', guard_threshold = ? WHERE id = ? AND thresh_mode = 'manual'", [$guard, $id]);
         q('UPDATE check_smart SET auto_at = ? WHERE check_id = ?', [now(), $id]);
+        SelfTune::mark($id);
         $host = (string) $before['_host'];
-        ChangeLog::record('check', $id, 'update', '🧠 ' . t('Zelf omgezet naar slim met vangnet: {c} op {h}', ['c' => $check['name'], 'h' => $host]), $before, ChangeLog::checkRow($id));
+        ChangeLog::record('check', $id, 'update', '🧠 ' . t('Zelf omgezet naar slim met vangnet: {c} op {h}', ['c' => $check['name'], 'h' => $host]), $before, ChangeLog::checkRow($id), true);
         $u = self::unit($check);
         Monitor::sysInfo('smart_auto', (int) $check['host_id'], $host, 'ℹ️ INFO: ' . $host, static fn() => t(
             '🧠 {c}: van vaste drempels (warning {w}{u}) naar slim met vangnet. In de laatste {d} dagen gaf de vaste drempel op {f} dagen een warning, slim op {s}. Terugzetten kan in het wijzigingslogboek.',
@@ -598,7 +599,7 @@ final class Smart
         $u = self::unit($check);
         $sum = static fn(?array $m) => $m && (int) ($m['days'] ?? 0) >= self::MIN_DAYS ? ['warning' => $range($m['w']) . $u, 'critical' => $range($m['c']) . $u, '_model' => ['w' => $m['w'], 'c' => $m['c'], 'days' => $m['days'], 'sens' => $m['sens'] ?? 'normal']] : null;
         ChangeLog::record('check', (int) $check['id'], 'smart', ($first ? t('🧠 Slimme drempels actief: {c} op {h}', ['c' => $check['name'], 'h' => $host])
-            : t('🧠 Slimme drempels bijgesteld: {c} op {h}', ['c' => $check['name'], 'h' => $host])), $sum($old), $sum($new));
+            : t('🧠 Slimme drempels bijgesteld: {c} op {h}', ['c' => $check['name'], 'h' => $host])), $sum($old), $sum($new), true);
     }
 
     /** Terugzetten vanuit het wijzigingslogboek: de geleerde drempels van daarvoor (RzSense leert daarna verder) */

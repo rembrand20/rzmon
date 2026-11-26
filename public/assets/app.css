@@ -6477,6 +6477,9 @@ body.sk-s .cs2-ovi { border-color: transparent; box-shadow: var(--shadow); }
   color: var(--primary); cursor: pointer; }
 .hd-empty { margin: 0; padding: .35rem 1.1rem 1.1rem; color: var(--muted); display: flex; align-items: center; gap: .5rem; }
 @media (max-width: 960px) { .hd-duo { grid-template-columns: minmax(0, 1fr); } }
+/* 1.334.0: Zelf instellen: de drie soorten hangen onder de hoofdschakelaar */
+.st-kinds { margin: .5rem 0 0 1.1rem; padding-left: 1rem; border-left: 2px solid var(--border); display: grid; gap: .5rem; }
+.st-kinds.off { opacity: .55; }
 /* 1.333.0: Advies op het dashboard: rijen met knoppen, en het venster met alles per bron */
 .hd-right { display: flex; align-items: center; gap: .7rem; }
 .hd-link { font: inherit; font-size: .85rem; background: none; border: 0; padding: .2rem 0; color: var(--primary); cursor: pointer; }

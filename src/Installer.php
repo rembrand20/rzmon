@@ -188,6 +188,11 @@ final class Installer
         ['hosts', 'os', 'VARCHAR(10) NULL'],   // 1.313.0: windows of linux (uit het rapport van de agent)
         // Info-check: geeft alleen info-meldingen, telt nooit als storing
         ['checks', 'info_only', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        // 1.334.0: Zelf instellen: mag RzSense deze check zelf aanpassen, wanneer deed hij dat het laatst, en sinds wanneer niet meer
+        ['checks', 'self_tune', 'TINYINT(1) NOT NULL DEFAULT 1'],
+        ['checks', 'self_tuned_at', 'DATETIME NULL'],
+        ['checks', 'self_off_at', 'DATETIME NULL'],
+        ['change_log', 'auto', 'TINYINT(1) NOT NULL DEFAULT 0'],   // een aanpassing van RzSense zelf (terugdraaien = die check zelf instellen)
         // Kwetsbaarheden: pakketten bijwerken via de agent (opdracht als JSON, en de uitkomst)
         ['hosts', 'vuln_upgrade_req', 'TEXT NULL'],
         ['hosts', 'vuln_upgrade_status', 'TEXT NULL'],

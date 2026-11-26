@@ -2012,3 +2012,6 @@ CREATE TABLE IF NOT EXISTS wifi_samples (
     INDEX idx_wifi_s (host_id, at),
     CONSTRAINT fk_wifi_s FOREIGN KEY (host_id) REFERENCES hosts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 1.334.0: Zelf instellen: de hoofdschakelaar en ruis dempen (drempels = smart_auto, melden na N = alert_auto bestonden al)
+INSERT IGNORE INTO settings (name, value) VALUES ('self_tune', '1'), ('noise_auto', '1');

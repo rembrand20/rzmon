@@ -613,8 +613,9 @@ Bewerk de check (✎) en kies bij de drempels een modus:
 | 🧠 **Slim** | RzSense leert wat normaal is en zet de drempels zelf |
 | 🧠🛡️ **Slim met vangnet** | Slim, maar vanaf het vangnet (*Altijd critical vanaf*, bv. RAM 98 %) altijd CRITICAL |
 
-De standaard voor nieuwe checks, de gevoeligheid (*rustig*, *normaal* of *scherp*) en *Zelf omzetten* stel je in bij
-*Instellingen → Monitoring → Slimme drempels en advies*. Een nieuwe check krijgt standaard *slim met vangnet*.
+De standaard voor nieuwe checks en de gevoeligheid (*rustig*, *normaal* of *scherp*) stel je in bij
+*Instellingen → Monitoring → Slimme drempels en advies*. Wat RzSense zelf mag aanpassen staat daar in de kaart
+*RzSense stelt zelf in* (zie [Zelf instellen](#zelf-instellen)). Een nieuwe check krijgt standaard *slim met vangnet*.
 
 ### Hoe het werkt
 
@@ -650,9 +651,36 @@ Checks met winst staan al aangevinkt. Staat er **grillig**, dan piekt de check b
 van een IP-camera. Slimme drempels helpen daar weinig; **melden na 3** wel, en voor de bereikbaarheid is een ping-check
 betrouwbaarder.
 
-**Zelf omzetten** (standaard aan): na 7 dagen leren zet RzSense een handmatige check zelf op *slim met vangnet* als dat
-minstens 2 dagen minder warnings had gegeven. Je krijgt een ℹ️-melding met de reden, en het staat in het Logboek. Zet je het
-daar terug, dan blijft die check voorgoed handmatig.
+## Zelf instellen
+
+RzSense past een paar dingen zelf aan, zodat je minder onnodige meldingen krijgt zonder dat je er zelf aan hoeft te
+denken. Je regelt het in de kaart **RzSense stelt zelf in**, bovenaan *Instellingen → Monitoring → Slimme drempels en
+advies*. De schakelaars slaan meteen op.
+
+| Schakelaar | Wat RzSense dan zelf doet |
+|---|---|
+| **Zelf instellen** | De hoofdschakelaar. Uit = RzSense past niets zelf aan; je krijgt alleen nog voorstellen |
+| **Drempels** | Na 7 dagen leren gaat een handmatige check naar *slim met vangnet*, als dat minstens 2 dagen minder warnings had gegeven. Eén keer per check |
+| **Melden na N** | Een voorstel voor *melden na N* (zie [Slimme voorstellen](#slimme-voorstellen)) meteen toepassen |
+| **Ruis dempen** | Een check die in 7 dagen 5 keer of vaker meldde en **elke keer** binnen 5 minuten vanzelf herstelde, meldt voortaan pas na een paar mislukte metingen (2 tot 6) |
+
+Alle vier staan standaard aan.
+
+**Je houdt de regie.**
+
+- Elke aanpassing staat in het **Logboek** (bron *RzSense*) met wat er veranderde, en je krijgt een ℹ️-melding met de
+  reden.
+- Met **Terugzetten** in het Logboek gaat de check terug naar de oude waarde. RzSense stelt die check daarna **niet meer
+  zelf in**: hij staat dan in de kaart onder **Hier stel jij zelf in**. Met **🧠 Weer slim** mag RzSense hem weer
+  instellen.
+- Een check die je zelf instelt leert ook geen nieuwe slimme drempels meer; de drempels blijven zoals je ze terugzette.
+
+**Grenzen.** RzSense doet hooguit één aanpassing per check per week. RzSense zet nooit een check uit en verschuift nooit
+een bestaand vangnet. Onderhoudsvensters en afhankelijkheden blijven altijd voorstellen.
+
+**Proefweek voor ruis dempen.** De eerste 7 dagen nadat *Ruis dempen* er is, past RzSense nog niets toe: je ziet de
+voorstellen bij **Advies** op het dashboard en kunt ze daar zelf toepassen of negeren. Daarna past RzSense ze zelf toe.
+De kaart laat zien tot wanneer de proefweek loopt.
 
 ## Slimme voorstellen
 
@@ -665,11 +693,12 @@ drempels en advies*, tabblad *Voorstellen*, en ook in *Analyse* onder *Wat nu aa
 | 🔔 **Melden na meer mislukte checks** | Een check had in 30 dagen minstens 5 storingen en 70 % daarvan was binnen 5 minuten vanzelf over. RzSense rekent uit na hoeveel mislukte checks (2 tot 6) die haperingen wegvallen |
 | 🔔 **Meteen melden** | Een check staat op *melden na 3 of meer*, maar de storingen duren bijna altijd lang: dan wacht je voor niets |
 | 🗓️ **Vast onderhoudsvenster** | Iets gaat steeds op hetzelfde moment kort mis en herstelt vanzelf, zoals de back-up om 2:00 of de herstart op zondag |
+| 🔕 **Ruis dempen** | Een check meldde in 7 dagen 5 keer of vaker en herstelde elke keer binnen 5 minuten |
 | 🔗 **Afhankelijkheid** | Volgens UniFi hangt een server aan een switch of access point dat in RzSense staat, of een server valt bijna altijd tegelijk uit met een andere |
 
-Een voorstel voor *melden na N* voert RzSense standaard meteen zelf uit, met een ℹ️-melding en een regel in het Logboek om
-terug te gaan. Uitzetten kan met de schakelaar boven de voorstellen. Onderhoudsvensters en afhankelijkheden blijven altijd
-voorstellen.
+Een voorstel voor *melden na N* of *ruis dempen* voert RzSense standaard zelf uit, met een ℹ️-melding en een regel in het
+Logboek om terug te gaan. Dat regel je bij [Zelf instellen](#zelf-instellen). Onderhoudsvensters en afhankelijkheden
+blijven altijd voorstellen.
 
 ### Vaste onderhoudsvensters
 

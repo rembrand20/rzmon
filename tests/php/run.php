@@ -4835,7 +4835,7 @@ ok(AdviceHub::set($ahOne, 'na', 'unit') && !in_array($ahOne, array_column(Advice
 ok(!AdviceHub::set('smart:1', 'later', 'unit') && !AdviceHub::set($ahOne, 'done', 'unit') && !AdviceHub::set('raar', 'na', 'unit'), 'een onbekende bron of status wordt geweigerd');
 $ahSum = AdviceHub::summary(true, 2);
 ok($ahSum['n'] === count($ahAll) && count($ahSum['top']) === min(2, $ahSum['n']) && $ahSum['high'] === count(array_filter($ahAll, static fn($x) => $x['sev'] === 2)), 'samenvatting voor het dashboard: aantal en de bovenste');
-q("INSERT INTO change_log (at, username, ip, kind, ref_id, action, label) VALUES (NOW(), 'cli', '', 'check', 1, 'update', '🔔 Zelf ingesteld: melden na 3')");
+q("INSERT INTO change_log (at, username, ip, kind, ref_id, action, label, auto) VALUES (NOW(), 'cli', '', 'check', 1, 'update', '🔔 Zelf ingesteld: melden na 3', 1)");
 $ahLog = (int) db()->lastInsertId();
 AdviceHub::forget();
 $ahAuto = array_values(array_filter(AdviceHub::items(true), static fn($x) => $x['src'] === 'auto'));
@@ -4843,6 +4843,72 @@ ok(count($ahAuto) === 1 && $ahAuto[0]['go'] === 'logboek' && str_contains($ahAut
 q('DELETE FROM change_log WHERE id = ?', [$ahLog]);
 save_setting('email_enabled', $ahOld[0]);
 save_setting('hub_state', '{}');
+AdviceHub::forget();
+
+section('Zelf instellen (1.334.0)');
+q("INSERT INTO hosts (name, address, mode, enabled) VALUES ('st-unit', '192.0.2.9', 'remote', 1)");
+$stH = (int) db()->lastInsertId();
+$stMk = static function (string $name) use ($stH): int {
+    q("INSERT INTO checks (host_id, type, name, target, interval_sec, enabled, notify_fails) VALUES (?, 'ping', ?, '192.0.2.9', 60, 1, 1)", [$stH, $name]);
+    return (int) db()->lastInsertId();
+};
+[$stA, $stB, $stC] = [$stMk('ruis'), $stMk('lang'), $stMk('stil')];
+$stEp = static function (int $id, int $n, int $dur): void {
+    for ($i = 1; $i <= $n; $i++) {
+        $t = time() - $i * 20000;
+        q('INSERT INTO status_changes (check_id, from_status, to_status, message, created_at) VALUES (?, 0, 2, ?, ?)', [$id, 'x', date('Y-m-d H:i:s', $t)]);
+        q('INSERT INTO status_changes (check_id, from_status, to_status, message, created_at) VALUES (?, 2, 0, ?, ?)', [$id, 'x', date('Y-m-d H:i:s', $t + $dur)]);
+        q("INSERT INTO alerts (check_id, status, title, message, sent_ok, created_at) VALUES (?, 2, 'x', 'x', 1, ?)", [$id, date('Y-m-d H:i:s', $t)]);
+    }
+};
+$stEp($stA, 6, 120);    // zes meldingen, elke keer na 2 minuten weer goed
+$stEp($stB, 6, 3600);   // zes meldingen, maar die duurden een uur
+$stEpisodes = (new ReflectionMethod('Advice', 'episodes'))->invoke(null, 7);
+$stNoise = SelfTune::noise($stEpisodes);
+$stRefs = array_column($stNoise, 1);
+ok(in_array($stA, $stRefs, true) && !in_array($stB, $stRefs, true) && !in_array($stC, $stRefs, true), 'ruis: alleen de check die vaak meldde en steeds binnen 5 minuten herstelde');
+$stRow = array_values(array_filter($stNoise, static fn($p) => $p[1] === $stA))[0];
+ok($stRow[0] === 'noise' && $stRow[3]['n'] === 3 && $stRow[3]['cur'] === 1 && $stRow[3]['alerts'] === 6, 'het voorstel: melden na 3 (storingen van 2 minuten bij een meting per minuut)');
+$stOld = [setting('self_tune', '1'), setting('noise_auto', '1'), setting('alert_auto', '1'), setting('noise_trial_until', '0'), setting('advice_day', '')];
+save_setting('self_tune', '1');
+save_setting('noise_auto', '1');
+save_setting('noise_trial_until', (string) (time() + 86400));
+ok(SelfTune::inTrial() && SelfTune::on('noise') && SelfTune::allowed($stA, 'noise'), 'proefweek loopt; de check mag aangepast worden');
+Advice::cron(true);
+$stAdv = q("SELECT state FROM advice WHERE kind = 'noise' AND ref_id = ?", [$stA])->fetchColumn();
+ok($stAdv === 'open' && (int) q('SELECT notify_fails FROM checks WHERE id = ?', [$stA])->fetchColumn() === 1, 'in de proefweek: alleen een voorstel, de check is niet aangepast');
+ok((bool) array_filter(Advice::list(), static fn($a) => $a['kind'] === 'noise' && $a['ref_id'] === $stA && str_contains($a['text'], '6')), 'het voorstel staat in de lijst, met het aantal meldingen');
+save_setting('noise_trial_until', (string) (time() - 10));
+Advice::cron(true);
+$stLog = q('SELECT * FROM change_log WHERE kind = ? AND ref_id = ? ORDER BY id DESC LIMIT 1', ['check', $stA])->fetch();
+ok((int) q('SELECT notify_fails FROM checks WHERE id = ?', [$stA])->fetchColumn() === 3 && $stLog && (int) $stLog['auto'] === 1, 'na de proefweek: zelf toegepast, met een regel in het logboek (gemarkeerd als automatisch)');
+ok(!SelfTune::allowed($stA, 'noise') && !SelfTune::allowed($stA, 'thresh'), 'hooguit één aanpassing per check per week');
+ok((int) q('SELECT enabled FROM checks WHERE id = ?', [$stA])->fetchColumn() === 1 && q('SELECT guard_threshold FROM checks WHERE id = ?', [$stA])->fetchColumn() === null, 'de check staat nog aan en het vangnet is niet aangeraakt');
+$stMsg = ChangeLog::undo((int) $stLog['id']);
+$stAfter = q('SELECT notify_fails, self_tune, self_off_at FROM checks WHERE id = ?', [$stA])->fetch();
+ok((int) $stAfter['notify_fails'] === 1 && (int) $stAfter['self_tune'] === 0 && $stAfter['self_off_at'] !== null && str_contains($stMsg, 'niet meer zelf'),
+    'terugdraaien in het logboek: de oude waarde terug, en RzSense stelt deze check niet meer zelf in');
+ok(in_array($stA, array_column(SelfTune::manual(), 'id'), true) && !SelfTune::allowed($stA, 'fails'), 'de check staat bij "Hier stel jij zelf in"');
+q("UPDATE advice SET state = 'open' WHERE kind = 'noise' AND ref_id = ?", [$stA]);
+Advice::cron(true);
+ok((int) q('SELECT notify_fails FROM checks WHERE id = ?', [$stA])->fetchColumn() === 1, 'een check die je zelf instelt wordt niet opnieuw aangepast');
+ok(SelfTune::resume($stA) && !SelfTune::resume($stA) && !in_array($stA, array_column(SelfTune::manual(), 'id'), true) && SelfTune::allowed($stA, 'noise'), 'weer slim: RzSense mag de check weer instellen');
+save_setting('self_tune', '0');
+ok(!SelfTune::on('noise') && !SelfTune::on('fails') && !SelfTune::on('thresh') && !SelfTune::allowed($stA, 'noise'), 'de hoofdschakelaar uit: RzSense past niets zelf aan');
+save_setting('self_tune', '1');
+save_setting('noise_auto', '0');
+save_setting('alert_auto', '1');
+ok(!SelfTune::on('noise') && SelfTune::on('fails'), 'alleen ruis dempen uit: de andere soorten blijven werken');
+$stSt = SelfTune::state();
+ok($stSt['on'] === true && $stSt['noise'] === false && $stSt['changes_30d'] >= 1 && $stSt['undone_30d'] >= 1 && is_array($stSt['manual']), 'overzicht voor de beheerportal: schakelaars en aantallen');
+$stRows = ActionLog::list(['source' => 'rzsense', 'days' => 1]);
+ok((bool) array_filter($stRows, static fn($r) => $r['kind'] === 'change' && $r['id'] === (int) $stLog['id'] && $r['username'] === 'RzSense'), 'in het logboek staat de aanpassing bij de bron RzSense');
+foreach (['self_tune', 'noise_auto', 'alert_auto', 'noise_trial_until', 'advice_day'] as $stI => $stK) {
+    save_setting($stK, $stOld[$stI]);
+}
+q('DELETE FROM change_log WHERE kind = ? AND ref_id IN (?, ?, ?)', ['check', $stA, $stB, $stC]);
+q('DELETE FROM advice WHERE ref_id IN (?, ?, ?)', [$stA, $stB, $stC]);
+q('DELETE FROM hosts WHERE id = ?', [$stH]);
 AdviceHub::forget();
 
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
