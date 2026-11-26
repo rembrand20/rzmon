@@ -47,23 +47,6 @@ final class Paths
             && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
     }
 
-    private static function data(int $hostId, string $metric): ?array
-    {
-        $v = q('SELECT value FROM agent_data WHERE host_id = ? AND metric = ?', [$hostId, $metric])->fetchColumn();
-        $d = $v !== false ? json_decode((string) $v, true) : null;
-        return is_array($d) ? $d : null;
-    }
-
-    private static function put(int $hostId, string $metric, ?array $value): void
-    {
-        if ($value === null) {
-            q('DELETE FROM agent_data WHERE host_id = ? AND metric = ?', [$hostId, $metric]);
-            return;
-        }
-        q('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)',
-            [$hostId, $metric, json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), now()]);
-    }
-
     /**
      * 1.189.2: na een rapport van de agent de regels opruimen die dat rapport niet ververste. Wat RzSense zelf bijhoudt
      * en niet in elk rapport zit, blijft staan: de pad-metingen (de agent meet maar elke paar minuten; anders bleef de
@@ -76,7 +59,7 @@ final class Paths
         $ids = array_map('intval', q("SELECT id FROM checks WHERE host_id = ? AND type = 'path'", [$hostId])->fetchAll(PDO::FETCH_COLUMN));
         foreach (q("SELECT metric FROM agent_data WHERE host_id = ? AND metric REGEXP '$keep'", [$hostId])->fetchAll(PDO::FETCH_COLUMN) as $m) {
             if (!str_starts_with((string) $m, 'speedreq:') && !in_array((int) substr((string) $m, strpos((string) $m, ':') + 1), $ids, true)) {
-                self::put($hostId, (string) $m, null);
+                AgentData::put($hostId, (string) $m, null);
             }
         }
     }
@@ -97,20 +80,20 @@ final class Paths
             }
             $out[] = implode("\t", [$c['id'], 'path', $c['target'], $o['via'] ? implode(',', $o['via']) : '-', max(60, (int) $c['interval_sec'])]);
             // Doorvoertest: plannen als het tijd is, en doorgeven zodra de ontvanger op het doel draait
-            $req = self::data($hostId, 'pathreq:' . $c['id']);
+            $req = AgentData::get($hostId, 'pathreq:' . $c['id']);
             if (!$req && $o['tp'] && $o['tp_every'] > 0) {
-                $last = self::data($hostId, 'pathtp:' . $c['id']);
+                $last = AgentData::get($hostId, 'pathtp:' . $c['id']);
                 if (!$last || (int) ($last['at'] ?? 0) < time() - $o['tp_every'] + 30) {
                     $req = self::request((int) $c['id'], $hostId, $o);
                 }
             }
             if ($req && (int) $req['until'] < time()) {
-                self::put($hostId, 'pathreq:' . $c['id'], null);
-                self::put($hostId, 'pathtp:' . $c['id'], ['at' => time(), 'to' => $req['ip'], 'err' => t('de ontvanger op {h} startte niet op tijd (draait de agent daar, met iperf3?)', ['h' => $req['name']])]);
+                AgentData::put($hostId, 'pathreq:' . $c['id'], null);
+                AgentData::put($hostId, 'pathtp:' . $c['id'], ['at' => time(), 'to' => $req['ip'], 'err' => t('de ontvanger op {h} startte niet op tijd (draait de agent daar, met iperf3?)', ['h' => $req['name']])]);
                 continue;
             }
             if ($req) {
-                $srv = self::data((int) $req['host'], 'iperfs');
+                $srv = AgentData::get((int) $req['host'], 'iperfs');
                 if ($srv && (int) ($srv['started'] ?? 0) >= (int) $req['at'] - 5) {
                     $out[] = implode("\t", [$c['id'], 'pathtp', $req['ip'], $port, $req['key']]);
                 }
@@ -137,7 +120,7 @@ final class Paths
     /** Heeft de agent op deze server iperf3? (null = nog niet bekend: geen lijst van de agent) */
     public static function hasIperf(int $hostId): ?bool
     {
-        $caps = self::data($hostId, 'caps');
+        $caps = AgentData::get($hostId, 'caps');
         return $caps === null ? null : in_array('iperf3', $caps, true);
     }
 
@@ -156,7 +139,7 @@ final class Paths
         if (!$h || Vulns::upgradeBlocked($h)) {
             return false;
         }
-        $m = self::data($hostId, 'iperf_inst');
+        $m = AgentData::get($hostId, 'iperf_inst');
         if ($m && (int) ($m['at'] ?? 0) > time() - 43200) {
             return empty($m['err']) && (int) $m['at'] > time() - 1800;   // net aangevraagd: nog bezig
         }
@@ -164,7 +147,7 @@ final class Paths
             return false;   // er loopt al een opdracht (bijwerken of installeren): die niet overschrijven
         }
         $r = Vulns::requestInstall($h, ['iperf3'], 'RzSense (doorvoertest)', true);
-        self::put($hostId, 'iperf_inst', ['at' => time(), 'err' => $r === true ? '' : (string) $r]);
+        AgentData::put($hostId, 'iperf_inst', ['at' => time(), 'err' => $r === true ? '' : (string) $r]);
         return $r === true;
     }
 
@@ -183,19 +166,19 @@ final class Paths
             // 1.192.0: nog geen ontvanger met iperf3: op de beste kandidaat installeren (hetzelfde netwerk eerst)
             $cand = !$o['tp_host'] ? self::tpTarget($hostId, 0, true) : null;
             if ($cand && self::ensureIperf((int) $cand['id'])) {
-                self::put($hostId, 'pathtp:' . $checkId, ['at' => time(), 'err' => t('iperf3 wordt geïnstalleerd op {h} (de ontvanger); de doorvoertest volgt daarna vanzelf', ['h' => $cand['name']])]);
+                AgentData::put($hostId, 'pathtp:' . $checkId, ['at' => time(), 'err' => t('iperf3 wordt geïnstalleerd op {h} (de ontvanger); de doorvoertest volgt daarna vanzelf', ['h' => $cand['name']])]);
                 return null;
             }
-            self::put($hostId, 'pathtp:' . $checkId, ['at' => time(), 'err' => t('Geen apparaat om naartoe te meten: zet bij een andere server met de agent en iperf3 "Mag doorvoertest ontvangen" aan')]);
+            AgentData::put($hostId, 'pathtp:' . $checkId, ['at' => time(), 'err' => t('Geen apparaat om naartoe te meten: zet bij een andere server met de agent en iperf3 "Mag doorvoertest ontvangen" aan')]);
             return null;
         }
         // 1.192.0: de gekozen ontvanger mist iperf3: daar installeren
         if (!self::hasIperf((int) $t['id']) && self::ensureIperf((int) $t['id'])) {
-            self::put($hostId, 'pathtp:' . $checkId, ['at' => time(), 'err' => t('iperf3 wordt geïnstalleerd op {h} (de ontvanger); de doorvoertest volgt daarna vanzelf', ['h' => $t['name']])]);
+            AgentData::put($hostId, 'pathtp:' . $checkId, ['at' => time(), 'err' => t('iperf3 wordt geïnstalleerd op {h} (de ontvanger); de doorvoertest volgt daarna vanzelf', ['h' => $t['name']])]);
             return null;
         }
         $req = ['key' => bin2hex(random_bytes(8)), 'at' => time(), 'until' => time() + self::TP_WINDOW, 'host' => (int) $t['id'], 'ip' => $t['address'], 'name' => $t['name']];
-        self::put($hostId, 'pathreq:' . $checkId, $req);
+        AgentData::put($hostId, 'pathreq:' . $checkId, $req);
         return $req;
     }
 
@@ -256,7 +239,7 @@ final class Paths
         $hid = (int) $host['id'];
         if (isset($in['iperfs']) && is_array($in['iperfs'])) {
             $i = $in['iperfs'];
-            self::put($hid, 'iperfs', ['started' => (int) ($i['started'] ?? 0), 'port' => (int) ($i['port'] ?? 0), 'err' => mb_substr((string) ($i['err'] ?? ''), 0, 120), 'at' => time()]);
+            AgentData::put($hid, 'iperfs', ['started' => (int) ($i['started'] ?? 0), 'port' => (int) ($i['port'] ?? 0), 'err' => mb_substr((string) ($i['err'] ?? ''), 0, 120), 'at' => time()]);
         }
         if (!isset($in['path']) || !is_array($in['path'])) {
             return;
@@ -268,14 +251,14 @@ final class Paths
             }
             $id = (int) $id;
             if (isset($p['tp']) && is_array($p['tp'])) {
-                $req = self::data($hid, 'pathreq:' . $id);
+                $req = AgentData::get($hid, 'pathreq:' . $id);
                 if ($req && ($p['tp']['key'] ?? '') === $req['key']) {
-                    self::put($hid, 'pathreq:' . $id, null);
+                    AgentData::put($hid, 'pathreq:' . $id, null);
                 }
                 $tp = ['at' => time(), 'to' => mb_substr((string) ($p['tp']['to'] ?? ''), 0, 60), 'name' => $req['name'] ?? '',
                     'mbit' => isset($p['tp']['mbit']) && is_numeric($p['tp']['mbit']) ? round((float) $p['tp']['mbit'], 1) : null,
                     'err' => mb_substr((string) ($p['tp']['err'] ?? ''), 0, 160)];
-                self::put($hid, 'pathtp:' . $id, $tp);
+                AgentData::put($hid, 'pathtp:' . $id, $tp);
                 if ($tp['mbit'] !== null) {
                     q('INSERT INTO path_runs (check_id, at, kind, data) VALUES (?, NOW(), ?, ?)', [$id, 'tp', json_encode(['mbit' => $tp['mbit'], 'to' => $tp['to']])]);
                 }
@@ -302,8 +285,8 @@ final class Paths
                 'via' => array_values(array_filter(array_map($ping, array_slice((array) ($p['via'] ?? []), 0, 6)))), 'ping' => $ping($p['ping'] ?? null),
                 'lldp' => is_array($p['lldp'] ?? null) ? ['sys' => mb_substr((string) ($p['lldp']['sys'] ?? ''), 0, 80), 'port' => mb_substr((string) ($p['lldp']['port'] ?? ''), 0, 80)] : null,
             ];
-            $prev = self::data($hid, 'path:' . $id);
-            self::put($hid, 'path:' . $id, $d);
+            $prev = AgentData::get($hid, 'path:' . $id);
+            AgentData::put($hid, 'path:' . $id, $d);
             self::$fresh[] = $id;   // 1.191.1: meteen beoordelen, niet wachten op het volgende interval
             q('INSERT INTO path_runs (check_id, at, kind, data) VALUES (?, NOW(), ?, ?)', [$id, 'run', json_encode(['h' => array_map(static fn($h) => [$h['ip'], $h['avg'], $h['loss']], $hops),
                 'v' => array_map(static fn($v) => [$v['ip'], $v['avg'], $v['loss']], $d['via']), 'd' => $d['ping'] ? [$d['ping']['avg'], $d['ping']['loss']] : null])]);
@@ -405,14 +388,14 @@ final class Paths
      */
     public static function model(array $check, array $host, ?array $pre = null): ?array
     {
-        $d = $pre !== null ? ($pre['d'] ?? null) : self::data((int) $host['id'], 'path:' . $check['id']);
+        $d = $pre !== null ? ($pre['d'] ?? null) : AgentData::get((int) $host['id'], 'path:' . $check['id']);
         if (!$d) {
             return null;
         }
         $o = self::opts($check);
         $u = self::unifi();
         $names = self::names();
-        $tp = $pre !== null ? ($pre['tp'] ?? null) : self::data((int) $host['id'], 'pathtp:' . $check['id']);
+        $tp = $pre !== null ? ($pre['tp'] ?? null) : AgentData::get((int) $host['id'], 'pathtp:' . $check['id']);
         $nodes = [];
         $nodes[] = ['kind' => 'src', 'name' => (string) $host['name'], 'ip' => $d['src'] ?: (string) $host['address'], 'speed' => $d['speed'], 'dev' => $d['dev'], 'st' => 'g'];
         if ($d['virt'] !== '' && $d['virt'] !== 'docker') {
@@ -420,7 +403,7 @@ final class Paths
             $nodes[] = ['kind' => 'virt', 'name' => $parent ? $parent . ' · bridge' : t('virtuele laag'), 'ip' => $d['virt'], 'st' => 'v'];
         }
         $ul = self::unifiLink($u, $d['src'] ?: (string) $host['address']);
-        $max = ($pre !== null ? ($pre['max'] ?? null) : self::data((int) $host['id'], 'pathmax:' . $check['id'])) ?: [];
+        $max = ($pre !== null ? ($pre['max'] ?? null) : AgentData::get((int) $host['id'], 'pathmax:' . $check['id'])) ?: [];
         $slow = [];
         if ($ul) {
             $st = 'g';
@@ -485,9 +468,9 @@ final class Paths
         $nm = ['nic' => max((int) ($max['nic'] ?? 0), (int) ($d['speed'] ?? 0)), 'port' => max((int) ($max['port'] ?? 0), (int) ($ul['speed'] ?? 0)),
             'uplink' => max((int) ($max['uplink'] ?? 0), (int) ($ul['uplink_speed'] ?? 0))];
         if ($pre === null && $nm != $max && array_filter($nm)) {
-            self::put((int) $host['id'], 'pathmax:' . $check['id'], $nm);
+            AgentData::put((int) $host['id'], 'pathmax:' . $check['id'], $nm);
         }
-        $req = $pre !== null ? ($pre['req'] ?? null) : self::data((int) $host['id'], 'pathreq:' . $check['id']);
+        $req = $pre !== null ? ($pre['req'] ?? null) : AgentData::get((int) $host['id'], 'pathreq:' . $check['id']);
         return ['at' => $d['at'], 'tool' => $d['tool'], 'dst' => $d['dst'], 'nodes' => $nodes, 'slow' => $slow, 'down' => $down, 'tp' => $tp,
             'tp_busy' => $req !== null, 'hops' => count($d['hops']), 'intern' => count(array_filter($nodes, static fn($n) => in_array($n['kind'], ['virt', 'switch', 'via', 'router', 'hop'], true))),
             'unifi' => $u === null ? null : ($u['error'] ?? null ? ['error' => $u['error']] : ['ok' => true]), 'ul' => $ul, 'opts' => $o, 'max' => $nm, 'gw' => $d['gw'], 'src' => $d['src']];
@@ -632,9 +615,9 @@ final class Paths
         }
         $ev = q('SELECT at, kind, text FROM path_events WHERE check_id = ? ORDER BY id DESC LIMIT 10', [$checkId])->fetchAll();
         $srv = null;
-        $req = self::data((int) $c['host_id'], 'pathreq:' . $checkId);
+        $req = AgentData::get((int) $c['host_id'], 'pathreq:' . $checkId);
         if ($req) {
-            $srv = self::data((int) $req['host'], 'iperfs');
+            $srv = AgentData::get((int) $req['host'], 'iperfs');
         }
         $caps = json_decode((string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = 'caps'", [$c['host_id']])->fetchColumn(), true) ?: [];
         return ['check' => ['id' => (int) $c['id'], 'name' => $c['name'], 'host' => $c['host_name'], 'target' => $c['target']], 'model' => $m, 'bars' => $bars, 'tp_hist' => $tp,

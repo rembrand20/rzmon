@@ -457,18 +457,6 @@ parameters:
 			path: src/AgentTest.php
 
 		-
-			message: '#^Method AgentTest\:\:get\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/AgentTest.php
-
-		-
-			message: '#^Method AgentTest\:\:put\(\) has parameter \$v with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/AgentTest.php
-
-		-
 			message: '#^Method AgentTest\:\:result\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -6811,12 +6799,6 @@ parameters:
 			path: src/Paths.php
 
 		-
-			message: '#^Method Paths\:\:data\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Paths.php
-
-		-
 			message: '#^Method Paths\:\:diff\(\) has parameter \$a with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -6872,12 +6854,6 @@ parameters:
 
 		-
 			message: '#^Method Paths\:\:overview\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Paths.php
-
-		-
-			message: '#^Method Paths\:\:put\(\) has parameter \$value with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/Paths.php

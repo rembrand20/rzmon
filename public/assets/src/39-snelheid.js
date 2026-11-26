@@ -17,12 +17,8 @@ const nsAt = (t) => (t ? new Date(t * 1000).toLocaleString(LOCALE, { weekday: 's
 
 /** Een klein lijntje (48 blokjes, lege overgeslagen) */
 function nsSpark(vals, warn = false, w = 110, h = 22) {
-  const v = (vals || []).map((x) => (x === null || x === undefined ? null : +x));
-  const real = v.filter((x) => x !== null);
-  if (real.length < 2) return '';
-  const lo = Math.min(...real), hi = Math.max(...real), span = hi - lo || 1;
-  let d = '';
-  v.forEach((x, i) => { if (x !== null) d += `${d ? 'L' : 'M'}${(i / (v.length - 1) * w).toFixed(1)},${(h - 2 - (x - lo) / span * (h - 4)).toFixed(1)}`; });
+  const d = sparkD(vals, w, h);
+  if (!d) return '';
   return `<svg class="ns-spark${warn ? ' w' : ''}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path d="${d}"/></svg>`;
 }
 

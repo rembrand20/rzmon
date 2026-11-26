@@ -132,8 +132,7 @@ final class Relay
             'allow' => mb_substr(preg_replace('/[^0-9a-fA-F.:\/, ]/', '', (string) ($r['allow'] ?? '')), 0, 1000),
             'at' => time(),
         ];
-        q('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)',
-            [$host['id'], 'relay', json_encode($data, JSON_UNESCAPED_SLASHES), now()]);
+        AgentData::put((int) $host['id'], 'relay', $data);
         $h = q('SELECT relay_on, relay_port, relay_url, relay_of, relay_kind FROM hosts WHERE id = ?', [$host['id']])->fetch();
         if ($h && !(int) $h['relay_on']) {
             // Een relay meldt zich: vanaf nu is dit een relay
@@ -159,8 +158,7 @@ final class Relay
     {
         $mid = (string) ($in['mid'] ?? '');
         if (preg_match('/^[0-9a-f]{16,64}$/', $mid) && !isset($in['relay'])) {
-            q('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)',
-                [$host['id'], 'mid', $mid, now()]);
+            AgentData::put((int) $host['id'], 'mid', $mid);
         }
     }
 
@@ -328,8 +326,7 @@ final class Relay
             $v = ['t' => $mine[$id], 'ok' => !empty($r['ok']), 'ms' => isset($r['ms']) && is_numeric($r['ms']) ? round((float) $r['ms'], 2) : null,
                 'loss' => isset($r['loss']) && is_numeric($r['loss']) ? max(0.0, min(100.0, (float) $r['loss'])) : null,
                 'code' => (int) ($r['code'] ?? 0), 'err' => mb_substr(preg_replace('/[^\P{C}]/u', '', (string) ($r['err'] ?? '')) ?? '', 0, 200)];
-            q('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)',
-                [(int) $relay['id'], "rchk:$id", (string) json_encode($v), now()]);
+            AgentData::put((int) $relay['id'], "rchk:$id", $v);
             $n++;
         }
         return $n;

@@ -40,8 +40,7 @@ final class UpdateWindow
         }
         $prev = self::at($hid);
         if ($t > $prev && $t > time() - 86400 && $t <= time() + 300) {
-            q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'pkg_at', ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)",
-                [$hid, (string) $t, now()]);
+            AgentData::put((int) $hid, 'pkg_at', (string) $t);
             self::$at[$hid] = $t;
         }
     }

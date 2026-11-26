@@ -668,8 +668,7 @@ final class LogStore
             $new = [];   // de eerste keer is alles nieuw: dan zegt "nieuw" niets
         }
         $scan['new'] = array_slice($new, 0, 300);
-        q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'logscan', ?, NOW()) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)",
-            [$hostId, 'gz:' . base64_encode((string) gzcompress((string) json_encode($scan, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), 6))]);
+        AgentData::put((int) $hostId, 'logscan', 'gz:' . base64_encode((string) gzcompress((string) json_encode($scan, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), 6)));
     }
 
     /** De bewaarde lijst (gecomprimeerd: agent_data.value is TEXT, 64 kB) */
@@ -895,8 +894,7 @@ final class LogStore
         }
         $v = ['req' => (int) ($in['req'] ?? 0), 'path' => mb_substr((string) ($in['path'] ?? ''), 0, 300), 'real' => mb_substr((string) ($in['real'] ?? ''), 0, 300),
             'err' => mb_substr((string) ($in['err'] ?? ''), 0, 200), 'dirs' => $dirs, 'files' => $files, 'at' => time()];
-        q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'logbrowse', ?, NOW()) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)",
-            [$hostId, 'gz:' . base64_encode((string) gzcompress((string) json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), 6))]);
+        AgentData::put((int) $hostId, 'logbrowse', 'gz:' . base64_encode((string) gzcompress((string) json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), 6)));
     }
 
     /** De stand van het doorbladeren: pending zolang de agent de laatste vraag nog niet beantwoordde */

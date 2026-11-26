@@ -382,25 +382,6 @@ final class NetSpeed
         q('UPDATE speed_routes SET last_tp = ?, last_tp_at = NOW() WHERE id = ?', [json_encode(['at' => time()] + $tp, JSON_UNESCAPED_UNICODE), $routeId]);
     }
 
-    /** @return array<string, mixed>|null */
-    private static function adata(int $hostId, string $metric): ?array
-    {
-        $v = q('SELECT value FROM agent_data WHERE host_id = ? AND metric = ?', [$hostId, $metric])->fetchColumn();
-        $d = $v !== false ? json_decode((string) $v, true) : null;
-        return is_array($d) ? $d : null;
-    }
-
-    /** @param array<string, mixed>|null $v */
-    private static function aput(int $hostId, string $metric, ?array $v): void
-    {
-        if ($v === null) {
-            q('DELETE FROM agent_data WHERE host_id = ? AND metric = ?', [$hostId, $metric]);
-            return;
-        }
-        q('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)',
-            [$hostId, $metric, json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), now()]);
-    }
-
     /**
      * Doorvoer vanaf RzSense zelf naar een server met de agent: de agent daar start kort een iperf3-ontvanger (zoals bij de
      * pad-check), daarna meet RzSense 3 seconden. Verloopt over een paar rondes van cron.
@@ -417,16 +398,16 @@ final class NetSpeed
         if (!$h) {
             return;
         }
-        $req = self::adata($hid, $key);
+        $req = AgentData::get($hid, $key);
         if ($req) {
             if ((int) $req['until'] < time()) {
-                self::aput($hid, $key, null);
+                AgentData::put($hid, $key, null);
                 self::setTp((int) $r['id'], ['to' => $req['ip'], 'err' => t('de ontvanger op {h} startte niet op tijd (draait de agent daar, met iperf3?)', ['h' => $h['name']])]);
                 return;
             }
-            $srv = self::adata($hid, 'iperfs');
+            $srv = AgentData::get($hid, 'iperfs');
             if ($srv && (int) ($srv['started'] ?? 0) >= (int) $req['at'] - 5 && ($bin = self::iperfBin())) {
-                self::aput($hid, $key, null);
+                AgentData::put($hid, $key, null);
                 $out = self::run(sprintf('timeout 15 %s -c %s -p %d -t 3 -J --connect-timeout 3000 2>/dev/null', $bin, escapeshellarg((string) $req['ip']), Paths::port()));
                 $j = json_decode($out, true);
                 $bps = $j['end']['sum_received']['bits_per_second'] ?? null;
@@ -452,7 +433,7 @@ final class NetSpeed
                 : t('iperf3 ontbreekt op {h}', ['h' => $h['name']])]);
             return;
         }
-        self::aput($hid, $key, ['key' => bin2hex(random_bytes(8)), 'at' => time(), 'until' => time() + self::TP_WINDOW, 'host' => $hid, 'ip' => (string) $h['address'], 'name' => (string) $h['name']]);
+        AgentData::put($hid, $key, ['key' => bin2hex(random_bytes(8)), 'at' => time(), 'until' => time() + self::TP_WINDOW, 'host' => $hid, 'ip' => (string) $h['address'], 'name' => (string) $h['name']]);
         q('UPDATE speed_routes SET last_tp_at = NOW() WHERE id = ?', [$r['id']]);
     }
 
@@ -497,7 +478,7 @@ final class NetSpeed
      */
     public static function snmpRefresh(array $h): void
     {
-        $old = self::adata((int) $h['id'], 'speed_snmp') ?: [];
+        $old = AgentData::get((int) $h['id'], 'speed_snmp') ?: [];
         try {
             $c = SnmpMonitor::open($h);
             if (!$c) {
@@ -539,9 +520,9 @@ final class NetSpeed
                     $max[$i] = max((int) ($max[$i] ?? 0), $x['s']);
                 }
             }
-            self::aput((int) $h['id'], 'speed_snmp', ['at' => time(), 'if' => $ifs, 'fdb' => array_slice($fdb, 0, 4000, true), 'max' => $max, 'err' => '']);
+            AgentData::put((int) $h['id'], 'speed_snmp', ['at' => time(), 'if' => $ifs, 'fdb' => array_slice($fdb, 0, 4000, true), 'max' => $max, 'err' => '']);
         } catch (Throwable $e) {
-            self::aput((int) $h['id'], 'speed_snmp', ['at' => time(), 'err' => mb_substr($e->getMessage(), 0, 200)] + $old);
+            AgentData::put((int) $h['id'], 'speed_snmp', ['at' => time(), 'err' => mb_substr($e->getMessage(), 0, 200)] + $old);
         }
     }
 
@@ -1002,7 +983,7 @@ final class NetSpeed
         // SNMP: switches en routers, hooguit 4 per ronde
         $n = 0;
         foreach (self::snmpHosts() as $h) {
-            $d = self::adata((int) $h['id'], 'speed_snmp');
+            $d = AgentData::get((int) $h['id'], 'speed_snmp');
             if ($n < 4 && (!$d || (int) ($d['at'] ?? 0) < time() - self::SNMP_EVERY)) {
                 self::snmpRefresh($h);
                 $n++;
@@ -1155,8 +1136,8 @@ final class NetSpeed
         if ($d['bssid'] === null && $d['ssid'] === '') {
             return;
         }
-        self::aput((int) $host['id'], 'wifi', $d);
-        self::aput((int) $host['id'], 'iw_inst', null);   // iw is er (weer): geen oude foutmelding meer
+        AgentData::put((int) $host['id'], 'wifi', $d);
+        AgentData::put((int) $host['id'], 'iw_inst', null);   // iw is er (weer): geen oude foutmelding meer
         $rate = max((float) ($d['tx'] ?? 0), (float) ($d['rx'] ?? 0));
         $lastAt = (int) q('SELECT UNIX_TIMESTAMP(MAX(at)) FROM wifi_samples WHERE host_id = ?', [$host['id']])->fetchColumn();
         if ($lastAt < time() - self::SAMPLE_GAP) {
@@ -1178,12 +1159,12 @@ final class NetSpeed
         if (!$h || $h['mode'] !== 'agent' || !empty($h['vuln_upgrade_req']) || Vulns::upgradeBlocked($h)) {
             return false;
         }
-        $m = self::adata($hostId, 'iw_inst');
+        $m = AgentData::get($hostId, 'iw_inst');
         if ($m && (int) ($m['at'] ?? 0) > time() - 43200) {
             return false;
         }
         $r = Vulns::requestInstall($h, ['iw'], 'RzSense (wifi)', true);
-        self::aput($hostId, 'iw_inst', ['at' => time(), 'err' => $r === true ? '' : (string) $r]);
+        AgentData::put($hostId, 'iw_inst', ['at' => time(), 'err' => $r === true ? '' : (string) $r]);
         return $r === true;
     }
 
@@ -1211,7 +1192,7 @@ final class NetSpeed
         // Gemeten doorvoer: de laatste iperf3 van een route vanaf dit apparaat
         $tp = [];
         foreach (q('SELECT r.src_host_id, r.check_id, r.last_tp FROM speed_routes r WHERE r.src_host_id IS NOT NULL')->fetchAll() as $r) {
-            $x = $r['check_id'] ? self::adata((int) $r['src_host_id'], 'pathtp:' . $r['check_id']) : null;
+            $x = $r['check_id'] ? AgentData::get((int) $r['src_host_id'], 'pathtp:' . $r['check_id']) : null;
             if ($x && isset($x['mbit'])) {
                 $tp[(int) $r['src_host_id']] = max($tp[(int) $r['src_host_id']] ?? 0, (float) $x['mbit']);
             }

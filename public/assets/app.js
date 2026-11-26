@@ -446,6 +446,21 @@ function pageWaitEnd(w, record) {
     setTimeout(() => { if (window.RzPulse) RzPulse.detach(cv); el.remove(); }, 300);
   }
 }
+/**
+ * 1.332.1: het pad van een lijntje (sparkline) door een reeks waarden, op één plek. Lege waarden (null) worden
+ * overgeslagen. pad = ruimte boven en onder; fromZero = de schaal begint bij 0 (anders bij de laagste waarde).
+ * Geeft '' als er minder dan twee waarden zijn.
+ */
+function sparkD(vals, w, h, pad = 2, fromZero = false) {
+  const v = (vals || []).map((x) => (x === null || x === undefined ? null : +x));
+  const real = v.filter((x) => x !== null);
+  if (real.length < 2 || v.length < 2) return '';
+  const lo = fromZero ? 0 : Math.min(...real), hi = fromZero ? Math.max(1, ...real) : Math.max(...real), span = hi - lo || 1;
+  let d = '';
+  v.forEach((x, i) => { if (x !== null) d += `${d ? 'L' : 'M'}${(i / (v.length - 1) * w).toFixed(1)},${(h - pad - (x - lo) / span * (h - 2 * pad)).toFixed(1)}`; });
+  return d;
+}
+
 async function api(action, body, params = {}, retried = false) {
   const w = curWait, rec = w ? w.add(action) : null;
   const busy = retried ? null : rzBusyStart(action, !!body);   // 1.252.0: de knop en het balkje bovenaan laten zien dat het loopt
@@ -12577,9 +12592,7 @@ function renderLiveFlow(d, box) {
 function afSpark(arr, w, h, cls = '') {
   const a = (arr || []).map((x) => +x || 0);
   if (a.length < 2) return '';
-  const max = Math.max(1, ...a), step = w / (a.length - 1);
-  const pts = a.map((v, i) => `${(i * step).toFixed(1)} ${(h - 2 - (v / max) * (h - 4)).toFixed(1)}`).join(' L');
-  return `<svg class="af-spark ${cls}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path d="M${pts}"/></svg>`;
+  return `<svg class="af-spark ${cls}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path d="${sparkD(a, w, h, 2, true)}"/></svg>`;
 }
 const afCcBadge = (cc, internal, cls = '') => `<span class="af-cc ${cls}">${internal || cc === 'LAN' ? amSvg('home', 'am-ic sm') : esc(!cc || cc === '??' ? '?' : cc)}</span>`;
 
@@ -20449,9 +20462,7 @@ const hmVals = (series) => Object.values(series || {}).filter((v) => v !== null 
 /** Klein lijntje onder een tegel */
 function hmSpark(vals, cls) {
   if (vals.length < 2) return '<div class="hm-spark-empty"></div>';
-  const W = 220, H = 40, mn = Math.min(...vals), mx = Math.max(...vals), r = mx - mn || 1;
-  const pts = vals.map((v, i) => [i * W / (vals.length - 1), 4 + (H - 8) * (1 - (v - mn) / r)]);
-  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join('');
+  const W = 220, H = 40, line = sparkD(vals, W, H, 4);
   return `<svg class="hm-spark ${cls}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path class="a" d="${line}L${W} ${H}L0 ${H}Z"/><path class="l" d="${line}"/></svg>`;
 }
 
@@ -26297,12 +26308,8 @@ const nsAt = (t) => (t ? new Date(t * 1000).toLocaleString(LOCALE, { weekday: 's
 
 /** Een klein lijntje (48 blokjes, lege overgeslagen) */
 function nsSpark(vals, warn = false, w = 110, h = 22) {
-  const v = (vals || []).map((x) => (x === null || x === undefined ? null : +x));
-  const real = v.filter((x) => x !== null);
-  if (real.length < 2) return '';
-  const lo = Math.min(...real), hi = Math.max(...real), span = hi - lo || 1;
-  let d = '';
-  v.forEach((x, i) => { if (x !== null) d += `${d ? 'L' : 'M'}${(i / (v.length - 1) * w).toFixed(1)},${(h - 2 - (x - lo) / span * (h - 4)).toFixed(1)}`; });
+  const d = sparkD(vals, w, h);
+  if (!d) return '';
   return `<svg class="ns-spark${warn ? ' w' : ''}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path d="${d}"/></svg>`;
 }
 

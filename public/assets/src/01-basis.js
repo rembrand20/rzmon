@@ -446,6 +446,21 @@ function pageWaitEnd(w, record) {
     setTimeout(() => { if (window.RzPulse) RzPulse.detach(cv); el.remove(); }, 300);
   }
 }
+/**
+ * 1.332.1: het pad van een lijntje (sparkline) door een reeks waarden, op één plek. Lege waarden (null) worden
+ * overgeslagen. pad = ruimte boven en onder; fromZero = de schaal begint bij 0 (anders bij de laagste waarde).
+ * Geeft '' als er minder dan twee waarden zijn.
+ */
+function sparkD(vals, w, h, pad = 2, fromZero = false) {
+  const v = (vals || []).map((x) => (x === null || x === undefined ? null : +x));
+  const real = v.filter((x) => x !== null);
+  if (real.length < 2 || v.length < 2) return '';
+  const lo = fromZero ? 0 : Math.min(...real), hi = fromZero ? Math.max(1, ...real) : Math.max(...real), span = hi - lo || 1;
+  let d = '';
+  v.forEach((x, i) => { if (x !== null) d += `${d ? 'L' : 'M'}${(i / (v.length - 1) * w).toFixed(1)},${(h - pad - (x - lo) / span * (h - 2 * pad)).toFixed(1)}`; });
+  return d;
+}
+
 async function api(action, body, params = {}, retried = false) {
   const w = curWait, rec = w ? w.add(action) : null;
   const busy = retried ? null : rzBusyStart(action, !!body);   // 1.252.0: de knop en het balkje bovenaan laten zien dat het loopt

@@ -76,15 +76,13 @@ final class Exposure
         if (!$hid) {
             return null;
         }
-        $v = json_decode((string) q('SELECT value FROM agent_data WHERE host_id = ? AND metric = ?', [$hid, $metric])->fetchColumn(), true);
-        return is_array($v) ? $v : null;
+        return AgentData::get($hid, $metric);
     }
 
     /** @param array<string, mixed> $v */
     private static function probePut(int $hid, string $metric, array $v): void
     {
-        q('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)',
-            [$hid, $metric, json_encode($v, JSON_UNESCAPED_UNICODE), now()]);
+        AgentData::put((int) $hid, $metric, $v);
     }
 
     /**

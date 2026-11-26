@@ -94,8 +94,7 @@ final class Waf
             'net' => mb_substr((string) ($w['net'] ?? ''), 0, 60), 'image' => mb_substr((string) ($w['image'] ?? ''), 0, 120),
             'test' => in_array($w['test'] ?? '', ['ok', 'fail', 'skip'], true) ? $w['test'] : 'skip', 'test_msg' => mb_substr((string) ($w['test_msg'] ?? ''), 0, 300),
             'mode' => in_array($w['mode'] ?? '', self::MODES, true) ? $w['mode'] : '', 'msg' => mb_substr((string) ($w['msg'] ?? ''), 0, 500), 'at' => time()];
-        q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'waf', ?, NOW()) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)",
-            [$hid, json_encode($st, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
+        AgentData::put((int) $hid, 'waf', $st);
         if (!$old || $old['state'] !== $st['state'] || $old['test'] !== $st['test'] || ($old['mode'] ?? '') !== $st['mode']) {
             $what = ['ok' => t('WAF: actief'), 'waiting' => t('WAF: wacht op de koppeling met de proxy'), 'starting' => t('WAF: wordt gestart'), 'error' => t('WAF: fout'),
                 'off' => t('WAF: uit'), 'unsupported' => t('WAF: niet ondersteund')][$st['state']];

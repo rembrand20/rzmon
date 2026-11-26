@@ -1947,9 +1947,7 @@ function renderLiveFlow(d, box) {
 function afSpark(arr, w, h, cls = '') {
   const a = (arr || []).map((x) => +x || 0);
   if (a.length < 2) return '';
-  const max = Math.max(1, ...a), step = w / (a.length - 1);
-  const pts = a.map((v, i) => `${(i * step).toFixed(1)} ${(h - 2 - (v / max) * (h - 4)).toFixed(1)}`).join(' L');
-  return `<svg class="af-spark ${cls}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path d="M${pts}"/></svg>`;
+  return `<svg class="af-spark ${cls}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path d="${sparkD(a, w, h, 2, true)}"/></svg>`;
 }
 const afCcBadge = (cc, internal, cls = '') => `<span class="af-cc ${cls}">${internal || cc === 'LAN' ? amSvg('home', 'am-ic sm') : esc(!cc || cc === '??' ? '?' : cc)}</span>`;
 

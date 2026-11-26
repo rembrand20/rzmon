@@ -187,8 +187,7 @@ final class ProxyGuard
             'state' => in_array($p['state'] ?? '', ['ok', 'error', 'off', 'unsupported', 'pending'], true) ? $p['state'] : 'pending',
             'msg' => mb_substr((string) ($p['msg'] ?? ''), 0, 500), 'applied' => preg_replace('/[^a-f0-9]/', '', (string) ($p['applied'] ?? '')),
             'sites' => array_values($sites), 'at' => time()];
-        q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'proxy', ?, NOW()) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)",
-            [$host['id'], json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
+        AgentData::put((int) $host['id'], 'proxy', $v);
         // In het logboek als de stand verandert (doorgevoerd, fout, uitgezet)
         if (!$old || $old['state'] !== $v['state'] || ($v['state'] === 'ok' && ($old['applied'] ?? '') !== $v['applied'])) {
             $what = ['ok' => t('Reverse proxy: beleid doorgevoerd'), 'error' => t('Reverse proxy: doorvoeren mislukt'), 'off' => t('Reverse proxy: bescherming uit'),

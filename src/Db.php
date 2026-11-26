@@ -62,8 +62,7 @@ final class Db
      */
     public static function state(array $check): array
     {
-        $v = q('SELECT value FROM agent_data WHERE host_id = ? AND metric = ?', [(int) $check['host_id'], 'dbst:' . (int) $check['id']])->fetchColumn();
-        return $v !== false ? (json_decode((string) $v, true) ?: []) : [];
+        return AgentData::get((int) $check['host_id'], 'dbst:' . (int) $check['id']) ?? [];
     }
 
     private static function saveState(array $check, array $st): void
@@ -71,8 +70,7 @@ final class Db
         if ((int) ($check['id'] ?? 0) <= 0) {
             return;
         }
-        q('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)',
-            [(int) $check['host_id'], 'dbst:' . (int) $check['id'], json_encode($st, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), now()]);
+        AgentData::put((int) $check['host_id'], 'dbst:' . (int) $check['id'], $st);
     }
 
     /** @var array<string, array<string, mixed>> metingen via RzSense in deze run (één per verbinding) */

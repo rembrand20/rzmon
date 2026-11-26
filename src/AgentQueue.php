@@ -31,8 +31,7 @@ final class AgentQueue
         $d = ['at' => time(), 'last_ok' => $num($in['last_ok'] ?? 0), 'last_run' => $num($in['last_run'] ?? 0), 'run' => min(86400, $num($in['run'] ?? 0)),
             'err' => $clean($in['err'] ?? '', 200), 'act' => $clean($in['act'] ?? '', 120),
             'load' => preg_match('/^[0-9. ]{1,40}$/', (string) ($in['load'] ?? '')) ? trim((string) $in['load']) : ''];
-        q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'alive', ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)",
-            [$host['id'], json_encode($d, JSON_UNESCAPED_UNICODE), now()]);
+        AgentData::put((int) $host['id'], 'alive', $d);
         return true;
     }
 

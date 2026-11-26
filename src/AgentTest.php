@@ -21,18 +21,18 @@ final class AgentTest
     public static function start(int $hostId): int
     {
         $id = (int) (microtime(true) * 1000);
-        self::put($hostId, 'selftest_req', ['id' => $id, 'at' => time()]);
+        AgentData::put($hostId, 'selftest_req', ['id' => $id, 'at' => time()]);
         return $id;
     }
 
     /** Regel voor de agent ("0 selftest id") zolang er een vraag openstaat */
     public static function agentLines(int $hostId): array
     {
-        $rq = self::get($hostId, 'selftest_req');
+        $rq = AgentData::get($hostId, 'selftest_req');
         if (!$rq || time() - (int) ($rq['at'] ?? 0) > self::WAIT) {
             return [];
         }
-        $done = self::get($hostId, 'selftest');
+        $done = AgentData::get($hostId, 'selftest');
         return $done && (int) ($done['id'] ?? 0) === (int) $rq['id'] ? [] : ["0\tselftest\t" . (int) $rq['id']];
     }
 
@@ -52,7 +52,7 @@ final class AgentTest
                 'd' => mb_substr((string) ($it['d'] ?? ''), 0, 300)];
         }
         $skew = isset($st['now']) && is_numeric($st['now']) ? time() - (int) $st['now'] : null;
-        self::put((int) $host['id'], 'selftest', ['id' => (int) $st['id'], 'at' => time(), 'items' => $items, 'skew' => $skew]);
+        AgentData::put((int) $host['id'], 'selftest', ['id' => (int) $st['id'], 'at' => time(), 'items' => $items, 'skew' => $skew]);
     }
 
     /** Wat de popup toont: het RzSense-deel, en het agentdeel zodra het er is */
@@ -65,11 +65,11 @@ final class AgentTest
         $agent = null;
         $pending = false;
         if ($h['mode'] === 'agent') {
-            $done = self::get($hostId, 'selftest');
+            $done = AgentData::get($hostId, 'selftest');
             if ($done && (int) ($done['id'] ?? 0) === $id) {
                 $agent = self::agentItems($done);
             } else {
-                $rq = self::get($hostId, 'selftest_req');
+                $rq = AgentData::get($hostId, 'selftest_req');
                 $pending = $rq && (int) ($rq['id'] ?? 0) === $id && time() - (int) $rq['at'] <= self::WAIT;
             }
         }
@@ -146,15 +146,4 @@ final class AgentTest
         return $s < 90 ? t('{n} s', ['n' => $s]) : ($s < 5400 ? t('{n} min', ['n' => (int) round($s / 60)]) : t('{n} uur', ['n' => (int) round($s / 3600)]));
     }
 
-    private static function get(int $hostId, string $metric): ?array
-    {
-        $v = json_decode((string) q('SELECT value FROM agent_data WHERE host_id = ? AND metric = ?', [$hostId, $metric])->fetchColumn(), true);
-        return is_array($v) ? $v : null;
-    }
-
-    private static function put(int $hostId, string $metric, array $v): void
-    {
-        q('INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)',
-            [$hostId, $metric, json_encode($v, JSON_UNESCAPED_UNICODE), now()]);
-    }
 }

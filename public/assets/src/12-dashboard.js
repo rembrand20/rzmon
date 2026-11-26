@@ -35,9 +35,7 @@ const hmVals = (series) => Object.values(series || {}).filter((v) => v !== null 
 /** Klein lijntje onder een tegel */
 function hmSpark(vals, cls) {
   if (vals.length < 2) return '<div class="hm-spark-empty"></div>';
-  const W = 220, H = 40, mn = Math.min(...vals), mx = Math.max(...vals), r = mx - mn || 1;
-  const pts = vals.map((v, i) => [i * W / (vals.length - 1), 4 + (H - 8) * (1 - (v - mn) / r)]);
-  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join('');
+  const W = 220, H = 40, line = sparkD(vals, W, H, 4);
   return `<svg class="hm-spark ${cls}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path class="a" d="${line}L${W} ${H}L0 ${H}Z"/><path class="l" d="${line}"/></svg>`;
 }
 

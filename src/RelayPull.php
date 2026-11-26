@@ -223,8 +223,7 @@ final class RelayPull
         $st = ['at' => time(), 'n' => count($done), 'ms' => (int) round((microtime(true) - $t0) * 1000),
             'q' => max(0, (int) ($q['n'] ?? 0)), 'bytes' => max(0, (int) ($q['bytes'] ?? 0)), 'dropped' => max(0, (int) ($q['dropped'] ?? 0)),
             'agents' => max(0, (int) ($q['agents'] ?? 0)), 'ver' => preg_match('/^[0-9][0-9.]{0,15}$/', (string) ($j['ver'] ?? '')) ? (string) $j['ver'] : ''];
-        q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'relay_pull', ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)",
-            [$id, json_encode($st), now()]);
+        AgentData::put((int) $id, 'relay_pull', $st);
         q('UPDATE hosts SET relay_pull_at = ?, relay_pull_err = NULL WHERE id = ?', [now(), $id]);
         return null;
     }

@@ -74,8 +74,7 @@ final class Nids
             'profile' => in_array($n['profile'] ?? '', self::PROFILES, true) ? $n['profile'] : '', 'rules' => (int) ($n['rules'] ?? 0),
             'ifaces' => $names($n['ifaces'] ?? []), 'found' => $names($n['found'] ?? []), 'seen' => count($alerts), 'kept' => count($keep), 'at' => time(),
             'total' => (int) ($old['total'] ?? 0) + count($keep)];
-        q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'nids', ?, NOW()) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)",
-            [$hid, json_encode($st, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
+        AgentData::put((int) $hid, 'nids', $st);
         if (!$old || $old['state'] !== $state) {
             $what = ['ok' => t('Suricata (proxynetwerk): actief'), 'starting' => t('Suricata (proxynetwerk): wordt gestart'), 'lowmem' => t('Suricata (proxynetwerk): te weinig geheugen'),
                 'error' => t('Suricata (proxynetwerk): fout'), 'off' => t('Suricata (proxynetwerk): uit'), 'unsupported' => t('Suricata (proxynetwerk): niet ondersteund')][$state];

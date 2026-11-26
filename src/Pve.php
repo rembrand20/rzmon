@@ -161,8 +161,7 @@ final class Pve
 
     private static function data(int $hostId, string $metric): ?array
     {
-        $v = q('SELECT value FROM agent_data WHERE host_id = ? AND metric = ?', [$hostId, $metric])->fetchColumn();
-        return $v !== false ? (json_decode((string) $v, true) ?: null) : null;
+        return AgentData::get($hostId, $metric) ?: null;
     }
 
     public static function guests(int $hostId): array

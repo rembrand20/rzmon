@@ -76,8 +76,7 @@ final class Quality
         $now = time();
         $v = is_array($cur) && $now - (int) ($cur['to'] ?? 0) < 600 ? ['from' => (int) $cur['from'], 'to' => $now, 'engines' => $engines, 'n' => (int) ($cur['n'] ?? 0) + 1]
             : ['from' => $now, 'to' => $now, 'engines' => $engines, 'n' => 1];
-        q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'ctr_busy', ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)",
-            [$hostId, (string) json_encode($v), now()]);
+        AgentData::put((int) $hostId, 'ctr_busy', $v);
     }
 
     /**

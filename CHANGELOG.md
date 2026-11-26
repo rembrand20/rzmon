@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.329.0**: **iw vanzelf installeren**: een Linux-apparaat met wifi maar zonder iw krijgt het van de agent, zodat zijn wifi bij Netwerksnelheid verschijnt.
 - **1.328.0**: **Netwerksnelheid**: de snelheid van je netwerk en internet als keten van bron tot doel, met de smalste schakel, SNMP-poorten en de wifi per access point.
 
+## 1.332.1 – 2026-11-26
+### Opgelost
+- **Opruimen, deel 2 (je merkt er niets van):** 360 CSS-regels van onderdelen die niet meer bestaan zijn weg (ruim 30 kB, onder meer van de oude lay-outs). Het lezen en schrijven van de gegevens van een server stond in twintig bestanden steeds opnieuw uitgeschreven en zit nu op één plek. Drie identieke lijntjes (sparklines) delen één berekening. Gecontroleerd met 250 schermafbeeldingen van alle pagina's, in beide lay-outs, licht en donker en op de telefoon: geen pagina is veranderd.
+
 ## 1.332.0 – 2026-11-26
 ### Nieuw
 - **Twee lay-outs: L1nes en Bloxzz.** *L1nes* is de standaard: het rustige dashboard met de servers als rijen (heette *Default*). *Bloxzz* is de lay-out met tegels, versleepbare kaarten en het live dashboard (heette *CC*, het Command center). *Compact* en de oude *L1nes* zijn weg; had je een van die twee gekozen, dan heb je nu vanzelf L1nes. Alle thema's werken met beide lay-outs.

@@ -1166,8 +1166,7 @@ final class Checks
 
     public static function agentMetric(array $host, string $metric): ?string
     {
-        $v = q('SELECT value FROM agent_data WHERE host_id = ? AND metric = ?', [$host['id'], $metric])->fetchColumn();
-        return $v === false ? null : (string) $v;
+        return AgentData::raw((int) $host['id'], $metric);
     }
 
     private static function agentDisk(array $check, array $host): array

@@ -87,8 +87,7 @@ final class Av
         $st = ['state' => $state, 'msg' => $str($a['msg'] ?? '', 300), 'mem' => (int) ($a['mem'] ?? 0), 'image' => $str($a['image'] ?? '', 120), 'sigs' => $str($a['sigs'] ?? '', 80),
             'new' => (int) ($a['new'] ?? 0), 'full' => in_array($a['full'] ?? '', ['none', 'running', 'done'], true) ? $a['full'] : 'none', 'full_id' => $str($a['full_id'] ?? '', 40),
             'dirs' => $dirs, 'suggest' => $sugg, 'quarantine' => $quar, 'at' => time()];
-        q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'av', ?, NOW()) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)",
-            [$hid, json_encode($st, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
+        AgentData::put((int) $hid, 'av', $st);
         if (!$old || $old['state'] !== $st['state']) {
             $what = ['ok' => t('ClamAV: actief'), 'starting' => t('ClamAV: wordt gestart'), 'lowmem' => t('ClamAV: te weinig geheugen'), 'error' => t('ClamAV: fout'),
                 'off' => t('ClamAV: uit'), 'unsupported' => t('ClamAV: niet ondersteund')][$state];
@@ -166,7 +165,7 @@ final class Av
     public static function fullScan(int $hostId, string $by): void
     {
         $id = date('YmdHis') . '-' . bin2hex(random_bytes(2));
-        q("INSERT INTO agent_data (host_id, metric, value, updated_at) VALUES (?, 'av_full', ?, NOW()) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)", [$hostId, $id]);
+        AgentData::put((int) $hostId, 'av_full', $id);
         ActionLog::by($by, $hostId, 'proxy', t('ClamAV: volledige scan aangevraagd'), '');
     }
 
