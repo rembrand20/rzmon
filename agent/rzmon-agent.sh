@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.119.2"
+AGENT_VERSION="1.120.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -4744,9 +4744,10 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
         # 2. Voorstellen: de mappen van de andere containers (volumes en bind-mounts) binnen het plafond
         while read -r c; do
             case "$c" in ''|rzsense-*|"${px_ctr-}") continue ;; esac
-            while read -r src; do
-                [ -n "$src" ] && av_ok_dir "$src" >/dev/null && av_sugg+="${av_sugg:+,}{\"c\":\"$(json_escape "$c")\",\"p\":\"$(json_escape "$src")\"}"
-            done < <(avx inspect -f '{{range .Mounts}}{{.Source}}{{"\n"}}{{end}}' "$c" 2>/dev/null | head -n 20)
+            # Agent 1.120.0: ook waar de map in de app zit (bv. /data of /config), zodat je ziet welke de uploads zijn
+            while IFS=$'\t' read -r src dst; do
+                [ -n "$src" ] && av_ok_dir "$src" >/dev/null && av_sugg+="${av_sugg:+,}{\"c\":\"$(json_escape "$c")\",\"p\":\"$(json_escape "$src")\",\"d\":\"$(json_escape "$dst")\"}"
+            done < <(avx inspect -f '{{range .Mounts}}{{.Source}}{{"\t"}}{{.Destination}}{{"\n"}}{{end}}' "$c" 2>/dev/null | head -n 20)
         done < <(avx ps --format '{{.Names}}' 2>/dev/null | head -n 60)
         # 3. Container: (opnieuw) aanmaken als hij er niet is of de mappen veranderden; eerst genoeg geheugen?
         av_mounts=(); for d in "${av_ok[@]}"; do av_mounts+=(-v "$d:$d:ro"); done

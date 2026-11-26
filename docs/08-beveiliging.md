@@ -1031,8 +1031,11 @@ macro-documenten en andere malware.
 1. Zet bij *Reverse proxy en WAF → Uploads scannen op malware* **ClamAV aan**.
 2. Is er genoeg geheugen vrij (standaard 1400 MB), dan start de agent de container **`rzsense-clamav`**. De eerste keer
    haalt ClamAV zijn definities op; dat duurt een paar minuten.
-3. Kies op de pagina Reverse proxy (tabblad *Malware-scan*) de **uploadmappen**. Onder *Voorstel uit je apps…* staan de
-   volumes van je containers; kies er een en klik **＋ Toevoegen**, of typ zelf een map.
+3. Kies op de pagina Reverse proxy (tabblad *Malware-scan*) de **uploadmappen**. Onder **Mappen per app** staan je
+   containers met hun mappen: de map op de server en waar die in de app zit (bijvoorbeeld *in de app: /data*). Mappen die
+   op uploads lijken, krijgen het label *uploads?*, en die apps staan meteen open. Klik bij een map op **＋ Toevoegen**;
+   hij komt dan bij de site van die app. Je kunt ook zelf een map invullen bij *Zelf een map invullen*. Systeemmappen,
+   databases en mappen buiten het plafond (`AV_DIRS_MAX`) staan er niet tussen.
 4. De agent scant **elke minuut de nieuwe en gewijzigde bestanden** (tot 100 MB per bestand). **🔍 Volledige scan** scant
    alles op de achtergrond.
 

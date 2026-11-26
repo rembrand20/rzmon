@@ -155,6 +155,14 @@ async function loadProxy() {
       loadProxy();
       return;
     }
+    const sa = e.target.closest('[data-av-sugg-add]');   // 1.324.0: een map van een app toevoegen (met de site van die app)
+    if (sa) {
+      const x = JSON.parse(sa.closest('.av-box').dataset.avSugg || '[]')[+sa.dataset.avSuggAdd];
+      if (!x) return;
+      try { await api('av_dir_add', { host_id: host, path: x.path, site: x.site || '' }); toast(L('Map toegevoegd; de agent start ClamAV opnieuw met deze map (binnen een minuut)')); } catch (ex) { toast(ex.message, 'err'); return; }
+      loadProxy();
+      return;
+    }
     const av = e.target.closest('[data-av-add], [data-av-rm], [data-av-full], [data-av-op]');
     if (av) {
       const box2 = av.closest('.av-box');
@@ -436,7 +444,16 @@ function avPanel(s) {
   const siteOpts = (s.sites || []).map((x) => `<option value="${esc(x.site)}">${esc(x.site)}</option>`).join('');
   const dirs = (a.dirs || []).map((d) => `<span class="av-dir ${d.ok === false ? 'bad' : ''}" title="${esc(d.ok === false ? avWhy(d.why) : '')}">${d.site ? `<b>${esc(d.site)}</b> ` : ''}<code>${esc(d.path)}</code>${d.ok === false ? ` ✘ ${esc(avWhy(d.why))}` : d.ok ? ' ✔' : ''}
       <button type="button" class="btn small-btn" data-av-rm="${esc(d.path)}" aria-label="${esc(L('Weghalen'))}">×</button></span>`).join('');
-  const sugg = (a.suggest || []).map((x, i) => `<option value="${i}">${esc(x.site || x.ctr)} · ${esc(x.path)}</option>`).join('');
+  // 1.324.0: de mappen per app (container), met waar ze in de app zitten; mappen die op uploads lijken krijgen een label
+  const apps = {};
+  (a.suggest || []).forEach((x, i) => { (apps[x.ctr] ||= []).push({ ...x, i }); });
+  const upl = (x) => /(upload|data|files|media|photo|picture|document|share|storage|nextcloud)/i.test(x.dest || x.path) && !/(config|conf|db|database|cache|log|tmp|mysql|maria|postgres|redis|cert|ssl)/i.test(x.dest || x.path);
+  const appList = Object.keys(apps).sort((p, q) => (apps[q].some(upl) - apps[p].some(upl)) || p.localeCompare(q)).map((c) => {
+    const list = apps[c], site = (list.find((x) => x.site) || {}).site, likely = list.some(upl);
+    return `<details class="av-app"${likely ? ' open' : ''}><summary><b>${esc(c)}</b>${site ? ` <span class="muted">· ${esc(site)}</span>` : ''} <span class="muted small">${esc(list.length === 1 ? L('1 map') : L('{n} mappen', { n: list.length }))}</span>${likely ? ` <span class="lf-tag ok">${esc(L('uploads?'))}</span>` : ''}</summary>
+      ${list.map((x) => `<div class="av-sug"><span class="av-sug-p"><code>${esc(x.path)}</code>${x.dest ? `<small class="muted">${esc(L('in de app: {d}', { d: x.dest }))}</small>` : ''}</span>
+        ${upl(x) ? `<span class="lf-tag ok">${esc(L('uploads?'))}</span>` : ''}<button type="button" class="btn small-btn" data-av-sugg-add="${x.i}">＋ ${esc(L('Toevoegen'))}</button></div>`).join('')}</details>`;
+  }).join('');
   // 1.267.0: de vondsten zelf (met Terugzetten/Weghalen) staan bij IDS → incident "Malware gevonden"
   const nFound = (a.events || []).filter((e) => e.status === 'found' || e.status === 'quarantined').length;
   const nQ = (a.events || []).filter((e) => e.status === 'quarantined').length;
@@ -447,7 +464,9 @@ function avPanel(s) {
     ${a.msg ? `<p class="small ${['error', 'lowmem'].includes(a.state) ? 'danger-txt' : 'muted'}">${esc(avMsg(a.msg))}</p>` : ''}
     <div class="small"><b>${L('Uploadmappen')}</b></div>
     <div class="av-dirs">${dirs || `<span class="muted small">${L('Nog geen mappen. Kies hieronder een voorstel of vul een map in.')}</span>`}</div>
-    <div class="av-add">${sugg ? `<select data-av-sugg-pick aria-label="${esc(L('Voorstel'))}"><option value="">${esc(L('Voorstel uit je apps…'))}</option>${sugg}</select>` : ''}
+    ${appList ? `<div class="small av-apps-h"><b>${L('Mappen per app')}</b> <span class="muted">${L('alleen mappen die ClamAV mag scannen; klik op een app om zijn mappen te zien')}</span></div><div class="av-apps">${appList}</div>
+      <div class="small av-apps-h"><b>${L('Zelf een map invullen')}</b></div>` : ''}
+    <div class="av-add">
       <select data-av-site aria-label="${esc(L('Site'))}"><option value="">${esc(L('Site (optioneel)'))}</option>${siteOpts}</select>
       <input type="text" class="mono" data-av-path placeholder="/srv/nextcloud/data" aria-label="${esc(L('Map'))}">
       <button type="button" class="btn small-btn primary" data-av-add>＋ ${L('Toevoegen')}</button></div>

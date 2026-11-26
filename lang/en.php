@@ -12265,4 +12265,10 @@ return [
     'Jouw weergave' => 'Your view',
     'Thema, licht, donker of Schemer, en de lay-out kies je in dit menu. Dat geldt alleen voor jou. De rondleiding vind je hier ook terug.' => 'Theme, light, dark or Dusk, and the layout are chosen in this menu. It only applies to you. You can find the guided tour here again too.',
     '{n} van {t}' => '{n} of {t}',
+    '1 map' => '1 folder',
+    'uploads?' => 'uploads?',
+    'in de app: {d}' => 'in the app: {d}',
+    'Mappen per app' => 'Folders per app',
+    'alleen mappen die ClamAV mag scannen; klik op een app om zijn mappen te zien' => 'only folders ClamAV may scan; click an app to see its folders',
+    'Zelf een map invullen' => 'Enter a folder yourself',
 ];

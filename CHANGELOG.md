@@ -8,11 +8,15 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.324.0**: **ClamAV: mappen per app**: per container zie je zijn mappen en waar ze in de app zitten, en voeg je een uploadmap met één klik toe.
 - **1.323.0**: **Aan de slag**: een wizard die je na de installatie op weg helpt (alleen advies), een checklist bij Status en functies, en een rondleiding voor gewone gebruikers.
 - **1.322.0**: **Lay-out Default**: rustig en kaal, met één zin hoe het ervoor staat en de servers als rijen; vervangt Blox en werkt met elk thema.
 - **1.321.0**: **Shelly's bewaken**: stroom, oververhitting en afwijkingen van het normale verbruik, rechtstreeks uitgelezen.
 - **1.320.0**: **🚨 Beveiligingskanaal**: wat nú je aandacht nodig heeft gaat door Niet storen heen (ook als kritieke melding in de Home Assistant-app) en blijft komen tot iemand bevestigt.
-- **1.319.0**: **"Agent stil" zegt waarom**: de bewaker meldt elke minuut of de server leeft en wat er met de agent is; Suricata wordt niet meer elke ronde herstart.
+
+## 1.324.0 – 2026-11-26
+### Nieuw
+- **ClamAV: mappen per app.** Op *Reverse proxy → Malware-scan* staan de mappen van je containers nu per app, met waar elke map in de app zit (*in de app: /data*). Mappen die op uploads lijken, krijgen het label *uploads?*, en die apps staan meteen open. Elke map heeft een eigen knop **＋ Toevoegen**, die hem bij de site van die app zet. Vervangt de keuzelijst *Voorstel uit je apps…*. Nieuwe agent 1.120.0 nodig voor *in de app*.
 
 ## 1.323.2 – 2026-11-26
 ### Opgelost

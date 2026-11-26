@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.120.0 – 2026-11-26
+- **ClamAV: waar een map in de app zit.** Bij de voorgestelde uploadmappen stuurt de agent nu ook de plek in de container mee (bv. `/data` of `/config`), zodat RzSense ze per app kan tonen.
+
 ## 1.119.2 – 2026-11-26
 - **WAF: het netwerk `rzsense` kon niet aangemaakt worden met podman** (*read-only file system*). De agent-service maakt `/etc` alleen-lezen (`ProtectSystem=full`), en podman bewaart zijn netwerken in `/etc/containers/networks`. Waar podman staat, mag de agent nu in `/etc/containers` schrijven (`ReadWritePaths`). Bestaande agents krijgen dat bij de update; tot dan noemt de foutmelding `sudo rzmon-agent-setup --update`.
 

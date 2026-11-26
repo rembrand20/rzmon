@@ -71,9 +71,10 @@ final class Av
             }
         }
         $sugg = [];
-        foreach (array_slice((array) ($a['suggest'] ?? []), 0, 100) as $s) {
+        foreach (array_slice((array) ($a['suggest'] ?? []), 0, 300) as $s) {
             if (is_array($s) && self::validDir((string) ($s['p'] ?? ''))) {
-                $sugg[] = ['c' => $str($s['c'] ?? '', 80), 'p' => (string) $s['p']];
+                $d = $str($s['d'] ?? '', 250);   // 1.324.0 (agent 1.120.0): waar de map in de app zit
+                $sugg[] = ['c' => $str($s['c'] ?? '', 80), 'p' => (string) $s['p'], 'd' => str_starts_with($d, '/') ? $d : ''];
             }
         }
         $quar = [];
@@ -211,7 +212,7 @@ final class Av
         $sugg = [];
         foreach ((array) ($st['suggest'] ?? []) as $s) {
             if (!in_array($s['p'], $have, true)) {
-                $sugg[] = ['ctr' => $s['c'], 'path' => $s['p'], 'site' => ($byCtr[strtolower((string) $s['c'])] ?? [''])[0]];
+                $sugg[] = ['ctr' => $s['c'], 'path' => $s['p'], 'dest' => (string) ($s['d'] ?? ''), 'site' => ($byCtr[strtolower((string) $s['c'])] ?? [''])[0]];
             }
         }
         $events = array_map(static fn($r) => ['id' => (int) $r['id'], 'at' => $r['at'], 'path' => $r['path'], 'sig' => $r['sig'], 'size' => (int) $r['size'],
@@ -219,7 +220,7 @@ final class Av
             q('SELECT * FROM av_events WHERE host_id = ? ORDER BY at DESC, id DESC LIMIT 50', [$hostId])->fetchAll());
         return ['state' => $st['state'] ?? null, 'msg' => $st['msg'] ?? '', 'mem' => $st['mem'] ?? null, 'sigs' => $st['sigs'] ?? '', 'new' => $st['new'] ?? 0,
             'full' => q("SELECT 1 FROM agent_data WHERE host_id = ? AND metric = 'av_full'", [$hostId])->fetchColumn() ? (($st['full'] ?? '') === 'running' ? 'running' : 'requested') : ($st['full'] ?? 'none'),
-            'at' => $st['at'] ?? null, 'dirs' => $dirs, 'suggest' => array_slice($sugg, 0, 40), 'events' => $events,
+            'at' => $st['at'] ?? null, 'dirs' => $dirs, 'suggest' => array_slice($sugg, 0, 300), 'events' => $events,
             'quarantine' => count((array) ($st['quarantine'] ?? []))];
     }
 

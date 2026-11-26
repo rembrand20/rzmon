@@ -6972,3 +6972,16 @@ body.lg .tour-pop { background: var(--bg-2); }
   .side-mini .app-top .sb-status .sb-t { display: inline; font-size: 0; }
   .side-mini .app-top .sb-status .sb-t::after { content: attr(data-n); font-size: .78rem; font-weight: 700; }
 }
+/* 1.324.0: ClamAV: de mappen per app */
+.av-apps-h { margin: .7rem 0 .35rem; display: flex; flex-wrap: wrap; gap: .2rem .5rem; align-items: baseline; }
+.av-apps { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; max-height: 26rem; overflow-y: auto; }
+.av-app + .av-app { border-top: 1px solid var(--border); }
+.av-app > summary { cursor: pointer; padding: .55rem .8rem; display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; list-style: none; min-height: 40px; box-sizing: border-box; }
+.av-app > summary::-webkit-details-marker { display: none; }
+.av-app > summary::before { content: '›'; color: var(--muted); transition: transform .15s ease; display: inline-block; width: .8rem; }
+.av-app[open] > summary::before { transform: rotate(90deg); }
+.av-app > summary:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.av-sug { display: flex; align-items: center; gap: .6rem; padding: .45rem .8rem .45rem 2rem; border-top: 1px dashed color-mix(in srgb, var(--border) 70%, transparent); }
+.av-sug-p { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.av-sug-p code { overflow-wrap: anywhere; }
+.av-sug .btn { flex: none; }
