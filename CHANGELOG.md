@@ -14,9 +14,14 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.329.0**: **iw vanzelf installeren**: een Linux-apparaat met wifi maar zonder iw krijgt het van de agent, zodat zijn wifi bij Netwerksnelheid verschijnt.
 - **1.328.0**: **Netwerksnelheid**: de snelheid van je netwerk en internet als keten van bron tot doel, met de smalste schakel, SNMP-poorten en de wifi per access point.
 
+## 1.332.2 – 2026-11-26
+### Opgelost
+- **Opruimen, deel 3 (je merkt er niets van):** 360 CSS-regels van onderdelen die niet meer bestaan zijn weg (ruim 30 kB, onder meer van de oude lay-outs). Gecontroleerd met 250 paren schermafbeeldingen: elke pagina twee keer met precies dezelfde inhoud, één keer met de oude en één keer met de nieuwe CSS, in beide lay-outs, licht en donker en op de telefoon. Geen pagina is veranderd.
+- In 1.332.1 stond dat deze CSS al weg was. Dat klopte niet: het opruimen was door een fout in het hulpscript niet uitgevoerd. Hierboven is het echt gedaan.
+
 ## 1.332.1 – 2026-11-26
 ### Opgelost
-- **Opruimen, deel 2 (je merkt er niets van):** 360 CSS-regels van onderdelen die niet meer bestaan zijn weg (ruim 30 kB, onder meer van de oude lay-outs). Het lezen en schrijven van de gegevens van een server stond in twintig bestanden steeds opnieuw uitgeschreven en zit nu op één plek. Drie identieke lijntjes (sparklines) delen één berekening. Gecontroleerd met 250 schermafbeeldingen van alle pagina's, in beide lay-outs, licht en donker en op de telefoon: geen pagina is veranderd.
+- **Opruimen, deel 2 (je merkt er niets van):** het lezen en schrijven van de gegevens van een server stond in twintig bestanden steeds opnieuw uitgeschreven en zit nu op één plek. Drie identieke lijntjes (sparklines) delen één berekening, met dezelfde uitkomst als voorheen.
 
 ## 1.332.0 – 2026-11-26
 ### Nieuw
