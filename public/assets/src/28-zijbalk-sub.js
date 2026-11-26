@@ -92,12 +92,15 @@ document.addEventListener('click', (e) => {
 setInterval(() => { if (!document.hidden && SIDE_WIDE.matches) sideSub(); }, 3000);
 
 // ---------------------------------------------------------------- ingeklapte zijbalk: menu met de subpagina's
-function sideFlyHide() { const f = $('#side-fly'); if (f) f.hidden = true; }
+let sideFlyT = 0;   // 1.323.1: even wachten met sluiten, zodat je met de muis van het icoon naar het menu kunt
+function sideFlyHide() { clearTimeout(sideFlyT); const f = $('#side-fly'); if (f) f.hidden = true; }
+const sideFlyLater = () => { clearTimeout(sideFlyT); sideFlyT = setTimeout(sideFlyHide, 350); };
 document.addEventListener('mouseover', (e) => {
   if (!document.body.classList.contains('side-mini') || !e.target.closest) return;
-  if (e.target.closest('#side-fly')) return;
+  if (e.target.closest('#side-fly')) { clearTimeout(sideFlyT); return; }
   const t = e.target.closest('.app-top .main-tabs .tab[data-tab]');
-  if (!t || !SUBNAV[t.dataset.tab]) { if (!e.target.closest('.app-top .main-tabs')) sideFlyHide(); return; }
+  if (!t || !SUBNAV[t.dataset.tab]) { if (!e.target.closest('.app-top .main-tabs')) sideFlyLater(); else if (t) sideFlyHide(); return; }
+  clearTimeout(sideFlyT);
   const page = t.dataset.tab;
   const items = sideSubItems(page);
   if (items.length < 2) return;
@@ -107,7 +110,8 @@ document.addEventListener('mouseover', (e) => {
   f.innerHTML = `<div class="side-fly-h">${esc(crumbText($('.tab-lbl', t) || t))}</div>` + items.map(([k, l, n]) =>
     `<button type="button" role="menuitem" class="side-sub-i ${k === cur ? 'active' : ''}" data-sub-page="${page}" data-sub="${esc(k)}"><span>${esc(l)}</span><span class="side-sub-n">${esc(n)}</span></button>`).join('');
   const r = t.getBoundingClientRect(), side = $('.app-top').getBoundingClientRect();
-  f.style.left = Math.round(side.right + 6) + 'px';
+  f.style.left = Math.round(side.right + 2) + 'px';
+  if (t.title) { t.dataset.tip = t.title; t.removeAttribute('title'); }   // geen los tooltipje over het menu heen
   f.style.top = Math.round(Math.min(r.top, window.innerHeight - 40 - items.length * 34)) + 'px';
   f.hidden = false;
   const tip = $('#side-tip');
@@ -116,5 +120,5 @@ document.addEventListener('mouseover', (e) => {
 document.addEventListener('mouseout', (e) => {
   const to = e.relatedTarget;
   if (to && to.closest && (to.closest('#side-fly') || to.closest('.app-top .main-tabs .tab[data-tab]'))) return;
-  if (e.target.closest && (e.target.closest('#side-fly') || e.target.closest('.app-top .main-tabs .tab[data-tab]'))) sideFlyHide();
+  if (e.target.closest && (e.target.closest('#side-fly') || e.target.closest('.app-top .main-tabs .tab[data-tab]'))) sideFlyLater();
 });

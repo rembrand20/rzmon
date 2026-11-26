@@ -6486,7 +6486,7 @@ details.pxs h4 { margin: .2rem 0 .45rem; font-size: .9rem; }
   .app-top .main-tabs .tab .tab-chev svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s ease; }
   .app-top .main-tabs .tab.sub-open .tab-chev svg { transform: rotate(90deg); }
   .app-top .main-tabs .tab .tab-chev:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
-  .app-top .main-tabs .tab.has-sub .tab-badge { right: 2.35rem; }   /* teller vóór het pijltje */
+  body:not(.side-mini) .app-top .main-tabs .tab.has-sub .tab-badge { right: 2.35rem; }   /* teller vóór het pijltje (ingeklapt is er geen pijltje: teller op het icoon) */
   body.side-mini .app-top .side-sub, body.side-mini .app-top .main-tabs .tab .tab-chev { display: none !important; }
   /* de tabbladen bovenaan de pagina staan nu in de zijbalk */
   body:not(.side-mini) :is(#mon-tabs, #ids-tabs, #ids-an-seg, #tab-incidents .pcard[data-pk="src"], #vuln-tabs, #net-tabs, #logs-sub, .ia-tabs) { display: none !important; }   /* ingeklapt: tabbladen blijven */
@@ -6965,3 +6965,10 @@ body.lg .tour-pop { background: var(--bg-2); }
 :is(.wz, .ads, .tour) .link-btn { font: inherit; background: none; border: 0; padding: .4rem .5rem; min-height: 36px; color: var(--primary); cursor: pointer; font-weight: 600; border-radius: 8px; }
 :is(.wz, .ads, .tour) .link-btn:hover { background: color-mix(in srgb, var(--primary) 9%, transparent); }
 :is(.wz-foot, .tour-acts) .link-btn { color: var(--muted); font-weight: 500; }
+
+/* 1.323.1: ingeklapte zijbalk: het statuslampje toont ook het aantal problemen (niet alleen een stip) */
+@media (min-width: 1101px) {
+  .side-mini .app-top .sb-status { width: auto; min-width: 40px; padding: 0 8px; gap: 5px; }
+  .side-mini .app-top .sb-status .sb-t { display: inline; font-size: 0; }
+  .side-mini .app-top .sb-status .sb-t::after { content: attr(data-n); font-size: .78rem; font-weight: 700; }
+}

@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.320.0**: **🚨 Beveiligingskanaal**: wat nú je aandacht nodig heeft gaat door Niet storen heen (ook als kritieke melding in de Home Assistant-app) en blijft komen tot iemand bevestigt.
 - **1.319.0**: **"Agent stil" zegt waarom**: de bewaker meldt elke minuut of de server leeft en wat er met de agent is; Suricata wordt niet meer elke ronde herstart.
 
+## 1.323.1 – 2026-11-26
+### Opgelost
+- **Ingeklapte zijbalk: het menu met subpagina's verdween** als je er met de muis naartoe ging (bijvoorbeeld bij IDS). Het blijft nu even staan, zodat je het haalt, en er komt geen los tooltipje meer overheen.
+- **Ingeklapte zijbalk: rode tellers** vielen deels buiten de zijbalk (bij pagina's met subpagina's, zoals IDS). Ze staan nu op het icoon. Het statuslampje bovenaan toont ook het aantal problemen, niet alleen een stip.
+
 ## 1.323.0 – 2026-11-25
 ### Nieuw
 - **Aan de slag: een wizard voor een nieuwe installatie.** Een beheerder krijgt bij de eerste keer inloggen (nog geen servers en nog geen meldkanaal) een wizard in zes stappen: profiel (thuis, homelab of bedrijf), eerste server (met live *"RL03 meldt zich!"*), meldingen (e-mail eerst), RzSense beveiligen (HTTPS, 2FA, back-up, bijgewerkt), aanraders voor je profiel, en klaar.
