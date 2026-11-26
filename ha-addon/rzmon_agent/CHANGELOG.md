@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.121.0 – 2026-11-26
+- **Reverse proxy: knop "Toegang aanvragen".** Op de pagina *Geen toegang* van de site van RzSense staat nu een knop waarmee een onbekend apparaat toegang vraagt (RzSense 1.327.0). Op je andere sites staat de knop er niet. Het beleid wordt één keer opnieuw doorgevoerd.
+
 ## 1.120.1 – 2026-11-26
 - **WAF bleef op "de WAF start nog (regels laden)" staan.** Gaf de zelftest van de WAF geen 200 of 403 (bijvoorbeeld 401 of geen verbinding), dan bleef de agent eindeloos "starten" melden. Na 10 minuten zonder geldig antwoord meldt hij nu een fout met de reden: de HTTP-code (401 = sleutel geweigerd, 404 = AppSec niet geladen) of de verbindingsfout, en de laatste foutregel uit het log van de container.
 

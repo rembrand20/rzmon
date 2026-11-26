@@ -7030,3 +7030,9 @@ body.no-anim:not(.win-right) #al2-drawer { transition: none; }
   body:not(.win-right) #al2-drawer { left: var(--pop-l, 50%); width: var(--pop-w, min(780px, calc(100vw - 2rem))); transform: translate(0, -48%) scale(.99); }
   body:not(.win-right) #al2-drawer.on { transform: translate(0, -50%); }
 }
+
+/* 1.327.0: Apparaat toestaan – keuze bestaande/nieuwe gebruiker */
+.devreq-who { border: 1px solid var(--border); border-radius: 10px; padding: .4rem .8rem .5rem; margin: .8rem 0; }
+.devreq-who legend { padding: 0 .3rem; font-weight: 600; font-size: .9rem; }
+.devreq-who label.check-row { display: flex; flex-direction: row; align-items: center; gap: .55rem; margin: .25rem 0; font-weight: 500; cursor: pointer; }
+.devreq-who label.check-row input { width: auto; margin: 0; flex: none; box-shadow: none; }

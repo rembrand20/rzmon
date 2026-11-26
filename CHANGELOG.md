@@ -8,11 +8,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.327.0**: **Toegang aanvragen van buiten**: een onbekend apparaat vraagt met één knop toegang, jij krijgt een e-mail en staat het toe voor een bestaande of nieuwe gebruiker.
 - **1.326.0**: **Rustigere pop-ups**: één scrollbalk, kop en knoppen vast, en in het midden zo breed als de pagina.
 - **1.325.0**: **Vensters in het midden**: details en een site openen over de pagina heen; liever rechts kan bij Weergave.
 - **1.324.0**: **ClamAV: mappen per app**: per container zie je zijn mappen en waar ze in de app zitten, en voeg je een uploadmap met één klik toe.
 - **1.323.0**: **Aan de slag**: een wizard die je na de installatie op weg helpt (alleen advies), een checklist bij Status en functies, en een rondleiding voor gewone gebruikers.
-- **1.322.0**: **Lay-out Default**: rustig en kaal, met één zin hoe het ervoor staat en de servers als rijen; vervangt Blox en werkt met elk thema.
+
+## 1.327.0 – 2026-11-26
+### Nieuw
+- **Toegang aanvragen van buiten.** Een onbekend apparaat kreeg van buiten de pagina *Geen toegang* van de reverse proxy en kwam nooit bij RzSense: er verscheen geen wachtend apparaat en geen melding, alleen de noodlink hielp. Nu staat op die pagina de knop **Toegang aanvragen**. De aanvrager vult verplicht een naam in; IP-adres, land, hostnaam, browser, besturingssysteem, taal, tijdzone en scherm gaan mee. Je krijgt een **e-mail** (zonder e-mail: **Pushover**) en ziet de aanvraag bij *Instellingen → Toegang tot RzSense → Beheer van buiten → Wachtende apparaten*. Aanvragen kan alleen uit de landen die je bij het IDS als normaal instelde, hooguit 3 keer per uur per IP. De noodlink blijft zoals hij was.
+- **Toestaan voor een bestaande of een nieuwe gebruiker.** Bij *Toestaan* zie je alle gegevens van de aanvraag en kies je een bestaande gebruiker of maak je meteen een nieuwe aan, met een tijdelijk wachtwoord. Die gebruiker kiest bij de eerste keer inloggen een eigen wachtwoord. Na het toestaan gaat de pagina van de aanvrager vanzelf door naar het inlogscherm. *Weigeren* zet het apparaat definitief van de lijst.
+- **Nieuwe agent 1.121.0** (nodig voor de knop op de pagina *Geen toegang*). Met een oudere agent werkt de aanvraagpagina al wel direct: `https://jouw-adres/access.php`.
 
 ## 1.326.1 – 2026-11-26
 ### Opgelost

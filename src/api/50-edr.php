@@ -688,8 +688,32 @@ switch ($action) {
     case 'device_request_approve':
         $in = input();
         $confirm('TOESTAAN');
-        ($err = Stealth::approveRequest((int) ($in['id'] ?? 0), (int) ($in['user_id'] ?? 0), (string) ($in['name'] ?? ''), $user['username'])) === null
-            ? out(['ok' => true]) : out(['error' => $err], 404);
+        $uid = (int) ($in['user_id'] ?? 0);
+        // 1.327.0: meteen een nieuwe gebruiker voor dit apparaat (tijdelijk wachtwoord; bij de eerste keer inloggen een eigen kiezen)
+        if (!empty($in['new_user'])) {
+            $nu = (array) $in['new_user'];
+            $uname = trim((string) ($nu['username'] ?? ''));
+            $email = trim((string) ($nu['email'] ?? ''));
+            try {
+                if (q('SELECT 1 FROM users WHERE username = ?', [$uname])->fetchColumn()) {
+                    throw new InvalidArgumentException(t('Deze gebruikersnaam bestaat al'));
+                }
+                if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    throw new InvalidArgumentException(t('Ongeldig e-mailadres'));
+                }
+                if ($email !== '' && q('SELECT 1 FROM users WHERE LOWER(email) = LOWER(?)', [$email])->fetchColumn()) {
+                    throw new InvalidArgumentException(t('Dit e-mailadres hoort al bij een ander account'));
+                }
+                Installer::saveUser($uname, (string) ($nu['password'] ?? ''), in_array($nu['role'] ?? '', array_keys(ROLES), true) ? $nu['role'] : 'readonly');
+            } catch (InvalidArgumentException $e) {
+                out(['error' => $e->getMessage()], 422);
+            }
+            $uid = (int) q('SELECT id FROM users WHERE username = ?', [$uname])->fetchColumn();
+            q('UPDATE users SET pw_must_change = 2' . ($email !== '' ? ', email = ?' : '') . ' WHERE id = ?', $email !== '' ? [$email, $uid] : [$uid]);   // 2 = tijdelijk wachtwoord
+            AgentCommands::audit($user['username'], 'Gebruiker aangemaakt bij een wachtend apparaat', $uname);
+        }
+        ($err = Stealth::approveRequest((int) ($in['id'] ?? 0), $uid, (string) ($in['name'] ?? ''), $user['username'])) === null
+            ? out(['ok' => true, 'user_id' => $uid]) : out(['error' => $err], 404);
 
     case 'device_request_ignore':
         Stealth::ignoreRequest((int) (input()['id'] ?? 0), $user['username']) ? out(['ok' => true]) : out(['error' => t('Niet gevonden')], 404);

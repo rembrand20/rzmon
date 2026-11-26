@@ -390,10 +390,124 @@ final class Stealth
         }
     }
 
+    // ------------------------------------------------------------------ 1.327.0: toegang aanvragen (knop)
+
+    /** Mag een aanvraag vanaf dit IP? Alleen vanuit de landen bij Toegang (Landen die mogen inloggen); onbekend land: ja */
+    public static function requestCountryOk(?string $cc = null): bool
+    {
+        $cc ??= IpIntel::lookupCountry(client_ip());
+        $allowed = IpIntel::allowedCountries();
+        return $cc === null || !$allowed || in_array($cc, $allowed, true);
+    }
+
+    /**
+     * De aanvraag van deze browser (via de wachtende sleutel), of null.
+     * @return array<string, mixed>|null
+     */
+    public static function myRequest(): ?array
+    {
+        $p = (string) ($_COOKIE[self::PENDING_COOKIE] ?? '');
+        if (!preg_match('/^[0-9a-f]{64}$/', $p)) {
+            return null;
+        }
+        $r = q('SELECT * FROM device_requests WHERE key_hash = ?', [hash('sha256', $p)])->fetch();
+        return $r ?: null;
+    }
+
+    /**
+     * Een apparaat vraagt zelf toegang (knop "Toegang aanvragen"): op de lijst Wachtende apparaten, met een melding per e-mail
+     * (anders Pushover). Geeft een foutmelding terug, of null als het gelukt is (de wachtende sleutel staat dan als cookie).
+     * @param array<string, string> $info gegevens die de browser meegaf (tijdzone, scherm, platform, taal)
+     */
+    public static function requestAccess(string $name, array $info): ?string
+    {
+        $name = trim(preg_replace('/[\x00-\x1f\x7f<>]+/u', ' ', $name) ?? '');
+        if (mb_strlen($name) < 2 || mb_strlen($name) > 60) {
+            return t('Vul je naam in (2 tot 60 tekens).');
+        }
+        if (self::setting('stealth_requests', '1') !== '1') {
+            return t('Toegang aanvragen staat uit.');
+        }
+        $ip = client_ip();
+        $cc = IpIntel::lookupCountry($ip);
+        if (!self::requestCountryOk($cc)) {
+            return t('Vanaf deze plek kun je geen toegang aanvragen.');
+        }
+        if (($old = self::myRequest()) && in_array($old['status'], ['pending', 'ignored'], true)) {
+            return $old['status'] === 'ignored' ? t('Deze aanvraag is afgewezen.') : null;   // al aangevraagd
+        }
+        if ((int) q('SELECT COUNT(*) FROM device_requests WHERE created_ip = ? AND created_at >= NOW() - INTERVAL 1 HOUR', [$ip])->fetchColumn() >= self::REQ_PER_HOUR
+            || (int) q("SELECT COUNT(*) FROM device_requests WHERE status = 'pending'")->fetchColumn() >= self::REQ_MAX) {
+            return t('Er zijn net te veel aanvragen gedaan. Probeer het later opnieuw.');
+        }
+        $ua = mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255);
+        $host = self::reverseDns($ip);
+        $clean = static fn($v, int $n) => mb_substr(trim(preg_replace('/[\x00-\x1f\x7f]+/u', ' ', (string) $v) ?? ''), 0, $n);
+        $data = ['browser' => device_name(), 'lang' => $clean(strtok((string) ($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? ''), ','), 20),
+            'tz' => $clean($info['tz'] ?? '', 60), 'screen' => $clean($info['screen'] ?? '', 20), 'platform' => $clean($info['platform'] ?? '', 40),
+            'touch' => !empty($info['touch']) ? 1 : 0];
+        $key = bin2hex(random_bytes(32));
+        q('INSERT INTO device_requests (key_hash, name, ua, created_at, created_ip, last_seen, last_ip, last_cc, hostname, info, asked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)',
+            [hash('sha256', $key), $name, $ua, now(), mb_substr($ip, 0, 45), now(), mb_substr($ip, 0, 45), $cc, $host, json_encode($data, JSON_UNESCAPED_UNICODE)]);
+        self::setCookie(self::PENDING_COOKIE, $key);
+        self::notifyRequest($name, $ip, $cc, $host, $data, $ua);
+        return null;
+    }
+
+    /** Hostnaam bij een IP-adres (alleen een geldige naam; anders null) */
+    private static function reverseDns(string $ip): ?string
+    {
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            return null;
+        }
+        $h = @gethostbyaddr($ip);
+        return is_string($h) && $h !== $ip && preg_match('/^[A-Za-z0-9.-]{1,253}$/', $h) ? strtolower($h) : null;
+    }
+
+    /**
+     * Melding van een nieuwe aanvraag: per e-mail naar de beheerders (anders naar het adres voor meldingen); staat e-mail niet
+     * aan, dan via Pushover. Daarnaast altijd in Meldingen (Systeemmeldingen).
+     * @param array<string, mixed> $d
+     */
+    private static function notifyRequest(string $name, string $ip, ?string $cc, ?string $host, array $d, string $ua): void
+    {
+        try {
+            $link = rtrim(public_url(), '/') . '/#settings/outside';
+            $title = I18n::forNotify(fn() => '📱 ' . t('Toegang aangevraagd van buiten: {name}', ['name' => $name]));
+            $body = I18n::forNotify(fn() => implode("\n", array_filter([
+                t('{name} vraagt toegang tot RzSense vanaf een apparaat buiten je netwerk.', ['name' => $name]), '',
+                t('IP-adres') . ': ' . $ip . ($cc ? " ($cc)" : ''),
+                $host ? t('Hostnaam') . ': ' . $host : null,
+                t('Browser') . ': ' . ($d['browser'] ?? '') . ($d['platform'] ? ' · ' . $d['platform'] : ''),
+                ($d['lang'] ?? '') !== '' ? t('Taal') . ': ' . $d['lang'] : null,
+                ($d['tz'] ?? '') !== '' ? t('Tijdzone') . ': ' . $d['tz'] : null,
+                ($d['screen'] ?? '') !== '' ? t('Scherm') . ': ' . $d['screen'] : null,
+                'User-Agent: ' . $ua, '',
+                t('Toestaan of weigeren: {link}', ['link' => $link]),
+                t('Ken je deze aanvraag niet? Weiger hem; zonder toestemming komt niemand binnen.'),
+            ], static fn($l) => $l !== null)));
+            $sent = false;
+            if (setting('email_enabled', '0') === '1' && setting('smtp_host', '') !== '') {
+                $to = q("SELECT email FROM users WHERE role = 'admin' AND email IS NOT NULL AND email <> ''")->fetchAll(PDO::FETCH_COLUMN);
+                $to = $to ?: array_filter([(string) setting('mail_to', '')]);
+                foreach (array_unique($to) as $addr) {
+                    $sent = Mailer::send($title, $body, null, (string) $addr)['ok'] || $sent;
+                }
+            }
+            if (!$sent && setting('pushover_enabled', '0') === '1') {
+                $sent = Pushover::send($title, $body, 0, null, null, ['url' => $link, 'url_title' => I18n::forNotify(fn() => t('Toestaan of weigeren'))])['ok'];
+            }
+            Monitor::sysInfo('device_request', null, null, $title, fn() => t('{name} vraagt toegang vanaf {ip}', ['name' => $name, 'ip' => $ip . ($cc ? " ($cc)" : '')])
+                . ($host ? " · $host" : '') . ' · ' . ($sent ? t('melding verstuurd') : t('geen e-mail of Pushover ingesteld')), $ip, null, true);
+        } catch (Throwable $e) {
+            error_log('RzSense: melding van een aanvraag mislukt: ' . $e->getMessage());
+        }
+    }
+
     /** Wachtende apparaten (nieuwste eerst) */
     public static function requests(): array
     {
-        return q("SELECT id, name, ua, created_at, created_ip, last_seen, last_ip, last_cc, hits FROM device_requests
+        return q("SELECT id, name, ua, created_at, created_ip, last_seen, last_ip, last_cc, hits, hostname, info, asked FROM device_requests
                   WHERE status = 'pending' AND last_seen >= NOW() - INTERVAL " . self::REQ_DAYS . ' DAY ORDER BY last_seen DESC')->fetchAll();
     }
 

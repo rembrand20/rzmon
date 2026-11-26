@@ -2229,6 +2229,37 @@ ok(WebPush::setWhat($pmWid, 'ids', $pmUid, false) && !WebPush::setWhat($pmWid, '
 q("DELETE FROM webpush_subs WHERE name = 'ci-telefoon'");
 save_setting('webpush_enabled', '1');
 
+section('Toegang aanvragen van buiten (1.327.0)');
+$raSave = [$_SERVER['REMOTE_ADDR'] ?? null, $_SERVER['HTTP_USER_AGENT'] ?? null, setting('ids_geo_allowed', 'NL'), setting('stealth_requests', '1')];
+$_SERVER['REMOTE_ADDR'] = '198.51.100.23';
+$_SERVER['HTTP_USER_AGENT'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36';
+$_SERVER['HTTP_ACCEPT_LANGUAGE'] = 'nl-NL,nl;q=0.9';
+save_setting('stealth_requests', '1');
+ok(is_string(Stealth::requestAccess('S', [])), 'aanvragen: naam verplicht (minstens 2 tekens)');
+ok(Stealth::requestAccess('Sanne <laptop>', ['tz' => 'Europe/Amsterdam', 'screen' => '1920×1080', 'platform' => 'Windows', 'touch' => '']) === null, 'aanvragen: met naam lukt');
+$ra = q("SELECT * FROM device_requests WHERE created_ip = '198.51.100.23' ORDER BY id DESC LIMIT 1")->fetch();
+$raInfo = json_decode((string) ($ra['info'] ?? ''), true) ?: [];
+ok($ra && (int) $ra['asked'] === 1 && $ra['status'] === 'pending' && !str_contains((string) $ra['name'], '<') && ($raInfo['tz'] ?? '') === 'Europe/Amsterdam'
+    && ($raInfo['lang'] ?? '') === 'nl-NL' && str_contains((string) ($raInfo['browser'] ?? ''), 'Windows'), 'aanvragen: op de lijst met naam (zonder < >), taal, tijdzone en browser');
+save_setting('ids_geo_allowed', 'NL');
+ok(Stealth::requestCountryOk('NL') && !Stealth::requestCountryOk('RU') && Stealth::requestCountryOk(null), 'aanvragen: alleen uit de landen bij Toegang (onbekend land: ja)');
+Stealth::requestAccess('Twee', []); Stealth::requestAccess('Drie', []);
+ok(is_string(Stealth::requestAccess('Vier', [])), 'aanvragen: hooguit 3 per IP per uur');
+save_setting('stealth_requests', '0');
+ok(is_string(Stealth::requestAccess('Uit', [])), 'aanvragen: uit = niet mogelijk');
+// Toestaan voor een nieuwe gebruiker (zoals de API: gebruiker aanmaken, tijdelijk wachtwoord, dan toestaan)
+Installer::saveUser('sanne_test', 'tijdelijk-ww-123', 'readonly');
+$raUid = (int) q("SELECT id FROM users WHERE username = 'sanne_test'")->fetchColumn();
+q('UPDATE users SET pw_must_change = 2 WHERE id = ?', [$raUid]);
+ok(Stealth::approveRequest((int) $ra['id'], $raUid, 'Laptop Sanne', 'test') === null
+    && (int) q('SELECT COUNT(*) FROM trusted_devices WHERE user_id = ? AND key_hash = ?', [$raUid, $ra['key_hash']])->fetchColumn() === 1
+    && must_change_password(['id' => $raUid]), 'aanvragen: toestaan voor een nieuwe gebruiker: apparaat bij die gebruiker, eigen wachtwoord kiezen bij de eerste keer');
+q("DELETE FROM device_requests WHERE created_ip = '198.51.100.23'");
+q('DELETE FROM trusted_devices WHERE user_id = ?', [$raUid]);
+q('DELETE FROM users WHERE id = ?', [$raUid]);
+$_SERVER['REMOTE_ADDR'] = $raSave[0]; $_SERVER['HTTP_USER_AGENT'] = $raSave[1];
+save_setting('ids_geo_allowed', $raSave[2]); save_setting('stealth_requests', $raSave[3]);
+
 section('Aan de slag (1.323.0)');
 $obSave = [setting('onboard_profile', ''), setting('onboard_done', '0'), setting('onboard_mail_ok', '0'), setting('email_enabled', '0')];
 save_setting('onboard_profile', 'bestaat-niet');
@@ -3675,7 +3706,7 @@ $l104 = ProxyGuard::agentLines($rzp);
 q("UPDATE hosts SET agent_version = '1.105.0' WHERE id = ?", [$rzp]);
 $l105 = ProxyGuard::agentLines($rzp);
 ok(!preg_grep('/^0\tproxy(open|pass|tags)/', $l104)
-    && in_array("0\tproxypass\trzsense.*\t/ack.php,/status.php,/hb.php,/assets/app.css", $l105, true), 'proxy: bevestigen, statuspagina en heartbeats van buiten door (alleen agent 1.105.0+)');
+    && in_array("0\tproxypass\trzsense.*\t/ack.php,/status.php,/hb.php,/assets/app.css,/access.php", $l105, true), 'proxy: bevestigen, statuspagina en heartbeats (en sinds 1.327.0 Toegang aanvragen) van buiten door (alleen agent 1.105.0+)');
 q("DELETE FROM login_log WHERE ip = '198.51.100.90'");
 $admId = (int) q("SELECT id FROM users ORDER BY id LIMIT 1")->fetchColumn();
 q("INSERT INTO login_log (user_id, ok, ip, how, created_at) VALUES (?, 1, '198.51.100.90', 'test', NOW())", [$admId]);

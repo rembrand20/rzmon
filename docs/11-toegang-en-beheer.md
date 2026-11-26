@@ -276,17 +276,41 @@ de kaart alle toegestane apparaten en passkeys van iedereen (laatst gezien, IP, 
 passkey, 2FA of alleen wachtwoord) en kunnen ze hernoemen en intrekken. Zie je bij een apparaat van buiten *alleen
 wachtwoord*, zet dan 2FA aan of maak een passkey.
 
+### Toegang aanvragen (achter de reverse proxy)
+
+Staat RzSense achter de reverse proxy die de agent instelt, dan krijgt een onbekend apparaat van buiten de pagina
+**Geen toegang** met de knop **Toegang aanvragen**. Daar vult de aanvrager verplicht een naam in (bijvoorbeeld *Sanne,
+laptop thuis*). Met de aanvraag gaan mee: IP-adres, land, hostnaam, browser en besturingssysteem, taal, tijdzone,
+schermgrootte en of het een aanraakscherm is.
+
+- Je krijgt een **e-mail** met een link naar de lijst. Is e-mail niet ingesteld, dan komt de melding via **Pushover**.
+  De aanvraag staat ook bij *Meldingen*.
+- Een aanvraag kan alleen uit de landen die je bij het IDS als normaal instelde (*Instellingen → Bescherming → Netwerk
+  en weblogs*). Uit een ander land ziet de aanvrager *Vanaf deze plek kun je geen toegang aanvragen*.
+- Per IP-adres hooguit 3 aanvragen per uur. Een geweigerd apparaat kan niet opnieuw aanvragen.
+- De pagina van de aanvrager wacht. Zodra je het apparaat toestaat, gaat hij vanzelf door naar het inlogscherm.
+
+De knop staat alleen op de pagina van de site van RzSense, niet op die van je andere sites. De pagina zelf werkt ook
+direct: `https://jouw-adres/access.php`.
+
 ### Wachtende apparaten
 
-Opent een browser uit je normale landen RzSense van buiten zonder toestemming, dan krijgt hij de gewone 404, maar komt
-hij ook op de lijst **Wachtende apparaten** (met soort apparaat, IP-adres, land, hoe vaak en wanneer). Je krijgt een
-info-melding *Geweigerd apparaat van buiten*.
+Aanvragen via de knop komen op de lijst **Wachtende apparaten** (*Instellingen → Toegang tot RzSense → Beheer van
+buiten*), met het label *zelf aangevraagd*. Zonder reverse proxy komt een browser uit je normale landen die van buiten
+een 404 krijgt er ook op, met het label *geweigerd (404)* en een info-melding *Geweigerd apparaat van buiten*. Je ziet
+per apparaat de naam, de gegevens van het apparaat, IP-adres, land, hostnaam en wanneer.
 
 Per apparaat kies je:
 
-- **Toestaan:** kies de gebruiker en een naam, bekijk de gegevens van het IP-adres en bevestig met je wachtwoord. Bij het
-  volgende bezoek krijgt dat apparaat het inlogscherm, alleen voor die gebruiker en met 2FA als die aan staat.
-- **Negeren:** niet meer tonen, geen meldingen meer.
+- **Toestaan:** je ziet alle gegevens en die van het IP-adres. Kies dan:
+  - **Een bestaande gebruiker**, of
+  - **Een nieuwe gebruiker aanmaken**: gebruikersnaam (voorgesteld uit de naam), rol, e-mailadres (optioneel) en een
+    tijdelijk wachtwoord dat al is ingevuld. Geef dat wachtwoord aan de gebruiker; bij de eerste keer inloggen kiest
+    die een eigen wachtwoord.
+
+  Geef het apparaat een naam en bevestig. Bij het volgende bezoek krijgt dat apparaat het inlogscherm, alleen voor die
+  gebruiker en met 2FA als die aan staat.
+- **Weigeren:** niet meer tonen, geen meldingen meer, en het apparaat kan niet opnieuw aanvragen.
 - **IP blokkeren.**
 
 Scanners, bots en `curl` komen niet op de lijst. Per IP komen er hooguit 3 nieuwe per uur bij, hooguit 100 wachten er

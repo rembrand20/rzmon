@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.120.1"
+AGENT_VERSION="1.121.0"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -4247,7 +4247,8 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
     px_apply_hash=$(awk -F'\t' '$1 == "0" && ($2 == "proxylan" || $2 == "proxysite" || $2 == "proxyblock" || $2 == "proxytags" || $2 == "proxypass" || $2 == "proxytrust" || $2 == "proxydev")' "$t_cache" | sha1sum | cut -c1-12)
     px_applied=$(cat "$t_dir/proxy.applied" 2>/dev/null)
     # Agent 1.116.0: versie van de nginx-sjablonen (2 = eigen 403-pagina). Een nieuwere versie voert het beleid één keer opnieuw door.
-    px_tpl=2
+    # Agent 1.121.0: 3 = knop "Toegang aanvragen" op de 403-pagina van de site van RzSense
+    px_tpl=3
     px_tpl_ok=0; [ "$(cat "$t_dir/proxy.tpl" 2>/dev/null)" = "$px_tpl" ] && px_tpl_ok=1
     # 3a. Uit: alles weghalen
     if [ "$px_state" = pending ] && [ "$px_mode" != on ]; then
@@ -4275,7 +4276,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
             # Agent 1.107.0: vaste bestanden (scripts, opmaak, afbeeldingen, lettertypes; /frontend_latest/ en /static/) tellen niet
             # mee voor de rate limit: een dashboard van Home Assistant haalt er tientallen tegelijk op. Stand "app" = ruim (50/s,
             # pieken tot 300), maar inlogpaden van zo'n site blijven onder de normale limiet (wachtwoorden raden blijft afgeremd).
-            px_geo=""; px_hosts=""; px_adm=""; px_open=""; px_tag=""; px_nood=""; px_trust=""; px_dev=""; px_bots=""; px_rate=""; px_blk=""; px_id=0; declare -A px_seen=(); declare -A px_sid=()
+            px_geo=""; px_hosts=""; px_adm=""; px_open=""; px_tag=""; px_nood=""; px_rzs=""; px_trust=""; px_dev=""; px_bots=""; px_rate=""; px_blk=""; px_id=0; declare -A px_seen=(); declare -A px_sid=()
             for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_cache"); do
                 [[ "$n" =~ ^[0-9a-fA-F:.]+(/[0-9]{1,3})?$ ]] && px_geo+="    $n 1;"$'\n'
             done
@@ -4311,6 +4312,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
                     [[ "$g" =~ ^[0-9a-f]{32}$ ]] && px_tag+="    \"$o_sid:$g\" 1;"$'\n'
                 done
                 px_nood+="    \"~^$o_sid:/(index\\.php)?:[A-Za-z0-9._@-]{1,64}:\$\" 1;"$'\n'
+                px_rzs+="    $o_sid 1;"$'\n'   # agent 1.121.0: de site van RzSense (voor de knop op de 403-pagina)
                 px_nood+="    \"~^$o_sid:/(index\\.php)?::[0-9a-f]{48}\$\" 1;"$'\n'
             done < <(awk -F'\t' '$1 == "0" && $2 == "proxytags"' "$t_cache" | head -n 10)
             # Agent 1.108.0: sites waar de toegestane apparaten van RzSense (hun tag, cookie "pxt") van buiten bij mogen, ook als de
@@ -4387,6 +4389,13 @@ map \"\$rzs_adm:\$rzs_lan:\$rzs_tag:\$rzs_nood:\$rzs_devok\" \$rzs_deny_adm {
     default 0;
     \"1:0:0:0:0\" 1;
 }
+map \$rzs_site \$rzs_is_rz {
+    default 0;
+${px_rzs}}
+map \"\$rzs_is_rz:\$rzs_deny_adm\" \$rzs_req {
+    default \"\";
+    \"1:1\" '<p><a class=b href=/access.php>Toegang aanvragen <span>/ Request access</span></a></p>';
+}
 map \$http_user_agent \$rzs_badbot {
     default 0;
     \"~*(sqlmap|nikto|nuclei|zgrab|masscan|nmap scripting|dirbuster|gobuster|feroxbuster|wpscan|acunetix|netsparker|havij|zmeu|jorgee|fimap|w3af|openvas|nessus)\" 1;
@@ -4442,7 +4451,7 @@ location @rzs403 {
     default_type text/html;
     add_header Cache-Control \"no-store\" always;
     add_header X-Content-Type-Options \"nosniff\" always;
-    return 403 '<!doctype html><html lang=\"nl\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>403 Forbidden</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#f4f6fa;color:#1f2633}main{max-width:32rem;margin:1rem;padding:2rem;background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.08)}h1{font-size:1.3rem;margin:0 0 .6rem}span{color:#5b6475}p.k{font-size:.85rem;color:#5b6475;margin-top:1.4rem}@media(prefers-color-scheme:dark){body{background:#12151c;color:#e6e9ef}main{background:#1b2029}span,p.k{color:#9aa3b2}}</style></head><body><main><h1>&#128274; Geen toegang <span>/ Access denied</span></h1><p>\$rzs_why</p><p class=\"k\">403 Forbidden &middot; \$host &middot; \$remote_addr &middot; \$time_iso8601</p></main></body></html>';
+    return 403 '<!doctype html><html lang=\"nl\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>403 Forbidden</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#f4f6fa;color:#1f2633}main{max-width:32rem;margin:1rem;padding:2rem;background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.08)}h1{font-size:1.3rem;margin:0 0 .6rem}span{color:#5b6475}p.k{font-size:.85rem;color:#5b6475;margin-top:1.4rem}a.b{display:inline-block;margin-top:.4rem;padding:.65rem 1.1rem;border-radius:10px;background:#2f6fed;color:#fff;font-weight:600;text-decoration:none}a.b span{color:#dbe6ff}@media(prefers-color-scheme:dark){body{background:#12151c;color:#e6e9ef}main{background:#1b2029}span,p.k{color:#9aa3b2}}</style></head><body><main><h1>&#128274; Geen toegang <span>/ Access denied</span></h1><p>\$rzs_why</p>\$rzs_req<p class=\"k\">403 Forbidden &middot; \$host &middot; \$remote_addr &middot; \$time_iso8601</p></main></body></html>';
 }
 limit_req zone=rzs_normal burst=40 nodelay;
 limit_req zone=rzs_strict burst=20 nodelay;

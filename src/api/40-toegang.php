@@ -481,6 +481,7 @@ switch ($action) {
             'passkeys' => Passkey::enabled(), 'allowed_countries' => IpIntel::allowedCountries(), 'geo_data' => IpIntel::lookupCountry('8.8.8.8') !== null,
             'devices_all' => Stealth::devices(null), 'passkeys_all' => Passkey::list(null), 'internal' => !Stealth::outside(),
             'requests_on' => setting('stealth_requests', '1') === '1', 'requests' => Stealth::requests(),
+            'behind_proxy' => ProxyOpen::behindProxy(),   // 1.327.0: aanvragen komen dan via de knop op de 403-pagina van de proxy
             'users' => q('SELECT id, username, role FROM users ORDER BY username')->fetchAll(),
         ]);
 

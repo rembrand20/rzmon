@@ -26,7 +26,8 @@ final class ProxyOpen
      * netwerk mag. Ze hebben elk hun eigen geheime token: bevestigen vanuit Pushover, de statuspagina met geheime link en
      * heartbeats van buiten. assets/app.css is de opmaak van de bevestigpagina.
      */
-    public const PASS = ['/ack.php', '/status.php', '/hb.php', '/assets/app.css'];
+    // 1.327.0: /access.php = Toegang aanvragen (knop op de 403-pagina): een onbekend apparaat vraagt daar zelf toegang
+    public const PASS = ['/ack.php', '/status.php', '/hb.php', '/assets/app.css', '/access.php'];
     public const PASS_AGENT = '1.105.0';
 
     /** De site(s) van RzSense op deze proxy: naam of app erachter is rzsense/rzmon, of de site is het adres van RzSense */

@@ -98,8 +98,14 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
   <main class="login-wrap"><?= Brand::hudBg() ?>
     <form id="pwforce-form" class="card login-card">
       <div class="brand big"><?= Brand::logo() ?></div>
+      <?php $tmpPw = (int) q('SELECT pw_must_change FROM users WHERE id = ?', [(int) $user['id']])->fetchColumn() === 2; ?>
+      <?php if ($tmpPw): ?>
+      <h2 style="margin:0 0 .6rem">🔑 <?= th('Kies je eigen wachtwoord') ?></h2>
+      <p class="muted small" style="margin-top:0"><?= th('Je bent ingelogd met een tijdelijk wachtwoord. Kies nu je eigen wachtwoord; daarna kun je verder.') ?></p>
+      <?php else: ?>
       <h2 style="margin:0 0 .6rem">🔓 <?= th('Je wachtwoord staat in een datalek') ?></h2>
       <p class="muted small" style="margin-top:0"><?= t('Het wachtwoord van <b>{user}</b> komt voor in bekende datalekken (Have I Been Pwned). Aanvallers proberen zulke wachtwoorden als eerste. Kies een nieuw wachtwoord; daarna kun je verder.', ['user' => htmlspecialchars((string) $user['username'])]) ?></p>
+      <?php endif; ?>
       <input type="text" name="username" autocomplete="username" value="<?= htmlspecialchars((string) $user['username']) ?>" hidden>
       <label><?= th('Nieuw wachtwoord') ?> <span class="hint"><?= th('(minstens 8 tekens)') ?></span><input name="password" type="password" autocomplete="new-password" minlength="8" required autofocus></label>
       <label><?= th('Nog een keer') ?><input name="password2" type="password" autocomplete="new-password" minlength="8" required></label>

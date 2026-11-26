@@ -910,6 +910,10 @@ over met **Invullen** of **Alles invullen**, en pas daarna gewoon zelf aan.
 Wie wordt tegengehouden, ziet geen kale *403 Forbidden* maar een korte pagina met de reden, de site, het adres van de
 bezoeker en de tijd. Antwoorden van de app zelf blijven zoals ze zijn.
 
+Op de site van RzSense zelf staat op die pagina ook de knop **Toegang aanvragen**: een onbekend apparaat vraagt daar
+met zijn naam toegang, en jij krijgt een melding om het toe te staan of te weigeren (zie
+[Toegang en beheer](11-toegang-en-beheer.md)).
+
 ### Hoe de agent het veilig doet
 
 - Hij schrijft alleen in **eigen bestanden**: SWAG `site-confs/rzsense-http.conf` en `rzsense/server.conf`; NPM

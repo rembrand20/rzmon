@@ -246,6 +246,10 @@ final class Installer
         ['users', 'pw_pwned', 'INT UNSIGNED NULL'],
         ['users', 'pw_pwned_at', 'DATETIME NULL'],
         ['users', 'pw_must_change', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        // 1.327.0: Toegang aanvragen (knop op de 403-pagina van de proxy): de gegevens van het apparaat en of de aanvrager zelf vroeg
+        ['device_requests', 'hostname', 'VARCHAR(255) NULL'],
+        ['device_requests', 'info', 'TEXT NULL'],
+        ['device_requests', 'asked', 'TINYINT(1) NOT NULL DEFAULT 0'],
         // 1.70.0: welke vingerafdruk van het certificaat deze agent het laatst kreeg (versleuteld), en wanneer
         ['hosts', 'agent_pin_sent', 'VARCHAR(64) NULL'],
         ['hosts', 'agent_pin_sent_at', 'DATETIME NULL'],

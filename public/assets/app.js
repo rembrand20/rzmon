@@ -15983,46 +15983,93 @@ async function loadStealth() {
   $('#stealth-devices').onclick = (e) => accessAction(e, true, loadStealth);
 }
 
-/** Wachtende apparaten (1.102.0): van buiten geweigerd, toe te staan voor één gebruiker */
+/** Wachtende apparaten (1.102.0): van buiten geweigerd, toe te staan voor één gebruiker.
+ *  1.327.0: ook de aanvragen via de knop "Toegang aanvragen" op de 403-pagina van de proxy, met naam en gegevens van het apparaat */
+const devReqInfo = (r) => { try { return JSON.parse(r.info || '{}') || {}; } catch (e) { return {}; } };
 function renderDeviceRequests(s) {
   const box = $('#stealth-requests');
   if (!box) return;
-  if (!s.ui || !s.requests_on) { box.innerHTML = ''; return; }
+  if (!s.requests_on || (!s.ui && !s.behind_proxy)) { box.innerHTML = ''; return; }
   const rows = s.requests || [];
+  const det = (r) => {
+    const i = devReqInfo(r);
+    return [i.browser, i.platform, i.lang && L('taal {l}', { l: i.lang }), i.tz, i.screen && L('scherm {s}', { s: i.screen }), i.touch ? L('aanraakscherm') : '']
+      .filter(Boolean).map((x) => esc(x)).join(' · ');
+  };
   box.innerHTML = `<h3 class="set-sub">⏳ ${L('Wachtende apparaten')}${rows.length ? ` <span class="badge-root">${rows.length}</span>` : ''}</h3>`
-    + (rows.length ? `<p class="muted small" style="margin-top:-.2rem">${L('Van buiten geweigerd (404). Sta een apparaat alleen toe als je weet van wie het is; inloggen (met 2FA) blijft daarna nodig.')}</p>
-      <div class="table-scroll"><table class="vuln-table"><thead><tr><th>${L('Apparaat')}</th><th>${L('IP-adres')}</th><th>${L('Eerst gezien')}</th><th>${L('Laatst gezien')}</th><th></th></tr></thead><tbody>
-      ${rows.map((r) => `<tr><td>${devIcon(r.name)} <b>${esc(r.name)}</b>${+r.hits > 1 ? ` <span class="muted small">${r.hits}×</span>` : ''}</td>
-        <td class="small"><span class="mono">${esc(r.last_ip)}</span>${r.last_cc ? ccTag(r.last_cc) : ''}${r.created_ip !== r.last_ip ? `<br><span class="muted">${L('eerst: {ip}', { ip: esc(r.created_ip) })}</span>` : ''}</td>
-        <td class="small">${esc(fmtDateTime(r.created_at))}</td><td class="small">${esc(ago(r.last_seen))}</td>
-        <td class="nowrap"><button type="button" class="btn small-btn" data-req-ok="${r.id}">✅ ${L('Toestaan')}</button>
-          <button type="button" class="icon-btn" data-req-ign="${r.id}" title="${esc(L('Negeren: niet meer tonen en geen meldingen meer van dit apparaat'))}">🙈</button>
+    + (rows.length ? `<p class="muted small" style="margin-top:-.2rem">${L('Sta een apparaat alleen toe als je weet van wie het is; inloggen (met 2FA) blijft daarna nodig. Toestaan kan voor een bestaande of een nieuwe gebruiker.')}</p>
+      <div class="table-scroll"><table class="vuln-table devreq-table"><thead><tr><th>${L('Aanvrager en apparaat')}</th><th>${L('IP-adres en hostnaam')}</th><th>${L('Aangevraagd')}</th><th></th></tr></thead><tbody>
+      ${rows.map((r) => `<tr><td>${devIcon(r.name)} <b>${esc(r.name)}</b>${+r.asked ? ` <span class="lf-tag ok">${L('zelf aangevraagd')}</span>` : ` <span class="lf-tag">${L('geweigerd (404)')}</span>`}${+r.hits > 1 ? ` <span class="muted small">${r.hits}×</span>` : ''}
+          <div class="muted small">${det(r)}</div></td>
+        <td class="small"><span class="mono">${esc(r.last_ip)}</span>${r.last_cc ? ccTag(r.last_cc) : ''}${r.hostname ? `<br><span class="mono muted">${esc(r.hostname)}</span>` : ''}${r.created_ip !== r.last_ip ? `<br><span class="muted">${L('eerst: {ip}', { ip: esc(r.created_ip) })}</span>` : ''}</td>
+        <td class="small">${esc(fmtDateTime(r.created_at))}<br><span class="muted">${L('laatst {t}', { t: esc(ago(r.last_seen)) })}</span></td>
+        <td class="nowrap"><button type="button" class="btn small-btn primary" data-req-ok="${r.id}">✅ ${L('Toestaan')}</button>
+          <button type="button" class="btn small-btn" data-req-ign="${r.id}" title="${esc(L('Weigeren: niet meer tonen en geen meldingen meer van dit apparaat'))}">🚫 ${L('Weigeren')}</button>
           <button type="button" class="icon-btn" data-req-block="${esc(r.last_ip)}" title="${esc(L('IP blokkeren'))}">⛔</button></td></tr>`).join('')}</tbody></table></div>`
-      : `<p class="muted small" style="margin-top:-.2rem">${L('Geen wachtende apparaten. Krijgt een browser van buiten een 404, dan zie je hem hier.')}</p>`);
+      : `<p class="muted small" style="margin-top:-.2rem">${s.behind_proxy ? L('Geen wachtende apparaten. Een onbekend apparaat krijgt van buiten de pagina Geen toegang met de knop Toegang aanvragen; zijn aanvraag komt hier, en je krijgt een melding per e-mail (of Pushover).')
+        : L('Geen wachtende apparaten. Krijgt een browser van buiten een 404, dan zie je hem hier.')}</p>`);
   box.onclick = async (e) => {
     const ok = e.target.closest('[data-req-ok]'), ign = e.target.closest('[data-req-ign]'), blk = e.target.closest('[data-req-block]');
     if (ok) return deviceRequestDialog(rows.find((r) => +r.id === +ok.dataset.reqOk), s.users);
     if (blk) return blockDialog(blk.dataset.reqBlock);
     if (ign) {
-      try { await api('device_request_ignore', { id: +ign.dataset.reqIgn }); toast(L('Genegeerd')); loadStealth(); } catch (ex) { toast(ex.message, 'err'); }
+      if (!confirm(L('Dit apparaat weigeren? Het komt niet meer op de lijst en kan niet opnieuw aanvragen.'))) return;
+      try { await api('device_request_ignore', { id: +ign.dataset.reqIgn }); toast(L('Geweigerd')); loadStealth(); } catch (ex) { toast(ex.message, 'err'); }
     }
   };
 }
 
+/** Een tijdelijk wachtwoord (12 tekens, zonder tekens die op elkaar lijken) */
+function tmpPassword() {
+  const c = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const a = new Uint32Array(12);
+  crypto.getRandomValues(a);
+  return [...a].map((x) => c[x % c.length]).join('');
+}
+
 function deviceRequestDialog(r, users) {
   if (!r) return;
+  const i = devReqInfo(r);
+  const pw = tmpPassword();
+  const sug = String(r.name || '').toLowerCase().split(/[\s,]+/)[0].replace(/[^\w.@-]/g, '').slice(0, 32);
+  const rows = [[L('Aanvrager'), esc(r.name)], [L('IP-adres'), `<span class="mono">${esc(r.last_ip)}</span>${r.last_cc ? ccTag(r.last_cc) : ''}`], [L('Hostnaam'), r.hostname ? `<span class="mono">${esc(r.hostname)}</span>` : '–'],
+    [L('Browser'), esc([i.browser, i.platform].filter(Boolean).join(' · ') || '–')], [L('Taal'), esc(i.lang || '–')], [L('Tijdzone'), esc(i.tz || '–')], [L('Scherm'), esc(i.screen || '–') + (i.touch ? ' · ' + esc(L('aanraakscherm')) : '')],
+    [L('Aangevraagd'), esc(fmtDateTime(r.created_at))]];
   modal({
     title: '✅ ' + L('Apparaat toestaan'),
-    body: `<p style="margin-top:0">${devIcon(r.name)} <b>${esc(r.name)}</b> · <span class="mono">${esc(r.last_ip)}</span>${r.last_cc ? ccTag(r.last_cc) : ''} · ${L('{n}× geprobeerd, laatst {t}', { n: r.hits, t: esc(ago(r.last_seen)) })}</p>
+    body: `<table class="kv devreq-kv"><tbody>${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</tbody></table>
       <p class="muted small mono" style="word-break:break-all">${esc(r.ua)}</p>
       <div id="req-ipinfo"></div>
-      <label>${L('Voor gebruiker')}<select name="user_id" required>${users.map((u) => `<option value="${u.id}">${esc(u.username)}</option>`).join('')}</select></label>
+      <fieldset class="devreq-who"><legend>${L('Voor welke gebruiker?')}</legend>
+        <label class="check-row"><input type="radio" name="who" value="old" checked> ${L('Een bestaande gebruiker')}</label>
+        <label class="check-row"><input type="radio" name="who" value="new"> ${L('Een nieuwe gebruiker aanmaken')}</label>
+      </fieldset>
+      <div data-who="old"><label>${L('Gebruiker')}<select name="user_id">${users.map((u) => `<option value="${u.id}">${esc(u.username)}</option>`).join('')}</select></label></div>
+      <div data-who="new" hidden>
+        <div class="row2"><label>${L('Gebruikersnaam')}<input name="nu_username" value="${esc(sug)}" maxlength="64"></label>
+          <label>${L('Rol')}<select name="nu_role"><option value="readonly">${L('Alleen lezen')}</option><option value="user">${L('Gebruiker')}</option><option value="admin">${L('Beheerder')}</option></select></label></div>
+        <label>${L('E-mailadres')} <span class="hint">${L('(optioneel; voor wachtwoord vergeten)')}</span><input name="nu_email" type="email" maxlength="200"></label>
+        <label>${L('Tijdelijk wachtwoord')} <span class="hint">${L('(geef het aan de gebruiker; die kiest bij de eerste keer inloggen een eigen wachtwoord)')}</span>
+          <input name="nu_password" class="mono" value="${pw}" minlength="8" maxlength="200"></label>
+      </div>
       <label>${L('Naam van het apparaat')}<input name="name" value="${esc(r.name)}" maxlength="100"></label>
-      <p class="muted small">${L('Bij het volgende bezoek krijgt dit apparaat het inlogscherm, alleen voor deze gebruiker en met 2FA als die aan staat. Intrekken kan altijd hieronder.')}</p>
+      <p class="muted small">${L('Bij het volgende bezoek gaat dit apparaat langs de proxy naar het inlogscherm, alleen voor deze gebruiker en met 2FA als die aan staat. Intrekken kan altijd hieronder.')}</p>
       ${confirmField('TOESTAAN')}`,
     buttons: [{ label: L('Annuleren'), onClick: () => $('#modal').close() }, { label: '✅ ' + L('Toestaan'), submit: true }],
-    onSubmit: async (d) => { await api('device_request_approve', { id: +r.id, user_id: +d.user_id, name: d.name, confirm: d.confirm }); toast(L('Apparaat toegestaan')); loadStealth(); },
+    onSubmit: async (d) => {
+      const body = { id: +r.id, name: d.name, confirm: d.confirm };
+      if (d.who === 'new') body.new_user = { username: d.nu_username, role: d.nu_role, email: d.nu_email, password: d.nu_password };
+      else body.user_id = +d.user_id;
+      await api('device_request_approve', body);
+      toast(d.who === 'new' ? L('Gebruiker {u} aangemaakt en apparaat toegestaan', { u: d.nu_username }) : L('Apparaat toegestaan'));
+      loadStealth();
+    },
   });
+  const mb = $('#modal-body');
+  mb.addEventListener('change', (e) => {
+    if (e.target.name !== 'who') return;
+    $$('[data-who]', mb).forEach((x) => { x.hidden = x.dataset.who !== e.target.value; });
+  }, { signal: modalSignal() });
   fillIpInfo($('#req-ipinfo'), r.last_ip);
 }
 

@@ -86,7 +86,7 @@ policy() {
     printf '0\tproxysite\tha.*\toff\t-\tapp\t1\n'   # agent 1.107.0: ruim (apps)
     printf '0\tproxytags\tportainer.*\t0123456789abcdef0123456789abcdef,KAPOT\n'   # agent 1.106.0: toegestane apparaten en noodlink
     printf '0\tproxytrust\tabcdefabcdefabcdefabcdefabcdefab,fout\n0\tproxydev\tvaultwarden.*\n0\tproxydev\tblog.*\n'   # agent 1.108.0
-    printf '0\tproxypass\tportainer.*\t/ack.php,/status.php,/assets/app.css,/../x,/a b\n'   # agent 1.105.0
+    printf '0\tproxypass\tportainer.*\t/ack.php,/status.php,/assets/app.css,/access.php,/../x,/a b\n'   # agent 1.105.0
     printf '0\tproxyblock\tblog.*\t/xmlrpc.php,/../etc\n0\tproxyblock\t*\t/.env,/vendor/phpunit\n0\tproxyblock\tonbekend.*\t/x\n'
 }
 policy >"$work/cache/tests.cache"
@@ -96,6 +96,7 @@ sed -i '/^    127\.0\.0\.1 1;$/d; /^    ::1 1;$/d' "$C/site-confs/rzsense-http.c
 c_adm=$(code vaultwarden /admin); c_adm2=$(code vaultwarden /ADMIN/x); c_vw=$(code vaultwarden /); c_port=$(code portainer /); c_blog=$(code blog /)
 c_bot=$(code blog / 'sqlmap/1.7'); c_ok=$(code blog / 'Mozilla/5.0')
 b_adm=$(body vaultwarden /admin); b_bot=$(body blog / 'sqlmap/1.7')
+b_port=$(body portainer /); c_acc=$(code portainer /access.php)   # agent 1.121.0: knop Toegang aanvragen
 c_pass=$(code portainer /ack.php); c_pass2=$(code portainer /assets/app.css); c_pass3=$(code portainer /ack.phpx); c_pass4=$(code portainer /assets/app.js)
 c_tag=$(codec portainer /api.php pxt=0123456789abcdef0123456789abcdef); c_tag2=$(codec portainer / pxt=ffffffffffffffffffffffffffffffff); c_tag3=$(codec blog / pxt=0123456789abcdef0123456789abcdef)
 c_nood=$(code portainer '/?nood=jan'); c_door=$(code portainer "/?door=$(printf '%048d' 0)"); c_door2=$(code portainer '/?door=abc'); c_nood2=$(code portainer '/admin?nood=jan')
@@ -142,6 +143,9 @@ PY
 [ "$c_blog" = 200 ] && [ "$c_ok" = 200 ] || bad+="blog niet 200 ($c_blog/$c_ok) | "
 [ "$c_bot" = 403 ] || bad+="sqlmap niet geweerd ($c_bot) | "
 [[ "$b_adm" == *"Geen toegang"*"eigen netwerk"*"403 Forbidden"* && "$b_bot" == *"scanners zijn hier niet welkom"* ]] || bad+="geen eigen 403-pagina met de reden | "
+[[ "$b_port" == *"href=/access.php"*"Toegang aanvragen"* ]] || bad+="geen knop Toegang aanvragen op de 403-pagina van RzSense | "
+[[ "$b_adm" != *"access.php"* ]] || bad+="knop Toegang aanvragen ook op een andere site | "
+[ "$c_acc" = 200 ] || bad+="/access.php van buiten niet bereikbaar ($c_acc) | "
 [ "$c_pass" = 200 ] && [ "$c_pass2" = 200 ] && [ "$c_pass3" = 403 ] && [ "$c_pass4" = 403 ] || bad+="vaste paden niet goed (ack $c_pass, css $c_pass2, ack.phpx $c_pass3, app.js $c_pass4) | "
 [ "$c_tag" = 200 ] && [ "$c_tag2" = 403 ] && [ "$c_tag3" = 200 ] || bad+="proxy-tag niet goed (juiste tag $c_tag, verkeerde $c_tag2, blog $c_tag3) | "
 [ "$c_nood" = 200 ] && [ "$c_door" = 200 ] && [ "$c_door2" = 403 ] && [ "$c_nood2" = 403 ] || bad+="noodlink niet goed (nood $c_nood, door $c_door, korte door $c_door2, nood op ander pad $c_nood2) | "
