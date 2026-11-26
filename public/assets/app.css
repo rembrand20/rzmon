@@ -6998,13 +6998,13 @@ body.lg .tour-pop { background: var(--bg-2); }
   body:not(.win-right) #modal.drawer.detail .modal-inner { height: auto; max-height: 85vh; }
   body:not(.win-right) #modal.drawer::backdrop, body:not(.win-right) #modal.detail::backdrop { background: rgba(5, 10, 20, .45); }
   /* het losse meldingenpaneel (als het niet in het detailpaneel staat): ook in het midden */
-  body:not(.win-right) .al2-drawer { top: 50%; left: 50%; right: auto; bottom: auto; width: min(780px, calc(100vw - 2rem)); height: min(85vh, 760px);
+  body:not(.win-right) #al2-drawer { top: 50%; left: 50%; right: auto; bottom: auto; width: min(780px, calc(100vw - 2rem)); height: min(85vh, 760px);
     border: 1px solid var(--border); border-radius: 16px; transform: translate(-50%, -48%) scale(.98); opacity: 0; transition: opacity .18s ease, transform .18s ease; }
-  body:not(.win-right) .al2-drawer.on { transform: translate(-50%, -50%); opacity: 1; }
+  body:not(.win-right) #al2-drawer.on { transform: translate(-50%, -50%); opacity: 1; }
   body:not(.win-right) .al2-scrim { background: rgba(5, 10, 20, .45); }
 }
-@media (min-width: 761px) and (pointer: fine) and (prefers-reduced-motion: reduce) { body:not(.win-right) .al2-drawer { transition: none; } }
-body.no-anim:not(.win-right) .al2-drawer { transition: none; }
+@media (min-width: 761px) and (pointer: fine) and (prefers-reduced-motion: reduce) { body:not(.win-right) #al2-drawer { transition: none; } }
+body.no-anim:not(.win-right) #al2-drawer { transition: none; }
 
 /* ---------------------------------------------------------------- 1.326.0: pop-ups: één scrollbalk, kop en knoppen vast
    Het venster zelf scrolt nooit: alleen het middenstuk (#modal-body). Titel, ✕, ← →, het pad en de knoppen onderaan blijven staan. */
@@ -7027,6 +7027,6 @@ body.no-anim:not(.win-right) .al2-drawer { transition: none; }
 @media (min-width: 761px) and (pointer: fine) {
   body:not(.win-right) #modal.drawer, body:not(.win-right) #modal.drawer.detail {
     width: var(--pop-w, min(860px, calc(100vw - 2rem))); margin: auto auto auto var(--pop-l, auto); }
-  body:not(.win-right) .al2-drawer { left: var(--pop-l, 50%); width: var(--pop-w, min(780px, calc(100vw - 2rem))); transform: translate(0, -48%) scale(.99); }
-  body:not(.win-right) .al2-drawer.on { transform: translate(0, -50%); }
+  body:not(.win-right) #al2-drawer { left: var(--pop-l, 50%); width: var(--pop-w, min(780px, calc(100vw - 2rem))); transform: translate(0, -48%) scale(.99); }
+  body:not(.win-right) #al2-drawer.on { transform: translate(0, -50%); }
 }

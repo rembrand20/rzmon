@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.323.0**: **Aan de slag**: een wizard die je na de installatie op weg helpt (alleen advies), een checklist bij Status en functies, en een rondleiding voor gewone gebruikers.
 - **1.322.0**: **Lay-out Default**: rustig en kaal, met één zin hoe het ervoor staat en de servers als rijen; vervangt Blox en werkt met elk thema.
 
+## 1.326.1 – 2026-11-26
+### Opgelost
+- **Meldingen: het venster van een melding bleef leeg** (alleen de titel). De stijl om het losse meldingenpaneel in het midden te zetten (1.325.0) gold ook voor de melding in het detailpaneel en maakte die onzichtbaar. Nu geldt hij alleen nog voor het losse paneel.
+
 ## 1.326.0 – 2026-11-26
 ### Nieuw
 - **Pop-ups: één scrollbalk, kop en knoppen vast.** In elk venster scrolt alleen het middenstuk, met één dunne scrollbalk in de kleuren van het thema. De titel, ✕, ← → en de knoppen onderaan blijven staan. Het venster zelf scrolt nooit meer mee (dat gaf soms twee scrollbalken naast elkaar).
