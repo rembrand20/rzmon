@@ -7117,3 +7117,7 @@ label.check-row input[type=checkbox], label.check-row input[type=radio] { width:
 #tab-dashboard:not(.mon-ac) > #allchecks-page { display: none; }
 .nis2-set { display: flex; flex-direction: column; gap: .6rem; max-width: 640px; }
 #comp-tabs { margin-bottom: 1rem; }
+
+/* 1.331.0: Netwerk → Van buitenaf */
+#tab-net.net-ex > .dash-counters, #tab-net.net-ex > .pg-tools, #tab-net.net-ex > .pgrid, #tab-net.net-ex > .xp-net-list { display: none; }
+#tab-net:not(.net-ex) > #net-exposure-card, #tab-net:not(.net-ex) > .xp-net-ext { display: none; }

@@ -12466,4 +12466,11 @@ return [
     'Web en buitenkant' => 'Web and perimeter',
     'Bekende lekken en verouderde software op je servers.' => 'Known vulnerabilities and outdated software on your servers.',
     'Back-ups van servers' => 'Server backups',
+    '🛡 Beschermingen' => '🛡 Protections',
+    'Wat er van je netwerk open staat op internet: je publieke IP-adres en je domeinen, van buitenaf bekeken.' => 'What of your network is open on the internet: your public IP address and your domains, seen from outside.',
+    '<b>Wat het doet:</b> RzSense kijkt met Shodan, vanuit zichzelf en eventueel vanaf een meetpunt buiten je netwerk welke poorten open staan. <b>Zo gebruik je het:</b> keur goed wat zo hoort (bv. 443 voor je reverse proxy); de rest onderzoek je. <b>Goed om te weten:</b> bronnen, doelen en hoe vaak stel je in bij Instellingen → Web en buitenkant → Van buitenaf.' => '<b>What it does:</b> RzSense checks with Shodan, from itself and optionally from a probe outside your network which ports are open. <b>How to use it:</b> approve what is supposed to be open (e.g. 443 for your reverse proxy); investigate the rest. <b>Good to know:</b> sources, targets and how often are set under Settings → Web and perimeter → From outside.',
+    'Van buitenaf bekijken staat uit.' => 'Checking from outside is off.',
+    'Aanzetten bij Instellingen → Web en buitenkant → Van buitenaf' => 'Turn on under Settings → Web and perimeter → From outside',
+    'Bronnen, doelen en hoe vaak stel je in bij Instellingen → Web en buitenkant → Van buitenaf.' => 'Sources, targets and how often are set under Settings → Web and perimeter → From outside.',
+    'Wat er open staat, zie je bij Netwerk → Van buitenaf.' => 'What is open is shown under Network → From outside.',
 ];

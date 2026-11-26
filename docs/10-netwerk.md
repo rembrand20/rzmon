@@ -40,7 +40,7 @@ sudo apt install fping avahi-utils
 
 ## De pagina Netwerk
 
-De pagina Netwerk heeft vijf tabbladen: **🗺️ Overzicht**, **📋 Apparaten**, **🔍 Ontdekken**, **⚡ Netwerksnelheid** (zie [Netwerksnelheid](#netwerksnelheid)) en **🛣️ Paden** (de pad-checks, zie [Linux-agent](05-linux-agent.md)). RzSense onthoudt (per browser) welk tabblad je laatst open had. Het tabblad Netwerk krijgt een oranje teller voor apparaten die je nog niet beoordeeld hebt; dat aantal staat ook in *Hoe staat het ervoor?*.
+De pagina Netwerk heeft vijf tabbladen (zes voor beheerders): **🗺️ Overzicht**, **📋 Apparaten**, **🔍 Ontdekken**, **⚡ Netwerksnelheid** (zie [Netwerksnelheid](#netwerksnelheid)), **🛣️ Paden** (de pad-checks, zie [Linux-agent](05-linux-agent.md)) en, voor beheerders, **🌍 Van buitenaf** (wat er van je netwerk open staat op internet, zie [Beveiliging](08-beveiliging.md#van-buitenaf-je-aanvalsoppervlak)). RzSense onthoudt (per browser) welk tabblad je laatst open had. Het tabblad Netwerk krijgt een oranje teller voor apparaten die je nog niet beoordeeld hebt; dat aantal staat ook in *Hoe staat het ervoor?*.
 
 ### Overzicht
 

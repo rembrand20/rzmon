@@ -1021,7 +1021,7 @@ function renderNetPaths() {
     </div>`;
   npFocusApply();   // 1.191.0
 }
-/** 1.191.0: naar Netwerk → Paden (1.330.0, was Netwerk → Paden), met dit pad in beeld en even opgelicht */
+/** 1.191.0: naar Netwerk → Paden (1.330.0, was Monitoring → Netwerkpaden), met dit pad in beeld en even opgelicht */
 let npFocus = null, npFlash = null;
 function npGo(checkId) {
   npFocus = +checkId;

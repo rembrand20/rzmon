@@ -39,7 +39,7 @@ telefoon in een balk onderaan het scherm (met *Meer* voor de rest).
 | **Overzicht** | **Dashboard** (de startpagina) · **Meldingen** |
 | **Monitoring** | **Monitoring** (al je servers en checks, *Alle checks*, containers, Shelly's en beschikbaarheid) · **Servers** (de Agent Manager, alleen beheerders) |
 | **Beveiliging** | **Incidenten** · **IDS** (ook *Toegang* en *Datalekken*) · **Kwetsbaarheden** · **Updates** · **Reverse proxy** (alleen beheerders) |
-| **Netwerk** | **Netwerk** (de netwerkkaart, apparaten, ontdekken, netwerksnelheid en paden) |
+| **Netwerk** | **Netwerk** (de netwerkkaart, apparaten, ontdekken, netwerksnelheid, paden en, voor beheerders, van buitenaf) |
 | **Analyse** | **Analyse** · **Logs** · **Logboek** · **Compliance** (NIS2 met zijn instellingen, alleen beheerders) |
 
 Wat je ziet hangt af van je rol en van wat aan staat. Met de rol *alleen lezen* zie je onder meer geen Incidenten,

@@ -387,7 +387,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
             <?php if ($showLeaks): ?><button type="button" class="seg-btn" role="menuitem" data-it="leak"><?= th('🔓 Datalekken') ?> <span class="it-n" id="it-n-leak"></span></button><?php endif; ?>
             <button type="button" class="seg-btn" role="menuitem" data-it="apps"><?= th('🧩 Programma\'s') ?> <span class="it-n" id="it-n-apps"></span></button>
             <button type="button" class="seg-btn" role="menuitem" data-it="hunt"><?= th('🔎 Jagen') ?></button>
-            <?php if ($role === 'admin' || $role === 'user'): ?><button type="button" class="seg-btn" role="menuitem" data-goto="settings/prot"><?= th('🛡 Bescherming') ?> ›</button><?php endif; ?>
+            <?php if ($role === 'admin' || $role === 'user'): ?><button type="button" class="seg-btn" role="menuitem" data-goto="settings/prot"><?= th('🛡 Beschermingen') ?> ›</button><?php endif; ?>
           </div>
         </div>
       </div>
@@ -785,6 +785,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <button type="button" class="seg-btn" data-nsub="disc" role="tab" aria-selected="false">🔍 <?= th('Ontdekken') ?> <span class="tab-badge" id="net-disc-badge" hidden></span></button>
         <button type="button" class="seg-btn" data-nsub="speed" role="tab" aria-selected="false">⚡ <?= th('Netwerksnelheid') ?></button>
         <button type="button" class="seg-btn" data-nsub="paths" role="tab" aria-selected="false">🛣️ <?= th('Paden') ?></button>
+        <?php if ($role === 'admin'): ?><button type="button" class="seg-btn" data-nsub="ext" role="tab" aria-selected="false">🌍 <?= th('Van buitenaf') ?></button><?php endif; ?>
       </div>
       <!-- 1.103.0: netwerkscan, zelfde opbouw als het dashboard -->
       <?= xp(t('Alle apparaten in je netwerk, met naam, soort, IP-adres en fabrikant.'), t('<b>Wat het doet:</b> RzSense scant je netwerk (en leest UniFi of SNMP uit als je die hebt) en houdt bij welke apparaten er zijn en wanneer ze online waren. <b>Zo gebruik je het:</b> geef een nieuw apparaat een naam en zet het op bekend; een apparaat dat je niet kent, onderzoek je. <b>Goed om te weten:</b> deze apparaten kun je ook kiezen bij het adres van een server of het doel van een check.'), 'xp-net-list') ?>
@@ -822,7 +823,12 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <div id="net-map" class="net-map"></div>
       <?= xp(t('Hoe snel je netwerk en je internetlijn zijn, van RzSense (of een andere bron) tot het doel.'), t('<b>Wat het doet:</b> per schakel van de route zie je de vertraging, de linksnelheid en wat er echt gemeten is, en welke schakel de smalste is. Daaronder de wifi per access point. <b>Zo gebruik je het:</b> kies een route; beheerders maken routes bij Routes beheren en meten met Nu meten. <b>Goed om te weten:</b> de snelheid van switch- en routerpoorten komt uit UniFi of SNMP; zonder die zie je bij die schakel "snelheid onbekend".'), 'xp-net-speed') ?>
       <div id="net-speed" class="net-speed" aria-live="polite"></div>
-      <div id="netpaths" class="netpaths"></div><!-- 1.330.0: was Netwerk → Paden -->
+      <div id="netpaths" class="netpaths"></div><!-- 1.330.0: was Monitoring → Netwerkpaden -->
+      <?php if ($role === 'admin'): ?>
+      <!-- 1.331.0: Van buitenaf: wat er open staat (de instellingen blijven in de portal) -->
+      <?= xp(t('Wat er van je netwerk open staat op internet: je publieke IP-adres en je domeinen, van buitenaf bekeken.'), t('<b>Wat het doet:</b> RzSense kijkt met Shodan, vanuit zichzelf en eventueel vanaf een meetpunt buiten je netwerk welke poorten open staan. <b>Zo gebruik je het:</b> keur goed wat zo hoort (bv. 443 voor je reverse proxy); de rest onderzoek je. <b>Goed om te weten:</b> bronnen, doelen en hoe vaak stel je in bij Instellingen → Web en buitenkant → Van buitenaf.'), 'xp-net-ext') ?>
+      <div class="card" id="net-exposure-card"><div id="net-exposure"><p class="muted"><?= th('Laden…') ?></p></div></div>
+      <?php endif; ?>
     </section>
     <?php endif; ?>
 

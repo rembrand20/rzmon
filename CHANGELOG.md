@@ -8,11 +8,18 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.331.0**: **Netwerk → Van buitenaf**: wat er open staat op internet als eigen tabblad; de WAF start weer (agent 1.123.1).
 - **1.330.0**: **Nieuwe indeling**: alles op één logische plek, zonder dubbele onderdelen; de beheerportal in kleinere groepen, met een eigen groep Netwerk.
 - **1.329.0**: **iw vanzelf installeren**: een Linux-apparaat met wifi maar zonder iw krijgt het van de agent, zodat zijn wifi bij Netwerksnelheid verschijnt.
 - **1.328.0**: **Netwerksnelheid**: de snelheid van je netwerk en internet als keten van bron tot doel, met de smalste schakel, SNMP-poorten en de wifi per access point.
 - **1.327.0**: **Toegang aanvragen van buiten**: een onbekend apparaat vraagt met één knop toegang, jij krijgt een e-mail en staat het toe voor een bestaande of nieuwe gebruiker.
-- **1.326.0**: **Rustigere pop-ups**: één scrollbalk, kop en knoppen vast, en in het midden zo breed als de pagina.
+
+## 1.331.0 – 2026-11-26
+### Nieuw
+- **Netwerk → Van buitenaf.** Wat er van je netwerk open staat op internet (goedkeuren met *Hoort zo*, wat Shodan ziet, wat weer dicht ging, *Nu bekijken*) staat nu als tabblad bij Netwerk, voor beheerders. In de portal (*Web en buitenkant → Van buitenaf*) staan alleen nog de bronnen, de doelen, hoe vaak en de melding.
+### Opgelost
+- In het IDS-menu *Meer* heette de link naar de beschermingen nog *Bescherming* (de oude naam van de groep); nu *Beschermingen*.
+- Nieuwe agent 1.123.1: de WAF startte niet, en herkende je eigen netwerk niet (zie de changelog van de agent).
 
 ## 1.330.0 – 2026-11-26
 ### Nieuw

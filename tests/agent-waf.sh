@@ -19,7 +19,7 @@ case "\$1" in
     inspect)
         if [ "\$2" = -f ]; then
             case "\$3" in
-                *State.Running*) [ -f "\$S/ctr" ] && echo true || exit 1 ;;
+                *State.Running*) if [ -f "\$S/crashed" ]; then echo false; else [ -f "\$S/ctr" ] && echo true || exit 1; fi ;;
                 *Networks*) if [ -f "\$S/connected" ]; then echo '{"podman":{},"rzsense":{}}'; else echo '{"podman":{}}'; fi ;;
             esac
         else [ "\$2" = rzsense-crowdsec ] && { [ -f "\$S/ctr" ] || exit 1; }; fi ;;
@@ -28,7 +28,8 @@ case "\$1" in
     run) touch "\$S/ctr"; printf '%s\n' "\$*" >"\$S/run" ;;
     rm) rm -f "\$S/ctr" ;;
     restart) touch "\$S/restarted" ;;
-    logs) echo 'time="2026-11-26T10:00:00Z" level=error msg="appsec: unable to load rules"' ;;
+    logs) if [ -f "\$S/fatal" ]; then echo 'time="2026-11-26T10:00:00Z" level=fatal msg="crowdsec init: while loading acquisition config: while configuring datasource of type appsec from /etc/crowdsec/acquis.d/rzsense-appsec.yaml (position: 0): failed to configure datasource appsec: unable to build appsec_config: unable to load inband rule crowdsecurity/vpatch-* : no appsec-rules found for pattern crowdsecurity/vpatch-*"'
+          else echo 'time="2026-11-26T10:00:00Z" level=error msg="appsec: unable to load rules"'; fi ;;
     exec)
         shift 2
         case "\$1" in
@@ -93,7 +94,9 @@ try:
     assert 'vpatch' in inb(c['sure']) and 'crowdsecurity/crs' not in inb(c['sure']), c['sure']
     assert 'vpatch' in inb(c['strict']) and 'crowdsecurity/crs' in inb(c['strict']), c['strict']
     s = c['strict']
-    assert 'IpInRange(req.RemoteAddr, "192.168.1.0/24")' in s and 'IpInRange(req.RemoteAddr, "10.8.0.5/32")' in s, s
+    assert 'IpInRange(req.ClientIP, "192.168.1.0/24")' in s and 'IpInRange(req.ClientIP, "10.8.0.5/32")' in s and 'RemoteAddr' not in s, s   # agent 1.124.0
+    acq = open(f'{w}/waf/acquis.d/rzsense-appsec.yaml').read()
+    assert 'appsec_config_path: /etc/crowdsec/rzsense/appsec.yaml' in acq and 'appsec_config:' not in acq, acq
     assert 'IsInBand && req.Host matches "(^nextcloud\\\\.)"' in s, s
     assert 'req.Host matches "(\\\\.intern\\\\.example\\\\.test$)"' in s, s
     assert 'RemoveInBandRuleByID(942100)' in s and 'RemoveOutBandRuleByName("crowdsecurity/vpatch-CVE-2017-9841")' in s, s
@@ -110,6 +113,7 @@ try:
     except ImportError:
         pass
     run = open(f'{w}/run-args').read()
+    assert '/etc/crowdsec/rzsense/appsec.yaml' in run and 'appsec-configs' not in run, run
     assert '--network rzsense' in run and 'BOUNCER_KEY_swag=' in run and 'DISABLE_ONLINE_API=true' in run and ':Z' in run, run
     log = open(f'{w}/podman.log').read()
     assert 'network create rzsense' in log and 'network connect rzsense swag' in log and 'restart rzsense-crowdsec' in log and 'rm -f rzsense-crowdsec' in log, log
@@ -130,6 +134,12 @@ grep -q '"state":"error"' "$work/r-st2.json" && grep -q 'HTTP 401' "$work/r-st2.
 rm -f "$work/state/fail401"
 bash "$work/run.sh" >"$work/r-st3.json" 2>>"$work/err"
 [ ! -f "$work/waf/starting.since" ] || bad+="starting.since niet opgeruimd na een antwoord | "
+# Agent 1.124.0: CrowdSec start niet (stopt steeds): meteen de reden uit het log, zonder de lange aanloop, met een tip
+touch "$work/state/crashed" "$work/state/fatal"
+bash "$work/run.sh" >"$work/r-st4.json" 2>>"$work/err"
+grep -q '"state":"error"' "$work/r-st4.json" && grep -q 'draait niet: unable to build appsec_config: unable to load inband rule crowdsecurity/vpatch-\* : no appsec-rules found' "$work/r-st4.json" \
+    && grep -q 'CrowdSec-hub bereiken' "$work/r-st4.json" && ! grep -q 'while configuring datasource' "$work/r-st4.json" || bad+="crash: geen duidelijke reden: $(cut -c1-400 "$work/r-st4.json") | "
+rm -f "$work/state/crashed" "$work/state/fatal"
 grep -q 'WAF: CrowdSec gestart' "$work/cache/act.log" && grep -q 'WAF uit' "$work/cache/act.log" || bad+="logboek mist regels | "
 if [ -n "$bad" ]; then echo "✘ WAF: ${bad% | } $(tail -n 3 "$work/err" 2>/dev/null)"; exit 1; fi
-echo "✔ WAF: netwerk en koppeling met SWAG, sleutel alleen voor root, regels per stand van de slider (detecteren, alleen zeker, streng), per site alleen melden of uit, uitzonderingen (ongeldige weg), eigen netwerk nooit, zelftest klopt, meldingen mee, na 10 minuten zonder antwoord een fout met de reden, uit = container weg, in het logboek"
+echo "✔ WAF: netwerk en koppeling met SWAG, sleutel alleen voor root, regels per stand van de slider (detecteren, alleen zeker, streng), per site alleen melden of uit, uitzonderingen (ongeldige weg), eigen netwerk nooit, zelftest klopt, meldingen mee, na 10 minuten zonder antwoord een fout met de reden, start CrowdSec niet dan meteen de reden met een tip, uit = container weg, in het logboek"

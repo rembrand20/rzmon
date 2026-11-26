@@ -625,17 +625,19 @@ let ndData = null;
 let ndFilter = '';
 let ndPresKind = '';
 function setNetSub(s) {
-  netSub = ['disc', 'map', 'speed', 'paths'].includes(s) ? s : 'list';
+  netSub = ['disc', 'map', 'speed', 'paths'].includes(s) || (s === 'ext' && $('#net-tabs [data-nsub="ext"]')) ? s : 'list';
   try { localStorage.setItem('rzmon-net-sub', netSub); } catch (ex) { /* niet erg */ }
   $('#tab-net').classList.toggle('net-dc', netSub === 'disc');
   $('#tab-net').classList.toggle('net-mp', netSub === 'map');
   $('#tab-net').classList.toggle('net-sp', netSub === 'speed');   // 1.328.0: Netwerksnelheid
-  $('#tab-net').classList.toggle('net-pa', netSub === 'paths');   // 1.330.0: Paden (was Netwerk → Paden)
+  $('#tab-net').classList.toggle('net-pa', netSub === 'paths');   // 1.330.0: Paden (was Monitoring → Netwerkpaden)
+  $('#tab-net').classList.toggle('net-ex', netSub === 'ext');   // 1.331.0: Van buitenaf
   if (netSub === 'map') renderNetMap();
   $$('#net-tabs [data-nsub]').forEach((b) => { const on = b.dataset.nsub === netSub; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
   if (netSub === 'disc') withPageWait('net', ndLoad);
   if (netSub === 'speed') withPageWait('net', nsLoad);
   if (netSub === 'paths') withPageWait('net', () => npLoad(true));
+  if (netSub === 'ext') withPageWait('net', () => loadExposure('page'));
   crumbs();   // 1.199.0
 }
 async function ndLoad() {

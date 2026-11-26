@@ -5,6 +5,11 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.123.1 – 2026-11-26
+- **WAF startte niet ("de WAF antwoordt na … minuten nog niet").** CrowdSec stopte steeds bij het laden van de AppSec-instellingen van RzSense. De agent laat CrowdSec die nu rechtstreeks uit een eigen bestand laden (`appsec_config_path`), in plaats van ze via de hub op naam op te zoeken; de container wordt daarvoor één keer opnieuw aangemaakt.
+- **WAF: je eigen netwerk werd niet herkend.** De regel "eigen netwerk nooit tegenhouden" keek naar het adres van SWAG in plaats van dat van de bezoeker. Nu naar het echte IP-adres van de bezoeker.
+- **WAF: de echte reden als CrowdSec niet start.** Stopt de container steeds, dan zie je meteen de volledige reden uit het log (zonder de lange aanloop), met een tip, in plaats van een afgekapte regel na 10 minuten.
+
 ## 1.123.0 – 2026-11-26
 - **Wifi zonder iw:** heeft de server een wifi-kaart maar geen `iw`, dan meldt de agent dat. RzSense 1.329.0 laat de agent `iw` dan zelf installeren (via apt of dnf, zoals iperf3), zodat de wifi bij *Netwerk → Netwerksnelheid* verschijnt. `iw` staat nu ook in de lijst met hulpmiddelen die de agent meldt.
 

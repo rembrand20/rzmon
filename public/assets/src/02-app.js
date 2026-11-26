@@ -606,7 +606,7 @@ function showTab(name) {
   if (/^incidents\/(all|check|ids|vuln)$/.test(name)) { incSrc = name.slice(10); name = 'incidents'; }
   // 1.197.0: diepe links (o.a. vanuit de Home Assistant-kaart): #net/map, #net/list, #net/disc en #dashboard/paths, /avail, /cont
   let netReq = null, monReq = null;
-  if (/^net\/(map|list|disc|speed|paths)$/.test(name)) { netReq = name.slice(4); name = 'net'; }   // 1.328.0: ook Netwerksnelheid; 1.330.0: Paden
+  if (/^net\/(map|list|disc|speed|paths|ext)$/.test(name)) { netReq = name.slice(4); name = 'net'; }   // 1.328.0: ook Netwerksnelheid; 1.330.0: Paden
   if (/^dashboard\/(allchecks|avail|cont|shelly|checks)$/.test(name)) { monReq = name.slice(10); name = 'dashboard'; }
   if (name === 'compliance/set') { compTab = 'set'; name = 'compliance'; }   // 1.330.0: de NIS2-instellingen
   // 1.325.2: IDS vanuit het menu (of een andere pagina) opent altijd op Aanvallen; een link als #ids/live blijft werken

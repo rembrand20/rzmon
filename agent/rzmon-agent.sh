@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.123.0"
+AGENT_VERSION="1.123.1"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -4542,7 +4542,7 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
         for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_cache") 127.0.0.1/32; do
             [[ "$n" =~ ^[0-9a-fA-F:.]+(/[0-9]{1,3})?$ ]] || continue
             [[ "$n" == */* ]] || n="$n/32"
-            wf_lan+="${wf_lan:+ || }IpInRange(req.RemoteAddr, \"$n\")"
+            wf_lan+="${wf_lan:+ || }IpInRange(req.ClientIP, \"$n\")"   # agent 1.124.0: ClientIP = de bezoeker; RemoteAddr is SWAG (met poort)
         done
         wf_re() {  # sitenaam (naam, *.domein of app.*) → regex op de Host, met dubbele backslashes voor YAML
             local s=$1 pre='^' suf='$' r
@@ -4593,7 +4593,7 @@ ${wf_off:+  - filter: req.Host matches \"($wf_off)\"
         wf_acq="# RzSense: beheerd door de RzSense-agent
 source: appsec
 listen_addr: 0.0.0.0:7422
-appsec_config: rzsense/appsec
+appsec_config_path: /etc/crowdsec/rzsense/appsec.yaml
 name: rzsense-appsec
 labels:
   type: appsec
@@ -4609,7 +4609,8 @@ $(for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_c
         wf_write() { if [ -f "$1" ]; then printf '%s' "$2" >"$1"; else (umask 077; printf '%s' "$2" >"$1"); fi; }   # zelfde bestand (de container heeft het vast)
         wf_write "$wf_dir/rzsense.yaml" "$wf_conf"; wf_write "$wf_dir/acquis.d/rzsense-appsec.yaml" "$wf_acq"; wf_write "$wf_dir/whitelist.yaml" "$wf_wl"
         wf_chash=$(cat "$wf_dir/rzsense.yaml" "$wf_dir/acquis.d/rzsense-appsec.yaml" "$wf_dir/whitelist.yaml" | sha1sum | cut -c1-12)
-        wf_ehash=$(printf '%s|%s|%s' "$wf_img" "$wf_share" "$wf_key" | sha1sum | cut -c1-12)
+        # Agent 1.124.0: "p2" = de appsec-config staat op een eigen pad (appsec_config_path): de container één keer opnieuw aanmaken
+        wf_ehash=$(printf '%s|%s|%s|p2' "$wf_img" "$wf_share" "$wf_key" | sha1sum | cut -c1-12)
         # 3. Netwerk: rzsense, en SWAG eraan (ook opnieuw als SWAG opnieuw is aangemaakt)
         # Agent 1.119.1: mislukt het aanmaken, dan de echte fout tonen en de container niet starten (anders alleen "network not found")
         wf_netok=1
@@ -4637,7 +4638,7 @@ $(for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_c
             wf_env=(-e "COLLECTIONS=crowdsecurity/appsec-virtual-patching crowdsecurity/appsec-generic-rules crowdsecurity/appsec-crs" -e "BOUNCER_KEY_swag=$wf_key")
             [ "$wf_share" = 1 ] || wf_env+=(-e "DISABLE_ONLINE_API=true")
             if out=$(WFX_T=600 wfx run -d --name "$wf_ctr" --network "$wf_net" --restart unless-stopped "${wf_env[@]}" \
-                -v "$wf_dir/acquis.d:/etc/crowdsec/acquis.d:Z" -v "$wf_dir/rzsense.yaml:/etc/crowdsec/appsec-configs/rzsense.yaml:Z" \
+                -v "$wf_dir/acquis.d:/etc/crowdsec/acquis.d:Z" -v "$wf_dir/rzsense.yaml:/etc/crowdsec/rzsense/appsec.yaml:Z" \
                 -v "$wf_dir/whitelist.yaml:/etc/crowdsec/parsers/s02-enrich/rzsense-whitelist.yaml:Z" -v "$wf_dir/data:/var/lib/crowdsec/data:Z" "$wf_img" 2>&1); then
                 echo "$wf_ehash" >"$wf_dir/env.hash"; echo "$wf_chash" >"$wf_dir/conf.hash"
                 act_log proxy 1 "WAF: CrowdSec gestart" "$wf_img, slider $wf_mode"
@@ -4650,6 +4651,19 @@ $(for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_c
                 echo "$wf_chash" >"$wf_dir/conf.hash"; act_log proxy 1 "WAF: regels doorgevoerd" "slider $wf_mode"
             else wf_msg="herstarten mislukt"; fi
         fi
+        # Agent 1.124.0: de laatste fout uit het log van de container, zonder de lange aanloop van CrowdSec, met een tip
+        wf_reason() {
+            local r
+            r=$(wfx logs --tail 300 "$wf_ctr" 2>&1 | grep -iE 'level=(error|fatal)|appsec.*(error|fail)|cannot|unable' | tail -n 1 \
+                | sed -e 's/^time="[^"]*" //' -e 's/^level=[a-z]* //' -e 's/^msg="//' -e 's/"$//' -e 's/^crowdsec init: //' -e 's/^while loading acquisition config: //' \
+                    -e 's/^while configuring datasource of type appsec from [^ ]* (position: [0-9]*): //' -e 's/^failed to configure datasource appsec: //' | cut -c1-300)
+            case "$r" in
+                *"no appsec-rules found"*) r+=" (de regels van CrowdSec zijn niet geïnstalleerd: kon de container de CrowdSec-hub bereiken?)" ;;
+                *"no appsec-config found"*|*"unable to load appsec"*) r+=" (de configuratie van RzSense werd niet geladen)" ;;
+                *"address already in use"*) r+=" (poort 7422 is al in gebruik)" ;;
+            esac
+            printf '%s' "$r"
+        }
         # 5. Draait hij, antwoordt de WAF, is SWAG gekoppeld, en doet hij wat de slider zegt?
         [ "$(wfx inspect -f '{{.State.Running}}' "$wf_ctr" 2>/dev/null)" = true ] && wf_running=1
         wf_ask() {  # wf_ask <uri> → 200 (mag), 403 (tegengehouden) of 000 (geen antwoord)
@@ -4678,7 +4692,7 @@ $(for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_c
                     else
                         wf_why="geen antwoord op poort 7422: $(grep -v '^[[:space:]]*$' <<<"$wf_raw" | tail -n 1 | cut -c1-120)"
                     fi
-                    wf_log=$(wfx logs --tail 300 "$wf_ctr" 2>&1 | grep -iE 'level=(error|fatal)|appsec.*(error|fail)|cannot|unable' | tail -n 1 | sed 's/^time="[^"]*" //' | cut -c1-200)
+                    wf_log=$(wf_reason)
                     wf_state=error
                     wf_msg="de WAF antwoordt na $wf_min minuten nog niet: $wf_why${wf_log:+ · log: $wf_log}"
                 else
@@ -4707,7 +4721,9 @@ $(for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_c
                 wf_alerts=$(wfx exec "$wf_ctr" cscli alerts list -o json -l 100 --since 20m 2>/dev/null | head -c 300000 | base64 | tr -d '\n')
             fi
         else
-            wf_msg=${wf_msg:-"de container draait niet"}
+            # Agent 1.124.0: stopt hij steeds (CrowdSec start niet), dan meteen de reden uit het log
+            wf_log=$(wf_reason)
+            wf_msg=${wf_msg:-"de container draait niet${wf_log:+: $wf_log}"}
         fi
     fi
     waf_json="{\"state\":\"$wf_state\",\"running\":$wf_running,\"bouncer\":\"$wf_bouncer\",\"net\":\"$wf_net\",\"image\":\"$(json_escape "$wf_img")\",\"mode\":\"$wf_mode\",\"test\":\"$wf_test\",\"test_msg\":\"$(json_escape "$wf_testmsg")\",\"msg\":\"$(json_escape "$wf_msg")\",\"alerts\":\"$wf_alerts\"}"

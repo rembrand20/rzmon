@@ -1096,7 +1096,8 @@ Meldingen worden IDS-incidenten, en volgen de blokkeer-instelling van [Suricata 
 
 ## Van buitenaf: je aanvalsoppervlak
 
-Wat staat er van je netwerk open op internet? Dat bekijk je bij *Instellingen → Web en buitenkant → Van buitenaf*.
+Wat staat er van je netwerk open op internet? Dat zie je bij *Netwerk → Van buitenaf* (alleen beheerders). De bronnen,
+de doelen, hoe vaak en de melding stel je in bij *Instellingen → Web en buitenkant → Van buitenaf*.
 
 **Doelen:**
 - **Automatisch** (aan of uit): je eigen publieke IP-adres en de domeinen van je reverse proxy.
