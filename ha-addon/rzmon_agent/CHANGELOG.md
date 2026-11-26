@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.120.1 – 2026-11-26
+- **WAF bleef op "de WAF start nog (regels laden)" staan.** Gaf de zelftest van de WAF geen 200 of 403 (bijvoorbeeld 401 of geen verbinding), dan bleef de agent eindeloos "starten" melden. Na 10 minuten zonder geldig antwoord meldt hij nu een fout met de reden: de HTTP-code (401 = sleutel geweigerd, 404 = AppSec niet geladen) of de verbindingsfout, en de laatste foutregel uit het log van de container.
+
 ## 1.120.0 – 2026-11-26
 - **ClamAV: waar een map in de app zit.** Bij de voorgestelde uploadmappen stuurt de agent nu ook de plek in de container mee (bv. `/data` of `/config`), zodat RzSense ze per app kan tonen.
 

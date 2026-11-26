@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.321.0**: **Shelly's bewaken**: stroom, oververhitting en afwijkingen van het normale verbruik, rechtstreeks uitgelezen.
 - **1.320.0**: **🚨 Beveiligingskanaal**: wat nú je aandacht nodig heeft gaat door Niet storen heen (ook als kritieke melding in de Home Assistant-app) en blijft komen tot iemand bevestigt.
 
+## 1.324.1 – 2026-11-26
+### Opgelost
+- Nieuwe agent 1.120.1: de WAF bleef eindeloos op *de WAF start nog (regels laden)* staan als de zelftest niet lukte. Na 10 minuten staat er nu een fout met de reden (HTTP-code of verbindingsfout, en de foutregel uit het log van CrowdSec).
+
 ## 1.324.0 – 2026-11-26
 ### Nieuw
 - **ClamAV: mappen per app.** Op *Reverse proxy → Malware-scan* staan de mappen van je containers nu per app, met waar elke map in de app zit (*in de app: /data*). Mappen die op uploads lijken, krijgen het label *uploads?*, en die apps staan meteen open. Elke map heeft een eigen knop **＋ Toevoegen**, die hem bij de site van die app zet. Vervangt de keuzelijst *Voorstel uit je apps…*. Nieuwe agent 1.120.0 nodig voor *in de app*.

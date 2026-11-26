@@ -533,6 +533,7 @@ $(for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_c
                 -v "$wf_dir/whitelist.yaml:/etc/crowdsec/parsers/s02-enrich/rzsense-whitelist.yaml:Z" -v "$wf_dir/data:/var/lib/crowdsec/data:Z" "$wf_img" 2>&1); then
                 echo "$wf_ehash" >"$wf_dir/env.hash"; echo "$wf_chash" >"$wf_dir/conf.hash"
                 act_log proxy 1 "WAF: CrowdSec gestart" "$wf_img, slider $wf_mode"
+                rm -f "$wf_dir/starting.since"   # nieuwe container: de 10 minuten beginnen opnieuw
             else
                 wf_msg="starten mislukt: $(tail -n 2 <<<"$out" | tr '\n' ' ' | cut -c1-200)"
             fi
@@ -548,13 +549,35 @@ $(for n in $(awk -F'\t' '$1 == "0" && $2 == "proxylan" { print $3; exit }' "$t_c
             o=$(wfx exec "$wf_ctr" wget -q -S -O /dev/null --header "X-Crowdsec-Appsec-Ip: 203.0.113.10" --header "X-Crowdsec-Appsec-Uri: $1" \
                 --header "X-Crowdsec-Appsec-Host: rzsense-selftest.invalid" --header "X-Crowdsec-Appsec-Verb: GET" \
                 --header "X-Crowdsec-Appsec-Api-Key: $wf_key" http://127.0.0.1:7422/ 2>&1)
+            printf '%s' "$o" >"$wf_dir/ask.last" 2>/dev/null   # agent 1.120.1: voor de reden als hij blijft "starten"
             if grep -q ' 200' <<<"$o"; then echo 200; elif grep -q ' 403' <<<"$o"; then echo 403; else echo 000; fi
         }
         if [ "$wf_running" = 1 ]; then
             wf_ok=$(wf_ask /)
             if [ "$wf_ok" = 000 ]; then
-                wf_state=starting; wf_msg=${wf_msg:-"de WAF start nog (regels laden)"}
+                # Agent 1.120.1: niet eindeloos "starten". Na 10 minuten zonder antwoord: een fout, met de reden (HTTP-code of
+                # verbindingsfout van de zelftest, en de laatste foutregel uit het log van de container).
+                [ -s "$wf_dir/starting.since" ] || date +%s >"$wf_dir/starting.since"
+                wf_since=$(cat "$wf_dir/starting.since" 2>/dev/null); [[ "$wf_since" =~ ^[0-9]+$ ]] || wf_since=$(date +%s)
+                wf_min=$(( ($(date +%s) - wf_since) / 60 ))
+                if [ "$wf_min" -ge 10 ]; then
+                    wf_raw=$(cat "$wf_dir/ask.last" 2>/dev/null)
+                    wf_code=$(grep -o 'HTTP/[0-9.]* [0-9][0-9][0-9]' <<<"$wf_raw" | tail -n 1 | awk '{print $2}')
+                    if [ -n "$wf_code" ]; then
+                        wf_why="AppSec gaf HTTP $wf_code"
+                        [ "$wf_code" = 401 ] && wf_why+=" (de sleutel van de bouncer wordt geweigerd)"
+                        [ "$wf_code" = 404 ] && wf_why+=" (de AppSec-component is niet geladen)"
+                    else
+                        wf_why="geen antwoord op poort 7422: $(grep -v '^[[:space:]]*$' <<<"$wf_raw" | tail -n 1 | cut -c1-120)"
+                    fi
+                    wf_log=$(wfx logs --tail 300 "$wf_ctr" 2>&1 | grep -iE 'level=(error|fatal)|appsec.*(error|fail)|cannot|unable' | tail -n 1 | sed 's/^time="[^"]*" //' | cut -c1-200)
+                    wf_state=error
+                    wf_msg="de WAF antwoordt na $wf_min minuten nog niet: $wf_why${wf_log:+ · log: $wf_log}"
+                else
+                    wf_state=starting; wf_msg=${wf_msg:-"de WAF start nog (regels laden)"}
+                fi
             else
+                rm -f "$wf_dir/starting.since"
                 # Zelftest: alleen zeker = een bekend lek (CVE-2017-9841); streng = SQL-injectie; detecteren = SQL-injectie mag door
                 case "$wf_mode" in
                     sure) wf_u='/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php'; wf_want=403 ;;

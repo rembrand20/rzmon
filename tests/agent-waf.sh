@@ -28,10 +28,12 @@ case "\$1" in
     run) touch "\$S/ctr"; printf '%s\n' "\$*" >"\$S/run" ;;
     rm) rm -f "\$S/ctr" ;;
     restart) touch "\$S/restarted" ;;
+    logs) echo 'time="2026-11-26T10:00:00Z" level=error msg="appsec: unable to load rules"' ;;
     exec)
         shift 2
         case "\$1" in
             wget)
+                if [ -f "\$S/fail401" ]; then echo "  HTTP/1.1 401 Unauthorized" >&2; exit 1; fi
                 uri=\$(printf '%s\n' "\$@" | sed -n 's/^X-Crowdsec-Appsec-Uri: //p')
                 inb=\$(sed -n '/^inband_rules:/,/^outofband_rules:/p' "\$W/rzsense.yaml")
                 code=200
@@ -116,6 +118,18 @@ try:
 except AssertionError as e:
     err.write(str(e)[:1500]); sys.exit(1)
 PY
+# Agent 1.120.1: blijft hij langer dan 10 minuten "starten", dan een fout met de reden (HTTP-code en de foutregel uit het log)
+lines sure >"$work/cache/tests.cache"
+touch "$work/state/fail401"
+bash "$work/run.sh" >"$work/r-st1.json" 2>>"$work/err"
+grep -q '"state":"starting"' "$work/r-st1.json" || bad+="eerst hoort hij nog te starten | "
+echo $(( $(date +%s) - 900 )) >"$work/waf/starting.since"
+bash "$work/run.sh" >"$work/r-st2.json" 2>>"$work/err"
+grep -q '"state":"error"' "$work/r-st2.json" && grep -q 'HTTP 401' "$work/r-st2.json" && grep -q 'sleutel van de bouncer' "$work/r-st2.json" && grep -q 'unable to load rules' "$work/r-st2.json" \
+    || bad+="na 10 minuten geen fout met de reden: $(cut -c1-300 "$work/r-st2.json") | "
+rm -f "$work/state/fail401"
+bash "$work/run.sh" >"$work/r-st3.json" 2>>"$work/err"
+[ ! -f "$work/waf/starting.since" ] || bad+="starting.since niet opgeruimd na een antwoord | "
 grep -q 'WAF: CrowdSec gestart' "$work/cache/act.log" && grep -q 'WAF uit' "$work/cache/act.log" || bad+="logboek mist regels | "
 if [ -n "$bad" ]; then echo "✘ WAF: ${bad% | } $(tail -n 3 "$work/err" 2>/dev/null)"; exit 1; fi
-echo "✔ WAF: netwerk en koppeling met SWAG, sleutel alleen voor root, regels per stand van de slider (detecteren, alleen zeker, streng), per site alleen melden of uit, uitzonderingen (ongeldige weg), eigen netwerk nooit, zelftest klopt, meldingen mee, uit = container weg, in het logboek"
+echo "✔ WAF: netwerk en koppeling met SWAG, sleutel alleen voor root, regels per stand van de slider (detecteren, alleen zeker, streng), per site alleen melden of uit, uitzonderingen (ongeldige weg), eigen netwerk nooit, zelftest klopt, meldingen mee, na 10 minuten zonder antwoord een fout met de reden, uit = container weg, in het logboek"
