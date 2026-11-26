@@ -902,7 +902,6 @@ function dur(dt) {
 let dashFilter = 'all';   // 1.171.4: niet meer onthouden; Monitoring opent altijd op Alle, zodat je geen problemen mist
 let dashSort = uiGet('dash_sort', 'rzmon-dash-sort', 'status');
 let attnOpen = false;
-const attnBundles = new Set();   // 1.157.0: opengeklapte bundels in "Nu aandacht nodig"   // "Nu aandacht nodig": alles tonen (anders 6, op de telefoon 3)
 const isHa = (h) => h.checks.some((c) => c.type === 'ha') || h.metrics.includes('service:homeassistant');
 // Soort apparaat (1.75.0; zie HostKind.php): zelf gekozen, anders herkend (agent, SNMP), anders op het type
 const KIND_INFO = {

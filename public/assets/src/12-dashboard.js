@@ -131,99 +131,7 @@ function renderHomeDef() {
 function renderHome() {
   if (!hmData || !state || !state.hosts) return;
   if (dashMode() === 'cc') return hmData.cc ? renderCC() : loadHome();   // 1.154.0
-  if (layoutPref() === 'blox') return renderHomeDef();   // 1.322.0: Default (vroeger Blox)
-  $('.hm-title').textContent = L('Zo staat het ervoor');
-  const d = hmData, live = hmLive();
-  $('#hm-sub').textContent = L('Monitoring, beveiliging, kwetsbaarheden en netwerk op één plek') + ' · '
-    + L('bijgewerkt {t}', { t: new Date(hmAt).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' }) });
-  const score = d.full ? d.score : (state.health ? state.health.score : 100);
-  const todo = d.full ? d.todo : live.checks.filter((c) => +c.status === 2 || +c.status === 1).sort((a, b) => b.status - a.status)
-    .map((c) => ({ sev: +c.status === 2 ? 2 : 1, text: `${c.name} – ${(state.hosts.find((h) => +h.id === +c.host_id) || {}).name || ''}`, go: 'check:' + c.id }));
-  const open = todo.filter((t) => t.sev >= 1).length;
-  const scoreCls = score >= 90 ? 'good' : score >= 60 ? 'warn' : 'bad';
-  const prevAvail = d.full && d.avail.prev !== null ? d.avail.now - d.avail.prev : null;
-
-  // Tegels (1.135.0, zoals het ontwerp): Hosts, Meldingen, Kritieke CVE en Agents; elk een groot getal, de status en een lijntje
-  const tiles = [];
-  const hl = state.health || {};
-  const down = (hl.hosts_total || 0) - (hl.hosts_up || 0);
-  tiles.push({ go: 'dashboard', label: L('Hosts'), st: down ? 'crit' : 'ok', big: hmNum(hl.hosts_up || 0), unit: L('/ {n} online', { n: hl.hosts_total || 0 }),
-    sub: down ? L('{n} onbereikbaar', { n: down }) : L('alles bereikbaar'), spark: d.full ? hmSpark(hmVals(d.avail.series), 's1') : '' });
-  const probs = live.n[1] + live.n[2];
-  tiles.push({ go: 'alerts', label: L('Meldingen'), st: live.n[2] ? 'crit' : live.n[1] ? 'warn' : 'ok', big: hmNum(probs), unit: L('open problemen'),
-    sub: probs ? [live.n[1] && L('{n} aandacht', { n: live.n[1] }), live.n[2] && L('{n} storing', { n: live.n[2] })].filter(Boolean).join(' · ') : L('/ {n} checks OK', { n: live.total }).replace(/^\/ /, ''),
-    spark: d.full ? hmSpark(hmVals(d.ids.series.crit).map((v, i) => v + (hmVals(d.ids.series.warn)[i] || 0)), 's2') : '' });
-  if (d.vulns) {
-    const v = d.vulns;
-    tiles.push({ go: 'vulns', label: L('Kritieke CVE'), st: v.sev[4] ? 'crit' : v.sev[3] ? 'warn' : 'ok', big: hmNum(v.sev[4]), unit: v.kev ? L('{n} in KEV', { n: v.kev }) : L('geen in KEV'),
-      sub: L('{n} open · {f} met een update', { n: hmNum(v.total), f: hmNum(v.fix) }), spark: hmSpark(hmVals(v.series), 'crit') });
-  }
-  const sp = hmSpeed(d);   // 1.328.0: Netwerksnelheid
-  if (sp) tiles.push({ go: sp.go, label: L('Netwerksnelheid'), st: sp.st || 'ok', big: sp.val, unit: 'Mbit/s', sub: sp.sub, spark: '' });
-  const agents = state.hosts.filter((h) => h.mode === 'agent' && +h.enabled !== 0);
-  if (agents.length) {
-    const now = Date.now() / 1000;
-    const stil = agents.filter((h) => !h.contact || !h.contact.seen || now - h.contact.seen > h.contact.stale).length;
-    const old = agents.filter((h) => h.agent_version && agentLatestFor(h) && verCmp(h.agent_version, agentLatestFor(h)) < 0).length;
-    tiles.push({ go: isAdmin() ? 'settings/agents' : 'dashboard', label: L('Agents'), st: stil ? 'warn' : 'ok', big: `${agents.length - stil}<small>/${agents.length}</small>`, unit: L('rapporteren'),
-      sub: [stil ? L('{n} stil', { n: stil }) : L('allemaal actief'), old && L('{n} op een oudere versie', { n: old })].filter(Boolean).join(' · '), spark: '' });
-  }
-
-  const html = [];
-  // 1.144.0: eerst één zin hoe het ervoor staat, dan wat je nu moet doen (incidenten en aandachtspunten op urgentie)
-  const now = d.full && d.now ? d.now : todo.map((t) => ({ kind: 'todo', sev: t.sev, text: t.text, urgency: t.sev === 2 ? 50 : t.sev === 1 ? 25 : 5, why: [], go: t.go }));
-  const nowOpen = now.filter((t) => t.sev >= 1);
-  const urgentN = now.filter((t) => t.urgency >= 60).length;
-  const incN = now.filter((t) => t.kind === 'inc').length;
-  const probHosts = hmProblemHosts(d);
-  if ($('#inc-badge') && d.full && d.now) {   // teller op het tabblad Incidenten: open incidenten (nog zonder eigenaar)
-    const nOpen = d.now.filter((t) => t.kind === 'inc' && t.status === 'open').length;
-    $('#inc-badge').hidden = !nOpen;
-    $('#inc-badge').textContent = nOpen || '';
-  }
-  const enabledHosts = state.hosts.filter((h) => +h.enabled !== 0).length;
-  const sentence = !nowOpen.length && !probHosts.length
-    ? L('Alles in orde: {h} servers en {c} checks zonder problemen.', { h: enabledHosts, c: live.total })
-    : [nowOpen.length ? (nowOpen.length === 1 ? L('1 ding om nu te doen') : L('{n} dingen om nu te doen', { n: nowOpen.length })) + (urgentN ? ' (' + L('{n} dringend', { n: urgentN }) + ')' : '') : '',
-      incN ? (incN === 1 ? L('1 open incident') : L('{n} open incidenten', { n: incN })) : '',
-      probHosts.length ? (probHosts.length === 1 ? L('1 server vraagt aandacht') : L('{n} servers vragen aandacht', { n: probHosts.length })) : ''].filter(Boolean).join(' · ') + '.';
-  html.push(`<section class="hm-status ${scoreCls}" aria-label="${esc(L('Zo staat het ervoor'))}">
-    <span class="hm-status-score" title="${esc(L('Totaalscore'))}">${score}</span>
-    <div><div class="hm-status-txt">${esc(sentence)}</div>
-      ${prevAvail !== null && Math.abs(prevAvail) >= 0.01 ? `<div class="hm-score-sub">${esc(L('Bereikbaarheid {d} t.o.v. de vorige periode', { d: (prevAvail > 0 ? '↑ ' : '↓ ') + dec(Math.abs(prevAvail).toFixed(2)) + '%' }))}</div>` : ''}</div>
-  </section>`);
-  html.push(hmNow(now, d.full));
-  if (probHosts.length) html.push(hmServers(probHosts, L('Servers die aandacht vragen'), d));
-
-  // De rest, compacter
-  html.push(`<section class="hm-sum hm-sum-tiles" aria-label="${esc(L('Samenvatting'))}">
-    ${tiles.map((t) => `<button type="button" class="hm-tile" data-hm-go="${t.go}">
-      <span class="hm-tile-top"><span class="hm-tile-lbl">${esc(t.label)}</span><span class="hm-st ${t.st}">${hmShape(t.st)} ${esc(HM_ST[t.st]())}</span></span>
-      <span class="hm-tile-val"><b>${t.big}</b> <span>${esc(t.unit)}</span></span>
-      <span class="hm-tile-sub">${esc(t.sub)}</span>${t.spark}</button>`).join('')}
-  </section>`);
-
-  // 1.135.0: resourcegebruik van 24 uur en de recente incidenten (zoals het ontwerp)
-  html.push(`<div class="hm-duo">${hmResChart(d.resources)}${hmIncidents(d)}</div>`);
-
-  // Netwerkkaart en de servers zonder problemen, compact
-  html.push(`<div class="hm-duo">${hmMap()}${hmAttacks()}</div>`);   // 1.149.0: met de aanvallen van vandaag
-  html.push(hmServers(hmAllHosts().filter((x) => !probHosts.some((p) => p.h.id === x.h.id)), L('Overige servers'), d, true));
-
-  // Grafieken
-  if (d.full) {
-    html.push(`<div class="hm-charts">${hmAvailChart(d)}${hmIdsChart(d)}${d.vulns ? hmVulnCard(d.vulns) : ''}</div>`);
-  }
-  html.push(`<div class="hm-duo">${d.net ? hmNetCard(d.net) : ''}${hmTimeline(d.events)}</div>`);
-  $('#home').innerHTML = html.join('');
-  if ($('#hm-atk')) hmAtkWire($('#hm-atk'));
-  $$('[data-hm-risk]', $('#home')).forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); exposureDialog(+b.dataset.hmRisk); }));
-  $$('[data-hm-go]', $('#home')).forEach((b) => (b.onclick = () => {
-    const go = b.dataset.hmGo;
-    if (go.startsWith('check:')) checkInfo(go.slice(6));
-    else if (go.startsWith('incident:')) { showTab('incidents'); caseDialog(+go.slice(9)); }
-    else showTab(go);
-  }));
+  return renderHomeDef();   // 1.332.0: L1nes (het klassieke dashboard van de oude L1nes en Compact is weg)
 }
 
 // ---------------------------------------------------------------- 1.154.0: tweede dashboard "Command center"
@@ -299,7 +207,7 @@ function renderCC() {
   const name = ($('.acct-name') || {}).textContent || '';
   const hr = new Date().getHours();
   const hi = hr < 6 ? L('Goedenacht') : hr < 12 ? L('Goedemorgen') : hr < 18 ? L('Goedemiddag') : L('Goedenavond');
-  $('.hm-title').textContent = 'Command center';
+  $('.hm-title').textContent = 'Bloxzz';
   const s = c.seen;
   const seenTxt = s ? (s.crit || s.alerts || s.blocks || s.logins
     ? L('Sinds je laatste bezoek ({t})', { t: ccTime(s.at) }) + ': ' + [s.crit ? L('{n} nieuwe kritieke meldingen', { n: s.crit }) : '', s.alerts ? L('{n} meldingen', { n: s.alerts }) : '',
@@ -609,21 +517,6 @@ function urgPill(u, why, risk = false) {
   return `<span class="risk-pill risk-${lvl}" title="${esc((risk ? L('Risico {u} van 100', { u }) : L('Urgentie {u} van 100', { u })) + (why && why.length ? ': ' + why.join(', ') : ''))}">${u}</span>`;
 }
 
-/** 1.144.0: "Nu doen": open incidenten en aandachtspunten samen, op urgentie */
-function hmNow(list, full) {
-  const shown = list.slice(0, 8);
-  return `<section class="hm-card hm-now" aria-labelledby="hm-h-now">
-    <div class="hm-card-head"><h2 id="hm-h-now">${esc(L('Nu doen'))}</h2>
-      <span>${$('#tab-incidents') ? `<button type="button" class="link-btn" data-hm-go="incidents">${esc(L('Incidenten'))}</button>` : ''}${full ? ` · <button type="button" class="link-btn" data-hm-go="analytics">${esc(L('Alles bekijken'))}</button>` : ''}</span></div>
-    ${shown.length ? `<ul>${shown.map((t) => `<li>${urgPill(t.urgency, t.why)}
-      <span class="hm-attn-txt">${t.kind === 'inc' ? '⚠ ' : t.icon ? esc(t.icon) + ' ' : ''}${esc(t.text)}
-        <small>${esc((t.why || []).slice(1).join(' · '))}${t.kind === 'inc' ? ` <span class="inc-st inc-st-${t.status}">${esc(INC_ST[t.status]())}</span>${t.owner ? ' 👤 ' + esc(t.owner) : ''}${t.parts > 1 ? ' · ' + esc(L('{n} stappen', { n: t.parts })) : ''}` : ''}</small></span>
-      <button type="button" class="btn small-btn" data-hm-go="${esc(t.go)}">${esc(L('Openen'))}</button></li>`).join('')}</ul>
-      ${list.length > shown.length ? `<p class="muted small">${esc(L('en nog {n}', { n: list.length - shown.length }))}</p>` : ''}`
-      : `<p class="hm-empty">${hmShape('ok', 14)} ${esc(L('Niets dat nu aandacht nodig heeft'))}</p>`}
-  </section>`;
-}
-
 /** Servers met hun CPU, RAM, disk, status en (1.144.0) risico */
 function hmAllHosts() {
   const val = (h, t) => { const v = h.checks.filter((c) => c.type === t && +c.enabled && c.last_value !== null).map((c) => +c.last_value); return v.length ? Math.round(Math.max(...v)) : null; };
@@ -637,54 +530,6 @@ function hmProblemHosts(d) {
   const rank = { crit: 0, warn: 1, unk: 2, ok: 3 };
   return hmAllHosts().filter((x) => x.st === 'crit' || x.st === 'warn' || ((risk[x.h.id] || {}).score || 0) >= 40)
     .sort((a, b) => rank[a.st] - rank[b.st] || ((risk[b.h.id] || {}).score || 0) - ((risk[a.h.id] || {}).score || 0) || a.h.name.localeCompare(b.h.name));
-}
-
-/** Netwerk in één oogopslag: internet → netwerkapparaten → per soort de apparaten met hun status */
-function hmMap() {
-  const hosts = state.hosts.filter((h) => +h.enabled !== 0);
-  const st = (h) => { const s = hostStatus(h); return s === 2 ? 'crit' : s === 1 ? 'warn' : s === 0 ? 'ok' : 'unk'; };   // geen gegevens is nooit groen
-  const chip = (h) => `<button type="button" class="hm-host ${st(h)}" data-hm-go="dashboard?server=${encodeURIComponent(h.name)}" title="${esc(h.name)}">${hmShape(st(h))}<span>${esc(h.name)}</span></button>`;
-  const net = hosts.filter((h) => hostGroup(h) === 'network');
-  const groups = ['server', 'storage', 'smarthome', 'camera', 'power', 'other'].map((g) => [g, hosts.filter((h) => hostGroup(h) === g)]).filter(([, l]) => l.length);
-  const worst = (l) => ['crit', 'warn', 'unk'].find((x) => l.map(st).includes(x)) || 'ok';
-  return `<section class="hm-card hm-map" aria-labelledby="hm-h-map">
-    <div class="hm-card-head"><h2 id="hm-h-map">${esc(L('Netwerk in één oogopslag'))}</h2>
-      <span class="hm-legend">${['ok', 'warn', 'crit', 'unk'].map((s) => `<span>${hmShape(s)} ${esc(HM_ST[s]())}</span>`).join('')}</span></div>
-    <div class="hm-tree">
-      <div class="hm-inet"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>${esc(L('Internet'))}</div>
-      <div class="hm-vline"></div>
-      <div class="hm-netrow">${net.length ? net.map(chip).join('') : `<span class="muted small">${esc(L('Router, switches en access points: geef apparaten de soort Router, Switch of Access point'))}</span>`}</div>
-      <div class="hm-vline"></div>
-      <div class="hm-groups">${groups.map(([g, l]) => `<div class="hm-group">
-        <div class="hm-group-head"><b>${GROUP_INFO[g][0]} ${esc(GROUP_INFO[g][1]())}</b><span class="hm-st ${worst(l)}">${hmShape(worst(l))} ${l.length}</span></div>
-        <div class="hm-hosts">${l.map(chip).join('')}</div></div>`).join('')}</div>
-    </div></section>`;
-}
-
-/** Servers: CPU, RAM en de volste disk nu, uit de checks van die server; met (1.144.0) het risico en, compact, zonder balken */
-function hmServers(all, title, d, compact = false) {
-  const risk = (d && d.risk) || {};
-  const list = compact ? all.filter((x) => x.cpu !== null || x.ram !== null || x.disk !== null).sort((a, b) => a.h.name.localeCompare(b.h.name)) : all;
-  if (!list.length) return '';
-  if (compact) {
-    return `<section class="hm-card" aria-labelledby="hm-h-srv2"><div class="hm-card-head"><h2 id="hm-h-srv2">${esc(title)}</h2><span class="muted small">${esc(L('{n} servers', { n: list.length }))}</span></div>
-      <div class="hm-srv-compact">${list.map(({ h, st, cpu, ram, disk }) => `<button type="button" class="hm-srv-mini ${st}" data-hm-go="dashboard?server=${encodeURIComponent(h.name)}">
-        ${hmShape(st, 10)} <b>${esc(h.name)}</b><span class="muted small">${[cpu !== null ? 'CPU ' + cpu + '%' : '', ram !== null ? 'RAM ' + ram + '%' : '', disk !== null ? L('Disk') + ' ' + disk + '%' : ''].filter(Boolean).join(' · ')}</span>
-        ${risk[h.id] && risk[h.id].score ? urgPill(risk[h.id].score, risk[h.id].reasons, true) : ''}</button>`).join('')}</div></section>`;
-  }
-  const bar = (k, v) => (v === null ? '' : `<div class="hm-bar"><span>${esc(k)}</span><div><i class="${v >= 90 ? 'crit' : v >= 75 ? 'warn' : ''}" style="width:${Math.min(100, v)}%"></i></div><b>${v}%</b></div>`);
-  const why = (h) => { const p = h.checks.filter((c) => +c.enabled && !c.maintenance && +c.status >= 1 && +c.status <= 2).sort((a, b) => b.status - a.status)[0]; return p ? p.name : ''; };
-  return `<section class="hm-card" aria-labelledby="hm-h-srv">
-    <div class="hm-card-head"><h2 id="hm-h-srv">${esc(title)}</h2><span class="muted small">${esc(L('{n} servers · CPU, RAM en disk nu', { n: list.length }))}</span></div>
-    <div class="hm-srv-grid">${list.map(({ h, st, cpu, ram, disk }) => {
-      const up = stats.uptime[h.id];
-      const rk = risk[h.id];
-      return `<button type="button" class="hm-srv ${st}" data-hm-go="dashboard?server=${encodeURIComponent(h.name)}">
-        <span class="hm-srv-top"><b>${esc(h.name)}</b><span class="hm-st ${st}">${hmShape(st)} ${esc(st === 'ok' ? HM_ST.ok() : why(h) || HM_ST[st]())}</span></span>
-        <span class="hm-srv-sub">${esc(kindLabel(hostKind(h)))}${up && up.d7 !== null ? ' · ' + esc(L('{p} bereikbaar (7 d)', { p: pct(up.d7) })) : ''}</span>
-        ${rk && rk.score ? `<span class="hm-srv-risk" data-hm-risk="${h.id}" title="${esc(L('Aanvalspad en impact'))}">${urgPill(rk.score, rk.reasons, true)} <span class="small">${esc(L('risico'))}: ${esc(rk.reasons.join(' · '))}</span></span>` : ''}
-        ${bar('CPU', cpu)}${bar('RAM', ram)}${bar(L('Disk'), disk)}</button>`;
-    }).join('')}</div></section>`;
 }
 
 const hmDays = (series) => Object.keys(series || {});
@@ -783,17 +628,6 @@ function hmResChart(r) {
       ${(r.cpu || []).map((v, i) => `<rect class="hit" x="${(X(i) - 12).toFixed(1)}" y="${y0}" width="24" height="${y1 - y0}"><title>${esc(hour(i))} · CPU ${v === null ? '–' : dec(v.toFixed(1)) + '%'} · RAM ${r.ram[i] === null ? '–' : dec(r.ram[i].toFixed(1)) + '%'}</title></rect>`).join('')}
       <g class="ax lbl">${[0, 6, 12, 18, 23].map((i) => `<text x="${X(i).toFixed(1)}" y="${H - 8}" text-anchor="middle">${esc(hour(i))}</text>`).join('')}</g></svg>`
       : `<p class="hm-empty">${esc(L('Nog geen CPU- of RAM-metingen: voeg die checks toe bij je servers'))}</p>`}</section>`;
-}
-
-/** 1.135.0: recente incidenten (IDS), open eerst, met de ernst als woord en vorm */
-function hmIncidents(d) {
-  const list = d.incidents || [];
-  const sev = (i) => (i.sev >= 2 ? ['crit', L('Kritiek')] : ['warn', L('Hoog')]);
-  return `<section class="hm-card hm-inc" aria-labelledby="hm-h-inc"><div class="hm-card-head"><h2 id="hm-h-inc">${esc(L('Recente incidenten'))}</h2>
-    <button type="button" class="link-btn" data-hm-go="ids">${esc(d.ids.open_total ? L('{n} open', { n: d.ids.open_total }) : L('Naar IDS'))}</button></div>
-    ${list.length ? `<ul>${list.slice(0, 5).map((i) => { const [c, l] = sev(i); return `<li class="${i.open ? '' : 'done'}">${hmShape(i.open ? c : 'ok', 11)}
-      <span><small class="hm-sevlbl ${i.open ? c : 'ok'}">${esc(i.open ? l : L('Afgehandeld'))}</small>${i.outcome ? outcomePill(i.outcome, true) : ''}<b>${esc(i.title)}</b><small>${esc(i.host)} · ${esc(fmtUntil(i.at))}${i.hits > 1 ? ' · ' + esc(L('{n}×', { n: i.hits })) : ''}</small></span></li>`; }).join('')}</ul>`
-      : `<p class="hm-empty">${hmShape('ok', 14)} ${esc(L('Geen incidenten de laatste 14 dagen'))}</p>`}</section>`;
 }
 
 // ---------------------------------------------------------------- ⚠ Incidenten (1.142.0)

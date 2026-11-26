@@ -356,7 +356,6 @@ function blockDialog(ip) {
 
 // ---------------------------------------------------------------- Versleuteling van de agents
 const ENC_MODES = [['off', L('Uit')], ['on', L('Aan (oude agents mogen nog onversleuteld)')], ['required', L('Verplicht')]];
-const ENC_HOST_MODES = [['', L('algemene instelling')], ['on', L('aan')], ['required', L('verplicht')], ['off', L('uit')]];
 /** 🧹 Alle agents opruimen (1.100.0), met wachtwoord en het woord OPRUIMEN */
 function agentsCleanupDialog(after) {
   modal({

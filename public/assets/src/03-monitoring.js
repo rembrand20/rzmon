@@ -571,7 +571,6 @@ function initAvail() {
 
 // ============ 1.176.0: Monitoring → Containers (alle containers van alle servers, Podman en Docker) ============
 let ctData = null, ctAt = 0, ctBusy = false;
-const ctOpen = new Set();   // uitgeklapte containers (host:key)
 const CT_STATE = { running: ['run', 'Running'], failed: ['fail', 'Failed'], stopped: ['stop', 'Stopped'], paused: ['pause', 'Paused'] };
 const ctFilter = () => uiGet('ct_filter', 'rzmon-ct-filter', 'all');
 const ctGroup = () => uiGet('ct_group', 'rzmon-ct-group', 'host');
@@ -1741,13 +1740,11 @@ function renderNow() {
   const { layout, density } = viewPrefs();
   const okHost = (h) => +h.enabled && hostStatus(h) === 0 && !h.maintenance && !h.autoOpen;
   const head = (title, n) => `<div class="sec-h hosts-h"><h2>${title}</h2><span>${n}</span></div>`;
-  const def = layoutPref() === 'blox';   // 1.322.0: Default (vroeger Blox): servers als rijen, zoals L1nes
-  const lines = layout === 'l1nes' || def;
-  if (layout === 'compact') { el.className = 'dash-hosts'; el.innerHTML = compactView(hosts); return; }
+  const lines = layoutPref() === 'blox';   // 1.332.0: L1nes (sleutel blox): servers als rijen; Bloxzz (sleutel cc) hieronder
   const cc = isCC();   // 1.164.0: in CC compacte blokken die openklappen tot een tabel
   const list = (arr) => (cc ? arr.map(ccHostCard).join('') : lines ? (density === 'large' ? lineHeader() : '') + arr.map((h) => hostLine(h, density === 'large')).join('')
     : arr.map((h) => hostCard(h, density === 'small')).join(''));
-  const cls = cc ? 'hosts hb-grid' : `hosts layout-${lines ? 'l1nes' : layout} density-${density}`;
+  const cls = cc ? 'hosts hb-grid' : `hosts layout-l1nes density-${density}`;
   const block = (arr, grouped) => {
     // 1.168.0: drie groepen: open problemen (zoals bij Nu aandacht nodig), alles al bevestigd, en in orde
     const good = arr.filter(okHost), acked = arr.filter((h) => !okHost(h) && ackedOnly(h)), bad = arr.filter((h) => !okHost(h) && !ackedOnly(h));
@@ -1808,7 +1805,9 @@ function hostSparks(h, mini = false) {
 // ---------------------------------------------------------------- Lay-out CC (1.158.0)
 // Vier lay-outs, per account: Blox, L1nes en Compact (klassiek dashboard) en CC: alles in de stijl van het Command center,
 // met kaarten die je kunt slepen, smaller of breder maken en verbergen (✎ Indeling, per pagina en per account).
-const LAYOUTS = ['blox', 'l1nes', 'compact', 'cc'];
+// 1.332.0: twee lay-outs. De sleutels blijven zoals ze opgeslagen zijn: blox = L1nes (de standaard), cc = Bloxzz.
+// Wie Compact of de oude L1nes had gekozen, krijgt L1nes.
+const LAYOUTS = ['blox', 'cc'];
 function layoutPref() {
   if (LAYOUTS.includes(PREFS.layout)) return PREFS.layout;
   let l = null;
@@ -2163,18 +2162,6 @@ function kpiTrend(now, then, lowerBetter = false, pctPts = false) {
   const txt = pctPts ? dec(String(Math.abs(d))) : String(Math.abs(Math.round(d)));
   return `<span class="kpi-tr ${good ? 'up' : 'down'}" title="${pctPts ? L('vergeleken met 7 dagen') : L('vergeleken met 24 uur geleden')}">${d > 0 ? '▲' : '▼'} ${txt}</span>`;
 }
-/** Compact: één blokje per check, per server een regel (veel checks of een TV-scherm). Klik = popup van de check. */
-function compactView(hosts) {
-  const rank = (c) => (c.maintenance ? 0 : STATUS_RANK[+c.status]);
-  return `<div class="hm-list">${hosts.map((h) => {
-    const cs = (h.shown && h.shown.length ? h.shown : h.checks).filter((c) => +c.enabled).sort((a, b) => rank(b) - rank(a) || a.name.localeCompare(b.name, LANG));
-    return `<div class="hm-row s${hostStatus(h)}${glowHost(h) ? ' glow' : ''}" data-host="${h.id}">
-      <span class="hm-name"><span aria-hidden="true">${hostIcon(h)}</span> <b>${esc(h.name)}</b></span>
-      <span class="hm-cells">${cs.map((c) => { const [v, u] = keyValue(c); return `<i class="hm-c s${c.maintenance ? 4 : c.status}" data-cid="${c.id}" title="${esc(c.name)}: ${v}${esc(u)} · ${esc((c.last_message || '').slice(0, 120))}"></i>`; }).join('')}</span>
-      ${hostTimeline(h)}
-    </div>`;
-  }).join('')}</div>`;
-}
 
 /** Kleine lijn van een check over 24 uur (zonder statusstrook) */
 function miniSpark(c, H) {
@@ -2194,25 +2181,20 @@ function miniSpark(c, H) {
 function viewPrefs() {
   let layout = 'blox', density = 'large';
   try {
-    const lay = layoutPref();   // 1.158.0: per account (CC toont Monitoring als Blox, in de CC-stijl)
-    layout = lay === 'l1nes' || lay === 'compact' ? lay : 'blox';
     // 1.162.0: per account, apart voor telefoon en computer
-    density = layout === 'l1nes'
-      ? (uiGet('dens_l1_' + uiDev(), 'rzmon-density', 'small') === 'large' ? 'large' : 'small')
-      : (uiGet('dens_blox_' + uiDev(), 'rzmon-blox-density', 'large') === 'small' ? 'small' : 'large');
+    density = uiGet('dens_blox_' + uiDev(), 'rzmon-blox-density', 'large') === 'small' ? 'small' : 'large';
   } catch (e) { /* geen opslag: standaard */ }
   return { layout, density };
 }
 function setViewPref(key, value) {
   if (key === 'layout') return setLayout(value);
   if (key === 'density') {
-    const blox = viewPrefs().layout === 'blox';
-    uiSet((blox ? 'dens_blox_' : 'dens_l1_') + uiDev(), blox ? 'rzmon-blox-density' : 'rzmon-density', value);
+    uiSet('dens_blox_' + uiDev(), 'rzmon-blox-density', value);
   } else { try { localStorage.setItem('rzmon-' + key, value); } catch (e) { /* alleen nu */ } }
   showViewPrefs();
   render();
 }
-/** 1.158.0: lay-out kiezen (per account): Blox, L1nes, Compact of CC */
+/** 1.158.0: lay-out kiezen (per account); 1.332.0: L1nes of Bloxzz */
 function setLayout(v) {
   if (!LAYOUTS.includes(v) || v === layoutPref()) return;
   savePref('layout', v);

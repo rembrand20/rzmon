@@ -50,8 +50,8 @@ en een knop naar de plek waar je hem instelt.
 | 🖥️ Servers en agents | **Store-and-forward** | De agent bewaart rapporten als RzSense even weg is. | 1.137.0 |
 | 🖥️ Servers en agents | **Waakhond** | De agent meldt via Pushover als RzSense of cron stilstaat. | 1.107.0 |
 | 🧭 Dashboard en weergave | **Dashboard: zo staat het ervoor** | Totaalscore, Nu doen, servers die aandacht vragen en grafieken. | 1.134.0 |
-| 🧭 Dashboard en weergave | **Command center** | Een tweede dashboard met indeling naar keuze en TV-modus. | 1.154.0 |
-| 🧭 Dashboard en weergave | **Lay-outs Blox, L1nes, Compact en CC** | Per account te kiezen. | 1.158.0 |
+| 🧭 Dashboard en weergave | **Dashboard van Bloxzz** | Het live dashboard van de lay-out Bloxzz, met indeling naar keuze en TV-modus. | 1.154.0 |
+| 🧭 Dashboard en weergave | **Lay-outs L1nes en Bloxzz** | Per account te kiezen. | 1.158.0 |
 | 🔐 Toegang en beveiliging | **Bevestigen bij acties** | Per rol een vinkje in plaats van je wachtwoord, binnen een zelf ingesteld aantal minuten na het inloggen. | 1.206.0 |
 | 🖥️ Servers en agents | **Agents wachten tijdens een update** | Tijdens een update van RzSense houden agents hun metingen vast en geven ze geen alarm, tot de vrijgave. | 1.205.0 |
 | 🧭 Dashboard en weergave | **Nieuw update-venster** | Bijwerken met wat er nieuw is als kaartjes, een voortgangsring, tijdlijn per stap en duidelijke fouten. | 1.204.0 |

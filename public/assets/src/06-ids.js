@@ -958,7 +958,6 @@ function fimCheck(input) {
 
 // ---------------------------------------------------------------- IDS → Toegang
 const ACC_TYPES = { ssh: 'SSH', console: 'Console', sudo: 'sudo', su: 'su' };
-const ACC_COLS = { time: L('Tijd'), type: L('Soort'), server: 'Server', who: L('Wie'), what: L('Wat / vanaf') };
 function accDet(r) { try { return JSON.parse(r.detail || '{}') || {}; } catch (e) { return {}; } }
 /** Land van een IP (1.82.0): vlag en code, met de naam als tooltip; ☠️ = op een lijst met bekende aanvallers */
 function ccTag(cc, bad = null) {
@@ -1051,7 +1050,6 @@ function accToggleLabel() {
 
 /** L1nes: de tabel; Blox: compacte rijen zoals bij Meldingen, gelijke regels achter elkaar gebundeld */
 function accBody(rows) {
-  if (viewPrefs().layout === 'l1nes') return accTable(rows);
   const row = (r, group = null) => {
     const det = accDet(r);
     const fail = r.kind === 'authfail';
@@ -1066,33 +1064,6 @@ function accBody(rows) {
     const key = 'a' + g.items[g.items.length - 1].id;
     return `<div class="bundle${idsBundles.has(key) ? ' open' : ''}" data-bundle="${key}">${row(g.items[0], g.items.length)}${g.items.slice(1).map((r) => row(r)).join('')}</div>`;
   }).join('');
-}
-
-function accTable(rows) {
-  const val = {
-    time: (r) => r.created_at, type: (r) => (r.kind === 'authfail' ? '1' : '0') + r.type, server: (r) => r.host_name,
-    who: (r) => accWho(r, accDet(r)), what: (r) => r.message,
-  }[accSort.key];
-  if (val) {
-    rows = rows.map((r) => [r, val(r)]).sort((p, q) => accSort.dir * String(p[1]).localeCompare(String(q[1]), LANG, { numeric: true, sensitivity: 'base' })
-      || (q[0].created_at > p[0].created_at ? 1 : -1)).map(([r]) => r);
-  }
-  const th = (k) => `<th class="sortable${accSort.key === k ? ' sorted' : ''}" data-sort="${k}" title="${L('Sorteren op {k}', { k: ACC_COLS[k].toLowerCase() })}">${ACC_COLS[k]}${accSort.key === k ? (accSort.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`;
-  return `<div class="table-scroll"><table class="alert-table large acc-table"><thead><tr>${Object.keys(ACC_COLS).map(th).join('')}<th></th></tr></thead><tbody>
-    ${rows.map((r) => {
-      const det = accDet(r);
-      const fail = r.kind === 'authfail';
-      return `<tr class="${fail ? 's1' : 'auth'}">
-        <td class="at-time" title="${esc(r.created_at)}">${esc(r.created_at.slice(11, 16))}</td>
-        <td class="at-st">${fail ? '❌ ' : '🔑 '}${esc(ACC_TYPES[r.type] || r.type)}${fail && +det.n > 1 ? ` <span class="muted small">${+det.n}×</span>` : ''}</td>
-        <td>${esc(r.host_name)}</td>
-        <td>${esc(accWho(r, det))}</td>
-        <td class="at-msg">${esc(r.message)}</td>
-        <td class="acc-actions need-admin">
-          <button type="button" class="linkbtn" data-acc="ignore" data-id="${r.id}" title="${L('Deze gebruiker of dit IP-adres voortaan niet meer tonen')}">🙈 ${L('Negeer')}</button>
-          ${det.ip ? `<button type="button" class="linkbtn" data-acc="block" data-id="${r.id}" title="${L('IP-adres {ip} blokkeren', { ip: esc(det.ip) })}">⛔ ${L('Blokkeer')}</button>` : ''}
-        </td></tr>`;
-    }).join('')}</tbody></table></div>`;
 }
 
 /** 🙈 Negeer: kies de gebruiker(s) en/of het IP-adres die voortaan niet meer getoond worden */
@@ -1300,25 +1271,6 @@ function idsWeekSvg(h) {
   return `<svg class="ic-spark" viewBox="0 0 98 26" role="img" aria-label="${esc(L('Incidenten per dag, 7 dagen'))}">${bars}</svg>`;
 }
 const idsRebase = (h) => (h.baseline_until ? ` <button type="button" class="linkbtn need-admin" data-rebase="${h.id}" title="${L('Alles wat er nu is als normaal vastleggen')}">↺ ${L('basismeting opnieuw')}</button>` : '');
-/** 1.165.0 L1nes (A): alle servers in één tabel, overal dezelfde kolommen */
-function idsHostTable(d) {
-  const order = (h) => (h.ha ? 3 : h.open[2] ? 0 : h.open[1] || h.iso ? 1 : 2);
-  const hosts = [...d.hosts].sort((x, y) => order(x) - order(y) || (y.open[1] + y.open[2]) - (x.open[1] + x.open[2]) || String(x.name).localeCompare(String(y.name)));
-  const num = (v, cls) => `<b class="ids-tn ${v ? cls : 'z'}">${v}</b>`;
-  const rows = hosts.map((h) => {
-    const n = h.open[1] + h.open[2], cls = h.ha ? 'na' : h.open[2] ? 's2' : n || h.iso ? 's1' : 's0';
-    if (h.ha) return `<tr class="ids-tr na"><td><strong>${esc(h.name)}</strong><br><span class="muted small">${esc(L('Home Assistant-add-on: draait in een container en ziet het systeem zelf niet'))}</span></td><td>${idsModeChip(h, d)}</td><td colspan="6" class="muted small">–</td></tr>`;
-    return `<tr class="ids-tr ${cls}">
-      <td><strong>${esc(h.name)}</strong><br><span class="muted small">${h.last_report ? esc(L('IDS-rapport {ago}', { ago: ago(h.last_report) })) : d.enabled ? esc(L('nog geen IDS-rapport (agent 1.35.0+)')) : ''}</span></td>
-      <td>${idsModeChip(h, d)}</td>
-      <td>${n ? `<button type="button" class="ic-n" data-ihost="${h.id}" title="${esc(L('Toon de open incidenten van deze server'))}">${num(n, h.open[2] ? 'c' : 'w')}</button>` : num(0, 'w')}</td>
-      <td>${num(h.open[2], 'c')}</td><td>${num(+h.blocks || 0, 'c')}</td>
-      <td>${idsWeekSvg(h)}</td><td>${idsSecChip(h)}</td>
-      <td class="small ids-st">${idsStLine(h, false)}${idsRebase(h)}</td></tr>`;
-  }).join('');
-  return `<div class="table-scroll"><table class="ids-tbl"><thead><tr><th>${L('Server')}</th><th>${L('Modus')}</th><th>${L('Open')}</th><th>Critical</th><th>${L('Geblokkeerd')}</th><th>${L('Incidenten 7 dagen')}</th><th>${L('Hardening')}</th><th>${L('Bewaakt')}</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <p class="muted small ids-tbl-key">${L('<b>Hardening</b>: hoe goed de server is dichtgezet (0–100); klik voor wat er beter kan. Klik op het aantal open voor de incidenten.')}</p>`;
-}
 /** 1.165.0 CC en Blox (B): wat nu aandacht vraagt, in gewone zinnen, met een knop */
 function idsTodo(d) {
   const items = [];
@@ -1413,16 +1365,12 @@ function renderIds() {
   const busy = (h) => !h.ha && (h.open[1] + h.open[2] > 0 || !!h.iso);
   const cards = modern ? d.hosts.filter(busy) : [];
   const rows = d.hosts.filter((h) => !cards.includes(h));
-  const lay = layoutPref();   // 1.165.0
   $('#ids-hosts').className = modern ? 'ids-hosts-m' : 'srv-list';
   $('#ids-hosts').innerHTML = !d.hosts.length ? '<p class="muted">' + L('Nog geen servers met agent.') + '</p>'
     : !modern ? rows.map(hostRow).join('')
-    : lay === 'l1nes' ? `<div class="sec-h hosts-h"><h2>🖥️ ${L('Servers')}</h2><span>${d.hosts.length === 1 ? L('1 server') : L('{n} servers', { n: d.hosts.length })}</span></div>${idsHostTable(d)}`
-    : lay === 'blox' || lay === 'cc' ? idsTodo(d)
+    : idsTodo(d)
       + (cards.length ? `<div class="sec-h hosts-h"><h2>🖥️ ${L('Servers met open incidenten')}</h2><span>${cards.length}</span></div><div class="ids-cards">${cards.map((h) => idsHostCard(h, d)).join('')}</div>` : '')
-      + (rows.length ? `<div class="sec-h hosts-h"><h2>✔ ${L('Rustig')}</h2><span>${rows.length === 1 ? L('1 server') : L('{n} servers', { n: rows.length })}</span></div><div class="ids-quiet">${rows.map((h) => idsQuietChip(h, d)).join('')}</div>` : '')
-    : (cards.length ? `<div class="sec-h hosts-h"><h2>🖥️ ${L('Servers met open incidenten')}</h2><span>${cards.length}</span></div><div class="ids-cards">${cards.map(idsHostCard).join('')}</div>` : '')
-      + (rows.length ? `<div class="sec-h hosts-h"><h2>✔ ${L('Rustig')}</h2><span>${rows.length === 1 ? L('1 server') : L('{n} servers', { n: rows.length })}</span></div><div class="srv-list">${rows.map(hostRow).join('')}</div>` : '');
+      + (rows.length ? `<div class="sec-h hosts-h"><h2>✔ ${L('Rustig')}</h2><span>${rows.length === 1 ? L('1 server') : L('{n} servers', { n: rows.length })}</span></div><div class="ids-quiet">${rows.map((h) => idsQuietChip(h, d)).join('')}</div>` : '');
 
   // Incidenten per dag; dezelfde soort op dezelfde server achter elkaar gebundeld
   const q = $('#ids-search').value.trim().toLowerCase();
@@ -2554,35 +2502,6 @@ function amRecent(d) {
 
 
 /** Dashboard: klein kaartje met de aanvallen van de laatste 24 uur (de gegevens hooguit een minuut oud) */
-let hmAtk = null, hmAtkAt = 0, hmAtkBusy = false;
-function hmAttacks() {
-  if (!hmAtkBusy && (!hmAtk || Date.now() - hmAtkAt > 60000)) hmAtkLoad();
-  return `<section class="hm-card hm-atk" id="hm-atk" aria-labelledby="hm-h-atk">${hmAtkInner()}</section>`;
-}
-async function hmAtkLoad() {
-  hmAtkBusy = true;
-  try {
-    const [d] = await Promise.all([api('ids_flows', null, { days: 1, top: 5 }), amLoadWorld()]);
-    hmAtk = d;
-    hmAtkAt = Date.now();
-    const el = $('#hm-atk');
-    if (el) { el.innerHTML = hmAtkInner(); hmAtkWire(el); }
-  } catch (e) { /* het kaartje is extra */ } finally { hmAtkBusy = false; }
-}
-function hmAtkWire(el) {
-  $$('[data-hm-go]', el).forEach((b) => (b.onclick = () => showTab(b.dataset.hmGo)));
-  $$('[data-am-cc]', el).forEach((b) => b.addEventListener('click', () => { amOpt.cc = b.dataset.amCc; amOpt.view = 'flow'; showTab('ids/map'); }));
-}
-function hmAtkInner() {
-  const head = `<div class="hm-card-head"><h2 id="hm-h-atk">${esc(L('Aanvallen (24 uur)'))}</h2><button type="button" class="link-btn" data-hm-go="ids/map">${esc(L('Naar de aanvalskaart'))} →</button></div>`;
-  if (!hmAtk) return head + `<p class="muted small">${L('Laden…')}</p>`;
-  const k = hmAtk.kpi;
-  if (!k.attacks) return head + `<p class="hm-card-sub">${L('Geen aanvallen in de laatste 24 uur.')}</p>`;
-  const open = k.shown - k.blocked;
-  return head + `<p class="hm-card-sub"><b>${amN(k.attacks)}</b> ${L('pogingen')} · <b>${amN(k.sources)}</b> ${L('bronnen uit {n} landen', { n: k.countries })} ·
-      ${open ? `<span class="warn-txt">${L('{n} niet geblokkeerd', { n: open })}</span>` : `<span class="good">${L('alles geblokkeerd')}</span>`}</p>
-    ${amWorld ? amWorldHtml(hmAtk, true) : ''}`;
-}
 
 // ---------------------------------------------------------------- Incidentvenster met advies (1.101.0)
 /** Commando's om te kopiëren, met een uitleg erboven */
@@ -3287,7 +3206,7 @@ function al2List(items, today, layout) {
     const g = groups[groups.length - 1];
     if (key && g && g.key === key) g.items.push(it); else groups.push({ key, items: [it] });
   });
-  return `<div class="al2-list${layout === 'l1nes' ? '' : ' al2-blox'}"><div class="al2-grid" role="table">${al2Head()}${groups.map((g) => {
+  return `<div class="al2-list al2-blox"><div class="al2-grid" role="table">${al2Head()}${groups.map((g) => {
     const [first, ...rest] = g.items;
     if (!rest.length) return al2Row(first, today);
     const span = al2Ts(first.first.created_at) - al2Ts(rest[rest.length - 1].first.created_at);

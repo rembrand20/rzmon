@@ -8,11 +8,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.332.0**: **Twee lay-outs**: L1nes (rustig, de standaard) en Bloxzz (tegels en het live dashboard); Compact en de oude L1nes zijn weg.
 - **1.331.0**: **Netwerk → Van buitenaf**: wat er open staat op internet als eigen tabblad; de WAF start weer (agent 1.123.1).
 - **1.330.0**: **Nieuwe indeling**: alles op één logische plek, zonder dubbele onderdelen; de beheerportal in kleinere groepen, met een eigen groep Netwerk.
 - **1.329.0**: **iw vanzelf installeren**: een Linux-apparaat met wifi maar zonder iw krijgt het van de agent, zodat zijn wifi bij Netwerksnelheid verschijnt.
 - **1.328.0**: **Netwerksnelheid**: de snelheid van je netwerk en internet als keten van bron tot doel, met de smalste schakel, SNMP-poorten en de wifi per access point.
-- **1.327.0**: **Toegang aanvragen van buiten**: een onbekend apparaat vraagt met één knop toegang, jij krijgt een e-mail en staat het toe voor een bestaande of nieuwe gebruiker.
+
+## 1.332.0 – 2026-11-26
+### Nieuw
+- **Twee lay-outs: L1nes en Bloxzz.** *L1nes* is de standaard: het rustige dashboard met de servers als rijen (heette *Default*). *Bloxzz* is de lay-out met tegels, versleepbare kaarten en het live dashboard (heette *CC*, het Command center). *Compact* en de oude *L1nes* zijn weg; had je een van die twee gekozen, dan heb je nu vanzelf L1nes. Alle thema's werken met beide lay-outs.
+### Opgelost
+- Opruimen: met de twee oude lay-outs is ook het klassieke dashboard en de compacte weergave uit de code (ruim 250 regels). Minder varianten betekent dat elke pagina op minder manieren hoeft te kloppen.
 
 ## 1.331.1 – 2026-11-26
 ### Opgelost

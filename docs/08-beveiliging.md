@@ -160,7 +160,7 @@ modus. Klik op een teller om naar het juiste tabblad te gaan. Het tabblad *Analy
   uur. Je eigen netwerk telt niet mee;
 - **Webverkeer** van 24 uur: verzoeken, percentage tegengehouden en aantal aanvallers.
 
-Hoe het overzicht eruitziet, hangt af van je lay-out (Default, L1nes, CC, Compact). Liever de oude, compacte weergave? Zet
+Hoe het overzicht eruitziet, hangt af van je lay-out (L1nes of Bloxzz). Liever de oude, compacte weergave? Zet
 **Moderne weergave** uit bij *Mijn account → Weergave*.
 
 ### Een incident openen

@@ -2025,12 +2025,10 @@ function notifyHelpOpen() {
   modal({ title: '📖 ' + L('Hoe werken meldingen?'), body, page: true, buttons: [{ label: L('Sluiten'), onClick: () => $('#modal').close() }] });
 }
 let fimGlobal = null;      // editor van de algemene lijst 'Bestanden bewaken' (IDS)
-let quietGlobal = null;    // editor van de algemene stille uren
 
 // ---------------------------------------------------------------- Stille uren
 const QUIET_DAYS = [[1, L('ma')], [2, L('di')], [3, L('wo')], [4, L('do')], [5, L('vr')], [6, L('za')], [7, L('zo')]];
 const QUIET_DEFAULT = () => ({ from: '23:00', to: '07:00', days: [1, 2, 3, 4, 5, 6, 7] });
-const QUIET_MODES = { global: L('algemeen (Instellingen)'), own: L('eigen vensters'), never: L('nooit stil: altijd melden') };
 /** Eigen stille uren van een check ({mode, windows}) of null (= algemeen). */
 function quietOf(c) { try { return JSON.parse(c.quiet || 'null'); } catch (e) { return null; } }
 /** "ma–vr 23:00–07:00 · za, zo 00:00–10:00" */

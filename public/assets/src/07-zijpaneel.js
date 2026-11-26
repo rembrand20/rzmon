@@ -247,7 +247,7 @@ function renderAlerts() {
   const d = alertData;
   // Blox heeft geen kolomkoppen: daar een keuzelijst om te sorteren
   const sortSel = $('#alerts-sort');
-  sortSel.hidden = layout === 'l1nes';
+  sortSel.hidden = false;
   sortSel.value = ALERT_SORTS[alertSort.key] ? `${alertSort.key}:${alertSort.dir}` : '';
   if (sortSel.selectedIndex < 0) sortSel.value = '';
   $('#alerts-info').textContent = (d.alerts.length === 1 ? L('1 melding') : L('{n} meldingen', { n: d.alerts.length }))

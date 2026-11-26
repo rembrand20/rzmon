@@ -320,7 +320,7 @@ const FH_SHORT = () => ({
   mail_to: L("Wie de meldingen en rapporten krijgt; meerdere adressen met een komma."),
   smtp_verify_ssl: L("Controleert het certificaat van de mailserver. Alleen uit bij een eigen (self-signed) certificaat."),
   ids_modern: L("Een ruimere IDS-pagina met kaarten en grafieken; uit = compacte lijst."),
-  af_motion: L("Hoeveel er beweegt in heel RzSense: live getallen, knoppen, grafieken, overgangen, de Attack Flow en het Command center. Stil = niets."),
+  af_motion: L("Hoeveel er beweegt in heel RzSense: live getallen, knoppen, grafieken, overgangen, de Attack Flow en het dashboard van Bloxzz. Stil = niets."),
   unifi_url: L("Het adres van je UniFi-controller of UniFi OS-apparaat."),
   unifi_site: L("De site in de controller; bijna altijd 'default'."),
   unifi_user: L("Een lokaal account op de controller (geen Ubiquiti-cloudaccount)."),

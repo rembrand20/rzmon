@@ -365,7 +365,7 @@ switch ($action) {
             'skin' => in_array($in['value'] ?? '', ['s', 'glass', 'neo'], true) ? $in['value'] : 'std',   // 1.244.0/1.245.0: thema (Standaard, @S, Liquid Glass, Neo) per account
             'side_w' => ($w = (int) ($in['value'] ?? 0)) >= 180 && $w <= 380 ? $w : 0,   // 1.167.0: breedte van de zijbalk (0 = standaard)   // 1.162.0: beweging van de Attack Flow, per account
             'ui' => clean_ui_prefs((array) ($in['value'] ?? [])),   // 1.162.0: weergave-keuzes die eerst per apparaat waren
-            'layout' => in_array($in['value'] ?? '', ['blox', 'l1nes', 'compact', 'cc'], true) ? $in['value'] : 'blox',   // 1.158.0: lay-out per account
+            'layout' => in_array($in['value'] ?? '', ['blox', 'cc'], true) ? $in['value'] : 'blox',   // 1.158.0: lay-out per account
             'pages' => clean_page_layouts((array) ($in['value'] ?? [])),   // 1.158.0: indeling per pagina in CC   // 1.157.0: rode gloed en live-animaties op Monitoring   // 1.154.0: welk dashboard (klassiek of Command center)
             'dash_seen' => date('Y-m-d H:i:s'),   // 1.154.0: laatste bezoek aan het dashboard ("sinds je laatste bezoek")
             // 1.154.0: indeling van het Command center: volgorde en verborgen kaarten (alleen bekende namen)

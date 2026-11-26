@@ -2196,7 +2196,6 @@ function dur(dt) {
 let dashFilter = 'all';   // 1.171.4: niet meer onthouden; Monitoring opent altijd op Alle, zodat je geen problemen mist
 let dashSort = uiGet('dash_sort', 'rzmon-dash-sort', 'status');
 let attnOpen = false;
-const attnBundles = new Set();   // 1.157.0: opengeklapte bundels in "Nu aandacht nodig"   // "Nu aandacht nodig": alles tonen (anders 6, op de telefoon 3)
 const isHa = (h) => h.checks.some((c) => c.type === 'ha') || h.metrics.includes('service:homeassistant');
 // Soort apparaat (1.75.0; zie HostKind.php): zelf gekozen, anders herkend (agent, SNMP), anders op het type
 const KIND_INFO = {
@@ -2825,7 +2824,6 @@ function initAvail() {
 
 // ============ 1.176.0: Monitoring → Containers (alle containers van alle servers, Podman en Docker) ============
 let ctData = null, ctAt = 0, ctBusy = false;
-const ctOpen = new Set();   // uitgeklapte containers (host:key)
 const CT_STATE = { running: ['run', 'Running'], failed: ['fail', 'Failed'], stopped: ['stop', 'Stopped'], paused: ['pause', 'Paused'] };
 const ctFilter = () => uiGet('ct_filter', 'rzmon-ct-filter', 'all');
 const ctGroup = () => uiGet('ct_group', 'rzmon-ct-group', 'host');
@@ -3995,13 +3993,11 @@ function renderNow() {
   const { layout, density } = viewPrefs();
   const okHost = (h) => +h.enabled && hostStatus(h) === 0 && !h.maintenance && !h.autoOpen;
   const head = (title, n) => `<div class="sec-h hosts-h"><h2>${title}</h2><span>${n}</span></div>`;
-  const def = layoutPref() === 'blox';   // 1.322.0: Default (vroeger Blox): servers als rijen, zoals L1nes
-  const lines = layout === 'l1nes' || def;
-  if (layout === 'compact') { el.className = 'dash-hosts'; el.innerHTML = compactView(hosts); return; }
+  const lines = layoutPref() === 'blox';   // 1.332.0: L1nes (sleutel blox): servers als rijen; Bloxzz (sleutel cc) hieronder
   const cc = isCC();   // 1.164.0: in CC compacte blokken die openklappen tot een tabel
   const list = (arr) => (cc ? arr.map(ccHostCard).join('') : lines ? (density === 'large' ? lineHeader() : '') + arr.map((h) => hostLine(h, density === 'large')).join('')
     : arr.map((h) => hostCard(h, density === 'small')).join(''));
-  const cls = cc ? 'hosts hb-grid' : `hosts layout-${lines ? 'l1nes' : layout} density-${density}`;
+  const cls = cc ? 'hosts hb-grid' : `hosts layout-l1nes density-${density}`;
   const block = (arr, grouped) => {
     // 1.168.0: drie groepen: open problemen (zoals bij Nu aandacht nodig), alles al bevestigd, en in orde
     const good = arr.filter(okHost), acked = arr.filter((h) => !okHost(h) && ackedOnly(h)), bad = arr.filter((h) => !okHost(h) && !ackedOnly(h));
@@ -4062,7 +4058,9 @@ function hostSparks(h, mini = false) {
 // ---------------------------------------------------------------- Lay-out CC (1.158.0)
 // Vier lay-outs, per account: Blox, L1nes en Compact (klassiek dashboard) en CC: alles in de stijl van het Command center,
 // met kaarten die je kunt slepen, smaller of breder maken en verbergen (✎ Indeling, per pagina en per account).
-const LAYOUTS = ['blox', 'l1nes', 'compact', 'cc'];
+// 1.332.0: twee lay-outs. De sleutels blijven zoals ze opgeslagen zijn: blox = L1nes (de standaard), cc = Bloxzz.
+// Wie Compact of de oude L1nes had gekozen, krijgt L1nes.
+const LAYOUTS = ['blox', 'cc'];
 function layoutPref() {
   if (LAYOUTS.includes(PREFS.layout)) return PREFS.layout;
   let l = null;
@@ -4417,18 +4415,6 @@ function kpiTrend(now, then, lowerBetter = false, pctPts = false) {
   const txt = pctPts ? dec(String(Math.abs(d))) : String(Math.abs(Math.round(d)));
   return `<span class="kpi-tr ${good ? 'up' : 'down'}" title="${pctPts ? L('vergeleken met 7 dagen') : L('vergeleken met 24 uur geleden')}">${d > 0 ? '▲' : '▼'} ${txt}</span>`;
 }
-/** Compact: één blokje per check, per server een regel (veel checks of een TV-scherm). Klik = popup van de check. */
-function compactView(hosts) {
-  const rank = (c) => (c.maintenance ? 0 : STATUS_RANK[+c.status]);
-  return `<div class="hm-list">${hosts.map((h) => {
-    const cs = (h.shown && h.shown.length ? h.shown : h.checks).filter((c) => +c.enabled).sort((a, b) => rank(b) - rank(a) || a.name.localeCompare(b.name, LANG));
-    return `<div class="hm-row s${hostStatus(h)}${glowHost(h) ? ' glow' : ''}" data-host="${h.id}">
-      <span class="hm-name"><span aria-hidden="true">${hostIcon(h)}</span> <b>${esc(h.name)}</b></span>
-      <span class="hm-cells">${cs.map((c) => { const [v, u] = keyValue(c); return `<i class="hm-c s${c.maintenance ? 4 : c.status}" data-cid="${c.id}" title="${esc(c.name)}: ${v}${esc(u)} · ${esc((c.last_message || '').slice(0, 120))}"></i>`; }).join('')}</span>
-      ${hostTimeline(h)}
-    </div>`;
-  }).join('')}</div>`;
-}
 
 /** Kleine lijn van een check over 24 uur (zonder statusstrook) */
 function miniSpark(c, H) {
@@ -4448,25 +4434,20 @@ function miniSpark(c, H) {
 function viewPrefs() {
   let layout = 'blox', density = 'large';
   try {
-    const lay = layoutPref();   // 1.158.0: per account (CC toont Monitoring als Blox, in de CC-stijl)
-    layout = lay === 'l1nes' || lay === 'compact' ? lay : 'blox';
     // 1.162.0: per account, apart voor telefoon en computer
-    density = layout === 'l1nes'
-      ? (uiGet('dens_l1_' + uiDev(), 'rzmon-density', 'small') === 'large' ? 'large' : 'small')
-      : (uiGet('dens_blox_' + uiDev(), 'rzmon-blox-density', 'large') === 'small' ? 'small' : 'large');
+    density = uiGet('dens_blox_' + uiDev(), 'rzmon-blox-density', 'large') === 'small' ? 'small' : 'large';
   } catch (e) { /* geen opslag: standaard */ }
   return { layout, density };
 }
 function setViewPref(key, value) {
   if (key === 'layout') return setLayout(value);
   if (key === 'density') {
-    const blox = viewPrefs().layout === 'blox';
-    uiSet((blox ? 'dens_blox_' : 'dens_l1_') + uiDev(), blox ? 'rzmon-blox-density' : 'rzmon-density', value);
+    uiSet('dens_blox_' + uiDev(), 'rzmon-blox-density', value);
   } else { try { localStorage.setItem('rzmon-' + key, value); } catch (e) { /* alleen nu */ } }
   showViewPrefs();
   render();
 }
-/** 1.158.0: lay-out kiezen (per account): Blox, L1nes, Compact of CC */
+/** 1.158.0: lay-out kiezen (per account); 1.332.0: L1nes of Bloxzz */
 function setLayout(v) {
   if (!LAYOUTS.includes(v) || v === layoutPref()) return;
   savePref('layout', v);
@@ -8463,7 +8444,6 @@ function blockDialog(ip) {
 
 // ---------------------------------------------------------------- Versleuteling van de agents
 const ENC_MODES = [['off', L('Uit')], ['on', L('Aan (oude agents mogen nog onversleuteld)')], ['required', L('Verplicht')]];
-const ENC_HOST_MODES = [['', L('algemene instelling')], ['on', L('aan')], ['required', L('verplicht')], ['off', L('uit')]];
 /** 🧹 Alle agents opruimen (1.100.0), met wachtwoord en het woord OPRUIMEN */
 function agentsCleanupDialog(after) {
   modal({
@@ -11608,7 +11588,6 @@ function fimCheck(input) {
 
 // ---------------------------------------------------------------- IDS → Toegang
 const ACC_TYPES = { ssh: 'SSH', console: 'Console', sudo: 'sudo', su: 'su' };
-const ACC_COLS = { time: L('Tijd'), type: L('Soort'), server: 'Server', who: L('Wie'), what: L('Wat / vanaf') };
 function accDet(r) { try { return JSON.parse(r.detail || '{}') || {}; } catch (e) { return {}; } }
 /** Land van een IP (1.82.0): vlag en code, met de naam als tooltip; ☠️ = op een lijst met bekende aanvallers */
 function ccTag(cc, bad = null) {
@@ -11701,7 +11680,6 @@ function accToggleLabel() {
 
 /** L1nes: de tabel; Blox: compacte rijen zoals bij Meldingen, gelijke regels achter elkaar gebundeld */
 function accBody(rows) {
-  if (viewPrefs().layout === 'l1nes') return accTable(rows);
   const row = (r, group = null) => {
     const det = accDet(r);
     const fail = r.kind === 'authfail';
@@ -11716,33 +11694,6 @@ function accBody(rows) {
     const key = 'a' + g.items[g.items.length - 1].id;
     return `<div class="bundle${idsBundles.has(key) ? ' open' : ''}" data-bundle="${key}">${row(g.items[0], g.items.length)}${g.items.slice(1).map((r) => row(r)).join('')}</div>`;
   }).join('');
-}
-
-function accTable(rows) {
-  const val = {
-    time: (r) => r.created_at, type: (r) => (r.kind === 'authfail' ? '1' : '0') + r.type, server: (r) => r.host_name,
-    who: (r) => accWho(r, accDet(r)), what: (r) => r.message,
-  }[accSort.key];
-  if (val) {
-    rows = rows.map((r) => [r, val(r)]).sort((p, q) => accSort.dir * String(p[1]).localeCompare(String(q[1]), LANG, { numeric: true, sensitivity: 'base' })
-      || (q[0].created_at > p[0].created_at ? 1 : -1)).map(([r]) => r);
-  }
-  const th = (k) => `<th class="sortable${accSort.key === k ? ' sorted' : ''}" data-sort="${k}" title="${L('Sorteren op {k}', { k: ACC_COLS[k].toLowerCase() })}">${ACC_COLS[k]}${accSort.key === k ? (accSort.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`;
-  return `<div class="table-scroll"><table class="alert-table large acc-table"><thead><tr>${Object.keys(ACC_COLS).map(th).join('')}<th></th></tr></thead><tbody>
-    ${rows.map((r) => {
-      const det = accDet(r);
-      const fail = r.kind === 'authfail';
-      return `<tr class="${fail ? 's1' : 'auth'}">
-        <td class="at-time" title="${esc(r.created_at)}">${esc(r.created_at.slice(11, 16))}</td>
-        <td class="at-st">${fail ? '❌ ' : '🔑 '}${esc(ACC_TYPES[r.type] || r.type)}${fail && +det.n > 1 ? ` <span class="muted small">${+det.n}×</span>` : ''}</td>
-        <td>${esc(r.host_name)}</td>
-        <td>${esc(accWho(r, det))}</td>
-        <td class="at-msg">${esc(r.message)}</td>
-        <td class="acc-actions need-admin">
-          <button type="button" class="linkbtn" data-acc="ignore" data-id="${r.id}" title="${L('Deze gebruiker of dit IP-adres voortaan niet meer tonen')}">🙈 ${L('Negeer')}</button>
-          ${det.ip ? `<button type="button" class="linkbtn" data-acc="block" data-id="${r.id}" title="${L('IP-adres {ip} blokkeren', { ip: esc(det.ip) })}">⛔ ${L('Blokkeer')}</button>` : ''}
-        </td></tr>`;
-    }).join('')}</tbody></table></div>`;
 }
 
 /** 🙈 Negeer: kies de gebruiker(s) en/of het IP-adres die voortaan niet meer getoond worden */
@@ -11950,25 +11901,6 @@ function idsWeekSvg(h) {
   return `<svg class="ic-spark" viewBox="0 0 98 26" role="img" aria-label="${esc(L('Incidenten per dag, 7 dagen'))}">${bars}</svg>`;
 }
 const idsRebase = (h) => (h.baseline_until ? ` <button type="button" class="linkbtn need-admin" data-rebase="${h.id}" title="${L('Alles wat er nu is als normaal vastleggen')}">↺ ${L('basismeting opnieuw')}</button>` : '');
-/** 1.165.0 L1nes (A): alle servers in één tabel, overal dezelfde kolommen */
-function idsHostTable(d) {
-  const order = (h) => (h.ha ? 3 : h.open[2] ? 0 : h.open[1] || h.iso ? 1 : 2);
-  const hosts = [...d.hosts].sort((x, y) => order(x) - order(y) || (y.open[1] + y.open[2]) - (x.open[1] + x.open[2]) || String(x.name).localeCompare(String(y.name)));
-  const num = (v, cls) => `<b class="ids-tn ${v ? cls : 'z'}">${v}</b>`;
-  const rows = hosts.map((h) => {
-    const n = h.open[1] + h.open[2], cls = h.ha ? 'na' : h.open[2] ? 's2' : n || h.iso ? 's1' : 's0';
-    if (h.ha) return `<tr class="ids-tr na"><td><strong>${esc(h.name)}</strong><br><span class="muted small">${esc(L('Home Assistant-add-on: draait in een container en ziet het systeem zelf niet'))}</span></td><td>${idsModeChip(h, d)}</td><td colspan="6" class="muted small">–</td></tr>`;
-    return `<tr class="ids-tr ${cls}">
-      <td><strong>${esc(h.name)}</strong><br><span class="muted small">${h.last_report ? esc(L('IDS-rapport {ago}', { ago: ago(h.last_report) })) : d.enabled ? esc(L('nog geen IDS-rapport (agent 1.35.0+)')) : ''}</span></td>
-      <td>${idsModeChip(h, d)}</td>
-      <td>${n ? `<button type="button" class="ic-n" data-ihost="${h.id}" title="${esc(L('Toon de open incidenten van deze server'))}">${num(n, h.open[2] ? 'c' : 'w')}</button>` : num(0, 'w')}</td>
-      <td>${num(h.open[2], 'c')}</td><td>${num(+h.blocks || 0, 'c')}</td>
-      <td>${idsWeekSvg(h)}</td><td>${idsSecChip(h)}</td>
-      <td class="small ids-st">${idsStLine(h, false)}${idsRebase(h)}</td></tr>`;
-  }).join('');
-  return `<div class="table-scroll"><table class="ids-tbl"><thead><tr><th>${L('Server')}</th><th>${L('Modus')}</th><th>${L('Open')}</th><th>Critical</th><th>${L('Geblokkeerd')}</th><th>${L('Incidenten 7 dagen')}</th><th>${L('Hardening')}</th><th>${L('Bewaakt')}</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <p class="muted small ids-tbl-key">${L('<b>Hardening</b>: hoe goed de server is dichtgezet (0–100); klik voor wat er beter kan. Klik op het aantal open voor de incidenten.')}</p>`;
-}
 /** 1.165.0 CC en Blox (B): wat nu aandacht vraagt, in gewone zinnen, met een knop */
 function idsTodo(d) {
   const items = [];
@@ -12063,16 +11995,12 @@ function renderIds() {
   const busy = (h) => !h.ha && (h.open[1] + h.open[2] > 0 || !!h.iso);
   const cards = modern ? d.hosts.filter(busy) : [];
   const rows = d.hosts.filter((h) => !cards.includes(h));
-  const lay = layoutPref();   // 1.165.0
   $('#ids-hosts').className = modern ? 'ids-hosts-m' : 'srv-list';
   $('#ids-hosts').innerHTML = !d.hosts.length ? '<p class="muted">' + L('Nog geen servers met agent.') + '</p>'
     : !modern ? rows.map(hostRow).join('')
-    : lay === 'l1nes' ? `<div class="sec-h hosts-h"><h2>🖥️ ${L('Servers')}</h2><span>${d.hosts.length === 1 ? L('1 server') : L('{n} servers', { n: d.hosts.length })}</span></div>${idsHostTable(d)}`
-    : lay === 'blox' || lay === 'cc' ? idsTodo(d)
+    : idsTodo(d)
       + (cards.length ? `<div class="sec-h hosts-h"><h2>🖥️ ${L('Servers met open incidenten')}</h2><span>${cards.length}</span></div><div class="ids-cards">${cards.map((h) => idsHostCard(h, d)).join('')}</div>` : '')
-      + (rows.length ? `<div class="sec-h hosts-h"><h2>✔ ${L('Rustig')}</h2><span>${rows.length === 1 ? L('1 server') : L('{n} servers', { n: rows.length })}</span></div><div class="ids-quiet">${rows.map((h) => idsQuietChip(h, d)).join('')}</div>` : '')
-    : (cards.length ? `<div class="sec-h hosts-h"><h2>🖥️ ${L('Servers met open incidenten')}</h2><span>${cards.length}</span></div><div class="ids-cards">${cards.map(idsHostCard).join('')}</div>` : '')
-      + (rows.length ? `<div class="sec-h hosts-h"><h2>✔ ${L('Rustig')}</h2><span>${rows.length === 1 ? L('1 server') : L('{n} servers', { n: rows.length })}</span></div><div class="srv-list">${rows.map(hostRow).join('')}</div>` : '');
+      + (rows.length ? `<div class="sec-h hosts-h"><h2>✔ ${L('Rustig')}</h2><span>${rows.length === 1 ? L('1 server') : L('{n} servers', { n: rows.length })}</span></div><div class="ids-quiet">${rows.map((h) => idsQuietChip(h, d)).join('')}</div>` : '');
 
   // Incidenten per dag; dezelfde soort op dezelfde server achter elkaar gebundeld
   const q = $('#ids-search').value.trim().toLowerCase();
@@ -13204,35 +13132,6 @@ function amRecent(d) {
 
 
 /** Dashboard: klein kaartje met de aanvallen van de laatste 24 uur (de gegevens hooguit een minuut oud) */
-let hmAtk = null, hmAtkAt = 0, hmAtkBusy = false;
-function hmAttacks() {
-  if (!hmAtkBusy && (!hmAtk || Date.now() - hmAtkAt > 60000)) hmAtkLoad();
-  return `<section class="hm-card hm-atk" id="hm-atk" aria-labelledby="hm-h-atk">${hmAtkInner()}</section>`;
-}
-async function hmAtkLoad() {
-  hmAtkBusy = true;
-  try {
-    const [d] = await Promise.all([api('ids_flows', null, { days: 1, top: 5 }), amLoadWorld()]);
-    hmAtk = d;
-    hmAtkAt = Date.now();
-    const el = $('#hm-atk');
-    if (el) { el.innerHTML = hmAtkInner(); hmAtkWire(el); }
-  } catch (e) { /* het kaartje is extra */ } finally { hmAtkBusy = false; }
-}
-function hmAtkWire(el) {
-  $$('[data-hm-go]', el).forEach((b) => (b.onclick = () => showTab(b.dataset.hmGo)));
-  $$('[data-am-cc]', el).forEach((b) => b.addEventListener('click', () => { amOpt.cc = b.dataset.amCc; amOpt.view = 'flow'; showTab('ids/map'); }));
-}
-function hmAtkInner() {
-  const head = `<div class="hm-card-head"><h2 id="hm-h-atk">${esc(L('Aanvallen (24 uur)'))}</h2><button type="button" class="link-btn" data-hm-go="ids/map">${esc(L('Naar de aanvalskaart'))} →</button></div>`;
-  if (!hmAtk) return head + `<p class="muted small">${L('Laden…')}</p>`;
-  const k = hmAtk.kpi;
-  if (!k.attacks) return head + `<p class="hm-card-sub">${L('Geen aanvallen in de laatste 24 uur.')}</p>`;
-  const open = k.shown - k.blocked;
-  return head + `<p class="hm-card-sub"><b>${amN(k.attacks)}</b> ${L('pogingen')} · <b>${amN(k.sources)}</b> ${L('bronnen uit {n} landen', { n: k.countries })} ·
-      ${open ? `<span class="warn-txt">${L('{n} niet geblokkeerd', { n: open })}</span>` : `<span class="good">${L('alles geblokkeerd')}</span>`}</p>
-    ${amWorld ? amWorldHtml(hmAtk, true) : ''}`;
-}
 
 // ---------------------------------------------------------------- Incidentvenster met advies (1.101.0)
 /** Commando's om te kopiëren, met een uitleg erboven */
@@ -13937,7 +13836,7 @@ function al2List(items, today, layout) {
     const g = groups[groups.length - 1];
     if (key && g && g.key === key) g.items.push(it); else groups.push({ key, items: [it] });
   });
-  return `<div class="al2-list${layout === 'l1nes' ? '' : ' al2-blox'}"><div class="al2-grid" role="table">${al2Head()}${groups.map((g) => {
+  return `<div class="al2-list al2-blox"><div class="al2-grid" role="table">${al2Head()}${groups.map((g) => {
     const [first, ...rest] = g.items;
     if (!rest.length) return al2Row(first, today);
     const span = al2Ts(first.first.created_at) - al2Ts(rest[rest.length - 1].first.created_at);
@@ -14209,7 +14108,7 @@ function renderAlerts() {
   const d = alertData;
   // Blox heeft geen kolomkoppen: daar een keuzelijst om te sorteren
   const sortSel = $('#alerts-sort');
-  sortSel.hidden = layout === 'l1nes';
+  sortSel.hidden = false;
   sortSel.value = ALERT_SORTS[alertSort.key] ? `${alertSort.key}:${alertSort.dir}` : '';
   if (sortSel.selectedIndex < 0) sortSel.value = '';
   $('#alerts-info').textContent = (d.alerts.length === 1 ? L('1 melding') : L('{n} meldingen', { n: d.alerts.length }))
@@ -16335,12 +16234,10 @@ function notifyHelpOpen() {
   modal({ title: '📖 ' + L('Hoe werken meldingen?'), body, page: true, buttons: [{ label: L('Sluiten'), onClick: () => $('#modal').close() }] });
 }
 let fimGlobal = null;      // editor van de algemene lijst 'Bestanden bewaken' (IDS)
-let quietGlobal = null;    // editor van de algemene stille uren
 
 // ---------------------------------------------------------------- Stille uren
 const QUIET_DAYS = [[1, L('ma')], [2, L('di')], [3, L('wo')], [4, L('do')], [5, L('vr')], [6, L('za')], [7, L('zo')]];
 const QUIET_DEFAULT = () => ({ from: '23:00', to: '07:00', days: [1, 2, 3, 4, 5, 6, 7] });
-const QUIET_MODES = { global: L('algemeen (Instellingen)'), own: L('eigen vensters'), never: L('nooit stil: altijd melden') };
 /** Eigen stille uren van een check ({mode, windows}) of null (= algemeen). */
 function quietOf(c) { try { return JSON.parse(c.quiet || 'null'); } catch (e) { return null; } }
 /** "ma–vr 23:00–07:00 · za, zo 00:00–10:00" */
@@ -20648,99 +20545,7 @@ function renderHomeDef() {
 function renderHome() {
   if (!hmData || !state || !state.hosts) return;
   if (dashMode() === 'cc') return hmData.cc ? renderCC() : loadHome();   // 1.154.0
-  if (layoutPref() === 'blox') return renderHomeDef();   // 1.322.0: Default (vroeger Blox)
-  $('.hm-title').textContent = L('Zo staat het ervoor');
-  const d = hmData, live = hmLive();
-  $('#hm-sub').textContent = L('Monitoring, beveiliging, kwetsbaarheden en netwerk op één plek') + ' · '
-    + L('bijgewerkt {t}', { t: new Date(hmAt).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' }) });
-  const score = d.full ? d.score : (state.health ? state.health.score : 100);
-  const todo = d.full ? d.todo : live.checks.filter((c) => +c.status === 2 || +c.status === 1).sort((a, b) => b.status - a.status)
-    .map((c) => ({ sev: +c.status === 2 ? 2 : 1, text: `${c.name} – ${(state.hosts.find((h) => +h.id === +c.host_id) || {}).name || ''}`, go: 'check:' + c.id }));
-  const open = todo.filter((t) => t.sev >= 1).length;
-  const scoreCls = score >= 90 ? 'good' : score >= 60 ? 'warn' : 'bad';
-  const prevAvail = d.full && d.avail.prev !== null ? d.avail.now - d.avail.prev : null;
-
-  // Tegels (1.135.0, zoals het ontwerp): Hosts, Meldingen, Kritieke CVE en Agents; elk een groot getal, de status en een lijntje
-  const tiles = [];
-  const hl = state.health || {};
-  const down = (hl.hosts_total || 0) - (hl.hosts_up || 0);
-  tiles.push({ go: 'dashboard', label: L('Hosts'), st: down ? 'crit' : 'ok', big: hmNum(hl.hosts_up || 0), unit: L('/ {n} online', { n: hl.hosts_total || 0 }),
-    sub: down ? L('{n} onbereikbaar', { n: down }) : L('alles bereikbaar'), spark: d.full ? hmSpark(hmVals(d.avail.series), 's1') : '' });
-  const probs = live.n[1] + live.n[2];
-  tiles.push({ go: 'alerts', label: L('Meldingen'), st: live.n[2] ? 'crit' : live.n[1] ? 'warn' : 'ok', big: hmNum(probs), unit: L('open problemen'),
-    sub: probs ? [live.n[1] && L('{n} aandacht', { n: live.n[1] }), live.n[2] && L('{n} storing', { n: live.n[2] })].filter(Boolean).join(' · ') : L('/ {n} checks OK', { n: live.total }).replace(/^\/ /, ''),
-    spark: d.full ? hmSpark(hmVals(d.ids.series.crit).map((v, i) => v + (hmVals(d.ids.series.warn)[i] || 0)), 's2') : '' });
-  if (d.vulns) {
-    const v = d.vulns;
-    tiles.push({ go: 'vulns', label: L('Kritieke CVE'), st: v.sev[4] ? 'crit' : v.sev[3] ? 'warn' : 'ok', big: hmNum(v.sev[4]), unit: v.kev ? L('{n} in KEV', { n: v.kev }) : L('geen in KEV'),
-      sub: L('{n} open · {f} met een update', { n: hmNum(v.total), f: hmNum(v.fix) }), spark: hmSpark(hmVals(v.series), 'crit') });
-  }
-  const sp = hmSpeed(d);   // 1.328.0: Netwerksnelheid
-  if (sp) tiles.push({ go: sp.go, label: L('Netwerksnelheid'), st: sp.st || 'ok', big: sp.val, unit: 'Mbit/s', sub: sp.sub, spark: '' });
-  const agents = state.hosts.filter((h) => h.mode === 'agent' && +h.enabled !== 0);
-  if (agents.length) {
-    const now = Date.now() / 1000;
-    const stil = agents.filter((h) => !h.contact || !h.contact.seen || now - h.contact.seen > h.contact.stale).length;
-    const old = agents.filter((h) => h.agent_version && agentLatestFor(h) && verCmp(h.agent_version, agentLatestFor(h)) < 0).length;
-    tiles.push({ go: isAdmin() ? 'settings/agents' : 'dashboard', label: L('Agents'), st: stil ? 'warn' : 'ok', big: `${agents.length - stil}<small>/${agents.length}</small>`, unit: L('rapporteren'),
-      sub: [stil ? L('{n} stil', { n: stil }) : L('allemaal actief'), old && L('{n} op een oudere versie', { n: old })].filter(Boolean).join(' · '), spark: '' });
-  }
-
-  const html = [];
-  // 1.144.0: eerst één zin hoe het ervoor staat, dan wat je nu moet doen (incidenten en aandachtspunten op urgentie)
-  const now = d.full && d.now ? d.now : todo.map((t) => ({ kind: 'todo', sev: t.sev, text: t.text, urgency: t.sev === 2 ? 50 : t.sev === 1 ? 25 : 5, why: [], go: t.go }));
-  const nowOpen = now.filter((t) => t.sev >= 1);
-  const urgentN = now.filter((t) => t.urgency >= 60).length;
-  const incN = now.filter((t) => t.kind === 'inc').length;
-  const probHosts = hmProblemHosts(d);
-  if ($('#inc-badge') && d.full && d.now) {   // teller op het tabblad Incidenten: open incidenten (nog zonder eigenaar)
-    const nOpen = d.now.filter((t) => t.kind === 'inc' && t.status === 'open').length;
-    $('#inc-badge').hidden = !nOpen;
-    $('#inc-badge').textContent = nOpen || '';
-  }
-  const enabledHosts = state.hosts.filter((h) => +h.enabled !== 0).length;
-  const sentence = !nowOpen.length && !probHosts.length
-    ? L('Alles in orde: {h} servers en {c} checks zonder problemen.', { h: enabledHosts, c: live.total })
-    : [nowOpen.length ? (nowOpen.length === 1 ? L('1 ding om nu te doen') : L('{n} dingen om nu te doen', { n: nowOpen.length })) + (urgentN ? ' (' + L('{n} dringend', { n: urgentN }) + ')' : '') : '',
-      incN ? (incN === 1 ? L('1 open incident') : L('{n} open incidenten', { n: incN })) : '',
-      probHosts.length ? (probHosts.length === 1 ? L('1 server vraagt aandacht') : L('{n} servers vragen aandacht', { n: probHosts.length })) : ''].filter(Boolean).join(' · ') + '.';
-  html.push(`<section class="hm-status ${scoreCls}" aria-label="${esc(L('Zo staat het ervoor'))}">
-    <span class="hm-status-score" title="${esc(L('Totaalscore'))}">${score}</span>
-    <div><div class="hm-status-txt">${esc(sentence)}</div>
-      ${prevAvail !== null && Math.abs(prevAvail) >= 0.01 ? `<div class="hm-score-sub">${esc(L('Bereikbaarheid {d} t.o.v. de vorige periode', { d: (prevAvail > 0 ? '↑ ' : '↓ ') + dec(Math.abs(prevAvail).toFixed(2)) + '%' }))}</div>` : ''}</div>
-  </section>`);
-  html.push(hmNow(now, d.full));
-  if (probHosts.length) html.push(hmServers(probHosts, L('Servers die aandacht vragen'), d));
-
-  // De rest, compacter
-  html.push(`<section class="hm-sum hm-sum-tiles" aria-label="${esc(L('Samenvatting'))}">
-    ${tiles.map((t) => `<button type="button" class="hm-tile" data-hm-go="${t.go}">
-      <span class="hm-tile-top"><span class="hm-tile-lbl">${esc(t.label)}</span><span class="hm-st ${t.st}">${hmShape(t.st)} ${esc(HM_ST[t.st]())}</span></span>
-      <span class="hm-tile-val"><b>${t.big}</b> <span>${esc(t.unit)}</span></span>
-      <span class="hm-tile-sub">${esc(t.sub)}</span>${t.spark}</button>`).join('')}
-  </section>`);
-
-  // 1.135.0: resourcegebruik van 24 uur en de recente incidenten (zoals het ontwerp)
-  html.push(`<div class="hm-duo">${hmResChart(d.resources)}${hmIncidents(d)}</div>`);
-
-  // Netwerkkaart en de servers zonder problemen, compact
-  html.push(`<div class="hm-duo">${hmMap()}${hmAttacks()}</div>`);   // 1.149.0: met de aanvallen van vandaag
-  html.push(hmServers(hmAllHosts().filter((x) => !probHosts.some((p) => p.h.id === x.h.id)), L('Overige servers'), d, true));
-
-  // Grafieken
-  if (d.full) {
-    html.push(`<div class="hm-charts">${hmAvailChart(d)}${hmIdsChart(d)}${d.vulns ? hmVulnCard(d.vulns) : ''}</div>`);
-  }
-  html.push(`<div class="hm-duo">${d.net ? hmNetCard(d.net) : ''}${hmTimeline(d.events)}</div>`);
-  $('#home').innerHTML = html.join('');
-  if ($('#hm-atk')) hmAtkWire($('#hm-atk'));
-  $$('[data-hm-risk]', $('#home')).forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); exposureDialog(+b.dataset.hmRisk); }));
-  $$('[data-hm-go]', $('#home')).forEach((b) => (b.onclick = () => {
-    const go = b.dataset.hmGo;
-    if (go.startsWith('check:')) checkInfo(go.slice(6));
-    else if (go.startsWith('incident:')) { showTab('incidents'); caseDialog(+go.slice(9)); }
-    else showTab(go);
-  }));
+  return renderHomeDef();   // 1.332.0: L1nes (het klassieke dashboard van de oude L1nes en Compact is weg)
 }
 
 // ---------------------------------------------------------------- 1.154.0: tweede dashboard "Command center"
@@ -20816,7 +20621,7 @@ function renderCC() {
   const name = ($('.acct-name') || {}).textContent || '';
   const hr = new Date().getHours();
   const hi = hr < 6 ? L('Goedenacht') : hr < 12 ? L('Goedemorgen') : hr < 18 ? L('Goedemiddag') : L('Goedenavond');
-  $('.hm-title').textContent = 'Command center';
+  $('.hm-title').textContent = 'Bloxzz';
   const s = c.seen;
   const seenTxt = s ? (s.crit || s.alerts || s.blocks || s.logins
     ? L('Sinds je laatste bezoek ({t})', { t: ccTime(s.at) }) + ': ' + [s.crit ? L('{n} nieuwe kritieke meldingen', { n: s.crit }) : '', s.alerts ? L('{n} meldingen', { n: s.alerts }) : '',
@@ -21126,21 +20931,6 @@ function urgPill(u, why, risk = false) {
   return `<span class="risk-pill risk-${lvl}" title="${esc((risk ? L('Risico {u} van 100', { u }) : L('Urgentie {u} van 100', { u })) + (why && why.length ? ': ' + why.join(', ') : ''))}">${u}</span>`;
 }
 
-/** 1.144.0: "Nu doen": open incidenten en aandachtspunten samen, op urgentie */
-function hmNow(list, full) {
-  const shown = list.slice(0, 8);
-  return `<section class="hm-card hm-now" aria-labelledby="hm-h-now">
-    <div class="hm-card-head"><h2 id="hm-h-now">${esc(L('Nu doen'))}</h2>
-      <span>${$('#tab-incidents') ? `<button type="button" class="link-btn" data-hm-go="incidents">${esc(L('Incidenten'))}</button>` : ''}${full ? ` · <button type="button" class="link-btn" data-hm-go="analytics">${esc(L('Alles bekijken'))}</button>` : ''}</span></div>
-    ${shown.length ? `<ul>${shown.map((t) => `<li>${urgPill(t.urgency, t.why)}
-      <span class="hm-attn-txt">${t.kind === 'inc' ? '⚠ ' : t.icon ? esc(t.icon) + ' ' : ''}${esc(t.text)}
-        <small>${esc((t.why || []).slice(1).join(' · '))}${t.kind === 'inc' ? ` <span class="inc-st inc-st-${t.status}">${esc(INC_ST[t.status]())}</span>${t.owner ? ' 👤 ' + esc(t.owner) : ''}${t.parts > 1 ? ' · ' + esc(L('{n} stappen', { n: t.parts })) : ''}` : ''}</small></span>
-      <button type="button" class="btn small-btn" data-hm-go="${esc(t.go)}">${esc(L('Openen'))}</button></li>`).join('')}</ul>
-      ${list.length > shown.length ? `<p class="muted small">${esc(L('en nog {n}', { n: list.length - shown.length }))}</p>` : ''}`
-      : `<p class="hm-empty">${hmShape('ok', 14)} ${esc(L('Niets dat nu aandacht nodig heeft'))}</p>`}
-  </section>`;
-}
-
 /** Servers met hun CPU, RAM, disk, status en (1.144.0) risico */
 function hmAllHosts() {
   const val = (h, t) => { const v = h.checks.filter((c) => c.type === t && +c.enabled && c.last_value !== null).map((c) => +c.last_value); return v.length ? Math.round(Math.max(...v)) : null; };
@@ -21154,54 +20944,6 @@ function hmProblemHosts(d) {
   const rank = { crit: 0, warn: 1, unk: 2, ok: 3 };
   return hmAllHosts().filter((x) => x.st === 'crit' || x.st === 'warn' || ((risk[x.h.id] || {}).score || 0) >= 40)
     .sort((a, b) => rank[a.st] - rank[b.st] || ((risk[b.h.id] || {}).score || 0) - ((risk[a.h.id] || {}).score || 0) || a.h.name.localeCompare(b.h.name));
-}
-
-/** Netwerk in één oogopslag: internet → netwerkapparaten → per soort de apparaten met hun status */
-function hmMap() {
-  const hosts = state.hosts.filter((h) => +h.enabled !== 0);
-  const st = (h) => { const s = hostStatus(h); return s === 2 ? 'crit' : s === 1 ? 'warn' : s === 0 ? 'ok' : 'unk'; };   // geen gegevens is nooit groen
-  const chip = (h) => `<button type="button" class="hm-host ${st(h)}" data-hm-go="dashboard?server=${encodeURIComponent(h.name)}" title="${esc(h.name)}">${hmShape(st(h))}<span>${esc(h.name)}</span></button>`;
-  const net = hosts.filter((h) => hostGroup(h) === 'network');
-  const groups = ['server', 'storage', 'smarthome', 'camera', 'power', 'other'].map((g) => [g, hosts.filter((h) => hostGroup(h) === g)]).filter(([, l]) => l.length);
-  const worst = (l) => ['crit', 'warn', 'unk'].find((x) => l.map(st).includes(x)) || 'ok';
-  return `<section class="hm-card hm-map" aria-labelledby="hm-h-map">
-    <div class="hm-card-head"><h2 id="hm-h-map">${esc(L('Netwerk in één oogopslag'))}</h2>
-      <span class="hm-legend">${['ok', 'warn', 'crit', 'unk'].map((s) => `<span>${hmShape(s)} ${esc(HM_ST[s]())}</span>`).join('')}</span></div>
-    <div class="hm-tree">
-      <div class="hm-inet"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>${esc(L('Internet'))}</div>
-      <div class="hm-vline"></div>
-      <div class="hm-netrow">${net.length ? net.map(chip).join('') : `<span class="muted small">${esc(L('Router, switches en access points: geef apparaten de soort Router, Switch of Access point'))}</span>`}</div>
-      <div class="hm-vline"></div>
-      <div class="hm-groups">${groups.map(([g, l]) => `<div class="hm-group">
-        <div class="hm-group-head"><b>${GROUP_INFO[g][0]} ${esc(GROUP_INFO[g][1]())}</b><span class="hm-st ${worst(l)}">${hmShape(worst(l))} ${l.length}</span></div>
-        <div class="hm-hosts">${l.map(chip).join('')}</div></div>`).join('')}</div>
-    </div></section>`;
-}
-
-/** Servers: CPU, RAM en de volste disk nu, uit de checks van die server; met (1.144.0) het risico en, compact, zonder balken */
-function hmServers(all, title, d, compact = false) {
-  const risk = (d && d.risk) || {};
-  const list = compact ? all.filter((x) => x.cpu !== null || x.ram !== null || x.disk !== null).sort((a, b) => a.h.name.localeCompare(b.h.name)) : all;
-  if (!list.length) return '';
-  if (compact) {
-    return `<section class="hm-card" aria-labelledby="hm-h-srv2"><div class="hm-card-head"><h2 id="hm-h-srv2">${esc(title)}</h2><span class="muted small">${esc(L('{n} servers', { n: list.length }))}</span></div>
-      <div class="hm-srv-compact">${list.map(({ h, st, cpu, ram, disk }) => `<button type="button" class="hm-srv-mini ${st}" data-hm-go="dashboard?server=${encodeURIComponent(h.name)}">
-        ${hmShape(st, 10)} <b>${esc(h.name)}</b><span class="muted small">${[cpu !== null ? 'CPU ' + cpu + '%' : '', ram !== null ? 'RAM ' + ram + '%' : '', disk !== null ? L('Disk') + ' ' + disk + '%' : ''].filter(Boolean).join(' · ')}</span>
-        ${risk[h.id] && risk[h.id].score ? urgPill(risk[h.id].score, risk[h.id].reasons, true) : ''}</button>`).join('')}</div></section>`;
-  }
-  const bar = (k, v) => (v === null ? '' : `<div class="hm-bar"><span>${esc(k)}</span><div><i class="${v >= 90 ? 'crit' : v >= 75 ? 'warn' : ''}" style="width:${Math.min(100, v)}%"></i></div><b>${v}%</b></div>`);
-  const why = (h) => { const p = h.checks.filter((c) => +c.enabled && !c.maintenance && +c.status >= 1 && +c.status <= 2).sort((a, b) => b.status - a.status)[0]; return p ? p.name : ''; };
-  return `<section class="hm-card" aria-labelledby="hm-h-srv">
-    <div class="hm-card-head"><h2 id="hm-h-srv">${esc(title)}</h2><span class="muted small">${esc(L('{n} servers · CPU, RAM en disk nu', { n: list.length }))}</span></div>
-    <div class="hm-srv-grid">${list.map(({ h, st, cpu, ram, disk }) => {
-      const up = stats.uptime[h.id];
-      const rk = risk[h.id];
-      return `<button type="button" class="hm-srv ${st}" data-hm-go="dashboard?server=${encodeURIComponent(h.name)}">
-        <span class="hm-srv-top"><b>${esc(h.name)}</b><span class="hm-st ${st}">${hmShape(st)} ${esc(st === 'ok' ? HM_ST.ok() : why(h) || HM_ST[st]())}</span></span>
-        <span class="hm-srv-sub">${esc(kindLabel(hostKind(h)))}${up && up.d7 !== null ? ' · ' + esc(L('{p} bereikbaar (7 d)', { p: pct(up.d7) })) : ''}</span>
-        ${rk && rk.score ? `<span class="hm-srv-risk" data-hm-risk="${h.id}" title="${esc(L('Aanvalspad en impact'))}">${urgPill(rk.score, rk.reasons, true)} <span class="small">${esc(L('risico'))}: ${esc(rk.reasons.join(' · '))}</span></span>` : ''}
-        ${bar('CPU', cpu)}${bar('RAM', ram)}${bar(L('Disk'), disk)}</button>`;
-    }).join('')}</div></section>`;
 }
 
 const hmDays = (series) => Object.keys(series || {});
@@ -21300,17 +21042,6 @@ function hmResChart(r) {
       ${(r.cpu || []).map((v, i) => `<rect class="hit" x="${(X(i) - 12).toFixed(1)}" y="${y0}" width="24" height="${y1 - y0}"><title>${esc(hour(i))} · CPU ${v === null ? '–' : dec(v.toFixed(1)) + '%'} · RAM ${r.ram[i] === null ? '–' : dec(r.ram[i].toFixed(1)) + '%'}</title></rect>`).join('')}
       <g class="ax lbl">${[0, 6, 12, 18, 23].map((i) => `<text x="${X(i).toFixed(1)}" y="${H - 8}" text-anchor="middle">${esc(hour(i))}</text>`).join('')}</g></svg>`
       : `<p class="hm-empty">${esc(L('Nog geen CPU- of RAM-metingen: voeg die checks toe bij je servers'))}</p>`}</section>`;
-}
-
-/** 1.135.0: recente incidenten (IDS), open eerst, met de ernst als woord en vorm */
-function hmIncidents(d) {
-  const list = d.incidents || [];
-  const sev = (i) => (i.sev >= 2 ? ['crit', L('Kritiek')] : ['warn', L('Hoog')]);
-  return `<section class="hm-card hm-inc" aria-labelledby="hm-h-inc"><div class="hm-card-head"><h2 id="hm-h-inc">${esc(L('Recente incidenten'))}</h2>
-    <button type="button" class="link-btn" data-hm-go="ids">${esc(d.ids.open_total ? L('{n} open', { n: d.ids.open_total }) : L('Naar IDS'))}</button></div>
-    ${list.length ? `<ul>${list.slice(0, 5).map((i) => { const [c, l] = sev(i); return `<li class="${i.open ? '' : 'done'}">${hmShape(i.open ? c : 'ok', 11)}
-      <span><small class="hm-sevlbl ${i.open ? c : 'ok'}">${esc(i.open ? l : L('Afgehandeld'))}</small>${i.outcome ? outcomePill(i.outcome, true) : ''}<b>${esc(i.title)}</b><small>${esc(i.host)} · ${esc(fmtUntil(i.at))}${i.hits > 1 ? ' · ' + esc(L('{n}×', { n: i.hits })) : ''}</small></span></li>`; }).join('')}</ul>`
-      : `<p class="hm-empty">${hmShape('ok', 14)} ${esc(L('Geen incidenten de laatste 14 dagen'))}</p>`}</section>`;
 }
 
 // ---------------------------------------------------------------- ⚠ Incidenten (1.142.0)
@@ -22573,7 +22304,7 @@ const FH_SHORT = () => ({
   mail_to: L("Wie de meldingen en rapporten krijgt; meerdere adressen met een komma."),
   smtp_verify_ssl: L("Controleert het certificaat van de mailserver. Alleen uit bij een eigen (self-signed) certificaat."),
   ids_modern: L("Een ruimere IDS-pagina met kaarten en grafieken; uit = compacte lijst."),
-  af_motion: L("Hoeveel er beweegt in heel RzSense: live getallen, knoppen, grafieken, overgangen, de Attack Flow en het Command center. Stil = niets."),
+  af_motion: L("Hoeveel er beweegt in heel RzSense: live getallen, knoppen, grafieken, overgangen, de Attack Flow en het dashboard van Bloxzz. Stil = niets."),
   unifi_url: L("Het adres van je UniFi-controller of UniFi OS-apparaat."),
   unifi_site: L("De site in de controller; bijna altijd 'default'."),
   unifi_user: L("Een lokaal account op de controller (geen Ubiquiti-cloudaccount)."),

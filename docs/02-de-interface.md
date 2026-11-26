@@ -122,12 +122,12 @@ TELEFOON*), de titel met de hoofdschakelaar rechts, de velden naast elkaar en on
 ## Het dashboard
 
 Het **Dashboard** is de pagina waarop RzSense opent: monitoring, beveiliging, kwetsbaarheden en netwerk op één plek,
-onder de titel *Zo staat het ervoor*. Welk dashboard je ziet, hangt af van je lay-out: met *Default* het rustige
-dashboard, met *L1nes* of *Compact* het klassieke dashboard, met *CC* het Command center (zie [Lay-out](#lay-out)).
+onder de titel *Zo staat het ervoor*. Welk dashboard je ziet, hangt af van je lay-out: met *L1nes* (de standaard) het rustige
+dashboard, met *Bloxzz* het live dashboard met tegels (zie [Lay-out](#lay-out)).
 
-### Het rustige dashboard (Default)
+### Het rustige dashboard (L1nes)
 
-Met de lay-out *Default* is het dashboard kaal en rustig:
+Met de lay-out *L1nes* is het dashboard kaal en rustig:
 
 1. **Eén zin** bovenaan zegt hoe het ervoor staat, bijvoorbeeld *Bijna alles draait. 3 dingen vragen aandacht.* of
    *Alles draait. Er is niets te doen.* Daaronder de datum.
@@ -138,24 +138,6 @@ Met de lay-out *Default* is het dashboard kaal en rustig:
    bovenaan. Klik op een server om hem op *Monitoring* te zien.
 
 Het dashboard wordt live bijgewerkt zonder dat de pagina opnieuw opbouwt: alleen wat verandert, verandert.
-
-### Het klassieke dashboard
-
-Van boven naar beneden:
-
-1. **Statuszin met de totaalscore**, bijvoorbeeld *3 dingen om nu te doen (1 dringend) · 2 open incidenten · 1 server
-   vraagt aandacht*, of *Alles in orde: 12 servers en 140 checks zonder problemen*.
-2. **Tegels**: *Hosts* (hoeveel bereikbaar), *Meldingen* (open problemen), *Kritieke CVE* (met hoeveel daarvan actief
-   misbruikt worden, KEV) en *Agents* (hoeveel rapporteren, hoeveel stil of op een oudere versie). Klik op een tegel en je
-   staat op die pagina.
-3. **Nu doen**: de open incidenten en de adviezen uit Analyse in één lijst, op urgentie. Per regel de reden (bijvoorbeeld
-   *al 3 uur · bereikbaar van buiten*), de status en de eigenaar. **Openen** brengt je naar het incident of de juiste
-   pagina.
-4. **Servers die aandacht vragen**: servers met een probleem of met een risico van 40 of meer, met CPU, RAM, disk en de
-   redenen van het risico.
-5. Daarna: resourcegebruik over 24 uur, recente IDS-incidenten, de netwerkkaart (internet → router → switches en access
-   points → apparaten per soort), de overige servers, grafieken van beschikbaarheid, IDS en kwetsbaarheden, en de laatste
-   gebeurtenissen.
 
 Rechtsboven kies je de periode (7, 30 of 90 dagen). Het lampje **● Live** laat zien dat de pagina live meeloopt; het
 wordt grijs als de verbinding even wegvalt.
@@ -197,9 +179,9 @@ Klik op het **risicogetal** van een server op het dashboard, of op **🎯 Aanval
 Het is een schatting: RzSense kent je firewall niet. Een poort die op alle adressen luistert, kan van buiten toch dicht
 zijn.
 
-### Het Command center
+### Het dashboard van Bloxzz
 
-Met de lay-out **CC** is het dashboard het **Command center**: alles in één oogopslag, in een futuristische stijl die
+Met de lay-out **Bloxzz** is het dashboard een live overzicht met tegels: alles in één oogopslag, in een futuristische stijl die
 meekleurt met licht of donker. De kaarten, in de standaardvolgorde:
 
 1. **Kop**: een begroeting en *sinds je laatste bezoek* (nieuwe kritieke meldingen, meldingen, blokkades en SSH-logins),
@@ -229,7 +211,7 @@ muur blijft in TV-modus, je laptop niet.
 
 ### Kaarten indelen op andere pagina's
 
-In de lay-out CC kun je ook op andere pagina's de kaarten indelen: Monitoring, Meldingen, IDS, Incidenten,
+In de lay-out Bloxzz kun je ook op andere pagina's de kaarten indelen: Monitoring, Meldingen, IDS, Incidenten,
 Kwetsbaarheden, Netwerk, Analyse, de Instellingen, Mijn account en de Agent Manager. Rechtsboven staan **● Live**,
 **✎ Indeling** en **▣ TV-modus**. Met *Indeling*:
 
@@ -303,13 +285,9 @@ storing mist. De sortering wordt per gebruiker onthouden.
 
 Hoe de servers getoond worden, hangt af van je [lay-out](#lay-out):
 
-- **Default**: servers onder elkaar, als rustige rijen in één kader, zonder gekleurde randen. *Large* heeft kolommen voor
+- **L1nes**: servers onder elkaar, als rustige rijen in één kader, zonder gekleurde randen. *Large* heeft kolommen voor
   de belangrijkste checks en de status van 24 uur; *Small* is één regel per server.
-- **L1nes**: servers onder elkaar, als rijen. *Large* heeft kolommen voor de belangrijkste checks en de status van 24
-  uur; *Small* is één regel per server.
-- **Compact**: per server één regel met een blokje per check in de kleur van de status. Handig bij veel checks of op een
-  TV-scherm. Wijs een blokje aan voor de naam en de waarde.
-- **CC**: per groep een raster van tegels, wie aandacht vraagt eerst. Elke tegel heeft een ring (checks in orde van het
+- **Bloxzz**: per groep een raster van tegels, wie aandacht vraagt eerst. Elke tegel heeft een ring (checks in orde van het
   totaal) en de laatste 24 uur. Klik op een tegel en hij klapt open over de volle breedte, met meters, de knoppen,
   *Vraagt aandacht* en *In orde*.
 
@@ -729,17 +707,15 @@ De lay-out is hoe de pagina's zijn opgebouwd. Kies hem hier of in het accountmen
 
 | Lay-out | Dashboard | Monitoring |
 |---|---|---|
-| ▢ **Default** | rustig: één zin, vier cijfers, *Aandacht nodig* en de servers | servers als rustige rijen |
-| ☰ **L1nes** | klassiek | servers onder elkaar, als een tabel |
-| ▪ **Compact** | klassiek | een blokje per check; voor veel checks of een TV-scherm |
-| ◈ **CC** | Command center | tegels in CC-stijl, met versleepbare kaarten op elke pagina |
+| ☰ **L1nes** (standaard) | rustig: één zin, de kerncijfers, *Aandacht nodig* en de servers | servers als rustige rijen |
+| ◈ **Bloxzz** | live dashboard met tegels | tegels, met versleepbare kaarten op elke pagina |
 
 Bij **Grootte** kies je *Small* (compact, meer in beeld) of *Large* (meer informatie). Dat geldt per lay-out, apart voor
 je telefoon en je computer.
 
-**Default** is de rustigste lay-out: weinig kleur, dunne randen, geen schaduw, en in de zijbalk een licht vlakje achter
-het onderdeel waar je bent. Elk thema werkt ermee; Liquid Glass, @S en Neo houden hun eigen stijl. Default heette
-vroeger *Blox*: wie Blox had, heeft nu vanzelf Default.
+**L1nes** is de rustigste lay-out: weinig kleur, dunne randen, geen schaduw, en in de zijbalk een licht vlakje achter
+het onderdeel waar je bent. Elk thema werkt met beide lay-outs; Liquid Glass, @S en Neo houden hun eigen stijl. Had je
+eerder *Default*, *Compact* of de oude *L1nes*, dan heb je nu vanzelf L1nes; had je *CC*, dan heb je Bloxzz.
 
 ### Thema en licht/donker
 
@@ -781,7 +757,7 @@ Met de schuif **Beweging** kies je hoeveel er beweegt in heel RzSense:
 
 - **Vol** (standaard): getallen lopen naar hun nieuwe waarde, een statuswissel pulseert één keer, knoppen laten zien dat
   ze bezig en klaar zijn, grafieken tekenen zich, nieuwe meldingen schuiven zacht binnen, en de Attack Flow en het
-  Command center bewegen helemaal.
+  dashboard van Bloxzz bewegen helemaal.
 - **Rustig**: hetzelfde, maar trager en zonder flitsen.
 - **Stil**: niets beweegt. Handig voor een scherm dat de hele dag aanstaat.
 
