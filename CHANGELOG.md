@@ -8,11 +8,17 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.330.0**: **Nieuwe indeling**: alles op één logische plek, zonder dubbele onderdelen; de beheerportal in kleinere groepen, met een eigen groep Netwerk.
 - **1.329.0**: **iw vanzelf installeren**: een Linux-apparaat met wifi maar zonder iw krijgt het van de agent, zodat zijn wifi bij Netwerksnelheid verschijnt.
 - **1.328.0**: **Netwerksnelheid**: de snelheid van je netwerk en internet als keten van bron tot doel, met de smalste schakel, SNMP-poorten en de wifi per access point.
 - **1.327.0**: **Toegang aanvragen van buiten**: een onbekend apparaat vraagt met één knop toegang, jij krijgt een e-mail en staat het toe voor een bestaande of nieuwe gebruiker.
 - **1.326.0**: **Rustigere pop-ups**: één scrollbalk, kop en knoppen vast, en in het midden zo breed als de pagina.
-- **1.325.0**: **Vensters in het midden**: details en een site openen over de pagina heen; liever rechts kan bij Weergave.
+
+## 1.330.0 – 2026-11-26
+### Nieuw
+- **Nieuwe indeling, zonder dubbele onderdelen.** Alles staat nu op één logische plek. Oude adressen en links in meldingen sturen vanzelf door.
+  - **Hoofdmenu:** *Alle checks* is een tabblad op **Monitoring** (was in de beheerportal). *Netwerkpaden* staat bij **Netwerk → Paden**, naast Netwerksnelheid. De aanvallen staan alleen nog bij **IDS → Aanvallen** (niet meer ook bij Incidenten). **Datalekken** staat bij **IDS**, naast Toegang (was bij Kwetsbaarheden). **Compliance** heeft een tabblad **Instellingen** met de NIS2-instellingen. In Analyse heet *Back-ups* nu **Back-ups van servers**.
+  - **Beheerportal:** de groep Bescherming (17 onderdelen) is verdeeld over **IDS en EDR**, **Web en buitenkant** en **Kwetsbaarheden en updates**. Er is een nieuwe groep **Netwerk** (Netwerkscan, Internetcheck, UniFi, AdGuard Home, SNMP). *Agents en koppelingen* heet nu **Agents**. **Status en functies** staat als losse ingang bovenaan; *Achtergrondtaken* staat bij Systeem; de instellingen voor Datalekken bij Toegang tot RzSense. Het losse onderdeel *Jagen op sporen* is weg; de schakelaar staat bij IDS algemeen.
 
 ## 1.329.0 – 2026-11-26
 ### Nieuw

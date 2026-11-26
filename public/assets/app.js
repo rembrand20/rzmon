@@ -62,7 +62,7 @@ const TYPES = {
   podman:  { label: L('Containers (algemeen)'), target: null, unit: null, help: L('Algehele status van Podman en/of Docker op deze server: draait het, hoeveel containers draaien er, en zijn er containers gestopt met een fout, ongezond (healthcheck) of gepauzeerd, of pods niet in orde? Vereist de agent.') },
   container: { label: L('Container (Podman/Docker)'), target: L('Container'), unit: null, ph: L('naam, of gebruiker/naam (rootless)'), help: L('Eén check per container: de status (draait, healthcheck, herstarts) altijd, en daarnaast de CPU, RAM en disk die je hieronder aanvinkt, elk met eigen drempels. Kies de naam uit de lijst die de agent meldt.') },
   log:     { label: L('Logbestand (zoeken)'), target: L('Bron'), unit: 'treffers', warn: 5, crit: 20, ph: L('/var/log/secure, journal, journal:sshd of kernel'), help: L('De agent leest de nieuwe regels van een logbestand of het systemlog en telt hoeveel er op je zoekpatroon passen in de laatste periode (Instellingen → Alarmgedrag, standaard 15 min). Kies hieronder een voorinstelling of stel zelf in.') },
-  command: { label: L('Commando'), target: null, unit: null, help: L('De agent voert een commando uit op de server, en RzSense vergelijkt de uitvoer met het antwoord dat je verwacht. Alleen als commando\'s voor deze server aan staan (Instellingen → Agents en koppelingen → Commando-checks).') },
+  command: { label: L('Commando'), target: null, unit: null, help: L('De agent voert een commando uit op de server, en RzSense vergelijkt de uitvoer met het antwoord dat je verwacht. Alleen als commando\'s voor deze server aan staan (Instellingen → Agents → Commando-checks).') },
   path:    { label: L('Pad (traceroute)'), target: L('Doel'), unit: 'ms', warn: 50, crit: 150, ph: L('IP-adres of hostnaam, bv. 1.1.1.1'), help: L('Meet vanaf deze server het pad naar een doel: vertraging, jitter en verlies per hop, de switches (UniFi en de apparaten die je hieronder opgeeft) en de doorvoer (iperf3) binnen je netwerk. Agent 1.78.0 of nieuwer, met mtr of traceroute.') },
   truenas: { label: L('TrueNAS'), target: null, unit: null, help: L('Via de agent op TrueNAS SCALE (agent 1.77.0 of nieuwer, als root): TrueNAS zelf uitgelezen met midclt, zonder API-sleutel.') },
   pve:     { label: L('Proxmox VE'), target: null, unit: null, help: L('Via de agent op een Proxmox-host (agent 1.61.0 of nieuwer, als root): de guests (VM\'s en containers), back-ups, opslag en ZFS. Kies hieronder wat je wilt bewaken.') },
@@ -85,7 +85,7 @@ const TYPES = {
   shelly:  { label: L('Shelly'), target: L('IP-adres[:poort]'), unit: '°C', warn: 70, crit: 80, ph: L('leeg = adres van de server'), help: L('RzSense leest de Shelly rechtstreeks uit (Gen 1 tot en met Gen 4, Plus, Pro, Mini, EM en 3EM). Warning en critical gaan over de temperatuur van de Shelly zelf; meldt de Shelly zelf oververhitting, dan is het altijd critical. Daarnaast: een vermogensgrens, het relais dat aan moet staan, en afwijkingen van het normale verbruik (na een week meten). RzSense schakelt nooit iets.') },
   traffic: { label: L('Verkeer (UniFi)'), target: L('MAC- of IP-adres'), unit: 'Mbit/s', warn: 50, crit: 200, ph: L('leeg = adres van de server'), help: L('Hoeveel verkeer een apparaat doet, uit de tellers van UniFi (Netwerk → Verkeer per apparaat). Kies wat: de snelheid nu of de hoeveelheid vandaag. Warning en critical gaan af als het meer is dan je drempel.') },
   // 1.157.0: de internetlijn, vanaf de server van RzSense
-  internet: { label: L('Internet'), target: null, unit: 'ms', warn: 50, crit: 150, help: L('Bewaakt je internetlijn vanaf de server van RzSense. Kies wat: ping, responstijd, download of upload. De snelheidstest draait op vaste tijden; abonnement, drempels en tijden staan bij Instellingen → Monitoring → Internetcheck.') },
+  internet: { label: L('Internet'), target: null, unit: 'ms', warn: 50, crit: 150, help: L('Bewaakt je internetlijn vanaf de server van RzSense. Kies wat: ping, responstijd, download of upload. De snelheidstest draait op vaste tijden; abonnement, drempels en tijden staan bij Instellingen → Netwerk → Internetcheck.') },
   service: { label: L('Service'),       target: L('Servicenaam'),   unit: null, ph: 'nginx', help: L('De systemd-service moet "active" zijn. Op agent-servers kies je hem uit de lijst: de agent bewaakt hem dan vanzelf, en met Diepere controle wordt ook gekeken of hij echt werkt. Home Assistant-agent: homeassistant, supervisor, updates of addon:<slug>.') },
 };
 // Voorinstellingen voor logbestanden: bron, zoekpatroon (regex, hoofdletters maakt niet uit) en drempels
@@ -214,8 +214,8 @@ const DB_METRICS = {
 const INET_METRICS = {
   ping: { label: L('Ping (pingtijd, jitter, verlies)'), unit: 'ms', warn: 50, crit: 150, help: L('Pingt 1.1.1.1 en 8.8.8.8 (5 keer) en je router. De waarde is de beste pingtijd. Verlies van 20% of meer, of één adres weg = WARNING; geen van beide = CRITICAL, met in de melding of je router nog antwoordt (dan zit het probleem buiten).') },
   resp: { label: L('Responstijd (DNS, verbinden, eerste antwoord)'), unit: 'ms', warn: 500, crit: 2000, help: L('Hoe snel google.com en cloudflare.com antwoorden, met een nieuwe verbinding: DNS, verbinden, TLS en het eerste antwoord. Eén site weg = WARNING, allebei = CRITICAL.') },
-  down: { label: L('Download (snelheidstest)'), unit: 'Mbit/s', nothresh: true, help: L('Uit de laatste snelheidstest. Warning en critical zijn een percentage van je abonnement (Instellingen → Monitoring → Internetcheck).') },
-  up: { label: L('Upload (snelheidstest)'), unit: 'Mbit/s', nothresh: true, help: L('Uit de laatste snelheidstest. Warning en critical zijn een percentage van je abonnement (Instellingen → Monitoring → Internetcheck).') },
+  down: { label: L('Download (snelheidstest)'), unit: 'Mbit/s', nothresh: true, help: L('Uit de laatste snelheidstest. Warning en critical zijn een percentage van je abonnement (Instellingen → Netwerk → Internetcheck).') },
+  up: { label: L('Upload (snelheidstest)'), unit: 'Mbit/s', nothresh: true, help: L('Uit de laatste snelheidstest. Warning en critical zijn een percentage van je abonnement (Instellingen → Netwerk → Internetcheck).') },
 };
 /** 1.187.0: wat een verkeer-check meet */
 const TRAFFIC_METRICS = {
@@ -548,7 +548,7 @@ const FX = {};           // pagina → { bar, fields: [{ k, label, get(item), fm
 const fxSel = {};        // pagina → { veld: [waarden], period, from, to }
 let fxPanelOpen = null;  // pagina waarvan het paneel open staat
 const FX_PERIODS = [['today', () => L('vandaag')], ['24h', () => L('24 uur')], ['7d', () => L('7 dagen')], ['30d', () => L('30 dagen')]];
-const FX_TAB = { dash: 'dashboard', alerts: 'alerts', ids: 'ids/inc', acc: 'ids/acc', blk: 'ids/blk', vulns: 'vulns/cve', leaks: 'vulns/leak' };
+const FX_TAB = { dash: 'dashboard', alerts: 'alerts', ids: 'ids/inc', acc: 'ids/acc', blk: 'ids/blk', vulns: 'vulns/cve', leaks: 'ids/leak' };
 
 const fxList = (v) => (Array.isArray(v) ? v : [v]).filter((x) => x !== null && x !== undefined && x !== '').map(String);
 function fxGet(page) {
@@ -673,9 +673,9 @@ function fxCurrent() {
   const tab = ($('.tab-panel:not([hidden])') || {}).id?.replace('tab-', '');
   if (tab === 'dashboard') return 'dash';
   if (tab === 'alerts') return 'alerts';
-  if (tab === 'ids') return { inc: 'ids', acc: 'acc', blk: 'blk' }[idsTab] || null;
+  if (tab === 'ids') return { inc: 'ids', acc: 'acc', blk: 'blk', leak: 'leaks' }[idsTab] || null;
   if (tab === 'incidents' && incSrc === 'ids') return 'ids';   // 1.276.0: de aanvallen staan op Incidenten
-  if (tab === 'vulns') return $('#vuln-tabs') ? (vulnTab === 'leak' ? 'leaks' : vulnTab === 'eol' ? 'eol' : 'vulns') : ($('#leak-list') && !$('#vuln-search') ? 'leaks' : 'vulns');
+  if (tab === 'vulns') return $('#vuln-tabs') ? (vulnTab === 'eol' ? 'eol' : 'vulns') : 'vulns';
   return null;
 }
 function fxQuery(page) {
@@ -877,7 +877,7 @@ FX.vulns = {
 };
 
 FX.leaks = {
-  bar: '.vuln-pane[data-vpane="leak"] .dash-bar',
+  bar: '.ids-pane[data-pane="leak"] .dash-bar',   // 1.330.0: bij IDS
   items: () => (leakData ? leakData.emails.flatMap((e) => (e.breaches.length ? e.breaches.map((b) => ({ ...b, email: e.email, source: e.source })) : [{ email: e.email, source: e.source, none: 1 }])) : []),
   render: () => renderLeaks(),
   fields: [
@@ -1482,7 +1482,7 @@ function init() {
       ...Object.entries(s.errors || {}).map(([k, e]) => `<span class="warn-txt">${esc(prov[k] || k)}: ${esc(e.msg)} (${esc(fmtDateTime(e.at))})</span>`),
     ].filter(Boolean).join(' · ');
     const dn = s.dns || {};
-    $('#dns-status').innerHTML = !dn.adguard ? `<span class="warn-txt">${L('Nog geen AdGuard gekoppeld (Instellingen → Agents en koppelingen → AdGuard).')}</span>`
+    $('#dns-status').innerHTML = !dn.adguard ? `<span class="warn-txt">${L('Nog geen AdGuard gekoppeld (Instellingen → Netwerk → AdGuard).')}</span>`
       : [dn.at ? L('Laatst gekeken {t}', { t: esc(fmtDateTime(dn.at)) }) : L('Nog niet gekeken'), L('vandaag {n} DNS-vragen, {h} verdacht', { n: (+dn.n).toLocaleString(LOCALE), h: +dn.hits }),
         dn.error ? `<span class="warn-txt">${esc(dn.error)}</span>` : ''].filter(Boolean).join(' · ');
   };
@@ -1585,7 +1585,7 @@ function init() {
     try { await api('settings_save', { [c.dataset.protToggle]: c.checked ? '1' : '0' }); toast(c.checked ? L('Aangezet') : L('Uitgezet')); loadProt(); } catch (ex) { toast(ex.message, 'err'); c.checked = !c.checked; }
   };
   $('#prot-cards').onclick = (e) => {
-    const cfg = e.target.closest('[data-ps-cfg]');   // 1.236.0: aan/uit en drempels hier (was ook Instellingen → Bescherming → Beschermingen)
+    const cfg = e.target.closest('[data-ps-cfg]');   // 1.236.0: aan/uit en drempels hier (was ook Instellingen → IDS en EDR → Beschermingen)
     if (cfg) { protCfgDialog(cfg.dataset.psCfg); return; }
     const b = e.target.closest('[data-prot-show]');
     if (!b) return;
@@ -1890,17 +1890,19 @@ function showTab(name) {
   if (name === 'settings/blocks') name = 'ids/blk';   // 1.92.0: blokkades en whitelist staan in het IDS-tabblad
   // 1.276.0: nieuwe indeling; oude adressen (ook in meldingen en e-mails) sturen door naar de nieuwe plek
   const MOVED = { 'settings/agents': 'servers', 'settings/actlog': 'logboek', 'settings/changelog': 'logboek', 'settings/nis2': 'compliance',
-    'vulns/patch': 'updates', 'ids/prot': 'settings/prot', 'settings/quiet': 'settings/rules', 'settings/hibp': 'settings/vulns' };
+    'vulns/patch': 'updates', 'ids/prot': 'settings/prot', 'settings/quiet': 'settings/rules',
+    // 1.330.0: nieuwe indeling
+    'dashboard/paths': 'net/paths', 'incidents/ids': 'ids/inc', 'vulns/leak': 'ids/leak', 'settings/allchecks': 'dashboard/allchecks', 'settings/nis2set': 'compliance/set', 'settings/ids_hunt': 'ids/hunt' };
   if (MOVED[name] && !(name === 'ids/inc' && document.body.dataset.role === 'readonly')) {
     if (name === 'settings/quiet') setTab.rules = 'stil';
-    if (name === 'settings/hibp') setTab.vulns = 'datalekken';
     name = MOVED[name];
   }
   if (/^incidents\/(all|check|ids|vuln)$/.test(name)) { incSrc = name.slice(10); name = 'incidents'; }
   // 1.197.0: diepe links (o.a. vanuit de Home Assistant-kaart): #net/map, #net/list, #net/disc en #dashboard/paths, /avail, /cont
   let netReq = null, monReq = null;
-  if (/^net\/(map|list|disc|speed)$/.test(name)) { netReq = name.slice(4); name = 'net'; }   // 1.328.0: ook Netwerksnelheid
-  if (/^dashboard\/(paths|avail|cont|shelly|checks)$/.test(name)) { monReq = name.slice(10); name = 'dashboard'; }
+  if (/^net\/(map|list|disc|speed|paths)$/.test(name)) { netReq = name.slice(4); name = 'net'; }   // 1.328.0: ook Netwerksnelheid; 1.330.0: Paden
+  if (/^dashboard\/(allchecks|avail|cont|shelly|checks)$/.test(name)) { monReq = name.slice(10); name = 'dashboard'; }
+  if (name === 'compliance/set') { compTab = 'set'; name = 'compliance'; }   // 1.330.0: de NIS2-instellingen
   // 1.325.2: IDS vanuit het menu (of een andere pagina) opent altijd op Aanvallen; een link als #ids/live blijft werken
   if (name === 'ids' && ($('.tab-panel:not([hidden])') || {}).id !== 'tab-ids') idsTab = 'inc';
   if (/^(ids|vulns)\//.test(name)) {
@@ -1908,10 +1910,10 @@ function showTab(name) {
     name = tab;
     if (tab === 'ids' && IDS_TABS.includes(s)) idsTab = s;
     if (tab === 'ids' && s === 'rules') { showTab('settings/ids_rules'); return; }   // 1.236.0: regels staan in de beheerportal
-    if (tab === 'vulns' && ['cve', 'sw', 'leak', 'eol', 'patch'].includes(s)) vulnTab = s;
+    if (tab === 'vulns' && ['cve', 'sw', 'eol', 'patch'].includes(s)) vulnTab = s;
   }
   if (qs) {
-    const page = { dashboard: 'dash', alerts: 'alerts', ids: { inc: 'ids', acc: 'acc', blk: 'blk' }[idsTab], vulns: vulnTab === 'leak' ? 'leaks' : 'vulns' }[name];
+    const page = { dashboard: 'dash', alerts: 'alerts', ids: { inc: 'ids', acc: 'acc', blk: 'blk', leak: 'leaks' }[idsTab], vulns: 'vulns' }[name];
     if (page) fxFromQuery(page, qs);
   }
   if (name.startsWith('settings/')) { sub = name.slice(9); name = 'settings'; }
@@ -1949,7 +1951,7 @@ function showTab(name) {
   if (name === 'updates') loadPatch();
   if (name === 'logboek') loadActLog();
   if (name === 'compliance') loadNis2();
-  if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); if ($('#eol-list') && !$('#vuln-tabs')) loadEol(); }
+  if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#eol-list') && !$('#vuln-tabs')) loadEol(); }
   pageWaitClose();
   crumbs();   // 1.199.0
 }
@@ -1983,7 +1985,7 @@ function crumbs() {
     const g = f && SET_NAV.find((x) => x[2] === f.group);
     if (f) {
       if (g && g[3][0][0] !== f.sub[0]) parts.push({ l: f.group, go: 'settings/' + g[3][0][0] });
-      else parts.push({ l: f.group, go: null });
+      else if (f.group !== f.sub[1]) parts.push({ l: f.group, go: null });   // 1.330.0: Status en functies is groep én onderdeel: één keer
       parts.push({ l: f.sub[1], go: 'settings/' + f.sub[0] });
       const tabs = f.sub[4];
       if (tabs) { const tb = tabs.find((x) => x[0] === setTab[setSection]) || tabs[0]; parts.push({ l: tb[1], go: null }); }
@@ -2617,14 +2619,15 @@ const avPct = (v) => (v === null || v === undefined ? '–' : dec(v >= 99.9995 ?
 const avMean = (a) => { const v = a.filter((x) => x !== null && x !== undefined); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
 
 function setMonSub(s) {
-  monSub = s === 'avail' || s === 'cont' || s === 'paths' || s === 'shelly' ? s : 'checks';
+  if (s === 'paths') { showTab('net/paths'); return; }   // 1.330.0: Netwerkpaden staat bij Netwerk → Paden
+  monSub = s === 'avail' || s === 'cont' || s === 'shelly' || (s === 'allchecks' && isAdmin()) ? s : 'checks';
+  $('#tab-dashboard').classList.toggle('mon-ac', monSub === 'allchecks');   // 1.330.0: Alle checks (was in de portal)
+  if (monSub === 'allchecks') withPageWait('dashboard', loadAllChecks);
   $('#tab-dashboard').classList.toggle('mon-sh', monSub === 'shelly');   // 1.321.0
   if (monSub === 'shelly') withPageWait('dashboard', shLoad);
   $('#tab-dashboard').classList.toggle('mon-av', monSub === 'avail');
   $('#tab-dashboard').classList.toggle('mon-ct', monSub === 'cont');   // 1.176.0
   if (monSub === 'cont') withPageWait('dashboard', ctLoad);
-  $('#tab-dashboard').classList.toggle('mon-np', monSub === 'paths');   // 1.177.0
-  if (monSub === 'paths') withPageWait('dashboard', npLoad);
   $$('#mon-tabs [data-msub]').forEach((b) => { const on = b.dataset.msub === monSub; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
   if (monSub === 'avail') withPageWait('dashboard', avLoad);
   crumbs();   // 1.199.0
@@ -3023,7 +3026,7 @@ function initContainers() {
   });
 }
 
-// ============ 1.177.0: pad-check (popup, Monitoring → Netwerkpaden, summier bij de server) ============
+// ============ 1.177.0: pad-check (popup, Netwerk → Paden, summier bij de server) ============
 const NP_ICON = {
   src: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
   virt: '<rect x="4" y="5" width="16" height="11" rx="2"/><path d="M8 20h8M12 16v4M8 9l2 2-2 2M13 13h3"/>',
@@ -3171,7 +3174,7 @@ document.addEventListener('click', async (e) => {
   try { const r = await api('path_tp_now', { id: +b.dataset.npTp }); toast(L('Doorvoertest aangevraagd naar {t}; de uitkomst staat er binnen een minuut of twee', { t: r.to })); npLoadInfo(+b.dataset.npTp); } catch (ex) { toast(ex.message, 'err'); b.disabled = false; }
 });
 
-// ---- Monitoring → Netwerkpaden ----
+// ---- Netwerk → Paden ----
 let npData = null, npAt = 0, npBusy = false;
 async function npLoad(force = false) {
   if (!force && npData && Date.now() - npAt < 30000) return renderNetPaths();
@@ -3268,16 +3271,15 @@ function renderNetPaths() {
     <div class="np-cols">
       <section class="ct-grp"><div class="ct-gh"><b>${L('Paden')}</b></div>
         <div class="np-pr np-th"><span>${L('Bron → doel')}</span><span>${L('Status')}</span><span>${L('Hops')}</span><span>${L('Vertraging')}</span><span>${L('Doorvoer')}</span><span>${L('Pad')}</span><span>${L('24 uur')}</span></div>${rows}</section>
-      <section class="ct-grp"><div class="ct-gh"><b>${L('Links (UniFi)')}</b><span class="small muted">${L('langzaamste eerst')}</span></div>${ports || `<p class="muted small" style="padding:.8rem 1rem">${npData.unifi === 'ok' ? L('Geen poorten gevonden.') : L('Koppel UniFi met een lokaal account (Instellingen → Agents en koppelingen) om de switchpoorten en hun snelheid te zien.')}</p>`}</section>
+      <section class="ct-grp"><div class="ct-gh"><b>${L('Links (UniFi)')}</b><span class="small muted">${L('langzaamste eerst')}</span></div>${ports || `<p class="muted small" style="padding:.8rem 1rem">${npData.unifi === 'ok' ? L('Geen poorten gevonden.') : L('Koppel UniFi met een lokaal account (Instellingen → Netwerk → UniFi) om de switchpoorten en hun snelheid te zien.')}</p>`}</section>
     </div>`;
   npFocusApply();   // 1.191.0
 }
-/** 1.191.0: naar Monitoring → Netwerkpaden, met dit pad in beeld en even opgelicht */
+/** 1.191.0: naar Netwerk → Paden (1.330.0, was Netwerk → Paden), met dit pad in beeld en even opgelicht */
 let npFocus = null, npFlash = null;
 function npGo(checkId) {
   npFocus = +checkId;
-  showTab('dashboard');
-  setMonSub('paths');
+  showTab('net/paths');
   npFocusApply();
 }
 function npFocusApply() {
@@ -3932,7 +3934,7 @@ function renderNow() {
   renderIsoBanner();
   if (monSub === 'avail') avLoad();   // 1.169.0
   if (monSub === 'cont') ctLoad();   // 1.176.0 (elke 30 s opnieuw)
-  if (monSub === 'paths') npLoad();   // 1.177.0
+  if (typeof netSub !== 'undefined' && netSub === 'paths' && !$('#tab-net').hidden) npLoad();   // 1.177.0; 1.330.0: bij Netwerk
   if (monSub === 'shelly') shLoad();   // 1.321.0
   const banner = $('#maint-banner');
   banner.hidden = !state.maintenance;
@@ -4992,7 +4994,7 @@ function ccHostCard(h) {
   const pathRows = paths.map((c) => {
     const s = pathSum(c), st = c.maintenance ? 4 : +c.status, quiet = (String(s.d || '').match(/h/g) || []).length;
     const sub = [L('{n} hops', { n: s.h }) + (quiet ? ' · ' + L('{n} stil', { n: quiet }) : ''), s.l !== undefined && s.l !== null ? L('{l}% verlies', { l: s.l }) : '', s.mb ? npMbit(s.mb) : ''].filter(Boolean);
-    return `<div class="ccx-prow s${st}" data-act="np-go" data-id="${c.id}" role="button" tabindex="0" title="${esc(L('Klik: naar Monitoring → Netwerkpaden'))}${s.w ? ' · ' + esc(s.w) : ''}">
+    return `<div class="ccx-prow s${st}" data-act="np-go" data-id="${c.id}" role="button" tabindex="0" title="${esc(L('Klik: naar Netwerk → Paden'))}${s.w ? ' · ' + esc(s.w) : ''}">
       <span class="ccx-st"><i></i>${esc(ccWord(c))}</span>
       <span class="ccx-cn"><span class="ccx-ti" aria-hidden="true">${checkIcon(c)}</span><span><b>→ ${esc(s.t || c.target)}</b><small>${esc(c.name)}</small></span></span>
       ${npDots(s.d, s.k)}
@@ -6237,7 +6239,7 @@ function hostForm(h, preset = null) {
       <label class="switch" ${h.mode === 'agent' || isNew ? '' : 'hidden'} id="iperf-ok-wrap"><input type="checkbox" name="iperf_ok" ${+(h.iperf_ok ?? 1) ? 'checked' : ''}><span></span> ${L('Mag doorvoertest ontvangen (iperf3)')} <span class="hint">${L('voor de pad-check van een andere server; de agent start dan kort een ontvanger die na één meting stopt')}</span></label>
       ${snmpHostFields(h.snmp)}
       ${swsOpen({ id: 'fim-host-wrap', cb: 'id="fim-host-sw"', icon: '📁', title: L('Bestanden bewaken (IDS)'), on: false, sub: `<span id="fim-host-label">${L('laden…')}</span>`, hidden: h.mode !== 'agent' })}
-        ${xpHtml(L('Extra bestanden om te bewaken, alleen op deze server.'), L('Deze paden komen bovenop de algemene lijst (<i>Instellingen → Bescherming → IDS algemeen</i>). Staat hetzelfde pad in allebei, dan geldt dit pad, bijvoorbeeld om de ernst te veranderen.'))}
+        ${xpHtml(L('Extra bestanden om te bewaken, alleen op deze server.'), L('Deze paden komen bovenop de algemene lijst (<i>Instellingen → IDS en EDR → IDS algemeen</i>). Staat hetzelfde pad in allebei, dan geldt dit pad, bijvoorbeeld om de ernst te veranderen.'))}
         <div id="fim-host"></div>
       </div></section>
       ${(state.templates || []).length ? `${swsOpen({ id: 'tpl-wrap', cb: null, icon: '📋', title: L('Sjablonen'), on: isNew || hostTpls(h).length > 0,
@@ -6326,7 +6328,7 @@ document.addEventListener('click', (e) => {
 });
 
 // ---------------------------------------------------------------- SNMP
-// ---------------------------------------------------------------- 1.182.0: Instellingen → Overzicht → Functies
+// ---------------------------------------------------------------- 1.182.0: Instellingen → Status en functies → Functies
 let featData = null;
 const featF = { q: '', g: '', st: '' };
 const FEAT_ST = () => ({ on: ['✅', L('aan')], off: ['⚪', L('uit')], unset: ['⚠️', L('niet ingesteld')], always: ['✔', L('altijd')] });
@@ -6536,7 +6538,7 @@ function snmpRootData(root) {
     auth_proto: g('snmp_auth_proto'), auth_pass: g('snmp_auth_pass'), priv_proto: g('snmp_priv_proto'), priv_pass: g('snmp_priv_pass') };
 }
 
-/** 1.178.0: Instellingen → Agents en koppelingen → SNMP: de algemene instelling en welke apparaten hem gebruiken */
+/** 1.178.0: Instellingen → Netwerk → SNMP: de algemene instelling en welke apparaten hem gebruiken */
 async function loadSnmpGlobal() {
   const box = $('#snmp-global');
   if (!box) return;
@@ -6628,7 +6630,7 @@ function snmpFieldsInit(root, onChange = () => {}) {
 function snmpGlobalText() {
   const g = state.snmp_global;
   return g ? L('uit = de algemene instelling (v{v}{u})', { v: g.v, u: g.v === '3' && g.user ? ', ' + g.user : '' })
-    : L('nog geen algemene instelling: vul die in bij Instellingen → Agents en koppelingen → SNMP');
+    : L('nog geen algemene instelling: vul die in bij Instellingen → Netwerk → SNMP');
 }
 
 /** Blok "📡 SNMP" in het serverformulier (1.178.0: schakelaar, en eigen instellingen of de algemene); geheimen gemaskeerd */
@@ -6638,7 +6640,7 @@ function snmpHostFields(s) {
     <label class="switch"><input type="checkbox" name="snmp_own" ${own ? 'checked' : ''}><span></span> ${L('Eigen instellingen')} <span class="hint">${esc(snmpGlobalText())}</span></label>
     <div id="snmp-fields" ${own ? '' : 'hidden'}>${snmpFieldsHtml(s || state.snmp_global)}</div>
     <div class="snmp-test-row"><button type="button" class="btn" id="snmp-test">🔍 ${L('Test SNMP')}</button><span class="small" id="snmp-test-out"></span></div>
-    ${xpHtml(L('RzSense leest dit apparaat zelf uit via SNMP.'), L('<b>Wat het doet:</b> RzSense vraagt het apparaat zelf om gegevens (UDP-poort 161), zonder agent. <b>Instellen:</b> zet SNMP aan op het apparaat en geef het een community (v2c) of een gebruiker (v3). <b>Algemeen of eigen:</b> zonder <i>Eigen instellingen</i> gebruikt dit apparaat de algemene instelling uit <i>Instellingen → Agents en koppelingen → SNMP</i>; verander je die, dan geldt dat meteen voor alle apparaten zonder eigen instellingen.'))}
+    ${xpHtml(L('RzSense leest dit apparaat zelf uit via SNMP.'), L('<b>Wat het doet:</b> RzSense vraagt het apparaat zelf om gegevens (UDP-poort 161), zonder agent. <b>Instellen:</b> zet SNMP aan op het apparaat en geef het een community (v2c) of een gebruiker (v3). <b>Algemeen of eigen:</b> zonder <i>Eigen instellingen</i> gebruikt dit apparaat de algemene instelling uit <i>Instellingen → Netwerk → SNMP</i>; verander je die, dan geldt dat meteen voor alle apparaten zonder eigen instellingen.'))}
   </div></section>`;
 }
 
@@ -7548,7 +7550,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
         const m = (r.hosts.find((x) => x.id === +h.id) || {}).mode || 'off';
         cmdMode = m;
         $('#cmd-mode-info').innerHTML = m === 'off'
-          ? L('<b class="warn-txt">⚠️ Commando\'s staan voor {name} uit.</b> De check blijft onbekend tot je ze aanzet: Instellingen → Agents en koppelingen → Commando-checks, of per server in de Agent Manager.', { name: esc(h.name) })
+          ? L('<b class="warn-txt">⚠️ Commando\'s staan voor {name} uit.</b> De check blijft onbekend tot je ze aanzet: Instellingen → Agents → Commando-checks, of per server in de Agent Manager.', { name: esc(h.name) })
           : L('Commando\'s op {name}: <b>{mode}</b>.', { name: esc(h.name), mode: esc(CMD_MODES[m]) });
       }).catch(() => {});
     }
@@ -9881,7 +9883,7 @@ function agentInstructions(h, pairNow = false) {
       </section>
       ${h.mode === 'agent' && !isHaHost(h) ? `<section class="am-sec am-card need-admin" data-pk="cmd" data-pw="12" style="--c: var(--crit)"><h3 class="am-h"><i aria-hidden="true">🖥️</i>${L('Commando-checks')}</h3>
         <p class="am-lead">${L('RzSense laat de agent een commando uitvoeren en vergelijkt het antwoord')}</p>
-        ${xpHtml(L('Hier bepaal je óf en als wie de agent de commando\'s van je commando-checks uitvoert.'), L('<b>Wat het doet:</b> bij een commando-check (bijvoorbeeld <code>zpool status -x</code> of <code>systemctl is-active nginx</code>) stuurt RzSense het commando naar de agent. De agent voert het uit in een kale omgeving, zonder invoer en met een time-out, en stuurt de uitvoer en de exitcode terug. RzSense vergelijkt die met het antwoord dat je verwacht. Dit is de enige plek waar een commando dat je in RzSense typt op de server draait. <b>De drie standen:</b> <i>uit</i> (standaard): er draait niets, de checks blijven onbekend. <i>als nobody</i>: het commando draait als de gebruiker nobody, zonder rechten op je bestanden; genoeg voor de meeste checks. <i>als root</i>: het commando mag alles op de server; alleen nodig voor bijvoorbeeld SMART, Docker, Proxmox of TrueNAS-meldingen. <b>Zo stel je het in:</b> schakelaar uit = de algemene instelling (Instellingen → Agents en koppelingen → Commando-checks); schakelaar aan = een eigen keuze voor deze server. Ruimer maken vraagt om je wachtwoord en komt in het logboek. <b>Goed om te weten:</b> op de server zelf kun je het altijd inperken, wat RzSense ook zegt: <code>COMMANDS=0</code> (nooit) of <code>COMMANDS=nobody</code> (nooit als root) in <code>/etc/default/rzmon-agent</code>. Gebruik https naar RzSense, zodat niemand onderweg een commando kan aanpassen. Kies <i>als root</i> alleen als een check het echt nodig heeft.'))}
+        ${xpHtml(L('Hier bepaal je óf en als wie de agent de commando\'s van je commando-checks uitvoert.'), L('<b>Wat het doet:</b> bij een commando-check (bijvoorbeeld <code>zpool status -x</code> of <code>systemctl is-active nginx</code>) stuurt RzSense het commando naar de agent. De agent voert het uit in een kale omgeving, zonder invoer en met een time-out, en stuurt de uitvoer en de exitcode terug. RzSense vergelijkt die met het antwoord dat je verwacht. Dit is de enige plek waar een commando dat je in RzSense typt op de server draait. <b>De drie standen:</b> <i>uit</i> (standaard): er draait niets, de checks blijven onbekend. <i>als nobody</i>: het commando draait als de gebruiker nobody, zonder rechten op je bestanden; genoeg voor de meeste checks. <i>als root</i>: het commando mag alles op de server; alleen nodig voor bijvoorbeeld SMART, Docker, Proxmox of TrueNAS-meldingen. <b>Zo stel je het in:</b> schakelaar uit = de algemene instelling (Instellingen → Agents → Commando-checks); schakelaar aan = een eigen keuze voor deze server. Ruimer maken vraagt om je wachtwoord en komt in het logboek. <b>Goed om te weten:</b> op de server zelf kun je het altijd inperken, wat RzSense ook zegt: <code>COMMANDS=0</code> (nooit) of <code>COMMANDS=nobody</code> (nooit als root) in <code>/etc/default/rzmon-agent</code>. Gebruik https naar RzSense, zodat niemand onderweg een commando kan aanpassen. Kies <i>als root</i> alleen als een check het echt nodig heeft.'))}
         ${amRow(L('Commando\'s uitvoeren'), `<span id="host-commands-info">${L('laden…')}</span>`, amSw('host-cmd-own', false, 'title="' + esc(L('Eigen keuze voor deze server')) + '"'))}
         <div class="am-sub" id="host-cmd-sub" hidden>${swSeg('cmd', Object.entries(CMD_MODES), 'off')}</div>
       </section>` : ''}
@@ -9901,7 +9903,7 @@ function agentInstructions(h, pairNow = false) {
         ${amOwn('ip', '🌐 ' + L('Alleen vanaf het bekende IP-adres'), '', h.ip_lock || '', [['on', L('aan')], ['off', L('uit')]], `${L('algemeen')}: ${state.conn_ip_lock ? L('aan') : L('uit')}`)}
         ${amOwn('https', '🔒 ' + L('Alleen via https'), '', h.agent_https || '', [['on', L('aan')], ['off', L('uit')]], `${L('algemeen')}: ${state.conn_https ? L('aan') : L('uit')}`)}
         ${amRow('🌍 ' + L('Adres van RzSense'), connText(h), `<button type="button" class="btn small-btn" data-am-url>✏️ ${L('Wijzigen')}</button>`, ' am-url')}
-        ${h.agent_ip_new ? `<div class="callout">⚠️ ${L('Geweigerd vanaf het nieuwe IP-adres <code>{ip}</code>. Toestaan kan bij Instellingen → Agents en koppelingen → Standaard voor alle agents.', { ip: esc(h.agent_ip_new) })}</div>` : ''}
+        ${h.agent_ip_new ? `<div class="callout">⚠️ ${L('Geweigerd vanaf het nieuwe IP-adres <code>{ip}</code>. Toestaan kan bij Instellingen → Agents → Standaard voor alle agents.', { ip: esc(h.agent_ip_new) })}</div>` : ''}
       </section>
       <section class="am-sec am-card need-admin" data-pk="snmp" data-pw="4" style="--c: var(--purple, #7a49d9)"><h3 class="am-h"><i aria-hidden="true">📡</i>SNMP</h3>
         <p class="am-lead">${L('RzSense leest het apparaat zelf uit (zonder agent)')}</p>
@@ -10439,7 +10441,7 @@ async function loadEdrHost(h, poll = false, gen = modalGen) {
   const i = d.info || {};
   const lines = [];
   if (!d.ids) lines.push(`<span class="warn-txt">⚠️ ${L('Werkt pas als het IDS aan staat (Instellingen → Bescherming).')}</span>`);
-  else if (!d.global) lines.push(`<span class="muted">${L('Staat voor alle servers uit (Instellingen → Bescherming → Endpoint-bewaking).')}</span>`);
+  else if (!d.global) lines.push(`<span class="muted">${L('Staat voor alle servers uit (Instellingen → IDS en EDR → Endpoint-bewaking).')}</span>`);
   else if (!d.on) lines.push(`<span class="muted">${L('Uit voor deze server.')}</span>`);
   else if (!d.at) lines.push(`<span class="muted">${L('Nog geen gegevens van de agent (agent {v} of nieuwer nodig).', { v: '1.63.0' })}</span>`);
   else {
@@ -10641,7 +10643,7 @@ async function amRansom(h, body) {
     return `<label class="rs-row${last && (+last.hit || last.canary === 'alarm') ? ' rs-alarm' : ''}"><input type="checkbox" data-rs-p="${esc(p)}" ${chosen.has(p) ? 'checked' : ''}>
       <span class="grow"><code>${esc(p)}</code><br>${info}</span></label>`;
   };
-  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Ransomware herkennen staat uit voor alle servers (Instellingen → Bescherming → Ransomware).')}</div>` : ''}
+  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Ransomware herkennen staat uit voor alle servers (Instellingen → IDS en EDR → Ransomware).')}</div>` : ''}
     ${!d.agent_ok ? `<div class="callout small">${L('Agent 1.90.0 of nieuwer nodig (en als root); werk de agent bij.')}</div>` : ''}
     <div class="rs-list">${all.length ? all.map(row).join('') : `<p class="muted small">${L('Nog geen mappen gevonden. Vul hieronder zelf een map in (bv. de map van je Samba-share).')}</p>`}</div>
     <div class="rs-add"><input id="rs-new" class="mono" placeholder="/mnt/tank/gedeeld" aria-label="${esc(L('Map toevoegen'))}"><button type="button" class="btn small-btn" id="rs-add">＋ ${L('Map')}</button></div>
@@ -10928,10 +10930,10 @@ async function loadIds() {
   if (idsAgain) { idsAgain = false; loadIds(); }
 }
 
-const IDS_TABS = ['inc', 'blk', 'live', 'map', 'ovw', 'acc', 'apps', 'hunt', 'anom', 'mitre'];   // 1.276.0: Bescherming staat in de portal; 1.278.1: Aanvallen (inc) staat hier én bij Incidenten
+const IDS_TABS = ['inc', 'blk', 'live', 'map', 'ovw', 'acc', 'leak', 'apps', 'hunt', 'anom', 'mitre'];   // 1.330.0: Datalekken (was bij Kwetsbaarheden)   // 1.276.0: Bescherming staat in de portal; 1.278.1: Aanvallen (inc) staat hier én bij Incidenten
 const IDS_AN = ['ovw', 'anom', 'mitre'];
 function showIdsTab() {
-  if (!IDS_TABS.includes(idsTab) || (idsTab === 'inc' && !$('#ids-tabs [data-it="inc"]'))) idsTab = 'live';
+  if (!IDS_TABS.includes(idsTab) || (idsTab === 'inc' && !$('#ids-tabs [data-it="inc"]')) || (idsTab === 'leak' && !$('#ids-more-menu [data-it="leak"]'))) idsTab = 'live';
   $$('#ids-tabs [data-it]').forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab || (x.dataset.it === 'ovw' && IDS_AN.includes(idsTab))));
   const an = $('#ids-an-seg');
   if (an) { an.hidden = !IDS_AN.includes(idsTab); $$('[data-it]', an).forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab)); }
@@ -10959,6 +10961,7 @@ function showIdsTab() {
     if (idsTab === 'mitre') loadMitre();
     if (idsTab === 'apps') { initApps(); loadApps(); }   // 1.229.0
     if (idsTab === 'hunt') { initHunt(); loadHunt(); }
+    if (idsTab === 'leak') loadLeaks();   // 1.330.0
     if (idsTab === 'map') { initAttackMap(); loadAttackMap(); }   // 1.149.0
   });
   crumbs();   // 1.199.0
@@ -10966,7 +10969,7 @@ function showIdsTab() {
 
 // ---------------------------------------------------------------- IDS: 🛰️ Live en 🔏 Regels (endpoint-bewaking, 1.110.0)
 let edrFeed = null, edrRules = null, ruleSrc = '';
-/* 1.236.0: de regels staan op één plek: Instellingen → Bescherming → Endpoint-bewaking → Regels en uitzonderingen */
+/* 1.236.0: de regels staan op één plek: Instellingen → IDS en EDR → Endpoint-bewaking → Regels en uitzonderingen */
 const ruleBox = () => $('#edr-rules-set');
 const ruleQ = () => $('#rule-q-set');
 const EDR_KIND_IC = { exec: '⚙️', net: '🌐', file: '📄', audit: '🔐', ctr: '📦', sur: '🦉' };
@@ -11134,7 +11137,7 @@ function renderLive() {
   const nf = (n) => (+n || 0).toLocaleString(LOCALE);
   $('#edr-n-hits').textContent = nf(sum.list.hits); $('#edr-n-all').textContent = nf(sum.list.all); $('#edr-n-own').textContent = nf(sum.list.own);
   $$('#edr-mode [data-lv-mode]').forEach((b) => { b.classList.toggle('on', b.dataset.lvMode === lvMode); b.setAttribute('aria-selected', b.dataset.lvMode === lvMode); });
-  $('#edr-hero').innerHTML = edrFeed.on ? lvHero(sum, sum.list.hits) : `<div class="lv-hero s1"><span class="big">⚠️</span><div class="lv-hero-t"><h3>${L('Endpoint-bewaking staat uit')}</h3><p>${L('Zet hem aan bij Instellingen → Bescherming → Endpoint-bewaking.')}</p></div></div>`;
+  $('#edr-hero').innerHTML = edrFeed.on ? lvHero(sum, sum.list.hits) : `<div class="lv-hero s1"><span class="big">⚠️</span><div class="lv-hero-t"><h3>${L('Endpoint-bewaking staat uit')}</h3><p>${L('Zet hem aan bij Instellingen → IDS en EDR → Endpoint-bewaking.')}</p></div></div>`;
   const order = ['exec', 'net', 'file', 'audit', 'ctr', 'sur'];
   const kinds = Object.entries(sum.kinds).filter(([k]) => k !== 'own' && k !== 'dns' && k !== 'web' && k !== 'ids').sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]));
   $('#edr-kinds').innerHTML = kinds.length ? kinds.map(([k, x]) => `<button type="button" class="lv-kind${lvKind === k ? ' on' : ''}" data-lv-kind="${k}" aria-pressed="${lvKind === k}" title="${esc(L('Laatste 24 uur · klik om alleen deze soort te tonen'))}">
@@ -11223,7 +11226,7 @@ function renderEdrRules() {
   const on = edrRules.rules.filter((r) => r.on).length;
   withMorph(() => {
     ruleBox().innerHTML = `<p class="small" style="margin-top:0"><b>${L('{on} van {n} regels aan.', { on, n: edrRules.rules.length })}</b>
-      ${edrRules.sigma_on ? '' : ` <span class="warn-txt">${L('Sigma-regels staan uit (Instellingen → Bescherming → Endpoint-bewaking).')}</span>`}</p>${xpHtml(L('Over de regels: van RzSense zelf en van SigmaHQ.'), L('<b>Bronnen:</b> de eigen regels van RzSense (met uitleg) en de Linux-regels van SigmaHQ (licentie DRL 1.1). <b>Uitzetten:</b> een regel uitzetten geldt voor alle servers; <i>Dit is normaal</i> bij een incident geldt voor één server.'))}
+      ${edrRules.sigma_on ? '' : ` <span class="warn-txt">${L('Sigma-regels staan uit (Instellingen → IDS en EDR → Endpoint-bewaking).')}</span>`}</p>${xpHtml(L('Over de regels: van RzSense zelf en van SigmaHQ.'), L('<b>Bronnen:</b> de eigen regels van RzSense (met uitleg) en de Linux-regels van SigmaHQ (licentie DRL 1.1). <b>Uitzetten:</b> een regel uitzetten geldt voor alle servers; <i>Dit is normaal</i> bij een incident geldt voor één server.'))}
       <div class="table-scroll"><table class="vuln-table rule-table"><thead><tr><th></th><th>${L('Regel')}</th><th>${L('Ernst')}</th><th>${L('Doet zelf')}</th><th>MITRE</th><th title="${esc(L('Treffers in de laatste 3 dagen'))}">${L('Treffers')}</th></tr></thead><tbody>
       ${list.map((r) => `<tr class="${r.on ? '' : 'muted'}" data-key="${esc(r.id)}"><td><label class="switch small need-admin"><input type="checkbox" data-rule="${esc(r.id)}" ${r.on ? 'checked' : ''}><span></span></label></td>
         <td><b>${esc(r.title)}</b> <span class="badge">${r.src === 'sigma' ? 'Sigma' : 'RzSense'}</span><br><span class="small muted">${esc((r.what || '').slice(0, 260))}${r.src === 'sigma' ? ` · ${esc(r.author || '')} · <a href="${esc(r.url)}" target="_blank" rel="noopener">${L('bron')}</a>` : ''}</span></td>
@@ -11435,7 +11438,7 @@ async function loadAnom() {
   try { anomData = await api('ids_anom', null, { days: anomDays, ...(host ? { host } : {}) }); } catch (ex) { $('#anom-learn').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   hostOptions($('#anom-host'));
   const d = anomData;
-  $('#anom-info').textContent = !d.on ? L('Endpoint-bewaking staat uit (Instellingen → Bescherming → Endpoint-bewaking)') : !d.anom ? L('Afwijkingen staan uit (Instellingen → Bescherming → Endpoint-bewaking)') : '';
+  $('#anom-info').textContent = !d.on ? L('Endpoint-bewaking staat uit (Instellingen → IDS en EDR → Endpoint-bewaking)') : !d.anom ? L('Afwijkingen staan uit (Instellingen → IDS en EDR → Endpoint-bewaking)') : '';
   withMorph(() => {
     $('#anom-learn').innerHTML = `<h3 class="set-sub" style="margin-top:0">🎓 ${L('Wat is normaal? (leren per server)')}</h3>
       ${xpHtml(L('Elke server leert eerst {d} dagen wat normaal is.', { d: d.learn_days }), L('Elke server leert {d} dagen wat normaal is: welke programma\'s, gebruikers, verbindingen en poorten. Daarna meldt RzSense wat die server nog nooit deed. <b>Na een grote wijziging</b> (nieuwe software) kun je hem opnieuw laten leren.', { d: d.learn_days }))}
@@ -11448,7 +11451,7 @@ async function loadAnom() {
           <button type="button" class="btn small-btn" data-learn="restart" data-h="${h.id}">↺ ${L('Opnieuw leren')}</button></td></tr>`).join('')}</tbody></table></div>`
         : `<p class="muted">${L('Nog geen servers met endpoint-bewaking (agent 1.63.0 of nieuwer, en aan in de Agent Manager).')}</p>`}`;
     $('#anom-chains').innerHTML = `<h3 class="set-sub" style="margin-top:0">🔗 ${L('Ketens')} <span class="muted small">${L('(laatste 30 dagen)')}</span></h3>
-      ${!d.chain ? `<p class="warn-txt small">${L('Ketens staan uit (Instellingen → Bescherming → Endpoint-bewaking).')}</p>` : ''}
+      ${!d.chain ? `<p class="warn-txt small">${L('Ketens staan uit (Instellingen → IDS en EDR → Endpoint-bewaking).')}</p>` : ''}
       ${d.chains.length ? d.chains.map((c) => `<div class="chain-card s${c.severity}" data-key="ch${c.id}">
         <div class="chain-head">${c.severity === 2 ? '🔴' : '🟠'} <button type="button" class="linklike" data-inc="${c.id}"><b>${esc(c.title)}</b></button>
           <span class="muted small">· ${esc(c.host)} · ${esc(fmtDateTime(c.created_at))}${c.hits > 1 ? ' · ' + L('{n}× gegroeid', { n: c.hits }) : ''} · ${c.status === 'open' ? `<b class="warn-txt">${L('open')}</b>` : '✔'}</span></div>
@@ -11654,7 +11657,7 @@ function renderAccess() {
   const fails = d.rows.filter((r) => r.kind === 'authfail').length;
   $('#it-n-acc').textContent = d.rows.length ? d.rows.length : '';
   $('#acc-info').textContent = L('{ok} gelukt · {fail} mislukt · laatste {days} dagen', { ok: d.rows.length - fails, fail: fails, days: d.days }) + (d.truncated ? ' ' + L('(alleen de nieuwste 10.000)') : '');
-  const off = d.enabled ? '' : '<p class="warn-txt small">' + L('Toegang bijhouden staat uit: er komt niets nieuws bij. Aanzetten onder <a href="#settings/ids" data-goto="settings/ids">Instellingen → Bescherming → IDS algemeen</a>.') + '</p>';
+  const off = d.enabled ? '' : '<p class="warn-txt small">' + L('Toegang bijhouden staat uit: er komt niets nieuws bij. Aanzetten onder <a href="#settings/ids" data-goto="settings/ids">Instellingen → IDS en EDR → IDS algemeen</a>.') + '</p>';
   const q = $('#acc-search').value.trim().toLowerCase();
   // 1.152.0: bij SSH: Alles, Gelukt (sessies met begin, einde en duur) of Mislukt
   const sshBar = $('#acc-ssh');
@@ -11777,7 +11780,7 @@ function accIgnoreDialog(r) {
     title: '🙈 ' + L('Negeren'),
     body: `<p style="margin-top:0">${L('Wat wil je voortaan niet meer zien in <i>Toegang</i>? Ook de regels die er al staan, verdwijnen.')}</p>
       ${opts.map(([k, v, l], i) => `<label class="switch small"><input type="checkbox" name="ign${i}" value="${esc(v)}" ${opts.length === 1 || k === 'ip' ? 'checked' : ''}><span></span> ${l}</label>`).join('')}
-      ${xpHtml(L('Negeren verbergt alleen; brute-forcedetectie blijft werken.'), L('Een mislukte poging met meerdere gebruikers wordt alleen verborgen als <i>alle</i> gebruikers genegeerd worden, of het IP-adres. De lijst pas je aan bij <i>Instellingen → Bescherming → IDS algemeen → Negeren</i>. De brute-forcedetectie van het IDS blijft gewoon werken.'))}`,
+      ${xpHtml(L('Negeren verbergt alleen; brute-forcedetectie blijft werken.'), L('Een mislukte poging met meerdere gebruikers wordt alleen verborgen als <i>alle</i> gebruikers genegeerd worden, of het IP-adres. De lijst pas je aan bij <i>Instellingen → IDS en EDR → IDS algemeen → Negeren</i>. De brute-forcedetectie van het IDS blijft gewoon werken.'))}`,
     buttons: [{ label: '🙈 ' + L('Negeren'), cls: 'primary', submit: true }],
     onSubmit: async (d) => {
       const add = Object.keys(d).filter((k) => k.startsWith('ign')).map((k) => d[k]);
@@ -13429,7 +13432,7 @@ function webPathHtml(w) {
   const v = w.verdict;
   return `<h3 class="set-sub">🛤️ ${L('Pad van de aanval')}</h3><div class="wp">${rows}
     ${v ? `<div class="wp-v ${v.lvl}">${v.lvl === 'warn' ? '⚠️' : '✅'} <span>${esc(v.text)}</span></div>` : ''}
-    ${!w.full ? `<p class="small muted wp-tip">💡 ${L('Wil je ook zien welke site en welke dienst erachter werd aangevallen? Zet bij Instellingen → Bescherming → Netwerk en weblogs het extra logbestand voor je reverse proxy aan.')}</p>` : ''}</div>`;
+    ${!w.full ? `<p class="small muted wp-tip">💡 ${L('Wil je ook zien welke site en welke dienst erachter werd aangevallen? Zet bij Instellingen → IDS en EDR → Netwerk en weblogs het extra logbestand voor je reverse proxy aan.')}</p>` : ''}</div>`;
 }
 
 /** 1.267.0: IDS → Overzicht: één kaartje webverkeer (24 uur); alles per site, pad en land staat op de pagina Reverse proxy */
@@ -15156,17 +15159,15 @@ function initMainTabs() {
 // [groep, icoon, naam, [[sleutel, titel, kaarten, korte omschrijving, tabbladen?], …]]
 const SET_IC = (d) => `<svg class="tab-ic set-ic" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 const SET_NAV = [
-  // 1.276.0: zeven groepen; dagelijks werk (Servers, Logboek, Compliance) staat in het hoofdmenu
-  ['overzicht', SET_IC('<path d="M3 12h4l3 8 4-16 3 8h4"/>'), L('Overzicht'), [
+  // 1.276.0: dagelijks werk (Servers, Logboek, Compliance) staat in het hoofdmenu
+  // 1.330.0: Bescherming (17 onderdelen) in drie groepen, een eigen groep Netwerk; Status en functies als losse ingang bovenaan
+  ['overzicht', SET_IC('<path d="M3 12h4l3 8 4-16 3 8h4"/>'), L('Status en functies'), [
     ['overview', L('Status en functies'), ['overview', 'features'], L('Wat er nog aandacht nodig heeft, en alle functies met wat er aan staat en waar je het instelt.'),
-      [['status', L('Status'), ['overview']], ['functies', L('Functies'), ['features']]]],
-    ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzSense elke minuut uitvoert.')]]],
+      [['status', L('Status'), ['overview']], ['functies', L('Functies'), ['features']]]]]],
   ['checks', SET_IC('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>'), L('Monitoring'), [
-    ['allchecks', L('Alle checks'), ['allchecks'], L('Alle checks van alle servers in één lijst, ook samen bewerken.')],
     ['templates', L('Sjablonen'), ['templates'], L('Vaste sets checks voor een nieuwe server.')],
     ['advice', L('Slimme drempels en advies'), ['smart', 'advice', 'smartmore', 'cleanup'], L('Slimme drempels, voorstellen en checks om op te schonen.'),
       [['drempels', L('Slimme drempels'), ['smart']], ['voorstellen', L('Voorstellen'), ['advice', 'smartmore']], ['opschonen', L('Opschonen'), ['cleanup']]]],
-    ['internet', L('Internetcheck'), ['internet'], L('Snelheid, ping en responstijd van je internetlijn.')],
     ['logs', L('Logs verzamelen'), ['logs'], L('Logs van je servers verzamelen: hoe vaak, hoe lang bewaren, hoeveel, maskeren en wat er binnenkomt.')]]],
   ['meldingen', SET_IC('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'), L('Meldingen en rapporten'), [
     ['channels', L('Kanalen'), ['pushover', 'ntfy', 'webpush', 'email', 'webhook', 'chat', 'chain'], L('Waar meldingen heen gaan: Pushover, ntfy, Web Push, e-mail, webhooks, Discord, Slack en Teams.')],
@@ -15179,9 +15180,10 @@ const SET_NAV = [
   ['toegang', SET_IC('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'), L('Toegang tot RzSense'), [
     ['access', L('Inloggen'), ['access'], L('Lokaal netwerk, uitloggen en blokkeren na mislukte pogingen.')],
     ['outside', L('Beheer van buiten'), ['https', 'outside'], L('Veilig beheren van buiten je netwerk: https, toegestane apparaten en de noodlink.')],
-    ['users', L('Gebruikers'), ['users', 'confirmpw'], L('Accounts, rollen, tweestapsverificatie en bevestigen bij acties.')]]],
-  ['bescherming', SET_IC('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'), L('Bescherming'), [
-    ['ids', L('IDS algemeen'), ['ids'], L('Aan of uit, leren of blokkeren, brute force en honeypot.')],
+    ['users', L('Gebruikers'), ['users', 'confirmpw'], L('Accounts, rollen, tweestapsverificatie en bevestigen bij acties.')],
+    ['hibp', L('Datalekken'), ['hibp'], L('Welke e-mailadressen RzSense controleert op datalekken. De lekken zelf staan bij IDS → Datalekken.')]]],   // 1.330.0
+  ['bescherming', SET_IC('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'), L('IDS en EDR'), [
+    ['ids', L('IDS algemeen'), ['ids', 'hunt'], L('Aan of uit, leren of blokkeren, brute force, honeypot en jagen op sporen.')],
     ['prot', L('Beschermingen'), ['prot'], L('Alle beschermingen van het IDS op een rij: wat aan staat, met hun drempels.')],
     ['ids_edr', L('Endpoint-bewaking (EDR)'), ['ids_edr', 'ids_rules'], L('Processen, bestanden en netwerk op je servers; afwijkingen en aanvalsketens.'),
       [['bewaking', L('Bewaking'), ['ids_edr']], ['regels', L('Regels en uitzonderingen'), ['ids_rules']]]],
@@ -15189,25 +15191,26 @@ const SET_NAV = [
     ['ids_dns', L('DNS, Suricata en YARA'), ['ids_net', 'dnsbl'], L('Aanvallen in het netwerkverkeer en in nieuwe bestanden herkennen, en de blokkadelijst voor AdGuard.')],
     ['ids_ransom', L('Ransomware'), ['ransom'], L('Mappen bewaken op versleutelen, met lokaasbestanden, snapshot en stoppen.')],
     ['ids_apps', L('Programma\'s'), ['apps'], L('Welke programma\'s er draaien; onbekende vallen op na een leerperiode. Toestaan, blokkeren en stoppen.')],
-    ['ids_hunt', L('Jagen op sporen'), ['hunt'], L('IP-adressen, domeinen, vingerafdrukken en paden zoeken, ook op de servers, en bewaken.')],
     ['ids_attack', L('Netwerk en weblogs'), ['ids_attack'], L('Blocklists, landen, uitgaand verkeer en de logs van webdiensten.')],
-    ['ids_servers', L('IDS per server'), ['ids_servers'], L('Welke servers het IDS gebruiken, en wat ze bewaken.')],
+    ['ids_servers', L('IDS per server'), ['ids_servers'], L('Welke servers het IDS gebruiken, en wat ze bewaken.')]]],
+  ['web', SET_IC('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'), L('Web en buitenkant'), [
     ['proxy', L('Reverse proxy en WAF'), ['proxy'], L('De apps achter je reverse proxy beschermen: wie mag erbij, bots, te veel verzoeken, WAF, ClamAV en Suricata.')],
     ['exposure', L('Van buitenaf'), ['exposure'], L('Wat er van je netwerk open staat op internet: je publieke IP en je domeinen, met een melding als er iets nieuws open gaat.')],
-    ['vulns', L('Kwetsbaarheden en datalekken'), ['vulns', 'eol', 'cvebuzz', 'hibp'], L('Bekende lekken en verouderde software op je servers, en datalekken met je e-mailadressen.'),
-      [['lekken', L('Kwetsbaarheden'), ['vulns', 'eol', 'cvebuzz']], ['datalekken', L('Datalekken'), ['hibp']]]],
-    ['patch', L('Updatebeleid'), ['patch'], L('Hoe updates worden geïnstalleerd: met de hand, in het onderhoudsvenster of elke dag; Home Assistant met back-up.')],
-    ['mailsec', L('E-mailbeveiliging'), ['mailsec'], L('SPF, DKIM en DMARC van je domeinen: kan iemand mailen namens jou?')],
-    ['nis2set', L('NIS2'), ['nis2'], L('Het NIS2-overzicht aanzetten en je organisatie invullen. Het overzicht zelf staat op de pagina Compliance.')],
-    ['netscan', L('Netwerkscan'), ['netscan'], L('Nieuwe apparaten en open poorten in je netwerk.')]]],
-  ['agents', SET_IC('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'), L('Agents en koppelingen'), [
+    ['mailsec', L('E-mailbeveiliging'), ['mailsec'], L('SPF, DKIM en DMARC van je domeinen: kan iemand mailen namens jou?')]]],
+  ['kwetsbaar', SET_IC('<path d="m8 2 1.9 1.9M16 2l-1.9 1.9"/><path d="M9 7.1V6a3 3 0 1 1 6 0v1.1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9"/>'), L('Kwetsbaarheden en updates'), [
+    ['vulns', L('Kwetsbaarheden'), ['vulns', 'eol', 'cvebuzz'], L('Bekende lekken en verouderde software op je servers.')],
+    ['patch', L('Updatebeleid'), ['patch'], L('Hoe updates worden geïnstalleerd: met de hand, in het onderhoudsvenster of elke dag; Home Assistant met back-up.')]]],
+  ['netwerk', SET_IC('<rect x="9" y="2" width="6" height="5" rx="1"/><rect x="2" y="17" width="6" height="5" rx="1"/><rect x="16" y="17" width="6" height="5" rx="1"/><path d="M12 7v5M5 17v-2.5a1.5 1.5 0 0 1 1.5-1.5h11a1.5 1.5 0 0 1 1.5 1.5V17"/>'), L('Netwerk'), [
+    ['netscan', L('Netwerkscan'), ['netscan'], L('Nieuwe apparaten en open poorten in je netwerk.')],
+    ['internet', L('Internetcheck'), ['internet'], L('Snelheid, ping en responstijd van je internetlijn.')],
+    ['unifi', 'UniFi', ['unifi'], L('Namen, wifi, verkeer en weren van je apparaten uit je UniFi-controller.')],
+    ['adguard', 'AdGuard Home', ['adguard'], L('Namen, DNS-verzoeken en DNS-blokkeren uit AdGuard Home, en de DNS-controle van het IDS.')],
+    ['snmp', 'SNMP', ['snmp'], L('Eén SNMP-instelling voor al je apparaten, met per apparaat een uitzondering.')]]],
+  ['agents', SET_IC('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'), L('Agents'), [
     ['agentdef', L('Standaard voor alle agents'), ['agentdef', 'enc'], L('Wat voor alle agents geldt: bijwerken, ritme, versleuteling en certificaat. Per server stel je het in bij Servers.')],
     ['relays', L('Netwerken en relays'), ['relays'], L('Servers in een ander netwerk via een relay laten rapporteren: welke relay, welke netwerken, welke servers.')],
     ['sudo', L('Tijdelijk sudo'), ['sudo'], L('Een gebruiker voor korte tijd sudo geven op één server, met je wachtwoord en 2FA.')],
     ['commands', L('Commando-checks'), ['commands'], L('Eigen commando\'s die agents mogen uitvoeren.')],
-    ['unifi', 'UniFi', ['unifi'], L('Namen, wifi, verkeer en weren van je apparaten uit je UniFi-controller.')],
-    ['adguard', 'AdGuard Home', ['adguard'], L('Namen, DNS-verzoeken en DNS-blokkeren uit AdGuard Home, en de DNS-controle van het IDS.')],
-    ['snmp', 'SNMP', ['snmp'], L('Eén SNMP-instelling voor al je apparaten, met per apparaat een uitzondering.')],
     ['mqtt', L('Home Assistant (MQTT)'), ['mqtt'], L('Sensoren en meldingen in Home Assistant.')]]],
   ['systeem', SET_IC('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'), L('Systeem'), [
     ['looks', L('Weergave'), ['looks'], L('De standaard weergave voor accounts die zelf nog niets kozen.')],
@@ -15217,6 +15220,7 @@ const SET_NAV = [
     ['db', L('Database en server'), ['dbconn', 'db', 'storage', 'dbuse', 'server', 'syscheck', 'cron'], L('Databaseverbinding, bewaartermijnen, tijdzone, PHP en de systeemcheck.'),
       [['database', L('Database'), ['dbconn', 'db', 'storage', 'dbuse']], ['server', L('Server'), ['server', 'syscheck', 'cron']]]],
     ['perf', L('Prestaties en fouten'), ['perf', 'errors'], L('Hoe snel RzSense is, hoe lang een cron-ronde duurt, de traagste checks en PHP-fouten.')],
+    ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzSense elke minuut uitvoert.')],   // 1.330.0: was bij Overzicht
     ['ai', L('AI-advies'), ['ai'], L('Advies van Claude, ChatGPT, Gemini, Grok of Ollama bij storingen.')],
     ['api', L('REST API'), ['api'], L('API-sleutels voor andere toepassingen.')],
     ['statuspage', L('Statuspagina'), ['statuspage'], L('Een openbare pagina met de status, via een geheime link.')],
@@ -15240,10 +15244,10 @@ if (document.body.dataset.role === 'user') {
 }
 /** Oude adressen (vóór 1.92.0) → nieuwe plek */
 const SET_ALIAS = { netlinks: 'unifi', ids_rules: 'ids_edr', enc: 'agentdef', https: 'outside', setup: 'db', syscheck: 'db', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db', changelog: 'actlog', features: 'overview',
-  quiet: 'rules', hibp: 'vulns', ids_prot: 'prot', dnsbl: 'ids_dns' };   // 1.276.0: nieuwe indeling   // 1.120.0: samengevoegde onderdelen
-const SET_TAB_OF = { features: 'functies', ids_rules: 'regels', smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server', quiet: 'stil', hibp: 'datalekken' };   // oude adressen → tabblad op de pagina Advies
+  quiet: 'rules', ids_prot: 'prot', dnsbl: 'ids_dns', hunt: 'ids' };   // 1.330.0: Datalekken eigen onderdeel bij Toegang   // 1.276.0: nieuwe indeling   // 1.120.0: samengevoegde onderdelen
+const SET_TAB_OF = { features: 'functies', ids_rules: 'regels', smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server', quiet: 'stil' };   // oude adressen → tabblad op de pagina Advies
 let setTab = {};   // per onderdeel met tabbladen: het gekozen tabblad
-let setSection = (() => { try { const v = localStorage.getItem('rzmon-set-section') || 'overview'; return ['agents', 'actlog', 'changelog', 'nis2'].includes(v) ? 'overview' : v; } catch (e) { return 'overview'; } })();   // 1.277.2: onderdelen die nu eigen pagina's zijn
+let setSection = (() => { try { const v = localStorage.getItem('rzmon-set-section') || 'overview'; return ['agents', 'actlog', 'changelog', 'nis2', 'nis2set', 'allchecks', 'ids_hunt'].includes(v) ? 'overview' : v; } catch (e) { return 'overview'; } })();   // 1.277.2: onderdelen die nu eigen pagina's zijn
 let setHealthAt = 0;
 let setHealth = {};   // onderdeel → slechtste status uit "Hoe staat het ervoor?" (voor de bolletjes in de zijbalk)
 let setHealthWhy = {};   // 1.131.2: onderdeel → de punten zelf (tekst bij het bolletje)
@@ -15257,7 +15261,7 @@ function setFind(id) {
 function showSettingsSection(id, focusEl) {
   xpClose();
   // 1.276.0: deze onderdelen zijn eigen pagina's in het hoofdmenu geworden
-  const MAIN = { agents: 'servers', actlog: 'logboek', changelog: 'logboek', nis2: 'compliance' };
+  const MAIN = { agents: 'servers', actlog: 'logboek', changelog: 'logboek', nis2: 'compliance', nis2set: 'compliance/set', allchecks: 'dashboard/allchecks', ids_hunt: 'ids/hunt' };   // 1.330.0
   if (MAIN[id]) {
     // 1.277.2: niet onthouden als laatste onderdeel, anders opent Instellingen voortaan deze pagina
     if (setSection === id) setSection = 'overview';
@@ -15307,7 +15311,6 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'overview' || Date.now() - setHealthAt > 60000) loadSettingsHealth();
   if (setSection === 'conn') loadConn();
   if (setSection === 'templates') loadTemplates();
-  if (setSection === 'allchecks') loadAllChecks();
   if (setSection === 'statuspage') loadStatusPage();
   if (setSection === 'internet') loadInet();
   if (setSection === 'logs') loadLogsOverview();   // 1.210.0
@@ -15402,7 +15405,7 @@ function renderCardDots(items) {
 }
 
 const dotFor = (st, why = []) => (st === 'bad' || st === 'warn'
-  ? `<i class="set-dot ${st}" title="${esc((why.length ? why : [st === 'bad' ? L('Hier moet iets gebeuren') : L('Aandachtspunt')]).join('\n') + '\n\n' + L('Alles staat bij Overzicht → Status'))}"></i>` : '');
+  ? `<i class="set-dot ${st}" title="${esc((why.length ? why : [st === 'bad' ? L('Hier moet iets gebeuren') : L('Aandachtspunt')]).join('\n') + '\n\n' + L('Alles staat bij Status en functies → Status'))}"></i>` : '');
 
 function renderSettingsNav() {
   const q = setSearchNorm($('#set-search').value);
@@ -15571,7 +15574,7 @@ async function loadSettingsHealth() {
 }
 
 /**
- * IDS-schakelaars op één plek (1.122.0): aan/uit staat op de kaarten van Instellingen → Bescherming → Beschermingen. De drempels van een kaart
+ * IDS-schakelaars op één plek (1.122.0): aan/uit staat op de kaarten van Instellingen → IDS en EDR → Beschermingen. De drempels van een kaart
  * staan achter ⚙️ (zelfde velden als in de instellingen, uit het instellingenformulier gekopieerd).
  */
 const PROT_CFG = {
@@ -15702,7 +15705,7 @@ function polishSettings(root) {
     rest.forEach((n) => w.append(n));
     l.append(w);
   });
-  // IDS: aan/uit van een onderdeel staat op Instellingen → Bescherming → Beschermingen (1.122.0); hier niet nog een keer
+  // IDS: aan/uit van een onderdeel staat op Instellingen → IDS en EDR → Beschermingen (1.122.0); hier niet nog een keer
   PROT_KEYS.forEach((k) => {
     const inp = $(`[data-sk^="ids"] label.switch > input[name="${k}"]`, root);
     const l = inp && inp.parentElement;
@@ -17260,7 +17263,7 @@ function initAllChecks() {
   $('#ac-bulk').addEventListener('click', (e) => { const b = e.target.closest('[data-bulk]'); if (b) acBulk(b.dataset.bulk); });
   // Na een venster (check bewerkt, sjabloon aangepast): de lijst bijwerken
   $('#modal').addEventListener('close', () => {
-    if (setSection === 'allchecks' && !$('#tab-settings').hidden) setTimeout(loadAllChecks, 300);
+    if (monSub === 'allchecks' && !$('#tab-dashboard').hidden) setTimeout(loadAllChecks, 300);   // 1.330.0: Alle checks staat op Monitoring
   });
 }
 
@@ -17970,7 +17973,7 @@ function showNewDbPassword(r) {
   loadDbInfo();
 }
 
-// ---------------------------------------------------------------- 🧬 Instellingen → Bescherming → Ransomware (1.228.0)
+// ---------------------------------------------------------------- 🧬 Instellingen → IDS en EDR → Ransomware (1.228.0)
 async function loadRansomSet() {
   const box = $('#ransom-hosts');
   if (!box) return;
@@ -18673,7 +18676,7 @@ function iaRender(p) {
   const err = iaData.error ? `<p class="form-error">${esc(iaData.error)}</p>` : '';
   if (iaTab === 'trends' && !tnData) tnLoad();   // 1.224.0: pas laden als je het tabblad opent
   const tabs = [['trends', '📉 ' + L('Trends'), tnRender()], ['attacks', '⚔️ ' + L('Aanvallen'), iaAttacks(p.sec)], ['surface', '🎯 ' + L('Blootstelling'), iaSurface()], ['rel', '🟢 ' + L('Betrouwbaarheid'), p.kpis + p.rel],
-    ['cap', '📈 ' + L('Capaciteit'), p.cap], ['net', '🌐 ' + L('Netwerk'), p.net], ['bk', '💾 ' + L('Back-ups'), p.bk], ['noise', '🔔 ' + L('Meldingen en ruis'), p.noise + p.qual]];
+    ['cap', '📈 ' + L('Capaciteit'), p.cap], ['net', '🌐 ' + L('Netwerk'), p.net], ['bk', '💾 ' + L('Back-ups van servers'), p.bk], ['noise', '🔔 ' + L('Meldingen en ruis'), p.noise + p.qual]];
   if (!tabs.some((t) => t[0] === iaTab)) iaTab = 'trends';
   return `${err || iaTop() + iaList()}
     <section class="ia-sec"><div class="ia-sec-h"><div><h2>${esc(L('Analyses'))}</h2><span class="muted small">${esc(L('de patronen achter de adviezen'))}</span></div>
@@ -18925,7 +18928,7 @@ function renderAnalytics() {
   // 🌐 Netwerk
   const n = d.network;
   const nk = (k2) => (NET_KIND[k2] || NET_KIND.unknown);
-  const net = !n.on ? anSec('🌐', L('Netwerk'), `<p class="muted">${L('De netwerkscan staat uit (Instellingen → Bescherming → Netwerkscan).')}</p>`)
+  const net = !n.on ? anSec('🌐', L('Netwerk'), `<p class="muted">${L('De netwerkscan staat uit (Instellingen → Netwerk → Netwerkscan).')}</p>`)
     : anSec('🌐', L('Netwerk'), `<div class="an-grid">
     ${anBox(L('Apparaten'), `<div class="an-stats"><div><b>${n.total}</b><span>${L('totaal')}</span></div><div><b class="${n.new_open ? 'warn-txt' : ''}">${n.new_open}</b><span>${L('nog niet beoordeeld')}</span></div><div><b>${n.blocked}</b><span>${L('geweerd')}</span></div><div><b class="${n.risky.length ? 'crit-txt' : ''}">${n.risky.length}</b><span>${L('met riskante poort')}</span></div></div>
       <h4 class="acc-sub">${L('Nieuwe apparaten per dag')}</h4>${anBars(n.series.new)}`)}
@@ -19151,15 +19154,17 @@ let ndData = null;
 let ndFilter = '';
 let ndPresKind = '';
 function setNetSub(s) {
-  netSub = ['disc', 'map', 'speed'].includes(s) ? s : 'list';
+  netSub = ['disc', 'map', 'speed', 'paths'].includes(s) ? s : 'list';
   try { localStorage.setItem('rzmon-net-sub', netSub); } catch (ex) { /* niet erg */ }
   $('#tab-net').classList.toggle('net-dc', netSub === 'disc');
   $('#tab-net').classList.toggle('net-mp', netSub === 'map');
   $('#tab-net').classList.toggle('net-sp', netSub === 'speed');   // 1.328.0: Netwerksnelheid
+  $('#tab-net').classList.toggle('net-pa', netSub === 'paths');   // 1.330.0: Paden (was Netwerk → Paden)
   if (netSub === 'map') renderNetMap();
   $$('#net-tabs [data-nsub]').forEach((b) => { const on = b.dataset.nsub === netSub; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
   if (netSub === 'disc') withPageWait('net', ndLoad);
   if (netSub === 'speed') withPageWait('net', nsLoad);
+  if (netSub === 'paths') withPageWait('net', () => npLoad(true));
   crumbs();   // 1.199.0
 }
 async function ndLoad() {
@@ -19194,7 +19199,7 @@ function renderNetDisc() {
   const d = ndData, nd = netData;
   if (!d || !nd) return;
   const box = $('#net-disc');
-  if (!d.enabled) { box.innerHTML = `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Bescherming → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`; return; }
+  if (!d.enabled) { box.innerHTML = `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Netwerk → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`; return; }
   const byId = Object.fromEntries(nd.devices.map((x) => [x.id, x]));
   const ev = ND_EV();
   const week = Date.now() - 7 * 86400e3;
@@ -19339,9 +19344,9 @@ function trTopHtml(limit = 10) {
   const pct = (a, b) => (b > 0 ? Math.round(((a - b) / b) * 100) : null);
   const cmp = (a, b) => { const p = pct(a, b); return p === null ? '' : ` <small class="${p > 0 ? 'warn-txt' : 'good-txt'}">${p > 0 ? '+' : ''}${p}% ${L('t.o.v. gisteren')}</small>`; };
   if (!st.on) {
-    return `<p class="muted small">${!st.unifi && st.setting ? L('Nog geen bron voor verkeer. Koppel UniFi (aanbevolen), zet SNMP aan op je switch, of werk de agent op je servers bij naar 1.80.0.') + ' ' + L('Koppel UniFi (Instellingen → Agents en koppelingen → UniFi) om het verkeer per apparaat te zien.')
+    return `<p class="muted small">${!st.unifi && st.setting ? L('Nog geen bron voor verkeer. Koppel UniFi (aanbevolen), zet SNMP aan op je switch, of werk de agent op je servers bij naar 1.80.0.') + ' ' + L('Koppel UniFi (Instellingen → Netwerk → UniFi) om het verkeer per apparaat te zien.')
       : !st.account ? L('Verkeer per apparaat vraagt een lokaal UniFi-account; met alleen een API-sleutel geeft UniFi geen tellers.')
-      : !st.setting ? L('Verkeer per apparaat staat uit (Instellingen → Bescherming → Netwerkscan).') : L('De netwerkscan staat uit.')}</p>`;
+      : !st.setting ? L('Verkeer per apparaat staat uit (Instellingen → Netwerk → Netwerkscan).') : L('De netwerkscan staat uit.')}</p>`;
   }
   if (st.error) return `<p class="warn-txt small">⚠️ ${esc(st.error)}</p>`;
   if (!rows.length) return `<p class="muted small">${L('Nog geen verkeer gemeten. Na 5 tot 10 minuten zie je hier de eerste cijfers.')}</p>`;
@@ -19435,7 +19440,7 @@ function renderNetMap() {
   const d = netData, box = $('#net-map');
   if (!box) return;
   if (!d) { box.innerHTML = `<p class="muted">${L('laden…')}</p>`; return; }
-  if (!d.enabled) { box.innerHTML = `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Bescherming → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`; return; }
+  if (!d.enabled) { box.innerHTML = `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Netwerk → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`; return; }
   const day = Date.now() - 86400e3;
   const ts = (s) => new Date(String(s).replace(' ', 'T')).getTime();
   const devs = d.devices.filter((x) => x.status !== 'ignored');
@@ -19537,7 +19542,7 @@ function renderNetNow() {
   // Uitleg bovenaan: uit, geen netwerk, of nog nooit gescand
   const nets = d.networks || { scan: [], skip: [] };
   $('#net-banner').innerHTML = !d.enabled
-    ? `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Bescherming → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`
+    ? `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Netwerk → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`
     : !nets.scan.length ? `<div class="v-banner">⚠️ <span>${L('Geen netwerk om te scannen: zet je netwerk (bv. 192.168.1.0/24) bij <a href="#settings/access" data-goto="settings/access">Toegang → Lokale netwerken</a>.')}</span></div>`
     : st.sweep_error ? `<div class="v-banner">⚠️ <span>${esc(st.sweep_error)}</span></div>`
     : st.links_error ? `<div class="v-banner">⚠️ <span>${esc(st.links_error)}</span> ${isAdmin() ? `<a href="#settings/netlinks" data-goto="settings/netlinks">${L('Instellingen')}</a>` : ''}</div>`
@@ -19884,10 +19889,10 @@ function renderLeaks() {
     ['', pwUsers.length, L('Gelekte wachtwoorden'), 's2'], ['handled', handled, L('Afgehandeld'), 's0'],
   ].map(([k, n, w, c]) => `<button type="button" class="hc ${c} ${n ? '' : 'zero'} ${k && leakFilter === k ? 'on' : ''}" ${k ? `data-lf="${k}"` : ''}><span class="hc-dot"></span><b data-flash>${n}</b> <span class="hc-w">${w}</span></button>`).join('');
   $('#leak-info').textContent = d.check_at ? L('laatste controle {t}', { t: ago(d.check_at) }) + ' · ' + L('dagelijks') : '';
-  if ($('#vt-n-leak')) $('#vt-n-leak').textContent = open.length || '';
+  if ($('#it-n-leak')) $('#it-n-leak').textContent = open.length || '';   // 1.330.0: bij IDS
   // Meldingen bovenaan: geen sleutel, fouten
   $('#leak-banner').innerHTML = [
-    !d.has_key ? `<div class="v-banner info">ℹ️ <span>${L('Geen API-sleutel: alleen de wachtwoorden van RzSense-accounts worden gecontroleerd. Een sleutel vul je in bij Instellingen → Bescherming → Kwetsbaarheden en datalekken.')}</span></div>` : '',
+    !d.has_key ? `<div class="v-banner info">ℹ️ <span>${L('Geen API-sleutel: alleen de wachtwoorden van RzSense-accounts worden gecontroleerd. Een sleutel vul je in bij Instellingen → Toegang tot RzSense → Datalekken.')}</span></div>` : '',
     d.last_error ? `<div class="v-banner">⚠️ <span><b>HIBP:</b> ${esc(d.last_error)}</span></div>` : '',
     d.domain_error ? `<div class="v-banner">⚠️ <span><b>${L('Domein')}:</b> ${esc(d.domain_error)}</span></div>` : '',
   ].join('');
@@ -20224,7 +20229,7 @@ function vulnBuzzHtml(d) {
     <div class="vbz-top">
       <div class="vbz-ring" style="--p:${b.score}"><div><b>${b.checked_at ? b.score : '–'}</b><small>${L('rugbaarheid')}</small></div></div>
       <div class="vbz-txt"><h3>🔥 ${L('Rugbaarheid')} ${b.checked_at && b.trend ? `<span class="vbz-trend ${b.trend > 0 ? 'up' : 'down'}">${b.trend > 0 ? '↑ +' : '↓ '}${b.trend} ${L('in 7 dagen')}</span>` : ''}</h3>
-        <p class="muted small">${b.checked_at ? L('Exploits {e}/60 · praat {t}/40 · bijgewerkt {w}', { e: b.exploit, t: b.talk, w: ago(b.checked_at) }) : b.on ? L('Nog niet bijgewerkt; dat gebeurt bij de volgende scan.') : L('Staat uit (Instellingen → Bescherming → Kwetsbaarheden en datalekken).')}</p>
+        <p class="muted small">${b.checked_at ? L('Exploits {e}/60 · praat {t}/40 · bijgewerkt {w}', { e: b.exploit, t: b.talk, w: ago(b.checked_at) }) : b.on ? L('Nog niet bijgewerkt; dat gebeurt bij de volgende scan.') : L('Staat uit (Instellingen → Kwetsbaarheden en updates → Kwetsbaarheden).')}</p>
         ${spark}
         ${b.on ? `<button type="button" class="btn small-btn" data-vbuzz-now>↻ ${L('Nu bijwerken')}</button>` : ''}</div>
     </div>
@@ -21074,7 +21079,7 @@ function ccMonitoring(d, c) {
   return ccCard('monitoring', `${ccHead(L('Monitoring') + ' · ' + CC_PERIODS.find(([k]) => k === ccPeriod)[1](), `<span class="cc-mu small">${esc(ccPrevLbl())}</span>`)}
     <div class="cc-mon">
       <div class="cc-nums cc-nums-5">
-        <button type="button" class="cc-num" data-hm-go="settings/allchecks"><span class="cc-mu small">${esc(L('Actieve checks'))}</span><b>${hmNum(m.active)}</b>
+        <button type="button" class="cc-num" data-hm-go="dashboard/allchecks"><span class="cc-mu small">${esc(L('Actieve checks'))}</span><b>${hmNum(m.active)}</b>
           <span class="small cc-mu">${esc(m.types.slice(0, 3).map((t) => `${t.n} ${t.type}`).join(' · '))}</span></button>
         <div class="cc-num"><span class="cc-mu small">${esc(L('Uitgevoerd'))}</span><b>${hmNum(m.runs.n)}</b><span class="small">${ccDelta(m.runs.n, m.runs.prev, false)} <span class="cc-mu">${esc(L('{n} checks liepen', { n: m.checks_ran }))}</span></span></div>
         <div class="cc-num ${m.fails.n ? 'warn' : 'ok'}"><span class="cc-mu small">${esc(L('Fout gegaan'))}</span><b>${hmNum(m.fails.n)}</b><span class="small">${ccDelta(m.fails.n, m.fails.prev)} <span class="cc-mu">${esc(L('warning of critical'))}</span></span></div>
@@ -21468,7 +21473,7 @@ async function caseDialog(id) {
   };
 })();
 
-// ---------------------------------------------------------------- Internet (1.157.0): Instellingen → Monitoring → Internetcheck
+// ---------------------------------------------------------------- Internet (1.157.0): Instellingen → Netwerk → Internetcheck
 async function loadInet() {
   const box = $('#inet-state');
   if (!box) return;
@@ -21516,7 +21521,7 @@ async function loadInet() {
 }
 // ---------------------------------------------------------------- 🧩 Onbekende programma's en 🔎 Jagen op sporen (1.229.0, agent 1.91.0)
 // IDS → Programma's (wat er draait, toestaan/blokkeren), IDS → Jagen (sporen zoeken, ook op de servers, en bewaken),
-// de kaart in de Agent Manager en Instellingen → Bescherming → Programma's / Jagen op sporen.
+// de kaart in de Agent Manager en Instellingen → IDS en EDR → Programma's / Jagen op sporen.
 const APP_ST = {
   new: () => ['⚠', L('onbekend'), 'warn'], block: () => ['⛔', L('geblokkeerd'), 'bad'], ok: () => ['✔', L('toegestaan'), 'ok'],
   learn: () => ['🎓', L('geleerd'), 'muted'], pkg: () => ['📦', L('uit een pakket'), 'muted'],
@@ -21536,7 +21541,7 @@ async function loadApps() {
   $('#it-n-apps').textContent = c.new + c.block || '';
   const learning = d.hosts.filter((h) => h.on && h.learning && h.until);
   const noAgent = d.hosts.filter((h) => h.on && !h.agent_ok).length;
-  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Onbekende programma\'s staat uit (Instellingen → Bescherming → Programma\'s).')}</div>` : ''}
+  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Onbekende programma\'s staat uit (Instellingen → IDS en EDR → Programma\'s).')}</div>` : ''}
     <div class="app-sum">${['new', 'block', 'ok', 'learn', 'pkg'].map((s) => `<button type="button" class="app-sum-b${appsOpt.status === s ? ' active' : ''}" data-app-st="${s}">${appChip(s)} <b>${c[s] || 0}</b></button>`).join('')}
       <button type="button" class="app-sum-b${appsOpt.status === '' ? ' active' : ''}" data-app-st="">${L('Zonder pakket')}</button><button type="button" class="app-sum-b${appsOpt.status === 'all' ? ' active' : ''}" data-app-st="all">${L('Alles')}</button></div>
     ${learning.length ? `<p class="muted small">🎓 ${L('Leert nog (wat nu draait wordt als normaal gezien):')} ${learning.map((h) => `${esc(h.name)} ${L('tot {d}', { d: new Date(h.until.replace(' ', 'T')).toLocaleDateString(LOCALE) })}`).join(' · ')}</p>` : ''}
@@ -21691,7 +21696,7 @@ async function amApps(h, body) {
   const c = d.counts;
   const until = d.since ? new Date(new Date(d.since.replace(' ', 'T')).getTime() + d.learn * 86400000) : null;
   amSum('apps', !d.on || !d.host_on ? esc(L('uit')) : c.new ? `<b class="warn-txt">${esc(L('{n} onbekend', { n: c.new }))}</b> · ${esc(L('{n} geblokkeerd', { n: c.block || 0 }))}` : d.learning ? esc(L('leert nog wat normaal is')) : '✔ ' + esc(L('niets onbekends')), !!(d.on && d.host_on && c.new));   // 1.246.0
-  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Onbekende programma\'s staat uit voor alle servers (Instellingen → Bescherming → Programma\'s).')}</div>` : ''}
+  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Onbekende programma\'s staat uit voor alle servers (Instellingen → IDS en EDR → Programma\'s).')}</div>` : ''}
     ${!d.agent_ok ? `<div class="callout small">${L('Agent 1.91.0 of nieuwer nodig (en als root); werk de agent bij.')}</div>` : ''}
     ${amRow('🧩 ' + L('Programma\'s bijhouden'), L('wat er draait, met vingerafdruk en pakket; na de leerperiode valt een onbekend programma op'), amSw('ap-on', d.host_on))}
     ${amRow('⛔ ' + L('Geblokkeerde programma\'s stoppen'), L('de agent stopt een programma dat je blokkeerde zodra het draait. Aanzetten vraagt je wachtwoord.'), amSw('ap-kill', d.kill))}
@@ -21720,7 +21725,7 @@ async function amApps(h, body) {
   };
 }
 
-// ---------------------------------------------------------------- Instellingen → Bescherming → Programma's
+// ---------------------------------------------------------------- Instellingen → IDS en EDR → Programma's
 async function loadAppsSet() {
   const box = $('#apps-hosts');
   if (!box) return;
@@ -21734,7 +21739,7 @@ async function loadAppsSet() {
 }
 // ---------------------------------------------------------------- 🩹 Updates installeren (patchbeheer, 1.230.0, agent 1.92.0)
 // de pagina Updates (overzicht en nu installeren), de kaart in de Agent Manager (keuze per server) en
-// Instellingen → Bescherming → Updatebeleid. Bijwerken zelf loopt via dezelfde opdracht als "pakketten bijwerken" (Vulns),
+// Instellingen → Kwetsbaarheden en updates → Updatebeleid. Bijwerken zelf loopt via dezelfde opdracht als "pakketten bijwerken" (Vulns),
 // dus de voortgang is hetzelfde venster (vulnUpgradeDialog).
 const PATCH_MODE = { manual: () => L('met de hand'), window: () => L('in het onderhoudsvenster'), auto: () => L('elke dag') };
 const PATCH_KIND = { ha: () => '🏠 Home Assistant', truenas: () => '🗄️ TrueNAS', linux: () => '🐧 Linux', windows: () => '⊞ Windows' };   // 1.316.0: Windows Update (Windows-agent 0.4.0)
@@ -21759,7 +21764,7 @@ async function loadPatch() {
   const hs = d.hosts;
   const sec = hs.reduce((n, h) => n + ((h.kind === 'linux' || h.kind === 'windows') ? h.sec : 0), 0);
   if ($('#vt-n-patch')) $('#vt-n-patch').textContent = sec || '';
-  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Updates installeren staat uit (Instellingen → Bescherming → Updatebeleid). Je ziet wel wat er klaarstaat.')}</div>` : ''}
+  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Updates installeren staat uit (Instellingen → Kwetsbaarheden en updates → Updatebeleid). Je ziet wel wat er klaarstaat.')}</div>` : ''}
     <div class="app-sum"><span class="app-sum-b">🛡 <b>${sec}</b> ${L('beveiligingsupdates')}</span><span class="app-sum-b">⬆ <b>${hs.reduce((n, h) => n + h.avail, 0)}</b> ${L('updates')}</span>
       <span class="app-sum-b">↻ <b>${hs.filter((h) => h.rb).length}</b> ${L('herstart nodig')}</span><span class="app-sum-b">🤖 <b>${hs.filter((h) => h.mode !== 'manual').length}</b> ${L('automatisch')}</span></div>
     ${hs.length ? `<div class="btn-row need-admin"><button type="button" class="btn small-btn primary" id="ph-bulk">⚙️ ${L('Meerdere servers instellen…')}</button>
@@ -21905,7 +21910,7 @@ async function amPatch(h, body) {
   if ($('#pt-now', box)) $('#pt-now', box).onclick = () => patchNow(d, 'security', () => amPatch(h, body));
 }
 
-// ---------------------------------------------------------------- Instellingen → Bescherming → Updatebeleid
+// ---------------------------------------------------------------- Instellingen → Kwetsbaarheden en updates → Updatebeleid
 async function loadPatchSet() {
   const box = $('#patch-hosts');
   if (!box) return;
@@ -21942,7 +21947,7 @@ async function amSudo(h, body) {
   try { d = await api('sudo_list', null, { host_id: h.id }); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const active = d.grants.filter((g) => ['pending', 'active'].includes(g.state) && g.left);
   amSum('sudo', !d.on ? esc(L('uit')) : active.length ? `<b class="warn-txt">${esc(L('{n} nu actief', { n: active.length }))}</b>` : esc(L('niemand heeft nu tijdelijk sudo')), active.length > 0);   // 1.246.0
-  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Tijdelijk sudo staat uit (Instellingen → Agents en koppelingen → Tijdelijk sudo).')}</div>` : ''}
+  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Tijdelijk sudo staat uit (Instellingen → Agents → Tijdelijk sudo).')}</div>` : ''}
     ${!d.agent_ok ? `<div class="callout small">${L('Agent 1.93.0 of nieuwer nodig (op Linux, als root, met visudo).')}</div>` : ''}
     ${active.length ? `<p class="small"><b>${L('Nu actief')}</b></p>${sudoRows(active, false)}` : `<p class="muted small">${L('Nu heeft niemand tijdelijk sudo op deze server.')}</p>`}
     <div class="btn-row"><button type="button" class="btn primary small-btn" id="sudo-new" ${!d.on || !d.agent_ok ? 'disabled' : ''}>🔑 ${L('Tijdelijk sudo geven')}</button></div>
@@ -22015,11 +22020,39 @@ const nis2Left = (due) => {
   return s >= 86400 ? L('nog {d} d {h} u', { d: Math.floor(s / 86400), h: Math.floor((s % 86400) / 3600) }) : `<b class="warn">${L('nog {h} u {m} min', { h: Math.floor(s / 3600), m: Math.floor((s % 3600) / 60) })}</b>`;
 };
 
+let compTab = 'nis2';   // 1.330.0: Compliance: NIS2 of Instellingen (die stonden in de beheerportal)
+/** Het tabblad Instellingen: NIS2 aan of uit, organisatie en CSIRT */
+function nis2SetHtml(d) {
+  return `<div class="nis2-set">
+    <label class="switch"><input type="checkbox" id="nis2s-on" ${d.on ? 'checked' : ''}><span></span> ${L('<b>NIS2-overzicht</b> en meldtermijnen')}</label>
+    <label>${L('Organisatie')} <span class="hint">${L('(voor het rapport)')}</span><input id="nis2s-org" maxlength="120" value="${esc(d.org || '')}"></label>
+    <label>${L('CSIRT')} <span class="hint">${L('(waar je meldt, bv. het NCSC of het CSIRT van je sector)')}</span><input id="nis2s-csirt" maxlength="200" value="${esc(d.csirt || '')}"></label>
+    <p class="small muted">${L('Het rapport automatisch versturen (bijvoorbeeld elk kwartaal naar je directie of adviseur) stel je in bij Rapporten.')} <a href="#settings/reports" data-goto="settings/reports">${L('Naar Rapporten')} →</a></p>
+    <div class="btn-row"><button type="button" class="btn primary" data-comp-save>${L('Opslaan')}</button></div></div>`;
+}
+
 async function loadNis2() {
   const box = $('#nis2-box');
   if (!box) return;
   let d;
   try { d = await api('nis2'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const compBar = isAdmin() ? `<div class="subtabs" id="comp-tabs" role="tablist" aria-label="${esc(L('Compliance'))}">
+    <button type="button" class="seg-btn ${compTab === 'nis2' ? 'active' : ''}" data-comp="nis2">🇪🇺 NIS2</button>
+    <button type="button" class="seg-btn ${compTab === 'set' ? 'active' : ''}" data-comp="set">⚙️ ${L('Instellingen')}</button></div>` : '';
+  box.onclick = async (e) => {
+    const t = e.target.closest('[data-comp]');
+    if (t) { compTab = t.dataset.comp === 'set' ? 'set' : 'nis2'; loadNis2(); return; }
+    if (e.target.closest('[data-comp-save]')) {
+      try {
+        await api('settings_save', { nis2_on: $('#nis2s-on').checked ? '1' : '0', nis2_org: $('#nis2s-org').value.trim(), nis2_csirt: $('#nis2s-csirt').value.trim() });
+        toast(L('Opgeslagen'));
+        loadNis2();
+      } catch (ex) { toast(ex.message, 'err'); }
+      return;
+    }
+    nis2Click(e, box);
+  };
+  if (compTab === 'set' && isAdmin()) { box.innerHTML = compBar + nis2SetHtml(d); return; }
   const cnt = (s) => d.measures.filter((m) => m.status === s || (s === 'ok' && m.status === 'manual')).length;
   const step = (i, w, label) => `<div class="nis2-step ${i[w] ? 'done' : ''}"><b>${label}</b><br>${i[w] ? `✔ ${L('verstuurd')} ${agoSpan(i[w])}` : `${L('uiterlijk {d}', { d: esc(fmtDateTime(i[w + '_due'])) })}<br>${nis2Left(i[w + '_due'])}`}
     <label class="small need-admin"><input type="checkbox" data-nis2-sent="${w}" data-id="${i.id}" ${i[w] ? 'checked' : ''}> ${L('verstuurd')}</label></div>`;
@@ -22044,7 +22077,7 @@ async function loadNis2() {
     <div class="btn-row need-admin">${d.recent.length ? `<select id="nis2-pick" aria-label="${esc(L('Incident'))}"><option value="">${L('Incident van de laatste 30 dagen…')}</option>${d.recent.map((r) => `<option value="${r.id}">${esc(fmtDateTime(r.at))} · ${esc(r.title.slice(0, 80))}${r.host ? ' · ' + esc(r.host) : ''}</option>`).join('')}</select>
       <button type="button" class="btn small-btn" id="nis2-mark">⚠ ${L('Als significant markeren')}</button>` : `<span class="muted small">${L('Geen incidenten van de laatste 30 dagen om te markeren (Incidenten).')}</span>`}</div>
     <p class="muted small">${L('Dit is geen juridisch advies en geen certificering: het laat zien wat RzSense technisch ziet. Of je onder NIS2 valt en wat significant is, bepaal je zelf (of met je adviseur).')}</p>`;
-  box.onclick = (e) => nis2Click(e, box);
+  box.insertAdjacentHTML('afterbegin', compBar);
   box.onchange = async (e) => {
     const c = e.target.closest('[data-nis2-sent]');
     if (!c) return;
@@ -24145,7 +24178,7 @@ function pxWebSec(x) {
   const btn = isAdmin() ? `<button type="button" class="btn small-btn" data-px-web>${w ? '↻ ' + L('Opnieuw controleren') : '🌐 ' + L('Nu controleren')}</button>` : '';
   // 1.322.2: een naam als app.* zonder bekend domein wordt nooit gecontroleerd: zeg dat, in plaats van "nog niet gecontroleerd"
   if (!w && x.web_target === null) return `<section class="px-dr-sec px-web"><h3>🌐 ${L('Webcheck')}</h3><p class="small warn-txt">${esc(L('Deze site heeft geen volledige naam ({s}), dus RzSense weet niet welk adres het moet opvragen.', { s: x.site }))}</p>
-    <p class="small muted">${L('Vul bij Instellingen → Bescherming → Reverse proxy en WAF het veld Domein voor namen als naam.* in (bv. example.nl). Daarna controleert RzSense de site elke dag.')}</p></section>`;
+    <p class="small muted">${L('Vul bij Instellingen → Web en buitenkant → Reverse proxy en WAF het veld Domein voor namen als naam.* in (bv. example.nl). Daarna controleert RzSense de site elke dag.')}</p></section>`;
   if (!w) return `<section class="px-dr-sec px-web"><h3>🌐 ${L('Webcheck')}</h3><p class="small muted">${L('Nog niet gecontroleerd. RzSense vraagt de site zelf op en kijkt naar https, het certificaat en de beveiligingsheaders.')}</p>${btn}</section>`;
   return `<section class="px-dr-sec px-web"><h3>🌐 ${L('Webcheck')}</h3>
     <div class="px-dr-score"><span class="px-grade ${pxWebCls(w.grade)}">${esc(w.grade)}</span><span class="px-grade-n">${w.n} / 100</span>
@@ -24838,7 +24871,7 @@ const SUBNAV = {
   net: { q: '#net-tabs [data-nsub]', key: 'nsub', go: (k) => 'net/' + k, cur: () => netSub },
   logs: { items: () => [['search', L('Zoeken')], ['watch', L('Vaste zoekacties'), '#lp-w-n'], ['in', L('Binnenkomst')]], sel: (k) => `#logs-sub [data-lp-sub="${k}"]`, cur: () => LP.sub },
   analytics: {
-    items: () => [['trends', L('Trends')], ['attacks', L('Aanvallen')], ['surface', L('Blootstelling')], ['rel', L('Betrouwbaarheid')], ['cap', L('Capaciteit')], ['net', L('Netwerk')], ['bk', L('Back-ups')], ['noise', L('Meldingen en ruis')]],
+    items: () => [['trends', L('Trends')], ['attacks', L('Aanvallen')], ['surface', L('Blootstelling')], ['rel', L('Betrouwbaarheid')], ['cap', L('Capaciteit')], ['net', L('Netwerk')], ['bk', L('Back-ups van servers')], ['noise', L('Meldingen en ruis')]],
     set: (k) => anSubSet(k), cur: () => iaTab,   // 1.290.1: zelf kiezen, niet wachten op de knop (de pagina kan traag laden)
   },
 };
@@ -24945,7 +24978,7 @@ document.addEventListener('mouseout', (e) => {
   if (e.target.closest && (e.target.closest('#side-fly') || e.target.closest('.app-top .main-tabs .tab[data-tab]'))) sideFlyLater();
 });
 // ---------------------------------------------------------------- 🛰️ Netwerken en relays (1.282.0, agent 1.109.0)
-// Beheer → Agents en koppelingen → Netwerken en relays. Een netwerk zonder verbinding met RzSense krijgt een relay:
+// Beheer → Agents → Netwerken en relays. Een netwerk zonder verbinding met RzSense krijgt een relay:
 // agent op server → relay → RzSense. Hier: de relays (installeren, adres), de netwerken (adresreeksen, relay en
 // reserve-relay) en per server in welk netwerk hij zit en of hij moet overstappen.
 const RELAY_IMAGE = 'ghcr.io/rembrand20/rzsense-relay:latest';
@@ -25531,7 +25564,7 @@ function rsEvents(box, d) {
   };
 }
 // ---------------------------------------------------------------- 🌍 Van buitenaf (aanvalsoppervlak, 1.290.0)
-// Instellingen → Bescherming → Van buitenaf: wat staat er van je netwerk open op internet. Bronnen, doelen, de lijst met
+// Instellingen → Web en buitenkant → Van buitenaf: wat staat er van je netwerk open op internet. Bronnen, doelen, de lijst met
 // open poorten (goedkeuren met één klik) en wat Shodan bij je IP-adressen ziet.
 
 let expData = null;
@@ -26656,7 +26689,7 @@ function nsWifiHtml(w) {
   return `<div class="card ns-card"><h2>📶 ${esc(L('Wifi per access point'))}</h2><p class="muted small">${esc(sub)}</p>
     ${list || `<p class="muted">${esc(L('Nog geen wifi-gegevens. Een laptop of pc met de agent (Linux of Windows) meldt hier zijn eigen wifi.'))}</p>`}
     ${(w.no_iw || []).map((x) => `<p class="muted small">💡 ${esc(L('{h} heeft wifi, maar iw kon niet geïnstalleerd worden ({e}). Installeer het zelf: sudo apt install iw of sudo dnf install iw.', { h: x.name, e: x.err }))}</p>`).join('')}
-    ${w.unifi ? '' : `<div class="ns-empty">🔌 <b>${esc(L('Alle access points en wifi-apparaten zien?'))}</b> ${esc(L('Koppel UniFi bij Instellingen → Agents en koppelingen → UniFi. Dan komen hier ook de bekabeling of mesh van elk access point en de snelheid en het signaal van elk apparaat.'))}</div>`}
+    ${w.unifi ? '' : `<div class="ns-empty">🔌 <b>${esc(L('Alle access points en wifi-apparaten zien?'))}</b> ${esc(L('Koppel UniFi bij Instellingen → Netwerk → UniFi. Dan komen hier ook de bekabeling of mesh van elk access point en de snelheid en het signaal van elk apparaat.'))}</div>`}
   </div>`;
 }
 
@@ -26710,7 +26743,7 @@ function nsRouteForm(r) {
         <label class="check-row"><input type="checkbox" name="tp"${+cur.tp ? ' checked' : ''}> ${esc(L('Doorvoer meten met iperf3 (de agent op de server start kort een ontvanger)'))}</label>
         <label>${esc(L('Doorvoer meten'))}<select name="every_sec">${[3600, 21600, 86400].map((s) => opt(s, nsEvery(s), +cur.every_sec === s)).join('')}</select></label></div>
       <div data-ns-dst="addr"${cur.dst_kind === 'addr' ? '' : ' hidden'}><label>${esc(L('Adres'))}<input name="dst_addr" value="${esc(cur.dst_addr || '')}" maxlength="253" placeholder="192.168.1.10 / nas.lan"></label></div>
-      <div data-ns-dst="internet"${cur.dst_kind === 'internet' ? '' : ' hidden'}><p class="muted small">${esc(L('De snelheid van je internetlijn komt uit de snelheidstest van de check Internet (Instellingen → Monitoring → Internetcheck), vergeleken met je abonnement.'))}</p>
+      <div data-ns-dst="internet"${cur.dst_kind === 'internet' ? '' : ' hidden'}><p class="muted small">${esc(L('De snelheid van je internetlijn komt uit de snelheidstest van de check Internet (Instellingen → Netwerk → Internetcheck), vergeleken met je abonnement.'))}</p>
         ${ifs.length ? `<label>${esc(L('WAN-poort van de router (SNMP)'))}<select name="wan_if">${opt('', L('vanzelf (op de naam)'), !cur.wan_if)}${ifs.map((x) => opt(x.i, x.n, String(cur.wan_if) === String(x.i))).join('')}</select></label>` : ''}</div>
       <label>${esc(L('Naam'))} <span class="hint">${esc(L('(optioneel)'))}</span><input name="name" value="${esc(cur.own_name || '')}" maxlength="100"></label>
       <fieldset class="devreq-who"><legend>${esc(L('Melding'))}</legend>

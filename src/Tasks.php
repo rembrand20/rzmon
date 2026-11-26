@@ -60,7 +60,7 @@ final class Tasks
             'every' => t('dagelijks om {t}', ['t' => $setting('vuln_time', '03:30')]), 'last_ok' => $ts($setting('vuln_last_scan', '')),
             'next' => $at((string) $setting('vuln_time', '03:30')), 'stale' => 3 * self::DAY, 'alert' => true];
 
-        // 1.157.0: snelheidstest van de internetlijn (Instellingen → Monitoring → Internetcheck)
+        // 1.157.0: snelheidstest van de internetlijn (Instellingen → Netwerk → Internetcheck)
         $sp = q('SELECT MAX(at) FROM inet_speed WHERE err IS NULL')->fetchColumn();
         $spl = q('SELECT at, err FROM inet_speed ORDER BY id DESC LIMIT 1')->fetch() ?: [];
         $out[] = ['key' => 'speedtest', 'label' => t('Snelheidstest internet (speed.cloudflare.com)'), 'on' => Internet::wanted(),
@@ -155,7 +155,7 @@ final class Tasks
                 $watch[$k]['alerted'] = time();
                 $why = $o['last_ok'] ? t('Laatst gelukt: {t}.', ['t' => date('d-m-Y H:i', $o['last_ok'])]) : t('Nog nooit gelukt.');
                 Monitor::sysInfo('task_fail', null, null, '⚠️ RzSense: ' . t('{task} lukt niet', ['task' => $o['label']]),
-                    fn() => $why . ($o['error'] !== '' ? ' ' . t('Fout: {e}', ['e' => $o['error']]) : '') . "\n" . t('Zie Instellingen → Overzicht → Verbindingen en taken.'));
+                    fn() => $why . ($o['error'] !== '' ? ' ' . t('Fout: {e}', ['e' => $o['error']]) : '') . "\n" . t('Zie Instellingen → Systeem → Achtergrondtaken.'));
                 $said[] = "$k mislukt";
             } elseif (!$problem && isset($watch[$k])) {
                 if (!empty($watch[$k]['alerted']) && $o['status'] !== 'off') {

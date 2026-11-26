@@ -188,7 +188,7 @@ function init() {
       ...Object.entries(s.errors || {}).map(([k, e]) => `<span class="warn-txt">${esc(prov[k] || k)}: ${esc(e.msg)} (${esc(fmtDateTime(e.at))})</span>`),
     ].filter(Boolean).join(' · ');
     const dn = s.dns || {};
-    $('#dns-status').innerHTML = !dn.adguard ? `<span class="warn-txt">${L('Nog geen AdGuard gekoppeld (Instellingen → Agents en koppelingen → AdGuard).')}</span>`
+    $('#dns-status').innerHTML = !dn.adguard ? `<span class="warn-txt">${L('Nog geen AdGuard gekoppeld (Instellingen → Netwerk → AdGuard).')}</span>`
       : [dn.at ? L('Laatst gekeken {t}', { t: esc(fmtDateTime(dn.at)) }) : L('Nog niet gekeken'), L('vandaag {n} DNS-vragen, {h} verdacht', { n: (+dn.n).toLocaleString(LOCALE), h: +dn.hits }),
         dn.error ? `<span class="warn-txt">${esc(dn.error)}</span>` : ''].filter(Boolean).join(' · ');
   };
@@ -291,7 +291,7 @@ function init() {
     try { await api('settings_save', { [c.dataset.protToggle]: c.checked ? '1' : '0' }); toast(c.checked ? L('Aangezet') : L('Uitgezet')); loadProt(); } catch (ex) { toast(ex.message, 'err'); c.checked = !c.checked; }
   };
   $('#prot-cards').onclick = (e) => {
-    const cfg = e.target.closest('[data-ps-cfg]');   // 1.236.0: aan/uit en drempels hier (was ook Instellingen → Bescherming → Beschermingen)
+    const cfg = e.target.closest('[data-ps-cfg]');   // 1.236.0: aan/uit en drempels hier (was ook Instellingen → IDS en EDR → Beschermingen)
     if (cfg) { protCfgDialog(cfg.dataset.psCfg); return; }
     const b = e.target.closest('[data-prot-show]');
     if (!b) return;
@@ -596,17 +596,19 @@ function showTab(name) {
   if (name === 'settings/blocks') name = 'ids/blk';   // 1.92.0: blokkades en whitelist staan in het IDS-tabblad
   // 1.276.0: nieuwe indeling; oude adressen (ook in meldingen en e-mails) sturen door naar de nieuwe plek
   const MOVED = { 'settings/agents': 'servers', 'settings/actlog': 'logboek', 'settings/changelog': 'logboek', 'settings/nis2': 'compliance',
-    'vulns/patch': 'updates', 'ids/prot': 'settings/prot', 'settings/quiet': 'settings/rules', 'settings/hibp': 'settings/vulns' };
+    'vulns/patch': 'updates', 'ids/prot': 'settings/prot', 'settings/quiet': 'settings/rules',
+    // 1.330.0: nieuwe indeling
+    'dashboard/paths': 'net/paths', 'incidents/ids': 'ids/inc', 'vulns/leak': 'ids/leak', 'settings/allchecks': 'dashboard/allchecks', 'settings/nis2set': 'compliance/set', 'settings/ids_hunt': 'ids/hunt' };
   if (MOVED[name] && !(name === 'ids/inc' && document.body.dataset.role === 'readonly')) {
     if (name === 'settings/quiet') setTab.rules = 'stil';
-    if (name === 'settings/hibp') setTab.vulns = 'datalekken';
     name = MOVED[name];
   }
   if (/^incidents\/(all|check|ids|vuln)$/.test(name)) { incSrc = name.slice(10); name = 'incidents'; }
   // 1.197.0: diepe links (o.a. vanuit de Home Assistant-kaart): #net/map, #net/list, #net/disc en #dashboard/paths, /avail, /cont
   let netReq = null, monReq = null;
-  if (/^net\/(map|list|disc|speed)$/.test(name)) { netReq = name.slice(4); name = 'net'; }   // 1.328.0: ook Netwerksnelheid
-  if (/^dashboard\/(paths|avail|cont|shelly|checks)$/.test(name)) { monReq = name.slice(10); name = 'dashboard'; }
+  if (/^net\/(map|list|disc|speed|paths)$/.test(name)) { netReq = name.slice(4); name = 'net'; }   // 1.328.0: ook Netwerksnelheid; 1.330.0: Paden
+  if (/^dashboard\/(allchecks|avail|cont|shelly|checks)$/.test(name)) { monReq = name.slice(10); name = 'dashboard'; }
+  if (name === 'compliance/set') { compTab = 'set'; name = 'compliance'; }   // 1.330.0: de NIS2-instellingen
   // 1.325.2: IDS vanuit het menu (of een andere pagina) opent altijd op Aanvallen; een link als #ids/live blijft werken
   if (name === 'ids' && ($('.tab-panel:not([hidden])') || {}).id !== 'tab-ids') idsTab = 'inc';
   if (/^(ids|vulns)\//.test(name)) {
@@ -614,10 +616,10 @@ function showTab(name) {
     name = tab;
     if (tab === 'ids' && IDS_TABS.includes(s)) idsTab = s;
     if (tab === 'ids' && s === 'rules') { showTab('settings/ids_rules'); return; }   // 1.236.0: regels staan in de beheerportal
-    if (tab === 'vulns' && ['cve', 'sw', 'leak', 'eol', 'patch'].includes(s)) vulnTab = s;
+    if (tab === 'vulns' && ['cve', 'sw', 'eol', 'patch'].includes(s)) vulnTab = s;
   }
   if (qs) {
-    const page = { dashboard: 'dash', alerts: 'alerts', ids: { inc: 'ids', acc: 'acc', blk: 'blk' }[idsTab], vulns: vulnTab === 'leak' ? 'leaks' : 'vulns' }[name];
+    const page = { dashboard: 'dash', alerts: 'alerts', ids: { inc: 'ids', acc: 'acc', blk: 'blk', leak: 'leaks' }[idsTab], vulns: 'vulns' }[name];
     if (page) fxFromQuery(page, qs);
   }
   if (name.startsWith('settings/')) { sub = name.slice(9); name = 'settings'; }
@@ -655,7 +657,7 @@ function showTab(name) {
   if (name === 'updates') loadPatch();
   if (name === 'logboek') loadActLog();
   if (name === 'compliance') loadNis2();
-  if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#leak-list')) loadLeaks(); if ($('#eol-list') && !$('#vuln-tabs')) loadEol(); }
+  if (name === 'vulns') { showVulnTab(); if ($('#vuln-search')) loadVulns(); if ($('#eol-list') && !$('#vuln-tabs')) loadEol(); }
   pageWaitClose();
   crumbs();   // 1.199.0
 }
@@ -689,7 +691,7 @@ function crumbs() {
     const g = f && SET_NAV.find((x) => x[2] === f.group);
     if (f) {
       if (g && g[3][0][0] !== f.sub[0]) parts.push({ l: f.group, go: 'settings/' + g[3][0][0] });
-      else parts.push({ l: f.group, go: null });
+      else if (f.group !== f.sub[1]) parts.push({ l: f.group, go: null });   // 1.330.0: Status en functies is groep én onderdeel: één keer
       parts.push({ l: f.sub[1], go: 'settings/' + f.sub[0] });
       const tabs = f.sub[4];
       if (tabs) { const tb = tabs.find((x) => x[0] === setTab[setSection]) || tabs[0]; parts.push({ l: tb[1], go: null }); }

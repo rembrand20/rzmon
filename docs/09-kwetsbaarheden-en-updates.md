@@ -8,7 +8,7 @@ RzSense kijkt welke software er op je servers staat en zoekt daar de bekende kwe
 
 ### Aanzetten
 
-1. Ga naar *Instellingen → Bescherming → Kwetsbaarheden en datalekken*.
+1. Ga naar *Instellingen → Kwetsbaarheden en updates → Kwetsbaarheden*.
 2. Zet **Kwetsbaarheden aan**.
 3. Kies eventueel het tijdstip van de dagelijkse scan (standaard 03:30), vanaf welke ernst je ze wilt zien, en welke servers niet gescand worden.
 
@@ -37,7 +37,7 @@ Meer over de Windows-agent staat in [Windows-agent](06-windows-agent.md).
 
 ### De pagina Kwetsbaarheden
 
-De pagina heeft bovenaan tabbladen: **🐞 Kwetsbaarheden**, **📦 Software**, **⏳ Verouderd** (end-of-life) en, voor beheerders met de datalekcontrole aan, **🔓 Datalekken** (zie [Beveiliging](08-beveiliging.md)).
+De pagina heeft bovenaan tabbladen: **🐞 Kwetsbaarheden**, **📦 Software**, en **⏳ Verouderd** (end-of-life). De datalekken van je e-mailadressen staan bij *IDS → Datalekken* (zie [Beveiliging](08-beveiliging.md)).
 
 Op het tabblad Kwetsbaarheden zie je:
 
@@ -102,7 +102,7 @@ Rugbaarheid is een score van 0 tot 100: hoeveel aandacht krijgt een kwetsbaarhei
 
 - In het venster van een CVE zie je de meter, de stijging in 7 dagen, het verloop en elke bron (met een link). **↻ Nu bijwerken** haalt alles meteen opnieuw op.
 - In de lijst staat een **🔥 met de score** bij een CVE boven de grens; het filter **🔥 Veel aandacht** laat alleen die zien.
-- Instellen bij *Instellingen → Bescherming → Kwetsbaarheden en datalekken*:
+- Instellen bij *Instellingen → Kwetsbaarheden en updates → Kwetsbaarheden*:
   - **GitHub-token** (optioneel): zonder token zoekt RzSense 6 CVE's per minuut, met token 20. Maak een *fine-grained token* zonder rechten (alleen publieke repositories).
   - **Mastodon**: zonder token telt RzSense de hashtag (bijvoorbeeld `#CVE20243094`) op de instantie die je kiest (standaard infosec.exchange). Met een token (alleen lezen) telt hij ook berichten zonder hashtag.
   - **Exploit-DB** en **Nuclei**: één keer per dag de lijst, aan of uit.
@@ -143,7 +143,7 @@ Zo gaat het:
 
 Goed om te weten:
 
-- Het kan alleen als **commando's als root** aan staan voor die server (*Instellingen → Agents en koppelingen → Commando-checks*, of per server in de Agent Manager) en de agent als root draait. Kan het niet, dan krijg je het commando om zelf uit te voeren.
+- Het kan alleen als **commando's als root** aan staan voor die server (*Instellingen → Agents → Commando-checks*, of per server in de Agent Manager) en de agent als root draait. Kan het niet, dan krijg je het commando om zelf uit te voeren.
 - Op de server zelf blokkeer je het altijd met een regel in `/etc/default/rzmon-agent`:
 
   ```
@@ -210,7 +210,7 @@ Een besturingssysteem of programma dat geen updates meer krijgt, krijgt ook geen
 ### Meldingen en uitzetten
 
 - Je krijgt een ℹ️-melding 90 en 30 dagen vooraf en op de dag zelf, één keer per stap, en een regel in het logboek van de server. De melding zet je aan of uit bij *Instellingen → Meldingen en rapporten → Systeemmeldingen → End-of-life*.
-- Uitzetten: *Instellingen → Bescherming → Kwetsbaarheden en datalekken → End-of-life*, of *Instellingen → Overzicht → Status en functies → Functies*.
+- Uitzetten: *Instellingen → Kwetsbaarheden en updates → Kwetsbaarheden → End-of-life*, of *Instellingen → Status en functies → Functies*.
 - Windows-servers vallen hier (nog) niet onder.
 
 ## Updates installeren
@@ -219,9 +219,9 @@ De meeste aanvallen gebruiken lekken waarvoor al lang een update is. Op de pagin
 
 ### Aanzetten
 
-1. Ga naar *Instellingen → Bescherming → Updatebeleid*.
+1. Ga naar *Instellingen → Kwetsbaarheden en updates → Updatebeleid*.
 2. Zet **Updates installeren** aan.
-3. Zet voor elke Linux-server **commando's als root** aan (*Instellingen → Agents en koppelingen → Commando-checks*, of per server in de Agent Manager).
+3. Zet voor elke Linux-server **commando's als root** aan (*Instellingen → Agents → Commando-checks*, of per server in de Agent Manager).
 
 Staat het uit, dan zie je op de pagina Updates wel wat er klaarstaat, maar installeert RzSense niets.
 
@@ -284,5 +284,5 @@ Core en add-ons worden bijgewerkt via de Supervisor, **altijd met een back-up** 
 ### Goed om te weten
 
 - In het logboek van de server staat wie het vroeg (of dat het automatisch was), de uitkomst en wat er werd overgeslagen.
-- Aan of uit zetten kan ook bij *Instellingen → Overzicht → Status en functies → Functies*.
+- Aan of uit zetten kan ook bij *Instellingen → Status en functies → Functies*.
 - Is de agent van een server te oud, dan staat bij die server welke versie nodig is. Werk de agent bij en het werkt.

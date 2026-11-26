@@ -539,7 +539,7 @@ function ccMonitoring(d, c) {
   return ccCard('monitoring', `${ccHead(L('Monitoring') + ' · ' + CC_PERIODS.find(([k]) => k === ccPeriod)[1](), `<span class="cc-mu small">${esc(ccPrevLbl())}</span>`)}
     <div class="cc-mon">
       <div class="cc-nums cc-nums-5">
-        <button type="button" class="cc-num" data-hm-go="settings/allchecks"><span class="cc-mu small">${esc(L('Actieve checks'))}</span><b>${hmNum(m.active)}</b>
+        <button type="button" class="cc-num" data-hm-go="dashboard/allchecks"><span class="cc-mu small">${esc(L('Actieve checks'))}</span><b>${hmNum(m.active)}</b>
           <span class="small cc-mu">${esc(m.types.slice(0, 3).map((t) => `${t.n} ${t.type}`).join(' · '))}</span></button>
         <div class="cc-num"><span class="cc-mu small">${esc(L('Uitgevoerd'))}</span><b>${hmNum(m.runs.n)}</b><span class="small">${ccDelta(m.runs.n, m.runs.prev, false)} <span class="cc-mu">${esc(L('{n} checks liepen', { n: m.checks_ran }))}</span></span></div>
         <div class="cc-num ${m.fails.n ? 'warn' : 'ok'}"><span class="cc-mu small">${esc(L('Fout gegaan'))}</span><b>${hmNum(m.fails.n)}</b><span class="small">${ccDelta(m.fails.n, m.fails.prev)} <span class="cc-mu">${esc(L('warning of critical'))}</span></span></div>
@@ -933,7 +933,7 @@ async function caseDialog(id) {
   };
 })();
 
-// ---------------------------------------------------------------- Internet (1.157.0): Instellingen → Monitoring → Internetcheck
+// ---------------------------------------------------------------- Internet (1.157.0): Instellingen → Netwerk → Internetcheck
 async function loadInet() {
   const box = $('#inet-state');
   if (!box) return;

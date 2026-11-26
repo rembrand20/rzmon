@@ -31,7 +31,7 @@ final class MailSec
     public static function check(array $check, array $o, string $name): array
     {
         if (!self::enabled()) {
-            return Checks::result(STATUS_UNKNOWN, null, t('E-mailbeveiliging staat uit (Instellingen → Overzicht → Functies)'));
+            return Checks::result(STATUS_UNKNOWN, null, t('E-mailbeveiliging staat uit (Instellingen → Status en functies → Functies)'));
         }
         $sel = array_values(array_filter((array) ($o['dkim'] ?? []), static fn($s) => is_string($s) && preg_match('/^[a-z0-9._-]{1,63}$/i', $s)));
         $cache = is_array($o['_mail'] ?? null) && ($o['_mail']['name'] ?? '') === $name ? $o['_mail'] : null;

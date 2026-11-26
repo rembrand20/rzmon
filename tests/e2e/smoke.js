@@ -25,7 +25,9 @@ const BASE = process.env.BASE || 'http://127.0.0.1:8099';
   }
   // 1.276.0: oude adressen (ook in meldingen en e-mails) komen op de nieuwe plek uit
   const moved = { 'settings/agents': 'tab-servers', 'settings/actlog': 'tab-logboek', 'settings/nis2': 'tab-compliance', 'vulns/patch': 'tab-updates',
-    'ids/inc': 'tab-ids', 'ids/prot': 'tab-settings', 'settings/quiet': 'tab-settings', 'settings/ids_ti': 'tab-settings' };
+    'ids/inc': 'tab-ids', 'ids/prot': 'tab-settings', 'settings/quiet': 'tab-settings', 'settings/ids_ti': 'tab-settings',
+    // 1.330.0: nieuwe indeling
+    'dashboard/paths': 'tab-net', 'incidents/ids': 'tab-ids', 'settings/allchecks': 'tab-dashboard', 'settings/nis2set': 'tab-compliance', 'settings/ids_hunt': 'tab-ids', 'settings/unifi': 'tab-settings' };
   for (const [from, to] of Object.entries(moved)) {
     await pg.evaluate((h) => showTab(h), from);
     await pg.waitForTimeout(800);
@@ -33,16 +35,12 @@ const BASE = process.env.BASE || 'http://127.0.0.1:8099';
     if (at !== to) errs.push(`oud adres #${from} komt uit op ${at}, verwacht ${to}`);
   }
   console.log(`✔ ${Object.keys(moved).length} oude adressen sturen door naar de nieuwe plek`);
-  // 1.278.1: de lijst Aanvallen staat op de IDS-pagina én bij Incidenten (één lijst die meeverhuist)
+  // 1.330.0: de lijst Aanvallen staat alleen op de IDS-pagina; een oud adres bij Incidenten komt daar uit
   const incVis = async () => pg.evaluate(() => { const p = document.querySelector('.ids-pane[data-pane="inc"]'); return p && !p.hidden && p.offsetParent !== null ? p.closest('.tab-panel').id : null; });
-  await pg.evaluate(() => showTab('ids/inc')); await pg.waitForTimeout(800);
-  const atIds = await incVis();
   await pg.evaluate(() => showTab('incidents/ids')); await pg.waitForTimeout(800);
-  const atInc = await incVis();
-  await pg.evaluate(() => showTab('ids/inc')); await pg.waitForTimeout(800);
-  const backIds = await incVis();
-  if (atIds !== 'tab-ids' || atInc !== 'tab-incidents' || backIds !== 'tab-ids') errs.push(`Aanvallen: IDS ${atIds}, Incidenten ${atInc}, terug ${backIds}`);
-  else console.log('✔ Aanvallen op de IDS-pagina én bij Incidenten');
+  const atIds = await incVis();
+  if (atIds !== 'tab-ids' || await pg.$('#inc-src [data-isrc="ids"]')) errs.push(`Aanvallen: via Incidenten op ${atIds}, of nog een tabblad Aanvallen bij Incidenten`);
+  else console.log('✔ Aanvallen alleen op de IDS-pagina (een oud adres bij Incidenten komt daar uit)');
   // 1.277.2: een onthouden onderdeel dat nu een eigen pagina is, mag Instellingen niet wegsturen
   await pg.evaluate(() => { localStorage.setItem('rzmon-set-section', 'agents'); });
   await pg.reload();

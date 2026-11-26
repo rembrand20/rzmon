@@ -11,7 +11,7 @@ declare(strict_types=1);
  *   als een termijn dichtbij komt. Je vinkt aan wat je verstuurd hebt; alles komt in het logboek.
  * - Een NIS2-rapport (HTML, af te drukken als PDF) bij Rapporten.
  * Dit is geen juridisch advies en geen certificering: het laat zien wat RzSense technisch ziet.
- * Aan/uit: nis2_on (de pagina Compliance of Overzicht → Functies).
+ * Aan/uit: nis2_on (de pagina Compliance of Status en functies → Functies).
  */
 final class Nis2
 {

@@ -365,14 +365,15 @@ const avPct = (v) => (v === null || v === undefined ? '–' : dec(v >= 99.9995 ?
 const avMean = (a) => { const v = a.filter((x) => x !== null && x !== undefined); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
 
 function setMonSub(s) {
-  monSub = s === 'avail' || s === 'cont' || s === 'paths' || s === 'shelly' ? s : 'checks';
+  if (s === 'paths') { showTab('net/paths'); return; }   // 1.330.0: Netwerkpaden staat bij Netwerk → Paden
+  monSub = s === 'avail' || s === 'cont' || s === 'shelly' || (s === 'allchecks' && isAdmin()) ? s : 'checks';
+  $('#tab-dashboard').classList.toggle('mon-ac', monSub === 'allchecks');   // 1.330.0: Alle checks (was in de portal)
+  if (monSub === 'allchecks') withPageWait('dashboard', loadAllChecks);
   $('#tab-dashboard').classList.toggle('mon-sh', monSub === 'shelly');   // 1.321.0
   if (monSub === 'shelly') withPageWait('dashboard', shLoad);
   $('#tab-dashboard').classList.toggle('mon-av', monSub === 'avail');
   $('#tab-dashboard').classList.toggle('mon-ct', monSub === 'cont');   // 1.176.0
   if (monSub === 'cont') withPageWait('dashboard', ctLoad);
-  $('#tab-dashboard').classList.toggle('mon-np', monSub === 'paths');   // 1.177.0
-  if (monSub === 'paths') withPageWait('dashboard', npLoad);
   $$('#mon-tabs [data-msub]').forEach((b) => { const on = b.dataset.msub === monSub; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
   if (monSub === 'avail') withPageWait('dashboard', avLoad);
   crumbs();   // 1.199.0
@@ -771,7 +772,7 @@ function initContainers() {
   });
 }
 
-// ============ 1.177.0: pad-check (popup, Monitoring → Netwerkpaden, summier bij de server) ============
+// ============ 1.177.0: pad-check (popup, Netwerk → Paden, summier bij de server) ============
 const NP_ICON = {
   src: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
   virt: '<rect x="4" y="5" width="16" height="11" rx="2"/><path d="M8 20h8M12 16v4M8 9l2 2-2 2M13 13h3"/>',
@@ -919,7 +920,7 @@ document.addEventListener('click', async (e) => {
   try { const r = await api('path_tp_now', { id: +b.dataset.npTp }); toast(L('Doorvoertest aangevraagd naar {t}; de uitkomst staat er binnen een minuut of twee', { t: r.to })); npLoadInfo(+b.dataset.npTp); } catch (ex) { toast(ex.message, 'err'); b.disabled = false; }
 });
 
-// ---- Monitoring → Netwerkpaden ----
+// ---- Netwerk → Paden ----
 let npData = null, npAt = 0, npBusy = false;
 async function npLoad(force = false) {
   if (!force && npData && Date.now() - npAt < 30000) return renderNetPaths();
@@ -1016,16 +1017,15 @@ function renderNetPaths() {
     <div class="np-cols">
       <section class="ct-grp"><div class="ct-gh"><b>${L('Paden')}</b></div>
         <div class="np-pr np-th"><span>${L('Bron → doel')}</span><span>${L('Status')}</span><span>${L('Hops')}</span><span>${L('Vertraging')}</span><span>${L('Doorvoer')}</span><span>${L('Pad')}</span><span>${L('24 uur')}</span></div>${rows}</section>
-      <section class="ct-grp"><div class="ct-gh"><b>${L('Links (UniFi)')}</b><span class="small muted">${L('langzaamste eerst')}</span></div>${ports || `<p class="muted small" style="padding:.8rem 1rem">${npData.unifi === 'ok' ? L('Geen poorten gevonden.') : L('Koppel UniFi met een lokaal account (Instellingen → Agents en koppelingen) om de switchpoorten en hun snelheid te zien.')}</p>`}</section>
+      <section class="ct-grp"><div class="ct-gh"><b>${L('Links (UniFi)')}</b><span class="small muted">${L('langzaamste eerst')}</span></div>${ports || `<p class="muted small" style="padding:.8rem 1rem">${npData.unifi === 'ok' ? L('Geen poorten gevonden.') : L('Koppel UniFi met een lokaal account (Instellingen → Netwerk → UniFi) om de switchpoorten en hun snelheid te zien.')}</p>`}</section>
     </div>`;
   npFocusApply();   // 1.191.0
 }
-/** 1.191.0: naar Monitoring → Netwerkpaden, met dit pad in beeld en even opgelicht */
+/** 1.191.0: naar Netwerk → Paden (1.330.0, was Netwerk → Paden), met dit pad in beeld en even opgelicht */
 let npFocus = null, npFlash = null;
 function npGo(checkId) {
   npFocus = +checkId;
-  showTab('dashboard');
-  setMonSub('paths');
+  showTab('net/paths');
   npFocusApply();
 }
 function npFocusApply() {
@@ -1680,7 +1680,7 @@ function renderNow() {
   renderIsoBanner();
   if (monSub === 'avail') avLoad();   // 1.169.0
   if (monSub === 'cont') ctLoad();   // 1.176.0 (elke 30 s opnieuw)
-  if (monSub === 'paths') npLoad();   // 1.177.0
+  if (typeof netSub !== 'undefined' && netSub === 'paths' && !$('#tab-net').hidden) npLoad();   // 1.177.0; 1.330.0: bij Netwerk
   if (monSub === 'shelly') shLoad();   // 1.321.0
   const banner = $('#maint-banner');
   banner.hidden = !state.maintenance;
@@ -2740,7 +2740,7 @@ function ccHostCard(h) {
   const pathRows = paths.map((c) => {
     const s = pathSum(c), st = c.maintenance ? 4 : +c.status, quiet = (String(s.d || '').match(/h/g) || []).length;
     const sub = [L('{n} hops', { n: s.h }) + (quiet ? ' · ' + L('{n} stil', { n: quiet }) : ''), s.l !== undefined && s.l !== null ? L('{l}% verlies', { l: s.l }) : '', s.mb ? npMbit(s.mb) : ''].filter(Boolean);
-    return `<div class="ccx-prow s${st}" data-act="np-go" data-id="${c.id}" role="button" tabindex="0" title="${esc(L('Klik: naar Monitoring → Netwerkpaden'))}${s.w ? ' · ' + esc(s.w) : ''}">
+    return `<div class="ccx-prow s${st}" data-act="np-go" data-id="${c.id}" role="button" tabindex="0" title="${esc(L('Klik: naar Netwerk → Paden'))}${s.w ? ' · ' + esc(s.w) : ''}">
       <span class="ccx-st"><i></i>${esc(ccWord(c))}</span>
       <span class="ccx-cn"><span class="ccx-ti" aria-hidden="true">${checkIcon(c)}</span><span><b>→ ${esc(s.t || c.target)}</b><small>${esc(c.name)}</small></span></span>
       ${npDots(s.d, s.k)}

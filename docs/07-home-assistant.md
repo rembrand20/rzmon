@@ -141,7 +141,7 @@ sleutel kan hebben, lees je in [Toegang en beheer](11-toegang-en-beheer.md).
 
 ### Sensoren
 
-1. Maak in RzSense een API-sleutel bij *Instellingen → Agents en koppelingen → API-sleutels*, met alleen
+1. Maak in RzSense een API-sleutel bij *Instellingen → Systeem → REST API*, met alleen
    **Status lezen**. Kopieer de sleutel (`rzm_…`) meteen; je ziet hem maar één keer.
 2. Zet in Home Assistant in `secrets.yaml`:
    ```yaml
@@ -211,7 +211,7 @@ Een eigen kaart voor je Home Assistant-dashboard met **je netwerk in het kort**:
 - **Apparaten**: hoeveel er online zijn (het laatste uur gezien) en hoeveel nieuw;
 - **IDS**: open incidenten, hoeveel kritiek en hoeveel IP-adressen vandaag geblokkeerd zijn (alleen met het recht
   *IDS lezen*);
-- **Netwerkpaden**: elk pad met een bolletje, de vertraging en het verlies;
+- **Netwerkpaden** (in RzSense: *Netwerk → Paden*): elk pad met een bolletje, de vertraging en het verlies;
 - **Top verkeer vandaag**: de drie apparaten met het meeste verkeer;
 - **Servers** (schakelaar *Servers*): elke server met een bolletje, CPU, RAM en disk als balkje (oranje vanaf 75 %, rood
   vanaf 90 %) en wat er speelt, bv. *2 problemen*, *agent stil 12 min* of *onderhoud*. De ergste staan bovenaan; met
@@ -222,7 +222,7 @@ Assistant, en ververst elke minuut (en meteen als je het dashboard weer opent).
 
 ### Zo zet je hem erin
 
-1. Maak in RzSense een API-sleutel bij *Instellingen → Agents en koppelingen → API-sleutels*, met alleen
+1. Maak in RzSense een API-sleutel bij *Instellingen → Systeem → REST API*, met alleen
    **Status lezen** (en **IDS lezen** voor de IDS-tegel). Het venster met de nieuwe sleutel toont meteen de YAML voor de
    kaart, en onder de API-sleutels staat de juiste URL van de kaart.
 2. In Home Assistant: *Instellingen → Dashboards → ⋮ → Bronnen → Bron toevoegen*. URL: `https://<rzsense>/ha-card.php`,

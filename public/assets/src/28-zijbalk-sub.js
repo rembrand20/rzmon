@@ -16,7 +16,7 @@ const SUBNAV = {
   net: { q: '#net-tabs [data-nsub]', key: 'nsub', go: (k) => 'net/' + k, cur: () => netSub },
   logs: { items: () => [['search', L('Zoeken')], ['watch', L('Vaste zoekacties'), '#lp-w-n'], ['in', L('Binnenkomst')]], sel: (k) => `#logs-sub [data-lp-sub="${k}"]`, cur: () => LP.sub },
   analytics: {
-    items: () => [['trends', L('Trends')], ['attacks', L('Aanvallen')], ['surface', L('Blootstelling')], ['rel', L('Betrouwbaarheid')], ['cap', L('Capaciteit')], ['net', L('Netwerk')], ['bk', L('Back-ups')], ['noise', L('Meldingen en ruis')]],
+    items: () => [['trends', L('Trends')], ['attacks', L('Aanvallen')], ['surface', L('Blootstelling')], ['rel', L('Betrouwbaarheid')], ['cap', L('Capaciteit')], ['net', L('Netwerk')], ['bk', L('Back-ups van servers')], ['noise', L('Meldingen en ruis')]],
     set: (k) => anSubSet(k), cur: () => iaTab,   // 1.290.1: zelf kiezen, niet wachten op de knop (de pagina kan traag laden)
   },
 };

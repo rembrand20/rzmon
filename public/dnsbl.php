@@ -1,7 +1,7 @@
 <?php
 /**
  * Blokkadelijst voor AdGuard Home (1.231.0): GET /dnsbl.php?t=<token>. Alleen vanaf het lokale netwerk (je AdGuard staat
- * thuis), en alleen als de lijst aan staat (Instellingen → Bescherming → Dreigingsinformatie → AdGuard-lijst).
+ * thuis), en alleen als de lijst aan staat (Instellingen → IDS en EDR → Dreigingsinformatie → AdGuard-lijst).
  */
 declare(strict_types=1);
 

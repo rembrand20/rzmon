@@ -11,7 +11,7 @@ declare(strict_types=1);
  *   docker-ce); binnen 90 dagen = warning. Software uit de pakketbron van je distributie krijgt vaak nog beveiligingsupdates
  *   van de distributie, ook als de maker zelf stopt: dan alleen ter info.
  * - Een info-melding (Systeemmeldingen → End-of-life) 90 en 30 dagen vooraf en op de dag zelf, één keer per stap.
- * Aan/uit: eol_on (Instellingen → Overzicht → Functies, of Beveiliging → Kwetsbaarheden).
+ * Aan/uit: eol_on (Instellingen → Status en functies → Functies, of Beveiliging → Kwetsbaarheden).
  */
 final class Eol
 {

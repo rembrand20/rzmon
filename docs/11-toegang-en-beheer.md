@@ -258,7 +258,7 @@ Onzichtbaar van buiten*.
 |---|---|---|
 | **Niet herkenbaar** van buiten | aan | Geen naam of versie (ook niet op het inlogscherm). Het agent-script en installatiescript krijg je van buiten alleen met de downloadsleutel (die staat vanzelf in de installatiecommando's) of als bekende agent. Wie geweigerd wordt, krijgt een gewone **404**: een agent met een fout token, de REST API zonder geldige sleutel, een onbekende heartbeat- of ack-link, een geblokkeerd IP. De reden zie je in *Meldingen*. |
 | Webinterface van buiten alleen op **toegestane apparaten** | uit | Zonder toegestaan apparaat krijg je van buiten ook geen inlogscherm, alleen een 404. Agents, heartbeats, ack-links en de REST API blijven werken. **Zet eerst je eigen apparaten op de lijst.** |
-| Alleen vanuit je **normale landen** | aan | Ook een toegestaan apparaat komt alleen binnen vanuit de landen die je bij het IDS als normaal instelde (*Instellingen → Bescherming → Netwerk en weblogs*). Zonder landgegevens geldt dit niet. |
+| Alleen vanuit je **normale landen** | aan | Ook een toegestaan apparaat komt alleen binnen vanuit de landen die je bij het IDS als normaal instelde (*Instellingen → IDS en EDR → Netwerk en weblogs*). Zonder landgegevens geldt dit niet. |
 | **Noodlink** | aan | Een link naar je e-mail als je apparaatsleutel kwijt is (zie hieronder). |
 | **Passkeys** | aan | Inloggen met Face ID, vingerafdruk of beveiligingssleutel. |
 | **Geweigerde apparaten** bijhouden | aan | Apparaten die van buiten geweigerd worden, kun je op afstand toestaan (zie hieronder). |
@@ -285,7 +285,7 @@ schermgrootte en of het een aanraakscherm is.
 
 - Je krijgt een **e-mail** met een link naar de lijst. Is e-mail niet ingesteld, dan komt de melding via **Pushover**.
   De aanvraag staat ook bij *Meldingen*.
-- Een aanvraag kan alleen uit de landen die je bij het IDS als normaal instelde (*Instellingen → Bescherming → Netwerk
+- Een aanvraag kan alleen uit de landen die je bij het IDS als normaal instelde (*Instellingen → IDS en EDR → Netwerk
   en weblogs*). Uit een ander land ziet de aanvrager *Vanaf deze plek kun je geen toegang aanvragen*.
 - Per IP-adres hooguit 3 aanvragen per uur. Een geweigerd apparaat kan niet opnieuw aanvragen.
 - De pagina van de aanvrager wacht. Zodra je het apparaat toestaat, gaat hij vanzelf door naar het inlogscherm.
@@ -410,7 +410,7 @@ Elke agent heeft een **eigen sleutel**. Daarmee versleutelt en ondertekent hij a
 antwoordt ook versleuteld. Er gaat geen token en nooit een leesbare sleutel over de lijn. Wordt één server gehackt, dan
 geldt dat alleen voor die server: maak een nieuwe koppelcode en de oude sleutel vervalt meteen.
 
-De instellingen staan op *Instellingen → Agents en koppelingen → Standaard voor alle agents*, kaart **Beveiligde
+De instellingen staan op *Instellingen → Agents → Standaard voor alle agents*, kaart **Beveiligde
 verbinding met de agents** (alleen beheerders). Per server stel je het anders in bij de Agent Manager (pagina
 *Servers*).
 

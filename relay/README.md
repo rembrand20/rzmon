@@ -34,7 +34,7 @@ agent ──▶ relay (bewaart)  ◀── RzSense haalt op (poort 8445) en legt
 
 - **Versleuteld van agent tot RzSense:** de relay ziet alleen dichte enveloppen en kan ze niet lezen of veranderen.
 - **Alleen agentverkeer:** `/api.php` met een vaste lijst acties (rapport, koppelen, testlijst, agent ophalen …). Nooit de webinterface of de rest van de API.
-- **Alleen de netwerken die je instelt.** Elk netwerk dat in RzSense via deze relay gaat, mag erdoor (*Instellingen → Agents en koppelingen → Netwerken en relays*). Zonder netwerk laat de relay niemand door.
+- **Alleen de netwerken die je instelt.** Elk netwerk dat in RzSense via deze relay gaat, mag erdoor (*Instellingen → Agents → Netwerken en relays*). Zonder netwerk laat de relay niemand door.
 - **Het echte IP-adres:** de relay geeft het adres van de agent door, ondertekend met een sleutel die is afgeleid van zijn eigen agentsleutel. Alleen dan gebruikt RzSense dat adres (IP-slot, blokkades, logboek).
 - **Certificaat vastgezet:** de agents achter de relay accepteren alleen het certificaat van die relay. De relay controleert RzSense zoals een agent dat doet.
 - **Zonder root:** de container draait als `rzrelay`, alleen-lezen, met alleen `NET_RAW` (voor ping), en kent een limiet per afzender en op de grootte van een bericht.
@@ -59,7 +59,7 @@ curl -fsSL 'https://rzsense…/api.php?action=agent_relay_file&f=install' -o rzm
 
 ## Installeren als container
 
-Het makkelijkst gaat het in RzSense: *Instellingen → Agents en koppelingen → Netwerken en relays* → **＋ Relay toevoegen** → **Installeren**. Daar staat het commando met de koppelcode al ingevuld. Met de hand:
+Het makkelijkst gaat het in RzSense: *Instellingen → Agents → Netwerken en relays* → **＋ Relay toevoegen** → **Installeren**. Daar staat het commando met de koppelcode al ingevuld. Met de hand:
 
 ```bash
 sudo mkdir -p /etc/rzsense && sudo chmod 700 /etc/rzsense

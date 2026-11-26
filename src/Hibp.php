@@ -243,7 +243,7 @@ final class Hibp
                 fn() => (count($new) === 1 ? t('Eerste controle van {email}: 1 bekend lek: {list}', ['email' => $email, 'list' => $label($new[0])])
                     : t('Eerste controle van {email}: {n} bekende lekken: {list}', ['email' => $email, 'n' => count($new),
                     'list' => implode(', ', array_map($label, array_slice($new, 0, 10))) . (count($new) > 10 ? ' …' : '')]))
-                    . ' · ' . t('Bekijk ze bij Kwetsbaarheden → Datalekken.'));
+                    . ' · ' . t('Bekijk ze bij IDS → Datalekken.'));
             return;
         }
         foreach ($new as $n) {

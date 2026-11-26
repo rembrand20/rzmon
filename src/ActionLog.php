@@ -7,7 +7,7 @@ declare(strict_types=1);
  *   pakketten bijwerken, de agent bijwerken, en (vanaf agent 1.89.0) wat de agent zelf op de server veranderde.
  *   Bron: een beheerder (user), RzSense zelf (rzsense) of de agent (agent).
  * - Wijzigingen aan de server en zijn checks komen uit het wijzigingslogboek (change_log) en staan er samen mee in één lijst.
- * Te zien in de Agent Manager (kaart Logboek) en bij Instellingen → Agents en koppelingen → Logboek. Bewaren: actlog_days (standaard 365 dagen).
+ * Te zien in de Agent Manager (kaart Logboek) en bij Instellingen → Agents → Logboek. Bewaren: actlog_days (standaard 365 dagen).
  */
 final class ActionLog
 {

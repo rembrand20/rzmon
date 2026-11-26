@@ -152,10 +152,10 @@ function renderLeaks() {
     ['', pwUsers.length, L('Gelekte wachtwoorden'), 's2'], ['handled', handled, L('Afgehandeld'), 's0'],
   ].map(([k, n, w, c]) => `<button type="button" class="hc ${c} ${n ? '' : 'zero'} ${k && leakFilter === k ? 'on' : ''}" ${k ? `data-lf="${k}"` : ''}><span class="hc-dot"></span><b data-flash>${n}</b> <span class="hc-w">${w}</span></button>`).join('');
   $('#leak-info').textContent = d.check_at ? L('laatste controle {t}', { t: ago(d.check_at) }) + ' · ' + L('dagelijks') : '';
-  if ($('#vt-n-leak')) $('#vt-n-leak').textContent = open.length || '';
+  if ($('#it-n-leak')) $('#it-n-leak').textContent = open.length || '';   // 1.330.0: bij IDS
   // Meldingen bovenaan: geen sleutel, fouten
   $('#leak-banner').innerHTML = [
-    !d.has_key ? `<div class="v-banner info">ℹ️ <span>${L('Geen API-sleutel: alleen de wachtwoorden van RzSense-accounts worden gecontroleerd. Een sleutel vul je in bij Instellingen → Bescherming → Kwetsbaarheden en datalekken.')}</span></div>` : '',
+    !d.has_key ? `<div class="v-banner info">ℹ️ <span>${L('Geen API-sleutel: alleen de wachtwoorden van RzSense-accounts worden gecontroleerd. Een sleutel vul je in bij Instellingen → Toegang tot RzSense → Datalekken.')}</span></div>` : '',
     d.last_error ? `<div class="v-banner">⚠️ <span><b>HIBP:</b> ${esc(d.last_error)}</span></div>` : '',
     d.domain_error ? `<div class="v-banner">⚠️ <span><b>${L('Domein')}:</b> ${esc(d.domain_error)}</span></div>` : '',
   ].join('');
@@ -492,7 +492,7 @@ function vulnBuzzHtml(d) {
     <div class="vbz-top">
       <div class="vbz-ring" style="--p:${b.score}"><div><b>${b.checked_at ? b.score : '–'}</b><small>${L('rugbaarheid')}</small></div></div>
       <div class="vbz-txt"><h3>🔥 ${L('Rugbaarheid')} ${b.checked_at && b.trend ? `<span class="vbz-trend ${b.trend > 0 ? 'up' : 'down'}">${b.trend > 0 ? '↑ +' : '↓ '}${b.trend} ${L('in 7 dagen')}</span>` : ''}</h3>
-        <p class="muted small">${b.checked_at ? L('Exploits {e}/60 · praat {t}/40 · bijgewerkt {w}', { e: b.exploit, t: b.talk, w: ago(b.checked_at) }) : b.on ? L('Nog niet bijgewerkt; dat gebeurt bij de volgende scan.') : L('Staat uit (Instellingen → Bescherming → Kwetsbaarheden en datalekken).')}</p>
+        <p class="muted small">${b.checked_at ? L('Exploits {e}/60 · praat {t}/40 · bijgewerkt {w}', { e: b.exploit, t: b.talk, w: ago(b.checked_at) }) : b.on ? L('Nog niet bijgewerkt; dat gebeurt bij de volgende scan.') : L('Staat uit (Instellingen → Kwetsbaarheden en updates → Kwetsbaarheden).')}</p>
         ${spark}
         ${b.on ? `<button type="button" class="btn small-btn" data-vbuzz-now>↻ ${L('Nu bijwerken')}</button>` : ''}</div>
     </div>

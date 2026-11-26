@@ -281,7 +281,7 @@ apparaten en sensoren. Dat is geen melding in de gewone zin, maar je kunt er in 
 maken.
 
 1. Zorg voor een MQTT-broker, bijvoorbeeld de add-on **Mosquitto broker**, en de integratie **MQTT** in Home Assistant.
-2. Ga in RzSense naar *Instellingen → Agents en koppelingen → Home Assistant (MQTT)* en zet **MQTT aan** aan.
+2. Ga in RzSense naar *Instellingen → Agents → Home Assistant (MQTT)* en zet **MQTT aan** aan.
 3. Vul de **MQTT-server**, de **Poort** (`1883`, of `8883` met **Versleuteling** TLS), de gebruikersnaam en het
    wachtwoord in.
 4. Klik op **📡 Verbinding testen & publiceren**.

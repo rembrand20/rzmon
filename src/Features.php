@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * 1.182.0: overzicht van alle functies van RzSense, voor Instellingen → Overzicht → Functies
+ * 1.182.0: overzicht van alle functies van RzSense, voor Instellingen → Status en functies → Functies
  * en de tabel bovenaan FEATURES.md (tools/features-table.php).
  *
  * Elke rij: [groep, naam (nl, en), wat het doet (nl, en), sinds, status, onderdeel in de beheerportal]

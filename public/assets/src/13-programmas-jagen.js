@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------- 🧩 Onbekende programma's en 🔎 Jagen op sporen (1.229.0, agent 1.91.0)
 // IDS → Programma's (wat er draait, toestaan/blokkeren), IDS → Jagen (sporen zoeken, ook op de servers, en bewaken),
-// de kaart in de Agent Manager en Instellingen → Bescherming → Programma's / Jagen op sporen.
+// de kaart in de Agent Manager en Instellingen → IDS en EDR → Programma's / Jagen op sporen.
 const APP_ST = {
   new: () => ['⚠', L('onbekend'), 'warn'], block: () => ['⛔', L('geblokkeerd'), 'bad'], ok: () => ['✔', L('toegestaan'), 'ok'],
   learn: () => ['🎓', L('geleerd'), 'muted'], pkg: () => ['📦', L('uit een pakket'), 'muted'],
@@ -20,7 +20,7 @@ async function loadApps() {
   $('#it-n-apps').textContent = c.new + c.block || '';
   const learning = d.hosts.filter((h) => h.on && h.learning && h.until);
   const noAgent = d.hosts.filter((h) => h.on && !h.agent_ok).length;
-  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Onbekende programma\'s staat uit (Instellingen → Bescherming → Programma\'s).')}</div>` : ''}
+  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Onbekende programma\'s staat uit (Instellingen → IDS en EDR → Programma\'s).')}</div>` : ''}
     <div class="app-sum">${['new', 'block', 'ok', 'learn', 'pkg'].map((s) => `<button type="button" class="app-sum-b${appsOpt.status === s ? ' active' : ''}" data-app-st="${s}">${appChip(s)} <b>${c[s] || 0}</b></button>`).join('')}
       <button type="button" class="app-sum-b${appsOpt.status === '' ? ' active' : ''}" data-app-st="">${L('Zonder pakket')}</button><button type="button" class="app-sum-b${appsOpt.status === 'all' ? ' active' : ''}" data-app-st="all">${L('Alles')}</button></div>
     ${learning.length ? `<p class="muted small">🎓 ${L('Leert nog (wat nu draait wordt als normaal gezien):')} ${learning.map((h) => `${esc(h.name)} ${L('tot {d}', { d: new Date(h.until.replace(' ', 'T')).toLocaleDateString(LOCALE) })}`).join(' · ')}</p>` : ''}
@@ -175,7 +175,7 @@ async function amApps(h, body) {
   const c = d.counts;
   const until = d.since ? new Date(new Date(d.since.replace(' ', 'T')).getTime() + d.learn * 86400000) : null;
   amSum('apps', !d.on || !d.host_on ? esc(L('uit')) : c.new ? `<b class="warn-txt">${esc(L('{n} onbekend', { n: c.new }))}</b> · ${esc(L('{n} geblokkeerd', { n: c.block || 0 }))}` : d.learning ? esc(L('leert nog wat normaal is')) : '✔ ' + esc(L('niets onbekends')), !!(d.on && d.host_on && c.new));   // 1.246.0
-  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Onbekende programma\'s staat uit voor alle servers (Instellingen → Bescherming → Programma\'s).')}</div>` : ''}
+  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Onbekende programma\'s staat uit voor alle servers (Instellingen → IDS en EDR → Programma\'s).')}</div>` : ''}
     ${!d.agent_ok ? `<div class="callout small">${L('Agent 1.91.0 of nieuwer nodig (en als root); werk de agent bij.')}</div>` : ''}
     ${amRow('🧩 ' + L('Programma\'s bijhouden'), L('wat er draait, met vingerafdruk en pakket; na de leerperiode valt een onbekend programma op'), amSw('ap-on', d.host_on))}
     ${amRow('⛔ ' + L('Geblokkeerde programma\'s stoppen'), L('de agent stopt een programma dat je blokkeerde zodra het draait. Aanzetten vraagt je wachtwoord.'), amSw('ap-kill', d.kill))}
@@ -204,7 +204,7 @@ async function amApps(h, body) {
   };
 }
 
-// ---------------------------------------------------------------- Instellingen → Bescherming → Programma's
+// ---------------------------------------------------------------- Instellingen → IDS en EDR → Programma's
 async function loadAppsSet() {
   const box = $('#apps-hosts');
   if (!box) return;

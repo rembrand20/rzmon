@@ -13,7 +13,7 @@ defined('RZ_API') || exit;
 Stealth::gate();
 
 // ---------- Login ----------
-// Inloggen via http uitgezet (Instellingen → Bescherming → Certificaat en https): wachtwoorden alleen via https
+// Inloggen via http uitgezet (Instellingen → Toegang tot RzSense → Beheer van buiten): wachtwoorden alleen via https
 if (in_array($action, ['login', 'login_totp', 'pw_reset'], true) && Https::loginBlocked()) {
     $to = Https::adminUrl();
     out(['error' => t('Inloggen via http staat uit: je wachtwoord zou leesbaar over het netwerk gaan.') . ($to !== '' ? ' ' . t('Open {url}', ['url' => $to]) : ''), 'https' => $to ?: null], 403);

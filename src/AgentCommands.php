@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Commando-checks: een commando dat de agent op de server uitvoert, met een verwacht antwoord.
  *
- * Veiligheid: standaard staat het uit. Aanzetten kan algemeen (Instellingen → Agents en koppelingen) of per server,
+ * Veiligheid: standaard staat het uit. Aanzetten kan algemeen (Instellingen → Agents → Commando-checks) of per server,
  * als "nobody" (standaard) of als root; aanzetten vraagt om je wachtwoord en komt in het logboek.
  * Op de server zelf blokkeert COMMANDS=0 in de instellingen van de agent alles, wat RzSense ook zegt.
  * RzSense vergelijkt het antwoord; de agent voert alleen uit en stuurt uitvoer en exitcode terug.

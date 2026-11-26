@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------- 🌍 Van buitenaf (aanvalsoppervlak, 1.290.0)
-// Instellingen → Bescherming → Van buitenaf: wat staat er van je netwerk open op internet. Bronnen, doelen, de lijst met
+// Instellingen → Web en buitenkant → Van buitenaf: wat staat er van je netwerk open op internet. Bronnen, doelen, de lijst met
 // open poorten (goedkeuren met één klik) en wat Shodan bij je IP-adressen ziet.
 
 let expData = null;

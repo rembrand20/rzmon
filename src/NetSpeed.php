@@ -873,7 +873,7 @@ final class NetSpeed
             $verdict = ['st' => 'w', 'text' => ($verdict ? $verdict['text'] . ' ' : '') . implode(' · ', array_map(static fn($p) => $p[1], $probs))];
         }
         if ($inet && !$last) {
-            $hints[] = t('Nog geen snelheidstest van je internetlijn: klik op Nu meten, of voeg de check Internet toe (Instellingen → Monitoring → Internetcheck).');
+            $hints[] = t('Nog geen snelheidstest van je internetlijn: klik op Nu meten, of voeg de check Internet toe (Instellingen → Netwerk → Internetcheck).');
         }
         if (($m['tool'] ?? '') === '' && !$r['check_id']) {
             $hints[] = t('Op de RzSense-server staan mtr en traceroute niet: je ziet alleen de router en het doel. Installeer mtr (Rocky: sudo dnf install mtr) voor elke hop.');

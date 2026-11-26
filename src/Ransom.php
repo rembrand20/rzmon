@@ -10,7 +10,7 @@ declare(strict_types=1);
  *   versleutelde tekstbestanden en de lokaasbestanden. RzSense leert per map wat normaal is (het hoogste aantal per uur,
  *   7 dagen) en geeft de agent een drempel: max(ransom_min, 4 × het 95e percentiel).
  * - Sterk signaal = critical IDS-incident 'ransom' (met push); alleen heel veel wijzigingen = warning 'ransom_mass'.
- * Aan/uit: ransom_on (Instellingen → Overzicht → Functies of IDS → Ransomware).
+ * Aan/uit: ransom_on (Instellingen → Status en functies → Functies of IDS → Ransomware).
  */
 final class Ransom
 {
@@ -155,7 +155,7 @@ final class Ransom
             'agent_ok' => !empty($h['agent_version']) && version_compare((string) $h['agent_version'], '1.90.0', '>=')];
     }
 
-    /** Overzicht voor Instellingen → Bescherming → Ransomware: per server de mappen en de laatste stand */
+    /** Overzicht voor Instellingen → IDS en EDR → Ransomware: per server de mappen en de laatste stand */
     public static function overview(): array
     {
         $out = [];

@@ -3809,8 +3809,9 @@ button.ct-k { cursor: pointer; } button.ct-k:hover { border-color: var(--primary
 @media (prefers-reduced-motion: reduce) { .ax * { animation: none !important; } }
 
 /* 1.177.0: pad-check (pad, kaart, tabel, summier) */
-#tab-dashboard.mon-np > .dash-counters, #tab-dashboard.mon-np > .pg-tools, #tab-dashboard.mon-np > .pgrid, #tab-dashboard.mon-np > #avail, #tab-dashboard.mon-np > #containers { display: none; }
-#tab-dashboard:not(.mon-np) > #netpaths { display: none; }
+/* 1.330.0: Netwerkpaden staat bij Netwerk → Paden */
+#tab-net.net-pa > .dash-counters, #tab-net.net-pa > .pg-tools, #tab-net.net-pa > .pgrid, #tab-net.net-pa > .xp-net-list { display: none; }
+#tab-net:not(.net-pa) > #netpaths { display: none; }
 .netpaths { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .np-sec { container-type: inline-size; }
 .np-strip { display: flex; align-items: flex-start; padding: .4rem 0 .2rem; min-width: 0; }
@@ -6720,7 +6721,7 @@ body.sk-s .cs2-ovi { border-color: transparent; box-shadow: var(--shadow); }
 
 /* 1.321.0: Monitoring → Shelly's */
 #tab-dashboard.mon-sh > .dash-counters, #tab-dashboard.mon-sh > .pg-tools, #tab-dashboard.mon-sh > .pgrid, #tab-dashboard.mon-sh > #avail,
-#tab-dashboard.mon-sh > #containers, #tab-dashboard.mon-sh > #netpaths { display: none; }
+#tab-dashboard.mon-sh > #containers { display: none; }
 #tab-dashboard:not(.mon-sh) > #shellys { display: none; }
 .shellys { display: grid; gap: 1rem; }
 .sh-head { display: flex; gap: 1rem; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; }
@@ -7110,3 +7111,9 @@ label.check-row input[type=checkbox], label.check-row input[type=radio] { width:
 @media (max-width: 900px) { .ns-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 520px) { .ns-sel select { min-width: 0; max-width: 62vw; } }
 .hd-val small { font-size: .55em; color: var(--muted); font-weight: 500; }
+
+/* 1.330.0: Monitoring → Alle checks (was in de beheerportal) */
+#tab-dashboard.mon-ac > .dash-counters, #tab-dashboard.mon-ac > .pg-tools, #tab-dashboard.mon-ac > .pgrid { display: none; }
+#tab-dashboard:not(.mon-ac) > #allchecks-page { display: none; }
+.nis2-set { display: flex; flex-direction: column; gap: .6rem; max-width: 640px; }
+#comp-tabs { margin-bottom: 1rem; }

@@ -6,11 +6,39 @@ const nis2Left = (due) => {
   return s >= 86400 ? L('nog {d} d {h} u', { d: Math.floor(s / 86400), h: Math.floor((s % 86400) / 3600) }) : `<b class="warn">${L('nog {h} u {m} min', { h: Math.floor(s / 3600), m: Math.floor((s % 3600) / 60) })}</b>`;
 };
 
+let compTab = 'nis2';   // 1.330.0: Compliance: NIS2 of Instellingen (die stonden in de beheerportal)
+/** Het tabblad Instellingen: NIS2 aan of uit, organisatie en CSIRT */
+function nis2SetHtml(d) {
+  return `<div class="nis2-set">
+    <label class="switch"><input type="checkbox" id="nis2s-on" ${d.on ? 'checked' : ''}><span></span> ${L('<b>NIS2-overzicht</b> en meldtermijnen')}</label>
+    <label>${L('Organisatie')} <span class="hint">${L('(voor het rapport)')}</span><input id="nis2s-org" maxlength="120" value="${esc(d.org || '')}"></label>
+    <label>${L('CSIRT')} <span class="hint">${L('(waar je meldt, bv. het NCSC of het CSIRT van je sector)')}</span><input id="nis2s-csirt" maxlength="200" value="${esc(d.csirt || '')}"></label>
+    <p class="small muted">${L('Het rapport automatisch versturen (bijvoorbeeld elk kwartaal naar je directie of adviseur) stel je in bij Rapporten.')} <a href="#settings/reports" data-goto="settings/reports">${L('Naar Rapporten')} →</a></p>
+    <div class="btn-row"><button type="button" class="btn primary" data-comp-save>${L('Opslaan')}</button></div></div>`;
+}
+
 async function loadNis2() {
   const box = $('#nis2-box');
   if (!box) return;
   let d;
   try { d = await api('nis2'); } catch (ex) { box.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const compBar = isAdmin() ? `<div class="subtabs" id="comp-tabs" role="tablist" aria-label="${esc(L('Compliance'))}">
+    <button type="button" class="seg-btn ${compTab === 'nis2' ? 'active' : ''}" data-comp="nis2">🇪🇺 NIS2</button>
+    <button type="button" class="seg-btn ${compTab === 'set' ? 'active' : ''}" data-comp="set">⚙️ ${L('Instellingen')}</button></div>` : '';
+  box.onclick = async (e) => {
+    const t = e.target.closest('[data-comp]');
+    if (t) { compTab = t.dataset.comp === 'set' ? 'set' : 'nis2'; loadNis2(); return; }
+    if (e.target.closest('[data-comp-save]')) {
+      try {
+        await api('settings_save', { nis2_on: $('#nis2s-on').checked ? '1' : '0', nis2_org: $('#nis2s-org').value.trim(), nis2_csirt: $('#nis2s-csirt').value.trim() });
+        toast(L('Opgeslagen'));
+        loadNis2();
+      } catch (ex) { toast(ex.message, 'err'); }
+      return;
+    }
+    nis2Click(e, box);
+  };
+  if (compTab === 'set' && isAdmin()) { box.innerHTML = compBar + nis2SetHtml(d); return; }
   const cnt = (s) => d.measures.filter((m) => m.status === s || (s === 'ok' && m.status === 'manual')).length;
   const step = (i, w, label) => `<div class="nis2-step ${i[w] ? 'done' : ''}"><b>${label}</b><br>${i[w] ? `✔ ${L('verstuurd')} ${agoSpan(i[w])}` : `${L('uiterlijk {d}', { d: esc(fmtDateTime(i[w + '_due'])) })}<br>${nis2Left(i[w + '_due'])}`}
     <label class="small need-admin"><input type="checkbox" data-nis2-sent="${w}" data-id="${i.id}" ${i[w] ? 'checked' : ''}> ${L('verstuurd')}</label></div>`;
@@ -35,7 +63,7 @@ async function loadNis2() {
     <div class="btn-row need-admin">${d.recent.length ? `<select id="nis2-pick" aria-label="${esc(L('Incident'))}"><option value="">${L('Incident van de laatste 30 dagen…')}</option>${d.recent.map((r) => `<option value="${r.id}">${esc(fmtDateTime(r.at))} · ${esc(r.title.slice(0, 80))}${r.host ? ' · ' + esc(r.host) : ''}</option>`).join('')}</select>
       <button type="button" class="btn small-btn" id="nis2-mark">⚠ ${L('Als significant markeren')}</button>` : `<span class="muted small">${L('Geen incidenten van de laatste 30 dagen om te markeren (Incidenten).')}</span>`}</div>
     <p class="muted small">${L('Dit is geen juridisch advies en geen certificering: het laat zien wat RzSense technisch ziet. Of je onder NIS2 valt en wat significant is, bepaal je zelf (of met je adviseur).')}</p>`;
-  box.onclick = (e) => nis2Click(e, box);
+  box.insertAdjacentHTML('afterbegin', compBar);
   box.onchange = async (e) => {
     const c = e.target.closest('[data-nis2-sent]');
     if (!c) return;

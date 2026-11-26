@@ -15,7 +15,7 @@ defined('RZ_API') || exit;
 switch ($action) {
     // ---------- Beveiliging: versleuteling van de agents en blokkades (alleen beheerders) ----------
     // Instellingen → Hoe staat het ervoor?: punten om na te lopen, elk met het onderdeel waar je het regelt
-    case 'connections':   // 1.91.0: Instellingen → Overzicht → Verbindingen en taken
+    case 'connections':   // 1.91.0: Instellingen → Systeem → Achtergrondtaken
         out(['inbound' => Tasks::inbound(), 'tasks' => Tasks::list(), 'now' => now()]);
 
     case 'settings_health':
@@ -789,7 +789,7 @@ switch ($action) {
         $pi === null ? out(['error' => t('Deze check bestaat niet meer')], 404) : out($pi);
 
     case 'paths':
-        // 1.177.0: Monitoring → Netwerkpaden
+        // 1.177.0: Netwerk → Paden
         out(Paths::overview());
 
     case 'path_tp_now':

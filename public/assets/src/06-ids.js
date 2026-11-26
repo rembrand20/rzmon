@@ -255,10 +255,10 @@ async function loadIds() {
   if (idsAgain) { idsAgain = false; loadIds(); }
 }
 
-const IDS_TABS = ['inc', 'blk', 'live', 'map', 'ovw', 'acc', 'apps', 'hunt', 'anom', 'mitre'];   // 1.276.0: Bescherming staat in de portal; 1.278.1: Aanvallen (inc) staat hier én bij Incidenten
+const IDS_TABS = ['inc', 'blk', 'live', 'map', 'ovw', 'acc', 'leak', 'apps', 'hunt', 'anom', 'mitre'];   // 1.330.0: Datalekken (was bij Kwetsbaarheden)   // 1.276.0: Bescherming staat in de portal; 1.278.1: Aanvallen (inc) staat hier én bij Incidenten
 const IDS_AN = ['ovw', 'anom', 'mitre'];
 function showIdsTab() {
-  if (!IDS_TABS.includes(idsTab) || (idsTab === 'inc' && !$('#ids-tabs [data-it="inc"]'))) idsTab = 'live';
+  if (!IDS_TABS.includes(idsTab) || (idsTab === 'inc' && !$('#ids-tabs [data-it="inc"]')) || (idsTab === 'leak' && !$('#ids-more-menu [data-it="leak"]'))) idsTab = 'live';
   $$('#ids-tabs [data-it]').forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab || (x.dataset.it === 'ovw' && IDS_AN.includes(idsTab))));
   const an = $('#ids-an-seg');
   if (an) { an.hidden = !IDS_AN.includes(idsTab); $$('[data-it]', an).forEach((x) => x.classList.toggle('active', x.dataset.it === idsTab)); }
@@ -286,6 +286,7 @@ function showIdsTab() {
     if (idsTab === 'mitre') loadMitre();
     if (idsTab === 'apps') { initApps(); loadApps(); }   // 1.229.0
     if (idsTab === 'hunt') { initHunt(); loadHunt(); }
+    if (idsTab === 'leak') loadLeaks();   // 1.330.0
     if (idsTab === 'map') { initAttackMap(); loadAttackMap(); }   // 1.149.0
   });
   crumbs();   // 1.199.0
@@ -293,7 +294,7 @@ function showIdsTab() {
 
 // ---------------------------------------------------------------- IDS: 🛰️ Live en 🔏 Regels (endpoint-bewaking, 1.110.0)
 let edrFeed = null, edrRules = null, ruleSrc = '';
-/* 1.236.0: de regels staan op één plek: Instellingen → Bescherming → Endpoint-bewaking → Regels en uitzonderingen */
+/* 1.236.0: de regels staan op één plek: Instellingen → IDS en EDR → Endpoint-bewaking → Regels en uitzonderingen */
 const ruleBox = () => $('#edr-rules-set');
 const ruleQ = () => $('#rule-q-set');
 const EDR_KIND_IC = { exec: '⚙️', net: '🌐', file: '📄', audit: '🔐', ctr: '📦', sur: '🦉' };
@@ -461,7 +462,7 @@ function renderLive() {
   const nf = (n) => (+n || 0).toLocaleString(LOCALE);
   $('#edr-n-hits').textContent = nf(sum.list.hits); $('#edr-n-all').textContent = nf(sum.list.all); $('#edr-n-own').textContent = nf(sum.list.own);
   $$('#edr-mode [data-lv-mode]').forEach((b) => { b.classList.toggle('on', b.dataset.lvMode === lvMode); b.setAttribute('aria-selected', b.dataset.lvMode === lvMode); });
-  $('#edr-hero').innerHTML = edrFeed.on ? lvHero(sum, sum.list.hits) : `<div class="lv-hero s1"><span class="big">⚠️</span><div class="lv-hero-t"><h3>${L('Endpoint-bewaking staat uit')}</h3><p>${L('Zet hem aan bij Instellingen → Bescherming → Endpoint-bewaking.')}</p></div></div>`;
+  $('#edr-hero').innerHTML = edrFeed.on ? lvHero(sum, sum.list.hits) : `<div class="lv-hero s1"><span class="big">⚠️</span><div class="lv-hero-t"><h3>${L('Endpoint-bewaking staat uit')}</h3><p>${L('Zet hem aan bij Instellingen → IDS en EDR → Endpoint-bewaking.')}</p></div></div>`;
   const order = ['exec', 'net', 'file', 'audit', 'ctr', 'sur'];
   const kinds = Object.entries(sum.kinds).filter(([k]) => k !== 'own' && k !== 'dns' && k !== 'web' && k !== 'ids').sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]));
   $('#edr-kinds').innerHTML = kinds.length ? kinds.map(([k, x]) => `<button type="button" class="lv-kind${lvKind === k ? ' on' : ''}" data-lv-kind="${k}" aria-pressed="${lvKind === k}" title="${esc(L('Laatste 24 uur · klik om alleen deze soort te tonen'))}">
@@ -550,7 +551,7 @@ function renderEdrRules() {
   const on = edrRules.rules.filter((r) => r.on).length;
   withMorph(() => {
     ruleBox().innerHTML = `<p class="small" style="margin-top:0"><b>${L('{on} van {n} regels aan.', { on, n: edrRules.rules.length })}</b>
-      ${edrRules.sigma_on ? '' : ` <span class="warn-txt">${L('Sigma-regels staan uit (Instellingen → Bescherming → Endpoint-bewaking).')}</span>`}</p>${xpHtml(L('Over de regels: van RzSense zelf en van SigmaHQ.'), L('<b>Bronnen:</b> de eigen regels van RzSense (met uitleg) en de Linux-regels van SigmaHQ (licentie DRL 1.1). <b>Uitzetten:</b> een regel uitzetten geldt voor alle servers; <i>Dit is normaal</i> bij een incident geldt voor één server.'))}
+      ${edrRules.sigma_on ? '' : ` <span class="warn-txt">${L('Sigma-regels staan uit (Instellingen → IDS en EDR → Endpoint-bewaking).')}</span>`}</p>${xpHtml(L('Over de regels: van RzSense zelf en van SigmaHQ.'), L('<b>Bronnen:</b> de eigen regels van RzSense (met uitleg) en de Linux-regels van SigmaHQ (licentie DRL 1.1). <b>Uitzetten:</b> een regel uitzetten geldt voor alle servers; <i>Dit is normaal</i> bij een incident geldt voor één server.'))}
       <div class="table-scroll"><table class="vuln-table rule-table"><thead><tr><th></th><th>${L('Regel')}</th><th>${L('Ernst')}</th><th>${L('Doet zelf')}</th><th>MITRE</th><th title="${esc(L('Treffers in de laatste 3 dagen'))}">${L('Treffers')}</th></tr></thead><tbody>
       ${list.map((r) => `<tr class="${r.on ? '' : 'muted'}" data-key="${esc(r.id)}"><td><label class="switch small need-admin"><input type="checkbox" data-rule="${esc(r.id)}" ${r.on ? 'checked' : ''}><span></span></label></td>
         <td><b>${esc(r.title)}</b> <span class="badge">${r.src === 'sigma' ? 'Sigma' : 'RzSense'}</span><br><span class="small muted">${esc((r.what || '').slice(0, 260))}${r.src === 'sigma' ? ` · ${esc(r.author || '')} · <a href="${esc(r.url)}" target="_blank" rel="noopener">${L('bron')}</a>` : ''}</span></td>
@@ -762,7 +763,7 @@ async function loadAnom() {
   try { anomData = await api('ids_anom', null, { days: anomDays, ...(host ? { host } : {}) }); } catch (ex) { $('#anom-learn').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   hostOptions($('#anom-host'));
   const d = anomData;
-  $('#anom-info').textContent = !d.on ? L('Endpoint-bewaking staat uit (Instellingen → Bescherming → Endpoint-bewaking)') : !d.anom ? L('Afwijkingen staan uit (Instellingen → Bescherming → Endpoint-bewaking)') : '';
+  $('#anom-info').textContent = !d.on ? L('Endpoint-bewaking staat uit (Instellingen → IDS en EDR → Endpoint-bewaking)') : !d.anom ? L('Afwijkingen staan uit (Instellingen → IDS en EDR → Endpoint-bewaking)') : '';
   withMorph(() => {
     $('#anom-learn').innerHTML = `<h3 class="set-sub" style="margin-top:0">🎓 ${L('Wat is normaal? (leren per server)')}</h3>
       ${xpHtml(L('Elke server leert eerst {d} dagen wat normaal is.', { d: d.learn_days }), L('Elke server leert {d} dagen wat normaal is: welke programma\'s, gebruikers, verbindingen en poorten. Daarna meldt RzSense wat die server nog nooit deed. <b>Na een grote wijziging</b> (nieuwe software) kun je hem opnieuw laten leren.', { d: d.learn_days }))}
@@ -775,7 +776,7 @@ async function loadAnom() {
           <button type="button" class="btn small-btn" data-learn="restart" data-h="${h.id}">↺ ${L('Opnieuw leren')}</button></td></tr>`).join('')}</tbody></table></div>`
         : `<p class="muted">${L('Nog geen servers met endpoint-bewaking (agent 1.63.0 of nieuwer, en aan in de Agent Manager).')}</p>`}`;
     $('#anom-chains').innerHTML = `<h3 class="set-sub" style="margin-top:0">🔗 ${L('Ketens')} <span class="muted small">${L('(laatste 30 dagen)')}</span></h3>
-      ${!d.chain ? `<p class="warn-txt small">${L('Ketens staan uit (Instellingen → Bescherming → Endpoint-bewaking).')}</p>` : ''}
+      ${!d.chain ? `<p class="warn-txt small">${L('Ketens staan uit (Instellingen → IDS en EDR → Endpoint-bewaking).')}</p>` : ''}
       ${d.chains.length ? d.chains.map((c) => `<div class="chain-card s${c.severity}" data-key="ch${c.id}">
         <div class="chain-head">${c.severity === 2 ? '🔴' : '🟠'} <button type="button" class="linklike" data-inc="${c.id}"><b>${esc(c.title)}</b></button>
           <span class="muted small">· ${esc(c.host)} · ${esc(fmtDateTime(c.created_at))}${c.hits > 1 ? ' · ' + L('{n}× gegroeid', { n: c.hits }) : ''} · ${c.status === 'open' ? `<b class="warn-txt">${L('open')}</b>` : '✔'}</span></div>
@@ -981,7 +982,7 @@ function renderAccess() {
   const fails = d.rows.filter((r) => r.kind === 'authfail').length;
   $('#it-n-acc').textContent = d.rows.length ? d.rows.length : '';
   $('#acc-info').textContent = L('{ok} gelukt · {fail} mislukt · laatste {days} dagen', { ok: d.rows.length - fails, fail: fails, days: d.days }) + (d.truncated ? ' ' + L('(alleen de nieuwste 10.000)') : '');
-  const off = d.enabled ? '' : '<p class="warn-txt small">' + L('Toegang bijhouden staat uit: er komt niets nieuws bij. Aanzetten onder <a href="#settings/ids" data-goto="settings/ids">Instellingen → Bescherming → IDS algemeen</a>.') + '</p>';
+  const off = d.enabled ? '' : '<p class="warn-txt small">' + L('Toegang bijhouden staat uit: er komt niets nieuws bij. Aanzetten onder <a href="#settings/ids" data-goto="settings/ids">Instellingen → IDS en EDR → IDS algemeen</a>.') + '</p>';
   const q = $('#acc-search').value.trim().toLowerCase();
   // 1.152.0: bij SSH: Alles, Gelukt (sessies met begin, einde en duur) of Mislukt
   const sshBar = $('#acc-ssh');
@@ -1104,7 +1105,7 @@ function accIgnoreDialog(r) {
     title: '🙈 ' + L('Negeren'),
     body: `<p style="margin-top:0">${L('Wat wil je voortaan niet meer zien in <i>Toegang</i>? Ook de regels die er al staan, verdwijnen.')}</p>
       ${opts.map(([k, v, l], i) => `<label class="switch small"><input type="checkbox" name="ign${i}" value="${esc(v)}" ${opts.length === 1 || k === 'ip' ? 'checked' : ''}><span></span> ${l}</label>`).join('')}
-      ${xpHtml(L('Negeren verbergt alleen; brute-forcedetectie blijft werken.'), L('Een mislukte poging met meerdere gebruikers wordt alleen verborgen als <i>alle</i> gebruikers genegeerd worden, of het IP-adres. De lijst pas je aan bij <i>Instellingen → Bescherming → IDS algemeen → Negeren</i>. De brute-forcedetectie van het IDS blijft gewoon werken.'))}`,
+      ${xpHtml(L('Negeren verbergt alleen; brute-forcedetectie blijft werken.'), L('Een mislukte poging met meerdere gebruikers wordt alleen verborgen als <i>alle</i> gebruikers genegeerd worden, of het IP-adres. De lijst pas je aan bij <i>Instellingen → IDS en EDR → IDS algemeen → Negeren</i>. De brute-forcedetectie van het IDS blijft gewoon werken.'))}`,
     buttons: [{ label: '🙈 ' + L('Negeren'), cls: 'primary', submit: true }],
     onSubmit: async (d) => {
       const add = Object.keys(d).filter((k) => k.startsWith('ign')).map((k) => d[k]);
@@ -2756,7 +2757,7 @@ function webPathHtml(w) {
   const v = w.verdict;
   return `<h3 class="set-sub">🛤️ ${L('Pad van de aanval')}</h3><div class="wp">${rows}
     ${v ? `<div class="wp-v ${v.lvl}">${v.lvl === 'warn' ? '⚠️' : '✅'} <span>${esc(v.text)}</span></div>` : ''}
-    ${!w.full ? `<p class="small muted wp-tip">💡 ${L('Wil je ook zien welke site en welke dienst erachter werd aangevallen? Zet bij Instellingen → Bescherming → Netwerk en weblogs het extra logbestand voor je reverse proxy aan.')}</p>` : ''}</div>`;
+    ${!w.full ? `<p class="small muted wp-tip">💡 ${L('Wil je ook zien welke site en welke dienst erachter werd aangevallen? Zet bij Instellingen → IDS en EDR → Netwerk en weblogs het extra logbestand voor je reverse proxy aan.')}</p>` : ''}</div>`;
 }
 
 /** 1.267.0: IDS → Overzicht: één kaartje webverkeer (24 uur); alles per site, pad en land staat op de pagina Reverse proxy */

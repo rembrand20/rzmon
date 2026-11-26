@@ -89,13 +89,13 @@ final class ProxyStats
             if (!Ids::enabled()) {
                 $out[] = ['host' => $name, 'lvl' => 'bad', 'text' => t('Het IDS staat uit; dan leest de agent het proxylog niet. Zet het IDS aan bij Instellingen → Bescherming.')];
             } elseif (!WebLog::enabled('swag')) {
-                $out[] = ['host' => $name, 'lvl' => 'bad', 'text' => t('Het proxylog staat uit. Zet het aan bij Instellingen → Bescherming → Netwerk en weblogs.')];
+                $out[] = ['host' => $name, 'lvl' => 'bad', 'text' => t('Het proxylog staat uit. Zet het aan bij Instellingen → IDS en EDR → Netwerk en weblogs.')];
             } elseif (version_compare((string) $h['agent_version'], $need, '<')) {
                 $out[] = ['host' => $name, 'lvl' => 'bad', 'text' => t('De agent is {v}; voor de tellingen is {need} of nieuwer nodig. Werk hem bij in de Agent Manager.', ['v' => (string) ($h['agent_version'] ?: '?'), 'need' => $need])];
             } elseif (!$w || strtotime((string) $w['seen_at']) < time() - 1800) {
                 $out[] = ['host' => $name, 'lvl' => 'bad', 'text' => t('De agent stuurt (nog) niets over het proxylog. Wacht een ronde, of kijk in de Agent Manager of de agent rapporteert.')];
             } elseif (!empty($w['err'])) {
-                $out[] = ['host' => $name, 'lvl' => 'bad', 'text' => t('Proxylog: {err} ({path}). Vul het pad naar de log in bij Instellingen → Bescherming → Netwerk en weblogs.', ['err' => (string) $w['err'], 'path' => (string) ($w['path'] ?: 'auto')])];
+                $out[] = ['host' => $name, 'lvl' => 'bad', 'text' => t('Proxylog: {err} ({path}). Vul het pad naar de log in bij Instellingen → IDS en EDR → Netwerk en weblogs.', ['err' => (string) $w['err'], 'path' => (string) ($w['path'] ?: 'auto')])];
             } elseif (!$hasData) {
                 $out[] = ['host' => $name, 'lvl' => 'wait', 'text' => t('Alles staat goed ({path}); de eerste tellingen komen bij de volgende ronde.', ['path' => (string) $w['path']])];
             } elseif (!$full) {

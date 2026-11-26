@@ -101,7 +101,7 @@ Opnieuw uitvoeren is altijd veilig. Een bestaand instellingenbestand blijft zoal
 Er zijn drie manieren:
 - **Per server:** Agent Manager → **⬆ Bijwerken naar …**. Daar zie je ook hoe het afliep.
 - **Alle tegelijk:** pagina *Servers* → **⬆ Alle verouderde agents bijwerken**.
-- **Automatisch:** *Instellingen → Agents en koppelingen → Standaard voor alle agents* → **Agents automatisch bijwerken**. Een verouderde agent werkt zichzelf dan bij, met hooguit één poging per 6 uur.
+- **Automatisch:** *Instellingen → Agents → Standaard voor alle agents* → **Agents automatisch bijwerken**. Een verouderde agent werkt zichzelf dan bij, met hooguit één poging per 6 uur.
 
 Zo gaat het:
 1. RzSense geeft de opdracht mee in het antwoord op het volgende rapport. RzSense hoeft de server dus niet te kunnen bereiken.
@@ -121,7 +121,7 @@ Goed om te weten:
 ### Hoe vaak rapporteert de agent?
 
 De timer start de agent elke 30 seconden, maar hoe vaak er echt een rapport uitgaat (de **tik**), stel je in RzSense in:
-- **Voor alle agents:** *Instellingen → Agents en koppelingen → Standaard voor alle agents* → *Agents rapporteren standaard elke …* (30 s, 60 s, 2 min of 5 min).
+- **Voor alle agents:** *Instellingen → Agents → Standaard voor alle agents* → *Agents rapporteren standaard elke …* (30 s, 60 s, 2 min of 5 min).
 - **Per server:** Agent Manager → *Rapporteren* → *Elke …*. Met cron of op TrueNAS is één minuut het minimum.
 - **Agent offline** volgt de tik: een agent geldt pas als stil na minstens 3 gemiste tikken (*Agent offline na … minuten zonder rapport*).
 
@@ -327,7 +327,7 @@ Certificaten bewaken kan zonder agent (RzSense maakt zelf verbinding) of via de 
 
 Goed om te weten:
 - De agent zoekt eens per dag naar `.crt`, `.pem`, `.cer` en `.cert` in de bekende mappen (`/etc/ssl`, `/etc/pki`, `/etc/letsencrypt`, `/etc/nginx`, `/opt`, `/srv`, Docker-volumes …). CA-lijsten van het systeem en CA-bundels slaat hij over. Met **🔄 Opnieuw zoeken** zoekt hij meteen.
-- **Extra mappen:** *Instellingen → Agents en koppelingen → Standaard voor alle agents* → *Ook zoeken naar certificaten in*, of per server `CERT_DIRS` (vervangt de standaardmappen).
+- **Extra mappen:** *Instellingen → Agents → Standaard voor alle agents* → *Ook zoeken naar certificaten in*, of per server `CERT_DIRS` (vervangt de standaardmappen).
 - **Hele keten:** verloopt een tussencertificaat eerder dan het certificaat zelf, dan telt die datum.
 - **`CERTS` op de server** geeft een vaste lijst, met spaties ertussen. Wildcards mogen; `host:poort` zonder poort wordt 443. Zonder `CERTS` meldt de agent alle Let's Encrypt-certificaten, met `CERTS=""` geen:
   ```bash
@@ -360,7 +360,7 @@ Met **＋ Check → Pad (traceroute)** meet de agent het pad van die server naar
 - **Doorvoer:** RzSense kiest zelf een ontvanger met de agent in hetzelfde netwerk (of de server die je kiest). Daar start de agent kort een ontvanger die na één meting stopt. Per server zet je dat uit met *Mag doorvoertest ontvangen* in het formulier van de server. Standaard elk uur. Mist iperf3, dan installeert de agent het zelf (niet op TrueNAS of Home Assistant, en niet als commando's als root uit staan).
 - **Installeren:** `sudo apt install mtr-tiny iperf3` (Debian/Ubuntu) of `sudo dnf install mtr iperf3` (Rocky/RHEL).
 - **Melding bij:** te veel vertraging of verlies naar het doel, een tussenliggend apparaat dat niet reageert (CRITICAL), een linksnelheid die zakt (vaak een slechte kabel) en doorvoer onder de grens. Verlies bij een tussenhop van je provider telt niet zolang de hops erna niets verliezen.
-- **Zien:** in de popup van de check en op *Monitoring → Netwerkpaden* (zie [Netwerk](10-netwerk.md)).
+- **Zien:** in de popup van de check en op *Netwerk → Paden* (zie [Netwerk](10-netwerk.md)).
 - **Netwerksnelheid:** een route op *Netwerk → Netwerksnelheid* vanaf deze server maakt zelf zo'n pad-check (alleen informatief). Heeft de server wifi, dan meldt de agent ook zijn wifi (ontbreekt `iw`, dan laat RzSense het installeren als commando's als root aan staan): band, kanaal, signaal en verbindingssnelheid (zie [Netwerk](10-netwerk.md#netwerksnelheid)).
 
 ### Databases
@@ -521,7 +521,7 @@ Met een **Commando**-check voert de agent een commando uit, en vergelijkt RzSens
 | `! test -f /var/run/reboot-required` | exitcode is 0 | – |
 | `curl -s localhost:8080/health` | bevat | `"status":"up"` |
 
-**Eerst aanzetten.** Standaard voert geen agent commando's uit. Zet het aan bij *Instellingen → Agents en koppelingen → Commando-checks*: *Uit*, *Toestaan, als gebruiker nobody* (genoeg voor de meeste commando's) of *Toestaan, als root*. Per server kan het anders: Agent Manager → *Commando-checks*. Ruimer maken vraagt je wachtwoord en komt in het logboek. Op de server zelf kun je het altijd inperken met `COMMANDS=0` (nooit) of `COMMANDS=nobody` (nooit als root).
+**Eerst aanzetten.** Standaard voert geen agent commando's uit. Zet het aan bij *Instellingen → Agents → Commando-checks*: *Uit*, *Toestaan, als gebruiker nobody* (genoeg voor de meeste commando's) of *Toestaan, als root*. Per server kan het anders: Agent Manager → *Commando-checks*. Ruimer maken vraagt je wachtwoord en komt in het logboek. Op de server zelf kun je het altijd inperken met `COMMANDS=0` (nooit) of `COMMANDS=nobody` (nooit als root).
 
 **Toevoegen:** *＋ Check → Commando*. Vul het commando in, hoe het vergeleken wordt (*is gelijk aan*, *bevat*, *komt overeen met (regex)* of *exitcode is 0*), het verwachte antwoord, critical of warning, en de time-out (1–60 s, standaard 10). Bij *Voorinstelling* staan kant-en-klare checks voor TrueNAS/ZFS, Proxmox en Linux (mislukte services, herstart nodig, updates, klok, inodes, temperatuur, RAID, SMART). Voorinstellingen met *(root)* werken alleen als root mag.
 
@@ -543,7 +543,7 @@ De agent meldt wie er inlogt (SSH en console) en wie `sudo` of `su` gebruikt. Je
 | Mislukte sudo of su | ❌ *mislukte sudo · gast*: 3 incorrect password attempts |
 
 Goed om te weten:
-- **Aan/uit:** *Instellingen → Bescherming → IDS algemeen* → *Toegang bijhouden* (standaard aan, ook als het IDS uit staat). Op een server altijd uit: `AUTH_EVENTS=0`.
+- **Aan/uit:** *Instellingen → IDS en EDR → IDS algemeen* → *Toegang bijhouden* (standaard aan, ook als het IDS uit staat). Op een server altijd uit: `AUTH_EVENTS=0`.
 - **Negeren:** klik 🙈 bij een regel, of vul gebruikers en IP-adressen of netwerken in die niet getoond worden.
 - **⛔ Blokkeer** bij een regel met een IP-adres opent het venster *IP blokkeren* (zie [Beveiliging](08-beveiliging.md)).
 - Mislukte pogingen worden per uur opgeteld (*37×*), zodat de pagina niet volloopt bij een aanval.
@@ -637,7 +637,7 @@ De relay draait op een machine in dat netwerk en stuurt de rapporten door naar R
 
 ### Een relay instellen
 
-Ga naar *Instellingen → Agents en koppelingen → Netwerken en relays*.
+Ga naar *Instellingen → Agents → Netwerken en relays*.
 1. Klik op **＋ Relay toevoegen** (bij een losse agent kies je *Op welke server*), of gebruik in de Agent Manager **Relay op deze server installeren**. Klik op **📦 Installeren** en voer het commando (losse agent, Podman, Docker of compose) uit op de machine in dat netwerk. Binnen een minuut staat de relay op 🟢 *online*.
 2. Kies het **🌐 Adres** waarop de agents de relay bereiken, bijvoorbeeld `https://192.168.50.10:8444`. Zet poort 8444 open in de firewall van die machine.
 3. Klik op **＋ Netwerk toevoegen**: een naam, de adresreeks(en) (bijvoorbeeld `192.168.50.0/24`), *Via* de relay, en eventueel een reserve-relay.

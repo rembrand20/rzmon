@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------- 🛰️ Netwerken en relays (1.282.0, agent 1.109.0)
-// Beheer → Agents en koppelingen → Netwerken en relays. Een netwerk zonder verbinding met RzSense krijgt een relay:
+// Beheer → Agents → Netwerken en relays. Een netwerk zonder verbinding met RzSense krijgt een relay:
 // agent op server → relay → RzSense. Hier: de relays (installeren, adres), de netwerken (adresreeksen, relay en
 // reserve-relay) en per server in welk netwerk hij zit en of hij moet overstappen.
 const RELAY_IMAGE = 'ghcr.io/rembrand20/rzsense-relay:latest';

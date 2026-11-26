@@ -185,7 +185,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <span class="tab-group side-only" role="presentation"><?= th('Beveiliging') ?></span>
       <?php if ($role !== 'readonly'): ?><button class="tab" data-tab="incidents" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17.5v.01"/></svg><span class="tab-badge" id="inc-badge" hidden></span></span><span class="tab-lbl has-s"><?= th('Incidenten') ?></span><span class="tab-lbl-s"><?= th('Incid.') ?></span></button><?php endif; ?>
       <button class="tab" data-tab="ids" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><span class="tab-badge" id="ids-badge" hidden></span></span><span class="tab-lbl">IDS</span></button>
-      <?php if ($showVulns || $showLeaks || $showEol): ?><button class="tab" data-tab="vulns" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 2 1.9 1.9M16 2l-1.9 1.9"/><path d="M9 7.1V6a3 3 0 1 1 6 0v1.1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9M6.5 13H3M21 13h-3.5M6 17l-2.5 2M18 17l2.5 2M6 9 3.5 7.5M18 9l2.5-1.5"/></svg><span class="tab-badge" id="vuln-badge" hidden></span></span><span class="tab-lbl has-s"><?= th('Kwetsbaarheden') ?></span><span class="tab-lbl-s"><?= th('CVE\'s') ?></span></button><?php endif; ?>
+      <?php if ($showVulns || $showEol): ?><button class="tab" data-tab="vulns" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 2 1.9 1.9M16 2l-1.9 1.9"/><path d="M9 7.1V6a3 3 0 1 1 6 0v1.1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9M6.5 13H3M21 13h-3.5M6 17l-2.5 2M18 17l2.5 2M6 9 3.5 7.5M18 9l2.5-1.5"/></svg><span class="tab-badge" id="vuln-badge" hidden></span></span><span class="tab-lbl has-s"><?= th('Kwetsbaarheden') ?></span><span class="tab-lbl-s"><?= th('CVE\'s') ?></span></button><?php endif; ?>
       <?php if ($showPatch): ?><button class="tab" data-tab="updates" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg></span><span class="tab-lbl"><?= th('Updates') ?></span></button><?php endif; ?>
       <?php if ($role === 'admin'): ?><button class="tab" data-tab="proxy" role="tab"><span class="tab-icw"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h11l-3-3M21 17H10l3 3"/><path d="M14 7h4a3 3 0 0 1 3 3v1M10 17H6a3 3 0 0 1-3-3v-1"/></svg><span class="tab-badge s2" id="proxy-badge" hidden></span></span><span class="tab-lbl"><?= th('Reverse proxy') ?></span></button><?php endif; ?>
       <?php if ($showNet): ?><span class="tab-group side-only" role="presentation"><?= th('Netwerk') ?></span><?php endif; ?>
@@ -274,8 +274,8 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <!-- 1.169.0: Checks (zoals altijd) of Beschikbaarheid per groep -->
       <div class="subtabs mon-tabs" role="tablist" aria-label="<?= th('Monitoring') ?>" id="mon-tabs">
         <button type="button" class="seg-btn active" data-msub="checks" role="tab" aria-selected="true"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><?= th('Monitoring') ?></button>
+        <?php if ($role === 'admin'): ?><button type="button" class="seg-btn" data-msub="allchecks" role="tab" aria-selected="false"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 6 1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M11 6h9M11 12h9M11 18h9"/></svg><?= th('Alle checks') ?></button><?php endif; ?>
         <button type="button" class="seg-btn" data-msub="cont" role="tab" aria-selected="false"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg><?= th('Containers') ?></button>
-        <button type="button" class="seg-btn" data-msub="paths" role="tab" aria-selected="false"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 6h7a4 4 0 0 1 0 8h-4a4 4 0 0 0 0 8h7"/></svg><?= th('Netwerkpaden') ?></button>
         <button type="button" class="seg-btn" data-msub="shelly" role="tab" aria-selected="false"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><?= th("Shelly's") ?></button>
         <button type="button" class="seg-btn" data-msub="avail" role="tab" aria-selected="false"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V14M10 20V9M16 20V12M22 20V5"/></svg><?= th('Beschikbaarheid') ?></button>
       </div>
@@ -309,7 +309,18 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <div id="avail" class="avail" aria-live="polite"></div>
       <div id="containers" class="containers"></div>
       <div id="shellys" class="shellys"></div><!-- 1.321.0 -->
-      <div id="netpaths" class="netpaths"></div>
+      <!-- 1.330.0: Alle checks (was in de beheerportal) -->
+      <div id="allchecks-page" class="allchecks-page">
+        <div class="card need-admin" id="allchecks-card">
+          <h2>☑️ <?= th('Alle checks') ?></h2>
+          <?= xp(t('Alle checks in één lijst; vink er meer aan om ze samen te bewerken.'), t('Vink checks aan om ze tegelijk aan te passen: interval, drempels, melden, onderhoud, aan of uit, kopiëren naar andere servers of verwijderen. Klik op een naam om die ene check te bewerken.')) ?>
+          <div class="ac-bar"><input type="search" id="ac-q" placeholder="<?= th('🔍 Zoek check, doel of server…') ?>" autocomplete="off">
+            <select id="ac-host"><option value=""><?= th('Alle servers') ?></option></select>
+            <select id="ac-type"><option value=""><?= th('Alle types') ?></option></select></div>
+          <div id="ac-bulk" class="ac-bulk" hidden></div>
+          <div id="ac-list"><p class="muted"><?= th('Laden…') ?></p></div>
+        </div>
+      </div>
     </section>
 
     <section id="tab-alerts" class="tab-panel" role="tabpanel" hidden>
@@ -364,7 +375,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       </div></div>
       <!-- 1.266.0: overzichtelijk: één statusregel (hierboven), direct de tabbladen; analyse staat op 📊 Overzicht -->
       <div class="subtabs ids-tabs" role="tablist" aria-label="IDS" id="ids-tabs">
-        <button type="button" class="seg-btn" data-it="inc"><?= th('🚨 Aanvallen') ?> <span class="it-n" id="it-n-inc"></span></button><!-- 1.278.1: weer op de IDS-pagina (zelfde lijst als Incidenten → Aanvallen) -->
+        <button type="button" class="seg-btn" data-it="inc"><?= th('🚨 Aanvallen') ?> <span class="it-n" id="it-n-inc"></span></button><!-- 1.278.1: weer op de IDS-pagina (zelfde lijst als IDS → Aanvallen) -->
         <button type="button" class="seg-btn" data-it="blk"><?= th('⛔ Blokkades') ?> <span class="it-n" id="it-n-blk"></span></button>
         <button type="button" class="seg-btn" data-it="live"><?= th('🛰️ Live') ?></button>
         <button type="button" class="seg-btn" data-it="map"><?= th('🗺️ Aanvalskaart') ?></button>
@@ -373,6 +384,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <button type="button" class="seg-btn" id="ids-more-btn" aria-haspopup="menu" aria-expanded="false"><span id="ids-more-lbl"><?= th('Meer') ?></span> <span class="it-n" id="it-n-more"></span> ▾</button>
           <div class="ids-more-menu" id="ids-more-menu" role="menu" hidden>
             <button type="button" class="seg-btn" role="menuitem" data-it="acc"><?= th('🔑 Toegang') ?> <span class="it-n" id="it-n-acc"></span></button>
+            <?php if ($showLeaks): ?><button type="button" class="seg-btn" role="menuitem" data-it="leak"><?= th('🔓 Datalekken') ?> <span class="it-n" id="it-n-leak"></span></button><?php endif; ?>
             <button type="button" class="seg-btn" role="menuitem" data-it="apps"><?= th('🧩 Programma\'s') ?> <span class="it-n" id="it-n-apps"></span></button>
             <button type="button" class="seg-btn" role="menuitem" data-it="hunt"><?= th('🔎 Jagen') ?></button>
             <?php if ($role === 'admin' || $role === 'user'): ?><button type="button" class="seg-btn" role="menuitem" data-goto="settings/prot"><?= th('🛡 Bescherming') ?> ›</button><?php endif; ?>
@@ -423,7 +435,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       </div>
       <div class="ids-pane" data-pane="hunt" hidden>
         <?= xp(t('Zoek sporen van een bekende aanval op al je servers tegelijk.'), t('<b>Wat het doet:</b> plak IP-adressen, domeinen, vingerafdrukken of paden (bijvoorbeeld uit een waarschuwing van het NCSC); RzSense zoekt ze in alles wat het weet en desgewenst op de servers zelf. <b>Zo gebruik je het:</b> <i>Zoeken</i> doet het één keer; met <i>Bewaken</i> krijg je een melding als een spoor later opduikt. <b>Goed om te weten:</b> alleen een beheerder kan zoeken en bewaken.')) ?>
-        <div class="callout small" id="hunt-off" hidden><?= th('Jagen op sporen staat uit (Instellingen → Bescherming → Jagen op sporen).') ?></div>
+        <div class="callout small" id="hunt-off" hidden><?= th('Jagen op sporen staat uit (Instellingen → IDS en EDR → IDS algemeen).') ?></div>
         <div class="hunt-grid">
           <div class="card">
             <h3 class="set-sub">🔎 <?= th('Sporen zoeken') ?></h3>
@@ -502,6 +514,30 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         </div>
         <div id="ids-access" class="alert-list"></div>
       </div>
+      <?php if ($showLeaks): ?>
+      <!-- 1.330.0: Datalekken (was bij Kwetsbaarheden): net als Toegang over accounts en wachtwoorden -->
+      <div class="ids-pane leak-pane" data-pane="leak" hidden>
+        <?= xp(t('Of de e-mailadressen van je gebruikers en je domein in bekende datalekken staan.'), t('<b>Wat het doet:</b> RzSense vraagt bij Have I Been Pwned na in welke lekken een adres voorkomt, en meldt nieuwe lekken. <b>Zo gebruik je het:</b> wijzig het wachtwoord van een gelekt account, overal waar het gebruikt werd, en zet tweestapsverificatie aan. <b>Goed om te weten:</b> welke adressen en welk domein worden gecontroleerd, stel je in bij Instellingen → Datalekken.')) ?>
+        <div class="dash-counters"><div class="dash-in">
+          <div class="health-counts" id="leak-counts"></div>
+          <span class="dash-last muted small" id="leak-info"></span>
+        </div></div>
+        <div id="leak-banner"></div>
+        <div class="kpis" id="leak-kpis"></div>
+        <div class="dash-bar">
+          <input type="search" id="leak-search" placeholder="<?= th('🔍 Zoek adres of lek…') ?>" autocomplete="off">
+          <div class="dash-chips" id="leak-filter" role="group" aria-label="<?= th('Filter') ?>"></div>
+          <span class="dash-sp"></span>
+          <button type="button" class="btn" id="leak-run">🔍 <?= th('Nu controleren') ?></button>
+          <div class="dash-more">
+            <button class="btn" type="button" data-menu-btn aria-haspopup="menu" aria-expanded="false" title="<?= th('Meer') ?>">⋯</button>
+            <div class="dash-menu" role="menu" hidden><button type="button" id="leak-toggle" role="menuitem"><?= th('⊞ Alles openen / sluiten') ?></button></div>
+          </div>
+        </div>
+        <div id="leak-users"></div>
+        <div id="leak-list"></div>
+      </div>
+      <?php endif; ?>
       <div class="ids-pane" data-pane="blk" hidden>
         <div class="dash-bar"><span class="muted small" id="ids-block-info"></span></div>
         <div class="card" id="ids-blocks"></div>
@@ -528,14 +564,13 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       </div>
     </section>
 
-    <?php if ($showVulns || $showLeaks || $showEol || $showPatch): ?>
+    <?php if ($showVulns || $showEol || $showPatch): ?>
     <section id="tab-vulns" class="tab-panel" role="tabpanel" hidden>
-      <?php if ((int) $showVulns * 2 + (int) $showLeaks + (int) $showEol + (int) $showPatch > 1): ?>
+      <?php if ((int) $showVulns * 2 + (int) $showEol + (int) $showPatch > 1): ?>
       <div class="subtabs vuln-tabs" role="tablist" aria-label="<?= th('Kwetsbaarheden') ?>" id="vuln-tabs">
         <?php if ($showVulns): ?><button type="button" class="seg-btn active" data-vt="cve">🐞 <?= th('Kwetsbaarheden') ?> <span class="it-n" id="vt-n-cve"></span></button><?php endif; ?>
         <?php if ($showVulns): ?><button type="button" class="seg-btn" data-vt="sw">📦 <?= th('Software') ?> <span class="it-n" id="vt-n-sw"></span></button><?php endif; ?>
         <?php if ($showEol): ?><button type="button" class="seg-btn" data-vt="eol">⏳ <?= th('Verouderd') ?> <span class="it-n" id="vt-n-eol"></span></button><?php endif; ?>
-        <?php if ($showLeaks): ?><button type="button" class="seg-btn" data-vt="leak">🔓 <?= th('Datalekken') ?> <span class="it-n" id="vt-n-leak"></span></button><?php endif; ?>
       </div>
       <?php endif; ?>
       <?php if ($showVulns): ?>
@@ -607,34 +642,11 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <div class="health-counts" id="eol-counts"></div>
           <span class="dash-last muted small" id="eol-info"></span>
         </div></div>
-        <?= xp(t('Welk besturingssysteem en welke software geen updates meer krijgt, of binnenkort niet.'), t('<b>Wat het is:</b> uit de softwarelijst die de agent stuurt, kijkt RzSense bij <a href="https://endoflife.date" target="_blank" rel="noopener">endoflife.date</a> tot wanneer een versie updates krijgt (alleen productnamen gaan de deur uit). <b>Oordeel:</b> ⛔ besturingssysteem buiten ondersteuning = critical; ⏳ binnen 90 dagen = warning; software van de leverancier zelf (zoals docker-ce) buiten ondersteuning = warning. Software uit de pakketbron van je distributie krijgt vaak nog beveiligingsupdates van de distributie, ook als de maker zelf stopt: dan alleen ℹ️ ter info. <b>Meldingen:</b> 90 en 30 dagen vooraf en op de dag zelf (Systeemmeldingen → End-of-life). <b>Uitzetten:</b> Instellingen → Overzicht → Functies.')) ?>
+        <?= xp(t('Welk besturingssysteem en welke software geen updates meer krijgt, of binnenkort niet.'), t('<b>Wat het is:</b> uit de softwarelijst die de agent stuurt, kijkt RzSense bij <a href="https://endoflife.date" target="_blank" rel="noopener">endoflife.date</a> tot wanneer een versie updates krijgt (alleen productnamen gaan de deur uit). <b>Oordeel:</b> ⛔ besturingssysteem buiten ondersteuning = critical; ⏳ binnen 90 dagen = warning; software van de leverancier zelf (zoals docker-ce) buiten ondersteuning = warning. Software uit de pakketbron van je distributie krijgt vaak nog beveiligingsupdates van de distributie, ook als de maker zelf stopt: dan alleen ℹ️ ter info. <b>Meldingen:</b> 90 en 30 dagen vooraf en op de dag zelf (Systeemmeldingen → End-of-life). <b>Uitzetten:</b> Instellingen → Status en functies → Functies.')) ?>
         <div class="dash-bar"><input type="search" id="eol-search" placeholder="<?= th('🔍 Zoek server of software…') ?>" autocomplete="off">
           <div class="dash-chips" id="eol-filter" role="group" aria-label="<?= th('Filter') ?>"></div><span class="dash-sp"></span>
           <button type="button" class="btn need-admin" id="eol-refresh">🔄 <?= th('Nu opzoeken') ?></button></div>
         <div id="eol-list"><p class="muted"><?= th('Laden…') ?></p></div>
-      </div>
-      <?php endif; ?>
-      <?php if ($showLeaks): ?>
-      <div class="vuln-pane" data-vpane="leak" <?= $showVulns || $showEol || $showPatch ? 'hidden' : '' ?>>
-        <?= xp(t('Of de e-mailadressen van je gebruikers en je domein in bekende datalekken staan.'), t('<b>Wat het doet:</b> RzSense vraagt bij Have I Been Pwned na in welke lekken een adres voorkomt, en meldt nieuwe lekken. <b>Zo gebruik je het:</b> wijzig het wachtwoord van een gelekt account, overal waar het gebruikt werd, en zet tweestapsverificatie aan. <b>Goed om te weten:</b> welke adressen en welk domein worden gecontroleerd, stel je in bij Instellingen → Datalekken.')) ?>
-        <div class="dash-counters"><div class="dash-in">
-          <div class="health-counts" id="leak-counts"></div>
-          <span class="dash-last muted small" id="leak-info"></span>
-        </div></div>
-        <div id="leak-banner"></div>
-        <div class="kpis" id="leak-kpis"></div>
-        <div class="dash-bar">
-          <input type="search" id="leak-search" placeholder="<?= th('🔍 Zoek adres of lek…') ?>" autocomplete="off">
-          <div class="dash-chips" id="leak-filter" role="group" aria-label="<?= th('Filter') ?>"></div>
-          <span class="dash-sp"></span>
-          <button type="button" class="btn" id="leak-run">🔍 <?= th('Nu controleren') ?></button>
-          <div class="dash-more">
-            <button class="btn" type="button" data-menu-btn aria-haspopup="menu" aria-expanded="false" title="<?= th('Meer') ?>">⋯</button>
-            <div class="dash-menu" role="menu" hidden><button type="button" id="leak-toggle" role="menuitem"><?= th('⊞ Alles openen / sluiten') ?></button></div>
-          </div>
-        </div>
-        <div id="leak-users"></div>
-        <div id="leak-list"></div>
       </div>
       <?php endif; ?>
     </section>
@@ -656,7 +668,6 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <div class="pcard" data-pk="src" data-pw="12" data-pt="<?= th('Soort') ?>"><div class="subtabs" id="inc-src" role="tablist" aria-label="<?= th('Soort') ?>">
         <button type="button" class="seg-btn active" data-isrc="all">🧾 <?= th('Alles') ?></button>
         <button type="button" class="seg-btn" data-isrc="check">📉 <?= th('Storingen') ?></button>
-        <button type="button" class="seg-btn" data-isrc="ids">🛡️ <?= th('Aanvallen') ?> <span class="it-n" id="isrc-n-ids"></span></button>
         <button type="button" class="seg-btn" data-isrc="vuln">🐞 <?= th('Kwetsbaarheden') ?></button>
       </div></div>
       <div class="pcard" data-pk="atk" data-pw="12" data-pt="<?= th('Aanvallen') ?>"><div id="inc-ids-host" hidden></div></div>
@@ -676,7 +687,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
     <?php if ($role === 'admin'): ?>
     <section id="tab-servers" class="tab-panel" role="tabpanel" hidden>
       <!-- 1.276.0: de Agent Manager uit de beheerportal: dagelijks werk in het hoofdmenu -->
-      <?= xp(t('Al je servers en agents: status, versie en verbinding. Klik op een server voor alles per server (checks, logs, updates, IDS, SNMP).'), t('<b>Wat het doet:</b> elke server met een agent staat hier, met wat aandacht nodig heeft. <b>Zo gebruik je het:</b> open een server voor zijn eigen instellingen (de Agent Manager), werk agents bij of zet onderdelen per server aan of uit. <b>Goed om te weten:</b> wat voor <i>alle</i> agents geldt (bijwerken, ritme, versleuteling) stel je in bij Instellingen → Agents en koppelingen.')) ?>
+      <?= xp(t('Al je servers en agents: status, versie en verbinding. Klik op een server voor alles per server (checks, logs, updates, IDS, SNMP).'), t('<b>Wat het doet:</b> elke server met een agent staat hier, met wat aandacht nodig heeft. <b>Zo gebruik je het:</b> open een server voor zijn eigen instellingen (de Agent Manager), werk agents bij of zet onderdelen per server aan of uit. <b>Goed om te weten:</b> wat voor <i>alle</i> agents geldt (bijwerken, ritme, versleuteling) stel je in bij Instellingen → Agents.')) ?>
         <div class="card" id="agents-card">
           <h2>🖥️ <?= th('Servers en agents') ?></h2>
           <div data-nodirty id="enc-hosts"></div>
@@ -722,8 +733,8 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
 
     <?php if ($role === 'admin'): ?>
     <section id="tab-compliance" class="tab-panel" role="tabpanel" hidden>
-      <!-- 1.276.0: NIS2 (met CIS-hardening) als eigen pagina; aan/uit en de gegevens staan bij Instellingen → Bescherming → NIS2 -->
-      <?= xp(t('Hoe je ervoor staat met de zorgplicht uit de NIS2-richtlijn: per maatregel wat RzSense ziet, je notities, de hardening van je servers en de meldtermijnen.'), t('<b>Wat het is:</b> een hulpmiddel bij de NIS2-richtlijn (in Nederland de Cyberbeveiligingswet), met per maatregel wat RzSense al bewaakt. <b>Zo gebruik je het:</b> vul je notities aan en exporteer het rapport. <b>Goed om te weten:</b> aanzetten en je organisatie invullen doe je bij Instellingen → Bescherming → NIS2; het rapport automatisch versturen bij Rapporten.')) ?>
+      <!-- 1.276.0: NIS2 (met CIS-hardening) als eigen pagina; 1.330.0: aan/uit en de gegevens op het tabblad Instellingen -->
+      <?= xp(t('Hoe je ervoor staat met de zorgplicht uit de NIS2-richtlijn: per maatregel wat RzSense ziet, je notities, de hardening van je servers en de meldtermijnen.'), t('<b>Wat het is:</b> een hulpmiddel bij de NIS2-richtlijn (in Nederland de Cyberbeveiligingswet), met per maatregel wat RzSense al bewaakt. <b>Zo gebruik je het:</b> vul je notities aan en exporteer het rapport. <b>Goed om te weten:</b> aanzetten en je organisatie invullen doe je op het tabblad Instellingen hier; het rapport automatisch versturen bij Rapporten.')) ?>
       <div class="card">
         <div id="nis2-box"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
@@ -773,6 +784,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <button type="button" class="seg-btn active" data-nsub="list" role="tab" aria-selected="true">📋 <?= th('Apparaten') ?></button>
         <button type="button" class="seg-btn" data-nsub="disc" role="tab" aria-selected="false">🔍 <?= th('Ontdekken') ?> <span class="tab-badge" id="net-disc-badge" hidden></span></button>
         <button type="button" class="seg-btn" data-nsub="speed" role="tab" aria-selected="false">⚡ <?= th('Netwerksnelheid') ?></button>
+        <button type="button" class="seg-btn" data-nsub="paths" role="tab" aria-selected="false">🛣️ <?= th('Paden') ?></button>
       </div>
       <!-- 1.103.0: netwerkscan, zelfde opbouw als het dashboard -->
       <?= xp(t('Alle apparaten in je netwerk, met naam, soort, IP-adres en fabrikant.'), t('<b>Wat het doet:</b> RzSense scant je netwerk (en leest UniFi of SNMP uit als je die hebt) en houdt bij welke apparaten er zijn en wanneer ze online waren. <b>Zo gebruik je het:</b> geef een nieuw apparaat een naam en zet het op bekend; een apparaat dat je niet kent, onderzoek je. <b>Goed om te weten:</b> deze apparaten kun je ook kiezen bij het adres van een server of het doel van een check.'), 'xp-net-list') ?>
@@ -810,6 +822,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <div id="net-map" class="net-map"></div>
       <?= xp(t('Hoe snel je netwerk en je internetlijn zijn, van RzSense (of een andere bron) tot het doel.'), t('<b>Wat het doet:</b> per schakel van de route zie je de vertraging, de linksnelheid en wat er echt gemeten is, en welke schakel de smalste is. Daaronder de wifi per access point. <b>Zo gebruik je het:</b> kies een route; beheerders maken routes bij Routes beheren en meten met Nu meten. <b>Goed om te weten:</b> de snelheid van switch- en routerpoorten komt uit UniFi of SNMP; zonder die zie je bij die schakel "snelheid onbekend".'), 'xp-net-speed') ?>
       <div id="net-speed" class="net-speed" aria-live="polite"></div>
+      <div id="netpaths" class="netpaths"></div><!-- 1.330.0: was Netwerk → Paden -->
     </section>
     <?php endif; ?>
 
@@ -838,14 +851,6 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <button type="button" class="btn" id="set-toggle-all"><?= th('⊞ Alles openen') ?></button>
       </div>
       <form id="settings-form" class="settings-grid" data-pgrid="set">
-        <div data-sk="nis2" class="card" id="nis2-card">
-          <h2>🇪🇺 <?= th('NIS2') ?></h2>
-          <?= xp(t('Een hulpmiddel bij de zorgplicht uit de NIS2-richtlijn (in Nederland de Cyberbeveiligingswet).'), t('<b>Wat het is:</b> per maatregel uit <b>artikel 21</b> (a tot en met j) zie je wat RzSense er zelf van ziet, en schrijf je erbij wat je verder geregeld hebt (beleid, afspraken met leveranciers, training). Een <b>significant incident</b> markeer je hieronder; RzSense telt af naar de <b>vroegtijdige waarschuwing (24 uur)</b>, de <b>incidentmelding (72 uur)</b> en het <b>eindverslag (een maand)</b> aan je CSIRT, en waarschuwt als een termijn dichtbij komt. Het <b>rapport</b> kun je afdrukken als PDF. <b>Let op:</b> dit is geen juridisch advies en geen certificering; het laat zien wat RzSense technisch ziet.')) ?>
-          <label class="switch"><input type="checkbox" name="nis2_on"><span></span> <?= t('<b>NIS2-overzicht</b> en meldtermijnen') ?></label>
-          <label><?= th('Organisatie') ?> <span class="hint"><?= th('(voor het rapport)') ?></span><input name="nis2_org" maxlength="120"></label>
-          <label><?= th('CSIRT') ?> <span class="hint"><?= th('(waar je meldt, bv. het NCSC of het CSIRT van je sector)') ?></span><input name="nis2_csirt" maxlength="200"></label>
-          <p class="small muted"><?= th('Het rapport automatisch versturen (bijvoorbeeld elk kwartaal naar je directie of adviseur) stel je in bij Rapporten.') ?> <a href="#settings/reports" data-goto="settings/reports"><?= th('Naar Rapporten') ?></a></p>
-        </div>
 
         <div data-sk="pushover" class="card">
           <h2>Pushover</h2>
@@ -2007,15 +2012,6 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <div id="tpl-list"><p class="muted"><?= th('Laden…') ?></p></div>
       </div>
 
-      <div data-sk="allchecks" class="card need-admin" id="allchecks-card">
-        <h2>☑️ <?= th('Alle checks') ?></h2>
-        <?= xp(t('Alle checks in één lijst; vink er meer aan om ze samen te bewerken.'), t('Vink checks aan om ze tegelijk aan te passen: interval, drempels, melden, onderhoud, aan of uit, kopiëren naar andere servers of verwijderen. Klik op een naam om die ene check te bewerken.')) ?>
-        <div class="ac-bar"><input type="search" id="ac-q" placeholder="<?= th('🔍 Zoek check, doel of server…') ?>" autocomplete="off">
-          <select id="ac-host"><option value=""><?= th('Alle servers') ?></option></select>
-          <select id="ac-type"><option value=""><?= th('Alle types') ?></option></select></div>
-        <div id="ac-bulk" class="ac-bulk" hidden></div>
-        <div id="ac-list"><p class="muted"><?= th('Laden…') ?></p></div>
-      </div>
 
       <div data-sk="cleanup" class="card need-admin" id="cleanup-card">
         <h2>🧹 <?= th('Opschoonadvies') ?> <button type="button" class="btn small-btn" id="cleanup-reload" title="<?= th('Vernieuwen') ?>">🔄</button></h2>

@@ -44,7 +44,7 @@ De volledige lijst staat bij [Wat het IDS meldt](#wat-het-ids-meldt).
 
 | Plek | Wat er staat |
 |---|---|
-| *Incidenten → Aanvallen* | dezelfde lijst als *IDS → Aanvallen*: het werk dat je moet afhandelen |
+| *IDS → Aanvallen* | dezelfde lijst als *IDS → Aanvallen*: het werk dat je moet afhandelen |
 | *IDS → 🚨 Aanvallen* | alle IDS-incidenten, met zoeken, filters en status-labels |
 | *IDS → ⛔ Blokkades* | wat nu geblokkeerd is, eerdere blokkades en de ✅ whitelist |
 | *IDS → 🛰️ Live* | wat de agents de laatste 3 dagen op het moment zelf zagen (endpoint-bewaking) |
@@ -57,15 +57,15 @@ Een rood bolletje op **IDS** in de zijbalk telt de open critical incidenten.
 
 **Zo begin je:**
 
-1. Ga naar *Instellingen → Bescherming → IDS algemeen* en zet **IDS aan**. De modus blijft op 🎓 *Leren*.
+1. Ga naar *Instellingen → IDS en EDR → IDS algemeen* en zet **IDS aan**. De modus blijft op 🎓 *Leren*.
 2. Wacht de **basismeting** af (standaard 1 dag). In die tijd legt RzSense stil vast wat normaal is.
 3. Kijk een paar dagen op *IDS → Aanvallen*. Klik bij wat normaal is op **Dit is normaal**.
-4. Bekijk *Instellingen → Bescherming → Beschermingen* en zet aan of uit wat je wilt.
+4. Bekijk *Instellingen → IDS en EDR → Beschermingen* en zet aan of uit wat je wilt.
 5. Schakel naar ⛔ *Blokkeren*. Doe dat de eerste keer terwijl je ook via de console bij je servers kunt.
 
 ## Het IDS aanzetten
 
-Alles staat op *Instellingen → Bescherming → IDS algemeen*:
+Alles staat op *Instellingen → IDS en EDR → IDS algemeen*:
 
 - **IDS aan**: standaard uit. Uit betekent: de agents verzamelen niets en er wordt niets geblokkeerd.
 - **🎓 Leren / ⛔ Blokkeren**: overschakelen naar Blokkeren vraagt je wachtwoord (op je LAN zonder account typ je
@@ -246,7 +246,7 @@ gemeld*, *Mogelijk gelukt*, *Leren* en een verlopen blokkade staat de knop **⛔
 ## Honeypot
 
 Een honeypot is lokaas: namen en een poort die alleen aanvallers proberen. Eén poging is genoeg. Instellen bij
-*Instellingen → Bescherming → IDS algemeen → 🍯 Honeypot*.
+*Instellingen → IDS en EDR → IDS algemeen → 🍯 Honeypot*.
 
 - **Honeypot-gebruikers**: namen die bij jou nooit bestaan. Standaard
   `admin test guest user oracle ubuntu pi ftp support postgres`; vul gerust aan. Eén mislukte SSH-login met zo'n naam van
@@ -261,7 +261,7 @@ Een honeypot is lokaas: namen en een poort die alleen aanvallers proberen. Eén 
 
 ## Webshell en persistentie
 
-Instellen bij *Instellingen → Bescherming → IDS per server*.
+Instellen bij *Instellingen → IDS en EDR → IDS per server*.
 
 - **Webshell**: een webserver (nginx, apache, php-fpm, lighttpd, caddy …) of webgebruiker (`www-data`, `apache` …) start
   een shell of een netwerkprogramma (`curl`, `wget`, `nc`, `python`, `perl` …). Dat hoort nooit; meestal is via een lek
@@ -278,7 +278,7 @@ Instellen bij *Instellingen → Bescherming → IDS per server*.
 
 ## Bekende aanvallers, landen en uitgaand verkeer
 
-Instellen bij *Instellingen → Bescherming → Netwerk en weblogs*.
+Instellen bij *Instellingen → IDS en EDR → Netwerk en weblogs*.
 
 - **☠️ Bekende aanvallers** (standaard aan): RzSense haalt dagelijks **Spamhaus DROP** en **FireHOL level 1** op. Privé-
   adressen en je whitelist worden er altijd uit gefilterd.
@@ -303,7 +303,7 @@ Instellen bij *Instellingen → Bescherming → Netwerk en weblogs*.
 ## Hardening-score
 
 De agent controleert elk uur de basisbeveiliging van de server. RzSense maakt er een score van 0 tot 100 van. Aan of uit
-bij *Instellingen → Bescherming → IDS per server*.
+bij *Instellingen → IDS en EDR → IDS per server*.
 
 - **Wat wordt gecontroleerd**: SSH met wachtwoord, als root of met lege wachtwoorden; een actieve firewall; automatische
   beveiligingsupdates; databases open op alle netwerken (MySQL, PostgreSQL, Redis, MongoDB, Elasticsearch …); de
@@ -321,7 +321,7 @@ bij *Instellingen → Bescherming → IDS per server*.
 ## Logs van webdiensten
 
 De agent leest elke minuut de nieuwe regels uit de logs van je webdiensten en vat ze per IP samen. RzSense herkent er
-aanvallen in. Instellen bij *Instellingen → Bescherming → Netwerk en weblogs → 📜 Logs van webdiensten*.
+aanvallen in. Instellen bij *Instellingen → IDS en EDR → Netwerk en weblogs → 📜 Logs van webdiensten*.
 
 **Bronnen** (elk aan of uit):
 - **Reverse proxy / webserver**: de access-log van nginx (SWAG, Nginx Proxy Manager of een gewone nginx);
@@ -361,7 +361,7 @@ gewoon antwoord, 2xx of 3xx: kijk of er iets gevonden is).
 De gewone access-log van nginx heeft de site en de dienst niet. Daarom:
 - **SWAG** of **nginx**: zet één keer een **extra logbestand** aan. De twee regels (een `log_format rzsense` en een
   `access_log …/rzsense.log rzsense;` voor het blok `http { … }` in `nginx.conf`) staan kant-en-klaar bij
-  *Instellingen → Bescherming → Netwerk en weblogs*, met Kopiëren. Herstart daarna SWAG (`docker restart swag`) of herlaad
+  *Instellingen → IDS en EDR → Netwerk en weblogs*, met Kopiëren. Herstart daarna SWAG (`docker restart swag`) of herlaad
   nginx. Je bestaande `access.log` blijft zoals hij is, dus fail2ban blijft werken.
 - **Nginx Proxy Manager**: niets te doen.
 
@@ -376,7 +376,7 @@ Naast de vaste gevoelige bestanden laat je zelf paden bewaken: je scripts, je we
 bestand de SHA-256-hash, grootte, rechten en eigenaar bij. De inhoud wordt nooit verstuurd.
 
 **Instellen:**
-1. *Instellingen → Bescherming → IDS algemeen → 📁 Bestanden bewaken*: een pad per regel, met de ernst 🟠 of 🔴. Die
+1. *Instellingen → IDS en EDR → IDS algemeen → 📁 Bestanden bewaken*: een pad per regel, met de ernst 🟠 of 🔴. Die
    lijst geldt voor alle servers.
 2. Per server voeg je paden toe via *✎ Bewerken* van de server (*📁 Bestanden bewaken (IDS)*). Hetzelfde pad daar gaat
    voor, bijvoorbeeld om de ernst te veranderen.
@@ -459,7 +459,7 @@ regels en grijpt zo nodig in.
   kernelmodules, `ld.so.preload`, nieuwe cron/systemd/ssh-bestanden en meer;
 - de **Linux-regels van [SigmaHQ](https://github.com/SigmaHQ/sigma)** (*medium* en hoger; licentie DRL 1.1, de maker
   staat bij elke treffer). *medium* wordt 🟠, *high* 🔴, *critical* 🔴 en het proces stoppen.
-- Alle regels staan bij *Instellingen → Bescherming → Endpoint-bewaking (EDR) → Regels en uitzonderingen*, met hoe vaak
+- Alle regels staan bij *Instellingen → IDS en EDR → Endpoint-bewaking (EDR) → Regels en uitzonderingen*, met hoe vaak
   ze de laatste 3 dagen raak waren. Daar zet je een regel uit **voor alle servers**; *Dit is normaal* bij een incident
   geldt voor **één server**.
 
@@ -487,7 +487,7 @@ AI-advies.
 
 ### Aanzetten
 
-1. *Instellingen → Bescherming → Endpoint-bewaking (EDR) → Bewaking*: de bewaking zelf, de Sigma-regels, de
+1. *Instellingen → IDS en EDR → Endpoint-bewaking (EDR) → Bewaking*: de bewaking zelf, de Sigma-regels, de
    payload-inspectie en de drie acties. Standaard aan zodra het IDS aan staat.
 2. Per server: in de Agent Manager, *🛡️ Endpoint-bewaking* (standaard aan). Daar zie je ook welke sensoren werken.
 3. Ontbreekt `auditd` of `inotify-tools`, dan zie je dat onder de servernaam (*🛡️ ontbreekt: auditd · installeren?*).
@@ -511,7 +511,7 @@ Op de server zelf zet `EDR=0` in `/etc/default/rzmon-agent` het altijd uit.
 ## Afwijkingen, ketens en MITRE
 
 Bovenop de regels leert RzSense per server wat normaal is, en kijkt het of losse meldingen samen een aanval vormen.
-Instellen bij *Instellingen → Bescherming → Endpoint-bewaking (EDR) → Bewaking → 🧬 Afwijkingen en ketens*.
+Instellen bij *Instellingen → IDS en EDR → Endpoint-bewaking (EDR) → Bewaking → 🧬 Afwijkingen en ketens*.
 
 ### Afwijkingen
 
@@ -605,7 +605,7 @@ dienst of poort, en of het IP geblokkeerd is.
 ## Dreigingsinformatie
 
 RzSense zoekt op wat er op internet bekend is over de IP-adressen en bestanden uit je incidenten, en handelt ernaar.
-Instellen bij *Instellingen → Bescherming → Dreigingsinformatie*.
+Instellen bij *Instellingen → IDS en EDR → Dreigingsinformatie*.
 
 | Bron | Wat | Nodig |
 |---|---|---|
@@ -642,11 +642,11 @@ Plak een sleutel in het veld en klik **Sleutel testen**.
 
 ## DNS, Suricata en YARA
 
-Instellen bij *Instellingen → Bescherming → DNS, Suricata en YARA*.
+Instellen bij *Instellingen → IDS en EDR → DNS, Suricata en YARA*.
 
 ### DNS-controle via AdGuard Home
 
-Standaard aan zodra AdGuard gekoppeld is (*Instellingen → Agents en koppelingen → AdGuard Home*). Elke minuut leest RzSense
+Standaard aan zodra AdGuard gekoppeld is (*Instellingen → Netwerk → AdGuard Home*). Elke minuut leest RzSense
 de query-log van je AdGuard-instanties. Zo zie je **elk apparaat**, ook zonder agent (tv, camera's, IoT):
 
 - een domein dat bij URLhaus of ThreatFox bekend is: 🔴 als AdGuard het doorliet, 🟠 als AdGuard het tegenhield;
@@ -683,7 +683,7 @@ of sterk versleutelde bestanden (🟠). Installeren via de Agent Manager (*⬇ I
 
 RzSense maakt een filterlijst voor AdGuard Home, zodat bekende malwaredomeinen in je **hele netwerk** geblokkeerd worden.
 
-1. Zet bij *Instellingen → Bescherming → DNS, Suricata en YARA → AdGuard-blokkadelijst* de lijst aan en kies wat erin
+1. Zet bij *Instellingen → IDS en EDR → DNS, Suricata en YARA → AdGuard-blokkadelijst* de lijst aan en kies wat erin
    komt: malwaredomeinen uit de dreigingsinformatie (URLhaus, ThreatFox), je **bewaakte domeinen** (*IDS → Jagen*) en
    **eigen domeinen**.
 2. Klik **Toevoegen aan AdGuard** (als AdGuard gekoppeld is), of plak de **geheime URL** in AdGuard bij *Filters →
@@ -704,7 +704,7 @@ Wat RzSense zelf doet, houdt het IDS nooit tegen. Het wordt wel gelogd, als groe
 
 ## Uitzonderingen
 
-Wat in een bepaalde situatie normaal is, leg je vast bij *Instellingen → Bescherming → Endpoint-bewaking (EDR) → Regels en
+Wat in een bepaalde situatie normaal is, leg je vast bij *Instellingen → IDS en EDR → Endpoint-bewaking (EDR) → Regels en
 uitzonderingen → 🛡️ Uitzonderingen*. Wat op een uitzondering past: **geen melding**, **niet ingrijpen**, en het telt
 **niet mee** voor afwijkingen en ketens. Je ziet het wel als groene regel *✔ toegestaan · uitzondering: naam* in *Live*.
 
@@ -738,7 +738,7 @@ wijzigingen aan gevoelige bestanden worden nooit voorgesteld.
 
 ## Beschermingen: alles op een rij
 
-*Instellingen → Bescherming → Beschermingen* toont alles wat het IDS doet als kaarten in groepen (Inloggen, Web, Processen
+*Instellingen → IDS en EDR → Beschermingen* toont alles wat het IDS doet als kaarten in groepen (Inloggen, Web, Processen
 en bestanden, Netwerk en DNS, Afwijkingen en ketens, Dreigingsinformatie). Per kaart:
 
 - wat het ziet en de drempel (*meer dan 10 mislukte SSH-logins binnen 10 minuten*);
@@ -782,7 +782,7 @@ Per server aan te zetten:
   gestopt. Bij Samba is dat de sessie van die pc, en het IP van die pc wordt meteen geblokkeerd.
 
 Alles staat in het logboek van de server. **Uitzetten**: per server de mappen uitvinken (de agent haalt het lokaas weg,
-als het nog ongewijzigd is), voor alles bij *Instellingen → Bescherming → Ransomware*, of op de server `RANSOM=0` in
+als het nog ongewijzigd is), voor alles bij *Instellingen → IDS en EDR → Ransomware*, of op de server `RANSOM=0` in
 `/etc/default/rzmon-agent`.
 
 Dit is een vangnet, geen vervanging van **back-ups**. Een snapshot staat op dezelfde schijf; zorg ook voor een back-up op
@@ -809,7 +809,7 @@ keuze terug.
 programma's stoppen** aan (Agent Manager, met je wachtwoord), dan stopt de agent het meteen. Systeemprocessen nooit, en een
 hele systeemmap (`/usr/`, `/bin/` …) blokkeren kan niet.
 
-**Aan/uit**: *Instellingen → Bescherming → Programma's* (met de leerperiode), per server in de Agent Manager, of op de
+**Aan/uit**: *Instellingen → IDS en EDR → Programma's* (met de leerperiode), per server in de Agent Manager, of op de
 server `APPCTL=0` in `/etc/default/rzmon-agent`.
 
 Scripts (Python, bash) zie je als hun interpreter (`python3`, `bash`). Dit is dus een lichte vorm van *application
@@ -835,7 +835,7 @@ critical incident *Bewaakt spoor gezien*. Bewaakte domeinen kunnen ook in de
 [AdGuard-blokkadelijst](#adguard-blokkadelijst).
 
 Eerdere jachten blijven 180 dagen staan. Er gaat niets naar buiten. Alleen beheerders kunnen zoeken en bewaken.
-**Aan/uit**: *Instellingen → Bescherming → Jagen op sporen*.
+**Aan/uit**: *Instellingen → IDS en EDR → IDS algemeen*.
 
 ## Tijdelijk sudo
 
@@ -863,7 +863,7 @@ RzSense in; de agent op de proxyserver voert het door. Traefik en Caddy worden h
 
 ### Aanzetten
 
-1. Ga naar *Instellingen → Bescherming → Reverse proxy en WAF*. Zet de **hoofdschakelaar** aan, en bij **Welke server is
+1. Ga naar *Instellingen → Web en buitenkant → Reverse proxy en WAF*. Zet de **hoofdschakelaar** aan, en bij **Welke server is
    de reverse proxy?** de rol bij de server waar je proxy draait. Alleen daar doet de agent iets.
 2. Bij zijn volgende ronde zoekt de agent de proxy (eerst Podman, dan Docker) en leest de sites uit: SWAG uit
    `proxy-confs/*.conf` en `site-confs/*.conf`, NPM uit `proxy_host/*.conf`.
@@ -973,7 +973,7 @@ zijpaneel per onderdeel met **Opnieuw controleren**). Er gaat niets naar een ext
   domein van RzSense. Draait RzSense op een IP-adres, dan neemt hij het domein over van een andere site van dezelfde proxy
   met een volledige naam (bv. `ha.example.nl`). Lukt geen van drieën, dan zegt de site dat in het zijpaneel en wordt hij
   niet gecontroleerd: vul dan het veld in.
-- Aan of uit bij *Instellingen → Bescherming → Reverse proxy en WAF*.
+- Aan of uit bij *Instellingen → Web en buitenkant → Reverse proxy en WAF*.
 
 ### WAF
 
@@ -1096,7 +1096,7 @@ Meldingen worden IDS-incidenten, en volgen de blokkeer-instelling van [Suricata 
 
 ## Van buitenaf: je aanvalsoppervlak
 
-Wat staat er van je netwerk open op internet? Dat bekijk je bij *Instellingen → Bescherming → Van buitenaf*.
+Wat staat er van je netwerk open op internet? Dat bekijk je bij *Instellingen → Web en buitenkant → Van buitenaf*.
 
 **Doelen:**
 - **Automatisch** (aan of uit): je eigen publieke IP-adres en de domeinen van je reverse proxy.
@@ -1149,13 +1149,13 @@ RzSense controleert eens per 3 uur, met een score van 0 tot 100. **↻ Nu checke
 - Vul je de naam van een mailserver in (`mail.voorbeeld.nl`), dan controleert RzSense het domein erboven. Met STARTTLS aan
   wordt die mailserver zelf getest (poort 25, vanaf de server van RzSense).
 - Werkt DNS niet, dan wordt de check *onbekend*, niet *critical*.
-- Uitzetten bij *Instellingen → Bescherming → E-mailbeveiliging*.
+- Uitzetten bij *Instellingen → Web en buitenkant → E-mailbeveiliging*.
 
 ## Datalekken (Have I Been Pwned)
 
 RzSense controleert of **wachtwoorden** van RzSense-accounts en **e-mailadressen** in bekende datalekken staan, via
-[Have I Been Pwned](https://haveibeenpwned.com) (HIBP). Instellen bij *Instellingen → Bescherming → Kwetsbaarheden en
-datalekken → Datalekken*. De hoofdschakelaar **Controle op datalekken** staat standaard uit; dan gaat er niets naar HIBP.
+[Have I Been Pwned](https://haveibeenpwned.com) (HIBP). Instellen bij *Instellingen → Toegang tot RzSense →
+Datalekken*; de gevonden lekken staan bij *IDS → Datalekken*. De hoofdschakelaar **Controle op datalekken** staat standaard uit; dan gaat er niets naar HIBP.
 
 ### Wachtwoorden (gratis)
 
@@ -1195,7 +1195,7 @@ rapporten → Systeemmeldingen → Datalek*.
 Valt je organisatie onder de **NIS2-richtlijn** (in Nederland de Cyberbeveiligingswet), dan moet je passende maatregelen
 nemen (artikel 21) en significante incidenten op tijd melden (artikel 23). RzSense helpt je dat bij te houden.
 
-**Aanzetten**: *Instellingen → Bescherming → NIS2* (vul daar ook je organisatie in). Het overzicht staat op de pagina
+**Aanzetten**: *Compliance → Instellingen* (vul daar ook je organisatie in). Het overzicht staat op de pagina
 **Compliance**.
 
 **De tien maatregelen (a–j)**: risicoanalyse en beleid, incidentbehandeling, bedrijfscontinuïteit, toeleveringsketen,

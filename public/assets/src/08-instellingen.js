@@ -824,17 +824,15 @@ function initMainTabs() {
 // [groep, icoon, naam, [[sleutel, titel, kaarten, korte omschrijving, tabbladen?], …]]
 const SET_IC = (d) => `<svg class="tab-ic set-ic" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 const SET_NAV = [
-  // 1.276.0: zeven groepen; dagelijks werk (Servers, Logboek, Compliance) staat in het hoofdmenu
-  ['overzicht', SET_IC('<path d="M3 12h4l3 8 4-16 3 8h4"/>'), L('Overzicht'), [
+  // 1.276.0: dagelijks werk (Servers, Logboek, Compliance) staat in het hoofdmenu
+  // 1.330.0: Bescherming (17 onderdelen) in drie groepen, een eigen groep Netwerk; Status en functies als losse ingang bovenaan
+  ['overzicht', SET_IC('<path d="M3 12h4l3 8 4-16 3 8h4"/>'), L('Status en functies'), [
     ['overview', L('Status en functies'), ['overview', 'features'], L('Wat er nog aandacht nodig heeft, en alle functies met wat er aan staat en waar je het instelt.'),
-      [['status', L('Status'), ['overview']], ['functies', L('Functies'), ['features']]]],
-    ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzSense elke minuut uitvoert.')]]],
+      [['status', L('Status'), ['overview']], ['functies', L('Functies'), ['features']]]]]],
   ['checks', SET_IC('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>'), L('Monitoring'), [
-    ['allchecks', L('Alle checks'), ['allchecks'], L('Alle checks van alle servers in één lijst, ook samen bewerken.')],
     ['templates', L('Sjablonen'), ['templates'], L('Vaste sets checks voor een nieuwe server.')],
     ['advice', L('Slimme drempels en advies'), ['smart', 'advice', 'smartmore', 'cleanup'], L('Slimme drempels, voorstellen en checks om op te schonen.'),
       [['drempels', L('Slimme drempels'), ['smart']], ['voorstellen', L('Voorstellen'), ['advice', 'smartmore']], ['opschonen', L('Opschonen'), ['cleanup']]]],
-    ['internet', L('Internetcheck'), ['internet'], L('Snelheid, ping en responstijd van je internetlijn.')],
     ['logs', L('Logs verzamelen'), ['logs'], L('Logs van je servers verzamelen: hoe vaak, hoe lang bewaren, hoeveel, maskeren en wat er binnenkomt.')]]],
   ['meldingen', SET_IC('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'), L('Meldingen en rapporten'), [
     ['channels', L('Kanalen'), ['pushover', 'ntfy', 'webpush', 'email', 'webhook', 'chat', 'chain'], L('Waar meldingen heen gaan: Pushover, ntfy, Web Push, e-mail, webhooks, Discord, Slack en Teams.')],
@@ -847,9 +845,10 @@ const SET_NAV = [
   ['toegang', SET_IC('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'), L('Toegang tot RzSense'), [
     ['access', L('Inloggen'), ['access'], L('Lokaal netwerk, uitloggen en blokkeren na mislukte pogingen.')],
     ['outside', L('Beheer van buiten'), ['https', 'outside'], L('Veilig beheren van buiten je netwerk: https, toegestane apparaten en de noodlink.')],
-    ['users', L('Gebruikers'), ['users', 'confirmpw'], L('Accounts, rollen, tweestapsverificatie en bevestigen bij acties.')]]],
-  ['bescherming', SET_IC('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'), L('Bescherming'), [
-    ['ids', L('IDS algemeen'), ['ids'], L('Aan of uit, leren of blokkeren, brute force en honeypot.')],
+    ['users', L('Gebruikers'), ['users', 'confirmpw'], L('Accounts, rollen, tweestapsverificatie en bevestigen bij acties.')],
+    ['hibp', L('Datalekken'), ['hibp'], L('Welke e-mailadressen RzSense controleert op datalekken. De lekken zelf staan bij IDS → Datalekken.')]]],   // 1.330.0
+  ['bescherming', SET_IC('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'), L('IDS en EDR'), [
+    ['ids', L('IDS algemeen'), ['ids', 'hunt'], L('Aan of uit, leren of blokkeren, brute force, honeypot en jagen op sporen.')],
     ['prot', L('Beschermingen'), ['prot'], L('Alle beschermingen van het IDS op een rij: wat aan staat, met hun drempels.')],
     ['ids_edr', L('Endpoint-bewaking (EDR)'), ['ids_edr', 'ids_rules'], L('Processen, bestanden en netwerk op je servers; afwijkingen en aanvalsketens.'),
       [['bewaking', L('Bewaking'), ['ids_edr']], ['regels', L('Regels en uitzonderingen'), ['ids_rules']]]],
@@ -857,25 +856,26 @@ const SET_NAV = [
     ['ids_dns', L('DNS, Suricata en YARA'), ['ids_net', 'dnsbl'], L('Aanvallen in het netwerkverkeer en in nieuwe bestanden herkennen, en de blokkadelijst voor AdGuard.')],
     ['ids_ransom', L('Ransomware'), ['ransom'], L('Mappen bewaken op versleutelen, met lokaasbestanden, snapshot en stoppen.')],
     ['ids_apps', L('Programma\'s'), ['apps'], L('Welke programma\'s er draaien; onbekende vallen op na een leerperiode. Toestaan, blokkeren en stoppen.')],
-    ['ids_hunt', L('Jagen op sporen'), ['hunt'], L('IP-adressen, domeinen, vingerafdrukken en paden zoeken, ook op de servers, en bewaken.')],
     ['ids_attack', L('Netwerk en weblogs'), ['ids_attack'], L('Blocklists, landen, uitgaand verkeer en de logs van webdiensten.')],
-    ['ids_servers', L('IDS per server'), ['ids_servers'], L('Welke servers het IDS gebruiken, en wat ze bewaken.')],
+    ['ids_servers', L('IDS per server'), ['ids_servers'], L('Welke servers het IDS gebruiken, en wat ze bewaken.')]]],
+  ['web', SET_IC('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'), L('Web en buitenkant'), [
     ['proxy', L('Reverse proxy en WAF'), ['proxy'], L('De apps achter je reverse proxy beschermen: wie mag erbij, bots, te veel verzoeken, WAF, ClamAV en Suricata.')],
     ['exposure', L('Van buitenaf'), ['exposure'], L('Wat er van je netwerk open staat op internet: je publieke IP en je domeinen, met een melding als er iets nieuws open gaat.')],
-    ['vulns', L('Kwetsbaarheden en datalekken'), ['vulns', 'eol', 'cvebuzz', 'hibp'], L('Bekende lekken en verouderde software op je servers, en datalekken met je e-mailadressen.'),
-      [['lekken', L('Kwetsbaarheden'), ['vulns', 'eol', 'cvebuzz']], ['datalekken', L('Datalekken'), ['hibp']]]],
-    ['patch', L('Updatebeleid'), ['patch'], L('Hoe updates worden geïnstalleerd: met de hand, in het onderhoudsvenster of elke dag; Home Assistant met back-up.')],
-    ['mailsec', L('E-mailbeveiliging'), ['mailsec'], L('SPF, DKIM en DMARC van je domeinen: kan iemand mailen namens jou?')],
-    ['nis2set', L('NIS2'), ['nis2'], L('Het NIS2-overzicht aanzetten en je organisatie invullen. Het overzicht zelf staat op de pagina Compliance.')],
-    ['netscan', L('Netwerkscan'), ['netscan'], L('Nieuwe apparaten en open poorten in je netwerk.')]]],
-  ['agents', SET_IC('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'), L('Agents en koppelingen'), [
+    ['mailsec', L('E-mailbeveiliging'), ['mailsec'], L('SPF, DKIM en DMARC van je domeinen: kan iemand mailen namens jou?')]]],
+  ['kwetsbaar', SET_IC('<path d="m8 2 1.9 1.9M16 2l-1.9 1.9"/><path d="M9 7.1V6a3 3 0 1 1 6 0v1.1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9"/>'), L('Kwetsbaarheden en updates'), [
+    ['vulns', L('Kwetsbaarheden'), ['vulns', 'eol', 'cvebuzz'], L('Bekende lekken en verouderde software op je servers.')],
+    ['patch', L('Updatebeleid'), ['patch'], L('Hoe updates worden geïnstalleerd: met de hand, in het onderhoudsvenster of elke dag; Home Assistant met back-up.')]]],
+  ['netwerk', SET_IC('<rect x="9" y="2" width="6" height="5" rx="1"/><rect x="2" y="17" width="6" height="5" rx="1"/><rect x="16" y="17" width="6" height="5" rx="1"/><path d="M12 7v5M5 17v-2.5a1.5 1.5 0 0 1 1.5-1.5h11a1.5 1.5 0 0 1 1.5 1.5V17"/>'), L('Netwerk'), [
+    ['netscan', L('Netwerkscan'), ['netscan'], L('Nieuwe apparaten en open poorten in je netwerk.')],
+    ['internet', L('Internetcheck'), ['internet'], L('Snelheid, ping en responstijd van je internetlijn.')],
+    ['unifi', 'UniFi', ['unifi'], L('Namen, wifi, verkeer en weren van je apparaten uit je UniFi-controller.')],
+    ['adguard', 'AdGuard Home', ['adguard'], L('Namen, DNS-verzoeken en DNS-blokkeren uit AdGuard Home, en de DNS-controle van het IDS.')],
+    ['snmp', 'SNMP', ['snmp'], L('Eén SNMP-instelling voor al je apparaten, met per apparaat een uitzondering.')]]],
+  ['agents', SET_IC('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'), L('Agents'), [
     ['agentdef', L('Standaard voor alle agents'), ['agentdef', 'enc'], L('Wat voor alle agents geldt: bijwerken, ritme, versleuteling en certificaat. Per server stel je het in bij Servers.')],
     ['relays', L('Netwerken en relays'), ['relays'], L('Servers in een ander netwerk via een relay laten rapporteren: welke relay, welke netwerken, welke servers.')],
     ['sudo', L('Tijdelijk sudo'), ['sudo'], L('Een gebruiker voor korte tijd sudo geven op één server, met je wachtwoord en 2FA.')],
     ['commands', L('Commando-checks'), ['commands'], L('Eigen commando\'s die agents mogen uitvoeren.')],
-    ['unifi', 'UniFi', ['unifi'], L('Namen, wifi, verkeer en weren van je apparaten uit je UniFi-controller.')],
-    ['adguard', 'AdGuard Home', ['adguard'], L('Namen, DNS-verzoeken en DNS-blokkeren uit AdGuard Home, en de DNS-controle van het IDS.')],
-    ['snmp', 'SNMP', ['snmp'], L('Eén SNMP-instelling voor al je apparaten, met per apparaat een uitzondering.')],
     ['mqtt', L('Home Assistant (MQTT)'), ['mqtt'], L('Sensoren en meldingen in Home Assistant.')]]],
   ['systeem', SET_IC('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'), L('Systeem'), [
     ['looks', L('Weergave'), ['looks'], L('De standaard weergave voor accounts die zelf nog niets kozen.')],
@@ -885,6 +885,7 @@ const SET_NAV = [
     ['db', L('Database en server'), ['dbconn', 'db', 'storage', 'dbuse', 'server', 'syscheck', 'cron'], L('Databaseverbinding, bewaartermijnen, tijdzone, PHP en de systeemcheck.'),
       [['database', L('Database'), ['dbconn', 'db', 'storage', 'dbuse']], ['server', L('Server'), ['server', 'syscheck', 'cron']]]],
     ['perf', L('Prestaties en fouten'), ['perf', 'errors'], L('Hoe snel RzSense is, hoe lang een cron-ronde duurt, de traagste checks en PHP-fouten.')],
+    ['conn', L('Achtergrondtaken'), ['conn'], L('Verbindingen en taken die RzSense elke minuut uitvoert.')],   // 1.330.0: was bij Overzicht
     ['ai', L('AI-advies'), ['ai'], L('Advies van Claude, ChatGPT, Gemini, Grok of Ollama bij storingen.')],
     ['api', L('REST API'), ['api'], L('API-sleutels voor andere toepassingen.')],
     ['statuspage', L('Statuspagina'), ['statuspage'], L('Een openbare pagina met de status, via een geheime link.')],
@@ -908,10 +909,10 @@ if (document.body.dataset.role === 'user') {
 }
 /** Oude adressen (vóór 1.92.0) → nieuwe plek */
 const SET_ALIAS = { netlinks: 'unifi', ids_rules: 'ids_edr', enc: 'agentdef', https: 'outside', setup: 'db', syscheck: 'db', smart: 'advice', cleanup: 'advice', alarm: 'rules', notify: 'rules', server: 'db', changelog: 'actlog', features: 'overview',
-  quiet: 'rules', hibp: 'vulns', ids_prot: 'prot', dnsbl: 'ids_dns' };   // 1.276.0: nieuwe indeling   // 1.120.0: samengevoegde onderdelen
-const SET_TAB_OF = { features: 'functies', ids_rules: 'regels', smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server', quiet: 'stil', hibp: 'datalekken' };   // oude adressen → tabblad op de pagina Advies
+  quiet: 'rules', ids_prot: 'prot', dnsbl: 'ids_dns', hunt: 'ids' };   // 1.330.0: Datalekken eigen onderdeel bij Toegang   // 1.276.0: nieuwe indeling   // 1.120.0: samengevoegde onderdelen
+const SET_TAB_OF = { features: 'functies', ids_rules: 'regels', smart: 'drempels', cleanup: 'opschonen', syscheck: 'server', setup: 'server', quiet: 'stil' };   // oude adressen → tabblad op de pagina Advies
 let setTab = {};   // per onderdeel met tabbladen: het gekozen tabblad
-let setSection = (() => { try { const v = localStorage.getItem('rzmon-set-section') || 'overview'; return ['agents', 'actlog', 'changelog', 'nis2'].includes(v) ? 'overview' : v; } catch (e) { return 'overview'; } })();   // 1.277.2: onderdelen die nu eigen pagina's zijn
+let setSection = (() => { try { const v = localStorage.getItem('rzmon-set-section') || 'overview'; return ['agents', 'actlog', 'changelog', 'nis2', 'nis2set', 'allchecks', 'ids_hunt'].includes(v) ? 'overview' : v; } catch (e) { return 'overview'; } })();   // 1.277.2: onderdelen die nu eigen pagina's zijn
 let setHealthAt = 0;
 let setHealth = {};   // onderdeel → slechtste status uit "Hoe staat het ervoor?" (voor de bolletjes in de zijbalk)
 let setHealthWhy = {};   // 1.131.2: onderdeel → de punten zelf (tekst bij het bolletje)
@@ -925,7 +926,7 @@ function setFind(id) {
 function showSettingsSection(id, focusEl) {
   xpClose();
   // 1.276.0: deze onderdelen zijn eigen pagina's in het hoofdmenu geworden
-  const MAIN = { agents: 'servers', actlog: 'logboek', changelog: 'logboek', nis2: 'compliance' };
+  const MAIN = { agents: 'servers', actlog: 'logboek', changelog: 'logboek', nis2: 'compliance', nis2set: 'compliance/set', allchecks: 'dashboard/allchecks', ids_hunt: 'ids/hunt' };   // 1.330.0
   if (MAIN[id]) {
     // 1.277.2: niet onthouden als laatste onderdeel, anders opent Instellingen voortaan deze pagina
     if (setSection === id) setSection = 'overview';
@@ -975,7 +976,6 @@ function showSettingsSection(id, focusEl) {
   if (setSection === 'overview' || Date.now() - setHealthAt > 60000) loadSettingsHealth();
   if (setSection === 'conn') loadConn();
   if (setSection === 'templates') loadTemplates();
-  if (setSection === 'allchecks') loadAllChecks();
   if (setSection === 'statuspage') loadStatusPage();
   if (setSection === 'internet') loadInet();
   if (setSection === 'logs') loadLogsOverview();   // 1.210.0
@@ -1070,7 +1070,7 @@ function renderCardDots(items) {
 }
 
 const dotFor = (st, why = []) => (st === 'bad' || st === 'warn'
-  ? `<i class="set-dot ${st}" title="${esc((why.length ? why : [st === 'bad' ? L('Hier moet iets gebeuren') : L('Aandachtspunt')]).join('\n') + '\n\n' + L('Alles staat bij Overzicht → Status'))}"></i>` : '');
+  ? `<i class="set-dot ${st}" title="${esc((why.length ? why : [st === 'bad' ? L('Hier moet iets gebeuren') : L('Aandachtspunt')]).join('\n') + '\n\n' + L('Alles staat bij Status en functies → Status'))}"></i>` : '');
 
 function renderSettingsNav() {
   const q = setSearchNorm($('#set-search').value);
@@ -1239,7 +1239,7 @@ async function loadSettingsHealth() {
 }
 
 /**
- * IDS-schakelaars op één plek (1.122.0): aan/uit staat op de kaarten van Instellingen → Bescherming → Beschermingen. De drempels van een kaart
+ * IDS-schakelaars op één plek (1.122.0): aan/uit staat op de kaarten van Instellingen → IDS en EDR → Beschermingen. De drempels van een kaart
  * staan achter ⚙️ (zelfde velden als in de instellingen, uit het instellingenformulier gekopieerd).
  */
 const PROT_CFG = {
@@ -1370,7 +1370,7 @@ function polishSettings(root) {
     rest.forEach((n) => w.append(n));
     l.append(w);
   });
-  // IDS: aan/uit van een onderdeel staat op Instellingen → Bescherming → Beschermingen (1.122.0); hier niet nog een keer
+  // IDS: aan/uit van een onderdeel staat op Instellingen → IDS en EDR → Beschermingen (1.122.0); hier niet nog een keer
   PROT_KEYS.forEach((k) => {
     const inp = $(`[data-sk^="ids"] label.switch > input[name="${k}"]`, root);
     const l = inp && inp.parentElement;
@@ -2928,7 +2928,7 @@ function initAllChecks() {
   $('#ac-bulk').addEventListener('click', (e) => { const b = e.target.closest('[data-bulk]'); if (b) acBulk(b.dataset.bulk); });
   // Na een venster (check bewerkt, sjabloon aangepast): de lijst bijwerken
   $('#modal').addEventListener('close', () => {
-    if (setSection === 'allchecks' && !$('#tab-settings').hidden) setTimeout(loadAllChecks, 300);
+    if (monSub === 'allchecks' && !$('#tab-dashboard').hidden) setTimeout(loadAllChecks, 300);   // 1.330.0: Alle checks staat op Monitoring
   });
 }
 
@@ -3638,7 +3638,7 @@ function showNewDbPassword(r) {
   loadDbInfo();
 }
 
-// ---------------------------------------------------------------- 🧬 Instellingen → Bescherming → Ransomware (1.228.0)
+// ---------------------------------------------------------------- 🧬 Instellingen → IDS en EDR → Ransomware (1.228.0)
 async function loadRansomSet() {
   const box = $('#ransom-hosts');
   if (!box) return;

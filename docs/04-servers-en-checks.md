@@ -267,7 +267,7 @@ gegevens zelf uit via SNMP. Het kan ook op servers met een agent, zoals Proxmox 
 
 ### In RzSense
 
-1. Vul één keer de algemene instelling in: *Instellingen → Agents en koppelingen → SNMP* (versie, poort, community of
+1. Vul één keer de algemene instelling in: *Instellingen → Netwerk → SNMP* (versie, poort, community of
    v3-gebruiker). Elk apparaat zonder eigen instelling gebruikt die. **🔍 Alles testen** vraagt alle apparaten tegelijk
    om hun systeeminformatie.
 2. Bewerk de server (of maak hem aan) en zet bij **📡 SNMP** de schakelaar aan. Wijkt dit apparaat af, zet dan
@@ -561,7 +561,7 @@ Een sjabloon is een vaste set checks, met drempels, interval en meldregels, die 
 
 ## Alle checks tegelijk bewerken
 
-*Instellingen → Monitoring → Alle checks* toont alle checks van alle servers in één lijst, te doorzoeken op naam, doel of
+*Monitoring → Alle checks* toont alle checks van alle servers in één lijst, te doorzoeken op naam, doel of
 server en te filteren op server en type.
 
 - **Vink checks aan** en pas ze tegelijk aan: ⏱ interval, 🎚 drempels (alleen bij hetzelfde type), 🔔 melden (na hoeveel
@@ -730,7 +730,7 @@ rapport staat *herstelcommando vpn-herstart* in de keuzelijst.
 
 De internetcheck bewaakt je internetlijn, gemeten vanaf de server van RzSense.
 
-1. Ga naar *Instellingen → Monitoring → Internetcheck*.
+1. Ga naar *Instellingen → Netwerk → Internetcheck*.
 2. Klik op **🌍 Internet-check toevoegen**. Er komt een apparaat **Internet** bij met vier checks.
 3. Vul je **abonnement** in (download en upload in Mbit/s, standaard 1000/1000) en eventueel de drempels in procent.
 

@@ -641,7 +641,7 @@ final class Paths
             'events' => $ev, 'req' => $req, 'srv' => $srv, 'caps' => array_values(array_intersect(['mtr', 'traceroute', 'iperf3', 'lldpctl'], $caps))];
     }
 
-    /** Monitoring → Netwerkpaden: alle pad-checks met hun pad, en de switchpoorten uit UniFi */
+    /** Netwerk → Paden: alle pad-checks met hun pad, en de switchpoorten uit UniFi */
     public static function overview(): array
     {
         $paths = [];

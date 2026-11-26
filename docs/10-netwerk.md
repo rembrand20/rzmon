@@ -9,7 +9,7 @@ De netwerkscan zoekt welke apparaten er op je lokale netwerken zitten, met hun I
 ### Aanzetten
 
 1. Zorg dat je lokale netwerken zijn ingevuld bij *Instellingen → Toegang tot RzSense → Inloggen → Lokale netwerken*, bijvoorbeeld `192.168.2.0/24`.
-2. Ga naar *Instellingen → Bescherming → Netwerkscan* en zet **Netwerkscan aan**.
+2. Ga naar *Instellingen → Netwerk → Netwerkscan* en zet **Netwerkscan aan**.
 3. Kies hoe vaak RzSense scant:
    - **Snelle ronde** (ping en ARP): elke 15 of 30 minuten, of elke 1, 2 of 6 uur. Standaard elk uur.
    - **Diepere scan** (poorten, namen, merk): 1, 2, 4, 6 of 12 keer per dag. Standaard 4 keer.
@@ -40,7 +40,7 @@ sudo apt install fping avahi-utils
 
 ## De pagina Netwerk
 
-De pagina Netwerk heeft vier tabbladen: **🗺️ Overzicht**, **📋 Apparaten**, **🔍 Ontdekken** en **⚡ Netwerksnelheid** (zie [Netwerksnelheid](#netwerksnelheid)). RzSense onthoudt (per browser) welk tabblad je laatst open had. Het tabblad Netwerk krijgt een oranje teller voor apparaten die je nog niet beoordeeld hebt; dat aantal staat ook in *Hoe staat het ervoor?*.
+De pagina Netwerk heeft vijf tabbladen: **🗺️ Overzicht**, **📋 Apparaten**, **🔍 Ontdekken**, **⚡ Netwerksnelheid** (zie [Netwerksnelheid](#netwerksnelheid)) en **🛣️ Paden** (de pad-checks, zie [Linux-agent](05-linux-agent.md)). RzSense onthoudt (per browser) welk tabblad je laatst open had. Het tabblad Netwerk krijgt een oranje teller voor apparaten die je nog niet beoordeeld hebt; dat aantal staat ook in *Hoe staat het ervoor?*.
 
 ### Overzicht
 
@@ -133,7 +133,7 @@ Met UniFi en AdGuard Home weet RzSense veel meer over je apparaten: de namen die
 Werkt met de UniFi Network-app op een UniFi OS-console (zoals een UDM, UDR, Cloud Gateway of Cloud Key) of zelf gehost.
 
 1. Maak in UniFi een **lokaal account** voor RzSense: *Admins & Users → Add admin → Restrict to local access only*, met beheerrechten voor Network en zonder 2FA.
-2. Ga in RzSense naar *Instellingen → Agents en koppelingen → UniFi*.
+2. Ga in RzSense naar *Instellingen → Netwerk → UniFi*.
 3. Vul het **adres van de controller** in. Bij een UniFi OS-console is dat het IP-adres met https, zonder poort (bijvoorbeeld `https://192.168.2.1`). Bij een zelf gehoste controller meestal met poort 8443 (bijvoorbeeld `https://unifi:8443`).
 4. Vul de **site** in (meestal `default`) en de gebruikersnaam en het wachtwoord van het lokale account.
 5. Laat **Certificaat controleren** uit, tenzij je de console een geldig certificaat gaf.
@@ -145,7 +145,7 @@ RzSense haalt elke 5 minuten de clientlijst op: de **naam** die je in UniFi gaf,
 
 ### AdGuard Home
 
-1. Ga naar *Instellingen → Agents en koppelingen → AdGuard Home*.
+1. Ga naar *Instellingen → Netwerk → AdGuard Home*.
 2. Vul **alle** adressen in, één per regel, met de poort van de webinterface (vaak 3000 of 80). Heb je meerdere instanties (bijvoorbeeld met adguardhome-sync), vul ze dan allemaal in.
 3. Vul de gebruikersnaam en het wachtwoord van de webinterface in. Bij meerdere instanties moeten die overal hetzelfde zijn. Tip: maak in AdGuard Home een eigen gebruiker voor RzSense, dan zie je in de log wat RzSense deed.
 4. Klik **🧪 Verbinding testen**.
@@ -179,7 +179,7 @@ RzSense kan bijhouden hoeveel elk apparaat downloadt en uploadt: per uur (30 dag
 
 ### Aanzetten
 
-Zet bij *Instellingen → Bescherming → Netwerkscan* **Verkeer per apparaat bijhouden** aan (standaard aan). De netwerkscan moet aan staan, en RzSense heeft minstens één bron nodig:
+Zet bij *Instellingen → Netwerk → Netwerkscan* **Verkeer per apparaat bijhouden** aan (standaard aan). De netwerkscan moet aan staan, en RzSense heeft minstens één bron nodig:
 
 | Bron | Wat nodig is | Hoe het werkt |
 |---|---|---|
@@ -224,7 +224,7 @@ Op *Netwerk → Overzicht* staat naast *Verkeer vandaag* het verbruik van je int
 
 ### Datalimiet
 
-Heb je een abonnement met een limiet, vul die dan in bij *Instellingen → Bescherming → Netwerkscan → Datalimiet van je internetabonnement* (GB per maand, download en upload samen). Er komt een balk bij, met een streepje waar je naar verwachting uitkomt. Bij **80%** en bij **100%** krijg je één keer per maand een melding (*Systeemmeldingen → Datalimiet internet bijna of helemaal op*).
+Heb je een abonnement met een limiet, vul die dan in bij *Instellingen → Netwerk → Netwerkscan → Datalimiet van je internetabonnement* (GB per maand, download en upload samen). Er komt een balk bij, met een streepje waar je naar verwachting uitkomt. Bij **80%** en bij **100%** krijg je één keer per maand een melding (*Systeemmeldingen → Datalimiet internet bijna of helemaal op*).
 
 ## Verkeer als check en in een rapport
 
@@ -281,7 +281,7 @@ laatste **7 of 30 dagen** wilt zien.
 Met SNMP zoekt RzSense in de MAC-tabel van je switches op welke poort de bron zit. Zo komt een switch in de keten, ook
 al zie je hem niet in een traceroute. De WAN-poort van de router herkent RzSense aan de naam (*wan*, *ppp*, *dsl* …);
 lukt dat niet, dan kies je hem bij *Routes beheren*. De snelheid van de internetlijn vergelijkt RzSense met je
-abonnement (*Instellingen → Monitoring → Internetcheck*).
+abonnement (*Instellingen → Netwerk → Internetcheck*).
 
 ### Routes
 
@@ -333,6 +333,6 @@ aandachtspunten er zijn. Klik erop om naar de pagina te gaan.
 ## Zie ook
 
 - [Home Assistant](07-home-assistant.md): de netwerkkaart als kaart op je Home Assistant-dashboard.
-- [Linux-agent](05-linux-agent.md#netwerken-en-relays): servers in een ander netwerk laten rapporteren via een relay, en de pad-check (Netwerkpaden).
+- [Linux-agent](05-linux-agent.md#netwerken-en-relays): servers in een ander netwerk laten rapporteren via een relay, en de pad-check (Netwerk → Paden).
 - [Servers en checks](04-servers-en-checks.md): SNMP op switches, routers en access points.
 - [Beveiliging](08-beveiliging.md): de DNS-blokkadelijst voor AdGuard Home en het IDS.

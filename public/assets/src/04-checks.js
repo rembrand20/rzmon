@@ -870,7 +870,7 @@ function hostForm(h, preset = null) {
       <label class="switch" ${h.mode === 'agent' || isNew ? '' : 'hidden'} id="iperf-ok-wrap"><input type="checkbox" name="iperf_ok" ${+(h.iperf_ok ?? 1) ? 'checked' : ''}><span></span> ${L('Mag doorvoertest ontvangen (iperf3)')} <span class="hint">${L('voor de pad-check van een andere server; de agent start dan kort een ontvanger die na één meting stopt')}</span></label>
       ${snmpHostFields(h.snmp)}
       ${swsOpen({ id: 'fim-host-wrap', cb: 'id="fim-host-sw"', icon: '📁', title: L('Bestanden bewaken (IDS)'), on: false, sub: `<span id="fim-host-label">${L('laden…')}</span>`, hidden: h.mode !== 'agent' })}
-        ${xpHtml(L('Extra bestanden om te bewaken, alleen op deze server.'), L('Deze paden komen bovenop de algemene lijst (<i>Instellingen → Bescherming → IDS algemeen</i>). Staat hetzelfde pad in allebei, dan geldt dit pad, bijvoorbeeld om de ernst te veranderen.'))}
+        ${xpHtml(L('Extra bestanden om te bewaken, alleen op deze server.'), L('Deze paden komen bovenop de algemene lijst (<i>Instellingen → IDS en EDR → IDS algemeen</i>). Staat hetzelfde pad in allebei, dan geldt dit pad, bijvoorbeeld om de ernst te veranderen.'))}
         <div id="fim-host"></div>
       </div></section>
       ${(state.templates || []).length ? `${swsOpen({ id: 'tpl-wrap', cb: null, icon: '📋', title: L('Sjablonen'), on: isNew || hostTpls(h).length > 0,
@@ -959,7 +959,7 @@ document.addEventListener('click', (e) => {
 });
 
 // ---------------------------------------------------------------- SNMP
-// ---------------------------------------------------------------- 1.182.0: Instellingen → Overzicht → Functies
+// ---------------------------------------------------------------- 1.182.0: Instellingen → Status en functies → Functies
 let featData = null;
 const featF = { q: '', g: '', st: '' };
 const FEAT_ST = () => ({ on: ['✅', L('aan')], off: ['⚪', L('uit')], unset: ['⚠️', L('niet ingesteld')], always: ['✔', L('altijd')] });
@@ -1169,7 +1169,7 @@ function snmpRootData(root) {
     auth_proto: g('snmp_auth_proto'), auth_pass: g('snmp_auth_pass'), priv_proto: g('snmp_priv_proto'), priv_pass: g('snmp_priv_pass') };
 }
 
-/** 1.178.0: Instellingen → Agents en koppelingen → SNMP: de algemene instelling en welke apparaten hem gebruiken */
+/** 1.178.0: Instellingen → Netwerk → SNMP: de algemene instelling en welke apparaten hem gebruiken */
 async function loadSnmpGlobal() {
   const box = $('#snmp-global');
   if (!box) return;
@@ -1261,7 +1261,7 @@ function snmpFieldsInit(root, onChange = () => {}) {
 function snmpGlobalText() {
   const g = state.snmp_global;
   return g ? L('uit = de algemene instelling (v{v}{u})', { v: g.v, u: g.v === '3' && g.user ? ', ' + g.user : '' })
-    : L('nog geen algemene instelling: vul die in bij Instellingen → Agents en koppelingen → SNMP');
+    : L('nog geen algemene instelling: vul die in bij Instellingen → Netwerk → SNMP');
 }
 
 /** Blok "📡 SNMP" in het serverformulier (1.178.0: schakelaar, en eigen instellingen of de algemene); geheimen gemaskeerd */
@@ -1271,7 +1271,7 @@ function snmpHostFields(s) {
     <label class="switch"><input type="checkbox" name="snmp_own" ${own ? 'checked' : ''}><span></span> ${L('Eigen instellingen')} <span class="hint">${esc(snmpGlobalText())}</span></label>
     <div id="snmp-fields" ${own ? '' : 'hidden'}>${snmpFieldsHtml(s || state.snmp_global)}</div>
     <div class="snmp-test-row"><button type="button" class="btn" id="snmp-test">🔍 ${L('Test SNMP')}</button><span class="small" id="snmp-test-out"></span></div>
-    ${xpHtml(L('RzSense leest dit apparaat zelf uit via SNMP.'), L('<b>Wat het doet:</b> RzSense vraagt het apparaat zelf om gegevens (UDP-poort 161), zonder agent. <b>Instellen:</b> zet SNMP aan op het apparaat en geef het een community (v2c) of een gebruiker (v3). <b>Algemeen of eigen:</b> zonder <i>Eigen instellingen</i> gebruikt dit apparaat de algemene instelling uit <i>Instellingen → Agents en koppelingen → SNMP</i>; verander je die, dan geldt dat meteen voor alle apparaten zonder eigen instellingen.'))}
+    ${xpHtml(L('RzSense leest dit apparaat zelf uit via SNMP.'), L('<b>Wat het doet:</b> RzSense vraagt het apparaat zelf om gegevens (UDP-poort 161), zonder agent. <b>Instellen:</b> zet SNMP aan op het apparaat en geef het een community (v2c) of een gebruiker (v3). <b>Algemeen of eigen:</b> zonder <i>Eigen instellingen</i> gebruikt dit apparaat de algemene instelling uit <i>Instellingen → Netwerk → SNMP</i>; verander je die, dan geldt dat meteen voor alle apparaten zonder eigen instellingen.'))}
   </div></section>`;
 }
 
@@ -2181,7 +2181,7 @@ function checkForm(c, h, preset = {}, tpl = null) {
         const m = (r.hosts.find((x) => x.id === +h.id) || {}).mode || 'off';
         cmdMode = m;
         $('#cmd-mode-info').innerHTML = m === 'off'
-          ? L('<b class="warn-txt">⚠️ Commando\'s staan voor {name} uit.</b> De check blijft onbekend tot je ze aanzet: Instellingen → Agents en koppelingen → Commando-checks, of per server in de Agent Manager.', { name: esc(h.name) })
+          ? L('<b class="warn-txt">⚠️ Commando\'s staan voor {name} uit.</b> De check blijft onbekend tot je ze aanzet: Instellingen → Agents → Commando-checks, of per server in de Agent Manager.', { name: esc(h.name) })
           : L('Commando\'s op {name}: <b>{mode}</b>.', { name: esc(h.name), mode: esc(CMD_MODES[m]) });
       }).catch(() => {});
     }

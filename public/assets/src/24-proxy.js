@@ -387,7 +387,7 @@ function pxWebSec(x) {
   const btn = isAdmin() ? `<button type="button" class="btn small-btn" data-px-web>${w ? '↻ ' + L('Opnieuw controleren') : '🌐 ' + L('Nu controleren')}</button>` : '';
   // 1.322.2: een naam als app.* zonder bekend domein wordt nooit gecontroleerd: zeg dat, in plaats van "nog niet gecontroleerd"
   if (!w && x.web_target === null) return `<section class="px-dr-sec px-web"><h3>🌐 ${L('Webcheck')}</h3><p class="small warn-txt">${esc(L('Deze site heeft geen volledige naam ({s}), dus RzSense weet niet welk adres het moet opvragen.', { s: x.site }))}</p>
-    <p class="small muted">${L('Vul bij Instellingen → Bescherming → Reverse proxy en WAF het veld Domein voor namen als naam.* in (bv. example.nl). Daarna controleert RzSense de site elke dag.')}</p></section>`;
+    <p class="small muted">${L('Vul bij Instellingen → Web en buitenkant → Reverse proxy en WAF het veld Domein voor namen als naam.* in (bv. example.nl). Daarna controleert RzSense de site elke dag.')}</p></section>`;
   if (!w) return `<section class="px-dr-sec px-web"><h3>🌐 ${L('Webcheck')}</h3><p class="small muted">${L('Nog niet gecontroleerd. RzSense vraagt de site zelf op en kijkt naar https, het certificaat en de beveiligingsheaders.')}</p>${btn}</section>`;
   return `<section class="px-dr-sec px-web"><h3>🌐 ${L('Webcheck')}</h3>
     <div class="px-dr-score"><span class="px-grade ${pxWebCls(w.grade)}">${esc(w.grade)}</span><span class="px-grade-n">${w.n} / 100</span>

@@ -37,10 +37,10 @@ telefoon in een balk onderaan het scherm (met *Meer* voor de rest).
 | Groep | Pagina's |
 |---|---|
 | **Overzicht** | **Dashboard** (de startpagina) · **Meldingen** |
-| **Monitoring** | **Monitoring** (al je servers en checks) · **Servers** (de Agent Manager, alleen beheerders) |
-| **Beveiliging** | **Incidenten** · **IDS** · **Kwetsbaarheden** · **Updates** · **Reverse proxy** (alleen beheerders) |
-| **Netwerk** | **Netwerk** (netwerkscan, apparaten en de netwerkkaart) |
-| **Analyse** | **Analyse** · **Logs** · **Logboek** · **Compliance** (NIS2, alleen beheerders) |
+| **Monitoring** | **Monitoring** (al je servers en checks, *Alle checks*, containers, Shelly's en beschikbaarheid) · **Servers** (de Agent Manager, alleen beheerders) |
+| **Beveiliging** | **Incidenten** · **IDS** (ook *Toegang* en *Datalekken*) · **Kwetsbaarheden** · **Updates** · **Reverse proxy** (alleen beheerders) |
+| **Netwerk** | **Netwerk** (de netwerkkaart, apparaten, ontdekken, netwerksnelheid en paden) |
+| **Analyse** | **Analyse** · **Logs** · **Logboek** · **Compliance** (NIS2 met zijn instellingen, alleen beheerders) |
 
 Wat je ziet hangt af van je rol en van wat aan staat. Met de rol *alleen lezen* zie je onder meer geen Incidenten,
 Analyse, Kwetsbaarheden en Netwerk. Zie [Toegang en beheer](11-toegang-en-beheer.md) voor de rollen.
@@ -76,13 +76,19 @@ instellingen, met bovenaan **← Terug naar RzSense**. Op een telefoon is het me
 
 | Groep | Onderdelen |
 |---|---|
-| **Overzicht** | Status en functies · Achtergrondtaken |
-| **Monitoring** | Alle checks · Sjablonen · Slimme drempels en advies · Internetcheck · Logs verzamelen |
+| **Status en functies** | (bovenaan, één onderdeel) wat aandacht nodig heeft, en alle functies |
+| **Monitoring** | Sjablonen · Slimme drempels en advies · Logs verzamelen |
 | **Meldingen en rapporten** | Kanalen · Wanneer melden · IDS-pushmeldingen · Beveiligingskanaal · Systeemmeldingen · Rapporten |
-| **Toegang tot RzSense** | Inloggen · Beheer van buiten · Gebruikers |
-| **Bescherming** | IDS algemeen · Beschermingen · Endpoint-bewaking (EDR) · Dreigingsinformatie · DNS, Suricata en YARA · Ransomware · Programma's · Jagen op sporen · Netwerk en weblogs · IDS per server · Reverse proxy en WAF · Van buitenaf · Kwetsbaarheden en datalekken · Updatebeleid · E-mailbeveiliging · NIS2 · Netwerkscan |
-| **Agents en koppelingen** | Standaard voor alle agents · Netwerken en relays · Tijdelijk sudo · Commando-checks · UniFi · AdGuard Home · SNMP · Home Assistant (MQTT) |
-| **Systeem** | Weergave · Bijwerken · Back-up · Reserve-RzSense · Database en server · Prestaties en fouten · AI-advies · REST API · Statuspagina · Exporteren en importeren |
+| **Toegang tot RzSense** | Inloggen · Beheer van buiten · Gebruikers · Datalekken |
+| **IDS en EDR** | IDS algemeen (met jagen op sporen) · Beschermingen · Endpoint-bewaking (EDR) · Dreigingsinformatie · DNS, Suricata en YARA · Ransomware · Programma's · Netwerk en weblogs · IDS per server |
+| **Web en buitenkant** | Reverse proxy en WAF · Van buitenaf · E-mailbeveiliging |
+| **Kwetsbaarheden en updates** | Kwetsbaarheden · Updatebeleid |
+| **Netwerk** | Netwerkscan · Internetcheck · UniFi · AdGuard Home · SNMP |
+| **Agents** | Standaard voor alle agents · Netwerken en relays · Tijdelijk sudo · Commando-checks · Home Assistant (MQTT) |
+| **Systeem** | Weergave · Bijwerken · Back-up · Reserve-RzSense · Database en server · Prestaties en fouten · Achtergrondtaken · AI-advies · REST API · Statuspagina · Exporteren en importeren |
+
+*Alle checks* staat als tabblad op de pagina **Monitoring**, de NIS2-instellingen op het tabblad **Instellingen** van
+**Compliance**. Een oud adres (bijvoorbeeld in een melding of een bladwijzer) gaat vanzelf naar de nieuwe plek.
 
 Beheerders zien alles. Gewone gebruikers zien alleen *Status en functies*, *Rapporten* en een deel van *Slimme drempels
 en advies*, om te bekijken.
@@ -237,7 +243,7 @@ telefoon staan de kaarten onder elkaar, in jouw volgorde.
 
 ## Het kruimelpad en het detailpaneel
 
-**Kruimelpad.** Bovenaan elke pagina staat waar je bent, bijvoorbeeld *🏠 › Monitoring › Netwerkpaden* of *🏠 ›
+**Kruimelpad.** Bovenaan elke pagina staat waar je bent, bijvoorbeeld *🏠 › Netwerk › Paden* of *🏠 ›
 Instellingen › Monitoring › Slimme drempels en advies*. Elk stuk is een link. Staan er filters aan, dan staan die
 erachter als knopje (*CRITICAL ✕* of *2 filters ✕*); een klik haalt het filter weg. Duurt het laden van een pagina even,
 dan zie je in het kruimelpad een teller (*IDS laden · 0,8 s*).
@@ -259,9 +265,9 @@ Weergave → Vensters* **Rechts**. Knoppen in een rij (✔ Bevestig, 🔧, ＋) 
 
 ## De pagina Monitoring
 
-**Monitoring** toont al je servers en checks. Bovenaan staan tabbladen: **Checks** (de gewone pagina), **Containers**
-(zie [Linux-agent](05-linux-agent.md)), **Netwerkpaden** (zie [Servers en checks](04-servers-en-checks.md)) en
-**Beschikbaarheid** (zie hieronder). Op een telefoon is er ook **mDS**: een compact overzicht van al je servers en
+**Monitoring** toont al je servers en checks. Bovenaan staan tabbladen: **Checks** (de gewone pagina), **Alle checks**
+(alleen beheerders, zie [Servers en checks](04-servers-en-checks.md)), **Containers** (zie [Linux-agent](05-linux-agent.md)),
+**Shelly's** en **Beschikbaarheid** (zie hieronder). De netwerkpaden staan bij *Netwerk → Paden*. Op een telefoon is er ook **mDS**: een compact overzicht van al je servers en
 apparaten per soort.
 
 Op het tabblad *Checks*, van boven naar beneden:
@@ -363,7 +369,7 @@ gemiddelde van de apparaten.
 ## Incidenten
 
 **Incidenten** zet in één lijst wat er echt mis is, uit alle onderdelen, zodat je het kunt afhandelen. Beheerders en
-gebruikers zien deze pagina. Met de chips *Alles*, *Storingen*, *Aanvallen* en *Kwetsbaarheden* kies je de soort.
+gebruikers zien deze pagina. Met de chips *Alles*, *Storingen* en *Kwetsbaarheden* kies je de soort. De aanvallen zelf staan bij *IDS → Aanvallen*.
 
 | Bron | Wanneer een incident |
 |---|---|
@@ -442,7 +448,7 @@ Onder de adviezen staan tabbladen:
 | **Betrouwbaarheid** | kerncijfers, beschikbaarheid per dag en per server, wanneer het misgaat (per weekdag en uur), de lastigste checks, responstijden en herstarts |
 | **Capaciteit** | wanneer disks vol zijn, CPU en RAM per server, de grootste Proxmox-guests |
 | **Netwerk** | soorten apparaten, fabrikanten, nieuwe apparaten, wifi-clients (UniFi) en DNS (AdGuard Home) |
-| **Back-ups** | de laatste back-up per Proxmox-guest, de back-uptaken, je heartbeats en de back-up van RzSense zelf |
+| **Back-ups van servers** | de laatste back-up per Proxmox-guest, de back-uptaken, je heartbeats en de back-up van RzSense zelf |
 | **Meldingen en ruis** | meldingen per dag en per kanaal, de checks met de meeste meldingen, checks die steeds vanzelf herstellen, en de doelen (zie hieronder) |
 
 Beweeg over een grafiek voor de precieze waarde. RzSense bewaart de dagtotalen een jaar, ook als de losse meetwaarden

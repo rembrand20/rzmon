@@ -147,7 +147,7 @@ function iaRender(p) {
   const err = iaData.error ? `<p class="form-error">${esc(iaData.error)}</p>` : '';
   if (iaTab === 'trends' && !tnData) tnLoad();   // 1.224.0: pas laden als je het tabblad opent
   const tabs = [['trends', '📉 ' + L('Trends'), tnRender()], ['attacks', '⚔️ ' + L('Aanvallen'), iaAttacks(p.sec)], ['surface', '🎯 ' + L('Blootstelling'), iaSurface()], ['rel', '🟢 ' + L('Betrouwbaarheid'), p.kpis + p.rel],
-    ['cap', '📈 ' + L('Capaciteit'), p.cap], ['net', '🌐 ' + L('Netwerk'), p.net], ['bk', '💾 ' + L('Back-ups'), p.bk], ['noise', '🔔 ' + L('Meldingen en ruis'), p.noise + p.qual]];
+    ['cap', '📈 ' + L('Capaciteit'), p.cap], ['net', '🌐 ' + L('Netwerk'), p.net], ['bk', '💾 ' + L('Back-ups van servers'), p.bk], ['noise', '🔔 ' + L('Meldingen en ruis'), p.noise + p.qual]];
   if (!tabs.some((t) => t[0] === iaTab)) iaTab = 'trends';
   return `${err || iaTop() + iaList()}
     <section class="ia-sec"><div class="ia-sec-h"><div><h2>${esc(L('Analyses'))}</h2><span class="muted small">${esc(L('de patronen achter de adviezen'))}</span></div>
@@ -399,7 +399,7 @@ function renderAnalytics() {
   // 🌐 Netwerk
   const n = d.network;
   const nk = (k2) => (NET_KIND[k2] || NET_KIND.unknown);
-  const net = !n.on ? anSec('🌐', L('Netwerk'), `<p class="muted">${L('De netwerkscan staat uit (Instellingen → Bescherming → Netwerkscan).')}</p>`)
+  const net = !n.on ? anSec('🌐', L('Netwerk'), `<p class="muted">${L('De netwerkscan staat uit (Instellingen → Netwerk → Netwerkscan).')}</p>`)
     : anSec('🌐', L('Netwerk'), `<div class="an-grid">
     ${anBox(L('Apparaten'), `<div class="an-stats"><div><b>${n.total}</b><span>${L('totaal')}</span></div><div><b class="${n.new_open ? 'warn-txt' : ''}">${n.new_open}</b><span>${L('nog niet beoordeeld')}</span></div><div><b>${n.blocked}</b><span>${L('geweerd')}</span></div><div><b class="${n.risky.length ? 'crit-txt' : ''}">${n.risky.length}</b><span>${L('met riskante poort')}</span></div></div>
       <h4 class="acc-sub">${L('Nieuwe apparaten per dag')}</h4>${anBars(n.series.new)}`)}
@@ -625,15 +625,17 @@ let ndData = null;
 let ndFilter = '';
 let ndPresKind = '';
 function setNetSub(s) {
-  netSub = ['disc', 'map', 'speed'].includes(s) ? s : 'list';
+  netSub = ['disc', 'map', 'speed', 'paths'].includes(s) ? s : 'list';
   try { localStorage.setItem('rzmon-net-sub', netSub); } catch (ex) { /* niet erg */ }
   $('#tab-net').classList.toggle('net-dc', netSub === 'disc');
   $('#tab-net').classList.toggle('net-mp', netSub === 'map');
   $('#tab-net').classList.toggle('net-sp', netSub === 'speed');   // 1.328.0: Netwerksnelheid
+  $('#tab-net').classList.toggle('net-pa', netSub === 'paths');   // 1.330.0: Paden (was Netwerk → Paden)
   if (netSub === 'map') renderNetMap();
   $$('#net-tabs [data-nsub]').forEach((b) => { const on = b.dataset.nsub === netSub; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
   if (netSub === 'disc') withPageWait('net', ndLoad);
   if (netSub === 'speed') withPageWait('net', nsLoad);
+  if (netSub === 'paths') withPageWait('net', () => npLoad(true));
   crumbs();   // 1.199.0
 }
 async function ndLoad() {
@@ -668,7 +670,7 @@ function renderNetDisc() {
   const d = ndData, nd = netData;
   if (!d || !nd) return;
   const box = $('#net-disc');
-  if (!d.enabled) { box.innerHTML = `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Bescherming → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`; return; }
+  if (!d.enabled) { box.innerHTML = `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Netwerk → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`; return; }
   const byId = Object.fromEntries(nd.devices.map((x) => [x.id, x]));
   const ev = ND_EV();
   const week = Date.now() - 7 * 86400e3;
@@ -813,9 +815,9 @@ function trTopHtml(limit = 10) {
   const pct = (a, b) => (b > 0 ? Math.round(((a - b) / b) * 100) : null);
   const cmp = (a, b) => { const p = pct(a, b); return p === null ? '' : ` <small class="${p > 0 ? 'warn-txt' : 'good-txt'}">${p > 0 ? '+' : ''}${p}% ${L('t.o.v. gisteren')}</small>`; };
   if (!st.on) {
-    return `<p class="muted small">${!st.unifi && st.setting ? L('Nog geen bron voor verkeer. Koppel UniFi (aanbevolen), zet SNMP aan op je switch, of werk de agent op je servers bij naar 1.80.0.') + ' ' + L('Koppel UniFi (Instellingen → Agents en koppelingen → UniFi) om het verkeer per apparaat te zien.')
+    return `<p class="muted small">${!st.unifi && st.setting ? L('Nog geen bron voor verkeer. Koppel UniFi (aanbevolen), zet SNMP aan op je switch, of werk de agent op je servers bij naar 1.80.0.') + ' ' + L('Koppel UniFi (Instellingen → Netwerk → UniFi) om het verkeer per apparaat te zien.')
       : !st.account ? L('Verkeer per apparaat vraagt een lokaal UniFi-account; met alleen een API-sleutel geeft UniFi geen tellers.')
-      : !st.setting ? L('Verkeer per apparaat staat uit (Instellingen → Bescherming → Netwerkscan).') : L('De netwerkscan staat uit.')}</p>`;
+      : !st.setting ? L('Verkeer per apparaat staat uit (Instellingen → Netwerk → Netwerkscan).') : L('De netwerkscan staat uit.')}</p>`;
   }
   if (st.error) return `<p class="warn-txt small">⚠️ ${esc(st.error)}</p>`;
   if (!rows.length) return `<p class="muted small">${L('Nog geen verkeer gemeten. Na 5 tot 10 minuten zie je hier de eerste cijfers.')}</p>`;
@@ -909,7 +911,7 @@ function renderNetMap() {
   const d = netData, box = $('#net-map');
   if (!box) return;
   if (!d) { box.innerHTML = `<p class="muted">${L('laden…')}</p>`; return; }
-  if (!d.enabled) { box.innerHTML = `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Bescherming → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`; return; }
+  if (!d.enabled) { box.innerHTML = `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Netwerk → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`; return; }
   const day = Date.now() - 86400e3;
   const ts = (s) => new Date(String(s).replace(' ', 'T')).getTime();
   const devs = d.devices.filter((x) => x.status !== 'ignored');
@@ -1011,7 +1013,7 @@ function renderNetNow() {
   // Uitleg bovenaan: uit, geen netwerk, of nog nooit gescand
   const nets = d.networks || { scan: [], skip: [] };
   $('#net-banner').innerHTML = !d.enabled
-    ? `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Bescherming → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`
+    ? `<div class="v-banner">ℹ️ <span>${L('De netwerkscan staat uit.')} ${isAdmin() ? L('Zet hem aan bij <a href="#settings/netscan" data-goto="settings/netscan">Instellingen → Netwerk → Netwerkscan</a>.') : L('Een beheerder kan hem aanzetten.')}</span></div>`
     : !nets.scan.length ? `<div class="v-banner">⚠️ <span>${L('Geen netwerk om te scannen: zet je netwerk (bv. 192.168.1.0/24) bij <a href="#settings/access" data-goto="settings/access">Toegang → Lokale netwerken</a>.')}</span></div>`
     : st.sweep_error ? `<div class="v-banner">⚠️ <span>${esc(st.sweep_error)}</span></div>`
     : st.links_error ? `<div class="v-banner">⚠️ <span>${esc(st.links_error)}</span> ${isAdmin() ? `<a href="#settings/netlinks" data-goto="settings/netlinks">${L('Instellingen')}</a>` : ''}</div>`

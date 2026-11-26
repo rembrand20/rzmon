@@ -123,7 +123,7 @@ function nsWifiHtml(w) {
   return `<div class="card ns-card"><h2>📶 ${esc(L('Wifi per access point'))}</h2><p class="muted small">${esc(sub)}</p>
     ${list || `<p class="muted">${esc(L('Nog geen wifi-gegevens. Een laptop of pc met de agent (Linux of Windows) meldt hier zijn eigen wifi.'))}</p>`}
     ${(w.no_iw || []).map((x) => `<p class="muted small">💡 ${esc(L('{h} heeft wifi, maar iw kon niet geïnstalleerd worden ({e}). Installeer het zelf: sudo apt install iw of sudo dnf install iw.', { h: x.name, e: x.err }))}</p>`).join('')}
-    ${w.unifi ? '' : `<div class="ns-empty">🔌 <b>${esc(L('Alle access points en wifi-apparaten zien?'))}</b> ${esc(L('Koppel UniFi bij Instellingen → Agents en koppelingen → UniFi. Dan komen hier ook de bekabeling of mesh van elk access point en de snelheid en het signaal van elk apparaat.'))}</div>`}
+    ${w.unifi ? '' : `<div class="ns-empty">🔌 <b>${esc(L('Alle access points en wifi-apparaten zien?'))}</b> ${esc(L('Koppel UniFi bij Instellingen → Netwerk → UniFi. Dan komen hier ook de bekabeling of mesh van elk access point en de snelheid en het signaal van elk apparaat.'))}</div>`}
   </div>`;
 }
 
@@ -177,7 +177,7 @@ function nsRouteForm(r) {
         <label class="check-row"><input type="checkbox" name="tp"${+cur.tp ? ' checked' : ''}> ${esc(L('Doorvoer meten met iperf3 (de agent op de server start kort een ontvanger)'))}</label>
         <label>${esc(L('Doorvoer meten'))}<select name="every_sec">${[3600, 21600, 86400].map((s) => opt(s, nsEvery(s), +cur.every_sec === s)).join('')}</select></label></div>
       <div data-ns-dst="addr"${cur.dst_kind === 'addr' ? '' : ' hidden'}><label>${esc(L('Adres'))}<input name="dst_addr" value="${esc(cur.dst_addr || '')}" maxlength="253" placeholder="192.168.1.10 / nas.lan"></label></div>
-      <div data-ns-dst="internet"${cur.dst_kind === 'internet' ? '' : ' hidden'}><p class="muted small">${esc(L('De snelheid van je internetlijn komt uit de snelheidstest van de check Internet (Instellingen → Monitoring → Internetcheck), vergeleken met je abonnement.'))}</p>
+      <div data-ns-dst="internet"${cur.dst_kind === 'internet' ? '' : ' hidden'}><p class="muted small">${esc(L('De snelheid van je internetlijn komt uit de snelheidstest van de check Internet (Instellingen → Netwerk → Internetcheck), vergeleken met je abonnement.'))}</p>
         ${ifs.length ? `<label>${esc(L('WAN-poort van de router (SNMP)'))}<select name="wan_if">${opt('', L('vanzelf (op de naam)'), !cur.wan_if)}${ifs.map((x) => opt(x.i, x.n, String(cur.wan_if) === String(x.i))).join('')}</select></label>` : ''}</div>
       <label>${esc(L('Naam'))} <span class="hint">${esc(L('(optioneel)'))}</span><input name="name" value="${esc(cur.own_name || '')}" maxlength="100"></label>
       <fieldset class="devreq-who"><legend>${esc(L('Melding'))}</legend>

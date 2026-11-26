@@ -255,7 +255,7 @@ try {
 } catch (Throwable $e) {
     cron_err('Agents/certificaat', $e);
 }
-// Datalekken (Have I Been Pwned): domein en e-mailadressen, dagelijks, gespreid (Instellingen → Bescherming → Kwetsbaarheden en datalekken)
+// Datalekken (Have I Been Pwned): domein en e-mailadressen, dagelijks, gespreid (Instellingen → Kwetsbaarheden en updates → Kwetsbaarheden)
 try {
     if ($msg = Hibp::cron()) {
         echo date('c') . " $msg\n";
@@ -279,7 +279,7 @@ try {
 } catch (Throwable $e) {
     cron_err('End-of-life', $e);
 }
-// Netwerkscan (1.103.0): elk uur een ronde, een paar keer per dag dieper (Instellingen → Bescherming → Netwerkscan)
+// Netwerkscan (1.103.0): elk uur een ronde, een paar keer per dag dieper (Instellingen → Netwerk → Netwerkscan)
 try {
     if ($msg = NetScan::cron()) {
         echo date('c') . " $msg\n";

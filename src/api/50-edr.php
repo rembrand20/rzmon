@@ -523,7 +523,7 @@ switch ($action) {
             out(['error' => t('Niet gevonden')], 404);
         }
         if (!NetLinks::adguardOn()) {
-            out(['error' => t('AdGuard Home is niet ingesteld (Instellingen → Agents en koppelingen → AdGuard Home)')], 422);
+            out(['error' => t('AdGuard Home is niet ingesteld (Instellingen → Netwerk → AdGuard Home)')], 422);
         }
         out(NetLinks::adguardDomains((string) $d['ip']));
 
@@ -620,7 +620,7 @@ switch ($action) {
     case 'proxy_ai_ask':
         $in = input();
         if (!ProxyAdvice::on()) {
-            out(['error' => t('AI-advies voor de reverse proxy staat uit (Instellingen → Bescherming → Reverse proxy en WAF)')], 422);
+            out(['error' => t('AI-advies voor de reverse proxy staat uit (Instellingen → Web en buitenkant → Reverse proxy en WAF)')], 422);
         }
         $hid = (int) ($in['host_id'] ?? 0);
         try {

@@ -6,7 +6,7 @@ declare(strict_types=1);
  * (standaard 30 minuten, hooguit sudo_max, 4 uur), met zijn wachtwoord en, als hij 2FA heeft, zijn code. De agent zet
  * een eigen bestand in /etc/sudoers.d (door visudo gecontroleerd) en haalt het op tijd weg, ook als RzSense even weg
  * is; een systemd-timer is het vangnet als de agent stopt. Intrekken kan altijd. Alles komt in het logboek.
- * Aan/uit: sudo_on (Instellingen → Agents en koppelingen → Tijdelijk sudo of Overzicht → Functies).
+ * Aan/uit: sudo_on (Instellingen → Agents → Tijdelijk sudo of Status en functies → Functies).
  */
 final class Sudo
 {
@@ -46,7 +46,7 @@ final class Sudo
     {
         $user = strtolower(trim($user));
         if (!self::enabled()) {
-            throw new InvalidArgumentException(t('Tijdelijk sudo staat uit (Instellingen → Agents en koppelingen → Tijdelijk sudo)'));
+            throw new InvalidArgumentException(t('Tijdelijk sudo staat uit (Instellingen → Agents → Tijdelijk sudo)'));
         }
         if (!self::validUser($user)) {
             throw new InvalidArgumentException(t('Ongeldige gebruikersnaam (en root kan niet)'));

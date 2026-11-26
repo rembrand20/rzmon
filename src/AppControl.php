@@ -12,7 +12,7 @@ declare(strict_types=1);
  * - Je kunt toestaan of blokkeren, op vingerafdruk of op pad (een map: alles erin), voor één server of voor alle.
  *   Geblokkeerd en het draait = critical incident 'app_block'; staat "stoppen" aan bij de server (Agent Manager, met je
  *   wachtwoord), dan stopt de agent het.
- * Aan/uit: appctl_on (Instellingen → Bescherming → Programma's of Overzicht → Functies), en per server (Agent Manager).
+ * Aan/uit: appctl_on (Instellingen → IDS en EDR → Programma's of Status en functies → Functies), en per server (Agent Manager).
  */
 final class AppControl
 {

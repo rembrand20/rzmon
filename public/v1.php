@@ -340,7 +340,7 @@ if ($path === 'network') {
 if (($parts[0] ?? '') === 'vulnerabilities') {
     need('vulns_read');
     if (!Vulns::enabled()) {
-        respond(['error' => t('Kwetsbaarheden staat uit (Instellingen → Bescherming → Kwetsbaarheden)')], 404);
+        respond(['error' => t('Kwetsbaarheden staat uit (Instellingen → Kwetsbaarheden en updates → Kwetsbaarheden)')], 404);
     }
     $o = Vulns::overview();
     if (count($parts) === 1) {

@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Internet (1.157.0): bewaakt de internetlijn vanaf de server van RzSense. Eén check per meting (kolom metric):
  * - ping: pingtijd, jitter en pakketverlies naar 1.1.1.1 en 8.8.8.8, en je eigen router (zo zie je of het binnen of buiten zit);
  * - resp: responstijd van een paar bekende sites (DNS, verbinden, TLS, eerste antwoord);
- * - down / up: snelheid in Mbit/s uit de laatste snelheidstest. Die draait op vaste tijden (Instellingen → Monitoring → Internetcheck,
+ * - down / up: snelheid in Mbit/s uit de laatste snelheidstest. Die draait op vaste tijden (Instellingen → Netwerk → Internetcheck,
  *   standaard 4× per dag) via speed.cloudflare.com, en vergelijkt met je abonnement (standaard 1000/1000 Mbit/s).
  */
 final class Internet
@@ -503,7 +503,7 @@ final class Internet
         q('DELETE FROM inet_speed WHERE at < NOW() - INTERVAL 400 DAY');
     }
 
-    /** Voor Instellingen → Monitoring → Internetcheck */
+    /** Voor Instellingen → Netwerk → Internetcheck */
     public static function state(): array
     {
         $host = q("SELECT h.id, h.name FROM hosts h JOIN checks c ON c.host_id = h.id WHERE c.type = 'internet' ORDER BY h.id LIMIT 1")->fetch() ?: null;

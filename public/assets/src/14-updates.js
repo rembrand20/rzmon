@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------- 🩹 Updates installeren (patchbeheer, 1.230.0, agent 1.92.0)
 // de pagina Updates (overzicht en nu installeren), de kaart in de Agent Manager (keuze per server) en
-// Instellingen → Bescherming → Updatebeleid. Bijwerken zelf loopt via dezelfde opdracht als "pakketten bijwerken" (Vulns),
+// Instellingen → Kwetsbaarheden en updates → Updatebeleid. Bijwerken zelf loopt via dezelfde opdracht als "pakketten bijwerken" (Vulns),
 // dus de voortgang is hetzelfde venster (vulnUpgradeDialog).
 const PATCH_MODE = { manual: () => L('met de hand'), window: () => L('in het onderhoudsvenster'), auto: () => L('elke dag') };
 const PATCH_KIND = { ha: () => '🏠 Home Assistant', truenas: () => '🗄️ TrueNAS', linux: () => '🐧 Linux', windows: () => '⊞ Windows' };   // 1.316.0: Windows Update (Windows-agent 0.4.0)
@@ -25,7 +25,7 @@ async function loadPatch() {
   const hs = d.hosts;
   const sec = hs.reduce((n, h) => n + ((h.kind === 'linux' || h.kind === 'windows') ? h.sec : 0), 0);
   if ($('#vt-n-patch')) $('#vt-n-patch').textContent = sec || '';
-  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Updates installeren staat uit (Instellingen → Bescherming → Updatebeleid). Je ziet wel wat er klaarstaat.')}</div>` : ''}
+  box.innerHTML = `${!d.on ? `<div class="callout small">${L('Updates installeren staat uit (Instellingen → Kwetsbaarheden en updates → Updatebeleid). Je ziet wel wat er klaarstaat.')}</div>` : ''}
     <div class="app-sum"><span class="app-sum-b">🛡 <b>${sec}</b> ${L('beveiligingsupdates')}</span><span class="app-sum-b">⬆ <b>${hs.reduce((n, h) => n + h.avail, 0)}</b> ${L('updates')}</span>
       <span class="app-sum-b">↻ <b>${hs.filter((h) => h.rb).length}</b> ${L('herstart nodig')}</span><span class="app-sum-b">🤖 <b>${hs.filter((h) => h.mode !== 'manual').length}</b> ${L('automatisch')}</span></div>
     ${hs.length ? `<div class="btn-row need-admin"><button type="button" class="btn small-btn primary" id="ph-bulk">⚙️ ${L('Meerdere servers instellen…')}</button>
@@ -171,7 +171,7 @@ async function amPatch(h, body) {
   if ($('#pt-now', box)) $('#pt-now', box).onclick = () => patchNow(d, 'security', () => amPatch(h, body));
 }
 
-// ---------------------------------------------------------------- Instellingen → Bescherming → Updatebeleid
+// ---------------------------------------------------------------- Instellingen → Kwetsbaarheden en updates → Updatebeleid
 async function loadPatchSet() {
   const box = $('#patch-hosts');
   if (!box) return;
