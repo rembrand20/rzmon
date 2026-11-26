@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.322.0**: **Lay-out Default**: rustig en kaal, met één zin hoe het ervoor staat en de servers als rijen; vervangt Blox en werkt met elk thema.
 - **1.321.0**: **Shelly's bewaken**: stroom, oververhitting en afwijkingen van het normale verbruik, rechtstreeks uitgelezen.
 
+## 1.325.2 – 2026-11-26
+### Opgelost
+- **IDS opent nu op *Aanvallen*** in plaats van *Live* (of het tabblad van de vorige keer). Een link naar een tabblad, zoals `#ids/live`, blijft werken; wie *Aanvallen* niet mag zien, krijgt *Live*.
+
 ## 1.325.1 – 2026-11-26
 ### Opgelost
 - **Bijwerken: *Op de achtergrond* deed niets.** Het venster ging dicht, maar kwam binnen een paar seconden terug, omdat RzSense het bij elke controle weer opende. Nu blijft het dicht (ook als je het met ✕ of Esc sluit) en volgt RzSense de update stil verder. Is hij klaar, dan staat bovenaan **↻ Herladen** en krijg je een melding om de nieuwe versie te laden; mislukt hij, dan opent het venster wel met de reden. Via de knop bovenaan open je het venster weer.

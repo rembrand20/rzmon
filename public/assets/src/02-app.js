@@ -607,6 +607,8 @@ function showTab(name) {
   let netReq = null, monReq = null;
   if (/^net\/(map|list|disc)$/.test(name)) { netReq = name.slice(4); name = 'net'; }
   if (/^dashboard\/(paths|avail|cont|shelly|checks)$/.test(name)) { monReq = name.slice(10); name = 'dashboard'; }
+  // 1.325.2: IDS vanuit het menu (of een andere pagina) opent altijd op Aanvallen; een link als #ids/live blijft werken
+  if (name === 'ids' && ($('.tab-panel:not([hidden])') || {}).id !== 'tab-ids') idsTab = 'inc';
   if (/^(ids|vulns)\//.test(name)) {
     const [tab, s] = name.split('/');
     name = tab;

@@ -281,7 +281,7 @@ const ALERT_SORTS = { time: L('Tijd'), status: 'Status', server: 'Server', check
 const liveLoaded = {};   // wanneer meldingen en IDS voor het laatst geladen zijn (live bijwerken, 1.119.0)
 // 1.119.0: hoeveel dagen Meldingen en IDS ophalen; ouder op verzoek (knop onderaan, of zoeken)
 const histDays = { alerts: 7, ids: 2 };   // 1.217.0: IDS standaard de open incidenten en de laatste 2 dagen; ouder op verzoek
-let idsTab = (() => { try { return localStorage.getItem('rzmon-ids-tab') || 'live'; } catch (e) { return 'live'; } })();
+let idsTab = 'inc';   // 1.325.2: IDS opent op Aanvallen (wie die niet mag zien: Live, zie showIdsTab)
 let incPaneHome = null;   // 1.278.1: waar de lijst Aanvallen op de IDS-pagina hoort
 let incSrc = 'all';   // 1.276.0: Incidenten → soort (alles, storingen, aanvallen, kwetsbaarheden)
 let accData = null, accFilter = 'all', accHost = '', accDayOpen = {}, accSsh = 'all', sshSess = null;
