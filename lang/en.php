@@ -12277,4 +12277,7 @@ return [
     'Midden' => 'Middle',
     'Als zijpaneel aan de rechterkant' => 'As a side panel on the right',
     'Rechts' => 'Right',
+    'Herladen' => 'Reload',
+    'RzSense is bijgewerkt: klik om de nieuwe versie te laden' => 'RzSense has been updated: click to load the new version',
+    'klik om te herladen' => 'click to reload',
 ];

@@ -795,10 +795,13 @@ async function refresh(live = false, what = null) {
     $('#ids-badge').textContent = state.ids_open || '';
     if (isAdmin()) renderAgentUpdates();
     const ub = $('#update-badge');
-    ub.hidden = !state.update && !state.update_running;
-    ub.textContent = state.update_running ? '⏳ ' + L('Bijwerken…') : state.update ? '⬆ ' + state.update : '';
+    if (!updDone) {   // 1.325.1: na een update op de achtergrond blijft hier Herladen staan
+      ub.hidden = !state.update && !state.update_running;
+      ub.textContent = state.update_running ? '⏳ ' + L('Bijwerken…') : state.update ? '⬆ ' + state.update : '';
+    }
     // Loopt er een update (ook na herladen of in een ander tabblad): het voortgangsvenster weer openen
-    if (state.update_running && !$('#modal').open) { showUpdateDialog({ state: 'queued', step: 'queued', message: '' }, ''); pollUpdate(); }
+    // 1.325.1: niet opnieuw openen als je hem op de achtergrond zette; wel stil doorvolgen
+    if (state.update_running && !$('#modal').open && !updBg) { showUpdateDialog({ state: 'queued', step: 'queued', message: '' }, ''); pollUpdate(); }
   } catch (ex) {
     if (window.RzPulse) RzPulse.hide();
     toast(ex.message, 'err');

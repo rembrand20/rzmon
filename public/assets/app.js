@@ -2089,10 +2089,13 @@ async function refresh(live = false, what = null) {
     $('#ids-badge').textContent = state.ids_open || '';
     if (isAdmin()) renderAgentUpdates();
     const ub = $('#update-badge');
-    ub.hidden = !state.update && !state.update_running;
-    ub.textContent = state.update_running ? '⏳ ' + L('Bijwerken…') : state.update ? '⬆ ' + state.update : '';
+    if (!updDone) {   // 1.325.1: na een update op de achtergrond blijft hier Herladen staan
+      ub.hidden = !state.update && !state.update_running;
+      ub.textContent = state.update_running ? '⏳ ' + L('Bijwerken…') : state.update ? '⬆ ' + state.update : '';
+    }
     // Loopt er een update (ook na herladen of in een ander tabblad): het voortgangsvenster weer openen
-    if (state.update_running && !$('#modal').open) { showUpdateDialog({ state: 'queued', step: 'queued', message: '' }, ''); pollUpdate(); }
+    // 1.325.1: niet opnieuw openen als je hem op de achtergrond zette; wel stil doorvolgen
+    if (state.update_running && !$('#modal').open && !updBg) { showUpdateDialog({ state: 'queued', step: 'queued', message: '' }, ''); pollUpdate(); }
   } catch (ex) {
     if (window.RzPulse) RzPulse.hide();
     toast(ex.message, 'err');
@@ -17988,6 +17991,8 @@ function showUpdateProgress(s, log) {
 
 let updateFails = 0;   // opeenvolgende keren geen antwoord (RzSense wordt herstart)
 let updatePollAt = 0;  // laatste vraag die een antwoord (of fout) kreeg; voor de waakhond hieronder
+// 1.325.1: Op de achtergrond (of het venster zelf gesloten): niet steeds opnieuw openen, wel stil doorvolgen tot hij klaar is
+let updBg = false, updDone = false;
 function pollUpdate() {
   clearTimeout(updatePoll);
   updatePoll = setTimeout(async () => {
@@ -18009,8 +18014,15 @@ function pollUpdate() {
       r.status = { state: 'queued', step: 'queued', message: L('Wachten op de hulpdienst…'), at: updReqAt / 1000, stuck: Date.now() - updReqAt > 120000 };
     }
     showUpdateProgress(r.status, r.log);
-    showUpdateDialog(r.status, r.log);
+    if (!updBg || (r.status && r.status.state === 'error')) { updBg = false; showUpdateDialog(r.status, r.log); }   // een fout altijd laten zien
     if (r.status && ['queued', 'running'].includes(r.status.state)) return pollUpdate();
+    if (r.status && r.status.state === 'ok' && updBg) {   // op de achtergrond klaar: niet zomaar herladen (je kunt midden in iets zitten)
+      updDone = true;
+      const ub = $('#update-badge');
+      if (ub) { ub.hidden = false; ub.textContent = '↻ ' + L('Herladen'); ub.title = L('RzSense is bijgewerkt: klik om de nieuwe versie te laden'); ub.onclick = () => location.reload(); }
+      toast((r.status.message || L('RzSense is bijgewerkt')) + ' · ' + L('klik om te herladen'), 'ok', () => location.reload());
+      return;
+    }
     if (r.status && r.status.state === 'ok') {
       toast(r.status.message);
       setTimeout(() => location.reload(), 3000);   // nieuwe versie laden
@@ -18112,6 +18124,7 @@ function updResetTimes() { updT = {}; updT0 = Date.now(); updEnd = 0; updDownAt 
 
 /** Vraag "wil je bijwerken?" (met back-up), of meteen de voortgang als er al een update loopt. */
 async function openUpdateDialog(pick = false) {
+  updBg = false;   // zelf weer geopend: het venster mag weer meelopen
   let u = updateInfo;
   try { u = await api('update_info'); updateInfo = u; } catch (ex) { if (!u) { toast(ex.message, 'err'); return; } }
   if (u.status && ['queued', 'running'].includes(u.status.state)) { showUpdateDialog(u.status, '', true); pollUpdate(); return; }
@@ -18232,10 +18245,12 @@ function showUpdateDialog(s, log, force = false) {
     body,
     buttons: s.state === 'ok' ? [{ label: L('Nu herladen'), cls: 'primary', onClick: () => location.reload() }]
       : s.state === 'error' ? [{ label: L('Sluiten'), onClick: () => $('#modal').close() }, { label: '↻ ' + L('Opnieuw proberen'), cls: 'primary', onClick: () => { $('#modal').close(); openUpdateDialog(); } }]
-      : [{ label: L('Op de achtergrond'), onClick: () => $('#modal').close() }],
+      : [{ label: L('Op de achtergrond'), onClick: () => { updBg = true; $('#modal').close(); } }],
   });
   const dlg = $('#modal');
   dlg.classList.add('upd-modal');
+  // ✕ of Esc tijdens het bijwerken telt ook als op de achtergrond
+  if (s.state === 'running' || s.state === 'queued') dlg.addEventListener('close', () => { updBg = true; }, { signal: modalSignal() });
   const ft = $('#modal-footer');
   if (s.state === 'running' || s.state === 'queued') ft.insertAdjacentHTML('afterbegin', `<span class="upd-note">${L('Je kunt dit venster sluiten; het bijwerken gaat door.')}</span>`);
   updLogScroll();
