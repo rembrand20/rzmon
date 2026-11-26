@@ -93,6 +93,26 @@ instellingen, met bovenaan **← Terug naar RzSense**. Op een telefoon is het me
 Beheerders zien alles. Gewone gebruikers zien alleen *Status en functies*, *Rapporten* en een deel van *Slimme drempels
 en advies*, om te bekijken.
 
+#### Eenvoudig of Uitgebreid
+
+Rechtsboven in de beheerportal kies je hoeveel je ziet. De keuze geldt voor jouw account.
+
+- **Eenvoudig** (de standaard) toont per kaart alleen de instellingen die de meeste mensen nodig hebben, bijvoorbeeld
+  bij *IDS algemeen* na hoeveel mislukte logins er geblokkeerd wordt, binnen hoeveel minuten en voor hoe lang. Onderaan
+  de kaart staat *Nog … instellingen in Uitgebreid* met **Toon alles**. In de zijbalk staan alleen de onderdelen die
+  de meeste mensen gebruiken; per groep staat er **＋ … meer in Uitgebreid**.
+- **Uitgebreid** toont alles.
+
+Er verandert niets aan je instellingen als je wisselt: een instelling die je in Eenvoudig niet ziet, houdt gewoon zijn
+waarde, ook als je opslaat. Zoek je een instelling (🔍 *Zoek een instelling* of Ctrl+K) die in Eenvoudig verborgen is,
+dan schakelt RzSense vanzelf naar Uitgebreid. Een link naar een onderdeel dat alleen in Uitgebreid staat werkt gewoon.
+
+Alleen in Uitgebreid staan in de zijbalk: *Logs verzamelen*, *Beveiligingskanaal*, *Datalekken*,
+*Dreigingsinformatie*, *DNS, Suricata en YARA*, *Ransomware*, *Programma's*, *Netwerk en weblogs*,
+*E-mailbeveiliging*, *SNMP*, *Netwerken en relays*, *Tijdelijk sudo*, *Commando-checks*, *Reserve-RzSense*,
+*Database en server*, *Prestaties en fouten*, *Achtergrondtaken*, *REST API*, *Statuspagina* en *Exporteren en
+importeren*.
+
 **Zo werkt de beheerportal:**
 
 - **Status** (het eerste onderdeel) geeft een score van 0 tot 100% en een lijst: ✔ groen is in orde, **!** oranje is

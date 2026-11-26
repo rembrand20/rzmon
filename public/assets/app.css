@@ -6477,6 +6477,15 @@ body.sk-s .cs2-ovi { border-color: transparent; box-shadow: var(--shadow); }
   color: var(--primary); cursor: pointer; }
 .hd-empty { margin: 0; padding: .35rem 1.1rem 1.1rem; color: var(--muted); display: flex; align-items: center; gap: .5rem; }
 @media (max-width: 960px) { .hd-duo { grid-template-columns: minmax(0, 1fr); } }
+/* 1.336.0: beheerportal Eenvoudig of Uitgebreid */
+.set-crumb { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.set-mode { margin-left: auto; }
+.set-mode .seg-btn { min-height: 32px; padding: .25rem .8rem; font-size: .85rem; }
+.set-adv { display: none !important; }
+.set-more { margin: 1rem 0 0; padding-top: .7rem; border-top: 1px dashed var(--border); }
+.set-more .link-btn, .set-nav-more { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font: inherit; }
+.set-more .link-btn { text-decoration: underline; }
+.set-nav-subs .set-nav-more { font-size: .82rem; padding: .35rem .6rem; text-align: left; opacity: .9; }
 /* 1.335.0: de zoek- en vraagbalk en de ochtendsamenvatting op het dashboard; het antwoord in de zoekbalk */
 .hd-ask { font: inherit; color: var(--muted); background: var(--card); border: 1px solid var(--border); border-radius: 999px; min-height: 46px; padding: .55rem 1.1rem;
   display: flex; align-items: center; gap: .7rem; width: 100%; text-align: left; cursor: text; box-shadow: var(--shadow); }

@@ -12034,4 +12034,13 @@ return [
     'Zoek een server, check of instelling…' => 'Search for a server, check or setting…',
     'Elke ochtend één alinea over hoe het ervoor staat: bovenaan het dashboard en als melding.' => 'One paragraph every morning about how things stand: at the top of the dashboard and as a notification.',
     'Het tijdstip waarop de samenvatting gemaakt wordt. In stille uren wacht de melding tot die voorbij zijn.' => 'The time at which the summary is created. During quiet hours the notification waits until they are over.',
+    'Hoeveel instellingen je ziet' => 'How many settings you see',
+    'Alleen wat de meeste mensen nodig hebben' => 'Only what most people need',
+    'Alle instellingen en alle onderdelen' => 'All settings and all sections',
+    'Eenvoudig' => 'Simple',
+    'Uitgebreid' => 'Advanced',
+    '{n} meer in Uitgebreid' => '{n} more in Advanced',
+    'Nog 1 instelling in Uitgebreid.' => '1 more setting in Advanced.',
+    'Nog {n} instellingen in Uitgebreid.' => '{n} more settings in Advanced.',
+    'Toon alles' => 'Show all',
 ];

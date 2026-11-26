@@ -348,7 +348,7 @@ switch ($action) {
         }
         $in = input();
         $key = (string) ($in['key'] ?? '');
-        if (!in_array($key, ['tour_seen', 'win', 'open_mode', 'fx', 'fxviews', 'dash_filter', 'alert_filter', 'vuln_open', 'theme', 'side', 'dash', 'dash_layout', 'dash_seen', 'mon_glow', 'mon_anim', 'mon_glass', 'mon_loader', 'mon_vivid', 'atk_band', 'layout', 'pages', 'ids_modern', 'af_motion', 'ui', 'side_w', 'skin', 'pw'], true)) {
+        if (!in_array($key, ['tour_seen', 'win', 'open_mode', 'fx', 'fxviews', 'dash_filter', 'alert_filter', 'vuln_open', 'theme', 'side', 'dash', 'dash_layout', 'dash_seen', 'mon_glow', 'mon_anim', 'mon_glass', 'mon_loader', 'mon_vivid', 'atk_band', 'layout', 'pages', 'ids_modern', 'af_motion', 'ui', 'side_w', 'skin', 'pw', 'set_mode'], true)) {
             out(['error' => t('Onbekende voorkeur')], 422);
         }
         $prefs = json_decode((string) q('SELECT prefs FROM users WHERE id = ?', [$user['id']])->fetchColumn(), true) ?: [];
@@ -356,6 +356,7 @@ switch ($action) {
             'open_mode' => $in['value'] === 'smart' ? 'smart' : 'closed',
             'theme' => in_array($in['value'] ?? '', ['light', 'dark', 'dim', 'lightdim'], true) ? $in['value'] : 'auto',   // 1.308.0: ook Schemer en Licht + Schemer   // 1.135.0: thema per gebruiker
             'side' => ($in['value'] ?? '') === 'mini' ? 'mini' : 'full',
+            'set_mode' => ($in['value'] ?? '') === 'full' ? 'full' : 'simple',   // 1.336.0: beheerportal Eenvoudig of Uitgebreid
             'pw' => in_array($in['value'] ?? '', ['wide', 'full'], true) ? $in['value'] : 'bounded',   // 1.294.0: paginabreedte (terugval voor een nieuw apparaat)   // 1.150.0: zijbalk ingeklapt (alleen iconen)
             'dash' => ($in['value'] ?? '') === 'cc' ? 'cc' : 'classic',
             'tour_seen' => '1',   // 1.325.0: de rondleiding is gezien (stond niet op de lijst, dus kwam hij elke keer terug)

@@ -51,6 +51,7 @@ function init() {
   initCC();   // 1.154.0
   initSettingsNav();
   initCmdk();
+  initSetMode();   // 1.336.0
   if ($('#advice-run')) $('#advice-run').onclick = async (e) => {
     e.target.disabled = true;
     try { const r = await api('advice_run', {}); toast(L('{n} nieuwe voorstel(len)', { n: r.n })); loadAdvice(); } catch (ex) { toast(ex.message, 'err'); }

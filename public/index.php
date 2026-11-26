@@ -840,7 +840,8 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       </nav>
       <div class="set-main">
       <div class="set-mobile"><select id="set-mselect" aria-label="<?= th('Onderdeel') ?>"></select></div>
-      <div class="set-crumb muted small"><span id="set-crumb"></span> <span class="autosave-state" id="save-state" aria-live="polite"></span></div>
+      <div class="set-crumb muted small"><span id="set-crumb"></span> <span class="autosave-state" id="save-state" aria-live="polite"></span>
+        <span class="seg set-mode" id="set-mode" role="group" aria-label="<?= th('Hoeveel instellingen je ziet') ?>"><button type="button" class="seg-btn" data-set-mode="simple" title="<?= th('Alleen wat de meeste mensen nodig hebben') ?>"><?= th('Eenvoudig') ?></button><button type="button" class="seg-btn" data-set-mode="full" title="<?= th('Alle instellingen en alle onderdelen') ?>"><?= th('Uitgebreid') ?></button></span></div>
       <h1 class="set-title" id="set-title"></h1>
       <p class="set-lead" id="set-lead"></p>
       <div class="set-attn" id="set-attn" hidden></div>

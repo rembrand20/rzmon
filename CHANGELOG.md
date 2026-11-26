@@ -8,11 +8,20 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.336.0**: **Beheerportal Eenvoudig of Uitgebreid**: per kaart alleen wat je nodig hebt, met één schakelaar naar alles.
 - **1.335.0**: **Vraag het RzSense en de ochtendsamenvatting**: een vraag in gewone taal in de zoekbalk (met je eigen AI-sleutel), en elke ochtend één alinea over hoe het ervoor staat.
 - **1.334.0**: **Zelf instellen**: één kaart voor wat RzSense zelf aanpast, met ruis dempen, terugdraaien in het logboek en *Weer slim*.
 - **1.333.0**: **Advies op één plek**: één blok op het dashboard met alles wat RzSense je aanraadt uit zeven bronnen, de belangrijkste bovenaan.
 - **1.332.0**: **Twee lay-outs**: L1nes (rustig, de standaard) en Bloxzz (tegels en het live dashboard); Compact en de oude L1nes zijn weg.
-- **1.331.0**: **Netwerk → Van buitenaf**: wat er open staat op internet als eigen tabblad; de WAF start weer (agent 1.123.1).
+
+## 1.336.0 – 2026-11-26
+### Nieuw
+- **Beheerportal: Eenvoudig of Uitgebreid.** Rechtsboven in *Instellingen* staat een schakelaar. **Eenvoudig** (de standaard) toont per kaart alleen de instellingen die de meeste mensen nodig hebben, en in de zijbalk 38 van de 58 onderdelen. **Uitgebreid** toont alles, zoals het was. De keuze geldt per account.
+- Onderaan een kaart staat hoeveel instellingen er in Uitgebreid nog zijn, met **Toon alles**; in de zijbalk per groep **＋ … meer in Uitgebreid**.
+- **Er verandert niets aan je instellingen:** een instelling die je in Eenvoudig niet ziet, houdt zijn waarde, ook als je opslaat. Zoek je een verborgen instelling, dan schakelt RzSense vanzelf naar Uitgebreid; links naar een verborgen onderdeel blijven werken.
+
+### Gewijzigd
+- Wie de beheerportal al gebruikte, ziet hem na deze update in Eenvoudig. Mis je iets, kies dan rechtsboven **Uitgebreid**; dat blijft daarna zo.
 
 ## 1.335.0 – 2026-11-26
 ### Nieuw

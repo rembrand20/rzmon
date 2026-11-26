@@ -969,10 +969,12 @@ function showSettingsSection(id, focusEl) {
   renderSettingsNav();
   // 1.189.1: in de zijbalk het gekozen onderdeel in beeld houden
   if (document.body.classList.contains('side-admin-on')) { const a = $('#side-admin-body .set-nav-subs .active') || $('#side-admin-body .set-nav-head.cur'); if (a) a.scrollIntoView({ block: 'nearest' }); }
-  $('#set-mselect').innerHTML = SET_NAV.map(([g, icon, label, subs]) => `<optgroup label="${esc(label)}">${subs.map(([k, l]) => `<option value="${k}" ${k === setSection ? 'selected' : ''}>${esc(l)}</option>`).join('')}</optgroup>`).join('');
+  $('#set-mselect').innerHTML = SET_NAV.map(([g, icon, label, all]) => [g, icon, label, all.filter(([k]) => !setAdvHidden(k))]).filter((x) => x[3].length).map(([g, icon, label, subs]) => `<optgroup label="${esc(label)}">${subs.map(([k, l]) => `<option value="${k}" ${k === setSection ? 'selected' : ''}>${esc(l)}</option>`).join('')}</optgroup>`).join('');
   history.replaceState(null, '', '#settings/' + setSection);
   renderSetAttn();
   cs2Apply(setSection);   // 1.312.0: de schone stijl
+  setSimpleApply();   // 1.336.0: Eenvoudig of Uitgebreid
+  if (focusEl && focusEl.closest && focusEl.closest('.set-adv')) setModeSet('full');   // gevonden via zoeken, maar in Eenvoudig verborgen: alles tonen
   if (setSection === 'overview' || Date.now() - setHealthAt > 60000) loadSettingsHealth();
   if (setSection === 'conn') loadConn();
   if (setSection === 'templates') loadTemplates();
@@ -1085,12 +1087,16 @@ function renderSettingsNav() {
     return;
   }
   const f = setFind(setSection);
-  $('#set-navlist').innerHTML = SET_NAV.map(([g, icon, label, subs]) => {
-    const worst = subs.map(([k]) => setHealth[k]).find((s) => s === 'bad') || subs.map(([k]) => setHealth[k]).find((s) => s === 'warn');
-    const why = subs.flatMap(([k]) => setHealthWhy[k] || []);
+  $('#set-navlist').innerHTML = SET_NAV.map(([g, icon, label, all]) => {
+    // 1.336.0: in Eenvoudig alleen de onderdelen die de meeste mensen gebruiken; de rest staat achter "meer in Uitgebreid"
+    const subs = all.filter(([k]) => !setAdvHidden(k)), more = all.length - subs.length;
+    if (!subs.length) return '';
+    const worst = all.map(([k]) => setHealth[k]).find((s) => s === 'bad') || all.map(([k]) => setHealth[k]).find((s) => s === 'warn');
+    const why = all.flatMap(([k]) => setHealthWhy[k] || []);
     return `<div class="set-nav-group ${g === f.g ? 'open' : ''}">
       <button type="button" data-set-go="${subs[0][0]}" class="set-nav-head ${g === f.g ? 'cur' : ''}"><span>${icon}</span> ${esc(label)}${subs.length === 1 || g !== f.g ? dotFor(worst, why) : ''}</button>
-      <div class="set-nav-subs">${subs.length > 1 ? subs.map(([k, l]) => `<button type="button" data-set-go="${k}" class="${k === setSection ? 'active' : ''}">${esc(l)}${dotFor(setHealth[k], setHealthWhy[k])}</button>`).join('') : ''}</div></div>`;
+      <div class="set-nav-subs">${subs.length > 1 || more ? subs.map(([k, l]) => `<button type="button" data-set-go="${k}" class="${k === setSection ? 'active' : ''}">${esc(l)}${dotFor(setHealth[k], setHealthWhy[k])}</button>`).join('') : ''}${
+        more ? `<button type="button" class="set-nav-more" data-set-mode="full" title="${esc(all.filter(([k]) => setAdvHidden(k)).map(([, l]) => l).join(' · '))}">＋ ${esc(L('{n} meer in Uitgebreid', { n: more }))}</button>` : ''}</div></div>`;
   }).join('');
 }
 
