@@ -967,7 +967,7 @@ final class Vulns
             ($host['os'] ?? '') === 'windows' => t('Op Windows installeer je updates via Updates (Windows Update)'),
             ($host['agent_update_via'] ?? '') === 'ha' => t('Home Assistant werk je bij via Home Assistant zelf'),
             Truenas::is((int) ($host['host_id'] ?? $host['id'] ?? 0)) => t('TrueNAS werk je bij met een TrueNAS-update (System → Update), nooit met apt'),
-            !$host['agent_version'] || version_compare((string) $host['agent_version'], self::AGENT_MIN, '<') => t('agent {v} of nieuwer nodig', ['v' => self::AGENT_MIN]),
+            ($host['os'] ?? '') !== AgentTakeover::OS && (!$host['agent_version'] || version_compare((string) $host['agent_version'], self::AGENT_MIN, '<')) => t('agent {v} of nieuwer nodig', ['v' => self::AGENT_MIN]),
             AgentCommands::modeFor($host) !== 'root' => t("commando's als root staan uit voor deze server (Instellingen → 🖥️ Commando-checks, of de Agent Manager)"),
             default => null,
         };

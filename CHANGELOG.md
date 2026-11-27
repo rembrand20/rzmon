@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.346.0**: **De Go-agent kan Updates**: de lijst met klaarstaande updates en het installeren op verzoek, gelijk aan de bash-agent.
 - **1.345.0**: **De Go-agent leest logins, sudo en su**: gelijk aan de bash-agent, zonder dubbele of gemiste logins bij het overnemen.
 - **1.344.0**: **Overnemen per server**: de Go-agent doet het werk als de proef goed was en niets het tegenhoudt, en valt vanzelf terug op de bash-agent.
 - **1.343.0**: **De proef met de Go-agent werkt zichzelf bij**: alleen met een geldige handtekening van de ontwikkelaar.
 - **1.342.0**: **Proef met de Go-agent: details per dienst**: poorten, een passende test en logfouten per dienst, extra tests en de dienstenlijst.
-- **1.341.0**: **Proef met de Go-agent: certificaten en processen**: uitgelezen zonder openssl en ps, en vergeleken met de bash-agent.
+
+## 1.346.0 – 2026-11-27
+### Nieuw
+- **De Go-agent kan nu ook Updates.** Hij meldt welke updates er klaarstaan (met beveiliging en *herstart nodig*) en installeert ze als je daar in *Updates* om vraagt, met dezelfde voortgang als bij de bash-agent. Updates houdt het overnemen daarom niet meer tegen.
+- **In de proef vergeleken:** het blok *Go-agent* krijgt een regel *updates*. Die verschijnt eens per uur, vlak nadat de bash-agent gekeken heeft.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.15.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Op een standaardinstallatie houdt nu niets het overnemen meer tegen, behalve wat je zelf gebruikt: IDS, endpoint-sensoren, Kwetsbaarheden, Realtime, containers, en checks op logs, commando's, paden, schijfgezondheid en de klok.
+- Het installeren van updates door de Go-agent is getest met een nagebootste pakketbeheerder; de lijst met klaarstaande updates wordt in de proef tegen de bash-agent gelegd. Laat de proef daarom eerst een paar uur lopen.
 
 ## 1.345.2 – 2026-11-27
 ### Opgelost

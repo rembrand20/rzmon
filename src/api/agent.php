@@ -794,8 +794,8 @@ if ($action === 'agent') {
     }
     // Kwetsbaarheden: softwarelijst opslaan, uitkomst van "bijwerken", en eventueel een nieuwe opdracht
     try {
+        $resp += Vulns::agentReport($host, $in);   // 1.346.0: ook voor de Go-agent (uitkomst en opdracht van "updates installeren")
         if (!$goAgent) {
-            $resp += Vulns::agentReport($host, $in);
             $resp += Patch::agentResponse($host);   // 1.230.0: Home Assistant bijwerken via de Supervisor
         }
     } catch (Throwable $e) {

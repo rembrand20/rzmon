@@ -154,6 +154,40 @@ if a != b or len(a['events']) < 8 or len(a['fails']) < 8 or len(a['tries']) < 16
 print('✔ logins, sudo en su: %d gebeurtenissen, %d soorten mislukte pogingen en %d losse pogingen, gelijk aan de bash-agent' % (len(a['events']), len(a['fails']), len(a['tries'])))
 PY
 
+# 1.346.0 (Go-agent 0.15.0): welke updates er klaarstaan: de echte bash-code en de Go-agent met dezelfde (namaak-)dnf
+mkdir -p "$work/pbin" "$work/patchcache"
+cat >"$work/pbin/dnf" <<'EOS'
+#!/bin/sh
+# namaak-dnf voor de tests: vaste uitvoer voor check-update, en de voortgang van een upgrade
+case "$*" in
+    *check-update*--security*) printf '\nopenssl-libs.x86_64   1:3.2.2-6.el9_5.1   baseos\nkernel.x86_64   5.14.0-503.21.1.el9_5   baseos\n'; exit 100 ;;
+    *check-update*) printf '\nopenssl-libs.x86_64   1:3.2.2-6.el9_5.1   baseos\nkernel.x86_64   5.14.0-503.21.1.el9_5   baseos\ntzdata.noarch   2025a-1.el9   baseos\nbash-completion.noarch   1:2.11-5.el9   appstream\nObsoleting Packages\nrommel zonder versie hier\n'; exit 100 ;;
+    *"-y upgrade"*) printf 'Downloading Packages:\n(1/2): tzdata-2025a-1.el9.noarch.rpm   1.2 MB/s\n(2/2): openssl-libs-3.2.2-6.el9_5.1.x86_64.rpm\nRunning transaction\n  Upgrading        : tzdata-2025a-1.el9.noarch    1/4\n  Upgrading        : openssl-libs-1:3.2.2-6.el9_5.1.x86_64    2/4\n  Verifying        : tzdata-2025a-1.el9.noarch    1/4\nComplete!\n'; echo "$*" >>"$DNF_LOG"; exit 0 ;;
+esac
+exit 1
+EOS
+printf '#!/bin/sh\nexit 1\n' >"$work/pbin/needs-restarting"
+chmod 755 "$work/pbin/dnf" "$work/pbin/needs-restarting"
+printf '0\ttick\t60\n0\tpatch\t1\n' >"$work/patchcache/tests.cache"
+(
+    PATH="$work/pbin:$PATH"; t_dir="$work/patchcache"; t_cache="$t_dir/tests.cache"; HA_MODE=0; pk_dir="$t_dir/pkgs"
+    # shellcheck disable=SC1090
+    source <(sed -n '/^json_escape() {/,/^}/p' agent/src/15-realtime.sh)
+    # shellcheck disable=SC1090
+    source <(sed -n '/^patch_json=""; ha_upd_json=""/,/^ha_update() {/p' agent/src/66-updates.sh | sed '$d')
+    printf '%s' "$patch_json" >"$work/patch.bash.json"
+) || fail "de bash-code voor Updates faalde"
+PATH="$work/pbin:$PATH" "$work/rzsense" patch-check >"$work/patch.go.json" || fail "de Go-agent kon de updates niet lezen"
+python3 -I - "$work/patch.bash.json" "$work/patch.go.json" <<'PY' || fail "de Go-agent leest de updates anders dan de bash-agent"
+import json, sys
+a, b = [json.load(open(p)) for p in sys.argv[1:3]]
+for d in (a, b):
+    d.pop('at'); d['list'] = sorted(d['list'])
+if a != b or a['avail'] != 4 or a['sec'] != 2 or a['rb'] != 1 or a['mgr'] != 'rpm':
+    print('bash', json.dumps(a)); print('go  ', json.dumps(b)); sys.exit(1)
+print('✔ updates: %d klaar, %d beveiliging, herstart nodig: gelijk aan de bash-agent' % (a['avail'], a['sec']))
+PY
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.
@@ -171,7 +205,21 @@ exit 0
 EOS
 chmod 755 "$work/bin/systemctl"
 : >"$work/units/rzmon-agent.timer"; : >"$work/units/rzmon-agent-guard.timer"; : >"$work/fallback.timer"
-export PATH="$work/bin:$PATH" RZSENSE_FALLBACK_UNIT="$work/fallback.timer"
+# 1.346.0: updates installeren start de Go-agent via systemd-run; hier voert een namaak het commando gewoon uit
+cat >"$work/bin/systemd-run" <<'EOS'
+#!/bin/sh
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -p) shift 2 ;;
+        --setenv=*) v=${1#--setenv=}; export "$v"; shift ;;
+        -*) shift ;;
+        *) break ;;
+    esac
+done
+exec "$@"
+EOS
+chmod 755 "$work/bin/systemd-run"
+export PATH="$work/bin:$work/pbin:$PATH" RZSENSE_FALLBACK_UNIT="$work/fallback.timer" DNF_LOG="$work/dnf.log"
 # 1.345.0 (Go-agent 0.14.0): logins uit een logbestand, met de stand in het bestand van de bash-agent
 printf 'AUTH_SOURCE="file"\nAUTH_LOGS="%s"\n' "$work/auth.log" >>"$work/rzmon-agent"
 echo "Oct 21 10:00:01 nas sshd[1]: Accepted password for oud from 192.0.2.1 port 1 ssh2" >"$work/auth.log"
@@ -179,10 +227,11 @@ export RZSENSE_AUTHSTATE="$work/cache/authstate"
 unset RZSENSE_BASH_CACHE   # na het overnemen haalt de Go-agent de testlijst zelf op (in zijn eigen map)
 SETFILE="$work/settings.json" php -r '
 require "src/bootstrap.php";
-$names = ["weblog_swag", "weblog_ha", "weblog_vw", "patch_on", "ids_enabled", "vuln_enabled"];
+$names = ["weblog_swag", "weblog_ha", "weblog_vw", "ids_enabled", "vuln_enabled"];
 $old = [];
 foreach ($names as $n) { $old[$n] = setting($n); save_setting($n, "0"); }
 $old["auth_events"] = setting("auth_events"); save_setting("auth_events", "1");   // 1.345.0: logins kan de Go-agent zelf
+$old["patch_on"] = setting("patch_on"); save_setting("patch_on", "1");            // 1.346.0: updates ook
 file_put_contents(getenv("SETFILE"), json_encode($old));'
 restore() { SETFILE="$work/settings.json" php -r '
 require "src/bootstrap.php";
@@ -227,6 +276,26 @@ echo "✔ logins: een gelukte en een mislukte SSH-login kwamen één keer aan; d
 # Een onversleuteld rapport dat zich voordoet als de Go-agent wordt geweigerd
 code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -H "X-Agent-Token: nep" --data '{"go":1,"os":"linux","agent_version":"9.9.9"}' "$BASE/api.php?action=agent")
 [ "$code" != 200 ] || fail "een rapport zonder sleutel werd aangenomen"
+
+# Updates (1.346.0): de lijst kwam met het echte rapport mee; op verzoek installeert de Go-agent en meldt hij de uitkomst
+got=$(take '$p = AgentData::get($id, "patch"); echo ($p["mgr"] ?? "?") . " " . ($p["avail"] ?? "?") . " " . ($p["sec"] ?? "?") . " " . (empty($p["rb"]) ? "nee" : "herstart");')
+[ "$got" = "rpm 4 2 herstart" ] || fail "de lijst met updates kwam niet bij RzSense aan: $got"
+take 'q("UPDATE hosts SET vuln_upgrade_req = ?, vuln_upgrade_status = NULL WHERE id = ?", [json_encode(["id" => "abcdef0123456789", "pkgs" => [], "mode" => "security", "sent" => null, "by" => "test"]), $id]);'
+"$work/rzsense" shadow --quiet || fail "de ronde met de opdracht 'updates installeren' mislukte"
+grep -qx -- '-y upgrade --security' "$work/dnf.log" || fail "de Go-agent startte niet het vaste commando voor beveiligingsupdates: $(cat "$work/dnf.log" 2>/dev/null)"
+got=$(take '$s = json_decode((string) q("SELECT vuln_upgrade_status FROM hosts WHERE id = ?", [$id])->fetchColumn(), true); echo ($s["state"] ?? "?") . " " . (str_contains((string) ($s["log"] ?? ""), "Complete!") ? "log" : "geen-log") . " " . (q("SELECT vuln_upgrade_req FROM hosts WHERE id = ?", [$id])->fetchColumn() === null ? "klaar" : "open");')
+[ "$got" = "ok log klaar" ] || fail "de uitkomst van het installeren kwam niet goed aan bij RzSense: $got"
+"$work/rzsense" shadow --quiet || fail "de ronde na het installeren mislukte"
+[ ! -e "$work/data/upgrade.result" ] || fail "de uitkomst van het installeren bleef op de server staan (zou steeds opnieuw meegaan)"
+# een opdracht die niet mag: nieuwe pakketten installeren, of een rare pakketnaam
+take 'q("UPDATE hosts SET vuln_upgrade_req = ? WHERE id = ?", [json_encode(["id" => "abcdef0123456790", "pkgs" => ["; rm -rf /", "--installroot=/x"], "mode" => "", "sent" => null, "by" => "test"]), $id]);'
+: >"$work/dnf.log"
+"$work/rzsense" shadow --quiet || fail "de ronde met een ongeldige opdracht mislukte"
+"$work/rzsense" shadow --quiet || fail "de ronde na een ongeldige opdracht mislukte"
+[ ! -s "$work/dnf.log" ] || fail "een opdracht met ongeldige pakketnamen startte toch de pakketbeheerder: $(cat "$work/dnf.log")"
+got=$(take '$s = json_decode((string) q("SELECT vuln_upgrade_status FROM hosts WHERE id = ?", [$id])->fetchColumn(), true); echo $s["state"] ?? "?";')
+[ "$got" = error ] || fail "een geweigerde opdracht is niet als mislukt gemeld: $got"
+echo "✔ updates: de lijst kwam aan, beveiligingsupdates installeren gaf voortgang en uitkomst, een ongeldige opdracht start niets"
 
 # Terug op verzoek: RzSense zegt het in het antwoord, de timers gaan weer aan
 take 'AgentTakeover::request($id, false);'

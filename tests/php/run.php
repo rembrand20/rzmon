@@ -5260,7 +5260,14 @@ ok(AgentCrypto::capVersion('0.13.0', 'linux-go') === AgentCrypto::PINURL_MIN && 
 save_setting('auth_events', '1');
 save_setting('patch_on', '1');
 $tkB = AgentTakeover::blockers($tkHost());
-ok(in_array('Updates', $tkB, true) && !in_array('Logins, sudo en su', $tkB, true), 'updates houden het overnemen tegen, logins niet meer (1.345.0): ' . implode(', ', $tkB));
+ok(!in_array('Updates', $tkB, true) && !in_array('Logins, sudo en su', $tkB, true), 'logins (1.345.0) en updates (1.346.0) houden het overnemen niet meer tegen: ' . implode(', ', $tkB));
+ok(Patch::agentOk(['os' => 'linux-go', 'agent_version' => '0.15.0', 'id' => $tkH]) && !Patch::agentOk(['os' => 'linux', 'agent_version' => '1.50.0', 'id' => $tkH]), 'de Go-agent die het werk doet kan updates; een oude bash-agent niet');
+$tkCmp = array_column(AgentShadow::compare(['patch' => ['mgr' => 'rpm', 'avail' => 2, 'sec' => 1, 'rb' => 0, 'list' => [['tzdata', '2025a', 0], ['openssl', '3.2.2', 1]]]],
+    ['patch' => ['mgr' => 'rpm', 'avail' => 2, 'sec' => 1, 'rb' => false, 'list' => [['openssl', '3.2.2', 1, ''], ['tzdata', '2025a', 0, '']]]]), null, 'k');
+ok($tkCmp['updates']['ok'], 'proef: dezelfde updates (andere volgorde) zijn gelijk');
+$tkCmp = array_column(AgentShadow::compare(['patch' => ['mgr' => 'rpm', 'avail' => 1, 'sec' => 0, 'rb' => 0, 'list' => [['tzdata', '2025a', 0]]]],
+    ['patch' => ['mgr' => 'rpm', 'avail' => 2, 'sec' => 1, 'rb' => false, 'list' => [['openssl', '3.2.2', 1, ''], ['tzdata', '2025a', 0, '']]]]), null, 'k');
+ok(!$tkCmp['updates']['ok'] && str_contains($tkCmp['updates']['bash'], 'openssl'), 'proef: een update die de Go-agent mist is een verschil: ' . $tkCmp['updates']['bash']);
 foreach (['auth_events', 'weblog_swag', 'weblog_ha', 'weblog_vw', 'patch_on', 'ids_enabled', 'vuln_enabled'] as $tkK) {
     save_setting($tkK, '0');
 }

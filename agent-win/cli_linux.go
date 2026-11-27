@@ -70,6 +70,15 @@ func cliLinux(args []string) bool {
 		in, _ := io.ReadAll(os.Stdin)
 		b, _ := json.Marshal(map[string]any{"auth": authParse(string(in))})
 		fmt.Println(string(b))
+	case "patch-check": // voor de tests: wat er klaarstaat, zoals het in het rapport komt
+		p, ok := availableUpdates(has("--cache"))
+		b, _ := json.Marshal(p)
+		fmt.Println(string(b))
+		if !ok {
+			os.Exit(1)
+		}
+	case "pkg-upgrade": // gestart door de agent zelf (in een eigen systemd-eenheid) als RzSense om updates vraagt
+		os.Exit(cmdPkgUpgrade(os.Args[2:]))
 	case "back":
 		os.Exit(cmdBack())
 	default:
@@ -370,6 +379,9 @@ func cmdShadow(quiet bool) int {
 	}
 	t0 := time.Now()
 	core := coreCollect(2 * time.Second)
+	if p := collectPatchLinux(false); p != nil { // 0.15.0: vlak nadat de bash-agent keek, uit de cache van de pakketbeheerder
+		core["patch"] = p
+	}
 	rep := map[string]any{"agent_version": Version, "os": "linux", "arch": goArch(), "bash_version": bashAgentVersion(), "core": core,
 		"took_ms": time.Since(t0).Milliseconds(), "doctor": diagnoseBrief(), "update_last": readState("update.last"), "ready": takeoverReady(c)}
 	plain, _ := json.Marshal(rep)

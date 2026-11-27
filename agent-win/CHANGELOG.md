@@ -5,6 +5,13 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.15.0 – 2026-11-27
+- **Linux: Updates.** De Go-agent kijkt eens per uur welke updates er klaarstaan, welke daarvan beveiligingsupdates zijn en of een herstart nodig is (dnf/yum of apt), met dezelfde uitkomst als de bash-agent.
+- **Updates installeren op verzoek van RzSense** (alle updates, alleen beveiliging, of een lijst pakketten), met de voortgang en de uitkomst naar RzSense. Alleen het vaste commando van de pakketbeheerder; pakketnamen worden gecontroleerd. Nooit een herstart, nooit op TrueNAS, en niet met `COMMANDS=0`. Nieuwe pakketten installeren doet de Go-agent niet.
+- In de proef kijkt de Go-agent alleen, vlak nadat de bash-agent keek en zonder zelf iets te verversen, zodat RzSense de twee lijsten kan vergelijken. Installeren doet hij alleen als hij het werk doet.
+- De pakketbeheerder draait in een eigen tijdelijke systemd-eenheid, buiten de afscherming van de agent zelf.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.14.0 – 2026-11-27
 - **Linux: logins, sudo en su.** Doet de Go-agent het werk, dan leest hij de nieuwe regels van het auth-log (journal, anders `/var/log/secure` of `/var/log/auth.log`) en stuurt hij gelukte logins, sudo, su, het einde van een SSH-sessie en de mislukte pogingen naar RzSense, precies zoals de bash-agent. Wachtwoorden in sudo-commando's worden op de server al gemaskeerd.
 - De Go-agent houdt *waar was ik gebleven* bij in hetzelfde bestand als de bash-agent. Bij het overnemen en bij het teruggaan gaat er zo geen login verloren en komt er geen dubbel.

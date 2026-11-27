@@ -696,6 +696,8 @@ per server **het werk laten overnemen** (zie [Overnemen](#overnemen-de-go-agent-
   en binnen een marge waar de twee op een ander moment meten (CPU-gebruik, vrije ruimte, geheugen van een proces). Bij
   een certificaat tellen *vertrouwd* en *fout* als ja of nee, omdat de tekst per programma verschilt. De lijst met
   processen mag een paar namen verschillen: processen komen en gaan.
+- Eens per uur, vlak nadat de bash-agent gekeken heeft, kijkt de Go-agent welke updates er klaarstaan (zonder zelf iets
+  te verversen) en vergelijkt RzSense de twee lijsten: pakket, versie, beveiliging ja of nee, en *herstart nodig*.
 - De Go-agent leest de instellingen (`/etc/default/rzmon-agent`), de sleutel en de testlijst van de bash-agent, maar
   schrijft er niets bij. RzSense bewaart een proefronde apart: de gegevens, de sleutel en het contactmoment van de server veranderen niet.
 
@@ -744,7 +746,9 @@ In het blok **🧪 Go-agent** staat de knop **Overnemen** zodra het veilig kan. 
 Kan het nog niet, dan staat in het blok precies wat het tegenhoudt. De Go-agent meet CPU, geheugen, schijven, de
 opstarttijd, poorten, diensten (met details en extra tests), certificaten en processen, en leest logins, sudo en su
 (met dezelfde bladwijzer in het log als de bash-agent, zodat er bij het wisselen niets verloren gaat of dubbel komt).
-Dit houdt overnemen tegen zolang het voor de server aan staat: Updates; logs van webdiensten (met het IDS aan, en alleen
+Ook Updates doet hij: eens per uur welke updates er klaarstaan, en installeren als je daar in *Updates* om vraagt
+(alleen het vaste commando van de pakketbeheerder, nooit een herstart, nooit op TrueNAS, niet met `COMMANDS=0`).
+Dit houdt overnemen tegen zolang het voor de server aan staat: logs van webdiensten (met het IDS aan, en alleen
 op een server waar zo'n log gevonden is); IDS en endpoint-sensoren;
 Kwetsbaarheden; Realtime; checks op containers (Podman), Proxmox, TrueNAS, logs, commando's, paden, heartbeats, schijfgezondheid, UPS,
 klok, databases, VPN en netwerkverkeer; zelf herstellen en de waakhond; de relay; en vaker dan elke minuut rapporteren.

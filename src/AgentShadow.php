@@ -86,12 +86,19 @@ final class AgentShadow
     {
         $out = ['disks' => []];
         $min = time() - self::FRESH;
-        foreach (q("SELECT metric, value, updated_at FROM agent_data WHERE host_id = ? AND (metric IN ('cpu', 'mem', 'boot', 'ports', 'proclist', 'svclist') OR metric LIKE 'disk:%' OR metric LIKE 'service:%' OR metric LIKE 'cert:%' OR metric LIKE 'proc:%'
+        foreach (q("SELECT metric, value, updated_at FROM agent_data WHERE host_id = ? AND (metric IN ('cpu', 'mem', 'boot', 'ports', 'proclist', 'svclist', 'patch') OR metric LIKE 'disk:%' OR metric LIKE 'service:%' OR metric LIKE 'cert:%' OR metric LIKE 'proc:%'
                      OR metric LIKE 'svcinfo:%' OR metric LIKE 'svctest:%')", [$hostId]) as $r) {
+            $m = (string) $r['metric'];
+            if ($m === 'patch') {   // 1.346.0: de bash-agent kijkt eens per uur; de Go-agent vlak daarna
+                $d = json_decode((string) $r['value'], true);
+                if (is_array($d) && (int) ($d['at'] ?? 0) >= time() - 1200) {
+                    $out['patch'] = $d;
+                }
+                continue;
+            }
             if (strtotime((string) $r['updated_at']) < $min) {
                 continue;
             }
-            $m = (string) $r['metric'];
             if ($m === 'boot') {
                 $out['boot'] = (int) $r['value'];
             } elseif (str_starts_with($m, 'service:')) {   // 1.340.0: de status van een dienst (systemctl is-active)
@@ -358,6 +365,26 @@ final class AgentShadow
             $add('diensten om uit te kiezen', t('{n} namen', ['n' => count($bl)]) . ($onlyB ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyB, 0, 6))]) : '')
                 . ($state ? ' · ' . t('andere status: {l}', ['l' => implode(', ', array_slice($state, 0, 6))]) : ''),
                 t('{n} namen', ['n' => count($gl)]) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 6))]) : ''), count($onlyB) + count($onlyG) <= 4 && count($state) <= 2);
+        }
+        // 1.346.0: welke updates er klaarstaan (pakket, versie, beveiliging ja of nee) en of een herstart nodig is
+        if (is_array($bash['patch'] ?? null) && is_array($go['patch'] ?? null)) {
+            $pl = static function (array $p): array {
+                $m = [];
+                foreach ((array) ($p['list'] ?? []) as $e) {
+                    if (is_array($e) && isset($e[0])) {
+                        $m[] = $e[0] . ' ' . ($e[1] ?? '') . (!empty($e[2]) ? ' 🛡' : '');
+                    }
+                }
+                sort($m);
+                return $m;
+            };
+            [$bl, $gl] = [$pl($bash['patch']), $pl($go['patch'])];
+            $onlyB = array_values(array_diff($bl, $gl));
+            $onlyG = array_values(array_diff($gl, $bl));
+            $ptxt = static fn(array $p, array $only): string => t('{n} updates, {s} beveiliging', ['n' => (int) ($p['avail'] ?? 0), 's' => (int) ($p['sec'] ?? 0)])
+                . (!empty($p['rb']) ? ' · ' . t('herstart nodig') : '') . ($only ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($only, 0, 5))]) : '');
+            $add('updates', $ptxt($bash['patch'], $onlyB), $ptxt($go['patch'], $onlyG),
+                !$onlyB && !$onlyG && (string) ($bash['patch']['mgr'] ?? '') === (string) ($go['patch']['mgr'] ?? '') && !empty($bash['patch']['rb']) === !empty($go['patch']['rb']));
         }
         return $out;
     }

@@ -45,6 +45,9 @@ final class Patch
 
     public static function agentOk(array $host): bool
     {
+        if (($host['os'] ?? '') === AgentTakeover::OS) {
+            return true;   // 1.346.0: de Go-agent die het werk doet (eigen versienummers) kan updates
+        }
         return !empty($host['agent_version']) && version_compare((string) $host['agent_version'], self::kind($host) === 'windows' ? self::AGENT_WIN : self::AGENT, '>=');
     }
 

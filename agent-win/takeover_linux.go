@@ -104,14 +104,15 @@ func fetchTests(c *Config) (string, error) {
 }
 
 type runReply struct {
-	OK       bool              `json:"ok"`
-	Error    string            `json:"error"`
-	Gz       int               `json:"gz"`
-	TestsRev string            `json:"tests_rev"`
-	AgentKey string            `json:"agent_key"`
-	GoBack   bool              `json:"go_back"`
-	URLPins  map[string]string `json:"url_pins"`
-	GoUpdate *struct {
+	OK         bool              `json:"ok"`
+	Error      string            `json:"error"`
+	Gz         int               `json:"gz"`
+	TestsRev   string            `json:"tests_rev"`
+	AgentKey   string            `json:"agent_key"`
+	PkgUpgrade *pkgOrder         `json:"pkg_upgrade"` // 0.15.0: updates installeren
+	GoBack     bool              `json:"go_back"`
+	URLPins    map[string]string `json:"url_pins"`
+	GoUpdate   *struct {
 		Version string `json:"version"`
 		SHA     string `json:"sha256"`
 	} `json:"go_update"`
@@ -167,6 +168,8 @@ func savePins(c *Config, pins map[string]string) {
 
 var pinSpecRe = regexp.MustCompile(`^sha256//[A-Za-z0-9+/]{43}=(;sha256//[A-Za-z0-9+/]{43}=)*$`)
 
+var sentPkgID string // de uitkomst van het installeren die met dit rapport meeging
+
 // buildRun: het echte rapport, met de namen van de bash-agent. "go": 1 zegt RzSense dat dit de Go-agent is.
 func buildRun(c *Config, t0 time.Time) map[string]any {
 	rep := coreCollect(2 * time.Second)
@@ -181,6 +184,13 @@ func buildRun(c *Config, t0 time.Time) map[string]any {
 	rep["update_last"] = readState("update.last")
 	if auth := collectAuthLinux(); auth != nil { // 0.14.0: logins, sudo en su
 		rep["auth"] = auth
+	}
+	if p := collectPatchLinux(true); p != nil { // 0.15.0: welke updates er klaarstaan (eens per uur)
+		rep["patch"] = p
+	}
+	if r := pkgResult(); r != nil { // de uitkomst van het installeren
+		rep["pkg_result"] = r
+		sentPkgID = r["id"].(string)
 	}
 	rep["timing"] = map[string]any{"total": time.Since(t0).Milliseconds()}
 	return rep
@@ -237,9 +247,17 @@ func afterRun(c *Config, r *runReply) {
 	if r.TestsRev != "" && r.TestsRev != readState("tests.rev") {
 		dropState("tests.rev") // de volgende ronde haalt de lijst opnieuw op
 	}
+	if sentPkgID != "" { // de uitkomst is aangekomen
+		if p := pkgResult(); p != nil && p["id"] == sentPkgID {
+			_ = os.Remove(upgradeResultFile())
+		}
+	}
 	if r.GoBack {
 		backToBash("gevraagd vanuit RzSense", false)
 		return
+	}
+	if r.PkgUpgrade != nil {
+		startUpgrade(*r.PkgUpgrade)
 	}
 	if r.GoUpdate != nil {
 		selfUpdateLinux(c, r.GoUpdate.Version, r.GoUpdate.SHA)
