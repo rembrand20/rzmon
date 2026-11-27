@@ -169,8 +169,11 @@ EOS
 printf '#!/bin/sh\nexit 1\n' >"$work/pbin/needs-restarting"
 chmod 755 "$work/pbin/dnf" "$work/pbin/needs-restarting"
 printf '0\ttick\t60\n0\tpatch\t1\n' >"$work/patchcache/tests.cache"
+unset INVOCATION_ID   # op een CI-runner onder systemd: de namaak-pakketbeheerder rechtstreeks starten, niet via systemd-run
+export RZSENSE_TEST_ROOT=1
 (
     PATH="$work/pbin:$PATH"; t_dir="$work/patchcache"; t_cache="$t_dir/tests.cache"; HA_MODE=0; pk_dir="$t_dir/pkgs"
+    id() { if [ "${1-}" = -u ]; then echo 0; else command id "$@"; fi; }   # CI draait niet als root; de pakketbeheerder is hier namaak
     # shellcheck disable=SC1090
     source <(sed -n '/^json_escape() {/,/^}/p' agent/src/15-realtime.sh)
     # shellcheck disable=SC1090

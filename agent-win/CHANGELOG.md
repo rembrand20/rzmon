@@ -5,6 +5,9 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.15.1 – 2026-11-27
+- Alleen voor de tests: de controle *draait als root* voor Updates is in de automatische tests na te bootsen. Geen wijziging in de werking.
+
 ## 0.15.0 – 2026-11-27
 - **Linux: Updates.** De Go-agent kijkt eens per uur welke updates er klaarstaan, welke daarvan beveiligingsupdates zijn en of een herstart nodig is (dnf/yum of apt), met dezelfde uitkomst als de bash-agent.
 - **Updates installeren op verzoek van RzSense** (alle updates, alleen beveiliging, of een lijst pakketten), met de voortgang en de uitkomst naar RzSense. Alleen het vaste commando van de pakketbeheerder; pakketnamen worden gecontroleerd. Nooit een herstart, nooit op TrueNAS, en niet met `COMMANDS=0`. Nieuwe pakketten installeren doet de Go-agent niet.

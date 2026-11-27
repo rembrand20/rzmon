@@ -126,6 +126,10 @@ func runOutside(timeout time.Duration, name string, args ...string) (string, int
 	return run(timeout, name, args...)
 }
 
+// isRoot: de pakketbeheerder werkt alleen als root. RZSENSE_TEST_ROOT is er voor de tests (CI draait niet als root en
+// gebruikt een namaak-pakketbeheerder); een echte pakketbeheerder weigert zonder root zelf.
+func isRoot() bool { return os.Geteuid() == 0 || os.Getenv("RZSENSE_TEST_ROOT") == "1" }
+
 func isTrueNAS() bool {
 	_, err := exec.LookPath("midclt")
 	return err == nil || strings.Contains(strings.ToLower(readText("/etc/version")), "truenas")
@@ -198,7 +202,7 @@ func bashPatchFile() string {
 }
 
 func patchWanted() bool {
-	return os.Geteuid() == 0 && !isTrueNAS() && strings.Contains("\n"+readText(filepath.Join(bashCachePath(), "tests.cache")), "\n0\tpatch\t1")
+	return isRoot() && !isTrueNAS() && strings.Contains("\n"+readText(filepath.Join(bashCachePath(), "tests.cache")), "\n0\tpatch\t1")
 }
 
 // collectPatchLinux: het onderdeel "patch" van het rapport, of nil als er nu niets nieuws te melden is.
@@ -276,7 +280,7 @@ func upgradeArgs(o pkgOrder, conf map[string]string) (mode string, names []strin
 	switch {
 	case mode == "install":
 		why = "de Go-agent installeert geen nieuwe pakketten (alleen updates)"
-	case os.Geteuid() != 0:
+	case !isRoot():
 		why = "de agent draait niet als root"
 	case len(names) == 0 && mode == "upgrade":
 		why = "geen geldige pakketnamen ontvangen"

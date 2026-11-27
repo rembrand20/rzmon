@@ -14,6 +14,13 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.343.0**: **De proef met de Go-agent werkt zichzelf bij**: alleen met een geldige handtekening van de ontwikkelaar.
 - **1.342.0**: **Proef met de Go-agent: details per dienst**: poorten, een passende test en logfouten per dienst, extra tests en de dienstenlijst.
 
+## 1.346.1 – 2026-11-27
+### Opgelost
+- De automatische test van Updates in de Go-agent faalde op GitHub (die draait niet als root). Geen wijziging in de werking.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.15.1 (alleen voor de tests).
+
 ## 1.346.0 – 2026-11-27
 ### Nieuw
 - **De Go-agent kan nu ook Updates.** Hij meldt welke updates er klaarstaan (met beveiliging en *herstart nodig*) en installeert ze als je daar in *Updates* om vraagt, met dezelfde voortgang als bij de bash-agent. Updates houdt het overnemen daarom niet meer tegen.
