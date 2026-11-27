@@ -9,7 +9,8 @@ FPM="${RZMON_FPM:-php-fpm}"
 export TZ="${TZ:-Europe/Amsterdam}"
 WEB_PORT="${RZMON_WEB_PORT:-8080}"
 DOOR_PORT="${RZMON_DOOR_PORT:-8443}"
-case "$WEB_PORT$DOOR_PORT" in *[!0-9]*) echo "[rzsense] RZMON_WEB_PORT en RZMON_DOOR_PORT moeten getallen zijn" >&2; exit 1 ;; esac
+TLS_PORT="${RZMON_TLS_PORT:-9443}"   # 1.358.0: https met Let's Encrypt (alleen als er een certificaat is)
+case "$WEB_PORT$DOOR_PORT$TLS_PORT" in *[!0-9]*) echo "[rzsense] RZMON_WEB_PORT, RZMON_DOOR_PORT en RZMON_TLS_PORT moeten getallen zijn" >&2; exit 1 ;; esac
 
 # 1. voorbereiden (config.php, database, eerste beheerder, back-up bij een nieuwe versie, certificaat nooddeur)
 php "$APP/container/init.php"
@@ -19,7 +20,7 @@ unset RZMON_DB_PASS RZMON_ADMIN_PASS RZMON_DB_PASS_FILE RZMON_ADMIN_PASS_FILE
 
 # 2. nginx-configuratie met de gekozen poorten
 sed -e "s/@WEB_PORT@/$WEB_PORT/g" -e "s/@DOOR_PORT@/$DOOR_PORT/g" -e "s#@DATA@#$DATA#g" "$APP/container/nginx.conf.in" > /tmp/rzsense-nginx.conf
-sed -e "s#@APP@#$APP#g" "$APP/container/site.conf" > /tmp/rzsense-site.conf
+sed -e "s#@APP@#$APP#g" -e "s#@DATA@#$DATA#g" "$APP/container/site.conf" > /tmp/rzsense-site.conf
 # Geen IPv6 op deze host? Dan alleen IPv4 (anders weigert nginx te starten)
 if [ ! -e /proc/net/if_inet6 ]; then sed -i '/listen \[::\]/d' /tmp/rzsense-nginx.conf; fi
 
@@ -45,7 +46,9 @@ pids+=($!)
 ) &
 pids+=($!)
 
-echo "[rzsense] klaar: web op poort $WEB_PORT, nooddeur (https) op poort $DOOR_PORT"
+le=""
+[ -f /tmp/rzsense-le.conf ] && le=", Let's Encrypt (https) op poort $TLS_PORT"
+echo "[rzsense] klaar: web op poort $WEB_PORT, nooddeur (https) op poort $DOOR_PORT$le"
 # Stopt één onderdeel, dan alles stoppen (de container start dan opnieuw)
 wait -n
 echo "[rzsense] een onderdeel is gestopt; de container stopt" >&2

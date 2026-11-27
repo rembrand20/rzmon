@@ -127,6 +127,7 @@ en een knop naar de plek waar je hem instelt.
 | 🔐 Toegang en beveiliging | **Ingelogde apparaten** | Elke sessie met apparaat en IP, op afstand uitloggen. | 1.79.0 |
 | 🔐 Toegang en beveiliging | **Uitloggen zonder activiteit** | Na een ingestelde tijd. | 1.85.0 |
 | 🔐 Toegang en beveiliging | **Beheer via https** | Https verplichten, HSTS, eigen certificaat en controle. | 1.68.0 |
+| 🔐 Toegang en beveiliging | **Let's Encrypt-certificaat** | Zelf aanvragen, koppelen en vernieuwen, zonder reverse proxy. | 1.358.0 |
 | 🔐 Toegang en beveiliging | **Onzichtbaar van buiten** | Alleen toegestane apparaten en landen zien RzSense. | 1.86.0 |
 | 🔐 Toegang en beveiliging | **Blokkades en whitelist** | Eén overzicht van alle blokkades, met uitzonderingen. | 1.83.0 |
 | 🔐 Toegang en beveiliging | **Beveiligingsheaders** | Content-Security-Policy en meer op elke pagina. | 1.143.0 |

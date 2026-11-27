@@ -8,11 +8,25 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.358.0**: **Let's Encrypt zonder reverse proxy**: RzSense vraagt zelf een geldig certificaat aan voor je domein, koppelt het en vernieuwt het, met een stappenplan voor DNS, router en firewall.
 - **1.357.0**: **IDS in de Go-agent als dry-run**: de Go-agent neemt waar wat het IDS nodig heeft en RzSense vergelijkt het; er wordt niets geblokkeerd.
 - **1.356.0**: **De Go-agent is compleet op het beveiligingsblok na**: ook wifi, certificaten zoeken, 🧪 Test, het meetpunt van buitenaf en de AI-diagnose.
 - **1.355.0**: **De Go-agent doet databasechecks, WireGuard en netwerkverkeer**: alleen lezen, het wachtwoord nooit op de opdrachtregel.
 - **1.354.0**: **De Go-agent leest Proxmox en TrueNAS uit**: guests, opslag, ZFS, back-ups en apps, gelijk aan de bash-agent.
-- **1.353.0**: **De Go-agent heeft de waakhond**: een bericht via Pushover of ntfy als RzSense onbereikbaar is, en wachten tijdens een update.
+
+## 1.358.0 – 2026-11-27
+### Nieuw
+- **Let's Encrypt-certificaat, aangevraagd door RzSense zelf.** Is RzSense van buiten bereikbaar zonder reverse proxy, dan vraag je bij *Instellingen → Toegang tot RzSense → Beheer van buiten → 🔒 Let's Encrypt-certificaat* een gratis, geldig certificaat aan voor je domein. RzSense koppelt het aan de webserver en vernieuwt het vanzelf (certbot, vanaf 30 dagen voor het verloopt). Werkt bij de gewone installatie (`install-rocky.sh`, Apache, via de hulpdienst als root) en in de container (als `www-data`, zonder root).
+- **Voorcontrole en proefaanvraag.** De voorcontrole kijkt in de openbare DNS of je domein naar het publieke IP-adres van je internetlijn wijst, en waarschuwt voor een AAAA-record (IPv6). De proefaanvraag gaat naar de testserver van Let's Encrypt, zodat je hun limieten niet raakt.
+- **Stappenplan: wat, hoe en waar.** Op de kaart staat per installatie wat je bij je domeinprovider, in je router en in de firewall van de server moet doen, ingevuld met jouw domein, LAN-IP, publieke IP en poorten, met de commando's om te kopiëren.
+- **Veilig koppelen.** Vóór de aanvraag test RzSense of de webserver de controlebestanden geeft; vóór het koppelen test het de nieuwe instelling (`apachectl configtest` of `nginx -t`) en zet het de vorige terug als de webserver die afkeurt. Foutmeldingen van Let's Encrypt staan in gewone taal op de kaart, met de oplossing.
+- **De agents en de nooddeur merken er niets van.** Het certificaat geldt alleen voor de domeinnaam (eigen virtuele host). Op het IP-adres blijft het eigen certificaat van RzSense, dus agents met een vastgezet certificaat hoef je niet aan te passen.
+- In de terminal: `sudo php install/install.php --acme test|issue <domein> [e-mail]`, `--acme renew [--force]`, `--acme status` en `--acme remove`.
+
+### Goed om te weten
+- **Gewone installatie:** werk RzSense bij met de knop (of voer `install-rocky.sh` opnieuw uit). Dan krijgt Apache de map voor de controlebestanden (`/.well-known/acme-challenge/`) en krijgt de hulpdienst de nieuwe taak `rzmon-acme`. certbot installeert RzSense zelf als het nodig is (uit EPEL). De virtuele host voor het domein staat in `/etc/httpd/conf.d/zz-rzmon-letsencrypt.conf` en wordt bij elke update opnieuw gemaakt uit `rzmon.conf`.
+- **Container:** de nieuwe image bevat certbot en een extra https-poort, **9443** (`RZMON_TLS_PORT`). Laat de firewall van de host 80 doorsturen naar 8080 en 443 naar 9443 (de commando's staan op de kaart). Het certificaat staat in het datavolume.
+- Heb je een reverse proxy zoals SWAG, laat die het certificaat dan gewoon regelen; daar verandert niets.
 
 ## 1.357.0 – 2026-11-27
 ### Nieuw

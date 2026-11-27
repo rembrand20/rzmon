@@ -218,6 +218,9 @@ try {
     if ($msg = OwnCert::cron()) {
         echo date('c') . " $msg\n";
     }
+    if ($msg = LetsEncrypt::cron()) {   // 1.358.0: Let's Encrypt elke dag laten vernieuwen (certbot doet pas iets 30 dagen vooraf)
+        echo date('c') . " $msg\n";
+    }
     if ($msg = IdsPush::cron()) {   // 1.275.0: dagelijkse samenvatting van het IDS
         echo date('c') . " $msg\n";
     }

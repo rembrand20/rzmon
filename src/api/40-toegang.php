@@ -36,6 +36,7 @@ switch ($action) {
             'no2fa' => q("SELECT username FROM users WHERE totp_secret IS NULL OR totp_secret = '' ORDER BY username")->fetchAll(PDO::FETCH_COLUMN),
             'my_2fa' => (bool) q("SELECT totp_secret IS NOT NULL AND totp_secret <> '' FROM users WHERE id = ?", [$user['id']])->fetchColumn(),
             'warn_days' => Https::WARN_DAYS,
+            'le_domain' => !empty(LetsEncrypt::state()['active']) ? (string) LetsEncrypt::state()['domain'] : null,   // 1.358.0
         ]);
 
     case 'https_check':
@@ -90,6 +91,28 @@ switch ($action) {
             Https::check(false, $url);
         }
         out(['ok' => true]);
+
+    // ---------- Let's Encrypt (1.358.0): aanvragen, koppelen, vernieuwen en loskoppelen ----------
+    case 'le_info':
+        out(LetsEncrypt::info());
+
+    case 'le_status':
+        out(['status' => LetsEncrypt::status(), 'state' => LetsEncrypt::state() ?: null]);
+
+    case 'le_check':   // voorcontrole: openbare DNS, publiek IP, IPv6
+        $d = strtolower(trim((string) (input()['domain'] ?? '')));
+        out(['ok' => true, 'check' => LetsEncrypt::precheck($d)]);
+
+    case 'le_request':
+        $in = input();
+        $what = (string) ($in['what'] ?? '');
+        if ($what === 'remove') {
+            $confirm('LOSKOPPELEN');
+        } elseif (in_array($what, ['test', 'issue'], true) && empty($in['tos'])) {
+            out(['error' => t('Vink aan dat je akkoord gaat met de voorwaarden van Let\'s Encrypt')], 422);
+        }
+        $r = LetsEncrypt::request($what, (string) ($in['domain'] ?? ''), (string) ($in['email'] ?? ''), (string) $user['username']);
+        out($r, $r['ok'] ? 200 : (isset($r['cli']) ? 409 : 422));
 
     // ---------- Datalekken via Have I Been Pwned (1.69.0) ----------
     case 'hibp_info':

@@ -15,7 +15,7 @@ const API_GET = [
     'report_preview', 'reports_get', 'rev', 'security', 'self_status', 'sessions', 'sessions_all', 'settings', 'settings_health', 'setup_info',
     'smart_proposals', 'snmp_discover', 'snmp_global', 'ssh_sessions', 'state', 'stats', 'status_get', 'screen_get', 'stealth_info', 'templates', 'ti_status',
     'trends', 'truenas_overview', 'update_info', 'update_status', 'users', 'vuln_csv', 'vuln_detail', 'vuln_packages', 'vuln_sbom', 'vuln_search', 'vuln_software', 'vuln_upgrade_status', 'vuln_where',
-    'vulns', 'weblog_status',
+    'vulns', 'weblog_status', 'le_info', 'le_status',
 ];
 
 require __DIR__ . '/../src/bootstrap.php';

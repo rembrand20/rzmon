@@ -168,6 +168,7 @@ final class Features
         ['sec', ['Ingelogde apparaten', 'Signed-in devices'], ['Elke sessie met apparaat en IP, op afstand uitloggen.', 'Every session with device and IP, log out remotely.'], '1.79.0', '', '#account'],
         ['sec', ['Uitloggen zonder activiteit', 'Log out when idle'], ['Na een ingestelde tijd.', 'After a set time.'], '1.85.0', 'session_idle_minutes', 'access'],
         ['sec', ['Beheer via https', 'Management over https'], ['Https verplichten, HSTS, eigen certificaat en controle.', 'Require https, HSTS, own certificate and checks.'], '1.68.0', 'https_only', 'outside'],
+        ['sec', ['Let\'s Encrypt-certificaat', 'Let\'s Encrypt certificate'], ['Zelf aanvragen, koppelen en vernieuwen, zonder reverse proxy.', 'Request, attach and renew it yourself, without a reverse proxy.'], '1.358.0', 'le_active', 'outside'],
         ['sec', ['Onzichtbaar van buiten', 'Invisible from outside'], ['Alleen toegestane apparaten en landen zien RzSense.', 'Only allowed devices and countries see RzSense.'], '1.86.0', 'stealth_ui', 'outside'],
         ['sec', ['Blokkades en whitelist', 'Blocks and whitelist'], ['Eén overzicht van alle blokkades, met uitzonderingen.', 'One overview of all blocks, with exceptions.'], '1.83.0', '', '#ids/blk'],
         ['sec', ['Beveiligingsheaders', 'Security headers'], ['Content-Security-Policy en meer op elke pagina.', 'Content Security Policy and more on every page.'], '1.143.0', '', ''],

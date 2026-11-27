@@ -368,8 +368,11 @@ final class Https
                 $s['warned'] = false;
             }
             if ($problem === null && $a['days'] <= self::WARN_DAYS && (int) $s['soon_to'] !== $a['to']) {
+                $le = (LetsEncrypt::state()['domain'] ?? '') === self::adminHost($url);   // 1.358.0: door RzSense zelf aangevraagd
                 Monitor::sysInfo('cert', null, null, '🔐 ' . t('Certificaat verloopt over {n} dagen', ['n' => $a['days']]),
-                    fn() => t('Het certificaat van {url} verloopt op {d} ({issuer}). Normaal vernieuwt je reverse proxy (SWAG) het rond 30 dagen van tevoren; kijk in de log van je proxy waarom dat niet lukt.',
+                    fn() => $le ? t('Het certificaat van {url} verloopt op {d} ({issuer}). RzSense vernieuwt het zelf vanaf 30 dagen van tevoren; kijk bij Instellingen → Toegang tot RzSense → Beheer van buiten → Let\'s Encrypt waarom dat niet lukt.',
+                        ['url' => $url, 'd' => date('d-m-Y', $a['to']), 'issuer' => $a['issuer']])
+                        : t('Het certificaat van {url} verloopt op {d} ({issuer}). Normaal vernieuwt je reverse proxy (SWAG) het rond 30 dagen van tevoren; kijk in de log van je proxy waarom dat niet lukt.',
                         ['url' => $url, 'd' => date('d-m-Y', $a['to']), 'issuer' => $a['issuer']]));
                 $s['soon_to'] = $a['to'];
             }

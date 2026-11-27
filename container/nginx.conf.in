@@ -45,4 +45,8 @@ http {
         ssl_protocols TLSv1.2 TLSv1.3;
         include /tmp/rzsense-site.conf;
     }
+
+    # Let's Encrypt (1.358.0): https op RZMON_TLS_PORT met het certificaat van het domein. RzSense maakt dit bestand
+    # zelf (Instellingen → Toegang tot RzSense → Beheer van buiten → Let's Encrypt); zonder certificaat is het er niet.
+    include /tmp/rzsense-le*.conf;
 }

@@ -4,11 +4,12 @@
 # Naast de gewone serverinstallatie (install/install-rocky.sh); die blijft bestaan.
 FROM docker.io/library/php:8.3-fpm-bookworm
 
-# Webserver, ping (met cap_net_raw op het programma zelf), SNMP-hulpmiddelen, ip, certificaten, tini als init
+# Webserver, ping (met cap_net_raw op het programma zelf), SNMP-hulpmiddelen, ip, certificaten, tini als init,
+# certbot (1.358.0: Let's Encrypt aanvragen en vernieuwen, als www-data met de mappen in het datavolume)
 RUN set -eux; \
     sed -i 's#http://deb.debian.org#https://deb.debian.org#g' /etc/apt/sources.list.d/debian.sources; \
     apt-get update; \
-    apt-get install -y --no-install-recommends nginx-light iputils-ping iproute2 snmp libcap2-bin tini openssl ca-certificates curl \
+    apt-get install -y --no-install-recommends nginx-light iputils-ping iproute2 snmp libcap2-bin tini openssl ca-certificates curl certbot \
         libzip4 libicu72 libpng16-16 libsnmp40 \
         libzip-dev libicu-dev libpng-dev libsnmp-dev; \
     docker-php-ext-install -j"$(nproc)" pdo_mysql zip intl gd snmp sockets opcache; \
@@ -35,10 +36,11 @@ ENV RZMON_CONTAINER=1 \
     RZMON_CONFIG=/var/lib/rzmon/config.php \
     RZMON_WEB_PORT=8080 \
     RZMON_DOOR_PORT=8443 \
+    RZMON_TLS_PORT=9443 \
     RZMON_IMAGE=ghcr.io/rembrand20/rzsense
 
 VOLUME /var/lib/rzmon
-EXPOSE 8080 8443
+EXPOSE 8080 8443 9443
 USER www-data
 WORKDIR /opt/rzsense
 

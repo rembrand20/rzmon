@@ -5422,5 +5422,29 @@ foreach ($tkOld as $tkK => $tkV) {
     }
 }
 
+section("Let's Encrypt (1.358.0)");
+ok(LetsEncrypt::validDomain('rzsense.voorbeeld.nl') && LetsEncrypt::validDomain('a-b.c.example.com'), 'gewone domeinnamen zijn goed');
+ok(!LetsEncrypt::validDomain('192.168.1.10') && !LetsEncrypt::validDomain('*.voorbeeld.nl') && !LetsEncrypt::validDomain('rzsense')
+    && !LetsEncrypt::validDomain('nas.local') && !LetsEncrypt::validDomain('x.lan') && !LetsEncrypt::validDomain('a..b.nl')
+    && !LetsEncrypt::validDomain("a.nl\nb") && !LetsEncrypt::validDomain('-a.nl'), 'IP-adressen, wildcards, lokale namen en rare tekens niet');
+$leMain = "# RzSense\n<VirtualHost *:80>\n    ServerName rz\n    DocumentRoot /var/www/rzmon/public\n</VirtualHost>\n\n<VirtualHost *:443>\n    ServerName rz\n    ServerAlias 192.168.1.10\n"
+    . "    DocumentRoot /var/www/rzmon/public\n    Alias /.well-known/acme-challenge/ /var/lib/rzmon/acme/.well-known/acme-challenge/\n    SSLEngine on\n"
+    . "    # Self-signed certificaat van mod_ssl; vervang door Let's Encrypt (zie docs/01-installatie.md)\n    SSLCertificateFile    /etc/pki/tls/certs/localhost.crt\n"
+    . "    SSLCertificateKeyFile /etc/pki/tls/private/localhost.key\n    ErrorLog  /var/log/httpd/rzmon_ssl_error.log\n    CustomLog /var/log/httpd/rzmon_ssl_access.log combined\n</VirtualHost>\n";
+$leV = (string) LetsEncrypt::apacheVhost($leMain, 'rz.voorbeeld.nl', '/etc/letsencrypt/live/rz.voorbeeld.nl/fullchain.pem', '/etc/letsencrypt/live/rz.voorbeeld.nl/privkey.pem');
+ok(str_contains($leV, 'ServerName rz.voorbeeld.nl') && !str_contains($leV, 'ServerAlias') && !str_contains($leV, 'localhost.crt') && !str_contains($leV, '*:80'),
+    'Apache: alleen het 443-blok, met het domein en zonder het IP-adres of het eigen certificaat');
+ok(str_contains($leV, 'SSLCertificateFile    /etc/letsencrypt/live/rz.voorbeeld.nl/fullchain.pem') && str_contains($leV, 'privkey.pem')
+    && str_contains($leV, 'DocumentRoot /var/www/rzmon/public') && str_contains($leV, 'rzmon_le_error.log') && str_contains($leV, 'acme-challenge'),
+    'Apache: zelfde regels als rzmon.conf, met het Let\'s Encrypt-certificaat en eigen logbestanden');
+ok(LetsEncrypt::apacheVhost("<VirtualHost *:80>\n</VirtualHost>\n", 'rz.voorbeeld.nl', 'c', 'k') === null, 'Apache: zonder 443-blok niets');
+ok(basename(LetsEncrypt::APACHE_LE) > basename(LetsEncrypt::APACHE_MAIN), 'Apache: het eigen bestand komt na rzmon.conf (rzmon.conf blijft de standaard op 443, voor de agents op het IP-adres)');
+$leN = LetsEncrypt::nginxConf('rz.voorbeeld.nl', 9443, '/c.pem', '/k.pem', false);
+ok(str_contains($leN, 'listen 9443 ssl') && !str_contains($leN, '[::]') && str_contains($leN, 'server_name rz.voorbeeld.nl;') && str_contains($leN, 'ssl_certificate     /c.pem;')
+    && str_contains($leN, 'include /tmp/rzsense-site.conf;'), 'nginx (container): https op de eigen poort met het certificaat; IPv6 alleen als de host het heeft');
+ok(str_contains(LetsEncrypt::explain("Detail: Timeout during connect (likely firewall problem)", 'rz.nl')[0], 'poort 80')
+    && str_contains(LetsEncrypt::explain('urn:ietf:params:acme:error:dns :: NXDOMAIN looking up A', 'rz.nl')[0], 'DNS')
+    && str_contains(LetsEncrypt::explain('too many certificates already issued', 'rz.nl')[0], 'te veel'), 'fouten van certbot in gewone taal');
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

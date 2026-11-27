@@ -440,6 +440,16 @@ vhost_dir_block() {
         CGIPassAuth On
     </Directory>
 
+    # Let's Encrypt (1.358.0): de controlebestanden voor het aanvragen en vernieuwen, uit $STATE_DIR/acme
+    # (Instellingen → Toegang tot RzSense → Beheer van buiten → Let's Encrypt)
+    Alias /.well-known/acme-challenge/ $STATE_DIR/acme/.well-known/acme-challenge/
+    <Directory $STATE_DIR/acme/.well-known/acme-challenge>
+        Require all granted
+        AllowOverride None
+        Options None
+        ForceType text/plain
+    </Directory>
+
     Header always set X-Content-Type-Options "nosniff"
     Header always set X-Frame-Options "SAMEORIGIN"
     Header always set Referrer-Policy "same-origin"
@@ -501,6 +511,16 @@ fi
 if ss -Htlnp 2>/dev/null | awk '$4 ~ /:80$/ && !/httpd/' | grep . >/dev/null; then   # grep zonder -q (pipefail)
     warn "Poort 80 is al in gebruik door een ander programma (nginx?). Stop dat eerst."
 fi
+# Let's Encrypt (1.358.0): het eigen bestand van RzSense (zz-…: na rzmon.conf, zodat rzmon.conf de standaard op 443 blijft).
+# Is het certificaat weg, dan het bestand opzij zetten: anders start Apache niet. Na de hulpdienst wordt het opnieuw gemaakt.
+le_conf=/etc/httpd/conf.d/zz-rzmon-letsencrypt.conf
+if [ -f "$le_conf" ]; then
+    le_crt=$(awk '$1 == "SSLCertificateFile" { print $2; exit }' "$le_conf")
+    if [ -z "$le_crt" ] || [ ! -e "$le_crt" ]; then
+        mv -f "$le_conf" "$le_conf.uit"
+        warn "Let's Encrypt-certificaat niet gevonden: $le_conf opzij gezet ($le_conf.uit)"
+    fi
+fi
 apachectl configtest >/dev/null 2>&1 || { apachectl configtest; die "Apache-configuratie bevat een fout"; }
 systemctl enable --now httpd >/dev/null
 systemctl reload httpd
@@ -533,6 +553,15 @@ elif bash "$INSTALL_DIR/install/install-helper.sh" --group "$WEB_USER" >/dev/nul
     if [ -d "$STATE_DIR" ]; then printf '%s\n' "$helper_sum" > "$STATE_DIR/helper.sum"; fi
 else
     warn "Hulpdienst niet geïnstalleerd; databasewachtwoord vernieuwen kan via: sudo php $INSTALL_DIR/install/install.php --rotate-db-password"
+fi
+
+# Let's Encrypt (1.358.0): gekoppeld? Dan de virtuele host opnieuw maken uit de nieuwe rzmon.conf (zelfde regels)
+if [ "$WRITE_CONFIG" -eq 1 ] || [ -f "$INSTALL_DIR/config.php" ]; then
+    if le_out=$(php "$INSTALL_DIR/install/install.php" --acme deploy 2>&1); then
+        case "$le_out" in *"niet actief"*|*"niets te doen"*) ;; *) ok "Let's Encrypt: virtuele host bijgewerkt" ;; esac
+    else
+        warn "Let's Encrypt: opnieuw koppelen mislukt ($le_out); het eigen certificaat werkt gewoon"
+    fi
 fi
 
 # ----------------------------------------------------------------- controle

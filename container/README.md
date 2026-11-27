@@ -9,7 +9,7 @@ Twee containers:
 | `rzsense-db` | `docker.io/library/mariadb:11.4` | de database; werk je los bij |
 
 - **Netwerk:** het netwerk van de host (`Network=host`). Ping, SNMP, mtr, ARP-ontdekking en LLDP werken dan zoals bij een gewone installatie, en de agents bereiken RzSense op het adres van de server.
-- **Poorten:** **8080** (http) voor je reverse proxy, zoals SWAG, en **8443** voor de **nooddeur** (https met een eigen certificaat, alleen vanaf je eigen netwerk). Beide zijn in te stellen.
+- **Poorten:** **8080** (http) voor je reverse proxy, zoals SWAG, en **8443** voor de **nooddeur** (https met een eigen certificaat, alleen vanaf je eigen netwerk). Zonder reverse proxy: **9443** voor https met Let's Encrypt. Alle drie zijn in te stellen.
 - **Gegevens:** het volume `rzsense-data` (`/var/lib/rzmon`: `config.php`, back-ups, certificaat, sleutels) en `rzsense-db` (de database).
 - **Veilig:** RzSense draait als `www-data`, niet als root. Het bestandssysteem is alleen-lezen, behalve `/var/lib/rzmon` en `/tmp`. De enige extra capability is `NET_RAW`, voor ping. Er wordt geen Podman-socket aangekoppeld.
 
@@ -40,6 +40,16 @@ sudo firewall-cmd --permanent --add-port=8443/tcp && sudo firewall-cmd --reload
 **Eerste beheerder:** `RZMON_ADMIN_USER` / `RZMON_ADMIN_PASS` in `rzsense.env`. Laat je het wachtwoord leeg, dan maakt RzSense er een en zet het één keer in de log (`sudo podman logs rzsense`). Verander het na het inloggen.
 
 **Achter SWAG:** laat je SWAG-site doorsturen naar `http://<server>:8080`. Zet daarna in RzSense *Instellingen → Toegang tot RzSense* het beheeradres, zoals je dat bij de gewone installatie doet.
+
+**Zonder reverse proxy, met Let's Encrypt:** RzSense vraagt het certificaat zelf aan (certbot zit in de image, als `www-data`, met het certificaat in het datavolume) en geeft https op **9443** (`RZMON_TLS_PORT`). Stuur in je router 80 en 443 door naar de server, en laat de firewall van de host ze doorsturen naar de container:
+
+```bash
+sudo firewall-cmd --permanent --add-forward-port=port=80:proto=tcp:toport=8080
+sudo firewall-cmd --permanent --add-forward-port=port=443:proto=tcp:toport=9443
+sudo firewall-cmd --reload
+```
+
+Daarna: *Instellingen → Toegang tot RzSense → Beheer van buiten → 🔒 Let's Encrypt-certificaat*. Zie [Toegang en beheer](../docs/11-toegang-en-beheer.md#zonder-reverse-proxy-lets-encrypt-door-rzsense-zelf).
 
 ## Bijwerken
 
