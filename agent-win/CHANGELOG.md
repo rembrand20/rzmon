@@ -5,6 +5,13 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.22.0 – 2026-11-27
+- **Linux: de waakhond.** Lukt het rapport een tijd niet (standaard 5 minuten), dan stuurt de agent zelf een bericht via Pushover en/of ntfy, één keer, en een herstelbericht als RzSense terug is. Draait RzSense wel maar staan de checks stil, dan meldt hij dat ook. Bereikt hij ook de berichtendienst niet, dan stuurt hij niets en krijgt RzSense achteraf een notitie.
+- De agent praat alleen met Pushover en ntfy als de waakhond voor deze server aan staat, met de gegevens die versleuteld van RzSense komen, en controleert het certificaat altijd. `WATCHDOG=0` zet het op de server uit; `PUSHOVER_API` werkt zoals bij de bash-agent.
+- **Linux: wachten tijdens een update van RzSense.** Kondigt RzSense een update aan, dan telt een mislukt rapport niet mee voor de terugval op de bash-agent en geeft de waakhond geen alarm tot de afgesproken tijd voorbij is. De agent werkt zichzelf in die tijd ook niet bij.
+- De stand van de waakhond en van de update-wachtstand staat in dezelfde bestanden als bij de bash-agent: bij overnemen en teruggaan komt er geen tweede alarm.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.21.0 – 2026-11-27
 - **Linux: zelf herstellen.** Een dienst die *failed* of *inactive* is, herstart de agent; een container die gestopt is, start hij. Per check aan te zetten in RzSense, vóór de metingen van die ronde, zodat een gelukte herstart meteen als *draait* meetelt.
 - **Eigen herstelcommando's** voert de agent alleen uit op verzoek van RzSense, in een versleuteld antwoord, en alleen een bestand uit `HEAL_DIR` op de server zelf dat uitvoerbaar is, van root en niet door anderen te wijzigen. RzSense stuurt alleen de naam.

@@ -679,6 +679,93 @@ got=$(cmp_heal 2) || fail "zelf herstellen, ronde 2: de Go-agent doet het anders
 [ "$(grep -c kapot "$H/gstate/restarts")" = 1 ] || fail "kapot is binnen 10 minuten twee keer herstart"
 echo "✔ zelf herstellen: ${lt_first%% *} uitkomsten (dienst herstart, container gestart, mislukte pogingen, herstelcommando's) en de grens van één poging per 10 minuten: gelijk aan de bash-agent"
 
+# 1.353.0 (Go-agent 0.22.0): de waakhond. Een lokale namaak-dienst neemt de berichten aan (nooit de echte Pushover of
+# ntfy); de echte bash-code en de Go-agent doorlopen dezelfde reeks: onbereikbaar, alarm, weer bereikbaar, cron stil.
+W="$work/wd"
+mkdir -p "$W/b" "$W/g" "$W/gd"
+cat >"$W/srv.py" <<'PY'
+import email, json, sys
+from http.server import BaseHTTPRequestHandler, HTTPServer
+out = sys.argv[1]
+class H(BaseHTTPRequestHandler):
+    def log_message(self, *a): pass
+    def do_POST(self):
+        body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+        ct = self.headers.get('Content-Type', '')
+        if ct.startswith('multipart/'):
+            m = email.message_from_bytes(b'Content-Type: ' + ct.encode() + b'\r\n\r\n' + body)
+            fields = {p.get_param('name', header='content-disposition'): p.get_payload(decode=True).decode() for p in m.get_payload()}
+        else:
+            fields = json.loads(body)
+        with open(out + self.path.replace('/', '.'), 'a') as f:
+            f.write(json.dumps({'auth': self.headers.get('Authorization', ''), 'fields': fields}, ensure_ascii=False, sort_keys=True) + '\n')
+        self.send_response(200); self.end_headers(); self.wfile.write(b'{}')
+s = HTTPServer(('127.0.0.1', 0), H)
+open(out + '.port', 'w').write(str(s.server_address[1]))
+s.serve_forever()
+PY
+python3 -I "$W/srv.py" "$W/rec" >/dev/null 2>&1 &
+wd_srv=$!
+trap 'kill "$wd_srv" 2>/dev/null || true; kill "$sleeper" 2>/dev/null || true; rm -rf "$work"; php -r "require \"src/bootstrap.php\"; q(\"DELETE FROM hosts WHERE name = ?\", [\"go-e2e\"]);" 2>/dev/null || true' EXIT
+for _ in 1 2 3 4 5 6 7 8 9 10; do [ -s "$W/rec.port" ] && break; sleep 0.3; done
+wd_port=$(cat "$W/rec.port" 2>/dev/null) || fail "de namaak-dienst voor de waakhond startte niet"
+wd_tests() { printf '0\ttick\t60\n0\twatchdog\t5\tgebruiker-test\ttoken-test\t2\thttp://127.0.0.1:%s/ntfy-%s\twaakhond_test\tntfy-token-test\n' "$wd_port" "$1" >"$W/$1/tests.cache"; }
+wd_tests b; wd_tests g
+printf 'MONITOR_URL="%s"\nPUSHOVER_API="http://127.0.0.1:%s/po-g"\n' "$BASE" "$wd_port" >"$W/conf"
+bash_wd() {   # bash_wd <rc> <antwoord> <reden>: de waakhond van de bash-agent na één ronde
+    (
+        t_dir="$W/b"; t_cache="$W/b/tests.cache"; wd_file="$W/b/watchdog"; WATCHDOG=1; TEST=0; rc=$1; resp=$2; st_err=$3; hostname=$(hostname); PUSHOVER_API="http://127.0.0.1:$wd_port/po-b"
+        # shellcheck disable=SC1090
+        source <(sed -n '/^json_escape() {/,/^}/p' agent/src/15-realtime.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^wd_line=/,/^exit "\$rc"/p' agent/src/95-waakhond.sh | sed '$d')
+    )
+}
+go_wd() { RZSENSE_BASH_CONF="$W/conf" RZSENSE_BASH_CACHE="$W/g" RZSENSE_BASH_STATE="$W/g" RZSENSE_DATA="$W/gd" "$work/rzsense" wd-test "$@"; }
+# 1: net onbereikbaar (nog geen alarm). 2: al 10 minuten (alarm). 3: nog steeds (geen tweede alarm). 4: terug (herstelbericht
+# en een notitie voor RzSense). 5: de checks staan stil. 6: nog steeds (geen tweede). 7: de checks draaien weer.
+bash_wd 7 '' 'time-out'; go_wd fail 'time-out'
+[ ! -e "$W/rec.po-b" ] && [ ! -e "$W/rec.po-g" ] || fail "de waakhond gaf meteen alarm (hoort pas na 5 minuten)"
+for d in b g; do printf 'wd_down=%s\nwd_sent=0\nwd_self=0\nwd_cron=0\n' "$(($(date +%s) - 600))" >"$W/$d/watchdog"; done
+bash_wd 7 '' 'time-out'; go_wd fail 'time-out'
+bash_wd 7 '' 'time-out'; go_wd fail 'time-out'
+bash_wd 0 '{"ok":true}' ''; go_wd ok
+bash_wd 0 '{"ok":true,"cron_age":1200}' ''; go_wd ok 1200
+bash_wd 0 '{"ok":true,"cron_age":1500}' ''; go_wd ok 1500
+bash_wd 0 '{"ok":true,"cron_age":20}' ''; go_wd ok 20
+python3 -I - "$W" <<'PY' || fail "de waakhond van de Go-agent doet het anders dan die van de bash-agent"
+import json, re, sys
+W = sys.argv[1]
+bad = []
+def rows(name):
+    try:
+        return [json.loads(l) for l in open('%s/rec.%s' % (W, name))]
+    except FileNotFoundError:
+        return []
+for kind in ('po', 'ntfy'):
+    a, g = rows(kind + '-b'), rows(kind + '-g')
+    if a != g:
+        bad.append('%s:\n bash %s\n go   %s' % (kind, json.dumps(a, ensure_ascii=False), json.dumps(g, ensure_ascii=False)))
+po = rows('po-b')
+titles = [r['fields']['title'] for r in po]
+want = ['⚠️ RzSense onbereikbaar', '✅ RzSense weer bereikbaar', '⚠️ RzSense: checks staan stil', '✅ RzSense: checks draaien weer']
+if titles != want:
+    bad.append('berichten: %s' % json.dumps(titles, ensure_ascii=False))
+elif po[0]['fields'].get('retry') != '120' or po[0]['fields']['priority'] != '2' or po[1]['fields']['priority'] != '-1' or 'time-out' not in po[0]['fields']['message']:
+    bad.append('inhoud van het alarm: %s' % json.dumps(po[0], ensure_ascii=False))
+nt = rows('ntfy-b')
+if nt and (nt[0]['auth'] != 'Bearer ntfy-token-test' or nt[0]['fields']['priority'] != 5 or nt[0]['fields']['topic'] != 'waakhond_test'):
+    bad.append('ntfy: %s' % json.dumps(nt[0], ensure_ascii=False))
+ga, gg = [re.sub(r'[0-9]{6,}', 'T', open('%s/%s/watchdog.gap' % (W, d)).read()) for d in 'bg']
+sa, sg = [open('%s/%s/watchdog' % (W, d)).read() for d in 'bg']
+if ga != gg or sa != sg or '"sent":1' not in ga:
+    bad.append('notitie of stand: bash %r %r, go %r %r' % (ga, sa, gg, sg))
+if bad:
+    print('\n'.join(bad)); sys.exit(1)
+print('✔ de waakhond: %d berichten via Pushover en %d via ntfy (alarm na 5 minuten, één keer, herstelbericht, cron stil en weer terug) en de notitie voor RzSense: gelijk aan de bash-agent' % (len(po), len(nt)))
+PY
+kill "$wd_srv" 2>/dev/null || true
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.

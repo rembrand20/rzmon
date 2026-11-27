@@ -121,6 +121,24 @@ func cliLinux(args []string) bool {
 			b, _ := json.Marshal(map[string]any{"heal": res, "heal_cmds": cmds})
 			fmt.Println(string(b))
 		}
+	case "wd-test": // voor de tests: de waakhond na een ronde: ok [cron_age] | fail [reden]
+		if len(os.Args) < 3 {
+			os.Exit(2)
+		}
+		if os.Args[2] == "ok" {
+			var age *int
+			if len(os.Args) > 3 {
+				a := atoiDef(os.Args[3], 0)
+				age = &a
+			}
+			watchdogStep(true, "", age, nil, false)
+		} else {
+			why := ""
+			if len(os.Args) > 3 {
+				why = os.Args[3]
+			}
+			watchdogStep(false, why, nil, nil, false)
+		}
 	case "ctr-check": // voor de tests: containers en heartbeats zoals ze in het rapport komen
 		p, busy := collectContainersLinux(nil)
 		b, _ := json.Marshal(map[string]any{"podman": p, "busy": busy, "hb": collectHeartbeatsLinux()})

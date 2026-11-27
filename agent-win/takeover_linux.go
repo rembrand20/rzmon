@@ -104,11 +104,16 @@ func fetchTests(c *Config) (string, error) {
 }
 
 type runReply struct {
-	OK             bool              `json:"ok"`
-	Error          string            `json:"error"`
-	Gz             int               `json:"gz"`
-	TestsRev       string            `json:"tests_rev"`
-	AgentKey       string            `json:"agent_key"`
+	OK       bool   `json:"ok"`
+	Error    string `json:"error"`
+	Gz       int    `json:"gz"`
+	TestsRev string `json:"tests_rev"`
+	AgentKey string `json:"agent_key"`
+	CronAge  *int   `json:"cron_age"` // 0.22.0: hoe lang de checks in RzSense al niet draaiden (voor de waakhond)
+	RzHold   *struct {
+		ID  string `json:"id"`
+		Max int    `json:"max"`
+	} `json:"rz_hold"` // RzSense wordt zo bijgewerkt
 	HealRun        [][]any           `json:"heal_run"`        // 0.21.0: herstelcommando's uitvoeren: [[check-id, naam] …]
 	HbUnknown      []string          `json:"hb_unknown"`      // 0.20.0: heartbeats zonder check in RzSense
 	PackagesOK     bool              `json:"packages_ok"`     // 0.16.0: RzSense heeft de softwarelijst
@@ -193,6 +198,12 @@ func buildRun(c *Config, t0 time.Time) map[string]any {
 		if len(cmds) > 0 {
 			rep["heal_cmds"] = cmds
 		}
+	}
+	if gap := watchdogGap(); gap != nil { // 0.22.0: de waakhond bereikte RzSense een tijd niet
+		rep["watchdog"] = gap
+	}
+	if h := readHold(c); h != nil && h.since > 0 { // hoe lang de agent wachtte tijdens een update van RzSense
+		rep["hold"] = map[string]any{"id": h.id, "since": h.since, "q": 0}
 	}
 	if hb := collectHeartbeatsLinux(); len(hb) > 0 { // heartbeats van rzmon-hb
 		rep["hb"] = hb
@@ -282,6 +293,14 @@ func afterRun(c *Config, r *runReply) {
 	writeState("gz", fmt.Sprint(r.Gz))
 	writeState("last_ok", fmt.Sprint(time.Now().Unix()))
 	dropState("fails")
+	// 0.22.0: de waakhond en een aangekondigde update van RzSense (rz_hold)
+	watchdogGapSent()
+	holdID, holdMax := "", 0
+	if r.RzHold != nil && lastVia != "reserve" {
+		holdID, holdMax = r.RzHold.ID, r.RzHold.Max
+	}
+	hold, released := holdAfter(c, true, holdID, holdMax)
+	watchdogStep(true, "", r.CronAge, hold, released)
 	if lastVia == "reserve" {
 		return // een reserve-RzSense verandert geen sleutel en geeft geen opdrachten
 	}
@@ -315,7 +334,7 @@ func afterRun(c *Config, r *runReply) {
 	if r.PkgUpgrade != nil {
 		startUpgrade(*r.PkgUpgrade)
 	}
-	if r.GoUpdate != nil {
+	if r.GoUpdate != nil && hold == nil { // niet tijdens een update van RzSense
 		selfUpdateLinux(c, r.GoUpdate.Version, r.GoUpdate.SHA)
 	}
 }
@@ -371,6 +390,14 @@ func cmdRun(quiet bool) int {
 	}
 	r, err := runOnce(c)
 	if err != nil {
+		// 0.22.0: tijdens een aangekondigde update van RzSense telt een mislukt rapport niet mee voor de terugval, en de
+		// waakhond wacht tot de tijd die RzSense meegaf voorbij is
+		hold, _ := holdAfter(c, false, "", 0)
+		watchdogStep(false, cutRunes(oneLine(err.Error()), 120), nil, hold, false)
+		if hold != nil {
+			fmt.Fprintln(os.Stderr, "RzSense wordt bijgewerkt; de Go-agent wacht tot", time.Unix(hold.until, 0).Format("15:04"))
+			return 1
+		}
 		n := atoiDef(readState("fails"), 0) + 1
 		writeState("fails", fmt.Sprint(n))
 		fmt.Fprintln(os.Stderr, "✘", err)

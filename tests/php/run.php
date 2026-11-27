@@ -5283,7 +5283,7 @@ ok(!$tkC4['containers: lijst']['ok'] && str_contains($tkC4['containers: lijst'][
 q("INSERT INTO checks (host_id, name, type, target, heal, enabled) VALUES (?, 'sshd', 'service', 'sshd', 'restart', 1)", [$tkH]);
 ok(str_contains(agent_tests_text($tkH, true), "\theal\tsvc\tsshd") && !preg_match('/herstellen|“heal”/u', implode(' ', AgentTakeover::blockers($tkHost()))), 'zelf herstellen staat in de testlijst en houdt het overnemen niet meer tegen (1.352.0)');
 q('UPDATE hosts SET watchdog = 1 WHERE id = ?', [$tkH]);
-ok(in_array('De waakhond', AgentTakeover::blockers($tkHost()), true), 'de waakhond houdt het overnemen nog wel tegen');
+ok(str_contains(agent_tests_text($tkH, true), "\twatchdog\t") && !in_array('De waakhond', AgentTakeover::blockers($tkHost()), true), 'de waakhond staat in de testlijst en houdt het overnemen niet meer tegen (1.353.0)');
 q('UPDATE hosts SET watchdog = 0 WHERE id = ?', [$tkH]);
 q("DELETE FROM checks WHERE host_id = ? AND name = 'sshd'", [$tkH]);
 q("INSERT INTO checks (host_id, name, type, target, enabled) VALUES (?, 'ctr', 'container', 'web', 1), (?, 'pm', 'podman', '', 1), (?, 'hb', 'heartbeat', 'backup', 1)", [$tkH, $tkH, $tkH]);
