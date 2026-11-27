@@ -271,7 +271,9 @@ func coreCollect(wait time.Duration) map[string]any {
 		"svc":       collectSvcDetailLinux(), // 0.11.0
 		"svc_tests": collectSvcTestsLinux(),
 		"svc_list":  collectSvcListLinux(),
-		"time":      collectTimeLinux(), // 0.16.0: de klok (chrony of timesyncd)
+		"time":      collectTimeLinux(),  // 0.16.0: de klok (chrony of timesyncd)
+		"smart":     collectSmartLinux(), // 0.17.0: schijfgezondheid (elk half uur)
+		"ups":       collectUpsLinux(),
 		"hostname":  host,
 		"boot":      bootTime(s2),
 		"cpu":       map[string]any{"pct": float64(int(pct*10+0.5)) / 10, "load": load, "cores": cpuCores(s2)},

@@ -91,9 +91,16 @@ final class AgentShadow
         if ($inv) {
             $out['inventory'] = ['list' => json_decode((string) $inv['packages'], true) ?: [], 'exposed' => json_decode((string) $inv['exposed'], true) ?: []] + $inv;
         }
-        foreach (q("SELECT metric, value, updated_at FROM agent_data WHERE host_id = ? AND (metric IN ('cpu', 'mem', 'boot', 'ports', 'proclist', 'svclist', 'patch', 'time') OR metric LIKE 'disk:%' OR metric LIKE 'service:%' OR metric LIKE 'cert:%' OR metric LIKE 'proc:%'
+        foreach (q("SELECT metric, value, updated_at FROM agent_data WHERE host_id = ? AND (metric IN ('cpu', 'mem', 'boot', 'ports', 'proclist', 'svclist', 'patch', 'time', 'smart', 'ups') OR metric LIKE 'path:%' OR metric LIKE 'disk:%' OR metric LIKE 'service:%' OR metric LIKE 'cert:%' OR metric LIKE 'proc:%'
                      OR metric LIKE 'svcinfo:%' OR metric LIKE 'svctest:%')", [$hostId]) as $r) {
             $m = (string) $r['metric'];
+            if (str_starts_with($m, 'path:')) {   // 1.348.0: een pad-check meet om de paar minuten; de laatste meting telt
+                $d = json_decode((string) $r['value'], true);
+                if (is_array($d) && ctype_digit(substr($m, 5))) {
+                    $out['path'][substr($m, 5)] = $d;
+                }
+                continue;
+            }
             if ($m === 'patch') {   // 1.346.0: de bash-agent kijkt eens per uur; de Go-agent vlak daarna
                 $d = json_decode((string) $r['value'], true);
                 if (is_array($d) && (int) ($d['at'] ?? 0) >= time() - 1200) {
@@ -104,7 +111,12 @@ final class AgentShadow
             if (strtotime((string) $r['updated_at']) < $min) {
                 continue;
             }
-            if ($m === 'time') {
+            if ($m === 'smart' || $m === 'ups') {   // 1.348.0
+                $d = json_decode((string) $r['value'], true);
+                if (is_array($d)) {
+                    $out[$m] = $d;
+                }
+            } elseif ($m === 'time') {
                 $d = json_decode((string) $r['value'], true);
                 if (is_array($d)) {
                     $out['time'] = $d;
@@ -375,6 +387,61 @@ final class AgentShadow
             $add('diensten om uit te kiezen', t('{n} namen', ['n' => count($bl)]) . ($onlyB ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyB, 0, 6))]) : '')
                 . ($state ? ' · ' . t('andere status: {l}', ['l' => implode(', ', array_slice($state, 0, 6))]) : ''),
                 t('{n} namen', ['n' => count($gl)]) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 6))]) : ''), count($onlyB) + count($onlyG) <= 4 && count($state) <= 2);
+        }
+        // 1.348.0: schijfgezondheid, UPS en pad-checks
+        if (is_array($bash['smart'] ?? null) && $bash['smart'] && is_array($go['smart'] ?? null)) {
+            $gd = array_column(array_filter($go['smart'], 'is_array'), null, 'dev');
+            $sm = static fn(array $d): string => !empty($d['standby']) ? t('slaapstand') : (isset($d['error']) ? (string) $d['error']
+                : implode(' · ', array_filter([(string) ($d['model'] ?? ''), ($d['passed'] ?? null) === null ? '' : ($d['passed'] ? t('zelftest goed') : t('zelftest FOUT')),
+                    is_numeric($d['temp'] ?? null) ? $d['temp'] . ' °C' : '', is_numeric($d['wear'] ?? null) ? t('slijtage {n}%', ['n' => $d['wear']]) : '',
+                    is_numeric($d['realloc'] ?? null) ? t('verplaatst {n}', ['n' => $d['realloc']]) : '', is_numeric($d['pending'] ?? null) ? t('wachtend {n}', ['n' => $d['pending']]) : '',
+                    is_numeric($d['media_err'] ?? null) ? t('mediafouten {n}', ['n' => $d['media_err']]) : ''])));
+            foreach ($bash['smart'] as $b) {
+                if (!is_array($b) || !isset($b['dev'])) {
+                    continue;
+                }
+                $g = $gd[$b['dev']] ?? null;
+                if (!is_array($g)) {
+                    $add('schijf ' . $b['dev'] . ': gezondheid', $sm($b), t('niet gemeten'), false);
+                    continue;
+                }
+                // Slaapstand kan tussen de twee metingen wisselen: dan valt er niets te vergelijken
+                $sleep = !empty($b['standby']) || !empty($g['standby']);
+                $same = $sleep || ((string) ($b['model'] ?? '') === (string) ($g['model'] ?? '') && ($b['passed'] ?? null) === ($g['passed'] ?? null) && isset($b['error']) === isset($g['error'])
+                    && (is_numeric($b['temp'] ?? null) ? $near($b['temp'], $g['temp'] ?? null, 4) : !is_numeric($g['temp'] ?? null))
+                    && ($b['wear'] ?? null) == ($g['wear'] ?? null) && ($b['realloc'] ?? null) == ($g['realloc'] ?? null) && ($b['pending'] ?? null) == ($g['pending'] ?? null) && ($b['media_err'] ?? null) == ($g['media_err'] ?? null));
+                $add('schijf ' . $b['dev'] . ': gezondheid', $sm($b), $sm($g), $same);
+            }
+        }
+        if (is_array($bash['ups'] ?? null) && $bash['ups'] && is_array($go['ups'] ?? null)) {
+            $gu = array_column(array_filter($go['ups'], 'is_array'), null, 'name');
+            $up = static fn(array $u): string => implode(' · ', array_filter([(string) ($u['model'] ?? ''), (string) ($u['status'] ?? ''), is_numeric($u['charge'] ?? null) ? $u['charge'] . '%' : '']));
+            foreach ($bash['ups'] as $b) {
+                if (is_array($b) && isset($b['name'])) {
+                    $g = $gu[$b['name']] ?? null;
+                    $add('UPS ' . $b['name'], $up($b), is_array($g) ? $up($g) : t('niet gemeten'), is_array($g) && (string) ($b['status'] ?? '') === (string) ($g['status'] ?? '')
+                        && (string) ($b['model'] ?? '') === (string) ($g['model'] ?? '') && (is_numeric($b['charge'] ?? null) ? $near($b['charge'], $g['charge'] ?? null, 3) : !is_numeric($g['charge'] ?? null)));
+                }
+            }
+        }
+        if (is_array($bash['path'] ?? null) && is_array($go['path'] ?? null)) {
+            foreach ($go['path'] as $pid => $g) {
+                $b = $bash['path'][$pid] ?? null;
+                if (!is_array($g) || !is_array($b) || !empty($g['old']) || empty($g['at'])) {
+                    continue;
+                }
+                // Het pad zelf hoort gelijk te zijn (kaart, adres, gateway, snelheid, hulpmiddel, bereikbaar of niet); de
+                // vertraging per hop verschilt per meting, en een hop meer of minder kan (een router die soms niet antwoordt)
+                $reach = static fn(array $p): bool => is_array($p['ping'] ?? null) && (float) ($p['ping']['loss'] ?? 100) < 100;
+                $pt = static fn(array $p): string => implode(' · ', array_filter([(string) ($p['tool'] ?? ''), (string) ($p['dev'] ?? ''), (string) ($p['src'] ?? ''), ($p['gw'] ?? '') !== '' ? 'via ' . $p['gw'] : '',
+                    is_numeric($p['speed'] ?? null) && $p['speed'] > 0 ? $p['speed'] . ' Mbit/s' : '', (string) ($p['virt'] ?? ''), t('{n} hops', ['n' => count((array) ($p['hops'] ?? []))]),
+                    $reach($p) ? t('doel bereikbaar') : t('doel niet bereikbaar'), is_array($p['lldp'] ?? null) ? ($p['lldp']['sys'] ?? '') . ' ' . ($p['lldp']['port'] ?? '') : '']));
+                $spd = static fn(array $p): int => is_numeric($p['speed'] ?? null) && $p['speed'] > 0 ? (int) $p['speed'] : 0;
+                $add("pad-check #$pid", $pt($b), $pt($g), (string) ($b['tool'] ?? '') === (string) ($g['tool'] ?? '') && (string) ($b['dev'] ?? '') === (string) ($g['dev'] ?? '')
+                    && (string) ($b['src'] ?? '') === (string) ($g['src'] ?? '') && (string) ($b['gw'] ?? '') === (string) ($g['gw'] ?? '') && $spd($b) === $spd($g)
+                    && (string) ($b['virt'] ?? '') === (string) ($g['virt'] ?? '') && abs(count((array) ($b['hops'] ?? [])) - count((array) ($g['hops'] ?? []))) <= 1 && $reach($b) === $reach($g)
+                    && (($b['lldp'] ?? null) ?: null) == ((is_array($g['lldp'] ?? null) ? $g['lldp'] : null) ?: null) && count((array) ($b['via'] ?? [])) === count((array) ($g['via'] ?? [])));
+            }
         }
         // 1.347.0: de klok (bron, gesynchroniseerd, afwijking) en de softwarelijst voor Kwetsbaarheden
         if (is_array($bash['time'] ?? null) && is_array($go['time'] ?? null)) {

@@ -225,6 +225,96 @@ if bad or len(la) < 50:
 print('✔ softwarelijst: %d pakketten, %d bereikbaar via het netwerk, systeem en kernel: gelijk aan de bash-agent' % (len(la), len(ea)))
 PY
 
+# 1.348.0 (Go-agent 0.17.0): schijfgezondheid, UPS en een pad-check: de echte bash-code en de Go-agent met dezelfde
+# (namaak-)hulpmiddelen, zodat de uitvoer vaststaat
+mkdir -p "$work/hbin" "$work/hcache"
+cat >"$work/hbin/smartctl" <<'EOS'
+#!/bin/sh
+case "$*" in
+    --scan) printf '/dev/sda -d sat # /dev/sda [SAT], ATA device\n/dev/nvme0 -d nvme # /dev/nvme0, NVMe device\n/dev/sdb -d sat # /dev/sdb [SAT], ATA device\n/dev/sdc -d scsi # /dev/sdc, SCSI device\n# een regel zonder apparaat\n' ;;
+    *"/dev/sda") cat <<'EOT'
+Device Model:     Samsung SSD 870 EVO 1TB
+SMART overall-health self-assessment test result: PASSED
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  5 Reallocated_Sector_Ct   0x0033   100   100   010    Pre-fail  Always       -       0
+177 Wear_Leveling_Count     0x0013   097   097   000    Pre-fail  Always       -       61
+190 Airflow_Temperature_Cel 0x0032   071   052   000    Old_age   Always       -       29
+197 Current_Pending_Sector  0x0012   100   100   000    Old_age   Always       -       2
+EOT
+        ;;
+    *"/dev/nvme0") cat <<'EOT'
+Model Number:                       WD "Black" SN850X 2000GB
+SMART overall-health self-assessment test result: FAILED!
+Temperature:                        41 Celsius
+Percentage Used:                    3%
+Media and Data Integrity Errors:    1,204
+EOT
+        ;;
+    *"/dev/sdb") echo "Device is in STANDBY mode, exit(2)"; exit 2 ;;
+    *) exit 1 ;;
+esac
+EOS
+cat >"$work/hbin/upsc" <<'EOS'
+#!/bin/sh
+case "$*" in
+    -l) echo apc ;;
+    apc@localhost) printf 'battery.charge: 97\nbattery.runtime: 1830\ndevice.model: Back-UPS "RS" 900G\nups.load: 22.5\nups.status: OL CHRG\n' ;;
+    *) exit 1 ;;
+esac
+EOS
+cat >"$work/hbin/mtr" <<'EOS'
+#!/bin/sh
+printf 'Start: 2026-11-27T12:00:00+0100\nHOST: nas             Loss%%   Snt   Last   Avg  Best  Wrst StDev\n  1.|-- 192.168.2.1      0.0%%     5    0.4   0.5   0.3   0.8   0.1\n  2.|-- ???             100.0     5    0.0   0.0   0.0   0.0   0.0\n  3.|-- 203.0.113.1     20.0%%     5   11.2  12.4   9.8  15.0   2.2\n'
+EOS
+cat >"$work/hbin/ping" <<'EOS'
+#!/bin/sh
+for a in "$@"; do last=$a; done
+case "$last" in
+    192.0.2.10) printf 'PING 192.0.2.10 56(84) bytes of data.\n\n--- 192.0.2.10 ping statistics ---\n5 packets transmitted, 0 received, 100%% packet loss, time 812ms\n'; exit 1 ;;
+    *) printf 'PING %s 56(84) bytes of data.\n\n--- %s ping statistics ---\n5 packets transmitted, 5 received, 0%% packet loss, time 804ms\nrtt min/avg/max/mdev = 0.311/0.402/0.588/0.097 ms\n' "$last" "$last" ;;
+esac
+EOS
+printf '#!/bin/sh\necho kvm\n' >"$work/hbin/systemd-detect-virt"
+cat >"$work/hbin/lldpctl" <<'EOS'
+#!/bin/sh
+printf 'lldp.%s.chassis.name=sw-kelder\nlldp.%s.port.ifname=ge-0/0/7\nlldp.%s.port.descr=Poort "7" = server\n' "$3" "$3" "$3"
+EOS
+chmod 755 "$work/hbin/"*
+printf '0\ttick\t60\n31\tpath\t127.0.0.1\t192.0.2.9,192.0.2.10\t300\n' >"$work/hcache/tests.cache"
+(
+    PATH="$work/hbin:$PATH"; t_dir="$work/hcache"; t_cache="$t_dir/tests.cache"; HA_MODE=0; TEST=0
+    id() { if [ "${1-}" = -u ]; then echo 0; else command id "$@"; fi; }
+    # shellcheck disable=SC1090
+    source <(sed -n '/^json_escape() {/,/^}/p' agent/src/15-realtime.sh)
+    # shellcheck disable=SC1090
+    source <(sed -n '/^due_cached() {/,/^}/p' agent/src/40-basis-meten.sh)
+    lap() { :; }
+    # shellcheck disable=SC1090
+    source <(sed -n '/^smart_json=""/,/^# WireGuard/p' agent/src/85-meesturen.sh | sed '$d')
+    # shellcheck disable=SC1090
+    source <(sed -n '/^path_json=""; iperfs_json=""/,$p' agent/src/74-pad.sh)
+    printf '{"smart":%s,"ups":%s,"path":%s}' "${smart_json:-null}" "${ups_json:-null}" "${path_json:-null}" >"$work/health.bash.json"
+) || fail "de bash-code voor SMART, UPS of pad-checks faalde"
+PATH="$work/hbin:$PATH" RZSENSE_DATA="$work/hdata" "$work/rzsense" collect >"$work/health.go.json" || fail "de Go-agent kon SMART en UPS niet lezen"
+PATH="$work/hbin:$PATH" RZSENSE_DATA="$work/hdata" "$work/rzsense" path-check 127.0.0.1 192.0.2.9,192.0.2.10 >"$work/path.go.json" || fail "de Go-agent kon het pad niet meten"
+python3 -I - "$work/health.bash.json" "$work/health.go.json" "$work/path.go.json" <<'PY' || fail "de Go-agent meet SMART, UPS of het pad anders dan de bash-agent"
+import json, sys
+a, g, gp = [json.load(open(p)) for p in sys.argv[1:4]]
+bad = []
+for k in ('smart', 'ups'):
+    if a[k] != g[k]:
+        bad.append('%s:\n bash %s\n go   %s' % (k, json.dumps(a[k], ensure_ascii=False), json.dumps(g[k], ensure_ascii=False)))
+bp = a['path']['31']
+for d in (bp, gp):
+    d.pop('at')
+gp['virt'] = bp['virt']   # path-check krijgt de virtualisatie niet mee (die wordt één keer per ronde bepaald)
+if bp != gp:
+    bad.append('pad:\n bash %s\n go   %s' % (json.dumps(bp, ensure_ascii=False), json.dumps(gp, ensure_ascii=False)))
+if bad or len(a['smart']) != 4 or len(bp['hops']) != 3 or len(bp['via']) != 2:
+    print('\n'.join(bad) or 'onverwachte testgegevens'); sys.exit(1)
+print('✔ schijfgezondheid (4 schijven), UPS en een pad-check (3 hops, 2 tussenliggende apparaten, LLDP): gelijk aan de bash-agent')
+PY
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.

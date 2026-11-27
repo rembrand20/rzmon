@@ -5267,6 +5267,17 @@ $tkK2 = array_column(AgentShadow::compare(['time' => ['src' => 'chrony', 'sync' 
         'exposed' => [['openssh-server', 22, 'tcp']], 'list' => [['openssl', '3.2.2', 'x86_64', 'openssl', '3.2.2'], ['bash', '5.1.8', 'x86_64', 'bash', '5.1.8'], ['zlib', '1.2', 'x86_64', 'zlib', '1.2']]]]), null, 'k');
 ok($tkK2['klok']['ok'] && $tkK2['software: systeem']['ok'] && $tkK2['software: bereikbaar via het netwerk']['ok'], 'proef: klok, systeem en bereikbare pakketten gelijk');
 ok(!$tkK2['software: pakketten']['ok'] && str_contains($tkK2['software: pakketten']['bash'], 'zlib'), 'proef: een pakket dat de Go-agent mist is een verschil: ' . $tkK2['software: pakketten']['bash']);
+$tkSm = ['dev' => '/dev/sda', 'model' => 'SSD 870', 'passed' => true, 'temp' => 29, 'wear' => 3, 'realloc' => 0, 'pending' => 0, 'media_err' => null];
+$tkPa = ['at' => time(), 'tool' => 'mtr', 'dev' => 'eth0', 'src' => '192.168.2.20', 'gw' => '192.168.2.1', 'speed' => 1000, 'virt' => 'kvm', 'hops' => [['n' => 1], ['n' => 2]], 'via' => [], 'ping' => ['ip' => '192.0.2.9', 'loss' => 0.0]];
+$tkH3 = array_column(AgentShadow::compare(['smart' => [['temp' => 31] + $tkSm, ['dev' => '/dev/sdb', 'standby' => true]], 'ups' => [['name' => 'apc', 'status' => 'OL', 'charge' => 98, 'model' => 'Back-UPS']],
+        'path' => ['31' => ['hops' => [['n' => 1], ['n' => 2], ['n' => 3]]] + $tkPa, '32' => ['gw' => '192.168.2.254'] + $tkPa]],
+    ['smart' => [$tkSm, ['dev' => '/dev/sdb', 'model' => 'HDD', 'passed' => true, 'temp' => 30]], 'ups' => [['name' => 'apc', 'status' => 'OL', 'charge' => 97, 'model' => 'Back-UPS']], 'path' => ['31' => $tkPa, '32' => $tkPa]]), null, 'k');
+ok($tkH3['schijf /dev/sda: gezondheid']['ok'] && $tkH3['schijf /dev/sdb: gezondheid']['ok'] && $tkH3['UPS apc']['ok'], 'proef: schijfgezondheid (2 graden verschil, een schijf in slaapstand) en UPS gelijk');
+ok($tkH3['pad-check #31']['ok'] && !$tkH3['pad-check #32']['ok'], 'proef: een hop meer is hetzelfde pad, een andere gateway niet');
+ok(!array_column(AgentShadow::compare(['smart' => [['passed' => false] + $tkSm]], ['smart' => [$tkSm]]), null, 'k')['schijf /dev/sda: gezondheid']['ok'], 'proef: een andere uitkomst van de zelftest is een verschil');
+q("INSERT INTO checks (host_id, name, type, target, enabled) VALUES (?, 'schijven', 'smart', '', 1), (?, 'ups', 'ups', '', 1), (?, 'pad', 'path', '192.0.2.9', 1)", [$tkH, $tkH, $tkH]);
+ok(!preg_match('/smart|ups|path|Pad-checks/', implode(' ', AgentTakeover::blockers($tkHost()))), 'checks op schijfgezondheid, UPS en een pad houden het overnemen niet meer tegen (1.348.0): ' . implode(', ', AgentTakeover::blockers($tkHost())));
+q("DELETE FROM checks WHERE host_id = ? AND type IN ('smart', 'ups', 'path')", [$tkH]);
 save_setting('vuln_enabled', '1');
 ok(!in_array('Kwetsbaarheden (de softwarelijst van deze server)', AgentTakeover::blockers($tkHost()), true), 'Kwetsbaarheden houdt het overnemen niet meer tegen (1.347.0)');
 ok(Patch::agentOk(['os' => 'linux-go', 'agent_version' => '0.15.0', 'id' => $tkH]) && !Patch::agentOk(['os' => 'linux', 'agent_version' => '1.50.0', 'id' => $tkH]), 'de Go-agent die het werk doet kan updates; een oude bash-agent niet');

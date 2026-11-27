@@ -70,6 +70,12 @@ func cliLinux(args []string) bool {
 		in, _ := io.ReadAll(os.Stdin)
 		b, _ := json.Marshal(map[string]any{"auth": authParse(string(in))})
 		fmt.Println(string(b))
+	case "path-check": // voor de tests: één pad meten (doel, tussenliggende adressen of -)
+		if len(os.Args) < 4 {
+			os.Exit(2)
+		}
+		b, _ := json.Marshal(measurePath(os.Args[2], os.Args[3], isRoot(), ""))
+		fmt.Println(string(b))
 	case "software-check": // voor de tests: de softwarelijst zoals die naar RzSense gaat
 		sw, _, ok := buildSoftware()
 		b, _ := json.Marshal(sw)
@@ -388,6 +394,9 @@ func cmdShadow(quiet bool) int {
 	core := coreCollect(2 * time.Second)
 	if p := collectPatchLinux(false); p != nil { // 0.15.0: vlak nadat de bash-agent keek, uit de cache van de pakketbeheerder
 		core["patch"] = p
+	}
+	if paths, _ := collectPathLinux(false); paths != nil { // 0.17.0: pad-checks (zonder iperf3)
+		core["path"] = paths
 	}
 	if sw := softwareForShadow(); sw != nil { // 0.16.0: de softwarelijst, kort nadat hij opnieuw gemaakt is
 		core["packages"] = sw

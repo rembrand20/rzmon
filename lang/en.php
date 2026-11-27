@@ -12179,4 +12179,13 @@ return [
     '{n} updates, {s} beveiliging' => '{n} updates, {s} security',
     'gesynchroniseerd' => 'synchronised',
     'niet gesynchroniseerd' => 'not synchronised',
+    'slaapstand' => 'standby',
+    'zelftest goed' => 'self-test passed',
+    'zelftest FOUT' => 'self-test FAILED',
+    'slijtage {n}%' => 'wear {n}%',
+    'verplaatst {n}' => 'reallocated {n}',
+    'wachtend {n}' => 'pending {n}',
+    'mediafouten {n}' => 'media errors {n}',
+    'doel bereikbaar' => 'target reachable',
+    'doel niet bereikbaar' => 'target not reachable',
 ];

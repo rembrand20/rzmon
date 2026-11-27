@@ -5,6 +5,14 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.17.0 – 2026-11-27
+- **Linux: schijfgezondheid (SMART).** Per schijf het model, of de zelftest goed is, de temperatuur, slijtage en slechte sectoren (smartctl), elk half uur. Een schijf in slaapstand wordt niet wakker gemaakt.
+- **Linux: UPS** via NUT (`upsc`): status, lading, resterende tijd, belasting en model.
+- **Linux: pad-checks.** Elke hop met verlies en vertraging (mtr, anders traceroute), een ping naar de tussenliggende apparaten, de netwerkkaart met zijn snelheid, of de server virtueel draait en (met lldpd) op welke switch en poort hij zit.
+- **Doorvoer (iperf3)**, alleen als de Go-agent het werk doet: meten naar een apparaat, of kort een ontvanger starten die na één meting stopt.
+- In de proef meet de Go-agent SMART, UPS en het pad mee (zonder iperf3); RzSense legt ze naast de bash-agent.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.16.0 – 2026-11-27
 - **Linux: de softwarelijst voor Kwetsbaarheden.** De geïnstalleerde pakketten (dpkg of rpm) met de distributie, de draaiende en de nieuwste kernel, diensten die een herstart nodig hebben en de pakketten van programma's die op een poort luisteren. De hele lijst gaat één keer per dag mee of als de pakketdatabase verandert; anders alleen het controlegetal. Zelfde inhoud als de bash-agent.
 - **Linux: de klok** (chrony of systemd-timesyncd): gesynchroniseerd en hoeveel ms hij afwijkt, voor de check *Tijd*.
