@@ -8,11 +8,25 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.366.0**: **De Go-agent beheert de WAF**, en de OWASP-regelset wordt in de stand *alleen zeker* nu echt geladen.
 - **1.365.0**: **De Go-agent beschermt de reverse proxy**: hetzelfde beleid, byte voor byte, met testen en terugzetten zoals de bash-agent.
 - **1.364.0**: **De Go-agent leest de logs van webdiensten**, en mislukte logins bij Vaultwarden worden nu echt geteld.
 - **1.363.0**: **De Go-agent doet Programma's, sporen zoeken en tijdelijk sudo**: alleen de reverse proxy en logs van webdiensten ontbreken nog.
 - **1.362.0**: **De Go-agent herkent ransomware**: lokaasbestanden, kenmerken, snapshot en processen stoppen, gelijk aan de bash-agent.
-- **1.361.0**: **De Go-agent doet Realtime en EDR**: een eigen watcher en dezelfde endpoint-sensoren als de bash-agent.
+
+## 1.366.0 – 2026-11-27
+### Nieuw
+- **De Go-agent beheert de WAF op de reverse proxy.** Dezelfde container, bestanden en zelftest als de bash-agent. De WAF houdt het overnemen niet meer tegen.
+
+### Opgelost
+- **WAF: de OWASP-regelset werd in de stand *alleen zeker* niet geladen** (agent 1.123.5 nodig). In de configuratie voor CrowdSec stond de lijst met regels die alleen melden dubbel op één regel, zodat CrowdSec een regel met een naam kreeg die niet bestaat. In de stand *detecteren* stond er daardoor een onzinregel tussen. Na het bijwerken van de agent herstart de WAF één keer.
+
+### Nieuwe agent
+- Nieuwe agent 1.123.5 en nieuwe Go-agent 0.35.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Dit houdt overnemen nog tegen: antivirus (ClamAV) en Suricata op de reverse proxy, en Home Assistant-checks. De relay blijft de bash-agent.
+- Gebruik je de WAF, kijk dan na het bijwerken van de agent op de pagina van de reverse proxy of de zelftest goed is.
 
 ## 1.365.0 – 2026-11-27
 ### Nieuw

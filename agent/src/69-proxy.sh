@@ -470,12 +470,15 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${PROXY_GUARD:-1}" != 0 ] && [
             sure) wf_in="  - crowdsecurity/base-config"$'\n'"  - crowdsecurity/vpatch-*"; wf_out="  - crowdsecurity/crs" ;;
             strict) wf_in="  - crowdsecurity/base-config"$'\n'"  - crowdsecurity/vpatch-*"$'\n'"  - crowdsecurity/crs"; wf_out="" ;;
         esac
+        # Agent 1.123.5: de lijst stond dubbel op één regel ("- crowdsecurity/crs  - crowdsecurity/crs"): CrowdSec kreeg zo
+        # een regel met een naam die niet bestaat. Leeg = "[]", anders elke regel op een eigen regel.
+        wf_oob=" []"; [ -n "$wf_out" ] && wf_oob=$'\n'"$wf_out"
         wf_conf="# RzSense: beheerd door de RzSense-agent (slider: $wf_mode). Wijzigingen hier worden overschreven.
 name: rzsense/appsec
 default_remediation: ban
 inband_rules:
 $wf_in
-outofband_rules:${wf_out:+$'\n'$wf_out}${wf_out:- []}
+outofband_rules:$wf_oob
 ${wf_ex:+pre_eval:$'\n'$wf_ex}on_match:
   - filter: $wf_lan
     apply:

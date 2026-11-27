@@ -260,6 +260,10 @@ func buildRun(c *Config, t0 time.Time) map[string]any {
 	if px := outsideJSON(120*time.Second, func() any { return collectProxyLinux() }, "proxy-test"); px != nil {
 		rep["proxy"] = px
 	}
+	// 0.35.0: de WAF op de reverse proxy (CrowdSec in een eigen container); ook buiten de afscherming
+	if wf := outsideJSON(280*time.Second, func() any { return collectWafLinux() }, "waf-test"); wf != nil {
+		rep["waf"] = wf
+	}
 	if wl := collectWeblogLinux(); wl != nil { // 0.33.0: logs van webdiensten (alleen de nieuwe regels, per IP samengevat)
 		rep["weblog"] = wl
 	}

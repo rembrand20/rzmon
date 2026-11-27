@@ -262,6 +262,9 @@ func cliLinux(args []string) bool {
 		}
 		b, _ := json.Marshal(v)
 		fmt.Println(string(b))
+	case "waf-test": // de WAF op de reverse proxy (ook zo gestart door de agent zelf, buiten de afscherming)
+		b, _ := json.Marshal(collectWafLinux())
+		fmt.Println(string(b))
 	case "sudo-test": // tijdelijk sudo (ook zo gestart door de agent zelf, buiten de afscherming van zijn dienst)
 		b, _ := json.Marshal(collectSudoLinux())
 		fmt.Println(string(b))

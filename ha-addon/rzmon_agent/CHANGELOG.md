@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.123.5 – 2026-11-27
+- **WAF: de OWASP-regelset stond verkeerd in de configuratie van CrowdSec.** De lijst met regels die alleen melden stond dubbel op één regel (`- crowdsecurity/crs  - crowdsecurity/crs`). CrowdSec kreeg daardoor een regel met een naam die niet bestaat: in de stand *alleen zeker* werd de OWASP-regelset niet geladen, in de stand *detecteren* stond er een onzinregel tussen. De lijst staat nu goed; de WAF herstart één keer om de nieuwe configuratie te laden.
+
 ## 1.123.4 – 2026-11-27
 - **Mislukte logins bij Vaultwarden werden niet geteld.** Vaultwarden zet een punt achter het adres in zijn log (`IP: 1.2.3.4. Username: …`). De agent stuurde die punt mee, en RzSense herkende het adres dan niet. De punt gaat er nu af.
 

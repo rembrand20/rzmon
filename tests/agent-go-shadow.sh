@@ -2140,6 +2140,169 @@ px_tests "0\ttick\t30\n"
 px_same geen-rol swag "a is None"
 echo "✔ reverse proxy beschermen: SWAG en Nginx Proxy Manager, het beleid byte voor byte gelijk (adminpaden, hele site, bots, rate limit, apparaten, noodlink, virtual patching), terugzetten bij een afgekeurd beleid of een site die niet meer antwoordt, uitzetten, en het logboek: gelijk aan de bash-agent; in de proef kijkt de Go-agent alleen"
 
+# 1.366.0 (Go-agent 0.35.0): de WAF op de reverse proxy (CrowdSec in een eigen container). De echte bash-code en de
+# Go-agent werken elk met een eigen map en een namaak-podman die bijhoudt wat er gevraagd wordt. Vergeleken wordt elke
+# opdracht aan de engine, de configuratiebestanden (byte voor byte), wat ze melden en het logboek.
+F="$work/waf"; mkdir -p "$F/bin"
+cat >"$F/bin/podman" <<'EOF'
+#!/bin/bash
+# namaak-podman voor de WAF: een SWAG-container, het netwerk rzsense en de container rzsense-crowdsec
+s=${WF_SIDE:?}
+has() { [ -e "$s/st/$1" ]; }
+set_() { : >"$s/st/$1"; }
+unset_() { [ -e "$s/st/$1" ] && mv -f "$s/st/$1" "$s/st/.weg.$1.$RANDOM"; return 0; }
+log() { printf '%s\n' "$*" | sed -e "s#$s#@S@#g" -e 's/BOUNCER_KEY_swag=[0-9a-f]*/BOUNCER_KEY_swag=SLEUTEL/' -e 's/Api-Key: [0-9a-f]*/Api-Key: SLEUTEL/' >>"$s/engine.log"; }
+case "$1 $2" in
+    "ps -q") echo abc; exit 0 ;;
+    "ps --format") if [ "${PX_KIND:-swag}" = npm ]; then echo "npm docker.io/jc21/nginx-proxy-manager:latest"; else echo "swag lscr.io/linuxserver/swag:latest"; fi; exit 0 ;;
+esac
+case "$*" in
+    "inspect -f"*Mounts*) if [ "${PX_KIND:-swag}" = npm ]; then echo "/data $s/data"; else echo "/config $s/config"; fi ;;
+    "inspect -f"*Env*) echo "URL=voorbeeld.nl" ;;
+    "inspect -f {{json .NetworkSettings.Networks}} swag") if has connected; then echo '{"bridge":{},"rzsense":{"IPAddress":"10.89.0.2"}}'; else echo '{"bridge":{}}'; fi ;;
+    "inspect -f {{.State.Running}} rzsense-crowdsec") has ctr || exit 1; if has stopped; then echo false; else echo true; fi ;;
+    "inspect rzsense-crowdsec") has ctr || exit 1 ;;
+    "inspect swag") exit 0 ;;
+    "network inspect rzsense") has net || exit 1 ;;
+    "network create rzsense") log "$*"; if has net-fail; then echo "Error: netwerk maken gaat niet" >&2; echo "tweede regel" >&2; exit 125; fi; set_ net ;;
+    "network connect rzsense swag") log "$*"; set_ connected ;;
+    "rm -f rzsense-crowdsec") log "$*"; unset_ ctr ;;
+    "run -d"*) log "$*"; if has run-fail; then echo "Error: image niet gevonden" >&2; exit 125; fi; set_ ctr; echo 0123abc ;;
+    "restart rzsense-crowdsec") log "$*" ;;
+    "logs --tail 300 rzsense-crowdsec") cat "$s/logs.txt" 2>/dev/null ;;
+    "exec rzsense-crowdsec wget"*)
+        log "$*"
+        if has noanswer; then echo "wget: can't connect to remote host (127.0.0.1): Connection refused" >&2; exit 1; fi
+        if has code401; then echo "  HTTP/1.1 401 Unauthorized" >&2; echo "wget: server returned error: HTTP/1.1 401 Unauthorized" >&2; exit 1; fi
+        case "$*" in
+            *"Appsec-Uri: /vendor/phpunit"*) echo "  HTTP/1.1 $(cat "$s/st/code-vpatch" 2>/dev/null || echo 403) x" >&2 ;;
+            *"Appsec-Uri: /?id="*) echo "  HTTP/1.1 $(cat "$s/st/code-sqli" 2>/dev/null || echo 200) x" >&2 ;;
+            *) echo "  HTTP/1.1 200 OK" >&2 ;;
+        esac ;;
+    "exec rzsense-crowdsec cscli bouncers"*) cat "$s/bouncers.json" 2>/dev/null ;;
+    "exec rzsense-crowdsec cscli alerts"*) log "$*"; cat "$s/alerts.json" 2>/dev/null ;;
+    "exec swag nginx"*) exit 0 ;;
+    *) exit 1 ;;
+esac
+EOF
+printf '#!/bin/sh\nprintf 200\n' >"$F/bin/curl"
+chmod +x "$F/bin/"*
+for side in b g; do
+    mkdir -p "$F/$side/config/nginx/proxy-confs" "$F/$side/config/nginx/site-confs" "$F/$side/st" "$F/$side/cache" "$F/$side/gc" "$F/$side/gd" "$F/$side/wafdir"
+    printf '# ssl\n' >"$F/$side/config/nginx/ssl.conf"
+    printf 'server {\n    server_name vault.voorbeeld.nl;\n    set $upstream_app vault;\n    set $upstream_port 80;\n}\n' >"$F/$side/config/nginx/proxy-confs/vault.subdomain.conf"
+    printf '[]' >"$F/$side/bouncers.json"; printf '[{"id":1,"scenario":"crowdsecurity/vpatch-env-access"}]\n' >"$F/$side/alerts.json"
+done
+wf_tests() { for side in b g; do printf '%b' "$1" >"$F/$side/cache/tests.cache"; cp "$F/$side/cache/tests.cache" "$F/$side/gc/tests.cache"; done; }
+wf_flag() { for side in b g; do if [ "$1" = aan ]; then printf '%s' "${3-}" >"$F/$side/st/$2"; else mv -f "$F/$side/st/$2" "$F/$side/st/.uit.$2.$RANDOM" 2>/dev/null || true; fi; done; }
+wf_bash() {  # wf_bash <uitvoer> [swag|npm]
+    (
+        set +u
+        export PATH="$F/bin:$PATH" WF_SIDE="$F/b" PX_KIND="${2:-swag}"
+        HA_MODE=0; PROXY_GUARD=1; t_dir="$F/b/cache"; t_cache="$F/b/cache/tests.cache"; ctr_busy=""; PROXY_CTR=""; PROXY_CPATH=""; PROXY_HTTPS_PORT=""; WAF_DIR="$F/b/wafdir"; WAF_IMAGE=""
+        unset INVOCATION_ID
+        lap() { :; }; id() { echo 0; }; sleep() { :; }
+        act_log() { printf '%s|%s|%s|%s\n' "$1" "$2" "$3" "${4-}" >>"$F/b/act"; }
+        # shellcheck disable=SC1090
+        source <(sed -n '/^json_escape() {/,/^}/p' agent/src/15-realtime.sh; sed -n '/^ctr_ok() {/,/^}/p; /^ctrx() {/,/^}/p' agent/src/40-basis-meten.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^proxy_json=""$/,/^fi$/p' agent/src/69-proxy.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^waf_json=""$/,/^fi$/p' agent/src/69-proxy.sh)
+        printf '%s' "${waf_json:-null}" >"$1"
+    ) || fail "de bash-code voor de WAF faalde"
+}
+wf_go() {
+    printf 'MONITOR_URL="https://rz.test"\nWAF_DIR="%s"\n' "$F/g/wafdir" >"$F/g/conf"
+    # de bash-agent doet eerst de proxy en dan de WAF; de Go-agent ook
+    for part in proxy-test waf-test; do
+        env -u INVOCATION_ID PATH="$F/bin:$PATH" WF_SIDE="$F/g" PX_KIND="${2:-swag}" RZSENSE_BASH_CONF="$F/g/conf" RZSENSE_BASH_CACHE="$F/g/gc" RZSENSE_BASH_STATE="$F/g/cache" RZSENSE_DATA="$F/g/gd" \
+            RZSENSE_TEST_ROOT=1 RZSENSE_TEST_FAST=1 "$work/rzsense" "$part" >"$1" || fail "de Go-agent kon de WAF niet beheren ($part)"
+    done
+}
+wf_same() {  # wf_same <naam> <verwachting in Python over a (gemeld) en t (de bestanden van de WAF)> [swag|npm]
+    wf_bash "$F/$1.bash.json" "${3:-swag}"; wf_go "$F/$1.go.json" "${3:-swag}"
+    python3 -I - "$F" "$1" "$2" <<'PY' || fail "WAF ($1): de Go-agent doet iets anders dan de bash-agent"
+import base64, json, os, re, sys
+F, name, expect = sys.argv[1:4]
+def load(side, ext): return json.loads(open('%s/%s.%s.json' % (F, name, ext)).read().replace(F + '/' + side, '@S@'))
+def tree(side):
+    out = {}
+    for d, _, fs in os.walk('%s/%s/wafdir' % (F, side)):
+        for f in fs:
+            if f in ('env.hash', 'starting.since'): out[f] = 'aanwezig'; continue
+            out[os.path.relpath(os.path.join(d, f), '%s/%s/wafdir' % (F, side))] = re.sub(r'Api-Key: [0-9a-f]+', 'Api-Key: SLEUTEL', open(os.path.join(d, f)).read())
+    return out
+def rd(p): return open(p).read().replace(F + '/b', '@S@').replace(F + '/g', '@S@') if os.path.exists(p) else ''
+a, g, t, tg = load('b', 'bash'), load('g', 'go'), tree('b'), tree('g')
+bad = []
+if a != g: bad.append('gemeld:\n  bash %s\n  go   %s' % (json.dumps(a, sort_keys=True, ensure_ascii=False), json.dumps(g, sort_keys=True, ensure_ascii=False)))
+for f in sorted(set(t) | set(tg)):
+    if t.get(f) != tg.get(f):
+        bad.append('bestand %s verschilt:\n--- bash\n%s\n--- go\n%s' % (f, (t.get(f) or '(ontbreekt)')[:1500], (tg.get(f) or '(ontbreekt)')[:1500]))
+if rd(F + '/b/engine.log') != rd(F + '/g/engine.log'):
+    x, y = rd(F + '/b/engine.log').splitlines(), rd(F + '/g/engine.log').splitlines()
+    d = next((i for i in range(max(len(x), len(y))) if (x[i] if i < len(x) else None) != (y[i] if i < len(y) else None)), 0)
+    bad.append('opdrachten aan de engine verschillen vanaf regel %d:\n  bash %r\n  go   %r' % (d + 1, x[d:d + 2], y[d:d + 2]))
+la = [l for l in rd(F + '/b/act').splitlines() if l.startswith('proxy|') and 'WAF' in l]
+lg = ['|'.join([e['m'], str(e['ok']), e['a'], e['d']]) for e in map(json.loads, rd(F + '/g/gd/act.log').splitlines()) if 'WAF' in e['a']]
+if la != lg: bad.append('logboek:\n  bash %s\n  go   %s' % (la[-3:], lg[-3:]))
+if not bad and not eval(expect): bad.append('onverwacht: %s | %s' % (json.dumps(a, ensure_ascii=False), sorted(t)))
+if bad: print('\n'.join(bad)); sys.exit(1)
+PY
+}
+base="0\ttick\t30\n0\tproxy\ton\n0\tproxylan\t192.168.1.0/24 10.0.0.5 fd00::/8 onzin\n0\tproxysite\tvault.voorbeeld.nl\toff\t-\toff\t0\n"
+# 1: aan, stand "zeker": netwerk, SWAG eraan, container starten, zelftest goed, SWAG nog niet gekoppeld
+wf_tests "${base}0\twaf\ton\tsure\t0\n0\twafsite\tblog.voorbeeld.nl\toff\n0\twafsite\t*.intern.nl\toff\n0\twafsite\tha.*\tdetect\n0\twafsite\tfout naam\toff\n0\twafex\tvault.voorbeeld.nl\t942100\n0\twafex\tvault.voorbeeld.nl\tcrowdsecurity/vpatch-env-access\n0\twafex\tvault.voorbeeld.nl\tfout;regel\n"
+wf_same start "a['state'] == 'waiting' and a['running'] == 1 and a['test'] == 'ok' and a['bouncer'] == 'none' and a['mode'] == 'sure' and base64.b64decode(a['alerts']).startswith(b'[{\"id\":1') and 'rzsense.yaml' in t and 'env.hash' in t"
+grep -q 'run -d --name rzsense-crowdsec --network rzsense --restart unless-stopped -e COLLECTIONS=.* -e BOUNCER_KEY_swag=SLEUTEL -e DISABLE_ONLINE_API=true -v @S@/wafdir/acquis.d:/etc/crowdsec/acquis.d:Z' "$F/g/engine.log" \
+    && grep -qF 'IpInRange(req.ClientIP, "10.0.0.5/32") || IpInRange(req.ClientIP, "fd00::/8") || IpInRange(req.ClientIP, "127.0.0.1/32")' "$F/g/wafdir/rzsense.yaml" && grep -qF 'RemoveInBandRuleByID(942100)' "$F/g/wafdir/rzsense.yaml" \
+    && grep -qF 'req.Host matches "(^blog\\.voorbeeld\\.nl$|\\.intern\\.nl$)"' "$F/g/wafdir/rzsense.yaml" && grep -qF 'IsInBand && req.Host matches "(^ha\\.)"' "$F/g/wafdir/rzsense.yaml" && ! grep -q 'fout' "$F/g/wafdir/rzsense.yaml" \
+    && [ "$(stat -c %a "$F/g/config/nginx/rzsense-waf/crowdsec.key")" = 600 ] && [ "$(wc -c <"$F/g/config/nginx/rzsense-waf/crowdsec.key")" = 64 ] || fail "de WAF is anders opgezet dan verwacht: $(cat "$F/g/engine.log") $(cat "$F/g/wafdir/rzsense.yaml")"
+# 2: niets veranderd: geen nieuwe container; SWAG is nu gekoppeld
+for side in b g; do printf '[\n {\n  "name": "swag",\n  "ip_address": "10.89.0.2",\n  "last_pull": "2026-11-27T10:00:00Z"\n }\n]\n' >"$F/$side/bouncers.json"; done
+n1=$(grep -c '^run -d' "$F/g/engine.log")
+wf_same rustig "a['state'] == 'ok' and a['bouncer'] == 'active' and a['msg'] == 'actief, slider sure'"
+[ "$(grep -c '^run -d' "$F/g/engine.log")" = "$n1" ] && ! grep -q '^restart' "$F/g/engine.log" || fail "zonder wijziging hoort de WAF niet opnieuw gestart te worden"
+# 3: een andere slider: alleen herstarten; de zelftest klopt niet (streng hoort SQL-injectie tegen te houden)
+wf_tests "${base}0\twaf\ton\tstrict\t0\n"
+wf_same streng "a['test'] == 'fail' and 'verwacht 403' in a['test_msg'] and a['mode'] == 'strict'"
+[ "$(grep -c '^restart' "$F/g/engine.log")" = 1 ] && [ "$(grep -c '^run -d' "$F/g/engine.log")" = "$n1" ] || fail "een andere slider hoort alleen te herstarten"
+grep -q '^outofband_rules: \[\]$' "$F/g/wafdir/rzsense.yaml" || fail "streng: alles hoort in-band te staan: $(cat "$F/g/wafdir/rzsense.yaml")"
+# 4: delen met de community aan: de container opnieuw aanmaken (zonder DISABLE_ONLINE_API)
+wf_flag aan code-sqli 403
+wf_tests "${base}0\twaf\ton\tstrict\t1\n"
+wf_same delen "a['test'] == 'ok' and a['state'] == 'ok'"
+[ "$(grep -c '^run -d' "$F/g/engine.log")" = $((n1 + 1)) ] && ! tail -n 6 "$F/g/engine.log" | grep '^run -d' | grep -q DISABLE_ONLINE_API || fail "delen aan hoort de container opnieuw aan te maken zonder DISABLE_ONLINE_API"
+# 5: de WAF antwoordt niet: eerst "start nog", na 10 minuten een fout met de reden uit het log
+wf_flag aan noanswer
+for side in b g; do printf 'time="2026-11-27T10:00:00Z" level=info msg="Loading"\ntime="2026-11-27T10:00:01Z" level=fatal msg="crowdsec init: while loading acquisition config: while configuring datasource of type appsec from /etc/crowdsec/acquis.d/rzsense-appsec.yaml (position: 0): unable to load appsec_config: no appsec-config found for rzsense/appsec"\n' >"$F/$side/logs.txt"; done
+wf_same start-nog "a['state'] == 'starting' and 'starting.since' in t"
+for side in b g; do echo $(( $(date +%s) - 700 )) >"$F/$side/wafdir/starting.since"; done
+wf_same antwoordt-niet "a['state'] == 'error' and 'na 11 minuten nog niet' in a['msg'] and 'geen antwoord op poort 7422' in a['msg'] and 'de configuratie van RzSense werd niet geladen' in a['msg']"
+wf_flag uit noanswer; wf_flag aan code401
+wf_same sleutel-geweigerd "a['state'] == 'error' and 'HTTP 401' in a['msg'] and 'sleutel van de bouncer' in a['msg']"
+wf_flag uit code401
+wf_same weer-goed "a['state'] == 'ok' and 'starting.since' not in t"
+# 6: de container draait niet: de reden uit het log; 7: de container kan niet starten
+wf_flag aan stopped
+wf_same gestopt "a['running'] == 0 and a['state'] == 'error' and a['msg'].startswith('de container draait niet: ')"
+wf_flag uit stopped; wf_flag uit ctr; wf_flag aan run-fail
+wf_same start-mislukt "a['state'] == 'error' and a['msg'].startswith('starten mislukt: Error: image niet gevonden')"
+wf_flag uit run-fail
+# 8: uit: de container weg; 9: het netwerk kan niet gemaakt worden; 10: geen SWAG
+wf_same weer-aan "a['running'] == 1"
+wf_tests "${base}0\twaf\toff\tsure\t0\n"
+wf_same uit "a['state'] == 'off' and 'env.hash' not in t and 'conf.hash' not in t"
+[ ! -e "$F/g/st/ctr" ] && tail -n 1 "$F/g/engine.log" | grep -q '^rm -f rzsense-crowdsec' || fail "uit hoort de container weg te halen"
+wf_flag uit net; wf_flag uit connected; wf_flag aan net-fail
+wf_tests "${base}0\twaf\ton\tdetect\t0\n"
+wf_same netwerk-mislukt "a['state'] == 'error' and a['msg'].startswith('netwerk rzsense aanmaken mislukt: Error: netwerk maken gaat niet tweede regel') and a['running'] == 0"
+! tail -n 3 "$F/g/engine.log" | grep -q '^run -d' || fail "zonder netwerk hoort de container niet gestart te worden"
+wf_flag uit net-fail
+wf_same andere-proxy "a['state'] == 'unsupported' and 'gevonden: npm' in a['msg']" npm
+echo "✔ WAF op de reverse proxy: netwerk, sleutel, de drie configuratiebestanden (byte voor byte), starten, herstarten bij een andere slider, opnieuw aanmaken, de zelftest, de koppeling met SWAG, de reden als hij niet antwoordt of niet start, en uitzetten: gelijk aan de bash-agent"
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.

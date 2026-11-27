@@ -16,7 +16,7 @@ import (
 )
 
 // Version: wordt bijgewerkt met tools/bump-version.sh agentwin (gelijk aan agent-win/VERSION)
-const Version = "0.34.0"
+const Version = "0.35.0"
 
 // ---------------------------------------------------------------- koppelen
 

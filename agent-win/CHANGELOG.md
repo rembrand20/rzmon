@@ -5,6 +5,11 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.35.0 – 2026-11-27
+- **Linux: de WAF op de reverse proxy** (CrowdSec AppSec met de OWASP Core Rule Set, in een eigen container), zoals de bash-agent: het netwerk `rzsense` met SWAG eraan, de sleutel voor SWAG, de regels per stand van de slider, per site *alleen melden* of *uit*, uitzonderingen, de zelftest met een nep-aanval, en de reden als de WAF niet start of niet antwoordt.
+- Dezelfde bestanden en dezelfde opdrachten aan Podman of Docker als de bash-agent, in dezelfde map. Bij overnemen wordt de container daarom niet opnieuw aangemaakt.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.34.0 – 2026-11-27
 - **Linux: de reverse proxy beschermen**, zoals de bash-agent: de proxy herkennen (SWAG of Nginx Proxy Manager, in Podman of Docker), de sites uitlezen en het beleid per site doorvoeren: adminpaden of een hele site alleen vanaf je eigen netwerk, slechte bots weren, een rate limit, toegestane apparaten, de noodlink en virtual patching.
 - Even voorzichtig als de bash-agent: alleen eigen bestanden en één gemarkeerde regel in de proxy, eerst `nginx -t`, dan herladen, en terugzetten als een site die eerst werkte daarna niet meer antwoordt.
