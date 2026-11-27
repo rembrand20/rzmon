@@ -315,6 +315,64 @@ if bad or len(a['smart']) != 4 or len(bp['hops']) != 3 or len(bp['via']) != 2:
 print('✔ schijfgezondheid (4 schijven), UPS en een pad-check (3 hops, 2 tussenliggende apparaten, LLDP): gelijk aan de bash-agent')
 PY
 
+# 1.349.0 (Go-agent 0.18.0): commando-checks: dezelfde commando's door de echte bash-code en door de Go-agent
+mkdir -p "$work/ccache" "$work/cdata"
+b64() { printf '%s' "$1" | base64 -w0; }
+{
+    printf '0\ttick\t60\n'
+    printf '41\tcmd\t%s\t10\tnobody\t60\n' "$(b64 'echo hallo; echo "regel twee"; echo fout >&2; exit 3')"
+    printf '42\tcmd\t%s\t1\tnobody\t60\n' "$(b64 'sleep 5')"
+    printf '43\tcmd\t%s\t10\tnobody\t60\n' "$(b64 'env | grep -v "^_=" | sort; pwd; id -un')"
+    printf '44\tcmd\t%s\t10\tnobody\t60\n' "$(b64 "printf 'tab\\there\\n\\nlaatste\\n\\n'; printf 'x\\001y\\r\\n' >&2")"
+    printf '45\tcmd\t!!!geen-base64\t10\tnobody\t60\n'
+    printf '46\tcmd\t%s\t999\traar\tx\n' "$(b64 'echo "wie: $(id -un)"')"
+} >"$work/ccache/tests.cache"
+(
+    t_dir="$work/ccache"; t_cache="$t_dir/tests.cache"; HA_MODE=0; TEST=1; COMMANDS=""
+    lap() { :; }
+    # shellcheck disable=SC1090
+    source <(sed -n '/^json_text() {/,/^}/p' agent/src/15-realtime.sh)
+    # shellcheck disable=SC1090
+    source <(sed -n '/^bg_launch() {/,/^# -\{10,\} Logbestanden doorzoeken/p' agent/src/50-services-commandos-logs.sh | sed '$d')
+    printf '{%s}' "${cmd_results%,}" >"$work/cmd.bash.json"
+) || fail "de bash-code voor commando-checks faalde"
+RZSENSE_BASH_CACHE="$work/ccache" RZSENSE_DATA="$work/cdata" "$work/rzsense" cmd-check >"$work/cmd.go.json" || fail "de Go-agent kon de commando-checks niet uitvoeren"
+python3 -I - "$work/cmd.bash.json" "$work/cmd.go.json" <<'PY' || fail "de Go-agent voert commando-checks anders uit dan de bash-agent"
+import json, sys
+a, b = [json.load(open(p)) for p in sys.argv[1:3]]
+bad = []
+for d in (a, b):
+    for v in d.values():
+        v.pop('ms', None); v.pop('at', None)
+for k in sorted(set(a) | set(b)):
+    if a.get(k) != b.get(k):
+        bad.append('#%s:\n bash %s\n go   %s' % (k, json.dumps(a.get(k), ensure_ascii=False), json.dumps(b.get(k), ensure_ascii=False)))
+if bad or a['41']['rc'] != 3 or a['42']['rc'] != 124 or 'error' not in a['45'] or 'HOME=/' not in a['43']['out']:
+    print('\n'.join(bad) or 'onverwachte uitkomst: %s' % json.dumps(a)); sys.exit(1)
+print('✔ commando-checks: exitcode, uitvoer, time-out, kale omgeving en een ongeldig commando: gelijk aan de bash-agent (als %s)' % a['46']['out'].split(': ')[-1])
+PY
+# Een volgende meting loopt op de achtergrond: nu gaat het vorige resultaat mee, daarna het nieuwe
+echo active >"$work/cdata/mode"
+at1=$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["at"])' "$work/cdata/cmdstate/41.json")
+touch -d '10 minutes ago' "$work/cdata/cmdstate/41.json"
+sleep 1
+got=$(RZSENSE_BASH_CACHE="$work/ccache" RZSENSE_DATA="$work/cdata" "$work/rzsense" cmd-check | python3 -I -c 'import json,sys; print(json.load(sys.stdin)["41"]["at"])')
+[ "$got" = "$at1" ] || fail "bij een volgende meting hoort eerst het vorige resultaat mee te gaan"
+for _ in 1 2 3 4 5 6 7 8 9 10; do [ -s "$work/cdata/cmdstate/41.done" ] && break; sleep 0.5; done
+[ -s "$work/cdata/cmdstate/41.done" ] || fail "de meting op de achtergrond kwam niet klaar"
+got=$(RZSENSE_BASH_CACHE="$work/ccache" RZSENSE_DATA="$work/cdata" "$work/rzsense" cmd-check | python3 -I -c 'import json,sys; d=json.load(sys.stdin)["41"]; print(d["rc"], d["at"] > int(sys.argv[1]))' "$at1")
+[ "$got" = "3 True" ] || fail "het resultaat van de meting op de achtergrond ging niet mee: $got"
+{ [ ! -e "$work/cdata/cmdstate/41.lock" ] && [ ! -e "$work/cdata/cmdstate/41.done" ]; } || fail "na de meting op de achtergrond bleven er bestanden staan"
+echo "✔ commando-checks: een volgende meting loopt op de achtergrond en houdt het rapport niet op"
+rm -f "$work/cdata/mode"
+
+# De noodrem op de server: met COMMANDS=0 voert de Go-agent niets uit
+printf 'MONITOR_URL="%s"\nCOMMANDS="0"\n' "$BASE" >"$work/rzmon-agent.blok"
+got=$(RZSENSE_BASH_CONF="$work/rzmon-agent.blok" RZSENSE_BASH_CACHE="$work/ccache" RZSENSE_DATA="$work/cdata2" "$work/rzsense" cmd-check)
+python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); sys.exit(0 if d and all("blocked" in v for v in d.values()) else 1)' "$got" || fail "met COMMANDS=0 hoort de Go-agent geen commando uit te voeren: $got"
+[ ! -d "$work/cdata2/cmdstate" ] || [ -z "$(ls "$work/cdata2/cmdstate")" ] || fail "met COMMANDS=0 is er toch iets uitgevoerd"
+echo "✔ commando-checks: met COMMANDS=0 op de server voert de Go-agent niets uit"
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.

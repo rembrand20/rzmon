@@ -70,6 +70,14 @@ func cliLinux(args []string) bool {
 		in, _ := io.ReadAll(os.Stdin)
 		b, _ := json.Marshal(map[string]any{"auth": authParse(string(in))})
 		fmt.Println(string(b))
+	case "cmd-run": // gestart door de agent zelf: één commando-check op de achtergrond meten
+		if len(os.Args) < 3 || !reDigits.MatchString(os.Args[2]) {
+			os.Exit(2)
+		}
+		os.Exit(cmdRunOne(os.Args[2]))
+	case "cmd-check": // voor de tests: de commando-checks uit de testlijst meten, zoals in het rapport
+		b, _ := json.Marshal(collectCmdLinux())
+		fmt.Println(string(b))
 	case "path-check": // voor de tests: één pad meten (doel, tussenliggende adressen of -)
 		if len(os.Args) < 4 {
 			os.Exit(2)

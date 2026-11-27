@@ -756,11 +756,12 @@ Ook Updates doet hij: eens per uur welke updates er klaarstaan, en installeren a
 (alleen het vaste commando van de pakketbeheerder, nooit een herstart, nooit op TrueNAS, niet met `COMMANDS=0`).
 Verder stuurt hij de softwarelijst voor *Kwetsbaarheden* (één keer per dag, of als er iets geïnstalleerd is), de
 stand van de klok voor de check *Tijd*, de schijfgezondheid (SMART), de UPS en de metingen van pad-checks (met de
-doorvoertest via iperf3).
+doorvoertest via iperf3). Commando-checks voert hij uit zoals de bash-agent (kale omgeving, time-out, standaard als
+`nobody`; `COMMANDS=0` op de server blokkeert ze), maar pas als hij het werk doet: in de proef niet, anders zou elk
+commando twee keer lopen.
 Dit houdt overnemen tegen zolang het voor de server aan staat: logs van webdiensten (met het IDS aan, en alleen
 op een server waar zo'n log gevonden is); IDS en endpoint-sensoren;
-Kwetsbaarheden; Realtime; checks op containers (Podman), Proxmox, TrueNAS, logs, commando's, heartbeats, databases, VPN en
-netwerkverkeer; zelf herstellen en de waakhond; de relay; en vaker dan elke minuut rapporteren.
+Kwetsbaarheden; Realtime; checks op containers (Podman), Proxmox, TrueNAS, logs, heartbeats, databases, VPN en netwerkverkeer; zelf herstellen en de waakhond; de relay; en vaker dan elke minuut rapporteren.
 
 **Wat er gebeurt.** Bij de volgende proefronde zet de Go-agent de timer van de bash-agent en zijn bewaker uit (de
 bash-agent blijft geïnstalleerd, met zijn instellingen en sleutel), haalt de testlijst op en stuurt het echte rapport.

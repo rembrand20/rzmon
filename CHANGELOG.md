@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.349.0**: **De Go-agent voert commando-checks uit**: kale omgeving, time-out, standaard als nobody, met de noodrem `COMMANDS=0` op de server.
 - **1.348.0**: **De Go-agent meet schijfgezondheid, UPS en pad-checks**: gelijk aan de bash-agent, met de doorvoertest.
 - **1.347.0**: **De Go-agent stuurt de softwarelijst en de klok**: Kwetsbaarheden en de check Tijd werken ook als de Go-agent het werk doet.
 - **1.346.0**: **De Go-agent kan Updates**: de lijst met klaarstaande updates en het installeren op verzoek, gelijk aan de bash-agent.
 - **1.345.0**: **De Go-agent leest logins, sudo en su**: gelijk aan de bash-agent, zonder dubbele of gemiste logins bij het overnemen.
-- **1.344.0**: **Overnemen per server**: de Go-agent doet het werk als de proef goed was en niets het tegenhoudt, en valt vanzelf terug op de bash-agent.
+
+## 1.349.0 – 2026-11-27
+### Nieuw
+- **De Go-agent voert nu ook commando-checks uit**, op dezelfde manier als de bash-agent: kale omgeving, time-out, standaard als `nobody`. Commando-checks houden het overnemen daarom niet meer tegen.
+- De instellingen blijven gelden: commando-checks moeten in RzSense aan staan (*Instellingen → 🖥️ Commando-checks*), en `COMMANDS=0` op de server zelf blokkeert ze altijd.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.18.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Commando-checks worden **niet** in de proef vergeleken: de Go-agent voert ze pas uit als hij het werk doet. Ze zijn getest door dezelfde commando's door de bash-code en door de Go-agent te laten uitvoeren.
+- Wat overnemen nu nog tegenhoudt: Realtime, IDS, endpoint-sensoren, ransomware-detectie, logs verzamelen of doorzoeken, containers, Proxmox en TrueNAS, en checks op logs, heartbeats, databases, VPN en netwerkverkeer.
 
 ## 1.348.0 – 2026-11-27
 ### Nieuw

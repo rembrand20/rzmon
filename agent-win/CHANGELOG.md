@@ -5,6 +5,13 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.18.0 – 2026-11-27
+- **Linux: commando-checks.** De Go-agent voert de commando's van commando-checks uit zoals de bash-agent: in een kale omgeving, met een time-out, standaard als `nobody`. Uitvoer en exitcode gaan naar RzSense.
+- De noodrem op de server blijft: `COMMANDS=0` in `/etc/default/rzmon-agent` blokkeert alles, `COMMANDS=nobody` staat nooit root toe.
+- De eerste meting wacht de ronde af; daarna meet de agent op de achtergrond en gaat het vorige resultaat mee, zodat een traag commando het rapport niet ophoudt.
+- Alleen als de Go-agent het werk doet. In de proef voert hij geen commando's uit (anders zou elk commando twee keer lopen).
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.17.0 – 2026-11-27
 - **Linux: schijfgezondheid (SMART).** Per schijf het model, of de zelftest goed is, de temperatuur, slijtage en slechte sectoren (smartctl), elk half uur. Een schijf in slaapstand wordt niet wakker gemaakt.
 - **Linux: UPS** via NUT (`upsc`): status, lading, resterende tijd, belasting en model.

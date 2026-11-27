@@ -190,6 +190,9 @@ func buildRun(c *Config, t0 time.Time) map[string]any {
 	if p := collectPatchLinux(true); p != nil { // 0.15.0: welke updates er klaarstaan (eens per uur)
 		rep["patch"] = p
 	}
+	if c := collectCmdLinux(); c != nil { // 0.18.0: commando-checks
+		rep["cmd"] = c
+	}
 	paths, iperfs := collectPathLinux(true) // 0.17.0: pad-checks en doorvoer
 	if paths != nil {
 		rep["path"] = paths
