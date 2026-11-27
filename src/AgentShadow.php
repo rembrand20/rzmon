@@ -232,6 +232,11 @@ final class AgentShadow
             $onlyB = array_keys(array_diff_key($bc, $gc));
             $onlyG = array_keys(array_diff_key($gc, $bc));
             $n = static fn(array $m): string => count($m) === 1 ? t('1 certificaat') : t('{n} certificaten', ['n' => count($m)]);
+            // 1.345.2: RzSense bewaart hooguit 100 certificaten per server; meldt de bash-agent er zoveel, dan valt alleen te
+            // vergelijken wat er van beide is
+            if (count($bc) >= 100) {
+                $onlyG = [];
+            }
             $add('certificaten: lijst', $n($bc) . ($onlyB ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyB, 0, 5))]) : ''),
                 $n($gc) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 5))]) : ''), !$onlyB && !$onlyG);
             // Gelijk: naam, uitgever, vervaldatum en de keten exact; "vertrouwd" en "fout" alleen ja of nee (de tekst komt
@@ -243,8 +248,17 @@ final class AgentShadow
                 : implode(' · ', array_filter([(string) ($c['cn'] ?? ''), (string) ($c['issuer'] ?? ''), is_numeric($c['not_after'] ?? null) ? date('Y-m-d H:i', (int) $c['not_after']) : '',
                     t('keten {n}', ['n' => (int) ($c['chain_n'] ?? 0)]) . (($c['chain_cn'] ?? '') !== '' ? ' (' . $c['chain_cn'] . ')' : ''),
                     ($c['verify'] ?? null) === null ? '' : ($c['verify'] === 'ok' ? t('vertrouwd') : t('niet vertrouwd'))]));
+            // 1.345.2: de bash-agent leest namen uit de tekst van openssl: een komma in een naam kapt hem af ("Starfield
+            // Technologies\") en letters met accenten komen als \C5\91. De Go-agent leest het certificaat zelf en heeft de
+            // hele naam. Dat is hetzelfde certificaat, dus geen verschil.
+            $name = static function (string $b, string $g): bool {
+                $b = (string) preg_replace_callback('/\\\\([0-9A-Fa-f]{2})/', static fn($m) => chr((int) hexdec($m[1])), $b);
+                return $b === $g || (str_ends_with($b, '\\') && str_starts_with($g, substr($b, 0, -1)));
+            };
             foreach (array_intersect_key($bc, $gc) as $src => $b) {
-                $add('certificaat ' . mb_substr((string) $src, 0, 80), $txt($b), $txt($gc[$src]), $sig($b) === $sig($gc[$src]));
+                [$sb, $sg] = [$sig($b), $sig($gc[$src])];
+                $same = $name($sb[0], $sg[0]) && $name($sb[1], $sg[1]) && $name($sb[5], $sg[5]) && array_diff_key($sb, [0 => 1, 1 => 1, 5 => 1]) === array_diff_key($sg, [0 => 1, 1 => 1, 5 => 1]);
+                $add('certificaat ' . mb_substr((string) $src, 0, 80), $txt($b), $txt($gc[$src]), $same);
             }
         }
         if (is_array($bash['procs'] ?? null) && $bash['procs'] && is_array($go['procs'] ?? null)) {
@@ -295,16 +309,27 @@ final class AgentShadow
                 // Exact: of hij draait, het hoofdproces, de poorten, wat dicht is, en de soort en uitkomst van de test. Het
                 // eigen testscript telt niet mee (dat voert de proef niet uit), en het log schuift mee met de tijd.
                 $ok = isset($b['type']) === isset($g['type']) && (string) ($b['sub'] ?? '') === (string) ($g['sub'] ?? '');
+                $why = [];   // 1.345.2: welk onderdeel verschilt, met beide waarden (anders zie je twee gelijke regels met ≠)
                 if ($ok && isset($b['type'])) {
-                    $ok = (string) $b['type'] === (string) ($g['type'] ?? '') && (int) ($b['pid'] ?? 0) === (int) ($g['pid'] ?? -1) && ($b['restarts'] ?? null) == ($g['restarts'] ?? null)
-                        && $set($b['ports'] ?? []) === $set($g['ports'] ?? []) && $set($b['ports_fail'] ?? []) === $set($g['ports_fail'] ?? [])
-                        && $set($b['manual'] ?? []) === $set($g['manual'] ?? []) && $set($b['sockets'] ?? []) === $set($g['sockets'] ?? [])
-                        && count((array) ($b['sockets_fail'] ?? [])) === count((array) ($g['sockets_fail'] ?? []))
-                        && (string) ($b['probe'] ?? '') === (string) ($g['probe'] ?? '') && ($b['probe_rc'] ?? null) === ($g['probe_rc'] ?? null)
-                        && (($b['since'] ?? null) === null ? ($g['since'] ?? null) === null : $near($b['since'], $g['since'] ?? null, 3))
-                        && ((int) ($b['log_errors'] ?? 0) > 0) === ((int) ($g['log_errors'] ?? 0) > 0);
+                    $j = static fn(mixed $v): string => is_array($v) ? implode(',', array_map('strval', $v)) : (string) ($v ?? '–');
+                    $parts = [
+                        'type' => (string) $b['type'] === (string) ($g['type'] ?? ''), 'pid' => (int) ($b['pid'] ?? 0) === (int) ($g['pid'] ?? -1), 'restarts' => ($b['restarts'] ?? null) == ($g['restarts'] ?? null),
+                        'ports' => $set($b['ports'] ?? []) === $set($g['ports'] ?? []), 'ports_fail' => $set($b['ports_fail'] ?? []) === $set($g['ports_fail'] ?? []),
+                        'manual' => $set($b['manual'] ?? []) === $set($g['manual'] ?? []), 'sockets' => $set($b['sockets'] ?? []) === $set($g['sockets'] ?? []),
+                        'sockets_fail' => count((array) ($b['sockets_fail'] ?? [])) === count((array) ($g['sockets_fail'] ?? [])),
+                        'probe' => (string) ($b['probe'] ?? '') === (string) ($g['probe'] ?? ''), 'probe_rc' => ($b['probe_rc'] ?? null) === ($g['probe_rc'] ?? null),
+                        'since' => ($b['since'] ?? null) === null ? ($g['since'] ?? null) === null : $near($b['since'], $g['since'] ?? null, 3),
+                        'log_errors' => ((int) ($b['log_errors'] ?? 0) > 0) === ((int) ($g['log_errors'] ?? 0) > 0),
+                    ];
+                    foreach ($parts as $k => $same) {
+                        if (!$same) {
+                            $why[$k] = [mb_substr($j($b[$k] ?? null), 0, 120), mb_substr($j($g[$k] ?? null), 0, 120)];
+                        }
+                    }
+                    $ok = $why === [];
                 }
-                $add("dienst $name: details", $txt($b), $txt($g), $ok);
+                $extra = static fn(int $i): string => implode('', array_map(static fn($k) => " · $k: " . $why[$k][$i], array_keys($why)));
+                $add("dienst $name: details", $txt($b) . $extra(0), $txt($g) . $extra(1), $ok);
             }
         }
         if (is_array($bash['svc_tests'] ?? null) && $bash['svc_tests'] && is_array($go['svc_tests'] ?? null)) {
@@ -328,10 +353,11 @@ final class AgentShadow
             $onlyB = array_keys(array_diff_key($bl, $gl));
             $onlyG = array_keys(array_diff_key($gl, $bl));
             $state = array_keys(array_filter(array_intersect_key($bl, $gl), static fn($v, $k) => $v !== $gl[$k], ARRAY_FILTER_USE_BOTH));
-            // Een dienst die net start of stopt tussen de twee metingen is geen verschil: twee afwijkende statussen mag
+            // Een dienst die net start of stopt tussen de twee metingen is geen verschil: twee afwijkende statussen mag, en
+            // (1.345.2) een paar namen ook: tijdelijke diensten met een nummer (dbus-…@11192) komen en gaan
             $add('diensten om uit te kiezen', t('{n} namen', ['n' => count($bl)]) . ($onlyB ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyB, 0, 6))]) : '')
                 . ($state ? ' · ' . t('andere status: {l}', ['l' => implode(', ', array_slice($state, 0, 6))]) : ''),
-                t('{n} namen', ['n' => count($gl)]) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 6))]) : ''), !$onlyB && !$onlyG && count($state) <= 2);
+                t('{n} namen', ['n' => count($gl)]) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 6))]) : ''), count($onlyB) + count($onlyG) <= 4 && count($state) <= 2);
         }
         return $out;
     }

@@ -25,7 +25,7 @@ final class AgentTakeover
         return match (true) {
             $type === 'realtime' => t('Realtime'),
             $type === 'auth' => t('Logins, sudo en su'),
-            in_array($type, ['ids', 'block', 'unblock', 'isolate', 'userlock', 'decoy', 'fim', 'canary'], true) => t('IDS'),
+            in_array($type, ['ids', 'block', 'unblock', 'isolate', 'userlock', 'decoy', 'fim', 'canary', 'knet', 'outblock', 'net'], true) => t('IDS'),
             str_starts_with($type, 'edr') => t('Endpoint-sensoren (EDR)'),
             in_array($type, ['weblog', 'web'], true) => t('Logs van webdiensten'),
             in_array($type, ['watchdog', 'heal', 'heal_cmds'], true) => t('Zelf herstellen en de waakhond'),

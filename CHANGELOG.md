@@ -14,6 +14,15 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.342.0**: **Proef met de Go-agent: details per dienst**: poorten, een passende test en logfouten per dienst, extra tests en de dienstenlijst.
 - **1.341.0**: **Proef met de Go-agent: certificaten en processen**: uitgelezen zonder openssl en ps, en vergeleken met de bash-agent.
 
+## 1.345.2 – 2026-11-27
+### Opgelost
+Uit de eerste proefronde op een echte server (Rocky/RHEL met systemd):
+- **Proef met de Go-agent: certificaten leken te verschillen terwijl ze gelijk waren.** De bash-agent kapt een naam met een komma af (`Starfield Technologies\`) en schrijft letters met accenten als `\C5\91`; de Go-agent heeft de hele naam. Dat telt niet meer als verschil.
+- Meldt een server 100 of meer certificaten (RzSense bewaart er hooguit 100), dan telt wat de Go-agent meer leest niet als verschil.
+- **Bij *dienst …: details* staat nu welk onderdeel verschilt**, met beide waarden. Eerst zag je twee gelijke regels met ≠.
+- De lijst *diensten om uit te kiezen* mag een paar namen verschillen: tijdelijke diensten met een nummer komen en gaan.
+- In de lijst met wat overnemen tegenhoudt stonden `knet` en `outblock` als losse onderdelen; die horen bij het IDS.
+
 ## 1.345.1 – 2026-11-27
 ### Opgelost
 - **Overnemen door de Go-agent: logs van webdiensten hielden het met het IDS aan op elke server tegen**, ook op servers zonder SWAG, Home Assistant of Vaultwarden. Dat telt nu alleen nog op een server waar de bash-agent zo'n log echt gevonden heeft.

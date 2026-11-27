@@ -5226,6 +5226,26 @@ foreach ($guMade as $guF) {
 }
 q('DELETE FROM hosts WHERE id = ?', [$guH]);
 
+section('Proef met de Go-agent: wat een echte server liet zien (1.345.2)');
+$rcC = static fn(string $issuer, string $cn = 'Root'): array => ['cn' => $cn, 'issuer' => $issuer, 'not_after' => 2000000000, 'chain_n' => 1, 'chain_min' => 2000000000, 'chain_cn' => $cn];
+$rcBash = ['certs' => ['/a.0' => $rcC('Starfield Technologies\\'), '/b.0' => $rcC('NetLock Kft.', 'F\\C5\\91tan\\C3\\BAs\\C3\\ADtv\\C3\\A1ny'), '/c.0' => $rcC('Echt Anders BV')],
+    'svc' => ['x' => ['sub' => 'running', 'type' => 'simple', 'pid' => 5, 'ports' => [], 'sockets' => ['/run/x.sock']]],
+    'svclist' => [['a', 'active', 1], ['dbus-:1.1-org.x@11192', 'active', 0]]];
+$rcGo = ['certs' => [['source' => '/a.0'] + $rcC('Starfield Technologies, Inc.'), ['source' => '/b.0'] + $rcC('NetLock Kft.', 'Főtanúsítvány'), ['source' => '/c.0'] + $rcC('Iets Anders BV')],
+    'svc' => ['x' => ['sub' => 'running', 'type' => 'simple', 'pid' => 5, 'ports' => [], 'sockets' => []]],
+    'svc_list' => [['a', 'active', 1], ['dbus-:1.1-org.x@11194', 'active', 0]]];
+$rcI = array_column(AgentShadow::compare($rcGo, $rcBash), null, 'k');
+ok($rcI['certificaat /a.0']['ok'] && $rcI['certificaat /b.0']['ok'], 'een naam die de bash-agent bij een komma afkapt of met \\C5\\91 schrijft is hetzelfde certificaat');
+ok(!$rcI['certificaat /c.0']['ok'], 'een echt andere uitgever blijft een verschil');
+ok(!$rcI['dienst x: details']['ok'] && str_contains($rcI['dienst x: details']['bash'], 'sockets: /run/x.sock') && str_contains($rcI['dienst x: details']['go'], 'sockets:'), 'bij een verschil in de details staat welk onderdeel verschilt: ' . $rcI['dienst x: details']['bash']);
+ok($rcI['diensten om uit te kiezen']['ok'], 'een tijdelijke dienst met een ander nummer is geen verschil');
+$rcMany = [];
+for ($rcN = 0; $rcN < 100; $rcN++) {
+    $rcMany["/m$rcN.0"] = $rcC('X');
+}
+$rcGoMany = array_map(static fn($k) => ['source' => $k] + $rcC('X'), [...array_keys($rcMany), '/extra1.0', '/extra2.0']);
+ok(array_column(AgentShadow::compare(['certs' => $rcGoMany], ['certs' => $rcMany]), null, 'k')['certificaten: lijst']['ok'], 'bij 100 of meer certificaten (de grens van RzSense) telt wat de Go-agent meer heeft niet als verschil');
+
 section('Overnemen per server door de Go-agent (1.344.0)');
 $tkOld = [];
 foreach (['auth_events', 'weblog_swag', 'weblog_ha', 'weblog_vw', 'patch_on', 'ids_enabled', 'vuln_enabled', 'agent_tick'] as $tkK) {
