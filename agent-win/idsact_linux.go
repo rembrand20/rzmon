@@ -373,6 +373,7 @@ type fwResult struct {
 func fwApply(tests string, c *Config, conf map[string]string) fwResult {
 	dir := idsDir()
 	_ = os.MkdirAll(dir, 0o700)
+	seedFromBash("ids/fw.sig", filepath.Join(dir, "fw.sig"))
 	p := fwPlanFrom(tests, fwLiveEnv(c, conf))
 	r := fwResult{decoy: []string{}, decoyErr: p.decoyErr}
 	if p.decoy != "" && nftTableLive("rzmon") {
@@ -597,6 +598,7 @@ func isoPlanFrom(tests string, urls []string, resolv string, now int64, addrs fu
 func isoApply(tests string, c *Config) map[string]any {
 	dir := filepath.Join(dataDir(), "iso")
 	_ = os.MkdirAll(dir, 0o700)
+	seedFromBash("iso/sig", filepath.Join(dir, "sig"))
 	p := isoPlanFrom(tests, []string{c.URL, c.URLFallback}, readText("/etc/resolv.conf"), time.Now().Unix(), hostAddrs)
 	sigFile := filepath.Join(dir, "sig")
 	switch {
@@ -795,6 +797,29 @@ func fimRehash() int {
 	return 0
 }
 
+// seedFromBash: de eerste keer dat de Go-agent het werk doet de stand van de bash-agent overnemen (paren van: bestand in
+// de map van de bash-agent, eigen bestand). Alleen als het eigen bestand er nog niet is en alle bronnen bestaan. Zo hoeft
+// de firewall niet opnieuw geladen te worden en worden bewaakte bestanden niet opnieuw gehasht.
+func seedFromBash(pairs ...string) {
+	if os.Getenv("RZSENSE_TEST_SEED") == "" && !modeActive() {
+		return
+	}
+	for i := 0; i+1 < len(pairs); i += 2 {
+		if _, err := os.Stat(pairs[i+1]); err == nil {
+			return
+		}
+		if _, err := os.Stat(filepath.Join(bashCacheRoot(), pairs[i])); err != nil {
+			return
+		}
+	}
+	for i := 0; i+1 < len(pairs); i += 2 {
+		if data, err := os.ReadFile(filepath.Join(bashCacheRoot(), pairs[i])); err == nil {
+			_ = os.MkdirAll(filepath.Dir(pairs[i+1]), 0o700)
+			_ = os.WriteFile(pairs[i+1], data, 0o600)
+		}
+	}
+}
+
 // ---------- het onderdeel "ids" van het rapport (als de Go-agent het werk doet) ----------
 
 type idsRun struct {
@@ -847,7 +872,10 @@ func collectIdsLinux(c *Config) idsRun {
 		ids["killed"] = killWanted(tests)
 		ids["fimc"] = idsFimCandidates()
 		if fc := fimParse(tests); fc != nil {
+			seedFromBash("ids/fim/state", filepath.Join(dir, "fim", "state"), "ids/fim/meta", filepath.Join(dir, "fim", "meta"), "ids/fim/roots", filepath.Join(dir, "fim", "roots"))
+			fimDeadline = time.Now().Add(60 * time.Second)
 			f := fimDelta(fc, filepath.Join(dir, "fim"))
+			fimDeadline = time.Time{}
 			fim = &f
 			ids["fim"] = f.json
 			if _, err := os.Stat(filepath.Join(dir, "fim", "state")); err == nil {

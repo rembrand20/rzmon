@@ -2356,7 +2356,7 @@ for side in b g; do
 done
 av_tests() { for side in b g; do printf '%b' "${1//@S@/$V/$side}" >"$V/$side/cache/tests.cache"; cp "$V/$side/cache/tests.cache" "$V/$side/gc/tests.cache"; done; }
 av_flag() { for side in b g; do if [ "$1" = aan ]; then : >"$V/$side/st/$2"; else mv -f "$V/$side/st/$2" "$V/$side/st/.uit.$2.$RANDOM" 2>/dev/null || true; fi; done; }
-av_put() { for side in b g; do printf '%b' "$2" >"$V/$side/$1"; done; }
+av_put() { for side in b g; do printf '%b' "$2" >"$V/$side/$1"; done; touch -r "$V/b/$1" "$V/g/$1"; }   # dezelfde tijd aan beide kanten
 av_bash() {  # av_bash <uitvoer> [vrij geheugen in MB]
     (
         set +u
@@ -2385,6 +2385,9 @@ av_go() {  # av_go <uitvoer> [minimaal geheugen]
 }
 av_same() {  # av_same <naam> <verwachting in Python over a (gemeld), up (uploadmappen) en q (quarantaine)> [minimaal geheugen]
     av_bash "$V/$1.bash.json" "${3:-1}"; av_go "$V/$1.go.json" "${3:-1}"
+    # Het beginpunt voor de volgende ronde aan beide kanten gelijk: anders hangt het van de seconde af waarin elke kant
+    # draaide welke bestanden "nieuw" zijn, en vergelijken we toeval in plaats van de agents
+    if [ -f "$V/b/avdir/last.stamp" ] && [ -f "$V/g/avdir/last.stamp" ]; then touch -r "$V/b/avdir/last.stamp" "$V/g/avdir/last.stamp"; fi
     python3 -I - "$V" "$1" "$2" <<'PY' || fail "ClamAV ($1): de Go-agent doet iets anders dan de bash-agent"
 import json, os, re, sys
 V, name, expect = sys.argv[1:4]
@@ -2461,7 +2464,7 @@ sleep 2.2
 av_same terugzetten "[(o['op'], o['ok'], o['msg']) for o in a['ops']] == [('restore', 1, 'teruggezet'), ('delete', 1, 'definitief weggehaald'), ('restore', 1, 'niet (meer) in de quarantaine')] and a['quarantine'] == [] and up['/up/nextcloud/sub/eicar.com'].startswith('640') and a['found'] == []"
 av_tests "${base}0\tav\ton\t1\t1\n$dirs"
 sleep 2.2
-for side in b g; do touch "$V/$side/up/nextcloud/sub/eicar.com"; done
+touch "$V/b/up/nextcloud/sub/eicar.com"; touch -r "$V/b/up/nextcloud/sub/eicar.com" "$V/g/up/nextcloud/sub/eicar.com"
 av_same toegestaan "a['new'] == 1 and a['found'] == [] and '/up/nextcloud/sub/eicar.com' in up"
 # 6: alleen melden (niet verplaatsen); 7: een volledige scan op verzoek, de uitkomst komt een ronde later
 av_tests "${base}0\tav\ton\t1\t0\n$dirs"

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestFnmatchAll(t *testing.T) {
@@ -55,6 +56,46 @@ func TestFimHashReuseAndBig(t *testing.T) {
 	// een bestand dat niet te lezen is, valt weg
 	if l4 := fimHash([]fimEntry{{path: filepath.Join(dir, "bestaat-niet"), size: 1, mtime: "1.0"}}, nil); len(l4) != 0 {
 		t.Errorf("een onleesbaar bestand hoort weg te vallen: %+v", l4)
+	}
+}
+
+func TestFimHashBudget(t *testing.T) {
+	dir := t.TempDir()
+	known, fresh := filepath.Join(dir, "bekend"), filepath.Join(dir, "nieuw")
+	_ = os.WriteFile(known, []byte("veranderd\n"), 0o600)
+	_ = os.WriteFile(fresh, []byte("nieuw\n"), 0o600)
+	fimDeadline = time.Now().Add(-time.Second) // de tijd is al op
+	defer func() { fimDeadline = time.Time{} }()
+	old := map[string][3]string{known: {"3", "1.0", "oudehash"}}
+	l := fimHash(fimList(&fimConf{roots: []fimRoot{{1, dir}}}), old)
+	if len(l) != 1 || l[0].path != known || l[0].hash != "oudehash" || l[0].size != 3 || l[0].mtime != "1.0" {
+		t.Fatalf("zonder tijd hoort een bekend bestand te blijven zoals het was en een nieuw bestand te wachten: %+v", l)
+	}
+	fimDeadline = time.Time{}
+	if l := fimHash(fimList(&fimConf{roots: []fimRoot{{1, dir}}}), old); len(l) != 2 || l[0].hash == "oudehash" {
+		t.Errorf("met tijd hoort alles een nieuwe vingerafdruk te krijgen: %+v", l)
+	}
+}
+
+func TestSeedFromBash(t *testing.T) {
+	bash, own := t.TempDir(), t.TempDir()
+	t.Setenv("RZSENSE_BASH_CACHE", bash)
+	t.Setenv("RZSENSE_TEST_SEED", "1")
+	_ = os.MkdirAll(filepath.Join(bash, "ids", "fim"), 0o700)
+	_ = os.WriteFile(filepath.Join(bash, "ids", "fim", "state"), []byte("stand\n"), 0o600)
+	seedFromBash("ids/fim/state", filepath.Join(own, "state"), "ids/fim/meta", filepath.Join(own, "meta"))
+	if _, err := os.Stat(filepath.Join(own, "state")); err == nil {
+		t.Fatal("ontbreekt er een bron, dan hoort er niets overgenomen te worden")
+	}
+	_ = os.WriteFile(filepath.Join(bash, "ids", "fim", "meta"), []byte("5\n"), 0o600)
+	seedFromBash("ids/fim/state", filepath.Join(own, "state"), "ids/fim/meta", filepath.Join(own, "meta"))
+	if readText(filepath.Join(own, "state")) != "stand\n" || readText(filepath.Join(own, "meta")) != "5\n" {
+		t.Fatal("de stand van de bash-agent hoort overgenomen te worden")
+	}
+	_ = os.WriteFile(filepath.Join(bash, "ids", "fim", "state"), []byte("nieuwer\n"), 0o600)
+	seedFromBash("ids/fim/state", filepath.Join(own, "state"), "ids/fim/meta", filepath.Join(own, "meta"))
+	if readText(filepath.Join(own, "state")) != "stand\n" {
+		t.Error("een eigen stand hoort nooit overschreven te worden")
 	}
 }
 

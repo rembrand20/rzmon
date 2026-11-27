@@ -5,6 +5,11 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.36.1 – 2026-11-27
+- **Linux: een lichte eerste ronde na het overnemen.** De Go-agent neemt de stand van de bash-agent over: de vingerafdrukken van bewaakte bestanden en de vingerafdruk van de firewall en van het isoleren. Bewaakte bestanden worden daardoor niet opnieuw gehasht en de firewalltabel wordt niet opnieuw geladen.
+- **Bestanden bewaken: een ronde blijft kort.** Nieuwe vingerafdrukken maken mag per ronde hooguit een minuut duren (in de proef 20 seconden). Wat dan nog niet klaar is, volgt de volgende ronde; een bestand dat al bekend was wordt intussen nooit als verdwenen gemeld.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.36.0 – 2026-11-27
 - **Linux: uploads scannen met ClamAV**, zoals de bash-agent: alleen de mappen die mogen (binnen `AV_DIRS_MAX`, nooit systeemmappen), nieuwe en gewijzigde bestanden elke ronde, een volledige scan op verzoek, en de quarantaine (rechten 000, met de oude plek, eigenaar en rechten erbij). Terugzetten en definitief weghalen werken hetzelfde; de quarantaine is dezelfde map.
 - **Linux: Suricata op het proxynetwerk**: de netwerkbrug van de proxy vinden, het regelprofiel, de regels dagelijks bijwerken (herstarten alleen als ze veranderden) en de meldingen doorgeven.

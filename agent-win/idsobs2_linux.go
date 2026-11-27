@@ -991,6 +991,9 @@ func sha256File(p string) (string, bool) {
 
 const fimBig = 104857600 // boven 100 MB geen hash: de tijd van het bestand telt
 
+// fimDeadline: tot wanneer er deze ronde nieuwe vingerafdrukken gemaakt mogen worden (leeg = geen grens)
+var fimDeadline time.Time
+
 // fimHash: de hash erbij zetten. Uit de vorige stand als grootte en tijd gelijk zijn, anders opnieuw; een bestand dat niet
 // te lezen is, valt weg (zoals bij de bash-agent).
 func fimHash(list []fimEntry, old map[string][3]string) []fimEntry {
@@ -1001,6 +1004,15 @@ func fimHash(list []fimEntry, old map[string][3]string) []fimEntry {
 			e.hash = "m" + e.mtime[:strings.Index(e.mtime, ".")]
 		case ok && o[0] == strconv.FormatInt(e.size, 10) && o[1] == e.mtime:
 			e.hash = o[2]
+		case !fimDeadline.IsZero() && time.Now().After(fimDeadline):
+			// 0.36.1: de tijd voor deze ronde is op. Een bestand dat al bekend was, blijft staan zoals het was (de volgende
+			// ronde ziet de wijziging opnieuw); een nieuw bestand komt de volgende ronde. Zo blijft een ronde kort, ook met
+			// duizenden bestanden, en wordt er nooit een bestand als "verdwenen" gemeld dat er nog is.
+			if !ok {
+				continue
+			}
+			sz, _ := strconv.ParseInt(o[0], 10, 64)
+			e.size, e.mtime, e.hash = sz, o[1], o[2]
 		default:
 			h, ok := sha256File(e.path)
 			if !ok {
@@ -1046,6 +1058,11 @@ func idsFimObserve(tests string) map[string]any {
 	}
 	state := filepath.Join(idsDir(), "fim", "state")
 	old, _ := fimStateRead(state)
+	if len(old) == 0 { // 0.36.1: de eerste keer de vingerafdrukken van de bash-agent gebruiken (alleen lezen), niet alles opnieuw hashen
+		old, _ = fimStateRead(filepath.Join(bashCacheRoot(), "ids", "fim", "state"))
+	}
+	fimDeadline = time.Now().Add(20 * time.Second)
+	defer func() { fimDeadline = time.Time{} }()
 	list := fimHash(fimList(c), old)
 	_ = os.WriteFile(state+".tmp", []byte(fimStateText(list)), 0o600)
 	_ = os.Rename(state+".tmp", state)
