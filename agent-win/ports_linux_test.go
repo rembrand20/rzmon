@@ -90,6 +90,20 @@ func TestWantedServices(t *testing.T) {
 
 // Op een machine met ss: dezelfde poorten en adressen als "ss -Htln" (zoals de bash-agent ze leest)
 func TestPortsEqualSs(t *testing.T) {
+	if _, err := exec.LookPath("ss"); err != nil {
+		t.Skip("ss niet beschikbaar")
+	}
+	// Tussen de twee momentopnamen kan een poort open of dicht gaan: tot drie keer proberen
+	var diff string
+	for try := 0; try < 3; try++ {
+		if diff = portsVsSs(t); diff == "" {
+			return
+		}
+	}
+	t.Fatal(diff)
+}
+
+func portsVsSs(t *testing.T) string {
 	out, err := exec.Command("ss", "-Htln").Output()
 	if err != nil {
 		t.Skip("ss niet beschikbaar")
@@ -119,6 +133,7 @@ func TestPortsEqualSs(t *testing.T) {
 		return strings.Join(k, " ")
 	}
 	if keys(want) != keys(got) {
-		t.Fatalf("poorten verschillen van ss:\n  ss: %s\n  go: %s", keys(want), keys(got))
+		return fmt.Sprintf("poorten verschillen van ss:\n  ss: %s\n  go: %s", keys(want), keys(got))
 	}
+	return ""
 }

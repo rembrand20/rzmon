@@ -26,7 +26,8 @@ async function amGo(h, body) {
           `Go ${s.version}`, s.bash_version ? `bash ${s.bash_version}` : '', L('meten kostte {n} ms', { n: s.took_ms })].filter(Boolean).join(' · '))}</small></div></div>`;
     // 1.340.0: een oudere Go-agent op de server meet minder; de proef werkt zichzelf niet bij
     if (s.live && s.version && d.version && s.version !== d.version && d.archs.length) {
-      html += `<p class="callout small">${esc(L('Op de server draait Go-agent {a}; RzSense heeft {b}. Voer het installatiecommando hieronder opnieuw uit om bij te werken: de nieuwe meet meer.', { a: s.version, b: d.version }))}</p>`;
+      html += `<p class="callout small">${esc(L('Op de server draait Go-agent {a}; RzSense heeft {b}. Vanaf 0.12.0 werkt de Go-agent zichzelf bij; een oudere werk je bij door het installatiecommando hieronder opnieuw uit te voeren.', { a: s.version, b: d.version }))}
+        ${s.update_last && s.update_last.includes('✘') ? '<br>' + esc(s.update_last) : ''}</p>`;
     }
     if (s.n) {
       html += `<div class="table-wrap"><table class="small go-tbl"><thead><tr><th>${esc(L('Meting'))}</th><th>${esc(L('Bash-agent'))}</th><th>${esc(L('Go-agent'))}</th><th></th></tr></thead><tbody>${

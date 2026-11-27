@@ -126,7 +126,7 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=yes
-ReadWritePaths=$DATA
+ReadWritePaths=$DATA /usr/local/bin
 EOF
     cat >"$UNIT.timer" <<EOF
 [Unit]

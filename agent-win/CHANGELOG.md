@@ -5,6 +5,12 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.12.0 – 2026-11-27
+- **Linux: de Go-agent werkt zichzelf bij.** Heeft RzSense een nieuwere versie, dan haalt de agent die op en vervangt hij zichzelf. Alleen als de handtekening van de ontwikkelaar klopt (de agent controleert dat zelf, zonder openssl), de SHA-256 overeenkomt, de versie echt nieuwer is en het nieuwe bestand op deze server kan draaien. Anders blijft de huidige versie staan en staat de reden in RzSense en in `rzsense status`.
+- `REMOTE_UPDATE=0` in de instellingen van de agent zet dit uit, net als bij de bash-agent.
+- De timer van de proef mag daarvoor in `/usr/local/bin` schrijven. Een proef die met een oudere versie is geïnstalleerd, heeft die ruimte nog niet: voer het installatiecommando één keer opnieuw uit.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.11.0 – 2026-11-27
 - **Linux: details per dienst.** Voor elke dienst met een check: de status van systemd, het hoofdproces, herstarts, sinds wanneer hij draait, de poorten van zijn processen (getest op de server zelf), zelf opgegeven poorten en sockets, een test die bij de dienst past (webserver, database, Redis, SSH, mail, DNS, tijd) en de fouten in het log van het laatste kwartier.
 - **Linux: extra tests** uit RzSense (een URL, met of zonder verwachte tekst, of een poort) en de **lijst met diensten** om uit te kiezen.

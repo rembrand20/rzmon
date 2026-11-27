@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.343.0**: **De proef met de Go-agent werkt zichzelf bij**: alleen met een geldige handtekening van de ontwikkelaar.
 - **1.342.0**: **Proef met de Go-agent: details per dienst**: poorten, een passende test en logfouten per dienst, extra tests en de dienstenlijst.
 - **1.341.0**: **Proef met de Go-agent: certificaten en processen**: uitgelezen zonder openssl en ps, en vergeleken met de bash-agent.
 - **1.340.0**: **Proef met de Go-agent: poorten en diensten**: de Go-agent meet ze zoals de bash-agent, en RzSense laat zien waar ze verschillen.
 - **1.339.0**: **Eén agent in Go, ook voor Linux**: het commando `rzsense` als proef naast de bash-agent, met `rzsense doctor` en een vergelijking van de metingen in de Agent Manager.
-- **1.338.0**: **Dezelfde opbouw op elke pagina**: onder elke titel één zin over hoe het ervoor staat, en grotere aanraakvlakken op telefoon en tablet.
+
+## 1.343.0 – 2026-11-27
+### Nieuw
+- **De proef met de Go-agent werkt zichzelf bij.** Tot nu toe moest je bij elke nieuwe Go-agent het installatiecommando opnieuw uitvoeren. Vanaf Go-agent 0.12.0 haalt de agent een nieuwere versie zelf op bij RzSense.
+- **Veilig:** de agent vervangt zichzelf alleen als de handtekening van de ontwikkelaar klopt, de versie echt nieuwer is en het nieuwe bestand op de server kan draaien. Een overgenomen RzSense kan zo geen eigen code op je servers zetten. Lukt iets niet, dan blijft de oude versie draaien en staat de reden in het blok *Go-agent (proef)*.
+- Staat *bijwerken vanuit RzSense* voor de agent uit (`REMOTE_UPDATE=0`), dan werkt ook de Go-agent zichzelf niet bij.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.12.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Voer op een server waar de proef al loopt het installatiecommando nog **één keer** opnieuw uit. Daarna hoeft dat niet meer.
 
 ## 1.342.0 – 2026-11-27
 ### Nieuw

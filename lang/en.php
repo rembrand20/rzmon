@@ -12124,4 +12124,5 @@ return [
     '{n} herstarts' => '{n} restarts',
     '{n} fouten in het log' => '{n} errors in the log',
     'andere status: {l}' => 'different state: {l}',
+    'Op de server draait Go-agent {a}; RzSense heeft {b}. Vanaf 0.12.0 werkt de Go-agent zichzelf bij; een oudere werk je bij door het installatiecommando hieronder opnieuw uit te voeren.' => 'The server runs Go agent {a}; RzSense has {b}. From 0.12.0 the Go agent updates itself; update an older one by running the install command below again.',
 ];

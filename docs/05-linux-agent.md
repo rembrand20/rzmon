@@ -720,8 +720,12 @@ In het blok staat hoeveel proefrondes gelijk waren, de laatste ronde per meting 
 het verschilt) en waar het vaakst een verschil zat. Een ronde zonder verse meting van de bash-agent telt niet mee. Met
 *Opnieuw beginnen te tellen* zet je de tellers op nul.
 
-De proef werkt zichzelf niet bij. Heeft RzSense een nieuwere Go-agent dan er op de server draait, dan staat dat in het
-blok; voer het installatiecommando dan opnieuw uit. Een oudere Go-agent wordt alleen vergeleken op wat hij meet.
+**Bijwerken.** De Go-agent werkt zichzelf bij: heeft RzSense een nieuwere versie, dan haalt hij die bij de volgende
+proefronde op. Hij vervangt zichzelf alleen als de handtekening van de ontwikkelaar klopt, de versie echt nieuwer is en
+het nieuwe bestand op de server kan draaien; anders blijft de oude versie staan en staat de reden in het blok en in
+`rzsense status`. Met `REMOTE_UPDATE=0` in de instellingen van de agent gebeurt dit niet. Een heel oude Go-agent (van
+vóór het zelf bijwerken) werk je één keer bij door het installatiecommando opnieuw uit te voeren. Een oudere Go-agent
+wordt alleen vergeleken op wat hij meet.
 
 ### Het commando `rzsense`
 

@@ -53,8 +53,17 @@ final class AgentShadow
             'last_diff_at' => $counted && !$allOk ? now() : ($prev['last_diff_at'] ?? null),
             'diff_n' => array_slice($diffN, 0, 20, true),
             'doctor' => self::cleanDoctor($in['doctor'] ?? []),
+            'update_last' => mb_substr((string) ($in['update_last'] ?? ''), 0, 300),   // 1.343.0: de uitkomst van het laatste zelf bijwerken
         ]);
-        return ['ok' => true, 'same' => $same, 'n' => count($items),
+        // 1.343.0: heeft RzSense een nieuwere Go-agent voor deze processor? Dan werkt de agent zichzelf bij (hij controleert
+        // zelf de handtekening van de ontwikkelaar; de SHA-256 is een extra controle op het downloaden)
+        $update = null;
+        $arch = (string) ($in['arch'] ?? '');
+        $have = (string) ($in['agent_version'] ?? '');
+        if (in_array($arch, self::ARCHS, true) && in_array($arch, self::available(), true) && preg_match('/^\d+\.\d+\.\d+$/', $have) && version_compare(AGENT_WIN_LATEST, $have, '>')) {
+            $update = ['version' => AGENT_WIN_LATEST, 'sha256' => (string) hash_file('sha256', self::file($arch))];
+        }
+        return ['ok' => true, 'same' => $same, 'n' => count($items), 'update' => $update,
             'diffs' => array_values(array_map(static fn($i) => ['k' => $i['k'], 'bash' => $i['bash'], 'go' => $i['go']], array_filter($items, static fn($i) => !$i['ok'])))];
     }
 

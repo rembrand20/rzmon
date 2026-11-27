@@ -286,6 +286,9 @@ func cmdStatus() int {
 	if last := readState("shadow.last"); last != "" {
 		fmt.Println("  Laatste proefronde:", last)
 	}
+	if upd := readState("update.last"); upd != "" {
+		fmt.Println("  Bijwerken:    ", upd)
+	}
 	return 0
 }
 
@@ -317,6 +320,10 @@ func cmdTest() int {
 // ---------------------------------------------------------------- proefronde
 
 type shadowReply struct {
+	Update *struct { // 0.12.0: RzSense heeft een nieuwere Go-agent voor deze processor
+		Version string `json:"version"`
+		SHA     string `json:"sha256"`
+	} `json:"update"`
 	OK    bool   `json:"ok"`
 	Error string `json:"error"`
 	Same  int    `json:"same"`
@@ -343,8 +350,8 @@ func cmdShadow(quiet bool) int {
 	}
 	t0 := time.Now()
 	core := coreCollect(2 * time.Second)
-	rep := map[string]any{"agent_version": Version, "os": "linux", "bash_version": bashAgentVersion(), "core": core,
-		"took_ms": time.Since(t0).Milliseconds(), "doctor": diagnoseBrief()}
+	rep := map[string]any{"agent_version": Version, "os": "linux", "arch": goArch(), "bash_version": bashAgentVersion(), "core": core,
+		"took_ms": time.Since(t0).Milliseconds(), "doctor": diagnoseBrief(), "update_last": readState("update.last")}
 	plain, _ := json.Marshal(rep)
 	body, code, err := sealedCall(c, "agent_shadow", plain, nil, 30*time.Second)
 	var r shadowReply
@@ -364,6 +371,9 @@ func cmdShadow(quiet bool) int {
 	}
 	line := fmt.Sprintf("%s ✔ %d van %d metingen gelijk aan de bash-agent", stamp, r.Same, r.N)
 	writeState("shadow.last", line)
+	if r.Update != nil {
+		selfUpdateLinux(c, r.Update.Version, r.Update.SHA) // de volgende ronde draait de nieuwe versie
+	}
 	if !quiet {
 		fmt.Println(line)
 		for _, d := range r.Diffs {

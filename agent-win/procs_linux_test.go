@@ -11,6 +11,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net"
 	"os"
@@ -93,6 +94,20 @@ func TestProcChecksLikeBash(t *testing.T) {
 
 // Op een machine met ps: dezelfde processen (pid, ouder, naam, geheugen) als ps zelf geeft
 func TestProcTableEqualPs(t *testing.T) {
+	if _, err := exec.LookPath("ps"); err != nil {
+		t.Skip("ps niet beschikbaar")
+	}
+	// Processen starten en stoppen tussen de twee momentopnamen: tot drie keer proberen
+	var diff string
+	for try := 0; try < 3; try++ {
+		if diff = procsVsPs(t); diff == "" {
+			return
+		}
+	}
+	t.Fatal(diff)
+}
+
+func procsVsPs(t *testing.T) string {
 	cmd := exec.Command("ps", "-eo", "pid=,ppid=,rss=,comm=")
 	cmd.Env = append(os.Environ(), "LC_ALL=C")
 	out, err := cmd.Output()
@@ -128,8 +143,9 @@ func TestProcTableEqualPs(t *testing.T) {
 		}
 	}
 	if seen < 3 || same < seen-2 {
-		t.Fatalf("%d van %d processen gelijk aan ps", same, seen)
+		return fmt.Sprintf("%d van %d processen gelijk aan ps", same, seen)
 	}
+	return ""
 }
 
 func testCert(t *testing.T, cn, org string, notAfter time.Time, parent *x509.Certificate, parentKey *ecdsa.PrivateKey) ([]byte, *x509.Certificate, *ecdsa.PrivateKey) {

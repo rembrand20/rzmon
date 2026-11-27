@@ -5200,5 +5200,31 @@ $gsProbe['svc']['nginx']['probe_rc'] = 2;
 ok(in_array('dienst nginx: details', array_column(array_filter(AgentShadow::compare($gsProbe, $gsBash), static fn($i) => !$i['ok']), 'k'), true), 'een test die bij de een goed is en bij de ander fout, valt op');
 q('DELETE FROM hosts WHERE id = ?', [$gsH]);
 
+section('Proef met de Go-agent: zelf bijwerken (1.343.0)');
+q("INSERT INTO hosts (name, address, mode, enabled) VALUES ('go-unit5', '192.0.2.81', 'agent', 1)");
+$guH = (int) db()->lastInsertId();
+$guCore = ['cpu' => ['pct' => 1.0, 'load' => [0, 0, 0], 'cores' => 1], 'mem' => ['total' => 1, 'avail' => 1, 'swap_total' => 0, 'swap_free' => 0]];
+$guDir = SM_ROOT . '/agent-win/dist';
+$guMade = [];
+foreach (['rzsense-linux-arm64', 'rzsense-linux-arm64.sig'] as $guF) {   // alleen als GitHub ze nog niet gebouwd heeft: tijdelijk een testbestand
+    if (!is_file("$guDir/$guF")) {
+        @mkdir($guDir, 0775, true);
+        file_put_contents("$guDir/$guF", 'test');
+        $guMade[] = "$guDir/$guF";
+    }
+}
+$guR = AgentShadow::receive(['id' => $guH], ['agent_version' => '0.0.1', 'arch' => 'arm64', 'core' => $guCore, 'update_last' => '2026-11-27 ✘ kan niet schrijven']);
+ok(($guR['update']['version'] ?? '') === AGENT_WIN_LATEST && ($guR['update']['sha256'] ?? '') === hash_file('sha256', "$guDir/rzsense-linux-arm64"), 'een oudere Go-agent krijgt de nieuwe versie en de SHA-256 van het bestand voor zijn processor');
+ok(str_contains((string) AgentShadow::get($guH)['shadow']['update_last'], 'kan niet schrijven'), 'wat de agent over het bijwerken meldt, staat in RzSense');
+ok(AgentShadow::receive(['id' => $guH], ['agent_version' => AGENT_WIN_LATEST, 'arch' => 'arm64', 'core' => $guCore])['update'] === null
+    && AgentShadow::receive(['id' => $guH], ['agent_version' => '99.0.0', 'arch' => 'arm64', 'core' => $guCore])['update'] === null, 'dezelfde of een nieuwere versie: niets bijwerken (nooit terug naar een oudere)');
+ok(AgentShadow::receive(['id' => $guH], ['agent_version' => '0.0.1', 'arch' => 'mips', 'core' => $guCore])['update'] === null
+    && AgentShadow::receive(['id' => $guH], ['agent_version' => '0.0.1', 'core' => $guCore])['update'] === null
+    && AgentShadow::receive(['id' => $guH], ['agent_version' => 'raar', 'arch' => 'arm64', 'core' => $guCore])['update'] === null, 'een onbekende processor of versie: niets bijwerken');
+foreach ($guMade as $guF) {
+    @unlink($guF);
+}
+q('DELETE FROM hosts WHERE id = ?', [$guH]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);
