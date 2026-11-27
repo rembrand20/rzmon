@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.354.0**: **De Go-agent leest Proxmox en TrueNAS uit**: guests, opslag, ZFS, back-ups en apps, gelijk aan de bash-agent.
 - **1.353.0**: **De Go-agent heeft de waakhond**: een bericht via Pushover of ntfy als RzSense onbereikbaar is, en wachten tijdens een update.
 
+## 1.357.2 – 2026-11-27
+### Opgelost
+- **De proef met de Go-agent telde niet door en verdween steeds uit beeld.** Bij elk rapport van de bash-agent ruimde RzSense de stand van de proef mee op. De teller kwam daardoor nooit verder dan één ronde, en na *Opnieuw beginnen te tellen* stond er meestal *Op deze server loopt nog geen proef*, terwijl de rondes gewoon aankwamen. De stand blijft nu staan. Hiervoor is geen nieuwe agent nodig.
+- Daardoor kon overnemen (60 rondes nodig) op geen enkele server beschikbaar komen; dat kan nu wel.
+
 ## 1.357.1 – 2026-11-27
 ### Opgelost
 - **`sudo rzsense status` gaf *command not found* op Rocky, RHEL en Alma.** Daar zoekt sudo niet in `/usr/local/bin`. Het installatiecommando van de Go-agent zet nu ook een verwijzing in `/usr/bin` (en haalt die bij verwijderen weer weg). Draai het installatiecommando opnieuw; tot die tijd werkt `/usr/local/bin/rzsense status`.

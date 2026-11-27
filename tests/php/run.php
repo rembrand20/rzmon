@@ -5076,6 +5076,9 @@ ok(count($goR2['diffs']) === 4 && $goS['rounds'] === 2 && $goS['rounds_ok'] === 
     && $goS['doctor'][0]['k'] === 'timer' && $goS['live'] === true, 'de stand: rondes, hoe vaak gelijk, waar het verschil zat en wat de agent zelf meldde');
 ok(q('SELECT agent_seen, agent_key, agent_version FROM hosts WHERE id = ?', [$goH])->fetch() == $goSeen
     && AgentData::get($goH, 'mem')['total'] == 16 * $goGb && (int) AgentData::raw($goH, 'boot') === 1795758947, 'een proefronde verandert niets aan de gegevens, de sleutel of het contactmoment van de bash-agent');
+Paths::cleanAgentData($goH, date('Y-m-d H:i:s', time() + 5));   // 1.357.2: een rapport van de bash-agent ruimt op wat het niet ververste
+ok((AgentShadow::get($goH)['shadow']['rounds'] ?? 0) === 2 && AgentData::get($goH, 'goready') !== null, 'de stand van de proef overleeft het opruimen na een rapport van de bash-agent');
+AgentData::put($goH, 'mem', ['total' => 16 * $goGb, 'used' => 4 * $goGb]);
 q('UPDATE agent_data SET updated_at = NOW() - INTERVAL 10 MINUTE WHERE host_id = ? AND metric <> ?', [$goH, 'shadow']);
 $goR3 = AgentShadow::receive(['id' => $goH], ['agent_version' => '0.8.0', 'core' => $goCore]);
 $goS3 = AgentShadow::get($goH)['shadow'];
