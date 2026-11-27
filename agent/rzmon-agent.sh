@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.123.3"
+AGENT_VERSION="1.123.4"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -3309,7 +3309,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
                         fi
                     else w_err="niet gevonden"; fi
                 fi
-                w_body=$(printf '%s\n' "$vw_lines" | grep -i 'username or password is incorrect' | sed -n 's/.*IP: \([0-9a-fA-F:.]*\).*/\1/p' | wl_ip_count) ;;
+                w_body=$(printf '%s\n' "$vw_lines" | grep -i 'username or password is incorrect' | sed -n 's/.*IP: \([0-9a-fA-F:.]*[0-9a-fA-F]\).*/\1/p' | wl_ip_count) ;;   # agent 1.123.4: zonder de punt die Vaultwarden achter het adres zet
             *) continue ;;
         esac
         weblog_json+="\"$w_src\":{\"path\":\"$(json_escape "$w_path")\"${w_stat:+,\"stat\":$w_stat}${w_err:+,\"err\":\"$(json_escape "$w_err")\"}${w_kind:+,\"kind\":\"$w_kind\"}${w_ctr:+,\"ctr\":\"$(json_escape "$w_ctr")\"}${w_full:+,\"full\":$w_full},\"ips\":{$w_body}${w_req:+,\"req\":[$w_req]}},"

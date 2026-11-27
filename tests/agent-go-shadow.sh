@@ -1909,6 +1909,90 @@ if a != g or len(a) != 5:
 PY
 echo "✔ Programma's (nieuw, veranderd, zonder pakket, geblokkeerd en gestopt), jagen op sporen (pad en vingerafdruk, één keer per opdracht) en tijdelijk sudo (gegeven, onbekend, afgekeurd, ingetrokken, verlopen, nooit root): gelijk aan de bash-agent"
 
+# 1.364.0 (Go-agent 0.33.0): logs van webdiensten. De echte bash-code en de Go-agent lezen elk een eigen kopie van
+# dezelfde logs (SWAG met en zonder site, Nginx Proxy Manager, Home Assistant, Vaultwarden), met een namaak-docker.
+W="$work/wl"; mkdir -p "$W/bin" "$W/b" "$W/g/gc" "$W/g/gd" "$W/g/gt"
+for kind in swag npm; do
+    bash agent/rzmon-agent.sh --edr-parse "$kind" <"tests/data/$kind.log" >"$W/$kind.bash" || fail "de bash-parser faalde ($kind)"
+    "$work/rzsense" edr-parse "$kind" <"tests/data/$kind.log" >"$W/$kind.go" || fail "de Go-parser faalde ($kind)"
+    cmp -s "$W/$kind.bash" "$W/$kind.go" || fail "logs van webdiensten: de parser ($kind) geeft iets anders dan de bash-agent: $(diff "$W/$kind.bash" "$W/$kind.go" | head -n 4)"
+done
+cat >"$W/bin/docker" <<'EOF'
+#!/bin/sh
+# namaak-docker: één SWAG-container met de configmap van deze kant, en twee containers met een adres
+case "$*" in
+    "ps -q") printf 'aaa\nbbb\n' ;;
+    "ps --format"*) echo "swag lscr.io/linuxserver/swag:latest"; echo "vault docker.io/vaultwarden/server:latest" ;;
+    inspect*Mounts*) echo "/config ${WL_SIDE:?}/config" ;;
+    inspect*IPAddress*) echo "/vaultwarden 172.18.0.5"; echo "/blog 172.18.0.6 10.9.0.6" ;;
+    *) exit 1 ;;
+esac
+EOF
+chmod +x "$W/bin/docker"
+for side in b g; do mkdir -p "$W/$side/config/log/nginx" "$W/$side/ha" "$W/$side/swag-los"; : >"$W/$side/config/log/nginx/rzsense.log"; : >"$W/$side/swag-los/access.log"; : >"$W/$side/ha/home-assistant.log"; : >"$W/$side/vw.log"; done
+wl_tests() { for side in b g; do printf '%b' "${1//@S@/$W/$side}" >"$W/$side/tests.cache"; done; cp "$W/g/tests.cache" "$W/g/gc/tests.cache"; }
+wl_add() { for side in b g; do printf '%b' "$2" >>"$W/$side/$1"; done; }
+wl_bash() {  # wl_bash <uitvoer>: de echte code van de bash-agent, en daarna de posities vastleggen zoals na een aangenomen rapport
+    (
+        set +u
+        export PATH="$W/bin:$PATH" WL_SIDE="$W/b"
+        HA_MODE=0; t_dir="$W/b"; t_cache="$W/b/tests.cache"; ctr_busy=""; PODMAN=0
+        lap() { :; }
+        # shellcheck disable=SC1090
+        source <(sed -n '/^json_escape() {/,/^}/p' agent/src/15-realtime.sh; sed -n '/^ctr_ok() {/,/^}/p; /^ctrx() {/,/^}/p' agent/src/40-basis-meten.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^edr_swag_req() {/,/^}/p; /^edr_npm_norm() {/,/^}/p' agent/src/10-edr-sensoren.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^weblog_json=""$/,/^fi$/p' agent/src/60-ids-en-edr.sh)
+        printf '{%s}' "${weblog_json%,}" >"$1"
+        for w_pos in "$W/b/weblog"/*.pos.new; do [ -f "$w_pos" ] && mv -f "$w_pos" "${w_pos%.new}"; done
+        true
+    ) || fail "de bash-code voor logs van webdiensten faalde"
+}
+wl_go() {
+    printf 'MONITOR_URL="https://rz.test"\nPODMAN="0"\n' >"$W/g/conf"
+    env -u INVOCATION_ID PATH="$W/bin:$PATH" WL_SIDE="$W/g" RZSENSE_BASH_CONF="$W/g/conf" RZSENSE_BASH_CACHE="$W/g/gc" RZSENSE_BASH_STATE="$W/g/gt" RZSENSE_DATA="$W/g/gd" \
+        "$work/rzsense" edr-parse weblog sent >"$1" || fail "de Go-agent kon de logs van webdiensten niet lezen"
+}
+wl_same() {  # wl_same <naam> <verwachting in Python over a>
+    wl_bash "$W/$1.bash.json"; wl_go "$W/$1.go.json"
+    python3 -I - "$W" "$1" "$2" <<'PY' || fail "logs van webdiensten ($1): de Go-agent meldt iets anders dan de bash-agent"
+import json, sys
+W, name, expect = sys.argv[1:4]
+def load(side, ext):
+    d = json.loads(open('%s/%s.%s.json' % (W, name, ext)).read().replace(W + '/' + side, '@S@'))
+    d = d.get('weblog', d) if ext == 'bash' else (d or {})
+    for e in d.values():
+        if 'stat' in e: e['stat']['p'] = sorted(map(json.dumps, e['stat']['p']))
+    return d
+a, g = load('b', 'bash'), load('g', 'go')
+if a != g or not eval(expect):
+    print('%s:\n  bash %s\n  go   %s' % (name, json.dumps(a, sort_keys=True)[:2600], json.dumps(g, sort_keys=True)[:2600])); sys.exit(1)
+PY
+}
+# 1: de eerste keer alleen de positie vastleggen (ook met wat er al in stond)
+wl_add swag-los/access.log '9.9.9.1 - - [28/Oct/2026:09:00:00 +0100] "GET /oud HTTP/1.1" 404 0 "-" "x"\n'
+wl_tests '0\ttick\t30\n0\tweblog\tswag\t@S@/swag-los/access.log\n0\tweblog\tha\t@S@/ha/home-assistant.log\n0\tweblog\tvw\t@S@/vw.log\n0\tweblog\tonbekend\tx\n'
+wl_same eerste "a['swag']['ips'] == {} and a['swag']['kind'] == 'swag' and a['swag']['full'] == 0 and 'stat' not in a['swag'] and a['ha']['ips'] == {} and 'onbekend' not in a"
+# 2: nieuwe regels: scanners, foutcodes, een geheim in het adres, een verdacht verzoek, gewone bezoekers, en inlogfouten
+wl_add swag-los/access.log '1.2.3.4 - - [28/Oct/2026:10:00:00 +0100] "GET /index.php?id=1%27%20UNION HTTP/1.1" 200 512 "-" "Mozilla/5.0"\n5.6.7.8 - - [28/Oct/2026:10:00:01 +0100] "GET /about HTTP/1.1" 200 1000 "https://example.org/" "Mozilla/5.0"\n185.1.1.1 - - [28/Oct/2026:10:00:02 +0100] "GET /.env?token=GEHEIM123&x=1 HTTP/1.1" 404 0 "-" "sqlmap/1.8"\n185.1.1.1 - - [28/Oct/2026:10:00:03 +0100] "GET /wp-login.php HTTP/1.1" 403 0 "-" "sqlmap/1.8"\n185.1.1.1 - - [28/Oct/2026:10:00:03 +0100] "GET /wp-login.php HTTP/1.1" 403 0 "-" "sqlmap/1.8"\n185.1.1.1 - - [28/Oct/2026:10:00:04 +0100] "POST /login HTTP/1.1" 401 0 "-" "sqlmap/1.8"\n45.1.1.1 - - [28/Oct/2026:10:00:05 +0100] "\\x16\\x03\\x01" 444 0 "-" "-"\n45.1.1.2 - - [28/Oct/2026:10:00:06 +0100] "GET /a\\"b\\\\c HTTP/1.1" 500 0 "-" "Nikto"\n2001:db8::7 - - [28/Oct/2026:10:00:07 +0100] "GET /x HTTP/1.1" 429 0 "-" "curl"\nniet-een-adres - - [x] "GET / HTTP/1.1" 404 0 "-" "x"\n\n'
+wl_add ha/home-assistant.log '2026-11-27 10:00:00 WARNING (MainThread) [homeassistant.components.http.ban] Login attempt or request with invalid authentication from 203.0.113.9 (203.0.113.9). Requested URL: /auth\n2026-11-27 10:00:01 WARNING x Invalid Authentication from 203.0.113.9 (x)\n2026-11-27 10:00:02 WARNING x invalid authentication from 2001:db8::9 (x)\n2026-11-27 10:00:03 INFO iets anders\n'
+wl_add vw.log '[2026-11-27 10:00:00][vaultwarden::api::identity][ERROR] Username or password is incorrect. Try again. IP: 198.51.100.4. Username: a@b.nl.\n[2026-11-27 10:00:01][x][ERROR] Username or password is incorrect. IP: 198.51.100.4. x\n[2026-11-27 10:00:02][x][INFO] gewoon\n'
+wl_same nieuw "a['swag']['ips']['185.1.1.1'][:5] == [4, 1, 3, 0, 'sqlmap'] and a['swag']['ips']['185.1.1.1'][5][0] == '/.env?token=***&x=1' and '5.6.7.8' not in a['swag']['ips'] and a['swag']['ips']['45.1.1.1'][3] == 1 and len(a['swag']['req']) >= 3 and a['swag']['stat']['u'] == 6 and a['swag']['stat']['t']['-'][0] == 9 and a['ha']['ips'] == {'203.0.113.9': 1, '2001:db8::9': 1} and a['vw']['ips'] == {'198.51.100.4': 2}"
+# 3: niets nieuws: geen regels dubbel; 4: een log dat geroteerd is, wordt vanaf het begin gelezen
+wl_same rustig "a['swag']['ips'] == {} and a['ha']['ips'] == {} and 'stat' not in a['swag']"
+for side in b g; do mv -f "$W/$side/swag-los/access.log" "$W/$side/swag-los/access.log.1"; printf '7.7.7.7 - - [28/Oct/2026:11:00:00 +0100] "GET /na-roteren HTTP/1.1" 404 0 "-" "x"\n' >"$W/$side/swag-los/access.log"; done
+wl_same geroteerd "list(a['swag']['ips']) == ['7.7.7.7'] and a['swag']['stat']['u'] == 1"
+# 5: zelf zoeken (auto): de SWAG-container, het extra logbestand met de site en de dienst erachter, en de container bij het adres
+wl_tests '0\ttick\t30\n0\tweblog\tswag\tauto\n0\tweblog\tha\tauto\n'
+wl_same auto-eerste "a['swag']['kind'] == 'swag' and a['swag']['ctr'] == 'swag' and a['swag']['full'] == 1 and a['swag']['path'].endswith('/config/log/nginx/rzsense.log') and a['ha']['err'] == 'niet gevonden'"
+wl_add config/log/nginx/rzsense.log '185.2.2.2 - - [28/Oct/2026:12:00:00 +0100] "GET /admin HTTP/1.1" 403 0 "-" "Mozilla" "vault.voorbeeld.nl" "172.18.0.5:80"\n185.2.2.2 - - [28/Oct/2026:12:00:01 +0100] "GET / HTTP/1.1" 200 5 "-" "Mozilla" "vault.voorbeeld.nl" "172.18.0.5:80"\n185.2.2.2 - - [28/Oct/2026:12:00:02 +0100] "GET /x HTTP/1.1" 404 5 "-" "Mozilla" "blog.voorbeeld.nl" "172.18.0.6:8080"\n185.2.2.2 - - [28/Oct/2026:12:00:03 +0100] "GET /y HTTP/1.1" 444 0 "-" "zgrab" "_" ""\n192.168.1.5 - - [28/Oct/2026:12:00:04 +0100] "GET / HTTP/1.1" 200 5 "-" "Mozilla" "ha.voorbeeld.nl" "172.18.0.9:8123"\n'
+wl_same auto "a['swag']['ips']['185.2.2.2'][6] == [['vault.voorbeeld.nl', '172.18.0.5:80', 'vaultwarden', 2, 1], ['blog.voorbeeld.nl', '172.18.0.6:8080', 'blog', 1, 0], ['-', '', '', 1, 0]] and a['swag']['stat']['t']['vault.voorbeeld.nl'][0] == 2 and a['swag']['stat']['t']['-'][7] == 1 and '192.168.1.5' not in a['swag']['ips']"
+# 6: een pad dat niet te lezen is
+wl_tests '0\ttick\t30\n0\tweblog\tswag\t@S@/bestaat/niet.log\n'
+wl_same onleesbaar "a['swag']['err'].startswith('niet leesbaar') and a['swag']['ips'] == {}"
+echo "✔ logs van webdiensten: SWAG (met en zonder site), Nginx Proxy Manager, Home Assistant en Vaultwarden; alleen nieuwe regels, ook na roteren; geheimen in adressen weggelakt; zelf zoeken met de container erbij: gelijk aan de bash-agent"
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.

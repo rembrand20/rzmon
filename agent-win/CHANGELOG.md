@@ -5,6 +5,11 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.33.0 – 2026-11-27
+- **Linux: logs van webdiensten.** De access-log van de reverse proxy (SWAG, met of zonder het extra logbestand van RzSense, en Nginx Proxy Manager), mislukte logins bij Home Assistant en bij Vaultwarden: alleen de nieuwe regels, per IP samengevat. Tokens en wachtwoorden in een adres worden weggelakt.
+- De positie in elk logbestand deelt de Go-agent met de bash-agent, en hij bewaart hem pas als RzSense het rapport heeft. Bij overnemen gaat er geen regel verloren of dubbel mee.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.32.0 – 2026-11-27
 - **Linux: Programma's.** Elke ronde de programma's die draaien (niet in containers); een nieuw of veranderd programma krijgt een vingerafdruk en het pakket waar het bij hoort. Staat de vingerafdruk op de blokkeerlijst en staat stoppen aan, dan stopt de agent dat programma.
 - **Linux: jagen op sporen.** Eén keer per opdracht: bestaan de gezochte paden, en heeft een draaiend programma of een bestand op de gebruikelijke plekken een gezochte vingerafdruk?

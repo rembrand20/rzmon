@@ -1213,6 +1213,18 @@ func edrParseCLI(kind string) int {
 	case "eve":
 		b, _ := io.ReadAll(os.Stdin)
 		fmt.Println(eveAlerts(string(b)))
+	case "swag":
+		b, _ := io.ReadAll(os.Stdin)
+		fmt.Println(swagReq(string(b)))
+	case "npm":
+		b, _ := io.ReadAll(os.Stdin)
+		fmt.Print(npmNorm(string(b)))
+	case "weblog": // het onderdeel "weblog" zoals het in het rapport komt; met "sent" daarna alsof het rapport is aangenomen
+		b, _ := json.Marshal(collectWeblogLinux())
+		fmt.Println(string(b))
+		if len(os.Args) >= 4 && os.Args[3] == "sent" {
+			weblogSent()
+		}
 	case "file":
 		if len(os.Args) >= 4 {
 			fmt.Println(edrFile(os.Args[3]))

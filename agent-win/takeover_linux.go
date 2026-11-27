@@ -256,6 +256,9 @@ func buildRun(c *Config, t0 time.Time) map[string]any {
 	if db := collectDbLinux(); db != nil { // 0.24.0: databasechecks (alleen lezen)
 		rep["db"] = db
 	}
+	if wl := collectWeblogLinux(); wl != nil { // 0.33.0: logs van webdiensten (alleen de nieuwe regels, per IP samengevat)
+		rep["weblog"] = wl
+	}
 	// 0.31.0: ransomware herkennen (lokaasbestanden, wijzigingen, kenmerken). 0.32.0: buiten de afscherming van de eigen
 	// dienst, want de lokaasbestanden staan in je eigen mappen
 	if rs := outsideJSON(60*time.Second, func() any { return collectRansomLinux() }, "ransom-test"); rs != nil {
@@ -387,6 +390,7 @@ func afterRun(c *Config, r *runReply) {
 		edrYaraUpdate(r.EdrYara)
 		edrKillNow(r.EdrKill, conf)
 	}
+	weblogSent()               // 0.33.0: de nieuwe posities in de logs van webdiensten gelden nu
 	watchEnsure()              // de watcher aan of uit, naar wat RzSense voor deze server wil
 	if sentIds.commit != nil { // de nieuwe stand van bewaakte bestanden bewaren, lokaas-treffers uit de set
 		sentIds.commit()

@@ -798,8 +798,10 @@ welke mappen bewaakt worden (*Ransomware (proef): bewaakte mappen*).
 Ook Programma's, jagen op sporen en tijdelijk sudo doet de Go-agent. Wat op de server moet schrijven buiten zijn eigen
 map (lokaasbestanden, het bestand voor tijdelijk sudo, een account vergrendelen) voert hij uit in een tijdelijke
 systemd-eenheid, omdat zijn eigen dienst bijna nergens mag schrijven.
-Dit houdt overnemen tegen zolang het voor de server aan staat: logs van webdiensten (met het IDS aan, en alleen
-op een server waar zo'n log gevonden is); de reverse proxy; Home Assistant-checks (die horen bij de add-on); de relay
+Ook de logs van webdiensten (SWAG, Nginx Proxy Manager, Home Assistant, Vaultwarden) leest de Go-agent; de positie in
+elk logbestand delen de twee agents.
+Dit houdt overnemen tegen zolang het voor de server aan staat: de reverse proxy beschermen (met WAF, antivirus en
+Suricata); Home Assistant-checks (die horen bij de add-on); de relay
 (die draait in zijn eigen container en blijft de bash-agent); en vaker dan elke minuut rapporteren.
 
 **Wat er gebeurt.** Bij de volgende proefronde zet de Go-agent de timer van de bash-agent en zijn bewaker uit (de

@@ -23,7 +23,9 @@ final class AgentTakeover
         // 1.362.0 (Go-agent 0.31.0): ransomware herkennen
         'ransom', 'ransompath',
         // 1.363.0 (Go-agent 0.32.0): Programma's, jagen op sporen en tijdelijk sudo
-        'apps', 'appblock', 'iochunt', 'iocsha', 'iocpath', 'sudo'];
+        'apps', 'appblock', 'iochunt', 'iocsha', 'iocpath', 'sudo',
+        // 1.364.0 (Go-agent 0.33.0): logs van webdiensten
+        'weblog'];
     /** Agent-checks die de Go-agent meet; andere soorten die van de agent komen, houden het overnemen tegen */
     private const CHECKS_BLOCK = ['ha'];
 

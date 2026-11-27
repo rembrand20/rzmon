@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.123.4 – 2026-11-27
+- **Mislukte logins bij Vaultwarden werden niet geteld.** Vaultwarden zet een punt achter het adres in zijn log (`IP: 1.2.3.4. Username: …`). De agent stuurde die punt mee, en RzSense herkende het adres dan niet. De punt gaat er nu af.
+
 ## 1.123.3 – 2026-11-27
 - **Hardening: de controle op extra beheerders (UID 0) kwam nooit aan.** De agent las hem wel uit, maar liet hem bij het versturen weg door een fout in het filter op de naam. Heeft een server naast `root` nog een account met UID 0, dan zie je dat nu bij **🛡️ Hardening**.
 

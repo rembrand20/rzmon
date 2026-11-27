@@ -8,11 +8,24 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.364.0**: **De Go-agent leest de logs van webdiensten**, en mislukte logins bij Vaultwarden worden nu echt geteld.
 - **1.363.0**: **De Go-agent doet Programma's, sporen zoeken en tijdelijk sudo**: alleen de reverse proxy en logs van webdiensten ontbreken nog.
 - **1.362.0**: **De Go-agent herkent ransomware**: lokaasbestanden, kenmerken, snapshot en processen stoppen, gelijk aan de bash-agent.
 - **1.361.0**: **De Go-agent doet Realtime en EDR**: een eigen watcher en dezelfde endpoint-sensoren als de bash-agent.
 - **1.360.0**: **De Go-agent kan het IDS overnemen**: dezelfde firewall, lokaas-poort, isoleren en bestanden bewaken als de bash-agent; in de proef blijft het een dry-run.
-- **1.359.0**: **IDS in de Go-agent, dry-run compleet**: ook webshells, verbindingen, hardening, SUID, pakketcontrole en bestanden bewaken worden naast de bash-agent gelegd.
+
+## 1.364.0 – 2026-11-27
+### Nieuw
+- **De Go-agent leest de logs van webdiensten.** SWAG, Nginx Proxy Manager, Home Assistant en Vaultwarden: hetzelfde als de bash-agent. Logs van webdiensten houden het overnemen niet meer tegen.
+
+### Opgelost
+- **Mislukte logins bij Vaultwarden werden niet geteld** (agent 1.123.4 nodig). In de log van Vaultwarden staat een punt achter het adres; RzSense kreeg het adres met die punt en sloeg het over. Brute force op Vaultwarden via de log viel daardoor niet op.
+
+### Nieuwe agent
+- Nieuwe agent 1.123.4 en nieuwe Go-agent 0.33.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Dit houdt overnemen nog tegen: de reverse proxy beschermen (met WAF, antivirus en Suricata) en Home Assistant-checks. De relay blijft de bash-agent.
 
 ## 1.363.0 – 2026-11-27
 ### Nieuw

@@ -5419,7 +5419,7 @@ ok(($tkFw(['build' => true, 'sig' => 'abc', 'bash_sig' => 'abc', 'n' => 3, 'kn' 
     && ($tkFw([], ['sig' => 'a', 'bash_sig' => 'b', 'n' => 4])['IDS (proef): isoleren (wat de Go-agent open zou laten)'] ?? null) === false,
     'IDS-proef: de firewall die de Go-agent zou zetten telt alleen mee als de bash-agent er ook een zette, en moet dan dezelfde lijst zijn');
 q("INSERT INTO weblog_state (host_id, src, path, seen_at) VALUES (?, 'swag', '/opt/swag/config/log/nginx', ?)", [$tkH, now()]);
-ok(in_array('Logs van webdiensten', AgentTakeover::blockers($tkHost()), true), 'heeft de server wel zo\'n log, dan houdt dat het overnemen tegen: ' . json_encode(AgentTakeover::blockers($tkHost()), JSON_UNESCAPED_UNICODE));
+ok(!in_array('Logs van webdiensten', AgentTakeover::blockers($tkHost()), true), 'ook met zo\'n log houden logs van webdiensten het overnemen niet meer tegen (1.364.0): ' . json_encode(AgentTakeover::blockers($tkHost()), JSON_UNESCAPED_UNICODE));
 q('DELETE FROM weblog_state WHERE host_id = ?', [$tkH]);
 save_setting('weblog_swag', '0');
 save_setting('ids_enabled', '0');
