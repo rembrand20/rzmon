@@ -276,6 +276,8 @@ func coreCollect(wait time.Duration) map[string]any {
 		"ups":       collectUpsLinux(),
 		"pve":       collectPveLinux(), // 0.23.0: Proxmox VE en TrueNAS (alleen op zo'n server)
 		"truenas":   collectTruenasLinux(),
+		"nic":       collectNicLinux("/sys/class/net"), // 0.24.0: netwerkverkeer en WireGuard
+		"wg":        collectWgLinux(),
 		"hostname":  host,
 		"boot":      bootTime(s2),
 		"cpu":       map[string]any{"pct": float64(int(pct*10+0.5)) / 10, "load": load, "cores": cpuCores(s2)},

@@ -5284,6 +5284,12 @@ ok($tkPv['Proxmox: guests']['ok'] && $tkPv['Proxmox-guest 100']['ok'] && !$tkPv[
 q("INSERT INTO checks (host_id, name, type, target, enabled) VALUES (?, 'pve', 'pve', 'guests', 1), (?, 'tn', 'truenas', '', 1)", [$tkH, $tkH]);
 ok(!preg_match('/pve|truenas/', implode(' ', AgentTakeover::blockers($tkHost()))), 'checks op Proxmox en TrueNAS houden het overnemen niet meer tegen (1.354.0): ' . implode(', ', AgentTakeover::blockers($tkHost())));
 q("DELETE FROM checks WHERE host_id = ? AND type IN ('pve', 'truenas')", [$tkH]);
+$tkWg = static fn(array $go) => array_column(AgentShadow::compare(['wg' => $go], ['wg' => [['id' => 'wg0:AbCd', 'endpoint' => '203.0.113.7:51820', 'hs' => 30, 'rx' => 1], ['id' => 'wg0:Zz99', 'endpoint' => '', 'hs' => -1]]]), null, 'k')['WireGuard: peers']['ok'];
+ok($tkWg([['id' => 'wg0:Zz99', 'endpoint' => '', 'hs' => -1], ['id' => 'wg0:AbCd', 'endpoint' => '203.0.113.7:51820', 'hs' => 95, 'rx' => 999]]) && !$tkWg([['id' => 'wg0:AbCd', 'endpoint' => '198.51.100.1:51820', 'hs' => 30]]),
+    'proef: WireGuard-peers gelijk (handshake en verkeer lopen door en tellen niet); een ander endpoint of een peer minder is een verschil');
+q("INSERT INTO checks (host_id, name, type, target, enabled) VALUES (?, 'db', 'mysql', 'localhost', 1), (?, 'vpn', 'vpn', 'wg0:AbCd', 1), (?, 'verkeer', 'traffic', '', 1)", [$tkH, $tkH, $tkH]);
+ok(!preg_match('/mysql|vpn|traffic|Databasechecks/', implode(' ', AgentTakeover::blockers($tkHost()))), 'checks op een database, VPN en netwerkverkeer houden het overnemen niet meer tegen (1.355.0): ' . implode(', ', AgentTakeover::blockers($tkHost())));
+q("DELETE FROM checks WHERE host_id = ? AND type IN ('mysql', 'vpn', 'traffic')", [$tkH]);
 $tkCt = ['name' => 'web', 'user' => 'root', 'pod' => '', 'image' => 'nginx:1.27', 'state' => 'running', 'health' => 'healthy', 'exit_code' => 0, 'restarts' => 2];
 $tkC4 = array_column(AgentShadow::compare(['podman' => ['containers' => [$tkCt, ['name' => 'db', 'user' => 'piet', 'state' => 'exited'] + $tkCt, ['name' => 'extra'] + $tkCt]]],
     ['containers' => ['web' => $tkCt, 'piet/db' => ['name' => 'db', 'user' => 'piet', 'state' => 'running'] + $tkCt]]), null, 'k');
@@ -5335,10 +5341,10 @@ q('DELETE FROM weblog_state WHERE host_id = ?', [$tkH]);
 save_setting('weblog_swag', '0');
 save_setting('ids_enabled', '0');
 ok(AgentTakeover::blockers($tkHost()) === [], 'zonder die onderdelen houdt niets het tegen: ' . implode(', ', AgentTakeover::blockers($tkHost())));
-q("INSERT INTO checks (host_id, name, type, target, enabled) VALUES (?, 'cpu', 'cpu', '', 1), (?, 'nginx', 'service', 'nginx', 1), (?, 'db', 'mysql', 'localhost', 1)", [$tkH, $tkH, $tkH]);
+q("INSERT INTO checks (host_id, name, type, target, enabled) VALUES (?, 'cpu', 'cpu', '', 1), (?, 'nginx', 'service', 'nginx', 1), (?, 'ha', 'ha', 'backup', 1)", [$tkH, $tkH, $tkH]);
 $tkB = AgentTakeover::blockers($tkHost());
-ok(count($tkB) === 1 && str_contains($tkB[0], 'mysql'), 'een database-check houdt het tegen, een CPU- of service-check niet: ' . implode(', ', $tkB));
-q("UPDATE checks SET enabled = 0 WHERE host_id = ? AND type = 'mysql'", [$tkH]);
+ok(count($tkB) === 1 && str_contains($tkB[0], '“ha”'), 'een Home Assistant-check houdt het tegen, een CPU- of service-check niet: ' . implode(', ', $tkB));
+q("UPDATE checks SET enabled = 0 WHERE host_id = ? AND type = 'ha'", [$tkH]);
 ok(AgentTakeover::blockers($tkHost()) === [], 'een uitgeschakelde check telt niet');
 q('UPDATE hosts SET agent_tick = 30 WHERE id = ?', [$tkH]);
 ok(count(AgentTakeover::blockers($tkHost())) === 1, 'vaker dan elke minuut rapporteren houdt het tegen');
@@ -5364,13 +5370,13 @@ AgentData::put($tkH, 'shadow', ['rounds' => 100, 'rounds_ok' => 99] + $tkShadow)
 ok(AgentTakeover::check($tkH)['can'] && !AgentTakeover::shouldTake($tkH), 'na een goede proef kan het, maar RzSense vraagt het pas als jij het vraagt');
 $tkR = AgentTakeover::request($tkH, true);
 ok(!isset($tkR['error']) && $tkR['want'] && AgentTakeover::shouldTake($tkH), 'gevraagd: RzSense vraagt het bij de volgende proefronde');
-q("UPDATE checks SET enabled = 1 WHERE host_id = ? AND type = 'mysql'", [$tkH]);
+q("UPDATE checks SET enabled = 1 WHERE host_id = ? AND type = 'ha'", [$tkH]);
 ok(!AgentTakeover::shouldTake($tkH), 'komt er iets bij wat de Go-agent niet kan, dan vraagt RzSense het niet');
 // De Go-agent doet het werk (hosts.os = linux-go): terug als er iets bijkomt wat hij niet kan, of als de gebruiker het vraagt
 q('UPDATE hosts SET os = ?, agent_version = ?, agent_seen = ? WHERE id = ?', [AgentTakeover::OS, AGENT_WIN_LATEST, now(), $tkH]);
 ok(AgentTakeover::check($tkH)['active'] && !AgentTakeover::shouldTake($tkH), 'actief: niet nog eens overnemen');
-ok((AgentTakeover::fromAgent(['id' => $tkH, 'name' => 'go-take'], ['ready' => $tkReady, 'arch' => 'amd64', 'agent_version' => AGENT_WIN_LATEST])['go_back'] ?? false) === true, 'er kwam een database-check bij: terug naar de bash-agent');
-q("UPDATE checks SET enabled = 0 WHERE host_id = ? AND type = 'mysql'", [$tkH]);
+ok((AgentTakeover::fromAgent(['id' => $tkH, 'name' => 'go-take'], ['ready' => $tkReady, 'arch' => 'amd64', 'agent_version' => AGENT_WIN_LATEST])['go_back'] ?? false) === true, 'er kwam een Home Assistant-check bij: terug naar de bash-agent');
+q("UPDATE checks SET enabled = 0 WHERE host_id = ? AND type = 'ha'", [$tkH]);
 ok(AgentTakeover::fromAgent(['id' => $tkH, 'name' => 'go-take'], ['ready' => $tkReady, 'arch' => 'amd64', 'agent_version' => AGENT_WIN_LATEST]) === [], 'alles in orde: niets terug te melden');
 ok((AgentData::get($tkH, 'goready')['ready']['fallback'] ?? false) === true, 'de stand van de Go-agent is bewaard');
 AgentTakeover::request($tkH, false);

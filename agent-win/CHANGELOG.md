@@ -5,6 +5,13 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.24.0 – 2026-11-27
+- **Linux: databasechecks** voor MariaDB/MySQL en PostgreSQL, lokaal of in een container: status, verbindingen, lopende query's, replicatie en grootte. Alleen lezen, nooit data, met letterlijk dezelfde query's als de bash-agent. Een wachtwoord komt alleen versleuteld van RzSense en gaat via de omgeving naar de client, nooit op de opdrachtregel.
+- **Linux: WireGuard**: per peer de laatste handshake, het verkeer en het endpoint (alleen als root).
+- **Linux: netwerkverkeer**: de bytes van de echte netwerkkaarten, voor *Netwerk → Verkeer*.
+- In de proef vergelijkt RzSense de WireGuard-peers. Databasechecks voert de Go-agent pas uit als hij het werk doet.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.23.0 – 2026-11-27
 - **Linux: Proxmox VE.** Guests (VM's en containers), opslag, ZFS-pools, de cluster, back-ups per guest, de back-uptaken en of de guest agent antwoordt. Guests en opslag elke 2 minuten, back-ups en taken elk kwartier. `PVE=0` zet het uit.
 - **Linux: TrueNAS SCALE.** Meldingen, replicatie-, snapshot-, cloudsync- en rsync-taken, apps, schijftemperaturen en of er een update is. `TRUENAS=0` zet het uit. De agent leest TrueNAS alleen uit.

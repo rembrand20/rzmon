@@ -139,6 +139,13 @@ func cliLinux(args []string) bool {
 			}
 			watchdogStep(false, why, nil, nil, false)
 		}
+	case "db-test": // voor de tests: sql (de query's) of check (de databasechecks uit de testlijst)
+		if len(os.Args) > 2 && os.Args[2] == "sql" {
+			fmt.Printf("%s\x00%s\x00%s\x00", dbMySQL, dbMySize, dbPgSQL)
+			return true
+		}
+		b, _ := json.Marshal(collectDbLinux())
+		fmt.Println(string(b))
 	case "ctr-check": // voor de tests: containers en heartbeats zoals ze in het rapport komen
 		p, busy := collectContainersLinux(nil)
 		b, _ := json.Marshal(map[string]any{"podman": p, "busy": busy, "hb": collectHeartbeatsLinux()})

@@ -852,6 +852,110 @@ if bad or p.get('backups', {}).get('100') != ['2026-11-21 03:00:00Z', 3, 'pbs'] 
 print('✔ Proxmox (%d guests, opslag, %d ZFS-pools, back-ups per guest, taken) en TrueNAS (meldingen, taken, %d apps, temperaturen, update): gelijk aan de bash-agent' % (len(p['qemu']) + len(p['lxc']), len(p['zfs']), len(a['truenas']['apps'])))
 PY
 
+# 1.355.0 (Go-agent 0.24.0): databases, WireGuard en netwerkverkeer: de echte bash-code en de Go-agent met dezelfde
+# namaak-clients (mariadb, psql, podman, wg). Het wachtwoord hoort via de omgeving te gaan, nooit op de opdrachtregel.
+D="$work/dbt"
+mkdir -p "$D/bin" "$D/bt" "$D/gd" "$D/gc"
+cat >"$D/bin/mariadb" <<'EOS'
+#!/bin/sh
+echo "mariadb $* | pw=$( [ "$MYSQL_PWD" = "$DB_WANT_PW" ] && echo goed || { [ -z "$MYSQL_PWD" ] && echo leeg || echo anders; })" >>"$DB_LOG"
+sql=$(cat)
+case " $* " in *" faal "*) echo "ERROR 1045 (28000): Access denied for user 'faal'@'localhost' (using password: NO)"; exit 1 ;; esac
+case "$sql" in
+    *"SHOW GLOBAL STATUS"*) printf 'Uptime\t86400\nThreads_connected\t12\nThreads_running\t2\nQuestions\t123456\nSlow_queries\t3\nOnbekend_ding\t9\nMax_used_connections\t40\nv:max_connections\t151\nv:version\t10.11.6-MariaDB\nv:read_only\t0\nlongq\t12|app|shop|U0VMRUNUICogRlJPTSBvcmRlcnM=\n*************************** 1. row ***************************\n               Slave_IO_State: Waiting\n             Slave_IO_Running: Yes\n            Slave_SQL_Running: No\n        Seconds_Behind_Master: 42\n                Last_SQL_Error: Duplicate "entry" \\ x\n                  Master_Host: db1\n' ;;
+    *table_schema*) printf 'size:shop\t104857600\nsize:wiki\t5242880\nrommel\t1\n' ;;
+esac
+EOS
+cat >"$D/bin/psql" <<'EOS'
+#!/bin/sh
+echo "psql $* | pw=$( [ "$PGPASSWORD" = "$DB_WANT_PW" ] && echo goed || { [ -z "$PGPASSWORD" ] && echo leeg || echo anders; })" >>"$DB_LOG"
+cat >/dev/null
+printf 'version\t16.4\nuptime\t3600\nmax_conn\t100\nconn\t7\nactive\t1\nidle_tx\t0\nxact\t99999\nwrap_age\t1234567\nrecovery\t0\nreplicas\t1\nonbekend\t5\nsize:app\t20971520\nlongq\t33|mon|app|c2VsZWN0IDE=\n'
+EOS
+cat >"$D/bin/podman" <<'EOS'
+#!/bin/sh
+case "$1" in
+    ps) echo x ;;
+    exec) echo "podman $* | pw=$( [ -z "$MYSQL_PWD$PGPASSWORD" ] && echo leeg || echo gezet)" >>"$DB_LOG"; cat >/dev/null
+          case " $* " in *" dbct "*) printf 'Uptime\t100\nThreads_connected\t1\nv:version\t11.4.2-MariaDB\n' ;; *" pgct "*) printf 'version\t17.0\nconn\t2\n' ;; *) echo "Error: no such container"; exit 125 ;; esac ;;
+    *) exit 1 ;;
+esac
+EOS
+cat >"$D/bin/wg" <<'EOS'
+#!/bin/sh
+printf 'wg0\tPRIVKEYxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\tPUBKEYyyyy=\t51820\toff\n'
+printf 'wg0\tAb+Cd/EfGhIjKlMnOp=\t(none)\t203.0.113.7:51820\t10.0.0.2/32\t%s\t123456\t654321\t25\n' "$(($(date +%s) - 90))"
+printf 'wg0\tZz99yyXX==\t(none)\t(none)\t10.0.0.3/32\t0\t0\t0\toff\n'
+EOS
+chmod 755 "$D/bin/"*
+db_pw='G3heim wachtwoord!'
+{
+    printf '0\ttick\t60\n'
+    printf '91\tdb\tmysql\tlocal\t-\t-\t-\t-\taaaaaaaaaaa1\t60\n'
+    printf '92\tdb\tmysql\tlocal\t-\tapp\t%s\tshop\taaaaaaaaaaa2\t60\n' "$(printf '%s' "$db_pw" | base64 -w0)"
+    printf '93\tdb\tpgsql\tlocal\t-\tmon\t%s\t-\taaaaaaaaaaa3\t60\n' "$(printf '%s' "$db_pw" | base64 -w0)"
+    printf '94\tdb\tmysql\tcontainer\troot/dbct\t-\t-\t-\taaaaaaaaaaa4\t60\n'
+    printf '95\tdb\tpgsql\tcontainer\troot/pgct\t-\t-\t-\taaaaaaaaaaa5\t60\n'
+    printf '96\tdb\tmysql\tlocal\t-\traar;naam\t-\t-\taaaaaaaaaaa7\t60\n'
+    printf '97\tdb\tmysql\tlocal\t-\tapp\t-\tshop\taaaaaaaaaaa2\t60\n'
+    printf '98\tdb\tmysql\tlocal\t-\tfaal\t-\t-\taaaaaaaaaaa6\t60\n'
+    printf '99\tdb\tmysql\tcontainer\t-\t-\t-\t-\taaaaaaaaaaa8\t60\n'
+} >"$D/tests.cache"; cp "$D/tests.cache" "$D/gc/tests.cache"
+(
+    PATH="$D/bin:$PATH"; export DB_LOG="$D/log.bash" DB_WANT_PW="$db_pw"; t_dir="$D/bt"; t_cache="$D/tests.cache"; TEST=0; HA_MODE=0; podman_ctx=(root)
+    id() { if [ "${1-}" = -u ] && [ $# = 1 ]; then echo 0; else command id "$@"; fi; }
+    lap() { :; }
+    # shellcheck disable=SC1090
+    source <(sed -n '/^json_escape() {/,/^}/p' agent/src/15-realtime.sh)
+    # shellcheck disable=SC1090
+    source <(sed -n '/^due_cached() {/,/^}/p' agent/src/40-basis-meten.sh)
+    # shellcheck disable=SC1090
+    source <(sed -n '/^now_ms() {/p' agent/src/30-test-en-status.sh)
+    # shellcheck disable=SC1090
+    source <(sed -n '/^ctr_busy=""/,/^# Agent 1.67.0: PID van deze run/p' agent/src/40-basis-meten.sh | sed '$d')
+    # shellcheck disable=SC1090
+    source <(sed -n '/^pm() {/,/^}/p' agent/src/40-basis-meten.sh)
+    # shellcheck disable=SC1090
+    source agent/src/76-database.sh
+    # shellcheck disable=SC1090
+    source <(sed -n '/^wg_json=""/,/^\[ -n "\$nic_ifs" \]/p' agent/src/85-meesturen.sh)
+    printf '{"db":%s,"wg":%s,"nic":%s}' "${db_json:-null}" "${wg_json:-null}" "${nic_json:-null}" >"$D/bash.json"
+    printf '%s\0%s\0%s\0' "$db_my_sql" "$db_my_size" "$db_pg_sql" >"$D/sql.bash"
+) || fail "de bash-code voor databases en WireGuard faalde"
+PATH="$D/bin:$PATH" DB_LOG="$D/log.go" DB_WANT_PW="$db_pw" RZSENSE_BASH_CACHE="$D/gc" RZSENSE_DATA="$D/gd" "$work/rzsense" db-test check >"$D/db.go.json" || fail "de Go-agent kon de databases niet lezen"
+PATH="$D/bin:$PATH" RZSENSE_DATA="$D/gd2" "$work/rzsense" collect >"$D/core.go.json" || fail "de Go-agent kon WireGuard en het netwerkverkeer niet lezen"
+"$work/rzsense" db-test sql >"$D/sql.go"
+cmp -s "$D/sql.bash" "$D/sql.go" || fail "de query's van de Go-agent zijn niet meer gelijk aan die van de bash-agent (agent-win/dbsql_linux.go bijwerken)"
+grep -qF "$db_pw" "$D/log.bash" "$D/log.go" && fail "het databasewachtwoord stond op de opdrachtregel"
+python3 -I - "$D/bash.json" "$D/db.go.json" "$D/core.go.json" "$D/log.bash" "$D/log.go" <<'PY' || fail "de Go-agent leest databases, WireGuard of netwerkverkeer anders dan de bash-agent"
+import json, sys
+a, gdb, gcore = [json.load(open(p)) for p in sys.argv[1:4]]
+bad = []
+for d in (a['db'], gdb):
+    for v in d.values():
+        v.pop('ms'); v.pop('at')
+for k in sorted(set(a['db']) | set(gdb)):
+    if a['db'].get(k) != gdb.get(k):
+        bad.append('database %s:\n bash %s\n go   %s' % (k, json.dumps(a['db'].get(k), ensure_ascii=False), json.dumps(gdb.get(k), ensure_ascii=False)))
+wa, wg = a['wg'], gcore['wg']
+for l in (wa, wg):
+    for p in l or []:
+        if p['hs'] > 0: p['hs'] = 'recent' if abs(p['hs'] - 90) < 30 else p['hs']
+if wa != wg:
+    bad.append('wireguard:\n bash %s\n go   %s' % (json.dumps(wa), json.dumps(wg)))
+na, ng = a['nic'], gcore['nic']
+if (na is None) != (ng is None) or (na and (na['ifs'] != ng['ifs'] or not (na['rx'] <= ng['rx'] <= na['rx'] * 1.2 + 10000000))):
+    bad.append('netwerkverkeer: bash %s, go %s' % (json.dumps(na), json.dumps(ng)))
+la, lg = [open(p).read() for p in sys.argv[4:6]]
+if la != lg:
+    bad.append('aanroepen van de clients:\n bash\n%s go\n%s' % (la, lg))
+d = a['db']
+if bad or sorted(d) != ['aaaaaaaaaaa%d' % i for i in (1, 2, 3, 4, 5, 6)] or d['aaaaaaaaaaa6']['ok'] != 0 or 'Access denied' not in d['aaaaaaaaaaa6']['err'] or d['aaaaaaaaaaa1']['kv'].get('repl:Slave_SQL_Running') != 'No' \
+        or 'Onbekend_ding' in d['aaaaaaaaaaa1']['kv'] or d['aaaaaaaaaaa1']['kv'].get('size:shop') != '104857600' or la.count('pw=goed') != 3 or len(wa) != 2:
+    print('\n'.join(bad) or 'onverwachte testgegevens: %s\n%s' % (json.dumps(a, ensure_ascii=False)[:1500], la)); sys.exit(1)
+print('✔ databases (%d verbindingen: MariaDB en PostgreSQL, lokaal en in een container, replicatie, grootte, een fout), %d WireGuard-peers en het netwerkverkeer: gelijk aan de bash-agent; het wachtwoord ging via de omgeving' % (len(d), len(wa)))
+PY
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.

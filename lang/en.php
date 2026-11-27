@@ -12190,4 +12190,5 @@ return [
     'doel niet bereikbaar' => 'target not reachable',
     '{n} guests' => '{n} guests',
     '{n} apps' => '{n} apps',
+    'nog geen handshake' => 'no handshake yet',
 ];

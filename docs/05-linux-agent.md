@@ -770,10 +770,13 @@ container starten of een eigen herstelcommando uit `HEAL_DIR` uitvoeren, met dez
 tijd onbereikbaar is of als de checks stilstaan (`WATCHDOG=0` zet het uit). Tijdens een aangekondigde update van RzSense
 wacht de Go-agent: geen alarm en geen terugval op de bash-agent. Anders dan de bash-agent bewaart hij in die minuten
 geen metingen in een wachtrij. Op een Proxmox-host leest hij de guests, opslag, ZFS-pools en back-ups uit, en op TrueNAS
-de meldingen, taken, apps, temperaturen en of er een update is; in beide gevallen alleen lezen.
+de meldingen, taken, apps, temperaturen en of er een update is; in beide gevallen alleen lezen. Databasechecks
+(MariaDB/MySQL en PostgreSQL, lokaal of in een container) doet hij met dezelfde alleen-lezen query's; het wachtwoord
+gaat via de omgeving naar de client, nooit op de opdrachtregel. Ook WireGuard-peers en het netwerkverkeer van de
+netwerkkaarten stuurt hij mee. De wifi-meting van een server stuurt hij nog niet mee.
 Dit houdt overnemen tegen zolang het voor de server aan staat: logs van webdiensten (met het IDS aan, en alleen
 op een server waar zo'n log gevonden is); IDS en endpoint-sensoren;
-Kwetsbaarheden; Realtime; checks op databases, VPN en netwerkverkeer; de relay; en vaker dan elke minuut rapporteren.
+Kwetsbaarheden; Realtime; Home Assistant-checks (die horen bij de add-on); de relay; en vaker dan elke minuut rapporteren.
 
 **Wat er gebeurt.** Bij de volgende proefronde zet de Go-agent de timer van de bash-agent en zijn bewaker uit (de
 bash-agent blijft geïnstalleerd, met zijn instellingen en sleutel), haalt de testlijst op en stuurt het echte rapport.
@@ -790,7 +793,7 @@ logboek van de server en bij de meldingen staat wanneer de Go-agent het overnam.
 - op de server zelf met `sudo rzsense back`. Zet het overnemen dan ook in RzSense uit, anders neemt de Go-agent het na
   een uur weer over.
 
-Zolang de Go-agent het werk doet, komt er van die server geen netwerkverkeer per netwerkkaart binnen, en werken 🧪 Test en *Opnieuw zoeken* naar certificaten niet.
+Zolang de Go-agent het werk doet, werken 🧪 Test en *Opnieuw zoeken* naar certificaten niet.
 
 ### Het commando `rzsense`
 

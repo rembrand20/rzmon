@@ -232,6 +232,9 @@ func buildRun(c *Config, t0 time.Time) map[string]any {
 	if b := logBrowseLinux(); b != nil {
 		rep["log_browse"] = b
 	}
+	if db := collectDbLinux(); db != nil { // 0.24.0: databasechecks (alleen lezen)
+		rep["db"] = db
+	}
 	if c := collectCmdLinux(); c != nil { // 0.18.0: commando-checks
 		rep["cmd"] = c
 	}

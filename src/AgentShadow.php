@@ -91,7 +91,7 @@ final class AgentShadow
         if ($inv) {
             $out['inventory'] = ['list' => json_decode((string) $inv['packages'], true) ?: [], 'exposed' => json_decode((string) $inv['exposed'], true) ?: []] + $inv;
         }
-        foreach (q("SELECT metric, value, updated_at FROM agent_data WHERE host_id = ? AND (metric IN ('cpu', 'mem', 'boot', 'ports', 'proclist', 'svclist', 'patch', 'time', 'smart', 'ups') OR metric LIKE 'path:%' OR metric LIKE 'container:%' OR metric LIKE 'pveg:%' OR metric LIKE 'pves:%' OR metric = 'truenas' OR metric LIKE 'disk:%' OR metric LIKE 'service:%' OR metric LIKE 'cert:%' OR metric LIKE 'proc:%'
+        foreach (q("SELECT metric, value, updated_at FROM agent_data WHERE host_id = ? AND (metric IN ('cpu', 'mem', 'boot', 'ports', 'proclist', 'svclist', 'patch', 'time', 'smart', 'ups', 'wg') OR metric LIKE 'path:%' OR metric LIKE 'container:%' OR metric LIKE 'pveg:%' OR metric LIKE 'pves:%' OR metric = 'truenas' OR metric LIKE 'disk:%' OR metric LIKE 'service:%' OR metric LIKE 'cert:%' OR metric LIKE 'proc:%'
                      OR metric LIKE 'svcinfo:%' OR metric LIKE 'svctest:%')", [$hostId]) as $r) {
             $m = (string) $r['metric'];
             if (str_starts_with($m, 'path:')) {   // 1.348.0: een pad-check meet om de paar minuten; de laatste meting telt
@@ -121,7 +121,7 @@ final class AgentShadow
                 if (is_array($d)) {
                     $out['containers'][substr($m, 10)] = $d;
                 }
-            } elseif ($m === 'smart' || $m === 'ups') {   // 1.348.0
+            } elseif ($m === 'smart' || $m === 'ups' || $m === 'wg') {   // 1.348.0; 1.355.0: WireGuard
                 $d = json_decode((string) $r['value'], true);
                 if (is_array($d)) {
                     $out[$m] = $d;
@@ -397,6 +397,21 @@ final class AgentShadow
             $add('diensten om uit te kiezen', t('{n} namen', ['n' => count($bl)]) . ($onlyB ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyB, 0, 6))]) : '')
                 . ($state ? ' · ' . t('andere status: {l}', ['l' => implode(', ', array_slice($state, 0, 6))]) : ''),
                 t('{n} namen', ['n' => count($gl)]) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 6))]) : ''), count($onlyB) + count($onlyG) <= 4 && count($state) <= 2);
+        }
+        // 1.355.0: WireGuard: welke peers er zijn en hun endpoint (de handshake en het verkeer lopen door en tellen niet)
+        if (is_array($bash['wg'] ?? null) && is_array($go['wg'] ?? null)) {
+            $wp = static function (array $l): array {
+                $m = [];
+                foreach ($l as $p) {
+                    if (is_array($p) && isset($p['id'])) {
+                        $m[] = $p['id'] . (($p['endpoint'] ?? '') !== '' ? ' → ' . $p['endpoint'] : '') . ((int) ($p['hs'] ?? -1) < 0 ? ' (' . t('nog geen handshake') . ')' : '');
+                    }
+                }
+                sort($m);
+                return $m;
+            };
+            [$bw, $gw] = [$wp($bash['wg']), $wp($go['wg'])];
+            $add('WireGuard: peers', implode(', ', array_slice($bw, 0, 10)) ?: '–', implode(', ', array_slice($gw, 0, 10)) ?: '–', $bw === $gw);
         }
         // 1.354.0: Proxmox (guests en opslag) en TrueNAS (versie en apps)
         if (is_array($bash['pveg'] ?? null) && $bash['pveg'] && is_array($go['pve'] ?? null)) {
