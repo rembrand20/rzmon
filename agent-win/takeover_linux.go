@@ -264,6 +264,14 @@ func buildRun(c *Config, t0 time.Time) map[string]any {
 	if wf := outsideJSON(280*time.Second, func() any { return collectWafLinux() }, "waf-test"); wf != nil {
 		rep["waf"] = wf
 	}
+	// 0.36.0: uploads scannen met ClamAV (een eigen container; de quarantaine staat buiten de afscherming)
+	if av := outsideJSON(280*time.Second, func() any { return collectAvLinux() }, "av-test"); av != nil {
+		rep["av"] = av
+	}
+	// 0.36.0: Suricata op het proxynetwerk (een eigen container die alleen meekijkt)
+	if nd := outsideJSON(280*time.Second, func() any { return collectNidsLinux() }, "nids-test"); nd != nil {
+		rep["nids"] = nd
+	}
 	if wl := collectWeblogLinux(); wl != nil { // 0.33.0: logs van webdiensten (alleen de nieuwe regels, per IP samengevat)
 		rep["weblog"] = wl
 	}

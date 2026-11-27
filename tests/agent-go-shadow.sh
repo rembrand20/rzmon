@@ -2303,6 +2303,347 @@ wf_flag uit net-fail
 wf_same andere-proxy "a['state'] == 'unsupported' and 'gevonden: npm' in a['msg']" npm
 echo "✔ WAF op de reverse proxy: netwerk, sleutel, de drie configuratiebestanden (byte voor byte), starten, herstarten bij een andere slider, opnieuw aanmaken, de zelftest, de koppeling met SWAG, de reden als hij niet antwoordt of niet start, en uitzetten: gelijk aan de bash-agent"
 
+# 1.367.0 (Go-agent 0.36.0): uploads scannen met ClamAV. De echte bash-code en de Go-agent werken elk met een eigen map,
+# eigen uploadmappen en een namaak-podman waarin "clamdscan" elk bestand met "eicar" in de naam als besmet meldt.
+# Vergeleken wordt elke opdracht aan de engine, wat er met de bestanden gebeurt (quarantaine, terugzetten, weghalen),
+# wat ze melden en het logboek.
+V="$work/av"; mkdir -p "$V/bin"
+cat >"$V/bin/podman" <<'EOF'
+#!/bin/bash
+# namaak-podman voor ClamAV
+s=${AV_SIDE:?}
+has() { [ -e "$s/st/$1" ]; }
+log() { printf '%s\n' "$*" | sed -e "s#$s#@S@#g" >>"$s/engine.log"; }
+case "$*" in
+    "ps -q") echo abc ;;
+    "ps --format {{.Names}}") printf 'rzsense-clamav\nnextcloud\nleeg\n' ;;
+    "ps --format"*) echo "swag lscr.io/linuxserver/swag:latest" ;;
+    "inspect -f"*Source*" nextcloud") printf '%s/up/nextcloud\t/data\n/etc/localtime\t/etc/localtime\n%s/buiten\t/x\n' "$s" "$s" ;;
+    "inspect -f"*Source*) : ;;
+    "inspect -f"*Mounts*) echo "/config $s/config" ;;
+    "inspect -f"*Env*) echo "URL=voorbeeld.nl" ;;
+    "inspect -f {{.State.Running}} rzsense-clamav") has ctr || exit 1; if has stopped; then echo false; else echo true; fi ;;
+    "inspect -f {{.State.Status}} {{.State.ExitCode}} rzsense-clamav") echo "exited 137" ;;
+    "inspect rzsense-clamav") has ctr || exit 1 ;;
+    "inspect swag") exit 0 ;;
+    "rm -f rzsense-clamav") log "$*"; [ -e "$s/st/ctr" ] && mv -f "$s/st/ctr" "$s/st/.weg.$RANDOM"; exit 0 ;;
+    "run -d"*) log "$*"; if has run-fail; then echo "Error: geen image" >&2; exit 125; fi; : >"$s/st/ctr"; echo abc123 ;;
+    "start rzsense-clamav") log "$*"; [ -e "$s/st/stopped" ] && mv -f "$s/st/stopped" "$s/st/.gestart.$RANDOM"; exit 0 ;;
+    "logs --tail 4 rzsense-clamav") printf 'Started\n\nLibClamAV Error: te weinig geheugen\nKilled\n' ;;
+    "exec rzsense-clamav clamdscan --no-summary /etc/hostname") has loading && exit 2; exit 0 ;;
+    "exec rzsense-clamav clamdscan --version") echo "ClamAV 1.4.1/27500/Fri Nov 27 09:00:00 2026"; echo "tweede regel" ;;
+    "exec rzsense-clamav clamdscan --no-summary --infected --file-list=/rzwork/list.txt")
+        log "scan van $(wc -l <"$s/avdir/work/list.txt") bestanden: $(sed -e "s#$s#@S@#g" "$s/avdir/work/list.txt" | sort | tr '\n' ' ')"
+        if has scan-error; then echo "ERROR: Can't connect to clamd"; exit 2; fi
+        rc=0
+        while IFS= read -r f; do case "$f" in *eicar*) echo "$f: Win.Test.EICAR_HDB-1 FOUND"; rc=1 ;; esac; done <"$s/avdir/work/list.txt"
+        exit $rc ;;
+    "exec rzsense-clamav clamdscan --no-summary --infected --multiscan"*)
+        log "volledige scan: $*"
+        shift 6; rc=0
+        for d in "$@"; do while IFS= read -r f; do echo "$f: Win.Test.EICAR_HDB-1 FOUND"; rc=1; done < <(find "$d" -type f -name '*eicar*' | sort); done
+        exit $rc ;;
+    "exec swag nginx"*) exit 0 ;;
+    *) exit 1 ;;
+esac
+EOF
+printf '#!/bin/sh\nprintf 200\n' >"$V/bin/curl"
+chmod +x "$V/bin/"*
+for side in b g; do
+    mkdir -p "$V/$side/st" "$V/$side/cache" "$V/$side/gc" "$V/$side/gd" "$V/$side/avdir" "$V/$side/up/nextcloud/sub" "$V/$side/up/immich" "$V/$side/buiten" "$V/$side/config/nginx/proxy-confs"
+    printf '# ssl\n' >"$V/$side/config/nginx/ssl.conf"; printf 'schoon\n' >"$V/$side/up/nextcloud/foto.jpg"
+    ln -s "$V/$side/up/immich" "$V/$side/up/link"
+done
+av_tests() { for side in b g; do printf '%b' "${1//@S@/$V/$side}" >"$V/$side/cache/tests.cache"; cp "$V/$side/cache/tests.cache" "$V/$side/gc/tests.cache"; done; }
+av_flag() { for side in b g; do if [ "$1" = aan ]; then : >"$V/$side/st/$2"; else mv -f "$V/$side/st/$2" "$V/$side/st/.uit.$2.$RANDOM" 2>/dev/null || true; fi; done; }
+av_put() { for side in b g; do printf '%b' "$2" >"$V/$side/$1"; done; }
+av_bash() {  # av_bash <uitvoer> [vrij geheugen in MB]
+    (
+        set +u
+        export PATH="$V/bin:$PATH" AV_SIDE="$V/b"
+        HA_MODE=0; PROXY_GUARD=1; DOCKER=0; t_dir="$V/b/cache"; t_cache="$V/b/cache/tests.cache"; ctr_busy=""; PROXY_CTR=""; PROXY_CPATH=""; PROXY_HTTPS_PORT=""
+        AV_DIR="$V/b/avdir"; AV_IMAGE=""; AV_DIRS_MAX="$V/b/up /bestaat/niet"; AV_MIN_MB=${2:-1}; AV_MAX_MB=1
+        unset INVOCATION_ID
+        lap() { :; }; id() { echo 0; }; sleep() { :; }; docker_is_podman() { return 1; }
+        nohup() { "$@"; }
+        act_log() { printf '%s|%s|%s|%s\n' "$1" "$2" "$3" "${4-}" >>"$V/b/act"; }
+        # shellcheck disable=SC1090
+        source <(sed -n '/^json_escape() {/,/^}/p' agent/src/15-realtime.sh; sed -n '/^ctr_ok() {/,/^}/p; /^ctrx() {/,/^}/p' agent/src/40-basis-meten.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^proxy_json=""$/,/^fi$/p' agent/src/69-proxy.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^av_json=""$/,/^fi$/p' agent/src/69-proxy.sh)
+        wait
+        printf '%s' "${av_json:-null}" >"$1"
+    ) || fail "de bash-code voor ClamAV faalde"
+}
+av_go() {  # av_go <uitvoer> [minimaal geheugen]
+    printf 'MONITOR_URL="https://rz.test"\nAV_DIR="%s"\nAV_DIRS_MAX="%s /bestaat/niet"\nAV_MIN_MB="%s"\nAV_MAX_MB="1"\n' "$V/g/avdir" "$V/g/up" "${2:-1}" >"$V/g/conf"
+    env -u INVOCATION_ID PATH="$V/bin:$PATH" AV_SIDE="$V/g" RZSENSE_BASH_CONF="$V/g/conf" RZSENSE_BASH_CACHE="$V/g/gc" RZSENSE_BASH_STATE="$V/g/cache" RZSENSE_DATA="$V/g/gd" \
+        RZSENSE_TEST_ROOT=1 RZSENSE_TEST_FAST=1 "$work/rzsense" av-test >"$1" || fail "de Go-agent kon ClamAV niet beheren"
+    sleep 0.3   # een volledige scan op de achtergrond is hier zo klaar
+}
+av_same() {  # av_same <naam> <verwachting in Python over a (gemeld), up (uploadmappen) en q (quarantaine)> [minimaal geheugen]
+    av_bash "$V/$1.bash.json" "${3:-1}"; av_go "$V/$1.go.json" "${3:-1}"
+    python3 -I - "$V" "$1" "$2" <<'PY' || fail "ClamAV ($1): de Go-agent doet iets anders dan de bash-agent"
+import json, os, re, sys
+V, name, expect = sys.argv[1:4]
+qre = re.compile(r'[0-9]{14}-[0-9a-f]{8}')
+def norm(side, text): return re.sub(r': [0-9]+ MB, nodig', ': N MB, nodig', qre.sub('QID', text.replace(V + '/' + side, '@S@')))   # het vrije geheugen verschilt per meting
+def load(side, ext):
+    d = json.loads(norm(side, open('%s/%s.%s.json' % (V, name, ext)).read()))
+    if d:
+        d.pop('mem', None)
+        for q in d['quarantine']: q['at'] = 0
+        d['quarantine'].sort(key=lambda q: q['p'])   # de volgorde volgt het willekeurige kenmerk
+        d['found'].sort(key=lambda q: q['p'])
+    return d
+def files(side, sub):
+    out = {}
+    for d, _, fs in os.walk('%s/%s/%s' % (V, side, sub)):
+        for f in fs:
+            p = os.path.join(d, f)
+            if os.path.islink(p): continue
+            st = os.stat(p)
+            body = ''
+            if f == 'meta': body = re.sub(r'\t[0-9]+\n$', '\tTIJD\n', norm(side, open(p).read()))
+            out[qre.sub('QID', p.replace(V + '/' + side, ''))] = '%o %s' % (st.st_mode & 0o7777, body)
+    return out
+def rd(p, side): return norm(side, open(p).read()) if os.path.exists(p) else ''
+a, g = load('b', 'bash'), load('g', 'go')
+def quar(side):   # per oorspronkelijk pad: de rechten van het bestand in de quarantaine en de gegevens erbij
+    out = {}
+    base = '%s/%s/avdir/quarantine' % (V, side)
+    for qid in sorted(os.listdir(base)) if os.path.isdir(base) else []:
+        meta = re.sub(r'\t[0-9]+\n$', '\tTIJD\n', norm(side, open('%s/%s/meta' % (base, qid)).read()))
+        out[meta.split('\t')[0] + '/file'] = '%o %o %s' % (os.stat('%s/%s/file' % (base, qid)).st_mode & 0o7777, os.stat('%s/%s/meta' % (base, qid)).st_mode & 0o7777, meta)
+    return out
+up, upg, q, qg = files('b', 'up'), files('g', 'up'), quar('b'), quar('g')
+bad = []
+if a != g: bad.append('gemeld:\n  bash %s\n  go   %s' % (json.dumps(a, sort_keys=True, ensure_ascii=False), json.dumps(g, sort_keys=True, ensure_ascii=False)))
+if up != upg: bad.append('uploadmappen: bash %s\n  go %s' % (sorted(up.items()), sorted(upg.items())))
+if q != qg: bad.append('quarantaine: bash %s\n  go %s' % (sorted(q.items()), sorted(qg.items())))
+x, y = rd(V + '/b/engine.log', 'b').splitlines(), rd(V + '/g/engine.log', 'g').splitlines()
+if x != y:
+    d = next((i for i in range(max(len(x), len(y))) if (x[i] if i < len(x) else None) != (y[i] if i < len(y) else None)), 0)
+    bad.append('opdrachten aan de engine verschillen vanaf regel %d:\n  bash %r\n  go   %r' % (d + 1, x[d:d + 2], y[d:d + 2]))
+la = [l for l in rd(V + '/b/act', 'b').splitlines() if 'ClamAV' in l]
+lg = [norm('g', '|'.join([e['m'], str(e['ok']), e['a'], e['d']])) for e in map(json.loads, open(V + '/g/gd/act.log')) if 'ClamAV' in e['a']] if os.path.exists(V + '/g/gd/act.log') else []
+if la != lg: bad.append('logboek:\n  bash %s\n  go   %s' % (la[-3:], lg[-3:]))
+if not bad and not eval(expect): bad.append('onverwacht: %s | %s | %s' % (json.dumps(a, ensure_ascii=False), sorted(up), sorted(q)))
+if bad: print('\n'.join(bad)); sys.exit(1)
+PY
+}
+base="0\ttick\t30\n0\tproxy\ton\n0\tproxylan\t192.168.1.0/24\n"
+dirs="0\tavdir\t@S@/up/nextcloud\n0\tavdir\t@S@/up/link\n0\tavdir\t@S@/up/nextcloud/\n0\tavdir\t@S@/buiten\n0\tavdir\t/etc\n0\tavdir\t@S@/up/bestaat-niet\n0\tavdir\t@S@/up/nextcloud/foto.jpg\n"
+# 1: te weinig geheugen: niet starten; 2: starten met de mappen die mogen (een koppeling telt als de echte map), en voorstellen
+av_tests "${base}0\tav\ton\t1\t1\n$dirs"
+av_same weinig-geheugen "a['state'] == 'lowmem' and 'te weinig vrij geheugen' in a['msg']" 99999999
+av_flag aan loading
+av_same start "a['state'] == 'starting' and [d['ok'] for d in a['dirs']] == [1, 1, 1, 0, 0, 0, 0] and [d.get('why') for d in a['dirs']][3:] == ['buiten het plafond (AV_DIRS_MAX)', 'systeemmap', 'bestaat niet', 'geen map'] and a['suggest'] == [{'c': 'nextcloud', 'p': '@S@/up/nextcloud', 'd': '/data'}]"
+grep -q 'run -d --name rzsense-clamav --restart unless-stopped --security-opt label=disable -v @S@/avdir/db:/var/lib/clamav -v @S@/avdir/work:/rzwork:ro -v @S@/up/immich:@S@/up/immich:ro -v @S@/up/nextcloud:@S@/up/nextcloud:ro docker.io/clamav/clamav:1.4' "$V/g/engine.log" \
+    || fail "ClamAV is anders gestart dan verwacht: $(cat "$V/g/engine.log")"
+# 3: klaar: de eerste keer alleen een beginpunt; 4: daarna de nieuwe bestanden: besmet → quarantaine (rechten 000), schoon blijft
+av_flag uit loading
+av_same klaar "a['state'] == 'ok' and a['sigs'].startswith('ClamAV 1.4.1') and a['new'] == 0 and 'vanaf nu gescand' in a['msg']"
+sleep 2.2
+av_put up/nextcloud/sub/eicar.com 'X5O!P%%@AP[4\\PZX54(P^)7CC)7}$EICAR\n'; av_put up/immich/eicar2.txt 'ook besmet\n'; av_put up/nextcloud/nieuw.txt 'schoon\n'
+for side in b g; do chmod 640 "$V/$side/up/nextcloud/sub/eicar.com"; head -c 1100000 /dev/zero >"$V/$side/up/nextcloud/te-groot-eicar.bin"; ln -s "$V/$side/up/nextcloud/nieuw.txt" "$V/$side/up/nextcloud/link-eicar"; done
+av_same besmet "a['state'] == 'ok' and a['new'] == 4 and len(a['found']) == 2 and all(f['moved'] == 1 and f['qid'] == 'QID' for f in a['found']) and len(a['quarantine']) == 2 and '/up/nextcloud/sub/eicar.com' not in up and '/up/nextcloud/nieuw.txt' in up and '/up/nextcloud/te-groot-eicar.bin' in up and [v[:2] for k, v in q.items()] == ['0 ', '0 ']"
+grep -q '^@S@/up/nextcloud/sub/eicar.com	Win.Test.EICAR_HDB-1	[0-9a-f]\{64\}	35	[0-9]*:[0-9]*	640	' <(sed "s#$V/g#@S@#" "$V/g/avdir/quarantine"/*/meta) || fail "de gegevens bij de quarantaine kloppen niet: $(cat "$V/g/avdir/quarantine"/*/meta)"
+av_same rustig "a['found'] == [] and len(a['quarantine']) == 2"
+# 5: terugzetten (op de oude plek, met de oude rechten; daarna niet opnieuw in quarantaine) en definitief weghalen
+qb=$(grep -l 'eicar.com' "$V/b/avdir/quarantine"/*/meta | head -n 1); qb=$(basename "$(dirname "$qb")"); qg=$(grep -l 'eicar.com' "$V/g/avdir/quarantine"/*/meta | head -n 1); qg=$(basename "$(dirname "$qg")")
+db=$(grep -l 'eicar2.txt' "$V/b/avdir/quarantine"/*/meta | head -n 1); db=$(basename "$(dirname "$db")"); dg=$(grep -l 'eicar2.txt' "$V/g/avdir/quarantine"/*/meta | head -n 1); dg=$(basename "$(dirname "$dg")")
+printf '%b' "${base//@S@/$V/b}0\tav\ton\t1\t1\n${dirs//@S@/$V/b}0\tavrestore\t$qb\n0\tavdelete\t$db\n0\tavrestore\t20260101000000-0123abcd\n0\tavdelete\tfout\n" >"$V/b/cache/tests.cache"
+printf '%b' "${base//@S@/$V/g}0\tav\ton\t1\t1\n${dirs//@S@/$V/g}0\tavrestore\t$qg\n0\tavdelete\t$dg\n0\tavrestore\t20260101000000-0123abcd\n0\tavdelete\tfout\n" >"$V/g/cache/tests.cache"; cp "$V/g/cache/tests.cache" "$V/g/gc/tests.cache"
+sleep 2.2
+av_same terugzetten "[(o['op'], o['ok'], o['msg']) for o in a['ops']] == [('restore', 1, 'teruggezet'), ('delete', 1, 'definitief weggehaald'), ('restore', 1, 'niet (meer) in de quarantaine')] and a['quarantine'] == [] and up['/up/nextcloud/sub/eicar.com'].startswith('640') and a['found'] == []"
+av_tests "${base}0\tav\ton\t1\t1\n$dirs"
+sleep 2.2
+for side in b g; do touch "$V/$side/up/nextcloud/sub/eicar.com"; done
+av_same toegestaan "a['new'] == 1 and a['found'] == [] and '/up/nextcloud/sub/eicar.com' in up"
+# 6: alleen melden (niet verplaatsen); 7: een volledige scan op verzoek, de uitkomst komt een ronde later
+av_tests "${base}0\tav\ton\t1\t0\n$dirs"
+sleep 2.2
+av_put up/immich/eicar3.txt 'besmet\n'
+av_same alleen-melden "len(a['found']) == 1 and a['found'][0]['moved'] == 0 and a['found'][0]['qid'] == '' and '/up/immich/eicar3.txt' in up"
+av_tests "${base}0\tav\ton\t1\t0\n${dirs}0\tavfull\tscan-42\n"
+av_same volledig-start "a['full'] == 'running' and a['full_id'] == 'scan-42'"
+av_same volledig-klaar "a['full'] == 'done' and len(a['found']) >= 1 and all('eicar' in f['p'] for f in a['found'])"
+av_same volledig-rustig "a['full'] == 'done' and a['full_id'] == 'scan-42'"
+# 8: de scan geeft een fout; 9: gestopt: opnieuw starten (hooguit eens per 10 minuten), met de reden
+av_flag aan scan-error; sleep 2.2; av_put up/nextcloud/x.txt 'x\n'
+av_same scanfout "'scan gaf fout 2' in a['msg'] and a['state'] == 'ok'"
+av_flag uit scan-error; av_flag aan stopped
+av_same gestopt "a['state'] == 'starting' and 'opnieuw gestart (was: exited 137)' in a['msg']"
+av_flag aan stopped
+av_same gestopt-weer "a['state'] == 'error' and a['msg'].startswith('de container draait niet (exited 137: LibClamAV Error: te weinig geheugen Killed ); bekijk: podman logs --tail 30 rzsense-clamav')"
+av_flag uit stopped
+# 10: een map erbij: de container opnieuw aanmaken; 11: uit: de container weg, de quarantaine blijft
+for side in b g; do mkdir -p "$V/$side/up/extra"; done
+av_tests "${base}0\tav\ton\t1\t1\n${dirs}0\tavdir\t@S@/up/extra\n"
+n1=$(grep -c '^run -d' "$V/g/engine.log")
+av_same map-erbij "a['state'] == 'ok'"
+[ "$(grep -c '^run -d' "$V/g/engine.log")" = $((n1 + 1)) ] || fail "een map erbij hoort de container opnieuw aan te maken"
+av_tests "${base}0\tav\toff\t1\t1\n"
+av_same uit "a['state'] == 'off' and a['dirs'] == []"
+[ ! -e "$V/g/st/ctr" ] && [ -d "$V/g/avdir/quarantine" ] || fail "uit hoort de container weg te halen en de quarantaine te laten staan"
+echo "✔ uploads scannen (ClamAV): welke mappen mogen, voorstellen, starten (genoeg geheugen), nieuwe bestanden scannen, quarantaine (rechten 000), terugzetten met de oude rechten, definitief weghalen, alleen melden, een volledige scan, een gestopte container en uitzetten: gelijk aan de bash-agent"
+
+# 1.367.0 (Go-agent 0.36.0): Suricata op het proxynetwerk. De echte bash-code en de Go-agent werken elk met een eigen map
+# en een namaak-podman; de "netwerkbrug" is hier lo (die bestaat overal). Vergeleken wordt elke opdracht aan de engine,
+# het regelprofiel (byte voor byte), wat ze melden en het logboek.
+N="$work/nids"; mkdir -p "$N/bin"
+cat >"$N/bin/podman" <<'EOF'
+#!/bin/bash
+# namaak-podman voor Suricata
+s=${ND_SIDE:?}
+has() { [ -e "$s/st/$1" ]; }
+log() { printf '%s\n' "$*" | sed -e "s#$s#@S@#g" >>"$s/engine.log"; }
+name=$(cat "$s/nidsdir/ctr.name" 2>/dev/null || echo rzsense-suricata)
+case "$*" in
+    "ps -q") echo abc ;;
+    "ps --format"*) echo "swag lscr.io/linuxserver/swag:latest" ;;
+    "inspect -f"*Mounts*) echo "/config $s/config" ;;
+    "inspect -f"*Env*) echo "URL=voorbeeld.nl" ;;
+    "inspect -f {{range \$k, \$v := .NetworkSettings.Networks}}{{\$k}} {{end}} swag") echo "proxynet rzsense kapot leeg " ;;
+    "network inspect -f {{.NetworkInterface}} proxynet") echo lo ;;
+    "network inspect -f {{.NetworkInterface}} leeg") echo "<no value>" ;;
+    "network inspect leeg") printf '[\n  {\n    "name": "leeg",\n    "network_interface": "bestaatniet9"\n  }\n]\n' ;;
+    "network inspect -f {{.NetworkInterface}} kapot") echo "fout; naam" ;;
+    "inspect -f {{.State.Running}} $name") has ctr || exit 1; if has stopped; then echo false; else echo true; fi ;;
+    "inspect -f {{.State.Status}} {{.State.ExitCode}} $name") echo "exited 1" ;;
+    "inspect $name") has ctr || exit 1 ;;
+    "inspect swag") exit 0 ;;
+    "rm -f rzsense-suricata"*) log "$*"; [ -e "$s/st/ctr" ] && mv -f "$s/st/ctr" "$s/st/.weg.$RANDOM"; exit 0 ;;
+    "rm --storage --force rzsense-suricata"*) log "$*"; echo "Error: unmounting /var/lib/containers/storage/overlay/$(printf 'a%.0s' $(seq 64))/merged: device busy" >&2; exit 1 ;;
+    "run -d"*)
+        log "$*"
+        if has in-use && [[ "$*" != *"--name rzsense-suricata-2 "* ]]; then echo 'Error: creating container storage: the container name "rzsense-suricata" is already in use by abc. You have to remove that container to be able to reuse that name' >&2; exit 125; fi
+        if has run-fail; then echo "Error: geen image" >&2; exit 125; fi
+        : >"$s/st/ctr"; echo abc123 ;;
+    "restart $name") log "$*" ;;
+    "start $name") log "$*"; [ -e "$s/st/stopped" ] && mv -f "$s/st/stopped" "$s/st/.gestart.$RANDOM"; exit 0 ;;
+    "logs --tail 4 $name") printf 'Error: interface lo bestaat niet\n\n<Error> -- kan niet starten\n' ;;
+    "exec $name suricata-update --no-test --no-reload") log "$*"; mkdir -p "$s/nidsdir/lib/rules"; if has update-fail; then echo "Fout: geen verbinding met rules.emergingthreats.net"; exit 1; fi
+        printf 'alert tcp any any -> any any (msg:"a"; sid:1;)\n# uit\nalert udp any any -> any any (msg:"b"; sid:%s;)\n' "$(cat "$s/st/sid" 2>/dev/null || echo 2)" >"$s/nidsdir/lib/rules/suricata.rules" ;;
+    "exec swag nginx"*) exit 0 ;;
+    *) exit 1 ;;
+esac
+EOF
+printf '#!/bin/sh\nprintf 200\n' >"$N/bin/curl"; printf '#!/bin/sh\necho "umount $*" | sed "s#/overlay/[0-9a-f]*/#/overlay/ID/#" >>"${ND_SIDE:?}/engine.log"\n' >"$N/bin/umount"
+chmod +x "$N/bin/"*
+for side in b g; do mkdir -p "$N/$side/st" "$N/$side/cache" "$N/$side/gc" "$N/$side/gd" "$N/$side/nidsdir" "$N/$side/config/nginx/proxy-confs"; printf '# ssl\n' >"$N/$side/config/nginx/ssl.conf"; done
+nd_tests() { for side in b g; do printf '%b' "$1" >"$N/$side/cache/tests.cache"; cp "$N/$side/cache/tests.cache" "$N/$side/gc/tests.cache"; done; }
+nd_flag() { for side in b g; do if [ "$1" = aan ]; then printf '%s' "${3-}" >"$N/$side/st/$2"; else mv -f "$N/$side/st/$2" "$N/$side/st/.uit.$2.$RANDOM" 2>/dev/null || true; fi; done; }
+nd_bash() {  # nd_bash <uitvoer> [minimaal geheugen]
+    (
+        set +u
+        export PATH="$N/bin:$PATH" ND_SIDE="$N/b"
+        HA_MODE=0; PROXY_GUARD=1; t_dir="$N/b/cache"; t_cache="$N/b/cache/tests.cache"; ctr_busy=""; PROXY_CTR=""; PROXY_CPATH=""; PROXY_HTTPS_PORT=""
+        NIDS_DIR="$N/b/nidsdir"; NIDS_IMAGE=""; NIDS_MIN_MB=${2:-1}; NIDS_EVE_MB=""
+        unset INVOCATION_ID
+        lap() { :; }; id() { echo 0; }; sleep() { :; }; nohup() { "$@"; }
+        act_log() { printf '%s|%s|%s|%s\n' "$1" "$2" "$3" "${4-}" >>"$N/b/act"; }
+        # shellcheck disable=SC1090
+        source <(sed -n '/^json_escape() {/,/^}/p' agent/src/15-realtime.sh; sed -n '/^ctr_ok() {/,/^}/p; /^ctrx() {/,/^}/p' agent/src/40-basis-meten.sh; sed -n '/^edr_eve_awk() {/,/^}/p' agent/src/10-edr-sensoren.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^proxy_json=""$/,/^fi$/p' agent/src/69-proxy.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^nids_json=""$/,/^fi$/p' agent/src/69-proxy.sh)
+        wait
+        printf '%s' "${nids_json:-null}" >"$1"
+    ) || fail "de bash-code voor Suricata op het proxynetwerk faalde"
+}
+nd_go() {
+    printf 'MONITOR_URL="https://rz.test"\nNIDS_DIR="%s"\nNIDS_MIN_MB="%s"\n' "$N/g/nidsdir" "${2:-1}" >"$N/g/conf"
+    env -u INVOCATION_ID PATH="$N/bin:$PATH" ND_SIDE="$N/g" RZSENSE_BASH_CONF="$N/g/conf" RZSENSE_BASH_CACHE="$N/g/gc" RZSENSE_BASH_STATE="$N/g/cache" RZSENSE_DATA="$N/g/gd" \
+        RZSENSE_TEST_ROOT=1 RZSENSE_TEST_FAST=1 "$work/rzsense" nids-test >"$1" || fail "de Go-agent kon Suricata niet beheren"
+    sleep 0.4   # het bijwerken van de regels op de achtergrond is hier zo klaar
+}
+nd_same() {  # nd_same <naam> <verwachting in Python over a (gemeld) en t (de bestanden in de eigen map)> [minimaal geheugen]
+    nd_bash "$N/$1.bash.json" "${3:-1}"; nd_go "$N/$1.go.json" "${3:-1}"
+    python3 -I - "$N" "$1" "$2" <<'PY' || fail "Suricata op het proxynetwerk ($1): de Go-agent doet iets anders dan de bash-agent"
+import json, os, re, sys
+N, name, expect = sys.argv[1:4]
+def norm(side, text): return re.sub(r': [0-9]+ MB, nodig', ': N MB, nodig', text.replace(N + '/' + side, '@S@'))
+def load(side, ext):
+    d = json.loads(norm(side, open('%s/%s.%s.json' % (N, name, ext)).read()))
+    if d: d.pop('mem', None)
+    return d
+def tree(side):
+    out = {}
+    base = '%s/%s/nidsdir' % (N, side)
+    for d, _, fs in os.walk(base):
+        for f in fs:
+            rel = os.path.relpath(os.path.join(d, f), base)
+            out[rel] = 'aanwezig' if f in ('update.at', 'start.at', 'update.run') else norm(side, open(os.path.join(d, f)).read())
+    return out
+def rd(p, side): return norm(side, open(p).read()) if os.path.exists(p) else ''
+a, g, t, tg = load('b', 'bash'), load('g', 'go'), tree('b'), tree('g')
+bad = []
+if a != g: bad.append('gemeld:\n  bash %s\n  go   %s' % (json.dumps(a, sort_keys=True, ensure_ascii=False), json.dumps(g, sort_keys=True, ensure_ascii=False)))
+for f in sorted(set(t) | set(tg)):
+    if t.get(f) != tg.get(f): bad.append('bestand %s verschilt:\n  bash %r\n  go   %r' % (f, (t.get(f) or '(ontbreekt)')[:300], (tg.get(f) or '(ontbreekt)')[:300]))
+x, y = rd(N + '/b/engine.log', 'b').splitlines(), rd(N + '/g/engine.log', 'g').splitlines()
+if x != y:
+    d = next((i for i in range(max(len(x), len(y))) if (x[i] if i < len(x) else None) != (y[i] if i < len(y) else None)), 0)
+    bad.append('opdrachten aan de engine verschillen vanaf regel %d:\n  bash %r\n  go   %r' % (d + 1, x[d:d + 2], y[d:d + 2]))
+la = [l for l in rd(N + '/b/act', 'b').splitlines() if 'Suricata' in l]
+lg = [norm('g', '|'.join([e['m'], str(e['ok']), e['a'], e['d']])) for e in map(json.loads, open(N + '/g/gd/act.log')) if 'Suricata' in e['a']] if os.path.exists(N + '/g/gd/act.log') else []
+if la != lg: bad.append('logboek:\n  bash %s\n  go   %s' % (la[-3:], lg[-3:]))
+if not bad and not eval(expect): bad.append('onverwacht: %s | %s' % (json.dumps(a, ensure_ascii=False), sorted(t)))
+if bad: print('\n'.join(bad)); sys.exit(1)
+PY
+}
+base="0\ttick\t30\n0\tproxy\ton\n0\tproxylan\t192.168.1.0/24\n"
+# 1: te weinig geheugen; 2: starten op de gevonden brug (het netwerk van de WAF en ongeldige namen tellen niet), profiel "web"
+nd_tests "${base}0\tnids\ton\tweb\tauto\n"
+nd_same weinig-geheugen "a['state'] == 'lowmem' and a['found'] == ['lo'] and a['ifaces'] == ['lo']" 99999999
+nd_same start "a['state'] == 'starting' and a['profile'] == 'web' and a['rules'] == 0 and 'etc/disable.conf' in t and 'group:emerging-malware.rules' in t['etc/disable.conf'] and 'emerging-web_server' not in t['etc/disable.conf']"
+grep -q 'run -d --name rzsense-suricata --restart unless-stopped --network host --cap-add net_admin --cap-add net_raw --cap-add sys_nice -v @S@/nidsdir/log:/var/log/suricata:Z .* docker.io/jasonish/suricata:7.0 -i lo --set capture.disable-offloading=true' "$N/g/engine.log" \
+    && grep -q 'suricata-update --no-test --no-reload' "$N/g/engine.log" || fail "Suricata is anders gestart dan verwacht: $(cat "$N/g/engine.log")"
+# 3: de regels zijn opgehaald: herstarten om ze te laden; meldingen uit eve.json (de eerste keer alleen de positie)
+for side in b g; do mkdir -p "$N/$side/nidsdir/log"; printf '{"timestamp":"2026-11-27T10:00:00.1+0100","event_type":"alert","src_ip":"203.0.113.9","src_port":1,"dest_ip":"10.0.0.5","dest_port":80,"proto":"TCP","alert":{"action":"allowed","signature_id":2001,"signature":"oud","category":"c","severity":2}}\n' >"$N/$side/nidsdir/log/eve.json"; done
+nd_same regels "a['state'] == 'ok' and a['rules'] == 2 and a['alerts'] == [] and 'rules.sum' in t and 'eve.pos' in t"
+grep -q '^restart rzsense-suricata' "$N/g/engine.log" || fail "na nieuwe regels hoort Suricata te herstarten"
+for side in b g; do printf '{"timestamp":"2026-11-27T10:01:00.1+0100","event_type":"alert","src_ip":"203.0.113.10","src_port":2,"dest_ip":"10.0.0.5","dest_port":443,"proto":"TCP","alert":{"action":"allowed","signature_id":2002,"signature":"ET WEB \\"aanval\\"","category":"Web Application Attack","severity":1}}\n{"event_type":"flow"}\n' >>"$N/$side/nidsdir/log/eve.json"; done
+r1=$(grep -c '^restart' "$N/g/engine.log")
+nd_same meldingen "len(a['alerts']) == 1 and a['alerts'][0][1] == '203.0.113.10' and a['alerts'][0][6] == 2002 and a['msg'] == ''"
+nd_same rustig "a['alerts'] == [] and a['state'] == 'ok'"
+[ "$(grep -c '^restart' "$N/g/engine.log")" = "$r1" ] && [ "$(grep -c 'suricata-update' "$N/g/engine.log")" = 1 ] || fail "zonder wijziging hoort Suricata niet opnieuw bij te werken of te herstarten"
+# 4: een ander profiel: de regels opnieuw ophalen (zonder nieuwe container); gelijke regels = niet herstarten; mislukt = melden
+nd_tests "${base}0\tnids\ton\tfull\tauto\n"
+n1=$(grep -c '^run -d' "$N/g/engine.log")
+nd_same ander-profiel "a['profile'] == 'full' and t['etc/disable.conf'] == '# RzSense: beheerd door de RzSense-agent (profiel full)\n'"
+nd_same ander-profiel-klaar "a['state'] == 'ok'"
+[ "$(grep -c '^run -d' "$N/g/engine.log")" = "$n1" ] && [ "$(grep -c 'suricata-update' "$N/g/engine.log")" = 2 ] && [ "$(grep -c '^restart' "$N/g/engine.log")" = "$r1" ] || fail "een ander profiel hoort alleen de regels opnieuw op te halen: $(tail -n 4 "$N/g/engine.log")"
+nd_flag aan update-fail
+nd_tests "${base}0\tnids\ton\tbalanced\tlo,bestaatniet9,fout naam\n"
+nd_same bijwerken-start "a['ifaces'] == ['lo'] and 'group:emerging-malware.rules' not in t['etc/disable.conf'] and 'group:emerging-games.rules' in t['etc/disable.conf']"
+nd_same bijwerken-mislukt "a['msg'].startswith('regels bijwerken mislukt: Fout: geen verbinding')"
+nd_flag uit update-fail
+# 5: gestopt: opnieuw starten met de reden (hooguit eens per 10 minuten)
+nd_flag aan stopped
+nd_same gestopt "a['state'] == 'starting' and a['msg'] == 'opnieuw gestart'"
+nd_flag aan stopped
+nd_same gestopt-weer "a['state'] == 'error' and a['msg'].startswith('de container draait niet (exited 1: Error: interface lo bestaat niet <Error> -- kan niet starten ); bekijk: podman logs --tail 30 rzsense-suricata')"
+nd_flag uit stopped
+# 6: uit; 7: de naam zit vast in de opslag van Podman: opruimen, en als dat niet helpt een andere naam
+nd_tests "${base}0\tnids\toff\tweb\tauto\n"
+nd_same uit "a['state'] == 'off' and 'env.hash' not in t"
+nd_flag aan in-use
+nd_tests "${base}0\tnids\ton\tweb\tauto\n"
+nd_same naam-vast "t.get('ctr.name') == 'rzsense-suricata-2\n' and a['state'] in ('starting', 'ok')"
+grep -q '^rm --storage --force rzsense-suricata$' "$N/g/engine.log" && grep -q '^umount -l /var/lib/containers/storage/overlay/ID/merged' "$N/g/engine.log" && grep -q 'run -d --name rzsense-suricata-2 ' "$N/g/engine.log" \
+    || fail "een naam die vastzit hoort opgeruimd te worden, en anders een andere naam te krijgen: $(tail -n 8 "$N/g/engine.log")"
+nd_flag uit in-use
+# 8: geen netwerkbrug die bestaat
+nd_tests "${base}0\tnids\ton\tweb\tbestaatniet9\n"
+nd_same geen-brug "a['state'] == 'error' and 'geen netwerkbrug gevonden' in a['msg'] and a['ifaces'] == []"
+echo "✔ Suricata op het proxynetwerk: de netwerkbrug vinden, starten (genoeg geheugen), het regelprofiel (byte voor byte), regels bijwerken en alleen herstarten als ze veranderden, meldingen, een gestopte container, een naam die vastzit in Podman en uitzetten: gelijk aan de bash-agent"
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.

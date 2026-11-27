@@ -5,6 +5,12 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.36.0 – 2026-11-27
+- **Linux: uploads scannen met ClamAV**, zoals de bash-agent: alleen de mappen die mogen (binnen `AV_DIRS_MAX`, nooit systeemmappen), nieuwe en gewijzigde bestanden elke ronde, een volledige scan op verzoek, en de quarantaine (rechten 000, met de oude plek, eigenaar en rechten erbij). Terugzetten en definitief weghalen werken hetzelfde; de quarantaine is dezelfde map.
+- **Linux: Suricata op het proxynetwerk**: de netwerkbrug van de proxy vinden, het regelprofiel, de regels dagelijks bijwerken (herstarten alleen als ze veranderden) en de meldingen doorgeven.
+- Een volledige scan en het bijwerken van de regels lopen in een eigen systemd-eenheid, zodat ze doorlopen als de ronde klaar is.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.35.0 – 2026-11-27
 - **Linux: de WAF op de reverse proxy** (CrowdSec AppSec met de OWASP Core Rule Set, in een eigen container), zoals de bash-agent: het netwerk `rzsense` met SWAG eraan, de sleutel voor SWAG, de regels per stand van de slider, per site *alleen melden* of *uit*, uitzonderingen, de zelftest met een nep-aanval, en de reden als de WAF niet start of niet antwoordt.
 - Dezelfde bestanden en dezelfde opdrachten aan Podman of Docker als de bash-agent, in dezelfde map. Bij overnemen wordt de container daarom niet opnieuw aangemaakt.

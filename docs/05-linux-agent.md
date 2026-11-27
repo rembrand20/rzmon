@@ -804,7 +804,9 @@ De reverse proxy beschermt de Go-agent zoals de bash-agent: dezelfde nginx-besta
 en terugzetten als een site daarna niet meer antwoordt. In de proef schrijft hij niets; RzSense laat zien of hij
 hetzelfde beleid zou schrijven (*Reverse proxy (proef)*).
 Ook de WAF (CrowdSec in een eigen container) beheert de Go-agent, met dezelfde bestanden en dezelfde zelftest.
-Dit houdt overnemen tegen zolang het voor de server aan staat: antivirus en Suricata op de reverse proxy;
+Uploads scannen (ClamAV) en Suricata op het proxynetwerk doet de Go-agent ook; de quarantaine en de mappen met de
+stand zijn die van de bash-agent.
+Dit houdt overnemen tegen zolang het voor de server aan staat:
 Home Assistant-checks (die horen bij de add-on); de relay
 (die draait in zijn eigen container en blijft de bash-agent); en vaker dan elke minuut rapporteren.
 

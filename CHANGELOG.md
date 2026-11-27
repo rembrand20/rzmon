@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.367.0**: **De Go-agent doet alles wat de bash-agent doet**: ook uploads scannen met ClamAV en Suricata op het proxynetwerk.
 - **1.366.0**: **De Go-agent beheert de WAF**, en de OWASP-regelset wordt in de stand *alleen zeker* nu echt geladen.
 - **1.365.0**: **De Go-agent beschermt de reverse proxy**: hetzelfde beleid, byte voor byte, met testen en terugzetten zoals de bash-agent.
 - **1.364.0**: **De Go-agent leest de logs van webdiensten**, en mislukte logins bij Vaultwarden worden nu echt geteld.
 - **1.363.0**: **De Go-agent doet Programma's, sporen zoeken en tijdelijk sudo**: alleen de reverse proxy en logs van webdiensten ontbreken nog.
-- **1.362.0**: **De Go-agent herkent ransomware**: lokaasbestanden, kenmerken, snapshot en processen stoppen, gelijk aan de bash-agent.
+
+## 1.367.0 – 2026-11-27
+### Nieuw
+- **De Go-agent scant uploads (ClamAV) en beheert Suricata op het proxynetwerk.** Daarmee doet hij alles wat de bash-agent op een reverse proxy doet: het beleid, de WAF, antivirus en Suricata. Geen van die onderdelen houdt het overnemen nog tegen.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.36.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Dit houdt overnemen nu alleen nog tegen: Home Assistant-checks (die horen bij de add-on), de relay (die draait in zijn eigen container en blijft de bash-agent) en vaker dan elke minuut rapporteren.
+- De containers voor de WAF, ClamAV en Suricata worden bij het overnemen niet opnieuw aangemaakt: de Go-agent gebruikt dezelfde mappen en ziet dat ze er al staan.
 
 ## 1.366.0 – 2026-11-27
 ### Nieuw

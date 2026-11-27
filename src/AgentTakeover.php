@@ -29,7 +29,9 @@ final class AgentTakeover
         // 1.365.0 (Go-agent 0.34.0): de reverse proxy beschermen (de WAF, antivirus en Suricata nog niet)
         'proxy', 'proxylan', 'proxysite', 'proxyblock', 'proxytags', 'proxypass', 'proxytrust', 'proxydev',
         // 1.366.0 (Go-agent 0.35.0): de WAF op de reverse proxy
-        'waf', 'wafsite', 'wafex'];
+        'waf', 'wafsite', 'wafex',
+        // 1.367.0 (Go-agent 0.36.0): uploads scannen (ClamAV) en Suricata op het proxynetwerk
+        'av', 'avdir', 'avfull', 'avrestore', 'avdelete', 'nids'];
     /** Agent-checks die de Go-agent meet; andere soorten die van de agent komen, houden het overnemen tegen */
     private const CHECKS_BLOCK = ['ha'];
 
