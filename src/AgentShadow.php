@@ -30,7 +30,16 @@ final class AgentShadow
             return ['ok' => false, 'error' => t('geen metingen in de proefronde')];
         }
         $id = (int) $host['id'];
-        $items = self::compare($core, self::bashNow($id));
+        $bashNow = self::bashNow($id);
+        // 1.359.0: bestanden bewaken: de waarden die RzSense van de bash-agent bewaart, bij de steekproef van de Go-agent
+        $sample = $core['ids_obs']['fim']['sample'] ?? null;
+        if (is_array($sample) && $sample !== [] && isset($bashNow['ids_obs'])) {
+            $paths = array_slice(array_map('strval', array_keys($sample)), 0, 300);
+            $bashNow['ids_obs']['fim_base'] = q("SELECT item, value FROM ids_baseline WHERE host_id = ? AND kind = 'fim' AND item IN (" . implode(',', array_fill(0, count($paths), '?')) . ')',
+                array_merge([$id], $paths))->fetchAll(PDO::FETCH_KEY_PAIR);
+            $bashNow['ids_obs']['fim_count'] = (int) q('SELECT fim_count FROM ids_state WHERE host_id = ?', [$id])->fetchColumn();
+        }
+        $items = self::compare($core, $bashNow);
         $same = count(array_filter($items, static fn($i) => $i['ok']));
         $prev = AgentData::get($id, 'shadow') ?? [];
         $diffN = (array) ($prev['diff_n'] ?? []);
@@ -87,6 +96,15 @@ final class AgentShadow
             'procs' => array_map(static fn($p) => ['pid' => (int) ($p['pid'] ?? 0), 'exe' => mb_substr((string) ($p['exe'] ?? ''), 0, 300)], array_slice(array_filter((array) ($ids['procs'] ?? []), 'is_array'), 0, 20)),
             // de bash-agent stuurt de lijst met diensten maar eens per 10 minuten: de vorige bewaren
             'units' => isset($ids['units']) && is_array($ids['units']) ? array_slice($ids['units'], 0, 500) : ($prev['units'] ?? null),
+            // 1.359.0: de rest van het waarnemen. Hardening komt eens per uur mee, SUID en de pakketcontrole als ze er zijn.
+            'web' => array_map(static fn($w) => [(string) ($w['tool'] ?? ''), (string) ($w['web'] ?? ''), (string) ($w['user'] ?? '')], array_slice(array_filter((array) ($ids['web'] ?? []), 'is_array'), 0, 20)),
+            'conns' => array_map(static fn($c) => [(string) ($c['kind'] ?? ''), (string) ($c['proc'] ?? ''), (string) ($c['peer'] ?? '')], array_slice(array_filter((array) ($ids['conns'] ?? []), 'is_array'), 0, 200)),
+            'out' => array_slice(array_filter((array) ($ids['out'] ?? []), 'is_array'), 0, 100),
+            'hard' => is_array($ids['hard'] ?? null) ? array_slice(array_map('strval', $ids['hard']), 0, 80, true) : ($prev['hard'] ?? null),
+            'suid' => is_array($ids['suid'] ?? null) ? array_slice($ids['suid'], 0, 2000) : null,
+            'pkgdiff' => is_array($ids['pkgdiff'] ?? null) ? array_slice($ids['pkgdiff'], 0, 100) : null,
+            'fimc' => array_slice((array) ($ids['fimc'] ?? []), 0, 20),
+            'has2' => array_key_exists('fimc', $ids),   // stuurt deze bash-agent het tweede deel mee?
         ]);
     }
 
@@ -473,6 +491,48 @@ final class AgentShadow
             $cmp('IDS (proef): verdachte processen', t('processen'), $pr($bi['procs'] ?? []), $pr($gi['procs'] ?? []), 1);
             if (is_array($bi['units'] ?? null) && is_array($gi['units'] ?? null)) {
                 $cmp('IDS (proef): diensten die automatisch starten', t('diensten'), $lst($bi['units']), $lst($gi['units']));
+            }
+            // 1.359.0: de rest van het waarnemen (Go-agent 0.28.0)
+            if (!empty($bi['has2']) && array_key_exists('fimc', $gi)) {
+                // Processen en verbindingen komen en gaan tussen de twee metingen: één verschil mag
+                $web = static fn(mixed $l): array => array_values(array_unique(array_map(static fn($w) => is_array($w) ? (isset($w['tool']) ? "{$w['tool']}|{$w['web']}|{$w['user']}" : implode('|', array_map('strval', $w))) : '', is_array($l) ? $l : [])));
+                $cmp('IDS (proef): webshells', t('processen'), $web($bi['web'] ?? []), $web($gi['web'] ?? []), 1);
+                $con = static fn(mixed $l): array => array_values(array_unique(array_map(static fn($c) => is_array($c) ? (isset($c['kind']) ? "{$c['kind']}|{$c['proc']}|{$c['peer']}" : implode('|', array_map('strval', $c))) : '', is_array($l) ? $l : [])));
+                $cmp('IDS (proef): verdachte verbindingen', t('verbindingen'), $con($bi['conns'] ?? []), $con($gi['conns'] ?? []), 1);
+                // Waarheen de server verbindt, verandert elke seconde: de helft mag anders zijn (minstens 4)
+                [$ob, $og] = [$lst($bi['out'] ?? []), $lst($gi['out'] ?? [])];
+                $cmp('IDS (proef): uitgaande verbindingen', t('adressen'), $ob, $og, max(4, intdiv(count(array_unique(array_merge($ob, $og))), 2)));
+                if (is_array($bi['hard'] ?? null) && $bi['hard'] !== [] && is_array($gi['hard'] ?? null)) {
+                    $norm = static function (mixed $v): string {
+                        $p = explode(',', (string) $v);
+                        sort($p);
+                        return implode(',', $p);
+                    };
+                    $diff = [];
+                    foreach (array_intersect_key($bi['hard'], $gi['hard']) as $k => $v) {
+                        if ($norm($v) !== $norm($gi['hard'][$k])) {
+                            $diff[] = (string) $k;
+                        }
+                    }
+                    $ht = static fn(array $h) => t('{n} instellingen', ['n' => count($h)]) . ($diff ? ' · ' . implode(', ', array_map(static fn($k) => $k . '=' . mb_substr((string) $h[$k], 0, 40), array_slice($diff, 0, 5))) : '');
+                    $add('IDS (proef): hardening', $ht($bi['hard']), $ht($gi['hard']), !$diff);
+                }
+                if (is_array($bi['suid'] ?? null) && is_array($gi['suid'] ?? null)) {
+                    $cmp('IDS (proef): SUID-bestanden', t('bestanden'), $lst($bi['suid']), $lst($gi['suid']), 1);
+                }
+                if (is_array($bi['pkgdiff'] ?? null) && is_array($gi['pkgdiff'] ?? null)) {
+                    $cmp('IDS (proef): pakketcontrole', t('bestanden'), $lst($bi['pkgdiff']), $lst($gi['pkgdiff']), 1);
+                }
+                $cmp('IDS (proef): mappen om te bewaken', t('mappen'), $lst($bi['fimc'] ?? []), $lst($gi['fimc'] ?? []));
+                if (is_array($gi['fim'] ?? null) && is_array($bi['fim_base'] ?? null)) {
+                    $gs = (array) ($gi['fim']['sample'] ?? []);
+                    $other = array_keys(array_filter($gs, static fn($v, $p) => ($bi['fim_base'][$p] ?? null) !== mb_substr((string) $v, 0, 255), ARRAY_FILTER_USE_BOTH));
+                    $gn = (int) ($gi['fim']['n'] ?? 0);
+                    $bn = (int) ($bi['fim_count'] ?? 0);
+                    // Een bestand dat net verandert of erbij komt tussen de twee metingen: twee mag
+                    $add('IDS (proef): bestanden bewaken', t('{n} bestanden', ['n' => $bn]),
+                        t('{n} bestanden', ['n' => $gn]) . ($other ? ' · ' . t('andere waarde: {l}', ['l' => implode(', ', array_slice($other, 0, 4))]) : ''), abs($gn - $bn) <= 2 && count($other) <= 2);
+                }
             }
         }
         // 1.355.0: WireGuard: welke peers er zijn en hun endpoint (de handshake en het verkeer lopen door en tellen niet)

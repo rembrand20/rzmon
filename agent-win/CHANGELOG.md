@@ -5,6 +5,12 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.28.0 – 2026-11-27
+- **Linux: IDS als proef, tweede stap: de rest van het waarnemen.** Op een server waar het IDS aan staat, leest de Go-agent in de proef nu ook: webshells (een shell of netwerkprogramma onder een webserver), verdachte verbindingen en waarheen de server naar buiten verbindt, de instellingen voor hardening, SUID-bestanden (elk uur), de pakketcontrole (dagelijks) en de bestanden die je laat bewaken (hash, grootte, rechten, eigenaar).
+- SUID en de pakketcontrole lopen op de achtergrond met lage prioriteit, en starten niet zolang de bash-agent dezelfde controle draait.
+- De Go-agent grijpt ook hier nergens in en verandert niets op de server. Zijn eigen stand staat in zijn eigen map; die van de bash-agent blijft onaangeroerd.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.27.0 – 2026-11-27
 - **Linux: IDS als proef, eerste stap: alleen waarnemen.** Op een server waar het IDS aan staat, leest de Go-agent in de proef mee wat de bash-agent voor het IDS leest: de SHA-256 van gevoelige bestanden (inlog, sudo, SSH, cron, systemd-units, PAM; nooit de inhoud), gebruikers, leden van groepen met rechten, kernelmodules, verdachte processen en de diensten die automatisch starten.
 - De Go-agent grijpt hierbij nergens in: geen firewall, geen gebruikers, geen processen. Het IDS zelf blijft bij de bash-agent.

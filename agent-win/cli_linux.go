@@ -171,6 +171,28 @@ func cliLinux(args []string) bool {
 		b, _ := json.Marshal(map[string]any{"files": idsFileHashes(""), "users": idsUsers(readText("/etc/passwd")), "groups": idsGroups(readText("/etc/group")),
 			"modules": idsModules(readText("/proc/modules")), "procs": idsSuspectProcs()})
 		fmt.Println(string(b))
+	case "ids-obs2": // voor de tests: de rest van het waarnemen (webshells, verbindingen, hardening, pakketten, bestanden bewaken)
+		obs := map[string]any{}
+		idsObserveMore(obs, readText(filepath.Join(bashCachePath(), "tests.cache")))
+		obs["hard"] = idsHardening()
+		if c := fimParse(readText(filepath.Join(bashCachePath(), "tests.cache"))); c != nil {
+			old, _ := fimStateRead(os.Getenv("RZSENSE_TEST_FIMOLD"))
+			obs["fim_state"] = fimStateText(fimHash(fimList(c), old))
+		}
+		if len(os.Args) >= 4 && os.Args[2] == "suid" {
+			obs["suid"] = idsSuidScan(os.Args[3])
+		}
+		b, _ := json.Marshal(obs)
+		fmt.Println(string(b))
+	case "ids-pkgdiff": // voor de tests: de uitvoer van rpm -Va of debsums -c (op stdin) lezen
+		in, _ := io.ReadAll(os.Stdin)
+		b, _ := json.Marshal(idsPkgDiffFrom(string(in), len(os.Args) >= 3 && os.Args[2] == "rpm"))
+		fmt.Println(string(b))
+	case "ids-scan": // de trage controle op de achtergrond (door de agent zelf gestart)
+		if len(os.Args) < 3 {
+			os.Exit(2)
+		}
+		os.Exit(idsScanRun(os.Args[2]))
 	case "ctr-check": // voor de tests: containers en heartbeats zoals ze in het rapport komen
 		p, busy := collectContainersLinux(nil)
 		b, _ := json.Marshal(map[string]any{"podman": p, "busy": busy, "hb": collectHeartbeatsLinux()})

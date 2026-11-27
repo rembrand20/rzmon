@@ -5319,6 +5319,26 @@ $tkIc = static fn(array $go) => array_column(AgentShadow::compare(['ids_obs' => 
 ok(!in_array(false, $tkIc($tkIg), true) && count($tkIc($tkIg)) === 6, 'IDS-proef: dezelfde waarneming (andere volgorde) is gelijk: ' . json_encode($tkIc($tkIg), JSON_UNESCAPED_UNICODE));
 $tkId = $tkIc(['users' => [['root', 0], ['piet', 1000], ['achterdeur', 0]], 'files' => ['/etc/passwd' => str_repeat('a', 64)]] + $tkIg);
 ok(!$tkId['IDS (proef): gebruikers'] && !$tkId['IDS (proef): gevoelige bestanden'] && $tkId['IDS (proef): kernelmodules'], 'IDS-proef: een gebruiker meer of een bestand minder is een verschil');
+// 1.359.0: het tweede deel van het waarnemen
+$tkI2 = ['web' => [['pid' => 9, 'start' => 1, 'user' => 'www-data', 'tool' => 'sh', 'web' => 'php-fpm8.2', 'cmd' => 'sh -c id']], 'conns' => [['kind' => 'shell', 'proc' => 'bash', 'pid' => 4, 'local' => '10.0.0.1:5', 'peer' => '198.51.100.3:4444']],
+    'out' => [['curl', '203.0.113.7', 443], ['php', '203.0.113.8', 80]], 'hard' => ['firewall' => 'firewalld', 'sudo_nopw' => 'piet,jan', 'ssh_root' => 'no'], 'suid' => ['/usr/bin/su', '/usr/bin/sudo'],
+    'pkgdiff' => [], 'fimc' => ['/opt', '/etc/nginx'], 'fim' => ['n' => 3]];
+AgentShadow::noteBashIds($tkH, $tkI2 + $tkIb);
+AgentShadow::noteBashIds($tkH, ['hard' => null, 'suid' => null] + $tkI2 + $tkIb);
+$tkIs2 = AgentData::get($tkH, 'ids_obs_bash');
+ok($tkIs2['hard']['firewall'] === 'firewalld' && $tkIs2['suid'] === null && $tkIs2['web'] === [['sh', 'php-fpm8.2', 'www-data']], 'bewaard voor de proef: hardening (eens per uur) blijft staan, van een webshell niet de opdrachtregel');
+$tkIg2 = ['web' => [['pid' => 12, 'start' => 7, 'user' => 'www-data', 'tool' => 'sh', 'web' => 'php-fpm8.2', 'cmd' => 'x']], 'conns' => [['kind' => 'shell', 'proc' => 'bash', 'pid' => 4, 'local' => 'x', 'peer' => '198.51.100.3:4444']],
+    'out' => [['php', '203.0.113.8', 80], ['curl', '203.0.113.7', 443]], 'hard' => ['firewall' => 'firewalld', 'sudo_nopw' => 'jan,piet', 'ssh_root' => 'no', 'uid0' => ''], 'suid' => ['/usr/bin/sudo', '/usr/bin/su'],
+    'pkgdiff' => [], 'fimc' => ['/etc/nginx', '/opt'], 'fim' => ['n' => 3, 'sample' => ['/etc/a' => 'h1|1|644|root:root', '/etc/b' => 'h2|2|600|root:root']]] + $tkIg;
+$tkIc2 = static fn(array $go, array $extra = []) => array_column(AgentShadow::compare(['ids_obs' => $go], ['ids_obs' => $extra + ['suid' => ['/usr/bin/su', '/usr/bin/sudo'], 'pkgdiff' => []] + $tkIs2]), 'ok', 'k');
+$tkBase = ['fim_base' => ['/etc/a' => 'h1|1|644|root:root', '/etc/b' => 'h2|2|600|root:root'], 'fim_count' => 3];
+$tkR2 = $tkIc2($tkIg2, $tkBase);
+ok(!in_array(false, $tkR2, true) && count($tkR2) === 14, 'IDS-proef, tweede deel: dezelfde waarneming is gelijk (een instelling die alleen de Go-agent stuurt telt niet): ' . json_encode($tkR2, JSON_UNESCAPED_UNICODE));
+$tkR3 = $tkIc2(['hard' => ['firewall' => 'none'] + $tkIg2['hard'], 'suid' => ['/usr/bin/su', '/tmp/a', '/tmp/b'], 'fimc' => ['/opt'],
+    'fim' => ['n' => 9, 'sample' => ['/etc/a' => 'h1|1|644|root:root', '/etc/b' => 'anders|2|600|root:root']]] + $tkIg2, $tkBase);
+ok(!$tkR3['IDS (proef): hardening'] && !$tkR3['IDS (proef): SUID-bestanden'] && !$tkR3['IDS (proef): mappen om te bewaken'] && !$tkR3['IDS (proef): bestanden bewaken'] && $tkR3['IDS (proef): webshells'],
+    'IDS-proef, tweede deel: een andere firewall, twee SUID-bestanden meer, een map minder of een ander aantal bewaakte bestanden is een verschil');
+ok(!isset($tkIc2($tkIg2)['IDS (proef): bestanden bewaken']), 'IDS-proef: zonder basismeting in RzSense worden bewaakte bestanden niet vergeleken');
 AgentData::put($tkH, 'shadow', null);
 AgentData::put($tkH, 'ids_obs_bash', null);
 $tkCt = ['name' => 'web', 'user' => 'root', 'pod' => '', 'image' => 'nginx:1.27', 'state' => 'running', 'health' => 'healthy', 'exit_code' => 0, 'restarts' => 2];

@@ -8,11 +8,27 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.359.0**: **IDS in de Go-agent, dry-run compleet**: ook webshells, verbindingen, hardening, SUID, pakketcontrole en bestanden bewaken worden naast de bash-agent gelegd.
 - **1.358.0**: **Let's Encrypt zonder reverse proxy**: RzSense vraagt zelf een geldig certificaat aan voor je domein, koppelt het en vernieuwt het, met een stappenplan voor DNS, router en firewall.
 - **1.357.0**: **IDS in de Go-agent als dry-run**: de Go-agent neemt waar wat het IDS nodig heeft en RzSense vergelijkt het; er wordt niets geblokkeerd.
 - **1.356.0**: **De Go-agent is compleet op het beveiligingsblok na**: ook wifi, certificaten zoeken, 🧪 Test, het meetpunt van buitenaf en de AI-diagnose.
 - **1.355.0**: **De Go-agent doet databasechecks, WireGuard en netwerkverkeer**: alleen lezen, het wachtwoord nooit op de opdrachtregel.
-- **1.354.0**: **De Go-agent leest Proxmox en TrueNAS uit**: guests, opslag, ZFS, back-ups en apps, gelijk aan de bash-agent.
+
+## 1.359.0 – 2026-11-27
+### Nieuw
+- **IDS in de Go-agent, tweede stap van de dry-run.** De Go-agent neemt nu alles waar wat het IDS nodig heeft, en RzSense legt het naast de bash-agent. Nieuwe regels in het blok *Go-agent*: *IDS (proef): webshells*, *verdachte verbindingen*, *uitgaande verbindingen*, *hardening*, *SUID-bestanden*, *pakketcontrole*, *mappen om te bewaken* en *bestanden bewaken*.
+- Bij *bestanden bewaken* vergelijkt RzSense het aantal bewaakte bestanden en een steekproef van hooguit 300 bestanden met wat het zelf van de bash-agent bewaart.
+- **Er wordt nog steeds niets geblokkeerd, vergrendeld of gestopt door de Go-agent**, en het IDS houdt het overnemen nog tegen.
+
+### Opgelost
+- **Hardening: extra beheerders (UID 0) werden nooit gemeld** (agent 1.123.3 nodig). De controle stond in RzSense, maar de bash-agent stuurde de meting niet mee.
+
+### Nieuwe agent
+- Nieuwe agent 1.123.3 en nieuwe Go-agent 0.28.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- SUID-bestanden en de pakketcontrole verschijnen pas in de proef nadat de Go-agent ze op de achtergrond heeft gemeten: SUID binnen een uur, de pakketcontrole binnen een dag.
+- Processen en verbindingen komen en gaan tussen de twee metingen. Daar mag één verschil zijn; bij uitgaande verbindingen de helft.
 
 ## 1.358.0 – 2026-11-27
 ### Nieuw

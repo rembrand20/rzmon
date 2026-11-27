@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.123.2"
+AGENT_VERSION="1.123.3"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -2883,7 +2883,7 @@ if [ -n "$ids_mode" ]; then
             for h_g in /boot/grub2/grub.cfg /boot/grub/grub.cfg; do [ -f "$h_g" ] && { printf 'grub_perm=%s\n' "$(stat -c '%a' "$h_g")"; break; }; done
             if findmnt -no OPTIONS /dev/shm 2>/dev/null | grep -q noexec; then printf 'shm_noexec=yes\n'; elif [ -d /dev/shm ]; then printf 'shm_noexec=no\n'; fi
         } >"$i_dir/hard.tmp" 2>/dev/null && mv -f "$i_dir/hard.tmp" "$i_dir/hard"
-        [ -s "$i_dir/hard" ] && hard_part=",\"hard\":{$(awk '/^[a-z_]+=/ { k = $0; sub(/=.*/, "", k); v = substr($0, length(k) + 2); gsub(/[\\"]/, "", v); printf "\"%s\":\"%s\",", k, v }' "$i_dir/hard" | sed 's/,$//')}"
+        [ -s "$i_dir/hard" ] && hard_part=",\"hard\":{$(awk '/^[a-z_0-9]+=/ { k = $0; sub(/=.*/, "", k); v = substr($0, length(k) + 2); gsub(/[\\"]/, "", v); printf "\"%s\":\"%s\",", k, v }' "$i_dir/hard" | sed 's/,$//')}"
     fi
     # 7. Verbindingen: een shell (of nc/socat) met een verbinding naar buiten, of uitgaand naar een verdachte poort
     conns_json=""; out_json=""; out_seen=""; n_out=0

@@ -12321,4 +12321,9 @@ return [
     'Aanvragen' => 'Request',
     'Let\'s Encrypt loskoppelen?' => 'Detach Let\'s Encrypt?',
     'Via {d} krijg je dan weer het eigen certificaat van RzSense: je browser waarschuwt, en van buiten werkt https niet meer goed. Het certificaat wordt verwijderd.' => '{d} then shows RzSense\'s own certificate again: your browser warns, and https from outside no longer works properly. The certificate is deleted.',
+    'verbindingen' => 'connections',
+    'adressen' => 'addresses',
+    '{n} instellingen' => '{n} settings',
+    'mappen' => 'folders',
+    'andere waarde: {l}' => 'different value: {l}',
 ];

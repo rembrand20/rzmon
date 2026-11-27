@@ -219,6 +219,9 @@ func idsEnabledUnits() []string {
 // staat: de regel "0 <tab> ids <tab> learn|block" in de testlijst van de bash-agent)
 func collectIdsObsLinux() map[string]any {
 	on := false
+	if os.Getenv("RZSENSE_TEST_IDS") != "" { // voor de tests
+		on = true
+	}
 	for _, l := range strings.Split(readText(filepath.Join(bashCachePath(), "tests.cache")), "\n") {
 		if f := strings.Split(l, "\t"); len(f) >= 3 && f[0] == "0" && f[1] == "ids" && f[2] != "" {
 			on = true
@@ -233,5 +236,6 @@ func collectIdsObsLinux() map[string]any {
 	if u := idsEnabledUnits(); u != nil {
 		obs["units"] = u
 	}
+	idsObserveMore(obs, readText(filepath.Join(bashCachePath(), "tests.cache"))) // 0.28.0: de rest van het waarnemen
 	return obs
 }
