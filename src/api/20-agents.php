@@ -21,6 +21,11 @@ switch ($action) {
     case 'agent_shadow_get':   // 1.339.0: Agent Manager → Go-agent (proef): de stand en welke bestanden klaarstaan
         out(AgentShadow::get((int) ($_GET['host_id'] ?? 0)));
 
+    case 'agent_go_want':   // 1.344.0: de Go-agent het werk laten overnemen, of terug naar de bash-agent
+        $in = input();
+        $r = AgentTakeover::request((int) ($in['host_id'] ?? 0), !empty($in['on']));
+        out($r, isset($r['error']) ? 400 : 200);
+
     case 'agent_shadow_reset':   // opnieuw beginnen te tellen
         AgentShadow::reset((int) (input()['host_id'] ?? 0));
         out(['ok' => true]);

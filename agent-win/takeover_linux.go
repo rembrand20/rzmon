@@ -1,0 +1,320 @@
+//go:build linux
+
+package main
+
+// Overnemen (0.13.0): de Go-agent doet het werk van de bash-agent op deze server, als RzSense daarom vraagt.
+//
+// Zo gaat het:
+//   - RzSense vraagt het in het antwoord op een proefronde (alleen als de proef lang genoeg gelijk was en de server niets
+//     gebruikt wat de Go-agent nog niet kan).
+//   - De agent zet de timer van de bash-agent en zijn bewaker uit (niet weg), haalt zelf de testlijst op en stuurt het
+//     echte rapport. Pas als RzSense dat aanneemt, geldt de overname.
+//   - Lukt het rapport vijf keer achter elkaar niet, of vraagt RzSense het terug, dan gaat de bash-agent weer aan en is de
+//     Go-agent weer een proef. Een los bewakertje (rzsense-fallback, een shellscript) doet hetzelfde als de Go-agent zelf
+//     helemaal niet meer draait.
+//
+// De bash-agent blijft geïnstalleerd, met dezelfde instellingen en dezelfde sleutel. Een nieuwe sleutel van RzSense
+// schrijft de Go-agent in het sleutelbestand van de bash-agent, zodat teruggaan altijd werkt.
+
+import (
+	"bytes"
+	"compress/gzip"
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
+
+	"golang.org/x/sys/unix"
+)
+
+const (
+	bashTimer  = "rzmon-agent.timer"
+	bashGuard  = "rzmon-agent-guard.timer"
+	fallbackOK = "/etc/systemd/system/rzsense-fallback.timer"
+	maxFails   = 5
+)
+
+func modeActive() bool { return readState("mode") == "active" }
+
+// takeoverReady: wat er op deze server nodig is om veilig over te nemen (gaat mee met elke proefronde)
+func takeoverReady(c *Config) map[string]any {
+	timer, known := systemctlActive(bashTimer)
+	fb := fallbackOK
+	if p := os.Getenv("RZSENSE_FALLBACK_UNIT"); p != "" { // alleen voor de tests
+		fb = p
+	}
+	_, fbErr := os.Stat(fb)
+	keyDir := c.extra["key_dir"]
+	return map[string]any{
+		"systemd":    known,
+		"bash_timer": timer || modeActive(), // na het overnemen staat hij bewust uit
+		"fallback":   fbErr == nil,
+		"key_write":  keyDir != "" && unix.Access(keyDir, unix.W_OK) == nil,
+		"mode":       map[bool]string{true: "active", false: "shadow"}[modeActive()],
+		"note":       readState("takeover.last"),
+	}
+}
+
+func systemctlDo(args ...string) error {
+	out, code := run(30*time.Second, "systemctl", args...)
+	if code != 0 {
+		return fmt.Errorf("systemctl %s: %s", strings.Join(args, " "), oneLine(out))
+	}
+	return nil
+}
+
+// backToBash: de bash-agent weer aan het werk zetten en zelf weer proef worden
+func backToBash(reason string, hold bool) {
+	stamp := time.Now().Format("2006-01-02 15:04:05")
+	err := systemctlDo("enable", "--now", bashTimer)
+	_ = systemctlDo("enable", "--now", bashGuard) // bestaat pas vanaf bash-agent 1.118.0
+	writeState("mode", "shadow")
+	dropState("fails")
+	if hold {
+		writeState("takeover.hold", fmt.Sprint(time.Now().Unix())) // een uur niet opnieuw overnemen (geen heen en weer)
+	} else {
+		dropState("takeover.hold")
+	}
+	msg := stamp + " terug naar de bash-agent: " + reason
+	if err != nil {
+		msg += " (LET OP: de timer van de bash-agent start niet: " + err.Error() + ")"
+	}
+	writeState("takeover.last", msg)
+}
+
+// fetchTests: de testlijst zelf ophalen (de bash-agent ververst hem niet meer) en bewaren in de eigen map
+func fetchTests(c *Config) (string, error) {
+	b, err := signedGet(c, "agent_tests", 20*time.Second)
+	if err != nil {
+		return "", err
+	}
+	tmp := filepath.Join(dataDir(), "tests.cache.tmp")
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return "", err
+	}
+	if err := os.Rename(tmp, filepath.Join(dataDir(), "tests.cache")); err != nil {
+		return "", err
+	}
+	return parseTests(string(b)).Rev, nil
+}
+
+type runReply struct {
+	OK       bool              `json:"ok"`
+	Error    string            `json:"error"`
+	Gz       int               `json:"gz"`
+	TestsRev string            `json:"tests_rev"`
+	AgentKey string            `json:"agent_key"`
+	GoBack   bool              `json:"go_back"`
+	URLPins  map[string]string `json:"url_pins"`
+	GoUpdate *struct {
+		Version string `json:"version"`
+		SHA     string `json:"sha256"`
+	} `json:"go_update"`
+}
+
+// saveKey: een nieuwe eigen sleutel van RzSense in het sleutelbestand van de bash-agent (in één keer, alleen voor root)
+func saveKey(c *Config, key string) error {
+	dir := c.extra["key_dir"]
+	if dir == "" || !hexKeyRe.MatchString(key) {
+		return fmt.Errorf("geen sleutelmap")
+	}
+	tmp := filepath.Join(dir, ".agent.key.rzsense")
+	if err := os.WriteFile(tmp, []byte(key+"\n"), 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, filepath.Join(dir, "agent.key"))
+}
+
+// savePins: hoe elk adres gecontroleerd wordt (url.pins van de bash-agent: "adres <spatie> sha256//… of system"), zodat
+// een nieuw certificaat van RzSense ook na het overnemen geen storing geeft. Andere adressen in het bestand blijven staan.
+func savePins(c *Config, pins map[string]string) {
+	dir := c.extra["key_dir"]
+	if dir == "" || len(pins) == 0 {
+		return
+	}
+	file := filepath.Join(dir, "url.pins")
+	old := readText(file)
+	var lines []string
+	for _, l := range strings.Split(old, "\n") {
+		if f := strings.Fields(l); len(f) == 2 && pins[f[0]] == "" {
+			lines = append(lines, l)
+		}
+	}
+	for _, u := range []string{c.URL, c.URLFallback} {
+		spec := pins[u]
+		if u == "" || !(spec == "system" || pinSpecRe.MatchString(spec)) {
+			continue
+		}
+		lines = append(lines, u+" "+spec)
+		if u == c.URL {
+			c.Pin = map[bool]string{true: "", false: spec}[spec == "system"]
+		}
+	}
+	text := strings.Join(lines, "\n") + "\n"
+	if text == old || len(lines) > 6 {
+		return
+	}
+	tmp := filepath.Join(dir, ".url.pins.rzsense")
+	if os.WriteFile(tmp, []byte(text), 0o600) == nil {
+		_ = os.Rename(tmp, file)
+	}
+}
+
+var pinSpecRe = regexp.MustCompile(`^sha256//[A-Za-z0-9+/]{43}=(;sha256//[A-Za-z0-9+/]{43}=)*$`)
+
+// buildRun: het echte rapport, met de namen van de bash-agent. "go": 1 zegt RzSense dat dit de Go-agent is.
+func buildRun(c *Config, t0 time.Time) map[string]any {
+	rep := coreCollect(2 * time.Second)
+	rep["agent_version"] = Version
+	rep["os"] = "linux"
+	rep["go"] = 1
+	rep["arch"] = goArch()
+	rep["url"] = c.URL
+	rep["url_fallback"] = c.URLFallback
+	rep["update"] = map[string]any{"via": "go"}
+	rep["ready"] = takeoverReady(c)
+	rep["update_last"] = readState("update.last")
+	rep["timing"] = map[string]any{"total": time.Since(t0).Milliseconds()}
+	return rep
+}
+
+// runOnce: één echte ronde. Geeft het antwoord van RzSense, of een fout.
+func runOnce(c *Config) (*runReply, error) {
+	t0 := time.Now()
+	if _, err := os.Stat(filepath.Join(dataDir(), "tests.cache")); err != nil || readState("tests.rev") == "" {
+		rev, err := fetchTests(c)
+		if err != nil {
+			return nil, fmt.Errorf("testlijst niet opgehaald: %w", err)
+		}
+		writeState("tests.rev", rev)
+	}
+	plain, err := json.Marshal(buildRun(c, t0))
+	if err != nil {
+		return nil, err
+	}
+	if readState("gz") == "1" {
+		var buf bytes.Buffer
+		zw := gzip.NewWriter(&buf)
+		_, _ = zw.Write(plain)
+		_ = zw.Close()
+		plain = buf.Bytes()
+	}
+	body, code, err := sealedCall(c, "agent", plain, nil, 50*time.Second)
+	if err != nil {
+		return nil, fmt.Errorf("rapport niet verstuurd: %w", err)
+	}
+	var r runReply
+	if code != 200 || json.Unmarshal(body, &r) != nil || !r.OK {
+		return nil, fmt.Errorf("rapport niet aangenomen (HTTP %d): %s", code, shortErr(body))
+	}
+	return &r, nil
+}
+
+// afterRun: het antwoord verwerken: comprimeren, een nieuwe sleutel, een veranderde testlijst, bijwerken, of terug naar bash
+func afterRun(c *Config, r *runReply) {
+	writeState("gz", fmt.Sprint(r.Gz))
+	writeState("last_ok", fmt.Sprint(time.Now().Unix()))
+	dropState("fails")
+	if lastVia == "reserve" {
+		return // een reserve-RzSense verandert geen sleutel en geeft geen opdrachten
+	}
+	if hexKeyRe.MatchString(r.AgentKey) && r.AgentKey != c.Key {
+		if err := saveKey(c, r.AgentKey); err != nil {
+			writeState("takeover.last", time.Now().Format("2006-01-02 15:04:05")+" nieuwe sleutel niet bewaard: "+err.Error())
+		} else {
+			c.Key = r.AgentKey
+		}
+	}
+	savePins(c, r.URLPins)
+	if r.TestsRev != "" && r.TestsRev != readState("tests.rev") {
+		dropState("tests.rev") // de volgende ronde haalt de lijst opnieuw op
+	}
+	if r.GoBack {
+		backToBash("gevraagd vanuit RzSense", false)
+		return
+	}
+	if r.GoUpdate != nil {
+		selfUpdateLinux(c, r.GoUpdate.Version, r.GoUpdate.SHA)
+	}
+}
+
+// takeOver: de overname zelf. Pas na een aangenomen echt rapport is het rond; anders gaat alles terug zoals het was.
+func takeOver(c *Config) error {
+	if d := time.Now().Unix() - int64(atoiDef(readState("takeover.hold"), 0)); d >= 0 && d < 3600 { // een tijd in de toekomst (klok verzet) telt niet
+		return fmt.Errorf("de Go-agent viel minder dan een uur geleden terug op de bash-agent; hij probeert het daarna opnieuw")
+	}
+	ready := takeoverReady(c)
+	for _, k := range []string{"systemd", "bash_timer", "fallback", "key_write"} {
+		if ready[k] != true {
+			return fmt.Errorf("deze server is er niet klaar voor (%s); voer het installatiecommando uit RzSense opnieuw uit", k)
+		}
+	}
+	if active, _ := systemctlActive("rzmon-watch.service"); active {
+		return fmt.Errorf("de realtime-watcher van de bash-agent draait; zet Realtime in RzSense eerst uit")
+	}
+	dropState("tests.rev")
+	if _, err := fetchTests(c); err != nil {
+		return fmt.Errorf("testlijst niet opgehaald: %w", err)
+	}
+	// Eerst de bewaker uit (die zou de timer weer starten), dan de timer zelf; een lopende ronde mag uitlopen
+	_ = systemctlDo("disable", "--now", bashGuard)
+	if err := systemctlDo("disable", "--now", bashTimer); err != nil {
+		_ = systemctlDo("enable", "--now", bashGuard)
+		return err
+	}
+	for i := 0; i < 30; i++ { // tot een minuut wachten op een ronde van de bash-agent die nog loopt
+		if out, _ := run(5*time.Second, "systemctl", "is-active", "rzmon-agent.service"); strings.TrimSpace(out) != "activating" && strings.TrimSpace(out) != "active" {
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
+	writeState("mode", "active")
+	writeState("last_ok", fmt.Sprint(time.Now().Unix())) // het bewakertje telt vanaf nu
+	r, err := runOnce(c)
+	if err != nil {
+		backToBash("het eerste rapport lukte niet: "+err.Error(), true)
+		return err
+	}
+	writeState("takeover.last", time.Now().Format("2006-01-02 15:04:05")+" overgenomen: de Go-agent doet het werk")
+	afterRun(c, r)
+	return nil
+}
+
+// cmdRun: de ronde van elke minuut als de Go-agent het werk doet
+func cmdRun(quiet bool) int {
+	c, err := loadBashConfig()
+	if err != nil || c.Key == "" || c.URL == "" {
+		backToBash("geen instellingen of sleutel meer gevonden", true)
+		return 1
+	}
+	r, err := runOnce(c)
+	if err != nil {
+		n := atoiDef(readState("fails"), 0) + 1
+		writeState("fails", fmt.Sprint(n))
+		fmt.Fprintln(os.Stderr, "✘", err)
+		if n >= maxFails {
+			backToBash(fmt.Sprintf("%d rapporten achter elkaar mislukt: %s", n, err.Error()), true)
+		}
+		return 1
+	}
+	afterRun(c, r)
+	if !quiet {
+		fmt.Println("✔ Rapport verstuurd en door RzSense aangenomen (de Go-agent doet het werk)")
+	}
+	return 0
+}
+
+// cmdBack: met de hand terug naar de bash-agent (rzsense back)
+func cmdBack() int {
+	if _, err := exec.LookPath("systemctl"); err != nil {
+		fmt.Fprintln(os.Stderr, "✘ systemctl ontbreekt")
+		return 1
+	}
+	backToBash("met de hand (rzsense back); zet het overnemen in RzSense ook uit, anders neemt de Go-agent het na een uur weer over", true)
+	fmt.Println("✔", readState("takeover.last"))
+	return 0
+}

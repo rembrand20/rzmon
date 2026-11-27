@@ -8,11 +8,26 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.344.0**: **Overnemen per server**: de Go-agent doet het werk als de proef goed was en niets het tegenhoudt, en valt vanzelf terug op de bash-agent.
 - **1.343.0**: **De proef met de Go-agent werkt zichzelf bij**: alleen met een geldige handtekening van de ontwikkelaar.
 - **1.342.0**: **Proef met de Go-agent: details per dienst**: poorten, een passende test en logfouten per dienst, extra tests en de dienstenlijst.
 - **1.341.0**: **Proef met de Go-agent: certificaten en processen**: uitgelezen zonder openssl en ps, en vergeleken met de bash-agent.
 - **1.340.0**: **Proef met de Go-agent: poorten en diensten**: de Go-agent meet ze zoals de bash-agent, en RzSense laat zien waar ze verschillen.
-- **1.339.0**: **Eén agent in Go, ook voor Linux**: het commando `rzsense` als proef naast de bash-agent, met `rzsense doctor` en een vergelijking van de metingen in de Agent Manager.
+
+## 1.344.0 – 2026-11-27
+### Nieuw
+- **Overnemen per server: de Go-agent doet het werk.** In de Agent Manager, in het blok *Go-agent*, staat nu de knop **Overnemen**. De Go-agent stuurt dan het echte rapport en de bash-agent wordt uitgezet (niet weggehaald).
+- **Alleen als het veilig kan.** RzSense staat het pas toe na 60 proefrondes waarvan minstens 98% gelijk was, en alleen als de server niets gebruikt wat de Go-agent nog niet meet. Het blok zegt precies wat het nog tegenhoudt.
+- **Vanzelf terug naar de bash-agent** als het rapporteren niet lukt (binnen 10 minuten), als je later iets aanzet wat de Go-agent nog niet kan, of met de knop *Terug naar de bash-agent*. Er valt dus geen bewaking stil.
+- In het logboek en bij de meldingen staat wanneer de Go-agent het overnam en wanneer de bash-agent terugkwam.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.13.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- De Go-agent meet nu: CPU, geheugen, schijven, opstarttijd, poorten, diensten (met details en extra tests), certificaten en processen. **Dit kan hij nog niet**, en houdt overnemen dus tegen zolang het voor de server aan staat: logins, sudo en su; Updates; logs van webdiensten; IDS en endpoint-sensoren; Kwetsbaarheden; Realtime; containers (Podman), Proxmox en TrueNAS; log- en commando-checks; zelf herstellen; de relay. Logins, Updates en logs van webdiensten staan standaard aan, dus op de meeste servers kan overnemen pas als de Go-agent die ook kent. Dat zijn de volgende stappen.
+- Zolang de Go-agent het werk doet, komt er van die server geen netwerkverkeer per netwerkkaart en geen klokafwijking binnen, en werken 🧪 Test en *Opnieuw zoeken* naar certificaten niet.
+- Voer op een server waar de proef al loopt het installatiecommando nog **één keer** opnieuw uit (voor het bewakertje van de terugval).
 
 ## 1.343.0 – 2026-11-27
 ### Nieuw

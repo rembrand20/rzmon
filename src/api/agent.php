@@ -296,6 +296,11 @@ if ($action === 'agent') {
         q('INSERT INTO agent_log (host_id, ip, reason) VALUES (?, ?, ?)', [$host['id'], mb_substr(client_ip(), 0, 45), $reason]);
         out(['error' => "Geweigerd: $reason"], 400);
     }
+    // 1.344.0: de Go-agent die het werk van de bash-agent doet: alleen versleuteld met de eigen sleutel van de server
+    $goAgent = !empty($in['go']) && ($in['os'] ?? '') === 'linux';
+    if ($goAgent && (!$encrypted || empty($GLOBALS['agent_own']))) {
+        out(['error' => t('Geweigerd: het rapport van de Go-agent moet versleuteld zijn met de eigen sleutel van de server')], 403);
+    }
     Perf::part('rapport:ontvangen');   // 1.129.0: aanmelden, ontsleutelen en inlezen
     // 1.292.0: een ouder rapport dat bij de relay bleef liggen (RzSense haalde een tijd niet op), met een nieuwer erachter:
     // alleen de metingen van CPU, RAM en disks, op hun eigen tijd. Net als de wachtrij van de agent zelf.
@@ -675,7 +680,7 @@ if ($action === 'agent') {
     Paths::cleanAgentData((int) $host['id'], $now);   // 1.189.2: oude regels weg, de pad-metingen blijven
     $agentVersion = preg_match('/^\d+\.\d+\.\d+$/', (string) ($in['agent_version'] ?? '')) ? $in['agent_version'] : null;
     // 1.313.0: Windows-agent: het besturingssysteem, en de Windows-versie (naam, build) voor de Agent Manager
-    $os = ($in['os'] ?? '') === 'windows' ? 'windows' : 'linux';
+    $os = ($in['os'] ?? '') === 'windows' ? 'windows' : ($goAgent ? AgentTakeover::OS : 'linux');
     if (is_array($in['os_info'] ?? null)) {
         $oi = $in['os_info'];
         $st->execute([$host['id'], 'osinfo', json_encode(['name' => mb_substr((string) ($oi['name'] ?? ''), 0, 120), 'version' => mb_substr((string) ($oi['version'] ?? ''), 0, 40),
@@ -706,7 +711,9 @@ if ($action === 'agent') {
     q('UPDATE hosts SET agent_seen = ?, agent_busy = NULL, agent_ip = ?, agent_version = ?, enc_seen = ?, agent_beats = ?, os = ? WHERE id = ?',
         [$now, mb_substr(client_ip(), 0, 45), $agentVersion, $encrypted ? 1 : 0, implode(',', $beats), $os, $host['id']]);
     // Andere versie dan vorige keer: bijgewerkt (met de knop, automatisch, via de add-on winkel of met de hand) → info
-    if ($agentVersion !== null && $host['agent_version'] !== null && $agentVersion !== $host['agent_version']) {
+    $host['os'] = (string) (q('SELECT os FROM hosts WHERE id = ?', [$host['id']])->fetchColumn() ?: '');   // de vorige stand (staat niet in het rapport)
+    AgentTakeover::noteSwitch($host, $os, $agentVersion);   // 1.344.0: de Go-agent nam over, of de bash-agent is terug
+    if ($agentVersion !== null && $host['agent_version'] !== null && $agentVersion !== $host['agent_version'] && ($host['os'] === $os || ($host['os'] !== AgentTakeover::OS && $os !== AgentTakeover::OS))) {
         $from = (string) $host['agent_version'];
         Monitor::infoHost($host, fn() => t('Agent bijgewerkt van {from} naar {to}', ['from' => $from, 'to' => $agentVersion]));
     }
@@ -743,7 +750,9 @@ if ($action === 'agent') {
     // Verbindingscontrole (1.100.0): instellingen op de server, SERVICES omzetten, ⚠️/✅ bij een wisseling; de uitkomst
     // gaat mee terug voor rzmon-agent-setup --status
     try {
-        $resp['sec'] = AgentAudit::fromAgent($host, $in, $st, $now, $prevSec === false ? null : (string) $prevSec);
+        if (!$goAgent) {   // de Go-agent leest de instellingen van de bash-agent alleen; die controle doet de bash-agent
+            $resp['sec'] = AgentAudit::fromAgent($host, $in, $st, $now, $prevSec === false ? null : (string) $prevSec);
+        }
     } catch (Throwable $e) {
         error_log('RzSense: verbindingscontrole mislukt: ' . $e->getMessage());
     }
@@ -778,13 +787,17 @@ if ($action === 'agent') {
         error_log('RzSense: agent-checks direct beoordelen mislukt: ' . $e->getMessage());
     }
     Perf::part('rapport:checks');
-    if ($u = agent_update_instruction($host['id'], $agentVersion, $in)) {
+    if ($goAgent) {
+        $resp += AgentTakeover::fromAgent($host, $in);   // 1.344.0: terug naar de bash-agent, of zichzelf bijwerken
+    } elseif ($u = agent_update_instruction($host['id'], $agentVersion, $in)) {
         $resp['update'] = $u;
     }
     // Kwetsbaarheden: softwarelijst opslaan, uitkomst van "bijwerken", en eventueel een nieuwe opdracht
     try {
-        $resp += Vulns::agentReport($host, $in);
-        $resp += Patch::agentResponse($host);   // 1.230.0: Home Assistant bijwerken via de Supervisor
+        if (!$goAgent) {
+            $resp += Vulns::agentReport($host, $in);
+            $resp += Patch::agentResponse($host);   // 1.230.0: Home Assistant bijwerken via de Supervisor
+        }
     } catch (Throwable $e) {
         error_log('RzSense: softwarelijst verwerken mislukt: ' . $e->getMessage());
     }

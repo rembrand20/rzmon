@@ -15,6 +15,8 @@ CONF=/etc/default/rzmon-agent
 BIN=/usr/local/bin/rzsense
 DATA=/var/lib/rzsense
 UNIT=/etc/systemd/system/rzsense-shadow
+FALLBACK=/etc/systemd/system/rzsense-fallback
+FALLBACK_BIN=/usr/local/sbin/rzsense-fallback
 CRON=/etc/cron.d/rzsense-shadow
 # De publieke sleutel van de ontwikkelaar (ed25519), dezelfde als van de bash-agent en de Windows-agent
 AGENT_SIGN_PUB="MCowBQYDK2VwAyEAKayiZIruYIYwZQ97qndO4lmnMjp/EEnVDNBIhZ07sSM="
@@ -38,8 +40,13 @@ has_systemd() { command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system
 
 remove_all() {
     if has_systemd; then
-        systemctl disable --now rzsense-shadow.timer >/dev/null 2>&1
-        rm -f "$UNIT.service" "$UNIT.timer"
+        # Deed de Go-agent het werk? Dan eerst de bash-agent weer aan, zodat de server nooit zonder agent zit
+        if [ "$(cat "$DATA/mode" 2>/dev/null)" = active ]; then
+            systemctl enable --now rzmon-agent.timer >/dev/null 2>&1 && ok "De bash-agent doet het werk weer (rzmon-agent.timer)"
+            systemctl enable --now rzmon-agent-guard.timer >/dev/null 2>&1
+        fi
+        systemctl disable --now rzsense-shadow.timer rzsense-fallback.timer >/dev/null 2>&1
+        rm -f "$UNIT.service" "$UNIT.timer" "$FALLBACK.service" "$FALLBACK.timer" "$FALLBACK_BIN"
         systemctl daemon-reload >/dev/null 2>&1
     fi
     rm -f "$CRON" "$BIN"
@@ -126,7 +133,43 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=yes
-ReadWritePaths=$DATA /usr/local/bin
+ReadWritePaths=$DATA /usr/local/bin $KDIR
+EOF
+    # Het bewakertje (een shellscript, los van de Go-agent): doet de Go-agent het werk en kwam er 10 minuten geen rapport
+    # aan, dan gaat de bash-agent weer aan. Zo zit de server nooit zonder agent, ook als het Go-bestand stuk is.
+    cat >"$FALLBACK_BIN" <<'EOS'
+#!/bin/sh
+# RzSense: terugval van de Go-agent op de bash-agent (zie install-rzsense.sh)
+D=${RZSENSE_DATA:-/var/lib/rzsense}
+[ "$(cat "$D/mode" 2>/dev/null)" = active ] || exit 0
+last=$(cat "$D/last_ok" 2>/dev/null | tr -dc '0-9')
+now=$(date +%s)
+[ -n "$last" ] && [ $((now - last)) -lt 600 ] && exit 0
+systemctl enable --now rzmon-agent.timer >/dev/null 2>&1
+systemctl enable --now rzmon-agent-guard.timer >/dev/null 2>&1
+echo shadow >"$D/mode"
+echo "$now" >"$D/takeover.hold"
+echo "$(date '+%Y-%m-%d %H:%M:%S') terug naar de bash-agent: 10 minuten geen rapport van de Go-agent (bewakertje)" >"$D/takeover.last"
+EOS
+    chmod 755 "$FALLBACK_BIN"
+    cat >"$FALLBACK.service" <<EOF
+[Unit]
+Description=RzSense Go-agent: terugval op de bash-agent
+
+[Service]
+Type=oneshot
+ExecStart=$FALLBACK_BIN
+EOF
+    cat >"$FALLBACK.timer" <<EOF
+[Unit]
+Description=RzSense Go-agent: elke 2 minuten kijken of de Go-agent nog rapporteert
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+
+[Install]
+WantedBy=timers.target
 EOF
     cat >"$UNIT.timer" <<EOF
 [Unit]
@@ -142,6 +185,7 @@ WantedBy=timers.target
 EOF
     systemctl daemon-reload >/dev/null 2>&1
     systemctl enable --now rzsense-shadow.timer >/dev/null 2>&1 || die "De timer rzsense-shadow.timer start niet."
+    systemctl enable --now rzsense-fallback.timer >/dev/null 2>&1 || info "Het bewakertje rzsense-fallback.timer start niet; overnemen kan dan niet."
     ok "Timer rzsense-shadow.timer loopt (elke minuut een proefronde)"
 else
     printf '* * * * * root %s shadow --quiet >/dev/null 2>&1\n' "$BIN" >"$CRON"
@@ -154,4 +198,8 @@ echo
 echo
 info "Bekijk de uitkomst in RzSense: Agent Manager van deze server → Go-agent (proef)."
 info "Op deze server: rzsense status · rzsense test · rzsense doctor"
-info "De bash-agent doet nog steeds het werk. Weghalen: hetzelfde commando met --remove erachter."
+if [ "$(cat "$DATA/mode" 2>/dev/null)" = active ]; then
+    info "De Go-agent doet het werk op deze server. Terug naar de bash-agent: rzsense back (of de knop in RzSense)."
+else
+    info "De bash-agent doet nog steeds het werk. Weghalen: hetzelfde commando met --remove erachter."
+fi

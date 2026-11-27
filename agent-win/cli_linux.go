@@ -60,7 +60,13 @@ func cliLinux(args []string) bool {
 	case "doctor":
 		os.Exit(cmdDoctor(has("--json")))
 	case "shadow":
+		// 0.13.0: dezelfde timer voor beide: doet de Go-agent het werk, dan is dit de echte ronde
+		if modeActive() {
+			os.Exit(cmdRun(has("--quiet")))
+		}
 		os.Exit(cmdShadow(has("--quiet")))
+	case "back":
+		os.Exit(cmdBack())
 	default:
 		fmt.Println(`rzsense ` + Version + ` – de agent van RzSense (proef naast de bash-agent)
 
@@ -68,10 +74,11 @@ func cliLinux(args []string) bool {
   rzsense test       kan deze server RzSense bereiken, en vertrouwt RzSense hem?
   rzsense doctor     alles nalopen: wat is er mis en hoe los je het op
   rzsense collect    laten zien wat de Go-agent meet (zonder te versturen)
-  rzsense shadow     één proefronde: meten en naar RzSense sturen om te vergelijken
+  rzsense shadow     één ronde: een proefronde, of het echte rapport als de Go-agent het werk doet
+  rzsense back       terug naar de bash-agent (als de Go-agent het werk had overgenomen)
   rzsense version
 
-De bash-agent blijft het werk doen. Deze proef leest alleen mee en verandert niets op de server.`)
+Als proef leest de Go-agent alleen mee. Het werk overnemen doet hij alleen als je dat in RzSense vraagt.`)
 		if cmd != "" && cmd != "help" && cmd != "--help" && cmd != "-h" {
 			os.Exit(2)
 		}
@@ -262,9 +269,16 @@ func cmdDoctor(asJSON bool) int {
 // ---------------------------------------------------------------- status en test
 
 func cmdStatus() int {
-	fmt.Printf("rzsense %s (Go-agent, proef naast de bash-agent)\n", Version)
+	if modeActive() {
+		fmt.Printf("rzsense %s (Go-agent, doet het werk)\n", Version)
+	} else {
+		fmt.Printf("rzsense %s (Go-agent, proef naast de bash-agent)\n", Version)
+	}
+	if note := readState("takeover.last"); note != "" {
+		fmt.Println("  Overnemen:   ", note)
+	}
 	if v := bashAgentVersion(); v != "" {
-		fmt.Printf("  Bash-agent:   %s (doet het werk)\n", v)
+		fmt.Printf("  Bash-agent:   %s (%s)\n", v, map[bool]string{true: "staat uit, blijft geïnstalleerd", false: "doet het werk"}[modeActive()])
 	} else {
 		fmt.Println("  Bash-agent:   niet gevonden")
 	}
@@ -320,7 +334,8 @@ func cmdTest() int {
 // ---------------------------------------------------------------- proefronde
 
 type shadowReply struct {
-	Update *struct { // 0.12.0: RzSense heeft een nieuwere Go-agent voor deze processor
+	Takeover bool      `json:"takeover"` // 0.13.0: RzSense vraagt de Go-agent het werk over te nemen
+	Update   *struct { // 0.12.0: RzSense heeft een nieuwere Go-agent voor deze processor
 		Version string `json:"version"`
 		SHA     string `json:"sha256"`
 	} `json:"update"`
@@ -351,7 +366,7 @@ func cmdShadow(quiet bool) int {
 	t0 := time.Now()
 	core := coreCollect(2 * time.Second)
 	rep := map[string]any{"agent_version": Version, "os": "linux", "arch": goArch(), "bash_version": bashAgentVersion(), "core": core,
-		"took_ms": time.Since(t0).Milliseconds(), "doctor": diagnoseBrief(), "update_last": readState("update.last")}
+		"took_ms": time.Since(t0).Milliseconds(), "doctor": diagnoseBrief(), "update_last": readState("update.last"), "ready": takeoverReady(c)}
 	plain, _ := json.Marshal(rep)
 	body, code, err := sealedCall(c, "agent_shadow", plain, nil, 30*time.Second)
 	var r shadowReply
@@ -373,6 +388,13 @@ func cmdShadow(quiet bool) int {
 	writeState("shadow.last", line)
 	if r.Update != nil {
 		selfUpdateLinux(c, r.Update.Version, r.Update.SHA) // de volgende ronde draait de nieuwe versie
+	} else if r.Takeover {
+		if err := takeOver(c); err != nil {
+			writeState("takeover.last", stamp+" overnemen niet gelukt: "+err.Error())
+			fmt.Fprintln(os.Stderr, "✘ Overnemen niet gelukt:", err)
+		} else if !quiet {
+			fmt.Println("✔ Overgenomen: de Go-agent doet nu het werk; de bash-agent staat uit (niet weg).")
+		}
 	}
 	if !quiet {
 		fmt.Println(line)

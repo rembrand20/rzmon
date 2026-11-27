@@ -34,6 +34,9 @@ final class AgentCrypto
      */
     public static function capVersion(?string $version, ?string $os): ?string
     {
+        if ($version !== null && $os === 'linux-go') {
+            return self::PINURL_MIN;   // 1.344.0: de Go-agent op Linux: eigen sleutel en de controle per adres
+        }
         if ($version === null || $os !== 'windows') {
             return $version;
         }

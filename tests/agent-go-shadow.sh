@@ -136,3 +136,92 @@ printf '%s\n' "$key" >"$work/keys/agent.key"
 st=$("$work/rzsense" status)
 grep -q 'Eigen sleutel: true' <<<"$st" || fail "rzsense status toont de sleutel niet: $st"
 echo "✔ rzsense status"
+
+# ---------------------------------------------------------------- 1.344.0: overnemen per server
+# systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
+# het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.
+mkdir -p "$work/bin" "$work/units"
+cat >"$work/bin/systemctl" <<EOS
+#!/bin/sh
+U="$work/units"
+echo "\$*" >>"$work/systemctl.log"
+case "\$1" in
+    is-active) [ -e "\$U/\$2" ] && { echo active; exit 0; }; echo inactive; exit 3 ;;
+    enable) for u in "\$@"; do case "\$u" in *.timer) : >"\$U/\$u" ;; esac; done ;;
+    disable) for u in "\$@"; do case "\$u" in *.timer) rm -f "\$U/\$u" ;; esac; done ;;
+esac
+exit 0
+EOS
+chmod 755 "$work/bin/systemctl"
+: >"$work/units/rzmon-agent.timer"; : >"$work/units/rzmon-agent-guard.timer"; : >"$work/fallback.timer"
+export PATH="$work/bin:$PATH" RZSENSE_FALLBACK_UNIT="$work/fallback.timer"
+unset RZSENSE_BASH_CACHE   # na het overnemen haalt de Go-agent de testlijst zelf op (in zijn eigen map)
+SETFILE="$work/settings.json" php -r '
+require "src/bootstrap.php";
+$names = ["auth_events", "weblog_swag", "weblog_ha", "weblog_vw", "patch_on", "ids_enabled", "vuln_enabled"];
+$old = [];
+foreach ($names as $n) { $old[$n] = setting($n); save_setting($n, "0"); }
+file_put_contents(getenv("SETFILE"), json_encode($old));'
+restore() { SETFILE="$work/settings.json" php -r '
+require "src/bootstrap.php";
+foreach ((array) json_decode((string) @file_get_contents(getenv("SETFILE")), true) as $n => $v) { if ($v === null) { q("DELETE FROM settings WHERE name = ?", [$n]); } else { save_setting($n, (string) $v); } }' 2>/dev/null || true; }
+trap 'restore; kill "$sleeper" 2>/dev/null || true; rm -rf "$work"; php -r "require \"src/bootstrap.php\"; q(\"DELETE FROM hosts WHERE name = ?\", [\"go-e2e\"]);" 2>/dev/null || true' EXIT
+take() { php -r 'require "src/bootstrap.php"; $id = (int) q("SELECT id FROM hosts WHERE name = ?", ["go-e2e"])->fetchColumn(); '"$1"; }
+
+"$work/rzsense" shadow --quiet >/dev/null || fail "proefronde vóór het overnemen mislukt"
+got=$(take '$c = AgentTakeover::check($id); echo json_encode([$c["can"], $c["blockers"], $c["need"], count($c["proof"]) > 0]);')
+[ "$got" = '[false,[],[],true]' ] || fail "vóór 60 proefrondes hoort alleen de proef het overnemen tegen te houden: $got"
+got=$(take '$r = AgentTakeover::request($id, true); echo isset($r["error"]) ? "geweigerd" : "aangenomen";')
+[ "$got" = geweigerd ] || fail "overnemen werd aangenomen terwijl de proef nog te kort liep"
+echo "✔ overnemen kan pas na een lange genoeg proef (en RzSense zegt waarom)"
+# De proef "een uur" laten lopen, en dan vragen
+take '$s = AgentData::get($id, "shadow"); $s["rounds"] = 60; $s["rounds_ok"] = 60; AgentData::put($id, "shadow", $s); $r = AgentTakeover::request($id, true); if (isset($r["error"])) { fwrite(STDERR, $r["error"] . "\n"); exit(1); }' || fail "overnemen werd geweigerd na een goede proef"
+out=$("$work/rzsense" shadow 2>&1) || fail "de proefronde met de overname mislukte: $out"
+grep -q 'Overgenomen' <<<"$out" || fail "de Go-agent nam niet over: $out"
+[ "$(cat "$work/data/mode")" = active ] || fail "de Go-agent staat niet op actief: $(cat "$work/data/takeover.last") / $(tail -5 "$work/systemctl.log" | tr "\n" ";")"
+if [ -e "$work/units/rzmon-agent.timer" ] || [ -e "$work/units/rzmon-agent-guard.timer" ]; then fail "de timers van de bash-agent staan nog aan"; fi
+[ -s "$work/data/tests.cache" ] || fail "de Go-agent haalde de testlijst niet zelf op"
+got=$(take '$h = q("SELECT os, agent_version, agent_seen, enc_seen FROM hosts WHERE id = ?", [$id])->fetch(); $c = AgentTakeover::check($id);
+echo implode(" ", [$h["os"], $h["agent_version"], $h["enc_seen"], strtotime((string) $h["agent_seen"]) > time() - 60 ? "vers" : "oud", $c["active"] ? "actief" : "proef", agent_latest($h["os"]),
+    strtotime((string) q("SELECT updated_at FROM agent_data WHERE host_id = ? AND metric = ?", [$id, "cpu"])->fetchColumn()) > time() - 60 ? "cpu" : "geen-cpu"]);')
+v=$(tr -d '[:space:]' < agent-win/VERSION)
+[ "$got" = "linux-go $v 1 vers actief $v cpu" ] || fail "RzSense nam het echte rapport niet aan zoals verwacht: $got"
+echo "✔ overgenomen: de timers van de bash-agent staan uit, RzSense kreeg het echte rapport van de Go-agent"
+"$work/rzsense" shadow --quiet || fail "de volgende ronde van de Go-agent mislukte"
+grep -q 'doet het werk' <<<"$("$work/rzsense" status)" || fail "rzsense status zegt niet dat de Go-agent het werk doet"
+[ "$(cat "$work/keys/agent.key")" = "$key" ] || fail "de sleutel van de bash-agent is veranderd"
+echo "✔ de Go-agent rapporteert elke ronde; de sleutel van de bash-agent is ongemoeid"
+
+# Een onversleuteld rapport dat zich voordoet als de Go-agent wordt geweigerd
+code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -H "X-Agent-Token: nep" --data '{"go":1,"os":"linux","agent_version":"9.9.9"}' "$BASE/api.php?action=agent")
+[ "$code" != 200 ] || fail "een rapport zonder sleutel werd aangenomen"
+
+# Terug op verzoek: RzSense zegt het in het antwoord, de timers gaan weer aan
+take 'AgentTakeover::request($id, false);'
+"$work/rzsense" shadow --quiet || fail "de ronde met 'terug' mislukte"
+[ "$(cat "$work/data/mode")" = shadow ] || fail "de Go-agent ging niet terug naar proef"
+{ [ -e "$work/units/rzmon-agent.timer" ] && [ -e "$work/units/rzmon-agent-guard.timer" ]; } || fail "de timers van de bash-agent staan niet weer aan"
+[ ! -e "$work/data/takeover.hold" ] || fail "na 'terug' op verzoek hoort er geen pauze te zijn"
+echo "✔ terug op verzoek: de bash-agent staat weer aan"
+
+# Terugval: de Go-agent doet het werk maar het rapporteren lukt niet meer (verkeerde sleutel): na 5 keer terug naar bash
+echo active >"$work/data/mode"; rm -f "$work/units/"*.timer
+printf '%s\n' "$(printf 'ab%.0s' $(seq 32))" >"$work/keys/agent.key"
+for i in 1 2 3 4; do "$work/rzsense" shadow --quiet 2>/dev/null && fail "een rapport met een verkeerde sleutel werd aangenomen"; [ "$(cat "$work/data/mode")" = active ] || fail "al na $i mislukte rapporten terug"; done
+"$work/rzsense" shadow --quiet 2>/dev/null && fail "een rapport met een verkeerde sleutel werd aangenomen"
+{ [ "$(cat "$work/data/mode")" = shadow ] && [ -e "$work/units/rzmon-agent.timer" ]; } || fail "na 5 mislukte rapporten ging de bash-agent niet weer aan"
+[ -s "$work/data/takeover.hold" ] || fail "na een terugval hoort er een pauze van een uur te zijn"
+grep -q '5 rapporten achter elkaar mislukt' "$work/data/takeover.last" || fail "de reden van de terugval is niet bewaard"
+printf '%s\n' "$key" >"$work/keys/agent.key"
+echo "✔ terugval: na 5 mislukte rapporten doet de bash-agent het werk weer, met de reden erbij"
+
+# Het bewakertje (shellscript uit install-rzsense.sh): doet de Go-agent het werk en kwam er 10 minuten niets aan, dan terug
+sed -n "/^    cat >\"\$FALLBACK_BIN\" <<'EOS'\$/,/^EOS\$/p" agent/install-rzsense.sh | sed '1d;$d' >"$work/fallback.sh"
+grep -q 'rzmon-agent.timer' "$work/fallback.sh" || fail "het bewakertje is niet uit install-rzsense.sh te halen"
+echo active >"$work/data/mode"; rm -f "$work/units/"*.timer; date +%s >"$work/data/last_ok"
+RZSENSE_DATA="$work/data" sh "$work/fallback.sh"
+{ [ "$(cat "$work/data/mode")" = active ] && [ ! -e "$work/units/rzmon-agent.timer" ]; } || fail "het bewakertje greep in terwijl de Go-agent net rapporteerde"
+echo $(($(date +%s) - 700)) >"$work/data/last_ok"
+RZSENSE_DATA="$work/data" sh "$work/fallback.sh"
+{ [ "$(cat "$work/data/mode")" = shadow ] && [ -e "$work/units/rzmon-agent.timer" ]; } || fail "het bewakertje zette de bash-agent niet weer aan"
+echo "✔ het bewakertje zet de bash-agent weer aan als de Go-agent 10 minuten niets meldt"

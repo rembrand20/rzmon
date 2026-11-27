@@ -29,7 +29,7 @@ define('AGENT_WIN_LATEST', trim((string) @file_get_contents(SM_ROOT . '/agent-wi
 /** 1.313.0: de nieuwste agent voor dit besturingssysteem (windows of linux) */
 function agent_latest(?string $os): string
 {
-    return $os === 'windows' ? AGENT_WIN_LATEST : AGENT_LATEST;
+    return $os === 'windows' || $os === 'linux-go' ? AGENT_WIN_LATEST : AGENT_LATEST;   // 1.344.0: linux-go: de Go-agent doet het werk
 }
 
 /** 1.281.0: draait RzSense als container (container/Containerfile)? Dan geen hulpdienst, geen git-updates en geen SELinux-acties. */

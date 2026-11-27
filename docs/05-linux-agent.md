@@ -676,11 +676,12 @@ In een DMZ mag het netwerk meestal niet naar binnen bellen, maar je eigen netwer
 
 Meer over de relay, ook handmatig installeren als container, staat in [relay/README.md](../relay/README.md).
 
-## Proef: de Go-agent (`rzsense`)
+## De Go-agent (`rzsense`)
 
 RzSense stapt over op één agent in Go, dezelfde als op Windows: één bestand zonder afhankelijkheden, ondertekend, met
-één commando om hem te bedienen. Dat gaat in stappen. Nu is de Go-agent een **proef naast de bash-agent**: de bash-agent
-doet al het werk, de Go-agent meet mee en RzSense vergelijkt de uitkomsten.
+één commando om hem te bedienen. Dat gaat in stappen. De Go-agent begint als **proef naast de bash-agent**: de bash-agent
+doet al het werk, de Go-agent meet mee en RzSense vergelijkt de uitkomsten. Was de proef goed, dan kun je de Go-agent
+per server **het werk laten overnemen** (zie [Overnemen](#overnemen-de-go-agent-doet-het-werk)).
 
 ### Wat de proef doet
 
@@ -700,16 +701,19 @@ doet al het werk, de Go-agent meet mee en RzSense vergelijkt de uitkomsten.
 
 ### Starten en weghalen
 
-Open de **Agent Manager** van de server en zoek het blok **🧪 Go-agent (proef)**. Kopieer het commando en voer het uit op
+Open de **Agent Manager** van de server en zoek het blok **🧪 Go-agent**. Kopieer het commando en voer het uit op
 de server. Het script:
 
 1. kiest het bestand voor de processor (amd64, arm64 of armv7; op een andere processor stopt het en blijft de server op
    de bash-agent);
 2. controleert de **handtekening van de ontwikkelaar** en installeert niets als die niet klopt;
 3. zet `/usr/local/bin/rzsense` neer en een timer (`rzsense-shadow.timer`, zonder systemd een cronjob) die elke minuut
-   een proefronde draait.
+   een proefronde draait;
+4. zet een bewakertje neer (`rzsense-fallback.timer`) voor de terugval op de bash-agent. Dat doet pas iets als de
+   Go-agent het werk heeft overgenomen.
 
-Het tweede commando in het blok (met `--remove`) haalt alles weer weg. De server is daarna precies zoals hij was.
+Het tweede commando in het blok (met `--remove`) haalt alles weer weg. Deed de Go-agent het werk, dan gaat eerst de
+bash-agent weer aan. De server is daarna precies zoals hij was.
 
 Voorwaarden: de bash-agent is geïnstalleerd en gekoppeld met een koppelcode (een eigen sleutel), en OpenSSL 3 of nieuwer
 voor de handtekening. Met een oudere OpenSSL stopt het script; wil je toch door, voeg dan `--old-openssl` toe.
@@ -727,14 +731,49 @@ het nieuwe bestand op de server kan draaien; anders blijft de oude versie staan 
 vóór het zelf bijwerken) werk je één keer bij door het installatiecommando opnieuw uit te voeren. Een oudere Go-agent
 wordt alleen vergeleken op wat hij meet.
 
+### Overnemen: de Go-agent doet het werk
+
+In het blok **🧪 Go-agent** staat de knop **Overnemen** zodra het veilig kan. RzSense staat het toe als:
+
+- de proef minstens 60 vergeleken rondes liep (een uur) en minstens 98% daarvan gelijk was aan de bash-agent;
+- de Go-agent op de server de nieuwste versie is en er nog proefrondes binnenkomen;
+- de bash-agent via systemd draait en het bewakertje voor de terugval er staat (anders: voer het installatiecommando
+  opnieuw uit);
+- de server **niets gebruikt wat de Go-agent nog niet meet**. Anders zou dat onderdeel stilvallen.
+
+Kan het nog niet, dan staat in het blok precies wat het tegenhoudt. De Go-agent meet CPU, geheugen, schijven, de
+opstarttijd, poorten, diensten (met details en extra tests), certificaten en processen. Dit houdt overnemen tegen zolang
+het voor de server aan staat: logins, sudo en su; Updates; logs van webdiensten; IDS en endpoint-sensoren;
+Kwetsbaarheden; Realtime; checks op containers (Podman), Proxmox, TrueNAS, logs, commando's, paden, heartbeats, schijfgezondheid, UPS,
+klok, databases, VPN en netwerkverkeer; zelf herstellen en de waakhond; de relay; en vaker dan elke minuut rapporteren.
+
+**Wat er gebeurt.** Bij de volgende proefronde zet de Go-agent de timer van de bash-agent en zijn bewaker uit (de
+bash-agent blijft geïnstalleerd, met zijn instellingen en sleutel), haalt de testlijst op en stuurt het echte rapport.
+Pas als RzSense dat aanneemt, geldt de overname; lukt het niet, dan gaat de bash-agent meteen weer aan. In het
+logboek van de server en bij de meldingen staat wanneer de Go-agent het overnam.
+
+**Terug naar de bash-agent** gaat op vier manieren, en altijd zonder dat de bewaking stilvalt:
+
+- met de knop **Terug naar de bash-agent** in het blok (binnen een minuut);
+- vanzelf, als je later iets aanzet wat de Go-agent nog niet kan (RzSense meldt welk onderdeel);
+- vanzelf, als het rapporteren 5 keer achter elkaar mislukt, of als er 10 minuten geen rapport aankwam (het bewakertje,
+  ook als de Go-agent zelf niet meer start). De Go-agent probeert het dan na een uur opnieuw; de reden staat in het blok
+  en in `rzsense status`;
+- op de server zelf met `sudo rzsense back`. Zet het overnemen dan ook in RzSense uit, anders neemt de Go-agent het na
+  een uur weer over.
+
+Zolang de Go-agent het werk doet, komt er van die server geen netwerkverkeer per netwerkkaart en geen klokafwijking
+binnen, en werken 🧪 Test en *Opnieuw zoeken* naar certificaten niet.
+
 ### Het commando `rzsense`
 
 | Commando | Wat het doet |
 |---|---|
-| `rzsense status` | de versies, het adres van RzSense, of de proef loopt en de laatste proefronde |
+| `rzsense status` | de versies, het adres van RzSense, wie het werk doet, of de proef loopt en de laatste proefronde |
 | `rzsense test` | kan deze server RzSense bereiken, en herkent RzSense hem? |
 | `rzsense doctor` | loopt alles na: instellingen, adres, sleutel, DNS, verbinding, of RzSense de server herkent en de planning van de bash-agent. Bij elk probleem staat hoe je het oplost |
 | `rzsense collect` | laat zien wat de Go-agent meet, zonder iets te versturen |
-| `rzsense shadow` | één proefronde, met de uitkomst van de vergelijking |
+| `rzsense shadow` | één ronde: een proefronde met de uitkomst van de vergelijking, of het echte rapport als de Go-agent het werk doet |
+| `rzsense back` | terug naar de bash-agent, als de Go-agent het werk had overgenomen |
 
 Start ze met `sudo`: de sleutel van de agent is alleen voor root leesbaar.

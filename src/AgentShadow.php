@@ -54,17 +54,28 @@ final class AgentShadow
             'diff_n' => array_slice($diffN, 0, 20, true),
             'doctor' => self::cleanDoctor($in['doctor'] ?? []),
             'update_last' => mb_substr((string) ($in['update_last'] ?? ''), 0, 300),   // 1.343.0: de uitkomst van het laatste zelf bijwerken
+            'ready' => AgentTakeover::cleanReady($in['ready'] ?? null),   // 1.344.0: staat alles klaar om over te nemen?
         ]);
+        AgentData::put($id, 'goready', ['at' => now(), 'ready' => AgentTakeover::cleanReady($in['ready'] ?? null), 'update_last' => mb_substr((string) ($in['update_last'] ?? ''), 0, 300)]);
         // 1.343.0: heeft RzSense een nieuwere Go-agent voor deze processor? Dan werkt de agent zichzelf bij (hij controleert
         // zelf de handtekening van de ontwikkelaar; de SHA-256 is een extra controle op het downloaden)
-        $update = null;
-        $arch = (string) ($in['arch'] ?? '');
-        $have = (string) ($in['agent_version'] ?? '');
-        if (in_array($arch, self::ARCHS, true) && in_array($arch, self::available(), true) && preg_match('/^\d+\.\d+\.\d+$/', $have) && version_compare(AGENT_WIN_LATEST, $have, '>')) {
-            $update = ['version' => AGENT_WIN_LATEST, 'sha256' => (string) hash_file('sha256', self::file($arch))];
-        }
-        return ['ok' => true, 'same' => $same, 'n' => count($items), 'update' => $update,
+        $update = self::updateFor((string) ($in['arch'] ?? ''), (string) ($in['agent_version'] ?? ''));
+        // 1.344.0: overnemen, als de gebruiker dat voor deze server vroeg en het veilig kan (eerst bijwerken)
+        $take = $update === null && AgentTakeover::shouldTake($id);
+        return ['ok' => true, 'same' => $same, 'n' => count($items), 'update' => $update, 'takeover' => $take,
             'diffs' => array_values(array_map(static fn($i) => ['k' => $i['k'], 'bash' => $i['bash'], 'go' => $i['go']], array_filter($items, static fn($i) => !$i['ok'])))];
+    }
+
+    /**
+     * Heeft RzSense een nieuwere Go-agent voor deze processor dan de agent nu heeft?
+     * @return array{version: string, sha256: string}|null
+     */
+    public static function updateFor(string $arch, string $have): ?array
+    {
+        if (in_array($arch, self::ARCHS, true) && in_array($arch, self::available(), true) && preg_match('/^\d+\.\d+\.\d+$/', $have) && version_compare(AGENT_WIN_LATEST, $have, '>')) {
+            return ['version' => AGENT_WIN_LATEST, 'sha256' => (string) hash_file('sha256', self::file($arch))];
+        }
+        return null;
     }
 
     /**
@@ -368,7 +379,7 @@ final class AgentShadow
         } catch (Throwable) {
             $pin = null;
         }
-        return ['shadow' => $s, 'archs' => self::available(), 'version' => AGENT_WIN_LATEST, 'pin' => $pin];
+        return ['shadow' => $s, 'archs' => self::available(), 'version' => AGENT_WIN_LATEST, 'pin' => $pin, 'take' => AgentTakeover::check($hostId)];
     }
 
     /** De proef opnieuw beginnen te tellen (de Go-agent zelf blijft draaien) */

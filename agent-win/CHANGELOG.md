@@ -5,6 +5,14 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.13.0 – 2026-11-27
+- **Linux: de Go-agent kan het werk van de bash-agent overnemen**, per server, als je dat in RzSense vraagt. Hij zet de timer van de bash-agent en zijn bewaker uit (niet weg), haalt zelf de testlijst op en stuurt het echte rapport. Pas als RzSense dat rapport aanneemt, geldt de overname; anders gaat alles terug zoals het was.
+- **Terugval op de bash-agent, vanzelf:** na 5 mislukte rapporten achter elkaar, als RzSense het terugvraagt, of (door een los bewakertje, `rzsense-fallback.timer`) als er 10 minuten geen rapport is aangekomen, ook als het bestand van de Go-agent zelf stuk is. Na een terugval wacht de Go-agent een uur voor hij het opnieuw probeert.
+- Nieuw commando `rzsense back`: met de hand terug naar de bash-agent. `rzsense status` zegt wie het werk doet en waarom er eventueel is teruggevallen.
+- De bash-agent houdt zijn instellingen en sleutel. Een nieuwe sleutel of een nieuwe vingerafdruk van het certificaat van RzSense schrijft de Go-agent in de bestanden van de bash-agent, zodat teruggaan altijd werkt.
+- Het installatiecommando zet nu ook het bewakertje neer. Voer het op een server waar de proef al loopt één keer opnieuw uit; zonder bewakertje neemt de Go-agent niet over.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.12.0 – 2026-11-27
 - **Linux: de Go-agent werkt zichzelf bij.** Heeft RzSense een nieuwere versie, dan haalt de agent die op en vervangt hij zichzelf. Alleen als de handtekening van de ontwikkelaar klopt (de agent controleert dat zelf, zonder openssl), de SHA-256 overeenkomt, de versie echt nieuwer is en het nieuwe bestand op deze server kan draaien. Anders blijft de huidige versie staan en staat de reden in RzSense en in `rzsense status`.
 - `REMOTE_UPDATE=0` in de instellingen van de agent zet dit uit, net als bij de bash-agent.

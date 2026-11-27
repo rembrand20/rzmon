@@ -5226,5 +5226,77 @@ foreach ($guMade as $guF) {
 }
 q('DELETE FROM hosts WHERE id = ?', [$guH]);
 
+section('Overnemen per server door de Go-agent (1.344.0)');
+$tkOld = [];
+foreach (['auth_events', 'weblog_swag', 'weblog_ha', 'weblog_vw', 'patch_on', 'ids_enabled', 'vuln_enabled', 'agent_tick'] as $tkK) {
+    $tkOld[$tkK] = setting($tkK);
+}
+q("INSERT INTO hosts (name, address, mode, enabled) VALUES ('go-take', '192.0.2.80', 'agent', 1)");
+$tkH = (int) db()->lastInsertId();
+$tkHost = static fn() => q('SELECT * FROM hosts WHERE id = ?', [$tkH])->fetch();
+ok(agent_latest('linux-go') === AGENT_WIN_LATEST && agent_latest('linux') === AGENT_LATEST && agent_latest(null) === AGENT_LATEST, 'een server waar de Go-agent het werk doet, wordt vergeleken met de nieuwste Go-agent');
+ok(AgentCrypto::capVersion('0.13.0', 'linux-go') === AgentCrypto::PINURL_MIN && AgentCrypto::capVersion('1.120.0', 'linux') === '1.120.0' && AgentCrypto::capVersion(null, 'linux-go') === null,
+    'de Go-agent op Linux krijgt de eigen sleutel en de controle per adres');
+save_setting('auth_events', '1');
+save_setting('patch_on', '1');
+$tkB = AgentTakeover::blockers($tkHost());
+ok(in_array('Logins, sudo en su', $tkB, true) && in_array('Updates', $tkB, true), 'logins en updates houden het overnemen tegen: ' . implode(', ', $tkB));
+foreach (['auth_events', 'weblog_swag', 'weblog_ha', 'weblog_vw', 'patch_on', 'ids_enabled', 'vuln_enabled'] as $tkK) {
+    save_setting($tkK, '0');
+}
+ok(AgentTakeover::blockers($tkHost()) === [], 'zonder die onderdelen houdt niets het tegen: ' . implode(', ', AgentTakeover::blockers($tkHost())));
+q("INSERT INTO checks (host_id, name, type, target, enabled) VALUES (?, 'cpu', 'cpu', '', 1), (?, 'nginx', 'service', 'nginx', 1), (?, 'log', 'command', '', 1)", [$tkH, $tkH, $tkH]);
+$tkB = AgentTakeover::blockers($tkHost());
+ok(count($tkB) === 1 && str_contains($tkB[0], 'command'), 'een commando-check houdt het tegen, een CPU- of service-check niet: ' . implode(', ', $tkB));
+q("UPDATE checks SET enabled = 0 WHERE host_id = ? AND type = 'command'", [$tkH]);
+ok(AgentTakeover::blockers($tkHost()) === [], 'een uitgeschakelde check telt niet');
+q('UPDATE hosts SET agent_tick = 30 WHERE id = ?', [$tkH]);
+ok(count(AgentTakeover::blockers($tkHost())) === 1, 'vaker dan elke minuut rapporteren houdt het tegen');
+q('UPDATE hosts SET agent_tick = NULL, realtime = 1 WHERE id = ?', [$tkH]);
+ok(AgentTakeover::blockers($tkHost()) === ['Realtime'], 'realtime houdt het tegen');
+q('UPDATE hosts SET realtime = 0 WHERE id = ?', [$tkH]);
+$tkC = AgentTakeover::check($tkH);
+ok(!$tkC['can'] && $tkC['proof'] !== [] && isset(AgentTakeover::request($tkH, true)['error']) && (int) $tkHost()['go_want'] === 0, 'zonder proef kan overnemen niet, en de vraag wordt niet bewaard');
+$tkReady = ['systemd' => true, 'bash_timer' => true, 'fallback' => true, 'key_write' => true, 'mode' => 'shadow', 'note' => ''];
+$tkShadow = ['at' => now(), 'since' => now(), 'version' => AGENT_WIN_LATEST, 'rounds' => 59, 'rounds_ok' => 59, 'same' => 5, 'n' => 5, 'items' => [], 'ready' => $tkReady];
+AgentData::put($tkH, 'shadow', $tkShadow);
+ok(!AgentTakeover::check($tkH)['can'], '59 proefrondes is nog niet genoeg');
+AgentData::put($tkH, 'shadow', ['rounds' => 100, 'rounds_ok' => 97] + $tkShadow);
+ok(!AgentTakeover::check($tkH)['can'], '97% gelijk is niet genoeg');
+AgentData::put($tkH, 'shadow', ['rounds' => 100, 'rounds_ok' => 99, 'ready' => ['fallback' => false] + $tkReady] + $tkShadow);
+$tkC = AgentTakeover::check($tkH);
+ok(!$tkC['can'] && count($tkC['need']) === 1 && $tkC['proof'] === [], 'zonder het bewakertje voor de terugval kan het niet');
+AgentData::put($tkH, 'shadow', ['rounds' => 100, 'rounds_ok' => 99, 'version' => '0.0.1'] + $tkShadow);
+ok(!AgentTakeover::check($tkH)['can'], 'een verouderde Go-agent neemt niet over');
+AgentData::put($tkH, 'shadow', ['rounds' => 100, 'rounds_ok' => 99, 'at' => date('Y-m-d H:i:s', time() - 900)] + $tkShadow);
+ok(!AgentTakeover::check($tkH)['can'], 'zonder verse proefronde kan het niet');
+AgentData::put($tkH, 'shadow', ['rounds' => 100, 'rounds_ok' => 99] + $tkShadow);
+ok(AgentTakeover::check($tkH)['can'] && !AgentTakeover::shouldTake($tkH), 'na een goede proef kan het, maar RzSense vraagt het pas als jij het vraagt');
+$tkR = AgentTakeover::request($tkH, true);
+ok(!isset($tkR['error']) && $tkR['want'] && AgentTakeover::shouldTake($tkH), 'gevraagd: RzSense vraagt het bij de volgende proefronde');
+q("UPDATE checks SET enabled = 1 WHERE host_id = ? AND type = 'command'", [$tkH]);
+ok(!AgentTakeover::shouldTake($tkH), 'komt er iets bij wat de Go-agent niet kan, dan vraagt RzSense het niet');
+// De Go-agent doet het werk (hosts.os = linux-go): terug als er iets bijkomt wat hij niet kan, of als de gebruiker het vraagt
+q('UPDATE hosts SET os = ?, agent_version = ?, agent_seen = ? WHERE id = ?', [AgentTakeover::OS, AGENT_WIN_LATEST, now(), $tkH]);
+ok(AgentTakeover::check($tkH)['active'] && !AgentTakeover::shouldTake($tkH), 'actief: niet nog eens overnemen');
+ok((AgentTakeover::fromAgent(['id' => $tkH, 'name' => 'go-take'], ['ready' => $tkReady, 'arch' => 'amd64', 'agent_version' => AGENT_WIN_LATEST])['go_back'] ?? false) === true, 'er kwam een commando-check bij: terug naar de bash-agent');
+q("UPDATE checks SET enabled = 0 WHERE host_id = ? AND type = 'command'", [$tkH]);
+ok(AgentTakeover::fromAgent(['id' => $tkH, 'name' => 'go-take'], ['ready' => $tkReady, 'arch' => 'amd64', 'agent_version' => AGENT_WIN_LATEST]) === [], 'alles in orde: niets terug te melden');
+ok((AgentData::get($tkH, 'goready')['ready']['fallback'] ?? false) === true, 'de stand van de Go-agent is bewaard');
+AgentTakeover::request($tkH, false);
+ok((AgentTakeover::fromAgent(['id' => $tkH, 'name' => 'go-take'], ['ready' => $tkReady])['go_back'] ?? false) === true && !AgentTakeover::check($tkH)['want'], 'terug gevraagd: de Go-agent krijgt het bij zijn volgende rapport te horen');
+$tkClean = AgentTakeover::cleanReady(['systemd' => 1, 'fallback' => 'ja', 'mode' => 'raar', 'note' => str_repeat('x', 900), 'extra' => 'weg']);
+ok($tkClean['systemd'] && $tkClean['fallback'] && !$tkClean['key_write'] && $tkClean['mode'] === 'shadow' && mb_strlen($tkClean['note']) === 300 && !isset($tkClean['extra']), 'wat de agent over zichzelf meldt wordt opgeschoond');
+q('DELETE FROM checks WHERE host_id = ?', [$tkH]);
+q('DELETE FROM hosts WHERE id = ?', [$tkH]);
+foreach ($tkOld as $tkK => $tkV) {
+    if ($tkV === null) {
+        q('DELETE FROM settings WHERE name = ?', [$tkK]);
+        unset($GLOBALS['rz_settings']);
+    } else {
+        save_setting($tkK, (string) $tkV);
+    }
+}
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

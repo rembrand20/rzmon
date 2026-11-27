@@ -269,6 +269,9 @@ func bashCachePath() string {
 	if p := os.Getenv("RZSENSE_BASH_CACHE"); p != "" {
 		return p
 	}
+	if modeActive() { // 0.13.0: de Go-agent haalt de testlijst dan zelf op
+		return dataDir()
+	}
 	return "/var/cache/rzmon-agent"
 }
 

@@ -186,6 +186,7 @@ final class Installer
         // Info-meldingen: per server uit te zetten voor agent-updates (1 = volgt de algemene info-regel)
         ['hosts', 'info_agent', 'TINYINT(1) NOT NULL DEFAULT 1'],
         ['hosts', 'os', 'VARCHAR(10) NULL'],   // 1.313.0: windows of linux (uit het rapport van de agent)
+        ['hosts', 'go_want', 'TINYINT(1) NOT NULL DEFAULT 0'],   // 1.344.0: de Go-agent mag het werk overnemen (per server)
         // Info-check: geeft alleen info-meldingen, telt nooit als storing
         ['checks', 'info_only', 'TINYINT(1) NOT NULL DEFAULT 0'],
         // 1.334.0: Zelf instellen: mag RzSense deze check zelf aanpassen, wanneer deed hij dat het laatst, en sinds wanneer niet meer

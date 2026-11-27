@@ -1,7 +1,34 @@
 // ---------------------------------------------------------------- 1.339.0: Agent Manager → Go-agent (proef)
 // De nieuwe agent (Go, het commando rzsense) draait op een Linux-server náást de bash-agent en stuurt elke minuut zijn
 // metingen. RzSense legt ze naast die van de bash-agent. Dit blok laat zien hoe vaak ze gelijk zijn en waar ze
-// verschillen, met het commando om de proef te starten of weg te halen. Er wordt niets overgenomen.
+// verschillen, met het commando om de proef te starten of weg te halen.
+// 1.344.0: overnemen per server. Was de proef lang genoeg gelijk en gebruikt de server niets wat de Go-agent nog niet kan,
+// dan kun je hem het werk laten doen. De bash-agent staat dan uit (niet weg) en komt vanzelf terug als het misgaat.
+function goTakeHtml(k, s) {
+  if (!k) return '';
+  const list = (title, items) => items.length ? `<p class="small"><b>${esc(title)}</b></p><ul class="small go-why">${items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : '';
+  const note = k.note ? `<p class="small muted">${esc(L('Laatste bericht van de Go-agent:'))} ${esc(k.note)}</p>` : '';
+  if (k.active) {
+    return `<div class="go-take on"><p><b>✔ ${esc(L('De Go-agent {v} doet het werk op deze server.', { v: k.version || '' }))}</b><br>
+      <span class="small">${esc(k.want ? L('De bash-agent staat uit, maar blijft geïnstalleerd. Lukt het rapporteren niet, dan gaat hij binnen 10 minuten vanzelf weer aan.')
+        : L('Terug naar de bash-agent is gevraagd; dat gebeurt bij het volgende rapport (binnen een minuut).'))}</span></p>
+      ${note}${k.want && isAdmin() ? `<p><button type="button" class="btn" data-go-want="0">${esc(L('Terug naar de bash-agent'))}</button></p>` : ''}</div>`;
+  }
+  if (k.want) {
+    const wait = [...k.blockers, ...k.proof, ...k.need];
+    return `<div class="go-take wait"><p><b>⏳ ${esc(L('Overnemen is gevraagd.'))}</b> <span class="small">${esc(wait.length ? L('Het gebeurt zodra dit is opgelost:') : L('Het gebeurt bij de volgende proefronde (binnen een minuut).'))}</span></p>
+      ${wait.length ? `<ul class="small go-why">${wait.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}${note}
+      ${isAdmin() ? `<p><button type="button" class="btn" data-go-want="0">${esc(L('Toch niet overnemen'))}</button></p>` : ''}</div>`;
+  }
+  if (!s) return '';
+  return `<div class="go-take"><p><b>${esc(L('Het werk laten overnemen door de Go-agent'))}</b><br>
+    <span class="small">${esc(k.can ? L('De proef was lang genoeg gelijk en deze server gebruikt niets wat de Go-agent nog niet kan. De bash-agent wordt uitgezet (niet weggehaald) en komt vanzelf terug als het rapporteren niet lukt.')
+      : L('Dat kan op deze server nog niet. De bash-agent blijft het werk doen.'))}</span></p>
+    ${list(L('Dit gebruikt de server en kan de Go-agent nog niet:'), k.blockers)}${list(L('Dit is nog nodig van de proef:'), k.proof)}${list(L('Dit is nog nodig op de server:'), k.need)}${note}
+    ${k.can && isAdmin() ? `<p><button type="button" class="btn primary" data-go-want="1">${esc(L('Overnemen'))}</button></p>` : ''}</div>`;
+}
+
+
 async function amGo(h, body) {
   const box = $('#am-go', body);
   if (!box) return;
@@ -16,7 +43,11 @@ async function amGo(h, body) {
   if (!d.archs.length) {
     html += `<p class="callout small">${esc(L('RzSense heeft de Go-agent voor Linux nog niet. GitHub bouwt en ondertekent hem na een update (workflow "Windows-agent bouwen"); werk RzSense daarna bij.'))}</p>`;
   }
-  if (!s) {
+  const k = d.take;
+  html += goTakeHtml(k, s);
+  if (k && k.active) {
+    // de Go-agent doet het werk: er zijn geen proefrondes meer om te vergelijken
+  } else if (!s) {
     html += `<p class="muted small">${esc(L('Op deze server loopt nog geen proef.'))}</p>`;
   } else {
     const cls = !s.live ? 'unk' : s.n && s.same === s.n ? 'ok' : s.n ? 'warn' : 'unk';
@@ -48,7 +79,13 @@ async function amGo(h, body) {
     <p class="small muted">${L('Op de server zelf: <code>rzsense status</code>, <code>rzsense test</code> en <code>rzsense doctor</code> (loopt alles na en zegt hoe je een probleem oplost).')}</p>
     ${s ? `<p><button type="button" class="btn small-btn" data-go-reset>${esc(L('Opnieuw beginnen te tellen'))}</button></p>` : ''}</details>`;
   box.innerHTML = html;
-  if (typeof amSum === 'function') amSum('goagent', esc(!s ? L('loopt nog niet op deze server') : !s.live ? L('geen proefronde meer sinds {t}', { t: when(s.at) }) : L('{ok} van de {n} proefrondes gelijk aan de bash-agent', { ok: s.rounds_ok, n: s.rounds })), !!(s && s.live && s.n && s.same !== s.n));
+  if (typeof amSum === 'function' && k && k.active) amSum('goagent', esc(L('de Go-agent doet het werk')), false);
+  else if (typeof amSum === 'function') amSum('goagent', esc(!s ? L('loopt nog niet op deze server') : !s.live ? L('geen proefronde meer sinds {t}', { t: when(s.at) }) : L('{ok} van de {n} proefrondes gelijk aan de bash-agent', { ok: s.rounds_ok, n: s.rounds })), !!(s && s.live && s.n && s.same !== s.n));
+  $$('[data-go-want]', box).forEach((b) => { b.onclick = async () => {
+    const on = b.dataset.goWant === '1';
+    if (on && !confirm(L('De Go-agent het werk laten doen op {name}? De bash-agent wordt uitgezet, niet weggehaald. Gaat het mis, dan komt hij vanzelf terug.', { name: h.name }))) return;
+    try { await api('agent_go_want', { host_id: h.id, on: on ? 1 : 0 }); toast(on ? L('Gevraagd: de Go-agent neemt het bij de volgende proefronde over') : L('Gevraagd: de bash-agent neemt het werk weer over')); amGo(h, body); } catch (ex) { toast(ex.message, 'err'); }
+  }; });
   const rb = $('[data-go-reset]', box);
   if (rb) rb.onclick = async () => { try { await api('agent_shadow_reset', { host_id: h.id }); amGo(h, body); } catch (ex) { toast(ex.message, 'err'); } };
 }

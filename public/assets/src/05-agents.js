@@ -1813,7 +1813,7 @@ function agentInstructions(h, pairNow = false) {
         ${amRow('🔗 ' + L('Opnieuw koppelen'), L('nieuwe koppelcode; de agent haalt er een nieuwe eigen sleutel mee op'), `<button type="button" class="btn small-btn" data-am-pair>${L('Koppelcode')}</button>`)}
         ${amRow('↻ ' + L('Nieuw token'), L('alleen voor agents ouder dan 1.50.0; de oude agent werkt dan niet meer'), `<button type="button" class="btn small-btn" data-am-token>${L('Nieuw token')}</button>`)}
       </section>
-      ${`<section class="am-sec am-card need-admin" data-pk="goagent" data-pw="8" style="--c: var(--primary)"><h3 class="am-h"><i aria-hidden="true">🧪</i>${L('Go-agent (proef)')}</h3>
+      ${`<section class="am-sec am-card need-admin" data-pk="goagent" data-pw="8" style="--c: var(--primary)"><h3 class="am-h"><i aria-hidden="true">🧪</i>${L('Go-agent')}</h3>
         <p class="am-lead">${L('De nieuwe agent draait naast de bash-agent; RzSense vergelijkt de metingen. Er wordt niets overgenomen')}</p>
         <div id="am-go"><p class="muted">${L('Laden…')}</p></div>
       </section>`}
