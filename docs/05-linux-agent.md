@@ -686,8 +686,9 @@ doet al het werk, de Go-agent meet mee en RzSense vergelijkt de uitkomsten.
 
 - Elke minuut meet de Go-agent de hostnaam, de opstarttijd, CPU, geheugen, schijven, de luisterende poorten (poort,
   adres en proces), de status van de diensten waar je een check op hebt, de certificaten (bestanden en `host:poort`),
-  de proces-checks en de lijst met processen, op dezelfde manier als de bash-agent, en stuurt dat versleuteld naar
-  RzSense. Certificaten leest hij hooguit eens per uur opnieuw, net als de bash-agent.
+  de proces-checks en de lijst met processen, de details per dienst (poorten, een test die bij de dienst past, fouten in
+  het log), de extra tests bij een service-check en de lijst met diensten, op dezelfde manier als de bash-agent, en
+  stuurt dat versleuteld naar RzSense. Een eigen testscript bij een dienst voert hij in de proef niet uit. Certificaten leest hij hooguit eens per uur opnieuw, net als de bash-agent.
 - RzSense legt het naast wat de bash-agent in de laatste 3 minuten meldde. *Gelijk* betekent: exact waar het exact hoort
   (grootte van geheugen en schijven, aantal kernen, de koppelpunten, de poorten met hun adres en proces, de diensten en
   hun status, de naam, uitgever, vervaldatum en keten van een certificaat, het aantal en de PID's van een proces-check)

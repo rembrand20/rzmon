@@ -12117,4 +12117,11 @@ return [
     '{n}× · pid {p} · {c}% · {m}' => '{n}× · pid {p} · {c}% · {m}',
     'niet gemeten' => 'not measured',
     '{n} namen' => '{n} names',
+    'draait niet ({s})' => 'not running ({s})',
+    'poorten {p}' => 'ports {p}',
+    'geen poorten' => 'no ports',
+    'dicht: {p}' => 'closed: {p}',
+    '{n} herstarts' => '{n} restarts',
+    '{n} fouten in het log' => '{n} errors in the log',
+    'andere status: {l}' => 'different state: {l}',
 ];

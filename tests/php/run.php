@@ -5162,5 +5162,43 @@ unset($gcCore['certs'], $gcCore['procs'], $gcCore['proc_list']);
 ok(!array_filter(AgentShadow::compare($gcCore, $gcBash), static fn($i) => str_starts_with($i['k'], 'certific') || str_starts_with($i['k'], 'proces')), 'een oudere Go-agent zonder certificaten en processen wordt daar niet op afgerekend');
 q('DELETE FROM hosts WHERE id = ?', [$gcH]);
 
+section('Proef met de Go-agent: dienstdetails en extra tests (1.342.0)');
+q("INSERT INTO hosts (name, address, mode, enabled) VALUES ('go-unit4', '192.0.2.80', 'agent', 1)");
+$gsH = (int) db()->lastInsertId();
+AgentData::put($gsH, 'cpu', ['pct' => 5.0, 'load' => [0.1, 0.1, 0.1], 'cores' => 2]);
+AgentData::put($gsH, 'mem', ['total' => 4 * 1073741824, 'avail' => 2 * 1073741824, 'swap_total' => 0, 'swap_free' => 0]);
+$gsNginx = ['sub' => 'running', 'type' => 'forking', 'pid' => 812, 'restarts' => 0, 'since' => time() - 5000, 'ports' => [80, 443], 'ports_fail' => [], 'manual' => [], 'sockets' => [], 'sockets_fail' => [],
+    'probe' => 'http', 'probe_rc' => 0, 'probe_msg' => 'HTTP 200 in 3 ms', 'log_errors' => 0, 'log_last' => '', 'custom_rc' => 0, 'custom_msg' => 'ok', 'hist' => [[time(), 0]]];
+AgentData::put($gsH, 'svcinfo:nginx', $gsNginx);
+AgentData::put($gsH, 'svcinfo:cloudflared', ['sub' => 'failed', 'hist' => []]);
+AgentData::put($gsH, 'svctest:61', ['ok' => true, 'msg' => 'HTTP 200 in 12 ms']);
+AgentData::put($gsH, 'svctest:62', ['ok' => false, 'msg' => 'poort 9000 op 127.0.0.1 antwoordt niet']);
+AgentData::put($gsH, 'svclist', [['cloudflared', 'failed', 1], ['cron', 'active', 1], ['nginx', 'active', 1], ['sshd', 'active', 1]]);
+$gsCore = ['cpu' => ['pct' => 5.0, 'load' => [0.1, 0.1, 0.1], 'cores' => 2], 'mem' => ['total' => 4 * 1073741824, 'avail' => 2 * 1073741824, 'swap_total' => 0, 'swap_free' => 0], 'disks' => [],
+    'svc' => ['nginx' => ['sub' => 'running', 'type' => 'forking', 'pid' => 812, 'restarts' => 0, 'since' => time() - 5001, 'ports' => [443, 80], 'ports_fail' => [], 'manual' => [], 'sockets' => [], 'sockets_fail' => [],
+            'probe' => 'http', 'probe_rc' => 0, 'probe_msg' => 'HTTP 200 in 9 ms', 'log_errors' => 0, 'log_last' => '', 'custom_rc' => null, 'custom_msg' => ''],
+        'cloudflared' => ['sub' => 'failed']],
+    'svc_tests' => ['61' => ['ok' => true, 'msg' => 'HTTP 200 in 40 ms'], '62' => ['ok' => false, 'msg' => 'poort 9000 op 127.0.0.1 antwoordt niet']],
+    'svc_list' => [['cron', 'active', 1], ['nginx', 'active', 1], ['sshd', 'active', 1], ['cloudflared', 'activating', 1]]];
+$gsBash = AgentShadow::bashNow($gsH);
+ok(count($gsBash['svc'] ?? []) === 2 && count($gsBash['svc_tests'] ?? []) === 2 && count($gsBash['svclist'] ?? []) === 4, 'dienstdetails, extra tests en de dienstenlijst van de bash-agent');
+$gsCmp = array_column(AgentShadow::compare($gsCore, $gsBash), null, 'k');
+ok(isset($gsCmp['dienst nginx: details'], $gsCmp['dienst cloudflared: details'], $gsCmp['extra test #61'], $gsCmp['extra test #62'], $gsCmp['diensten om uit te kiezen']) && !array_filter($gsCmp, static fn($i) => !$i['ok']),
+    'gelijk: zelfde poorten (in een andere volgorde), zelfde test en uitkomst; de responstijd, het eigen testscript en één dienst die net start tellen niet');
+ok(str_contains($gsCmp['dienst nginx: details']['bash'], 'poorten 80,443') && str_contains($gsCmp['dienst nginx: details']['bash'], 'http goed') && str_contains($gsCmp['dienst cloudflared: details']['go'], 'draait niet'), 'leesbaar: status, poorten en de uitkomst van de test');
+$gsBad = $gsCore;
+$gsBad['svc']['nginx']['ports'] = [80];                  // een poort gemist
+$gsBad['svc']['cloudflared'] = ['sub' => 'running', 'type' => 'simple', 'pid' => 9, 'ports' => []];   // de een zegt mislukt, de ander draait
+$gsBad['svc_tests']['61']['ok'] = false;
+unset($gsBad['svc_tests']['62']);
+$gsBad['svc_list'] = [['cron', 'active', 1], ['nginx', 'failed', 0], ['sshd', 'inactive', 0], ['cloudflared', 'active', 0], ['nieuw', 'active', 1]];
+$gsD = array_keys(array_column(array_filter(AgentShadow::compare($gsBad, $gsBash), static fn($i) => !$i['ok']), null, 'k'));
+sort($gsD);
+ok($gsD === ['dienst cloudflared: details', 'dienst nginx: details', 'diensten om uit te kiezen', 'extra test #61', 'extra test #62'], 'een gemiste poort, wel of niet draaien, een andere uitkomst van een test, een niet gemeten test en een andere lijst vallen elk op');
+$gsProbe = $gsCore;
+$gsProbe['svc']['nginx']['probe_rc'] = 2;
+ok(in_array('dienst nginx: details', array_column(array_filter(AgentShadow::compare($gsProbe, $gsBash), static fn($i) => !$i['ok']), 'k'), true), 'een test die bij de een goed is en bij de ander fout, valt op');
+q('DELETE FROM hosts WHERE id = ?', [$gsH]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

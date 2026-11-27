@@ -66,7 +66,8 @@ final class AgentShadow
     {
         $out = ['disks' => []];
         $min = time() - self::FRESH;
-        foreach (q("SELECT metric, value, updated_at FROM agent_data WHERE host_id = ? AND (metric IN ('cpu', 'mem', 'boot', 'ports', 'proclist') OR metric LIKE 'disk:%' OR metric LIKE 'service:%' OR metric LIKE 'cert:%' OR metric LIKE 'proc:%')", [$hostId]) as $r) {
+        foreach (q("SELECT metric, value, updated_at FROM agent_data WHERE host_id = ? AND (metric IN ('cpu', 'mem', 'boot', 'ports', 'proclist', 'svclist') OR metric LIKE 'disk:%' OR metric LIKE 'service:%' OR metric LIKE 'cert:%' OR metric LIKE 'proc:%'
+                     OR metric LIKE 'svcinfo:%' OR metric LIKE 'svctest:%')", [$hostId]) as $r) {
             if (strtotime((string) $r['updated_at']) < $min) {
                 continue;
             }
@@ -75,6 +76,11 @@ final class AgentShadow
                 $out['boot'] = (int) $r['value'];
             } elseif (str_starts_with($m, 'service:')) {   // 1.340.0: de status van een dienst (systemctl is-active)
                 $out['services'][substr($m, 8)] = (string) $r['value'];
+            } elseif (str_starts_with($m, 'svcinfo:') || str_starts_with($m, 'svctest:')) {   // 1.342.0: dienstdetails en extra tests
+                $d = json_decode((string) $r['value'], true);
+                if (is_array($d)) {
+                    $out[str_starts_with($m, 'svcinfo:') ? 'svc' : 'svc_tests'][substr($m, 8)] = $d;
+                }
             } elseif (str_starts_with($m, 'cert:') || str_starts_with($m, 'proc:')) {   // 1.341.0: certificaten en proces-checks
                 $d = json_decode((string) $r['value'], true);
                 if (is_array($d)) {
@@ -248,6 +254,64 @@ final class AgentShadow
                 $add('processen: lijst', t('{n} namen', ['n' => count($bn)]) . ($onlyB ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyB, 0, 6))]) : ''),
                     t('{n} namen', ['n' => count($gn)]) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 6))]) : ''), count($onlyB) + count($onlyG) <= $tol);
             }
+        }
+        // 1.342.0: de details per dienst, de extra tests en de lijst met diensten om uit te kiezen
+        if (is_array($bash['svc'] ?? null) && $bash['svc'] && is_array($go['svc'] ?? null)) {
+            $set = static function (mixed $l): array {
+                $l = array_map('strval', is_array($l) ? $l : []);
+                sort($l);
+                return array_values(array_unique($l));
+            };
+            $txt = static fn(array $d): string => !isset($d['type']) ? t('draait niet ({s})', ['s' => (string) ($d['sub'] ?? '?')])
+                : implode(' · ', array_filter([(string) ($d['sub'] ?? ''), 'pid ' . (int) ($d['pid'] ?? 0), ($d['ports'] ?? []) ? t('poorten {p}', ['p' => implode(',', $d['ports'])]) : t('geen poorten'),
+                    ($d['ports_fail'] ?? []) ? t('dicht: {p}', ['p' => implode(',', $d['ports_fail'])]) : '', ($d['probe'] ?? '') !== '' ? $d['probe'] . ' ' . ['goed', 'let op', 'fout'][(int) ($d['probe_rc'] ?? 0)] : '',
+                    (int) ($d['restarts'] ?? 0) ? t('{n} herstarts', ['n' => (int) $d['restarts']]) : '', (int) ($d['log_errors'] ?? 0) ? t('{n} fouten in het log', ['n' => (int) $d['log_errors']]) : '']));
+            foreach ($bash['svc'] as $name => $b) {
+                $g = $go['svc'][$name] ?? null;
+                if (!is_array($g)) {
+                    $add("dienst $name: details", $txt($b), t('niet gemeten'), false);
+                    continue;
+                }
+                // Exact: of hij draait, het hoofdproces, de poorten, wat dicht is, en de soort en uitkomst van de test. Het
+                // eigen testscript telt niet mee (dat voert de proef niet uit), en het log schuift mee met de tijd.
+                $ok = isset($b['type']) === isset($g['type']) && (string) ($b['sub'] ?? '') === (string) ($g['sub'] ?? '');
+                if ($ok && isset($b['type'])) {
+                    $ok = (string) $b['type'] === (string) ($g['type'] ?? '') && (int) ($b['pid'] ?? 0) === (int) ($g['pid'] ?? -1) && ($b['restarts'] ?? null) == ($g['restarts'] ?? null)
+                        && $set($b['ports'] ?? []) === $set($g['ports'] ?? []) && $set($b['ports_fail'] ?? []) === $set($g['ports_fail'] ?? [])
+                        && $set($b['manual'] ?? []) === $set($g['manual'] ?? []) && $set($b['sockets'] ?? []) === $set($g['sockets'] ?? [])
+                        && count((array) ($b['sockets_fail'] ?? [])) === count((array) ($g['sockets_fail'] ?? []))
+                        && (string) ($b['probe'] ?? '') === (string) ($g['probe'] ?? '') && ($b['probe_rc'] ?? null) === ($g['probe_rc'] ?? null)
+                        && (($b['since'] ?? null) === null ? ($g['since'] ?? null) === null : $near($b['since'], $g['since'] ?? null, 3))
+                        && ((int) ($b['log_errors'] ?? 0) > 0) === ((int) ($g['log_errors'] ?? 0) > 0);
+                }
+                $add("dienst $name: details", $txt($b), $txt($g), $ok);
+            }
+        }
+        if (is_array($bash['svc_tests'] ?? null) && $bash['svc_tests'] && is_array($go['svc_tests'] ?? null)) {
+            foreach ($bash['svc_tests'] as $id => $b) {
+                $g = $go['svc_tests'][$id] ?? null;
+                $w = static fn(?array $x): string => $x === null ? t('niet gemeten') : (!empty($x['ok']) ? t('goed') : t('fout')) . ' · ' . mb_substr((string) ($x['msg'] ?? ''), 0, 80);
+                $add("extra test #$id", $w($b), $w(is_array($g) ? $g : null), is_array($g) && !empty($b['ok']) === !empty($g['ok']));
+            }
+        }
+        if (is_array($bash['svclist'] ?? null) && $bash['svclist'] && is_array($go['svc_list'] ?? null) && $go['svc_list']) {
+            $map = static function (array $l): array {
+                $m = [];
+                foreach ($l as $e) {
+                    if (is_array($e) && isset($e[0])) {
+                        $m[(string) $e[0]] = (string) ($e[1] ?? '') . '/' . (int) ($e[2] ?? 0);
+                    }
+                }
+                return $m;
+            };
+            [$bl, $gl] = [$map($bash['svclist']), $map($go['svc_list'])];
+            $onlyB = array_keys(array_diff_key($bl, $gl));
+            $onlyG = array_keys(array_diff_key($gl, $bl));
+            $state = array_keys(array_filter(array_intersect_key($bl, $gl), static fn($v, $k) => $v !== $gl[$k], ARRAY_FILTER_USE_BOTH));
+            // Een dienst die net start of stopt tussen de twee metingen is geen verschil: twee afwijkende statussen mag
+            $add('diensten om uit te kiezen', t('{n} namen', ['n' => count($bl)]) . ($onlyB ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyB, 0, 6))]) : '')
+                . ($state ? ' · ' . t('andere status: {l}', ['l' => implode(', ', array_slice($state, 0, 6))]) : ''),
+                t('{n} namen', ['n' => count($gl)]) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 6))]) : ''), !$onlyB && !$onlyG && count($state) <= 2);
         }
         return $out;
     }

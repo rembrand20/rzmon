@@ -56,6 +56,9 @@ AgentData::put($id, "cpu", $c["cpu"]);
 AgentData::put($id, "mem", $c["mem"]);
 AgentData::put($id, "boot", (string) $c["boot"]);
 foreach ($c["disks"] as $d) { AgentData::put($id, "disk:" . $d["mount"], ["total" => $d["total"], "avail" => $d["avail"]]); }
+foreach ($c["svc"] as $n => $d) { AgentData::put($id, "svcinfo:" . $n, $d); }   // 1.342.0: dienstdetails, extra tests, dienstenlijst
+foreach ($c["svc_tests"] as $n => $d) { AgentData::put($id, "svctest:" . $n, $d); }
+if ($c["svc_list"]) { AgentData::put($id, "svclist", $c["svc_list"]); }
 AgentData::put($id, "ports", $c["ports"]);   // 1.340.0: poorten en diensten
 foreach ($c["services"] as $n => $st) { AgentData::put($id, "service:" . $n, $st); }'
 # 1.341.0: certificaten en processen meet hier de échte code van de bash-agent (uit agent/src), niet de Go-agent zelf

@@ -268,6 +268,9 @@ func coreCollect(wait time.Duration) map[string]any {
 		"certs":     collectCertsLinux(), // 0.10.0
 		"procs":     procs,
 		"proc_list": procNames,
+		"svc":       collectSvcDetailLinux(), // 0.11.0
+		"svc_tests": collectSvcTestsLinux(),
+		"svc_list":  collectSvcListLinux(),
 		"hostname":  host,
 		"boot":      bootTime(s2),
 		"cpu":       map[string]any{"pct": float64(int(pct*10+0.5)) / 10, "load": load, "cores": cpuCores(s2)},

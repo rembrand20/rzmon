@@ -5,6 +5,12 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.11.0 – 2026-11-27
+- **Linux: details per dienst.** Voor elke dienst met een check: de status van systemd, het hoofdproces, herstarts, sinds wanneer hij draait, de poorten van zijn processen (getest op de server zelf), zelf opgegeven poorten en sockets, een test die bij de dienst past (webserver, database, Redis, SSH, mail, DNS, tijd) en de fouten in het log van het laatste kwartier.
+- **Linux: extra tests** uit RzSense (een URL, met of zonder verwachte tekst, of een poort) en de **lijst met diensten** om uit te kiezen.
+- Een eigen testscript (`SERVICE_TEST_DIR`) voert de Go-agent in de proef niet uit: dat doet de bash-agent al, en een tweede keer draaien kan iets op de server veranderen.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.10.0 – 2026-11-27
 - **Linux: certificaten.** Per bron uit `CERTS` en uit de testlijst van de bash-agent: een PEM-bestand (ook met jokertekens) of `host:poort`. Dezelfde velden als de bash-agent: naam, uitgever (de organisatie, anders de naam), vervaldatum, of het vertrouwd wordt, en de hele keten met het certificaat dat het eerst verloopt. Zonder het programma `openssl`. De uitkomst wordt een uur bewaard (`CERT_INTERVAL`), net als bij de bash-agent.
 - **Linux: processen.** Per proces-check het aantal, de PID's, CPU, geheugen en wanneer het oudste proces startte, en de lijst met wat er draait om uit te kiezen. Rechtstreeks uit `/proc`, met dezelfde regels als de bash-agent (geen kernelprocessen, niet de agent zelf; zoeken op naam, op het programma uit de opdrachtregel of op een patroon).
