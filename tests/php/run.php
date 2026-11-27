@@ -5397,8 +5397,16 @@ ok(!isset($tkEb['queue']) && $tkEc(['audit' => 'ok', 'file' => 'ok', 'ctr' => 'n
     && $tkEc(['audit' => 'locked', 'file' => 'ok', 'ctr' => 'none', 'fam' => 'rhel', 'epel' => 1, 'systemd' => 1, 'yara' => 'missing']) === false,
     'EDR-proef: de stand van de sensoren wordt vergeleken (zonder de wachtrij), en regels die er niet staan zijn een verschil');
 ok(!array_intersect(['Realtime', 'Endpoint-sensoren (EDR)'], AgentTakeover::blockers(['realtime' => 1] + $tkHost())), 'Realtime en de endpoint-sensoren houden het overnemen niet meer tegen (1.361.0): ' . implode(', ', AgentTakeover::blockers(['realtime' => 1] + $tkHost())));
+AgentShadow::noteBashRansom($tkH, ['on' => 1, 'paths' => [['k' => 'a', 'p' => '/srv/share', 'n' => 3], ['k' => 'b', 'p' => '/home']], 'cand' => [['smb', '/srv/share'], ['home', '/home']]]);
+$tkRb = AgentShadow::bashNow($tkH)['ransom_obs'] ?? [];
+$tkRc = static fn(array $go) => array_column(AgentShadow::compare(['ransom_obs' => $go], ['ransom_obs' => $tkRb]), 'ok', 'k');
+ok($tkRc(['paths' => ['/home', '/srv/share'], 'cand' => ['home /home', 'smb /srv/share']]) === ['Ransomware (proef): bewaakte mappen' => true, 'Ransomware (proef): mappen om uit te kiezen' => true]
+    && $tkRc(['paths' => ['/home'], 'cand' => ['home /home', 'smb /srv/share']])['Ransomware (proef): bewaakte mappen'] === false,
+    'ransomware-proef: dezelfde bewaakte mappen en dezelfde keuzes zijn gelijk; een map minder is een verschil');
+ok(!in_array('Ransomware', array_map('strval', AgentTakeover::blockers($tkHost())), true), 'ransomware-detectie houdt het overnemen niet meer tegen (1.362.0)');
 AgentData::put($tkH, 'shadow', null);
 AgentData::put($tkH, 'edr_obs_bash', null);
+AgentData::put($tkH, 'ransom_obs_bash', null);
 $tkFw = static fn(array $fw, array $iso = []) => array_column(AgentShadow::compare(['ids_obs' => ['fimc' => [], 'fw' => $fw, 'iso' => $iso]], ['ids_obs' => ['has2' => true, 'fimc' => []]]), 'ok', 'k');
 ok(($tkFw(['build' => true, 'sig' => 'abc', 'bash_sig' => 'abc', 'n' => 3, 'kn' => 1, 'decoy' => '2223'])['IDS (proef): firewall (wat de Go-agent zou zetten)'] ?? null) === true
     && ($tkFw(['build' => true, 'sig' => 'abc', 'bash_sig' => 'xyz', 'n' => 3, 'kn' => 1])['IDS (proef): firewall (wat de Go-agent zou zetten)'] ?? null) === false

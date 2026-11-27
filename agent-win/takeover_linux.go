@@ -256,6 +256,9 @@ func buildRun(c *Config, t0 time.Time) map[string]any {
 	if db := collectDbLinux(); db != nil { // 0.24.0: databasechecks (alleen lezen)
 		rep["db"] = db
 	}
+	if rs := collectRansomLinux(); rs != nil { // 0.31.0: ransomware herkennen (lokaasbestanden, wijzigingen, kenmerken)
+		rep["ransom"] = rs
+	}
 	// 0.30.0: Realtime (de stand van de watcher) en de endpoint-sensoren (de wachtrij en de stand)
 	ownPidsNote()
 	if rt := realtimeReport(); rt != nil {

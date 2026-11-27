@@ -128,6 +128,21 @@ final class AgentShadow
     }
 
     /**
+     * 1.362.0: ransomware als proef: welke mappen de bash-agent bewaakt en welke hij te kiezen geeft
+     * @param array<string, mixed> $ransom
+     */
+    public static function noteBashRansom(int $hostId, array $ransom): void
+    {
+        $s = AgentData::get($hostId, 'shadow');
+        if ($s === null || strtotime((string) ($s['at'] ?? '')) < time() - 600) {
+            return;
+        }
+        AgentData::put($hostId, 'ransom_obs_bash', ['at' => time(), 'on' => !empty($ransom['on']),
+            'paths' => array_values(array_map(static fn($p) => mb_substr((string) ($p['p'] ?? ''), 0, 255), array_slice(array_filter((array) ($ransom['paths'] ?? []), 'is_array'), 0, 20))),
+            'cand' => array_values(array_map(static fn($c) => mb_substr(implode(' ', array_map('strval', (array) $c)), 0, 300), array_slice((array) ($ransom['cand'] ?? []), 0, 50)))]);
+    }
+
+    /**
      * Heeft RzSense een nieuwere Go-agent voor deze processor dan de agent nu heeft?
      * @return array{version: string, sha256: string}|null
      */
@@ -147,6 +162,10 @@ final class AgentShadow
     {
         $out = ['disks' => []];
         $min = time() - self::FRESH;
+        $rsB = AgentData::get($hostId, 'ransom_obs_bash');
+        if (is_array($rsB) && (int) ($rsB['at'] ?? 0) >= $min) {
+            $out['ransom_obs'] = $rsB;
+        }
         $edrB = AgentData::get($hostId, 'edr_obs_bash');
         if (is_array($edrB) && (int) ($edrB['at'] ?? 0) >= $min) {
             $out['edr_obs'] = $edrB;
@@ -473,6 +492,18 @@ final class AgentShadow
             $add('diensten om uit te kiezen', t('{n} namen', ['n' => count($bl)]) . ($onlyB ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyB, 0, 6))]) : '')
                 . ($state ? ' · ' . t('andere status: {l}', ['l' => implode(', ', array_slice($state, 0, 6))]) : ''),
                 t('{n} namen', ['n' => count($gl)]) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 6))]) : ''), count($onlyB) + count($onlyG) <= 4 && count($state) <= 2);
+        }
+        // 1.362.0: ransomware als proef: welke mappen bewaakt worden en welke er te kiezen zijn. De Go-agent plaatst in de
+        // proef geen lokaasbestanden.
+        if (is_array($bash['ransom_obs'] ?? null) && !empty($bash['ransom_obs']['on']) && is_array($go['ransom_obs'] ?? null)) {
+            foreach (['paths' => 'Ransomware (proef): bewaakte mappen', 'cand' => 'Ransomware (proef): mappen om uit te kiezen'] as $rk => $rname) {
+                $rb = array_map('strval', (array) ($bash['ransom_obs'][$rk] ?? []));
+                $rg = array_map('strval', (array) ($go['ransom_obs'][$rk] ?? []));
+                sort($rb);
+                sort($rg);
+                $rt = static fn(array $m, array $o) => t('{n} mappen', ['n' => count($m)]) . (array_diff($m, $o) ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice(array_values(array_diff($m, $o)), 0, 4))]) : '');
+                $add($rname, $rt($rb, $rg), $rt($rg, $rb), $rb === $rg);
+            }
         }
         // 1.361.0: endpoint-sensoren als proef: wat er op deze server is om mee te werken (auditd met de regels, inotify,
         // containers, YARA). De Go-agent zet in de proef zelf geen regels en start geen sensoren.

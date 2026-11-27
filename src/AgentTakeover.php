@@ -19,7 +19,9 @@ final class AgentTakeover
         // 1.360.0 (Go-agent 0.29.0): het IDS, met blokkeren, de lokaas-poort, een proces stoppen, isoleren en bestanden bewaken
         'ids', 'block', 'knet', 'outblock', 'decoy', 'kill', 'isolate', 'userlock', 'fim', 'truenas_fw',
         // 1.361.0 (Go-agent 0.30.0): Realtime en de endpoint-sensoren (de eigen watcher van de Go-agent)
-        'realtime', 'edr', 'edrself'];
+        'realtime', 'edr', 'edrself',
+        // 1.362.0 (Go-agent 0.31.0): ransomware herkennen
+        'ransom', 'ransompath'];
     /** Agent-checks die de Go-agent meet; andere soorten die van de agent komen, houden het overnemen tegen */
     private const CHECKS_BLOCK = ['ha'];
 

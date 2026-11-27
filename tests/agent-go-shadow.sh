@@ -1623,6 +1623,132 @@ web|nginx:1.27|exec|sh -c id
 cache|redis|start|" ] || fail "containergebeurtenissen: $(cat "$E/ctr.out")"
 echo "✔ endpoint-sensoren (EDR): de parsers (auditd, Suricata), het rapport met de wachtrij (ook na een mislukt rapport), de auditd-regels (zetten, vergrendeld, gestopt, weghalen), de netwerksensor, de bestandssensor (programma, script, webshell) en containers: gelijk aan de bash-agent"
 
+# 1.362.0 (Go-agent 0.31.0): ransomware herkennen. De echte bash-code en de Go-agent bewaken elk een eigen kopie van
+# dezelfde mappen, met een namaak-testparm, -zfs en -lsof. Vergeleken wordt wat ze melden, wat er in de mappen ligt en
+# het logboek.
+R="$work/rs"; mkdir -p "$R/bin" "$R/b" "$R/g/gc" "$R/g/gd" "$R/g/gt"
+cat >"$R/bin/testparm" <<'EOF'
+#!/bin/sh
+printf '[global]\n\tworkgroup = X\n[deel]\n\tpath = %s/share\n\tread only = No\n[weg]\n\tpath = /bestaat/niet\n[fout]\n\tpath = /a/../b\n' "${RS_TREE:?}"
+EOF
+cat >"$R/bin/zfs" <<'EOF'
+#!/bin/sh
+case "$1" in
+    list) printf 'tank\t/\ntank/data\t%s\ntank/data/share\t%s/share\ntank/other\tnone\n' "${RS_TREE:?}" "${RS_TREE:?}" ;;
+    snapshot) echo "zfs $*" | sed 's/-[0-9]\{8\}-[0-9]\{6\}$/-TIJD/' >>"${RS_TREE:?}/../zfs.log" ;;
+esac
+EOF
+cat >"$R/bin/lsof" <<'EOF'
+#!/bin/sh
+cat "${RS_TREE:?}/../lsof.pids" 2>/dev/null
+EOF
+chmod +x "$R/bin/"*
+for side in b g; do mkdir -p "$R/$side/tree/share/sub/diep" "$R/$side/tree/docs" "$R/$side/tree/leeg"; printf 'een\n' >"$R/$side/tree/share/a.txt"; printf 'twee\n' >"$R/$side/tree/docs/b.txt"; done
+rs_tests() {  # rs_tests <regels met @T@ voor de map van deze kant>
+    for side in b g; do printf '%b' "${1//@T@/$R/$side/tree}" | while IFS= read -r l; do
+        case "$l" in *ransompath*) p=$(printf '%s' "$l" | cut -f3); printf '0\transompath\t%s\t%s\n' "$(printf '%s' "$p" | base64 -w0)" "$(printf '%s' "$l" | cut -f4)" ;; *) printf '%s\n' "$l" ;; esac
+    done >"$R/$side/tests.cache"; done
+    cp "$R/g/tests.cache" "$R/g/gc/tests.cache"
+}
+rs_bash() {  # rs_bash <uitvoer>: de echte code van de bash-agent
+    (
+        set +u
+        export PATH="$R/bin:$PATH" RS_TREE="$R/b/tree"
+        HA_MODE=0; RANSOM=1; t_dir="$R/b"; t_cache="$R/b/tests.cache"
+        lap() { :; }; id() { echo 0; }
+        act_log() { printf '%s|%s|%s|%s\n' "$1" "$2" "$3" "${4-}" >>"$R/b/act"; }
+        # shellcheck disable=SC1090
+        source <(sed -n '/^json_escape() {/,/^}/p' agent/src/15-realtime.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^ransom_json=""; rs_cand_json=""$/,/^fi$/p' agent/src/62-ransomware.sh)
+        printf '%s' "${ransom_json:-null}" >"$1"
+    ) || fail "de bash-code voor ransomware faalde"
+}
+rs_go() {
+    printf 'MONITOR_URL="https://rz.test"\n' >"$R/g/conf"
+    PATH="$R/bin:$PATH" RS_TREE="$R/g/tree" RZSENSE_BASH_CONF="$R/g/conf" RZSENSE_BASH_CACHE="$R/g/gc" RZSENSE_BASH_STATE="$R/g/gt" RZSENSE_DATA="$R/g/gd" RZSENSE_TEST_ROOT=1 \
+        "$work/rzsense" ransom-test ${2-} >"$1" || fail "de Go-agent kon de ransomware-controle niet uitvoeren"
+}
+rs_same() {  # rs_same <naam>: wat gemeld is, wat er in de mappen ligt, en het logboek (zonder de map van de kant, tijd en pid)
+    rs_bash "$R/$1.bash.json"; rs_go "$R/$1.go.json"
+    python3 -I - "$R" "$1" <<'PY' || fail "ransomware ($1): de Go-agent doet iets anders dan de bash-agent"
+import json, os, re, sys
+R, name = sys.argv[1:3]
+def norm(side, text):
+    text = text.replace(R + '/' + side + '/tree', '@T@')
+    text = re.sub(r'rzsense-ransom-[0-9]{8}-[0-9]{6}', 'rzsense-ransom-TIJD', text)
+    return re.sub(r'pid [0-9]+', 'pid N', re.sub(r'"pid": ?[0-9]+', '"pid":0', text))
+def load(side, ext):
+    d = json.loads(norm(side, open('%s/%s.%s.json' % (R, name, ext)).read()))
+    for p in (d or {}).get('paths', []):
+        p['k'] = '-'; p['ex'] = sorted(p['ex'])
+    return d
+a, g = load('b', 'bash'), load('g', 'go')
+def tree(side):
+    out = []
+    for d, _, fs in os.walk('%s/%s/tree' % (R, side)):
+        out += [os.path.join(d, f).replace(R + '/' + side + '/tree', '') for f in fs]
+    return sorted(out)
+def rd(p): return open(p).read() if os.path.exists(p) else ''
+bad = []
+if a != g: bad.append('gemeld:\n  bash %s\n  go   %s' % (json.dumps(a, sort_keys=True, ensure_ascii=False), json.dumps(g, sort_keys=True, ensure_ascii=False)))
+if tree('b') != tree('g'): bad.append('bestanden: alleen bash %s, alleen go %s' % ([f for f in tree('b') if f not in tree('g')], [f for f in tree('g') if f not in tree('b')]))
+la = norm('b', rd(R + '/b/act')).splitlines()
+lg = ['|'.join([e['m'], str(e['ok']), e['a'], e['d']]) for e in map(json.loads, norm('g', rd(R + '/g/gd/act.log')).splitlines())]
+if sorted(la) != sorted(lg):   # de volgorde bij het opruimen hangt af van de sleutel van de map, en die verschilt hier per kant
+    bad.append('logboek:\n  bash %s\n  go   %s' % (la[-4:], lg[-4:]))
+if rd(R + '/b/zfs.log') != rd(R + '/g/zfs.log'): bad.append('snapshots: bash %r, go %r' % (rd(R + '/b/zfs.log'), rd(R + '/g/zfs.log')))
+if bad: print('\n'.join(bad)); sys.exit(1)
+PY
+}
+# 1: aan met lokaas: twee lokaasbestanden per map, nog niets te vergelijken; een map die niet bestaat of geen map is telt niet
+rs_tests '0\ttick\t30\n0\transom\t1\t1\t1\n0\transompath\t@T@/share\t5\n0\transompath\t@T@/docs\tgeen-getal\n0\transompath\t@T@/bestaat-niet\t5\n0\transompath\t@T@/share/a.txt\t5\n0\transompath\t/\t5\n0\transompath\t/proc\t5\n'
+rs_same eerste
+grep -q '"canary": *"ok"' "$R/eerste.go.json" && [ -f "$R/g/tree/share/!0-RzSense-lokaas-niet-aanraken.txt" ] && [ -f "$R/g/tree/docs/zz-RzSense-lokaas-niet-aanraken.txt" ] \
+    && grep -q '"smb", *"'"$R"'/g/tree/share"' "$R/eerste.go.json" || fail "de eerste ronde: $(cat "$R/eerste.go.json")"
+[ "$(stat -c %a "$R/g/tree/share/zz-RzSense-lokaas-niet-aanraken.txt")" = 664 ] && [ "$(wc -l <"$R/g/tree/share/zz-RzSense-lokaas-niet-aanraken.txt")" = 4 ] || fail "het lokaasbestand ziet er anders uit dan bij de bash-agent"
+sleep 1.1
+rs_same rustig   # niets veranderd
+grep -q '"hit": *0' "$R/rustig.go.json" || fail "zonder wijzigingen hoort er geen alarm te zijn: $(cat "$R/rustig.go.json")"
+sleep 1.1
+# 2: een aanval in share: versleutelde bestanden, een losgeldbriefje en tekst die niet meer te comprimeren is; docs: een gewone wijziging
+for side in b g; do t="$R/$side/tree"
+    for n in 1 2 3 4; do printf 'x' >"$t/share/foto$n.jpg.LOCKED"; done; printf 'betaal\n' >"$t/share/sub/HOW_TO_DECRYPT.txt"
+    head -c 9000 /dev/urandom >"$t/share/sub/diep/rapport.txt"; head -c 5000 /dev/urandom >"$t/share/notities.md"; head -c 70000 /dev/urandom >"$t/share/data.csv"
+    printf 'gewoon\n' >"$t/share/a.txt"; head -c 9000 /dev/zero | tr '\0' 'a' >"$t/docs/c.txt"; printf 'klein\n' >"$t/docs/b.txt"
+    mkdir -p "$t/share/.zfs/snapshot/x"; printf 'x' >"$t/share/.zfs/snapshot/x/oud.locked"
+done
+rs_same aanval
+python3 -I - "$R/aanval.go.json" <<'PY' || fail "de aanval werd niet herkend zoals verwacht"
+import json, sys
+p = {x['p'].split('/')[-1]: x for x in json.load(open(sys.argv[1]))['paths']}
+s, d = p['share'], p['docs']
+if not (s['n'] == 9 and s['ext'] == 4 and s['notes'] == 1 and s['enc'] == 3 and s['hit'] == 1 and 'rzsense-ransom-' in s['snap'] and len(s['ex']) == 5 and d['n'] == 2 and d['hit'] == 0 and d['enc'] == 0 and d['snap'] == ''):
+    print(json.dumps(p, ensure_ascii=False)); sys.exit(1)
+PY
+grep -q 'zfs snapshot -r tank/data/share@rzsense-ransom-TIJD' "$R/g/zfs.log" || fail "de snapshot hoort van het diepste dataset te zijn: $(cat "$R/g/zfs.log")"
+sleep 1.1
+# 3: een lokaasbestand gewijzigd en een weg, en het schrijvende proces wordt gestopt (een snapshot hooguit eens per half uur)
+for side in b g; do t="$R/$side/tree"; printf 'versleuteld' >"$t/docs/!0-RzSense-lokaas-niet-aanraken.txt"; mv -f "$t/docs/zz-RzSense-lokaas-niet-aanraken.txt" "$t/docs/zz.weg"
+    printf 'x' >"$t/share/nog-een.encrypted"; sleep 300 & echo $! >"$R/$side/lsof.pids"; disown $! 2>/dev/null || true; echo 1 >>"$R/$side/lsof.pids"; done
+rs_same lokaas
+k_b=$(head -n 1 "$R/b/lsof.pids"); k_g=$(head -n 1 "$R/g/lsof.pids"); sleep 0.3
+grep -q '"canary": *"alarm"' "$R/lokaas.go.json" && grep -q 'is gewijzigd; .*is weg; ' "$R/lokaas.go.json" && grep -q '"comm": *"sleep"' "$R/lokaas.go.json" \
+    && ! kill -0 "$k_b" 2>/dev/null && ! kill -0 "$k_g" 2>/dev/null && [ "$(grep -c snapshot "$R/g/zfs.log")" = 2 ] || { kill "$k_b" "$k_g" 2>/dev/null; fail "lokaas geraakt: $(cat "$R/lokaas.go.json") $(cat "$R/g/zfs.log")"; }
+for side in b g; do : >"$R/$side/lsof.pids"; done
+# 4: in de proef raakt de Go-agent niets aan: geen lokaas, geen stand
+before=$(find "$R/g/tree" "$R/g/gt" -type f | sort | xargs sha256sum | sha256sum)
+rs_go "$R/obs.json" obs
+[ "$(find "$R/g/tree" "$R/g/gt" -type f | sort | xargs sha256sum | sha256sum)" = "$before" ] && grep -q '"paths"' "$R/obs.json" && grep -q 'tree/share' "$R/obs.json" || fail "in de proef hoort de Go-agent niets aan te raken: $(cat "$R/obs.json")"
+# 5: lokaas uit: de ongewijzigde lokaasbestanden gaan weg, het gewijzigde blijft liggen; 6: helemaal uit
+rs_tests '0\ttick\t30\n0\transom\t0\t0\t0\n0\transompath\t@T@/share\t5\n'
+rs_same lokaas-uit
+[ ! -e "$R/g/tree/share/zz-RzSense-lokaas-niet-aanraken.txt" ] && [ -e "$R/g/tree/docs/!0-RzSense-lokaas-niet-aanraken.txt" ] && grep -q '"canary": *"uit"' "$R/lokaas-uit.go.json" || fail "lokaas uit: $(ls -a "$R/g/tree/share" "$R/g/tree/docs")"
+rs_tests '0\ttick\t30\n'
+rs_same uit
+grep -q '"on": *0' "$R/uit.go.json" && [ "$(find "$R/g/gt/ransom" -type f ! -name cand | wc -l)" = "$(find "$R/b/ransom" -type f ! -name cand | wc -l)" ] || fail "ransomware uit: de stand bleef staan: $(ls "$R/g/gt/ransom" "$R/b/ransom")"
+echo "✔ ransomware herkennen: lokaasbestanden (plaatsen, gewijzigd, weg, opruimen), extensies, losgeldbriefjes en versleutelde tekst, snapshot van het juiste dataset, het schrijvende proces stoppen, en het logboek: gelijk aan de bash-agent; in de proef raakt de Go-agent niets aan"
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.

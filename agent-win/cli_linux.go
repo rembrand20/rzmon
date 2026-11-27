@@ -244,6 +244,15 @@ func cliLinux(args []string) bool {
 		}
 		b, _ := json.Marshal(v)
 		fmt.Println(string(b))
+	case "ransom-test": // voor de tests: het onderdeel "ransom" zoals het in het rapport komt ("obs" = zoals in de proef)
+		var v any
+		if len(os.Args) >= 3 && os.Args[2] == "obs" {
+			v = ransomObserve()
+		} else {
+			v = collectRansomLinux()
+		}
+		b, _ := json.Marshal(v)
+		fmt.Println(string(b))
 	case "edr-parse": // voor de tests: de parsers van de endpoint-sensoren (zoals rzmon-agent.sh --edr-parse)
 		if len(os.Args) < 3 {
 			os.Exit(2)
@@ -605,6 +614,9 @@ func cmdShadow(quiet bool) int {
 	if obs := collectIdsObsLinux(); obs != nil { // 0.27.0: IDS als proef: alleen waarnemen, nergens ingrijpen
 		idsDryRun(obs, c) // 0.29.0: wat de Go-agent zou blokkeren of open laten (er wordt niets uitgevoerd)
 		core["ids_obs"] = obs
+	}
+	if rs := ransomObserve(); rs != nil { // 0.31.0: welke mappen de Go-agent zou bewaken (hij plaatst hier geen lokaas)
+		core["ransom_obs"] = rs
 	}
 	// 0.30.0: staan de endpoint-sensoren aan, dan de stand van de sensoren op deze server (de Go-agent verandert hier niets)
 	if conf, _ := readShellConf(bashConfPath()); edrWanted(readText(filepath.Join(bashCachePath(), "tests.cache")), conf) {

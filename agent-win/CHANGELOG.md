@@ -5,6 +5,12 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.31.0 – 2026-11-27
+- **Linux: ransomware herkennen**, zoals de bash-agent: lokaasbestanden in de mappen die je kiest, tellen wat er sinds de vorige ronde veranderde, bekende ransomware-extensies, losgeldbriefjes en tekst die niet meer te comprimeren is. Bij een sterk signaal, als je dat aanzette: een snapshot (ZFS of btrfs) en de schrijvende processen stoppen.
+- De stand van de lokaasbestanden deelt de Go-agent met de bash-agent. Overnemen of teruggaan geeft daardoor geen vals alarm en er komen geen dubbele lokaasbestanden.
+- **In de proef** plaatst de Go-agent geen lokaas en verandert hij niets in je mappen; hij meldt alleen welke mappen hij zou bewaken.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.30.0 – 2026-11-27
 - **Linux: Realtime.** Als de Go-agent het werk doet en Realtime voor de server aan staat, start hij een eigen watcher (`rzsense-watch`, een tijdelijke systemd-dienst die vanzelf terugkomt). Die volgt het systemlog (logins, sudo, su, en de diensten die RzSense bewaakt) en de 🔴-paden van *Bestanden bewaken*, en start bij een gebeurtenis meteen een ronde: hooguit één per 10 seconden.
 - **Linux: endpoint-sensoren (EDR).** Dezelfde sensoren als de bash-agent: processen en bewaakte paden via auditd (de regels `rzmon_*` worden gezet en weer weggehaald), nieuwe verbindingen naar buiten en nieuwe luisterpoorten, nieuwe programma's in `/tmp` en webshells in webmappen (met YARA als dat er is), containers, en alerts van Suricata. De gebeurtenissen wachten in een rij tot RzSense ze heeft.

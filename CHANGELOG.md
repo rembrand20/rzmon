@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.362.0**: **De Go-agent herkent ransomware**: lokaasbestanden, kenmerken, snapshot en processen stoppen, gelijk aan de bash-agent.
 - **1.361.0**: **De Go-agent doet Realtime en EDR**: een eigen watcher en dezelfde endpoint-sensoren als de bash-agent.
 - **1.360.0**: **De Go-agent kan het IDS overnemen**: dezelfde firewall, lokaas-poort, isoleren en bestanden bewaken als de bash-agent; in de proef blijft het een dry-run.
 - **1.359.0**: **IDS in de Go-agent, dry-run compleet**: ook webshells, verbindingen, hardening, SUID, pakketcontrole en bestanden bewaken worden naast de bash-agent gelegd.
 - **1.358.0**: **Let's Encrypt zonder reverse proxy**: RzSense vraagt zelf een geldig certificaat aan voor je domein, koppelt het en vernieuwt het, met een stappenplan voor DNS, router en firewall.
-- **1.357.0**: **IDS in de Go-agent als dry-run**: de Go-agent neemt waar wat het IDS nodig heeft en RzSense vergelijkt het; er wordt niets geblokkeerd.
+
+## 1.362.0 – 2026-11-27
+### Nieuw
+- **De Go-agent herkent ransomware.** Lokaasbestanden, wijzigingen tellen, extensies, losgeldbriefjes, versleutelde tekst, een snapshot en het schrijvende proces stoppen: hetzelfde als de bash-agent. Ransomware-detectie houdt het overnemen niet meer tegen.
+- **In de proef** komen er twee regels bij in het blok *Go-agent*: *Ransomware (proef): bewaakte mappen* en *mappen om uit te kiezen*. De Go-agent plaatst in de proef geen lokaasbestanden.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.31.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Met deze versie kan een server met IDS, EDR, Realtime en ransomware-detectie overnemen, zodra de proef lang genoeg gelijk is.
+- Dit houdt overnemen nog tegen: logs van webdiensten (alleen waar zo'n log gevonden is), Programma's, tijdelijk sudo, de reverse proxy met WAF en antivirus, de relay en Home Assistant-checks.
 
 ## 1.361.0 – 2026-11-27
 ### Nieuw

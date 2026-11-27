@@ -792,8 +792,11 @@ systemd-dienst die de Go-agent start zodra Realtime of EDR voor de server aan st
 watcher van de bash-agent (`rzmon-watch`) gaat bij het overnemen uit en komt bij teruggaan terug. In de proef start de
 Go-agent geen watcher en zet hij geen auditd-regels; RzSense vergelijkt alleen wat er op de server is om mee te werken
 (*EDR (proef): sensoren*).
+Ransomware herkent de Go-agent zoals de bash-agent. De stand van de lokaasbestanden delen de twee agents, zodat
+overnemen of teruggaan geen vals alarm geeft. In de proef plaatst de Go-agent geen lokaas; RzSense vergelijkt alleen
+welke mappen bewaakt worden (*Ransomware (proef): bewaakte mappen*).
 Dit houdt overnemen tegen zolang het voor de server aan staat: logs van webdiensten (met het IDS aan, en alleen
-op een server waar zo'n log gevonden is); ransomware-detectie; Programma's; tijdelijk sudo;
+op een server waar zo'n log gevonden is); Programma's; tijdelijk sudo;
 de reverse proxy; Home Assistant-checks (die horen bij de add-on); de relay; en vaker dan elke minuut rapporteren.
 
 **Wat er gebeurt.** Bij de volgende proefronde zet de Go-agent de timer van de bash-agent en zijn bewaker uit (de

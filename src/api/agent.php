@@ -668,6 +668,9 @@ if ($action === 'agent') {
     // 1.107.0: zelf herstellen (uitkomsten, herstelcommando's op de server) en de waakhond
     Heal::fromAgent($host, $in, $st, $now);
     Ransom::fromAgent($host, $in, $st, $now);   // 1.228.0: ransomware (agent 1.90.0)
+    if (!$goAgent && is_array($in['ransom'] ?? null)) {
+        AgentShadow::noteBashRansom((int) $host['id'], $in['ransom']);   // 1.362.0: voor de proef met de Go-agent (alleen als die loopt)
+    }
     AppControl::fromAgent($host, $in, $st, $now);   // 1.229.0: programma's (agent 1.91.0)
     Ioc::fromAgent($host, $in);   // 1.229.0: jagen op sporen
     Patch::fromAgent($host, $in, $st, $now);   // 1.230.0: updates (agent 1.92.0)
