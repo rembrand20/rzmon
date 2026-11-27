@@ -5,6 +5,12 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.9.0 – 2026-11-27
+- **Linux: luisterende poorten.** De Go-agent meldt de luisterende TCP-poorten met adres en proces, met dezelfde uitkomst als `ss -tlnp` in de bash-agent: `0.0.0.0`, `::` (alleen IPv6), `*` (IPv4 en IPv6 samen) en een adres aan een interface (`127.0.0.53%lo`). De gegevens komen rechtstreeks van de kernel; het programma `ss` is niet meer nodig.
+- **Linux: diensten.** De status (`systemctl is-active`) van de diensten waar RzSense een check op heeft. De lijst komt uit de testlijst die de bash-agent al bewaart en uit `SERVICES`; de Go-agent leest die alleen.
+- **Linux:** `rzsense status` meldt ook goed dat de proef loopt op een server zonder systemd (cronjob).
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.8.0 – 2026-11-27
 - **Linux: het commando `rzsense`** (proef naast de bash-agent). Dezelfde code als de Windows-agent bouwt nu ook voor Linux (amd64, arm64 en armv7): één bestand zonder afhankelijkheden, ondertekend met dezelfde sleutel.
   - `rzsense status`, `rzsense test` en `rzsense doctor` (loopt alles na en zegt in gewone taal wat er mis is en hoe je het oplost), `rzsense collect` en `rzsense shadow`.

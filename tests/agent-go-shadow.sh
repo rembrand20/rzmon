@@ -23,9 +23,11 @@ echo AgentCrypto::newHostKey((int) db()->lastInsertId(), false);')
 [[ "$key" =~ ^[0-9a-f]{64}$ ]] || fail "geen sleutel voor de testserver"
 mkdir -p "$work/keys" "$work/data"
 printf 'MONITOR_URL="%s"\nSERVICES="sshd"\n' "$BASE" >"$work/rzmon-agent"
+mkdir -p "$work/cache"
+printf '7\tsvc\tcron\t\n8\tival\t60\t\n' >"$work/cache/tests.cache"   # de testlijst van de bash-agent: één dienst erbij
 printf '%s\n' "$key" >"$work/keys/agent.key"
-before=$(cat "$work/rzmon-agent" "$work/keys/agent.key" | sha256sum)
-export RZSENSE_BASH_CONF="$work/rzmon-agent" RZSENSE_BASH_KEYS="$work/keys" RZSENSE_DATA="$work/data"
+before=$(cat "$work/rzmon-agent" "$work/keys/agent.key" "$work/cache/tests.cache" | sha256sum)
+export RZSENSE_BASH_CONF="$work/rzmon-agent" RZSENSE_BASH_KEYS="$work/keys" RZSENSE_DATA="$work/data" RZSENSE_BASH_CACHE="$work/cache"
 
 out=$("$work/rzsense" test) || fail "rzsense test: $out"
 grep -q 'herkent deze server als "go-e2e"' <<<"$out" || fail "rzsense test herkent de server niet: $out"
@@ -40,7 +42,16 @@ $id = (int) q("SELECT id FROM hosts WHERE name = ?", ["go-e2e"])->fetchColumn();
 AgentData::put($id, "cpu", $c["cpu"]);
 AgentData::put($id, "mem", $c["mem"]);
 AgentData::put($id, "boot", (string) $c["boot"]);
-foreach ($c["disks"] as $d) { AgentData::put($id, "disk:" . $d["mount"], ["total" => $d["total"], "avail" => $d["avail"]]); }'
+foreach ($c["disks"] as $d) { AgentData::put($id, "disk:" . $d["mount"], ["total" => $d["total"], "avail" => $d["avail"]]); }
+AgentData::put($id, "ports", $c["ports"]);   // 1.340.0: poorten en diensten
+foreach ($c["services"] as $n => $st) { AgentData::put($id, "service:" . $n, $st); }'
+[ "$(php -r 'echo count(json_decode((string) file_get_contents($argv[1]), true)["services"]);' "$work/core.json")" = 2 ] || fail "de Go-agent vond de twee diensten uit de testlijst en SERVICES niet"
+if command -v ss >/dev/null 2>&1; then
+    want=$(ss -Htln | awk '{ a = $4; p = a; sub(/.*:/, "", p); sub(/:[^:]*$/, "", a); gsub(/[\[\]]/, "", a); print p "|" a }' | sort -u | tr '\n' ' ')
+    got=$(php -r 'foreach (json_decode((string) file_get_contents($argv[1]), true)["ports"] as $p) { echo $p["port"], "|", $p["addr"], "\n"; }' "$work/core.json" | sort -u | tr '\n' ' ')
+    [ "$want" = "$got" ] || fail "poorten verschillen van ss: ss [$want] go [$got]"
+    echo "✔ dezelfde luisterende poorten als ss"
+fi
 seen=$(php -r 'require "src/bootstrap.php"; echo json_encode(q("SELECT agent_seen, agent_version, agent_key, agent_key_id, enc_seen FROM hosts WHERE name = ?", ["go-e2e"])->fetch());')
 
 out=$("$work/rzsense" shadow) || fail "rzsense shadow: $out"
@@ -59,7 +70,7 @@ echo "✔ RzSense bewaarde de proef apart: 2 van 2 rondes gelijk"
 
 after=$(php -r 'require "src/bootstrap.php"; echo json_encode(q("SELECT agent_seen, agent_version, agent_key, agent_key_id, enc_seen FROM hosts WHERE name = ?", ["go-e2e"])->fetch());')
 [ "$seen" = "$after" ] || fail "de proefronde veranderde de server in RzSense (contactmoment, versie of sleutel)"
-[ "$before" = "$(cat "$work/rzmon-agent" "$work/keys/agent.key" | sha256sum)" ] || fail "de bestanden van de bash-agent zijn veranderd"
+[ "$before" = "$(cat "$work/rzmon-agent" "$work/keys/agent.key" "$work/cache/tests.cache" | sha256sum)" ] || fail "de bestanden van de bash-agent zijn veranderd"
 [ "$(find "$work/keys" -type f | wc -l)" = 1 ] || fail "er is iets bijgeschreven in de sleutelmap van de bash-agent"
 echo "✔ de server in RzSense en de bestanden van de bash-agent zijn niet veranderd"
 

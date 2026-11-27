@@ -26,7 +26,7 @@ final class AgentShadow
     public static function receive(array $host, array $in): array
     {
         $core = is_array($in['core'] ?? null) ? $in['core'] : [];
-        if (!isset($core['mem'], $core['cpu'])) {
+        if (!is_array($core['mem'] ?? null) || !is_array($core['cpu'] ?? null)) {
             return ['ok' => false, 'error' => t('geen metingen in de proefronde')];
         }
         $id = (int) $host['id'];
@@ -66,13 +66,15 @@ final class AgentShadow
     {
         $out = ['disks' => []];
         $min = time() - self::FRESH;
-        foreach (q("SELECT metric, value, updated_at FROM agent_data WHERE host_id = ? AND (metric IN ('cpu', 'mem', 'boot') OR metric LIKE 'disk:%')", [$hostId]) as $r) {
+        foreach (q("SELECT metric, value, updated_at FROM agent_data WHERE host_id = ? AND (metric IN ('cpu', 'mem', 'boot', 'ports') OR metric LIKE 'disk:%' OR metric LIKE 'service:%')", [$hostId]) as $r) {
             if (strtotime((string) $r['updated_at']) < $min) {
                 continue;
             }
             $m = (string) $r['metric'];
             if ($m === 'boot') {
                 $out['boot'] = (int) $r['value'];
+            } elseif (str_starts_with($m, 'service:')) {   // 1.340.0: de status van een dienst (systemctl is-active)
+                $out['services'][substr($m, 8)] = (string) $r['value'];
             } elseif (str_starts_with($m, 'disk:')) {
                 $d = json_decode((string) $r['value'], true);
                 if (is_array($d)) {
@@ -140,6 +142,51 @@ final class AgentShadow
                 }
                 $add("schijf $mount: grootte", $b['total'], $gd[$mount]['total'], $b['total'] === $gd[$mount]['total']);
                 $add("schijf $mount: vrij", $b['avail'], $gd[$mount]['avail'], $near($b['avail'], $gd[$mount]['avail'], max(64 * 1048576, $b['total'] * 0.01)));
+            }
+        }
+        // 1.340.0: luisterende poorten (poort, adres, proces) en diensten
+        if (is_array($bash['ports'] ?? null) && is_array($go['ports'] ?? null)) {
+            $map = static function (array $list): array {
+                $m = [];
+                foreach ($list as $p) {
+                    if (is_array($p) && (int) ($p['port'] ?? 0) > 0) {
+                        $m[(int) $p['port'] . ' ' . (string) ($p['addr'] ?? '')] = (string) ($p['proc'] ?? '');
+                    }
+                }
+                ksort($m, SORT_NATURAL);
+                return $m;
+            };
+            [$bp, $gp] = [$map($bash['ports']), $map($go['ports'])];
+            $onlyB = array_keys(array_diff_key($bp, $gp));
+            $onlyG = array_keys(array_diff_key($gp, $bp));
+            $n = static fn(array $m): string => count($m) === 1 ? t('1 poort') : t('{n} poorten', ['n' => count($m)]);
+            $add('poorten: lijst', $n($bp) . ($onlyB ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyB, 0, 8))]) : ''),
+                $n($gp) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 8))]) : ''), !$onlyB && !$onlyG);
+            $pb = $pg = [];
+            foreach (array_intersect_key($bp, $gp) as $k => $proc) {
+                if ($proc !== $gp[$k]) {
+                    $pb[] = "$k = " . ($proc !== '' ? $proc : '–');
+                    $pg[] = "$k = " . ($gp[$k] !== '' ? $gp[$k] : '–');
+                }
+            }
+            $add('poorten: processen', $pb ? implode(', ', array_slice($pb, 0, 8)) : t('gelijk'), $pg ? implode(', ', array_slice($pg, 0, 8)) : t('gelijk'), !$pb);
+        }
+        if (is_array($bash['services'] ?? null) && $bash['services'] && is_array($go['services'] ?? null)) {
+            // De bash-agent meldt ook diensten die RzSense zelf afleidt; alleen wat de Go-agent hoort te meten telt: de namen
+            // die de Go-agent meldt, plus wat hij mist van de gewone systemd-diensten van de bash-agent
+            $bs = array_filter($bash['services'], static fn($k) => !str_contains((string) $k, ':') && !in_array($k, ['homeassistant', 'supervisor', 'updates'], true), ARRAY_FILTER_USE_KEY);
+            $gs = array_map('strval', $go['services']);
+            $names = array_unique([...array_keys($bs), ...array_keys($gs)]);
+            sort($names);
+            $miss = array_values(array_diff(array_keys($bs), array_keys($gs)));
+            $extra = array_values(array_diff(array_keys($gs), array_keys($bs)));
+            $n = static fn(array $m): string => count($m) === 1 ? t('1 dienst') : t('{n} diensten', ['n' => count($m)]);
+            $add('diensten: lijst', $n($bs) . ($miss ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($miss, 0, 8))]) : ''),
+                $n($gs) . ($extra ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($extra, 0, 8))]) : ''), !$miss && !$extra);
+            foreach ($names as $name) {
+                if (isset($bs[$name], $gs[$name])) {
+                    $add("dienst $name", $bs[$name], $gs[$name], $bs[$name] === $gs[$name]);
+                }
             }
         }
         return $out;

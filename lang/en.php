@@ -12105,4 +12105,9 @@ return [
     'Opnieuw beginnen te tellen' => 'Start counting again',
     'de nieuwe agent naast de bash-agent laten meten en vergelijken' => 'let the new agent measure next to the bash agent and compare',
     'loopt nog niet op deze server' => 'not running on this server yet',
+    '1 poort' => '1 port',
+    'alleen hier: {l}' => 'only here: {l}',
+    '1 dienst' => '1 service',
+    '{n} diensten' => '{n} services',
+    'Op de server draait Go-agent {a}; RzSense heeft {b}. Voer het installatiecommando hieronder opnieuw uit om bij te werken: de nieuwe meet meer.' => 'The server runs Go agent {a}; RzSense has {b}. Run the install command below again to update: the new one measures more.',
 ];

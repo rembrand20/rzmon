@@ -26982,6 +26982,10 @@ async function amGo(h, body) {
       <div><b>${esc(s.rounds ? L('{ok} van de {n} proefrondes gelijk aan de bash-agent', { ok: s.rounds_ok, n: s.rounds }) : L('Nog geen proefronde om te vergelijken'))}</b>
         <small>${esc([L('sinds {t}', { t: when(s.since) }), s.live ? L('laatste ronde {t}', { t: when(s.at) }) : L('geen proefronde meer sinds {t}', { t: when(s.at) }),
           `Go ${s.version}`, s.bash_version ? `bash ${s.bash_version}` : '', L('meten kostte {n} ms', { n: s.took_ms })].filter(Boolean).join(' · '))}</small></div></div>`;
+    // 1.340.0: een oudere Go-agent op de server meet minder; de proef werkt zichzelf niet bij
+    if (s.live && s.version && d.version && s.version !== d.version && d.archs.length) {
+      html += `<p class="callout small">${esc(L('Op de server draait Go-agent {a}; RzSense heeft {b}. Voer het installatiecommando hieronder opnieuw uit om bij te werken: de nieuwe meet meer.', { a: s.version, b: d.version }))}</p>`;
+    }
     if (s.n) {
       html += `<div class="table-wrap"><table class="small go-tbl"><thead><tr><th>${esc(L('Meting'))}</th><th>${esc(L('Bash-agent'))}</th><th>${esc(L('Go-agent'))}</th><th></th></tr></thead><tbody>${
         s.items.map((i) => `<tr class="${i.ok ? '' : 'go-diff'}"><td data-th="${esc(L('Meting'))}">${esc(i.k)}</td><td data-th="${esc(L('Bash-agent'))}">${esc(i.bash)}</td><td data-th="${esc(L('Go-agent'))}">${esc(i.go)}</td>

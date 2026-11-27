@@ -3,7 +3,7 @@
 package main
 
 // De kern van de Go-agent voor Linux (0.8.0): meten wat de bash-agent ook meet (hostnaam, opstarttijd, CPU, geheugen,
-// schijven), met precies dezelfde namen in het rapport. In deze eerste versie draait hij als proef náást de bash-agent:
+// schijven, en vanaf 0.9.0 luisterende poorten en diensten), met precies dezelfde namen in het rapport. In deze eerste versie draait hij als proef náást de bash-agent:
 // hij leest diens instellingen en sleutel (alleen lezen), en stuurt zijn metingen naar RzSense om te vergelijken.
 // Hij verandert niets op de server en neemt niets over.
 
@@ -269,5 +269,7 @@ func coreCollect(wait time.Duration) map[string]any {
 		"cpu":      map[string]any{"pct": float64(int(pct*10+0.5)) / 10, "load": load, "cores": cpuCores(s2)},
 		"mem":      memInfo(readText("/proc/meminfo")),
 		"disks":    diskList(parseMounts(readText("/proc/self/mounts"))),
+		"ports":    collectPortsLinux(),    // 0.9.0
+		"services": collectServicesLinux(), // 0.9.0
 	}
 }

@@ -684,13 +684,14 @@ doet al het werk, de Go-agent meet mee en RzSense vergelijkt de uitkomsten.
 
 ### Wat de proef doet
 
-- Elke minuut meet de Go-agent de hostnaam, de opstarttijd, CPU, geheugen en schijven, op dezelfde manier als de
-  bash-agent, en stuurt dat versleuteld naar RzSense.
+- Elke minuut meet de Go-agent de hostnaam, de opstarttijd, CPU, geheugen, schijven, de luisterende poorten (poort,
+  adres en proces) en de status van de diensten waar je een check op hebt, op dezelfde manier als de bash-agent, en
+  stuurt dat versleuteld naar RzSense.
 - RzSense legt het naast wat de bash-agent in de laatste 3 minuten meldde. *Gelijk* betekent: exact waar het exact hoort
-  (grootte van geheugen en schijven, aantal kernen, de koppelpunten) en binnen een marge waar de twee op een ander moment
-  meten (CPU-gebruik, vrije ruimte).
-- De Go-agent leest de instellingen (`/etc/default/rzmon-agent`) en de sleutel van de bash-agent, maar schrijft er niets
-  bij. RzSense bewaart een proefronde apart: de gegevens, de sleutel en het contactmoment van de server veranderen niet.
+  (grootte van geheugen en schijven, aantal kernen, de koppelpunten, de poorten met hun adres en proces, de diensten en
+  hun status) en binnen een marge waar de twee op een ander moment meten (CPU-gebruik, vrije ruimte).
+- De Go-agent leest de instellingen (`/etc/default/rzmon-agent`), de sleutel en de testlijst van de bash-agent, maar
+  schrijft er niets bij. RzSense bewaart een proefronde apart: de gegevens, de sleutel en het contactmoment van de server veranderen niet.
 
 ### Starten en weghalen
 
@@ -713,6 +714,9 @@ voor de handtekening. Met een oudere OpenSSL stopt het script; wil je toch door,
 In het blok staat hoeveel proefrondes gelijk waren, de laatste ronde per meting (bash-agent naast Go-agent, met ≠ waar
 het verschilt) en waar het vaakst een verschil zat. Een ronde zonder verse meting van de bash-agent telt niet mee. Met
 *Opnieuw beginnen te tellen* zet je de tellers op nul.
+
+De proef werkt zichzelf niet bij. Heeft RzSense een nieuwere Go-agent dan er op de server draait, dan staat dat in het
+blok; voer het installatiecommando dan opnieuw uit. Een oudere Go-agent wordt alleen vergeleken op wat hij meet.
 
 ### Het commando `rzsense`
 

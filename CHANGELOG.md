@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.340.0**: **Proef met de Go-agent: poorten en diensten**: de Go-agent meet ze zoals de bash-agent, en RzSense laat zien waar ze verschillen.
 - **1.339.0**: **Eén agent in Go, ook voor Linux**: het commando `rzsense` als proef naast de bash-agent, met `rzsense doctor` en een vergelijking van de metingen in de Agent Manager.
 - **1.338.0**: **Dezelfde opbouw op elke pagina**: onder elke titel één zin over hoe het ervoor staat, en grotere aanraakvlakken op telefoon en tablet.
 - **1.337.0**: **Schermmodus en schermlink**: Monitoring als altijd-aan-scherm dat wisselt tussen Monitoring, Netwerk en IDS, ingelogd of via een geheime link zonder inloggen.
 - **1.336.0**: **Beheerportal Eenvoudig of Uitgebreid**: per kaart alleen wat je nodig hebt, met één schakelaar naar alles.
-- **1.335.0**: **Vraag het RzSense en de ochtendsamenvatting**: een vraag in gewone taal in de zoekbalk (met je eigen AI-sleutel), en elke ochtend één alinea over hoe het ervoor staat.
+
+## 1.340.0 – 2026-11-27
+### Nieuw
+- **Proef met de Go-agent: poorten en diensten erbij.** De Go-agent (0.9.0) meet nu ook de luisterende poorten (poort, adres, proces) en de status van de diensten waar je een check op hebt. RzSense legt ze naast die van de bash-agent: dezelfde poorten en adressen, hetzelfde proces per poort, dezelfde diensten en per dienst dezelfde status.
+- Bij een verschil zie je meteen wat er verschilt, bijvoorbeeld *alleen hier: 443 \** of *dienst cloudflared: failed tegenover active*.
+- Draait er op de server een oudere Go-agent dan RzSense heeft, dan staat dat in het blok, met het verzoek het installatiecommando opnieuw uit te voeren.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.9.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- De proef werkt zichzelf niet bij. Voer op een server waar hij al loopt het installatiecommando uit de Agent Manager opnieuw uit; een server met 0.8.0 wordt tot die tijd alleen op de kernmetingen vergeleken.
 
 ## 1.339.0 – 2026-11-27
 ### Nieuw

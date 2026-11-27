@@ -275,8 +275,13 @@ func cmdStatus() int {
 	}
 	fmt.Printf("  Instellingen: %s\n  Adres:        %s\n  Reserve:      %s\n  Vastgezet:    %v\n  Eigen sleutel: %v\n",
 		bashConfPath(), dash(c.URL), dash(c.URLFallback), c.Pin != "", c.Key != "")
-	if active, known := systemctlActive("rzsense-shadow.timer"); known {
-		fmt.Printf("  Proef:        %s\n", map[bool]string{true: "loopt (rzsense-shadow.timer, elke minuut)", false: "loopt niet (rzsense-shadow.timer staat uit)"}[active])
+	// 0.9.0: ook zonder systemd (cron) goed melden
+	if active, _ := systemctlActive("rzsense-shadow.timer"); active {
+		fmt.Println("  Proef:        loopt (rzsense-shadow.timer, elke minuut)")
+	} else if _, err := os.Stat("/etc/cron.d/rzsense-shadow"); err == nil {
+		fmt.Println("  Proef:        loopt (cronjob /etc/cron.d/rzsense-shadow, elke minuut)")
+	} else {
+		fmt.Println("  Proef:        loopt niet (geen timer en geen cronjob)")
 	}
 	if last := readState("shadow.last"); last != "" {
 		fmt.Println("  Laatste proefronde:", last)

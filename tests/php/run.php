@@ -5088,5 +5088,36 @@ ok(str_contains(Stealth::goInstallScript(), "DL_KEY='" . Stealth::dlKey() . "'")
     'het installatiescript krijgt de downloadsleutel mee en controleert de handtekening');
 q('DELETE FROM hosts WHERE id = ?', [$goH]);
 
+section('Proef met de Go-agent: poorten en diensten (1.340.0)');
+q("INSERT INTO hosts (name, address, mode, enabled) VALUES ('go-unit2', '192.0.2.78', 'agent', 1)");
+$gpH = (int) db()->lastInsertId();
+AgentData::put($gpH, 'cpu', ['pct' => 5.0, 'load' => [0.1, 0.1, 0.1], 'cores' => 2]);
+AgentData::put($gpH, 'mem', ['total' => 4 * 1073741824, 'avail' => 2 * 1073741824, 'swap_total' => 0, 'swap_free' => 0]);
+AgentData::put($gpH, 'ports', [['port' => 22, 'addr' => '0.0.0.0', 'proc' => 'sshd'], ['port' => 22, 'addr' => '::', 'proc' => 'sshd'], ['port' => 443, 'addr' => '*', 'proc' => 'nginx'], ['port' => 53, 'addr' => '127.0.0.53%lo', 'proc' => 'systemd-resolve']]);
+AgentData::put($gpH, 'service:nginx', 'active');
+AgentData::put($gpH, 'service:cloudflared', 'failed');
+AgentData::put($gpH, 'service:addon:core_ssh', 'active');   // geen systemd-dienst: telt niet mee
+$gpCore = ['cpu' => ['pct' => 5.0, 'load' => [0.1, 0.1, 0.1], 'cores' => 2], 'mem' => ['total' => 4 * 1073741824, 'avail' => 2 * 1073741824, 'swap_total' => 0, 'swap_free' => 0], 'disks' => [],
+    'ports' => [['port' => 53, 'addr' => '127.0.0.53%lo', 'proc' => 'systemd-resolve'], ['port' => 443, 'addr' => '*', 'proc' => 'nginx'], ['port' => 22, 'addr' => '::', 'proc' => 'sshd'], ['port' => 22, 'addr' => '0.0.0.0', 'proc' => 'sshd']],
+    'services' => ['cloudflared' => 'failed', 'nginx' => 'active']];
+$gpBash = AgentShadow::bashNow($gpH);
+ok(count($gpBash['ports'] ?? []) === 4 && ($gpBash['services']['cloudflared'] ?? '') === 'failed', 'poorten en diensten van de bash-agent om mee te vergelijken');
+$gpCmp = array_column(AgentShadow::compare($gpCore, $gpBash), null, 'k');
+ok(isset($gpCmp['poorten: lijst'], $gpCmp['poorten: processen'], $gpCmp['diensten: lijst'], $gpCmp['dienst nginx'], $gpCmp['dienst cloudflared'])
+    && !array_filter($gpCmp, static fn($i) => !$i['ok']) && !isset($gpCmp['dienst addon:core_ssh']), 'dezelfde poorten (in een andere volgorde), processen en diensten: gelijk');
+$gpBad = $gpCore;
+$gpBad['ports'][1]['addr'] = '::';                       // 443 op alleen IPv6 in plaats van IPv4 en IPv6 samen
+$gpBad['ports'][3]['proc'] = 'dropbear';
+$gpBad['services']['cloudflared'] = 'active';
+unset($gpBad['services']['nginx']);
+$gpBad['services']['extra'] = 'active';
+$gpD = array_column(array_filter(AgentShadow::compare($gpBad, $gpBash), static fn($i) => !$i['ok']), null, 'k');
+ok(array_keys($gpD) === ['poorten: lijst', 'poorten: processen', 'diensten: lijst', 'dienst cloudflared'] && str_contains($gpD['poorten: lijst']['bash'], '443 *') && str_contains($gpD['poorten: lijst']['go'], '443 ::')
+    && str_contains($gpD['poorten: processen']['go'], 'dropbear') && str_contains($gpD['diensten: lijst']['bash'], 'nginx') && str_contains($gpD['diensten: lijst']['go'], 'extra')
+    && $gpD['dienst cloudflared']['bash'] === 'failed', 'een ander adres, een ander proces, een ontbrekende dienst en een andere status vallen elk op, met wat er verschilt');
+unset($gpCore['ports'], $gpCore['services']);
+ok(!array_filter(AgentShadow::compare($gpCore, $gpBash), static fn($i) => str_starts_with($i['k'], 'poort') || str_starts_with($i['k'], 'dienst')), 'een Go-agent zonder poorten en diensten (0.8.0) wordt daar niet op afgerekend');
+q('DELETE FROM hosts WHERE id = ?', [$gpH]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);
