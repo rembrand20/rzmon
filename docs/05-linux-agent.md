@@ -769,10 +769,11 @@ container starten of een eigen herstelcommando uit `HEAL_DIR` uitvoeren, met dez
 3 per dag per check; `HEAL=0` zet het uit). Ook de waakhond werkt: een bericht via Pushover of ntfy als RzSense een
 tijd onbereikbaar is of als de checks stilstaan (`WATCHDOG=0` zet het uit). Tijdens een aangekondigde update van RzSense
 wacht de Go-agent: geen alarm en geen terugval op de bash-agent. Anders dan de bash-agent bewaart hij in die minuten
-geen metingen in een wachtrij.
+geen metingen in een wachtrij. Op een Proxmox-host leest hij de guests, opslag, ZFS-pools en back-ups uit, en op TrueNAS
+de meldingen, taken, apps, temperaturen en of er een update is; in beide gevallen alleen lezen.
 Dit houdt overnemen tegen zolang het voor de server aan staat: logs van webdiensten (met het IDS aan, en alleen
 op een server waar zo'n log gevonden is); IDS en endpoint-sensoren;
-Kwetsbaarheden; Realtime; checks op Proxmox, TrueNAS, databases, VPN en netwerkverkeer; de relay; en vaker dan elke minuut rapporteren.
+Kwetsbaarheden; Realtime; checks op databases, VPN en netwerkverkeer; de relay; en vaker dan elke minuut rapporteren.
 
 **Wat er gebeurt.** Bij de volgende proefronde zet de Go-agent de timer van de bash-agent en zijn bewaker uit (de
 bash-agent blijft geïnstalleerd, met zijn instellingen en sleutel), haalt de testlijst op en stuurt het echte rapport.

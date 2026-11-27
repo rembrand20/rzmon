@@ -5275,6 +5275,15 @@ $tkH3 = array_column(AgentShadow::compare(['smart' => [['temp' => 31] + $tkSm, [
 ok($tkH3['schijf /dev/sda: gezondheid']['ok'] && $tkH3['schijf /dev/sdb: gezondheid']['ok'] && $tkH3['UPS apc']['ok'], 'proef: schijfgezondheid (2 graden verschil, een schijf in slaapstand) en UPS gelijk');
 ok($tkH3['pad-check #31']['ok'] && !$tkH3['pad-check #32']['ok'], 'proef: een hop meer is hetzelfde pad, een andere gateway niet');
 ok(!array_column(AgentShadow::compare(['smart' => [['passed' => false] + $tkSm]], ['smart' => [$tkSm]]), null, 'k')['schijf /dev/sda: gezondheid']['ok'], 'proef: een andere uitkomst van de zelftest is een verschil');
+$tkPv = array_column(AgentShadow::compare(['pve' => ['qemu' => [['vmid' => 100, 'name' => 'web', 'status' => 'running'], ['vmid' => 101, 'name' => 'db', 'status' => 'running']], 'lxc' => [['vmid' => '200', 'name' => 'dns', 'status' => 'running']],
+        'conf' => [['qemu', 100, 1, 1, 0]], 'storage' => [['storage' => 'pbs'], ['storage' => 'local']]], 'truenas' => ['version' => "25.04.1\n", 'apps' => [['name' => 'jellyfin', 'state' => 'running']]]],
+    ['pveg' => ['100' => ['kind' => 'vm', 'name' => 'web', 'status' => 'running', 'onboot' => 1, 'agent' => 1], '101' => ['kind' => 'vm', 'name' => 'db', 'status' => 'stopped'], '200' => ['kind' => 'ct', 'name' => 'dns', 'status' => 'running']],
+        'pves' => ['local' => [], 'pbs' => []], 'truenas' => ['v' => '25.04.1', 'apps' => [['n' => 'jellyfin', 'st' => 'RUNNING']]]]), null, 'k');
+ok($tkPv['Proxmox: guests']['ok'] && $tkPv['Proxmox-guest 100']['ok'] && !$tkPv['Proxmox-guest 101']['ok'] && $tkPv['Proxmox-guest 200']['ok'] && $tkPv['Proxmox: opslag']['ok'] && $tkPv['TrueNAS']['ok'],
+    'proef: Proxmox-guests per VMID (een andere status is een verschil), de opslag en TrueNAS (versie en apps) vergeleken');
+q("INSERT INTO checks (host_id, name, type, target, enabled) VALUES (?, 'pve', 'pve', 'guests', 1), (?, 'tn', 'truenas', '', 1)", [$tkH, $tkH]);
+ok(!preg_match('/pve|truenas/', implode(' ', AgentTakeover::blockers($tkHost()))), 'checks op Proxmox en TrueNAS houden het overnemen niet meer tegen (1.354.0): ' . implode(', ', AgentTakeover::blockers($tkHost())));
+q("DELETE FROM checks WHERE host_id = ? AND type IN ('pve', 'truenas')", [$tkH]);
 $tkCt = ['name' => 'web', 'user' => 'root', 'pod' => '', 'image' => 'nginx:1.27', 'state' => 'running', 'health' => 'healthy', 'exit_code' => 0, 'restarts' => 2];
 $tkC4 = array_column(AgentShadow::compare(['podman' => ['containers' => [$tkCt, ['name' => 'db', 'user' => 'piet', 'state' => 'exited'] + $tkCt, ['name' => 'extra'] + $tkCt]]],
     ['containers' => ['web' => $tkCt, 'piet/db' => ['name' => 'db', 'user' => 'piet', 'state' => 'running'] + $tkCt]]), null, 'k');
@@ -5326,10 +5335,10 @@ q('DELETE FROM weblog_state WHERE host_id = ?', [$tkH]);
 save_setting('weblog_swag', '0');
 save_setting('ids_enabled', '0');
 ok(AgentTakeover::blockers($tkHost()) === [], 'zonder die onderdelen houdt niets het tegen: ' . implode(', ', AgentTakeover::blockers($tkHost())));
-q("INSERT INTO checks (host_id, name, type, target, enabled) VALUES (?, 'cpu', 'cpu', '', 1), (?, 'nginx', 'service', 'nginx', 1), (?, 'pve', 'pve', 'guests', 1)", [$tkH, $tkH, $tkH]);
+q("INSERT INTO checks (host_id, name, type, target, enabled) VALUES (?, 'cpu', 'cpu', '', 1), (?, 'nginx', 'service', 'nginx', 1), (?, 'db', 'mysql', 'localhost', 1)", [$tkH, $tkH, $tkH]);
 $tkB = AgentTakeover::blockers($tkHost());
-ok(count($tkB) === 1 && str_contains($tkB[0], 'pve'), 'een Proxmox-check houdt het tegen, een CPU- of service-check niet: ' . implode(', ', $tkB));
-q("UPDATE checks SET enabled = 0 WHERE host_id = ? AND type = 'pve'", [$tkH]);
+ok(count($tkB) === 1 && str_contains($tkB[0], 'mysql'), 'een database-check houdt het tegen, een CPU- of service-check niet: ' . implode(', ', $tkB));
+q("UPDATE checks SET enabled = 0 WHERE host_id = ? AND type = 'mysql'", [$tkH]);
 ok(AgentTakeover::blockers($tkHost()) === [], 'een uitgeschakelde check telt niet');
 q('UPDATE hosts SET agent_tick = 30 WHERE id = ?', [$tkH]);
 ok(count(AgentTakeover::blockers($tkHost())) === 1, 'vaker dan elke minuut rapporteren houdt het tegen');
@@ -5355,13 +5364,13 @@ AgentData::put($tkH, 'shadow', ['rounds' => 100, 'rounds_ok' => 99] + $tkShadow)
 ok(AgentTakeover::check($tkH)['can'] && !AgentTakeover::shouldTake($tkH), 'na een goede proef kan het, maar RzSense vraagt het pas als jij het vraagt');
 $tkR = AgentTakeover::request($tkH, true);
 ok(!isset($tkR['error']) && $tkR['want'] && AgentTakeover::shouldTake($tkH), 'gevraagd: RzSense vraagt het bij de volgende proefronde');
-q("UPDATE checks SET enabled = 1 WHERE host_id = ? AND type = 'pve'", [$tkH]);
+q("UPDATE checks SET enabled = 1 WHERE host_id = ? AND type = 'mysql'", [$tkH]);
 ok(!AgentTakeover::shouldTake($tkH), 'komt er iets bij wat de Go-agent niet kan, dan vraagt RzSense het niet');
 // De Go-agent doet het werk (hosts.os = linux-go): terug als er iets bijkomt wat hij niet kan, of als de gebruiker het vraagt
 q('UPDATE hosts SET os = ?, agent_version = ?, agent_seen = ? WHERE id = ?', [AgentTakeover::OS, AGENT_WIN_LATEST, now(), $tkH]);
 ok(AgentTakeover::check($tkH)['active'] && !AgentTakeover::shouldTake($tkH), 'actief: niet nog eens overnemen');
-ok((AgentTakeover::fromAgent(['id' => $tkH, 'name' => 'go-take'], ['ready' => $tkReady, 'arch' => 'amd64', 'agent_version' => AGENT_WIN_LATEST])['go_back'] ?? false) === true, 'er kwam een Proxmox-check bij: terug naar de bash-agent');
-q("UPDATE checks SET enabled = 0 WHERE host_id = ? AND type = 'pve'", [$tkH]);
+ok((AgentTakeover::fromAgent(['id' => $tkH, 'name' => 'go-take'], ['ready' => $tkReady, 'arch' => 'amd64', 'agent_version' => AGENT_WIN_LATEST])['go_back'] ?? false) === true, 'er kwam een database-check bij: terug naar de bash-agent');
+q("UPDATE checks SET enabled = 0 WHERE host_id = ? AND type = 'mysql'", [$tkH]);
 ok(AgentTakeover::fromAgent(['id' => $tkH, 'name' => 'go-take'], ['ready' => $tkReady, 'arch' => 'amd64', 'agent_version' => AGENT_WIN_LATEST]) === [], 'alles in orde: niets terug te melden');
 ok((AgentData::get($tkH, 'goready')['ready']['fallback'] ?? false) === true, 'de stand van de Go-agent is bewaard');
 AgentTakeover::request($tkH, false);

@@ -5,6 +5,13 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.23.0 – 2026-11-27
+- **Linux: Proxmox VE.** Guests (VM's en containers), opslag, ZFS-pools, de cluster, back-ups per guest, de back-uptaken en of de guest agent antwoordt. Guests en opslag elke 2 minuten, back-ups en taken elk kwartier. `PVE=0` zet het uit.
+- **Linux: TrueNAS SCALE.** Meldingen, replicatie-, snapshot-, cloudsync- en rsync-taken, apps, schijftemperaturen en of er een update is. `TRUENAS=0` zet het uit. De agent leest TrueNAS alleen uit.
+- Alleen lezen, alleen als root, en alleen op een server waar `pvesh` of `midclt` staat. Zelfde inhoud als de bash-agent.
+- In de proef leest de Go-agent mee, zodat RzSense de guests, de opslag en de apps kan vergelijken.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.22.0 – 2026-11-27
 - **Linux: de waakhond.** Lukt het rapport een tijd niet (standaard 5 minuten), dan stuurt de agent zelf een bericht via Pushover en/of ntfy, één keer, en een herstelbericht als RzSense terug is. Draait RzSense wel maar staan de checks stil, dan meldt hij dat ook. Bereikt hij ook de berichtendienst niet, dan stuurt hij niets en krijgt RzSense achteraf een notitie.
 - De agent praat alleen met Pushover en ntfy als de waakhond voor deze server aan staat, met de gegevens die versleuteld van RzSense komen, en controleert het certificaat altijd. `WATCHDOG=0` zet het op de server uit; `PUSHOVER_API` werkt zoals bij de bash-agent.

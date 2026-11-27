@@ -12188,4 +12188,6 @@ return [
     'mediafouten {n}' => 'media errors {n}',
     'doel bereikbaar' => 'target reachable',
     'doel niet bereikbaar' => 'target not reachable',
+    '{n} guests' => '{n} guests',
+    '{n} apps' => '{n} apps',
 ];

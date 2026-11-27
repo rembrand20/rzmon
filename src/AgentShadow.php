@@ -91,7 +91,7 @@ final class AgentShadow
         if ($inv) {
             $out['inventory'] = ['list' => json_decode((string) $inv['packages'], true) ?: [], 'exposed' => json_decode((string) $inv['exposed'], true) ?: []] + $inv;
         }
-        foreach (q("SELECT metric, value, updated_at FROM agent_data WHERE host_id = ? AND (metric IN ('cpu', 'mem', 'boot', 'ports', 'proclist', 'svclist', 'patch', 'time', 'smart', 'ups') OR metric LIKE 'path:%' OR metric LIKE 'container:%' OR metric LIKE 'disk:%' OR metric LIKE 'service:%' OR metric LIKE 'cert:%' OR metric LIKE 'proc:%'
+        foreach (q("SELECT metric, value, updated_at FROM agent_data WHERE host_id = ? AND (metric IN ('cpu', 'mem', 'boot', 'ports', 'proclist', 'svclist', 'patch', 'time', 'smart', 'ups') OR metric LIKE 'path:%' OR metric LIKE 'container:%' OR metric LIKE 'pveg:%' OR metric LIKE 'pves:%' OR metric = 'truenas' OR metric LIKE 'disk:%' OR metric LIKE 'service:%' OR metric LIKE 'cert:%' OR metric LIKE 'proc:%'
                      OR metric LIKE 'svcinfo:%' OR metric LIKE 'svctest:%')", [$hostId]) as $r) {
             $m = (string) $r['metric'];
             if (str_starts_with($m, 'path:')) {   // 1.348.0: een pad-check meet om de paar minuten; de laatste meting telt
@@ -111,7 +111,12 @@ final class AgentShadow
             if (strtotime((string) $r['updated_at']) < $min) {
                 continue;
             }
-            if (str_starts_with($m, 'container:')) {   // 1.351.0: per container (sleutel: naam, of gebruiker/naam bij rootless)
+            if (str_starts_with($m, 'pveg:') || str_starts_with($m, 'pves:') || $m === 'truenas') {   // 1.354.0: Proxmox-guests en -opslag, TrueNAS
+                $d = json_decode((string) $r['value'], true);
+                if (is_array($d)) {
+                    $m === 'truenas' ? $out['truenas'] = $d : $out[str_starts_with($m, 'pveg:') ? 'pveg' : 'pves'][substr($m, 5)] = $d;
+                }
+            } elseif (str_starts_with($m, 'container:')) {   // 1.351.0: per container (sleutel: naam, of gebruiker/naam bij rootless)
                 $d = json_decode((string) $r['value'], true);
                 if (is_array($d)) {
                     $out['containers'][substr($m, 10)] = $d;
@@ -392,6 +397,57 @@ final class AgentShadow
             $add('diensten om uit te kiezen', t('{n} namen', ['n' => count($bl)]) . ($onlyB ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyB, 0, 6))]) : '')
                 . ($state ? ' · ' . t('andere status: {l}', ['l' => implode(', ', array_slice($state, 0, 6))]) : ''),
                 t('{n} namen', ['n' => count($gl)]) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 6))]) : ''), count($onlyB) + count($onlyG) <= 4 && count($state) <= 2);
+        }
+        // 1.354.0: Proxmox (guests en opslag) en TrueNAS (versie en apps)
+        if (is_array($bash['pveg'] ?? null) && $bash['pveg'] && is_array($go['pve'] ?? null)) {
+            $gconf = [];
+            foreach ((array) ($go['pve']['conf'] ?? []) as $c) {
+                if (is_array($c) && isset($c[1])) {
+                    $gconf[(int) $c[1]] = $c;
+                }
+            }
+            $gg = [];
+            foreach (['qemu' => 'vm', 'lxc' => 'ct'] as $src => $kind) {
+                foreach ((array) ($go['pve'][$src] ?? []) as $g) {
+                    if (is_array($g) && (int) ($g['vmid'] ?? 0) > 0) {
+                        $id = (int) $g['vmid'];
+                        $gg[$id] = "$kind · " . mb_substr((string) ($g['name'] ?? ''), 0, 80) . ' · ' . preg_replace('/[^a-z-]/', '', (string) ($g['status'] ?? ''))
+                            . ((int) ($gconf[$id][2] ?? 0) ? ' · onboot' : '') . ((int) ($gconf[$id][3] ?? 0) ? ' · agent' : '');
+                    }
+                }
+            }
+            $bg = [];
+            foreach ($bash['pveg'] as $id => $g) {
+                $bg[(int) $id] = ($g['kind'] ?? '') . ' · ' . ($g['name'] ?? '') . ' · ' . ($g['status'] ?? '') . (!empty($g['onboot']) ? ' · onboot' : '') . (!empty($g['agent']) ? ' · agent' : '');
+            }
+            $onlyB = array_keys(array_diff_key($bg, $gg));
+            $onlyG = array_keys(array_diff_key($gg, $bg));
+            $gn = static fn(array $m, array $only): string => t('{n} guests', ['n' => count($m)]) . ($only ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($only, 0, 8))]) : '');
+            $add('Proxmox: guests', $gn($bg, $onlyB), $gn($gg, $onlyG), !$onlyB && !$onlyG);
+            foreach (array_intersect_key($bg, $gg) as $id => $txt) {
+                $add("Proxmox-guest $id", $txt, $gg[$id], $txt === $gg[$id]);
+            }
+            $bsn = array_keys((array) ($bash['pves'] ?? []));
+            $gsn = array_values(array_filter(array_map(static fn($s) => is_array($s) ? (string) ($s['storage'] ?? '') : '', (array) ($go['pve']['storage'] ?? []))));
+            sort($bsn);
+            sort($gsn);
+            $add('Proxmox: opslag', implode(', ', $bsn) ?: '–', implode(', ', $gsn) ?: '–', $bsn === $gsn);
+        }
+        if (is_array($bash['truenas'] ?? null) && is_array($go['truenas'] ?? null)) {
+            $ba = [];
+            foreach ((array) ($bash['truenas']['apps'] ?? []) as $x) {
+                $ba[] = ($x['n'] ?? '') . ' ' . ($x['st'] ?? '');
+            }
+            $ga = [];
+            foreach ((array) ($go['truenas']['apps'] ?? []) as $x) {
+                if (is_array($x) && ($x['name'] ?? '') !== '') {
+                    $ga[] = $x['name'] . ' ' . strtoupper((string) ($x['state'] ?? ''));
+                }
+            }
+            sort($ba);
+            sort($ga);
+            $tv = static fn(string $v, array $apps): string => $v . ' · ' . t('{n} apps', ['n' => count($apps)]) . ($apps ? ': ' . implode(', ', array_slice($apps, 0, 8)) : '');
+            $add('TrueNAS', $tv((string) ($bash['truenas']['v'] ?? ''), $ba), $tv(trim((string) ($go['truenas']['version'] ?? '')), $ga), (string) ($bash['truenas']['v'] ?? '') === trim((string) ($go['truenas']['version'] ?? '')) && $ba === $ga);
         }
         // 1.351.0: containers (Podman en Docker): welke er zijn, en per container de status, health, image en pod
         if (is_array($bash['containers'] ?? null) && $bash['containers'] && is_array($go['podman']['containers'] ?? null)) {

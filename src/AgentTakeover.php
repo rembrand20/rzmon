@@ -17,7 +17,7 @@ final class AgentTakeover
     /** Regels in de testlijst die de Go-agent uitvoert, of die alleen een losse vraag zijn (dan gebeurt er even niets) */
     private const LINES_OK = ['auth', 'cmd', 'heal', 'watchdog', 'log', 'logsrc', 'logship', 'logscan', 'logpause', 'logdirs', 'logbrowse', 'patch', 'path', 'pathtp', 'iperfs', 'tick', 'ival', 'svc', 'ports', 'url', 'port', 'cert', 'certdirs', 'certscan', 'proc', 'tselftest', 'texprobe'];
     /** Agent-checks die de Go-agent meet; andere soorten die van de agent komen, houden het overnemen tegen */
-    private const CHECKS_BLOCK = ['pve', 'truenas', 'ha', 'mysql', 'vpn', 'traffic'];
+    private const CHECKS_BLOCK = ['ha', 'mysql', 'vpn', 'traffic'];
 
     /** Wat een regel in de testlijst voor de gebruiker is */
     private static function lineLabel(string $type): string

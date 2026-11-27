@@ -8,11 +8,27 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.354.0**: **De Go-agent leest Proxmox en TrueNAS uit**: guests, opslag, ZFS, back-ups en apps, gelijk aan de bash-agent.
 - **1.353.0**: **De Go-agent heeft de waakhond**: een bericht via Pushover of ntfy als RzSense onbereikbaar is, en wachten tijdens een update.
 - **1.352.0**: **De Go-agent kan zelf herstellen**: een dienst herstarten, een container starten of een eigen herstelcommando, met dezelfde grenzen als de bash-agent.
 - **1.351.0**: **De Go-agent leest containers en heartbeats**: Podman en Docker (ook rootless), gelijk aan de bash-agent.
 - **1.350.0**: **De Go-agent kan logs**: log-checks, logs verzamelen en logs vinden, met dezelfde veiligheidsregels als de bash-agent.
-- **1.349.0**: **De Go-agent voert commando-checks uit**: kale omgeving, time-out, standaard als nobody, met de noodrem `COMMANDS=0` op de server.
+
+## 1.354.0 – 2026-11-27
+### Nieuw
+- **De Go-agent leest nu ook Proxmox VE en TrueNAS SCALE uit.** Checks van die soorten houden het overnemen niet meer tegen.
+- **In de proef vergeleken:** het blok *Go-agent* krijgt de regels *Proxmox: guests*, *Proxmox-guest …*, *Proxmox: opslag* en *TrueNAS* (versie en apps).
+
+### Opgelost
+- Een automatische test van de waakhond kon op een minuutgrens net anders afronden dan de bash-agent en dan onterecht falen.
+- Een automatische test eiste dat ook een tweede proefronde, een paar seconden later, precies gelijk was; op een drukke testmachine is dat niet altijd zo. De eerste ronde blijft streng gecontroleerd.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.23.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Op TrueNAS installeert de Go-agent nooit iets en werkt hij niets bij, ook zichzelf niet buiten zijn eigen bestand. Of de Go-agent op TrueNAS geïnstalleerd kan worden, is niet getest.
+- Wat overnemen nu nog tegenhoudt: Realtime, IDS, endpoint-sensoren, ransomware-detectie, en checks op databases, VPN en netwerkverkeer.
 
 ## 1.353.0 – 2026-11-27
 ### Nieuw
