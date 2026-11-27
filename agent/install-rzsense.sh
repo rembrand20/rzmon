@@ -13,6 +13,7 @@ set -u
 DL_KEY=''
 CONF=/etc/default/rzmon-agent
 BIN=/usr/local/bin/rzsense
+LINK=/usr/bin/rzsense   # sudo zoekt op RHEL, Rocky en Alma niet in /usr/local/bin
 DATA=/var/lib/rzsense
 UNIT=/etc/systemd/system/rzsense-shadow
 FALLBACK=/etc/systemd/system/rzsense-fallback
@@ -49,6 +50,7 @@ remove_all() {
         rm -f "$UNIT.service" "$UNIT.timer" "$FALLBACK.service" "$FALLBACK.timer" "$FALLBACK_BIN"
         systemctl daemon-reload >/dev/null 2>&1
     fi
+    if [ -L "$LINK" ] && [ "$(readlink "$LINK")" = "$BIN" ]; then rm -f "$LINK"; fi
     rm -f "$CRON" "$BIN"
     [ -d "$DATA" ] && rm -rf "$DATA"
 }
@@ -116,6 +118,8 @@ ver=$("$work/rzsense" version 2>/dev/null) || die "Het bestand kan hier niet dra
 mv -f "$work/rzsense" "$BIN" || die "Kan $BIN niet neerzetten."
 (umask 077; mkdir -p "$DATA")
 ok "$ver geïnstalleerd als $BIN"
+# een verwijzing in /usr/bin, zodat ook "sudo rzsense …" werkt (alleen als daar niets anders staat)
+if [ ! -e "$LINK" ] && [ ! -L "$LINK" ]; then ln -s "$BIN" "$LINK" 2>/dev/null || true; fi
 
 if has_systemd; then
     rm -f "$CRON"

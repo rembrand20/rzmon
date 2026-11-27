@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.354.0**: **De Go-agent leest Proxmox en TrueNAS uit**: guests, opslag, ZFS, back-ups en apps, gelijk aan de bash-agent.
 - **1.353.0**: **De Go-agent heeft de waakhond**: een bericht via Pushover of ntfy als RzSense onbereikbaar is, en wachten tijdens een update.
 
+## 1.357.1 – 2026-11-27
+### Opgelost
+- **`sudo rzsense status` gaf *command not found* op Rocky, RHEL en Alma.** Daar zoekt sudo niet in `/usr/local/bin`. Het installatiecommando van de Go-agent zet nu ook een verwijzing in `/usr/bin` (en haalt die bij verwijderen weer weg). Draai het installatiecommando opnieuw; tot die tijd werkt `/usr/local/bin/rzsense status`.
+- Een test van de IDS-proef hing af van hoe het systeem `sleep` levert; de werking verandert niet.
+
 ## 1.357.0 – 2026-11-27
 ### Nieuw
 - **IDS in de Go-agent, eerste stap: een dry-run.** Op een server waar het IDS aan staat en de proef loopt, neemt de Go-agent hetzelfde waar als de bash-agent, en RzSense legt de twee naast elkaar. In het blok *Go-agent* komen de regels *IDS (proef): gevoelige bestanden*, *gebruikers*, *groepen met rechten*, *kernelmodules*, *verdachte processen* en *diensten die automatisch starten*.

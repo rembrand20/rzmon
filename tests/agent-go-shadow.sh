@@ -1023,7 +1023,9 @@ echo "✔ de zelftest van de Go-agent: RzSense bereikbaar, vrije ruimte en de re
 # 1.357.0 (Go-agent 0.27.0): IDS als proef (alleen waarnemen): de echte bash-code en de Go-agent lezen dezelfde
 # gevoelige bestanden (SHA-256), gebruikers, groepen, kernelmodules en verdachte processen van deze machine
 I="$work/ids"; mkdir -p "$I"
-cp "$(command -v sleep)" /tmp/rzproef-ids-verdacht 2>/dev/null && (/tmp/rzproef-ids-verdacht 40 >/dev/null 2>&1 & echo $! >"$I/pid")
+# een kopie van bash als "verdacht programma" (een kopie van sleep start niet overal: op sommige systemen is dat één gezamenlijk programma)
+cp "$(command -v bash)" /tmp/rzproef-ids-verdacht 2>/dev/null && (/tmp/rzproef-ids-verdacht -c 'sleep 40; :' >/dev/null 2>&1 & echo $! >"$I/pid")
+sleep 0.5
 (
     # shellcheck disable=SC1090
     source <(sed -n '/^json_escape() {/,/^}/p; /^json_text() {/,/^}/p' agent/src/15-realtime.sh)
