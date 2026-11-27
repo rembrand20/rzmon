@@ -1813,6 +1813,10 @@ function agentInstructions(h, pairNow = false) {
         ${amRow('🔗 ' + L('Opnieuw koppelen'), L('nieuwe koppelcode; de agent haalt er een nieuwe eigen sleutel mee op'), `<button type="button" class="btn small-btn" data-am-pair>${L('Koppelcode')}</button>`)}
         ${amRow('↻ ' + L('Nieuw token'), L('alleen voor agents ouder dan 1.50.0; de oude agent werkt dan niet meer'), `<button type="button" class="btn small-btn" data-am-token>${L('Nieuw token')}</button>`)}
       </section>
+      ${`<section class="am-sec am-card need-admin" data-pk="goagent" data-pw="8" style="--c: var(--primary)"><h3 class="am-h"><i aria-hidden="true">🧪</i>${L('Go-agent (proef)')}</h3>
+        <p class="am-lead">${L('De nieuwe agent draait naast de bash-agent; RzSense vergelijkt de metingen. Er wordt niets overgenomen')}</p>
+        <div id="am-go"><p class="muted">${L('Laden…')}</p></div>
+      </section>`}
       </div>
       <details class="am-sec am-install" ${pairNow || !h.agent_seen ? 'open' : ''}><summary><h3 class="am-h">${L('Installeren of opnieuw koppelen')}</h3></summary>
       <div class="seg" role="tablist">
@@ -1918,6 +1922,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   if (h.mode === 'agent') amApps(h, body);   // 1.229.0
   if (h.mode === 'agent') amPatch(h, body);   // 1.230.0
   if (isAdmin() && h.mode === 'agent') amSudo(h, body);   // 1.231.0
+  if (isAdmin() && h.mode === 'agent') amGo(h, body);   // 1.339.0: proef met de Go-agent
   if (isAdmin() && h.mode === 'agent') amRelay(h, body);   // 1.283.0
   // Koppelcode: één code voor alle drie de manieren; daarna wachten tot de agent gekoppeld is
   const makePair = async () => {

@@ -1,8 +1,15 @@
-# Changelog Windows-agent
+# Changelog Go-agent (Windows en Linux)
 
-Wijzigingen aan de RzSense-agent voor Windows (`rzsense-agent.exe`), per versie. Nieuwste bovenaan.
-De Windows-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de Linux-agent.
+Wijzigingen aan de RzSense-agent in Go, per versie. Nieuwste bovenaan. Dezelfde code bouwt `rzsense-agent.exe` voor
+Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de bash-agent).
+De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
+
+## 0.8.0 – 2026-11-27
+- **Linux: het commando `rzsense`** (proef naast de bash-agent). Dezelfde code als de Windows-agent bouwt nu ook voor Linux (amd64, arm64 en armv7): één bestand zonder afhankelijkheden, ondertekend met dezelfde sleutel.
+  - `rzsense status`, `rzsense test` en `rzsense doctor` (loopt alles na en zegt in gewone taal wat er mis is en hoe je het oplost), `rzsense collect` en `rzsense shadow`.
+  - **Proefronde (`shadow`):** meet hostnaam, opstarttijd, CPU, geheugen en schijven op dezelfde manier als de bash-agent, en stuurt dat versleuteld naar RzSense (1.339.0) om te vergelijken. De Go-agent leest de instellingen en de sleutel van de bash-agent alleen; hij verandert niets op de server en neemt niets over.
+- **Windows:** geen wijzigingen in de werking.
 
 ## 0.7.0 – 2026-11-26
 - **Wifi:** de agent meldt zijn eigen wifi-verbinding (wifi-netwerk, access point, band, kanaal, Wi-Fi-standaard, signaal en verbindingssnelheid, uit `netsh wlan show interfaces`, ook in een Nederlandse of Duitse Windows). RzSense 1.328.0 toont dat bij *Netwerk → Netwerksnelheid*.

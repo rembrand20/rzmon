@@ -93,6 +93,13 @@ final class Stealth
         return str_replace("\nDL_KEY=''\n", "\nDL_KEY='" . self::dlKey() . "'\n", $s);
     }
 
+    /** 1.339.0: het installatiescript van de proef met de Go-agent, ook met de downloadsleutel */
+    public static function goInstallScript(): string
+    {
+        $s = (string) file_get_contents(SM_ROOT . '/agent/install-rzsense.sh');
+        return str_replace("\nDL_KEY=''\n", "\nDL_KEY='" . self::dlKey() . "'\n", $s);
+    }
+
     /** 1.283.0: het installatiescript van de losse relay-agent, ook met de downloadsleutel */
     public static function relayInstallScript(): string
     {

@@ -94,6 +94,36 @@ if ($action === 'agent_win_exe' || $action === 'agent_win_sig' || $action === 'a
     exit;
 }
 
+// 1.339.0: de Go-agent voor Linux (het commando rzsense, proef naast de bash-agent): het installatiescript, en per
+// processor het bestand met zijn handtekening (gebouwd en ondertekend door GitHub Actions)
+if ($action === 'agent_go_install' || $action === 'agent_go_bin' || $action === 'agent_go_sig') {
+    if (!Stealth::scriptAllowed()) {
+        Stealth::notFound();
+    }
+    header('Cache-Control: no-store');
+    if ($action === 'agent_go_install') {
+        header('Content-Type: text/x-shellscript; charset=utf-8');
+        echo is_configured() ? Stealth::goInstallScript() : (string) file_get_contents(SM_ROOT . '/agent/install-rzsense.sh');
+        exit;
+    }
+    $arch = (string) ($_GET['arch'] ?? '');
+    $f = in_array($arch, AgentShadow::ARCHS, true) ? AgentShadow::file($arch) . ($action === 'agent_go_sig' ? '.sig' : '') : '';
+    if ($f === '' || !is_file($f)) {
+        http_response_code(404);
+        exit;
+    }
+    if ($action === 'agent_go_bin') {
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="rzsense"');
+        header('Content-Length: ' . filesize($f));
+        readfile($f);
+    } else {
+        header('Content-Type: text/plain; charset=utf-8');
+        echo trim((string) file_get_contents($f));
+    }
+    exit;
+}
+
 if (!is_configured()) {
     out(['error' => t('RzSense is nog niet ingesteld'), 'setup' => true], 503);
 }
@@ -227,6 +257,16 @@ if ($action === 'agent_logs') {
         out(['ok' => false, 'off' => true]);
     }
     out(LogStore::ingest($host, raw_input()));
+}
+
+// 1.339.0: proefronde van de Go-agent naast de bash-agent. Alleen met de eigen sleutel van de server en versleuteld; wordt
+// apart bewaard en vergeleken, en verandert niets aan de gegevens, de sleutel of het contactmoment van de bash-agent.
+if ($action === 'agent_shadow') {
+    $host = agent_host();
+    if (!agent_body($host) || empty($GLOBALS['agent_own'])) {
+        out(['error' => t('Een proefronde wordt alleen versleuteld met de eigen sleutel van de server aangenomen')], 403);
+    }
+    out(AgentShadow::receive($host, input()));
 }
 
 if ($action === 'agent') {

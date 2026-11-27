@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -74,7 +75,7 @@ func call(base, pin, method, action string, body []byte, hdr map[string]string, 
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "rzsense-agent-windows/"+Version)
+	req.Header.Set("User-Agent", "rzsense-agent-"+runtime.GOOS+"/"+Version)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

@@ -37,6 +37,17 @@ jobs:
           mkdir -p dist
           go build -trimpath -ldflags "-s -w -buildid=" -o dist/rzsense-agent.exe .
           echo "✔ gebouwd: $(stat -c %s dist/rzsense-agent.exe) bytes, versie $(cat VERSION)"
+          # 1.339.0: dezelfde code voor Linux (het commando rzsense), per processor één bestand zonder afhankelijkheden
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -buildid=" -o dist/rzsense-linux-amd64 .
+          GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w -buildid=" -o dist/rzsense-linux-arm64 .
+          GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -buildid=" -o dist/rzsense-linux-armv7 .
+          [ "$(GOOS= GOARCH= ./dist/rzsense-linux-amd64 version)" = "rzsense $(cat VERSION)" ] || { echo "::error title=Versie::rzsense meldt een andere versie dan VERSION"; exit 1; }
+          for a in amd64 arm64 armv7; do echo "✔ gebouwd: rzsense-linux-$a, $(stat -c %s dist/rzsense-linux-$a) bytes"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: agent-win/dist/rzsense-linux-*
+          retention-days: 1
       - uses: actions/upload-artifact@v4
         with:
           name: exe
@@ -78,6 +89,10 @@ jobs:
         with:
           name: msi
           path: agent-win/dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux
+          path: agent-win/dist
       - name: Ondertekenen en controleren
         env:
           AGENT_SIGN_KEY: ${{ secrets.AGENT_SIGN_KEY }}
@@ -91,7 +106,8 @@ jobs:
           pub=$(sed -n 's/^const agentSignPub = "\([A-Za-z0-9+\/=]*\)"$/\1/p' agent-win/update.go)
           [ -n "$pub" ] || { echo "::error title=Publieke sleutel::agentSignPub niet gevonden in agent-win/update.go"; exit 1; }
           printf -- '-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----\n' "$pub" >"$work/pub.pem"
-          for f in agent-win/dist/rzsense-agent.exe agent-win/dist/rzsense-agent.msi; do
+          rm -f agent-win/dist/rzsense-linux-*.sig
+          for f in agent-win/dist/rzsense-agent.exe agent-win/dist/rzsense-agent.msi agent-win/dist/rzsense-linux-amd64 agent-win/dist/rzsense-linux-arm64 agent-win/dist/rzsense-linux-armv7; do
             openssl pkeyutl -sign -inkey "$work/key.pem" -rawin -in "$f" -out "$work/sig"
             openssl pkeyutl -verify -pubin -inkey "$work/pub.pem" -rawin -in "$f" -sigfile "$work/sig" >/dev/null \
               || { echo "::error title=Sleutels passen niet::De geheime sleutel past niet bij agentSignPub in de Windows-agent"; exit 1; }
@@ -104,8 +120,9 @@ jobs:
           git config user.name 'rzmon-ondertekening'
           git config user.email 'rzmon-ondertekening@users.noreply.github.com'
           git add agent-win/dist/rzsense-agent.exe agent-win/dist/rzsense-agent.exe.sig agent-win/dist/rzsense-agent.msi agent-win/dist/rzsense-agent.msi.sig
-          if git diff --cached --quiet; then echo "Windows-agent ongewijzigd"; exit 0; fi
-          git commit -m "Windows-agent $(cat agent-win/VERSION) gebouwd en ondertekend [skip ci]"
+          for a in amd64 arm64 armv7; do git add "agent-win/dist/rzsense-linux-$a" "agent-win/dist/rzsense-linux-$a.sig"; done
+          if git diff --cached --quiet; then echo "Go-agent ongewijzigd"; exit 0; fi
+          git commit -m "Go-agent $(cat agent-win/VERSION) gebouwd en ondertekend (Windows en Linux) [skip ci]"
           pushed=0
           for i in 1 2 3; do if git push; then pushed=1; break; fi; git pull --rebase; done
           [ "$pushed" = 1 ] || git push

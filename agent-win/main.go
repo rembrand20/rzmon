@@ -25,6 +25,9 @@ import (
 var urlRe = regexp.MustCompile(`^https?://[A-Za-z0-9.\-\[\]:]+(/[A-Za-z0-9._~/-]*)?$`)
 
 func main() {
+	if cliLinux(os.Args) { // 0.8.0: op Linux het commando rzsense
+		return
+	}
 	if isService() {
 		if err := runService(); err != nil {
 			logf("Service: %v", err)

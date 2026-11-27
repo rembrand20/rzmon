@@ -10016,6 +10016,10 @@ function agentInstructions(h, pairNow = false) {
         ${amRow('🔗 ' + L('Opnieuw koppelen'), L('nieuwe koppelcode; de agent haalt er een nieuwe eigen sleutel mee op'), `<button type="button" class="btn small-btn" data-am-pair>${L('Koppelcode')}</button>`)}
         ${amRow('↻ ' + L('Nieuw token'), L('alleen voor agents ouder dan 1.50.0; de oude agent werkt dan niet meer'), `<button type="button" class="btn small-btn" data-am-token>${L('Nieuw token')}</button>`)}
       </section>
+      ${`<section class="am-sec am-card need-admin" data-pk="goagent" data-pw="8" style="--c: var(--primary)"><h3 class="am-h"><i aria-hidden="true">🧪</i>${L('Go-agent (proef)')}</h3>
+        <p class="am-lead">${L('De nieuwe agent draait naast de bash-agent; RzSense vergelijkt de metingen. Er wordt niets overgenomen')}</p>
+        <div id="am-go"><p class="muted">${L('Laden…')}</p></div>
+      </section>`}
       </div>
       <details class="am-sec am-install" ${pairNow || !h.agent_seen ? 'open' : ''}><summary><h3 class="am-h">${L('Installeren of opnieuw koppelen')}</h3></summary>
       <div class="seg" role="tablist">
@@ -10121,6 +10125,7 @@ sudo bash -c 'set -a; . /etc/default/rzmon-agent; /usr/local/bin/rzmon-agent.sh'
   if (h.mode === 'agent') amApps(h, body);   // 1.229.0
   if (h.mode === 'agent') amPatch(h, body);   // 1.230.0
   if (isAdmin() && h.mode === 'agent') amSudo(h, body);   // 1.231.0
+  if (isAdmin() && h.mode === 'agent') amGo(h, body);   // 1.339.0: proef met de Go-agent
   if (isAdmin() && h.mode === 'agent') amRelay(h, body);   // 1.283.0
   // Koppelcode: één code voor alle drie de manieren; daarna wachten tot de agent gekoppeld is
   const makePair = async () => {
@@ -22629,7 +22634,7 @@ const FH_SHORT = () => ({
 
 /** Groepen en hun onderdelen (data-pk van de oude kaarten) */
 const AM_GROUPS = () => [
-  ['conn', L('Verbinding en agent'), ['run', 'conn', 'maint', 'relay']],
+  ['conn', L('Verbinding en agent'), ['run', 'conn', 'maint', 'relay', 'goagent']],   // 1.339.0: proef met de Go-agent
   ['prot', L('Bescherming'), ['sec', 'ransom', 'apps']],
   ['rights', L('Rechten op de server'), ['cmd', 'sudo'], () => xpHtml(L('Alles wat op deze server als root kan gebeuren, bij elkaar.'), L('<b>Commando-checks:</b> RzSense laat de agent een commando uitvoeren dat jij in een check hebt gezet, en vergelijkt het antwoord. Staat dit op <i>als root</i>, dan mag zo\'n commando alles; de regel krijgt dan een waarschuwing. <b>Tijdelijk sudo:</b> RzSense voert niets uit, maar geeft een gebruiker op de server voor korte tijd sudo, zodat die zelf iets als root kan doen. Het gaat vanzelf weer weg. <b>Wat verder als root draait:</b> zelf herstellen (alleen een service of container herstarten, of een script dat je zelf in <code>/etc/rzmon-agent/heal.d/</code> zet), updates installeren (de pakketbeheerder van de server) en de diagnose voor AI-advies (een vaste lijst die alleen leest). Daarbij kan RzSense geen eigen commando meesturen. <b>Op de server zelf</b> heb je altijd het laatste woord: <code>COMMANDS=0</code>, <code>SUDO_JIT=0</code> of <code>HEAL=0</code> in <code>/etc/default/rzmon-agent</code>.'), 'am-grp-xp')],
   ['upd', L('Updates'), ['patch']],
@@ -22645,6 +22650,7 @@ function amHidden(h) {
   if (h.mode === 'agent' && !h.snmp) out.add('snmp');
   if (h.mode === 'agent' && isHaHost(h)) ['ransom', 'sudo', 'cmd', 'relay'].forEach((k) => out.add(k));
   if (h.mode !== 'agent') out.add('relay');
+  if (h.mode !== 'agent' || h.os === 'windows' || isHaHost(h)) out.add('goagent');   // 1.339.0: alleen een Linux-server met de bash-agent
   return out;
 }
 
@@ -22669,6 +22675,7 @@ function amState(h, pk) {
     };
     case 'sec': return { s: `EDR ${onOff(+(h.edr_on ?? 1))}` };
     case 'notify': return { s: `🐕 ${L('Waakhond')} ${+h.watchdog ? L('aan, na {n} min', { n: +h.watchdog_min || 5 }) : L('uit')}` };
+    case 'goagent': return { s: L('de nieuwe agent naast de bash-agent laten meten en vergelijken') };
     case 'snmp': return {
       s: !h.snmp ? L('uit') : h.snmp.use === 'global' ? L('algemene instelling') : L('eigen instellingen (v{v})', { v: esc(h.snmp.v || '?') }),
       own: !!(h.snmp && h.snmp.use !== 'global'),
@@ -26948,4 +26955,53 @@ async function loadScreenSet() {
       toast(L('Opgeslagen')); loadScreenSet();
     } catch (ex) { toast(ex.message, 'err'); }
   };
+}
+// ---------------------------------------------------------------- 1.339.0: Agent Manager → Go-agent (proef)
+// De nieuwe agent (Go, het commando rzsense) draait op een Linux-server náást de bash-agent en stuurt elke minuut zijn
+// metingen. RzSense legt ze naast die van de bash-agent. Dit blok laat zien hoe vaak ze gelijk zijn en waar ze
+// verschillen, met het commando om de proef te starten of weg te halen. Er wordt niets overgenomen.
+async function amGo(h, body) {
+  const box = $('#am-go', body);
+  if (!box) return;
+  let d;
+  try { d = await api('agent_shadow_get', null, { host_id: h.id }); } catch (ex) { box.innerHTML = `<p class="err-txt small">${esc(ex.message)}</p>`; return; }
+  const base = agentBase(h), pin = d.pin && base.startsWith('https') ? ` -k --pinnedpubkey 'sha256//${d.pin}'` : '';
+  const cmd = (extra) => `curl -fsSL${pin} '${base}/api.php?action=agent_go_install${dlArg()}' | sudo bash${extra}`;
+  const copy = (txt) => `<div class="copy-line"><pre class="code">${esc(txt)}</pre><button type="button" class="btn" data-copy-text="${esc(txt)}">${esc(L('Kopieer'))}</button></div>`;
+  const s = d.shadow;
+  const when = (t) => new Date(String(t).replace(' ', 'T')).toLocaleString(LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  let html = '';
+  if (!d.archs.length) {
+    html += `<p class="callout small">${esc(L('RzSense heeft de Go-agent voor Linux nog niet. GitHub bouwt en ondertekent hem na een update (workflow "Windows-agent bouwen"); werk RzSense daarna bij.'))}</p>`;
+  }
+  if (!s) {
+    html += `<p class="muted small">${esc(L('Op deze server loopt nog geen proef.'))}</p>`;
+  } else {
+    const cls = !s.live ? 'unk' : s.n && s.same === s.n ? 'ok' : s.n ? 'warn' : 'unk';
+    html += `<div class="go-sum"><span class="go-pct ${cls}">${s.pct === null ? '–' : dec(String(s.pct)) + '%'}</span>
+      <div><b>${esc(s.rounds ? L('{ok} van de {n} proefrondes gelijk aan de bash-agent', { ok: s.rounds_ok, n: s.rounds }) : L('Nog geen proefronde om te vergelijken'))}</b>
+        <small>${esc([L('sinds {t}', { t: when(s.since) }), s.live ? L('laatste ronde {t}', { t: when(s.at) }) : L('geen proefronde meer sinds {t}', { t: when(s.at) }),
+          `Go ${s.version}`, s.bash_version ? `bash ${s.bash_version}` : '', L('meten kostte {n} ms', { n: s.took_ms })].filter(Boolean).join(' · '))}</small></div></div>`;
+    if (s.n) {
+      html += `<div class="table-wrap"><table class="small go-tbl"><thead><tr><th>${esc(L('Meting'))}</th><th>${esc(L('Bash-agent'))}</th><th>${esc(L('Go-agent'))}</th><th></th></tr></thead><tbody>${
+        s.items.map((i) => `<tr class="${i.ok ? '' : 'go-diff'}"><td data-th="${esc(L('Meting'))}">${esc(i.k)}</td><td data-th="${esc(L('Bash-agent'))}">${esc(i.bash)}</td><td data-th="${esc(L('Go-agent'))}">${esc(i.go)}</td>
+          <td>${i.ok ? '✔' : '≠'}</td></tr>`).join('')}</tbody></table></div>`;
+    } else {
+      html += `<p class="muted small">${esc(L('De laatste ronde telde niet mee: er was geen meting van de bash-agent van de laatste 3 minuten om mee te vergelijken.'))}</p>`;
+    }
+    const top = Object.entries(s.diff_n || {}).slice(0, 5);
+    if (top.length) html += `<p class="small"><b>${esc(L('Waar het vaakst een verschil zat:'))}</b> ${top.map(([k, n]) => `${esc(k)} (${n}×)`).join(' · ')}</p>`;
+    if ((s.doctor || []).length) html += `<p class="small warn-txt">${s.doctor.map((f) => `${esc(f.t)}: ${esc(f.d)}${f.fix ? ' → ' + esc(f.fix) : ''}`).join('<br>')}</p>`;
+  }
+  html += `<details class="go-how" ${s ? '' : 'open'}><summary>${esc(s ? L('Opnieuw installeren, bijwerken of weghalen') : L('De proef starten'))}</summary>
+    <p class="small">${L('Voer dit uit op de server. Het zet <code>/usr/local/bin/rzsense</code> neer (alleen als de handtekening van de ontwikkelaar klopt) en een timer die elke minuut een proefronde draait. De bash-agent, zijn instellingen en zijn sleutel blijven zoals ze zijn.')}</p>
+    ${copy(cmd(''))}
+    <p class="small">${esc(L('Weghalen (de server is daarna precies zoals hij was):'))}</p>
+    ${copy(cmd(' -s -- --remove'))}
+    <p class="small muted">${L('Op de server zelf: <code>rzsense status</code>, <code>rzsense test</code> en <code>rzsense doctor</code> (loopt alles na en zegt hoe je een probleem oplost).')}</p>
+    ${s ? `<p><button type="button" class="btn small-btn" data-go-reset>${esc(L('Opnieuw beginnen te tellen'))}</button></p>` : ''}</details>`;
+  box.innerHTML = html;
+  if (typeof amSum === 'function') amSum('goagent', esc(!s ? L('loopt nog niet op deze server') : !s.live ? L('geen proefronde meer sinds {t}', { t: when(s.at) }) : L('{ok} van de {n} proefrondes gelijk aan de bash-agent', { ok: s.rounds_ok, n: s.rounds })), !!(s && s.live && s.n && s.same !== s.n));
+  const rb = $('[data-go-reset]', box);
+  if (rb) rb.onclick = async () => { try { await api('agent_shadow_reset', { host_id: h.id }); amGo(h, body); } catch (ex) { toast(ex.message, 'err'); } };
 }

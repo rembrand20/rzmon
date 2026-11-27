@@ -5,7 +5,7 @@
 
 /** Groepen en hun onderdelen (data-pk van de oude kaarten) */
 const AM_GROUPS = () => [
-  ['conn', L('Verbinding en agent'), ['run', 'conn', 'maint', 'relay']],
+  ['conn', L('Verbinding en agent'), ['run', 'conn', 'maint', 'relay', 'goagent']],   // 1.339.0: proef met de Go-agent
   ['prot', L('Bescherming'), ['sec', 'ransom', 'apps']],
   ['rights', L('Rechten op de server'), ['cmd', 'sudo'], () => xpHtml(L('Alles wat op deze server als root kan gebeuren, bij elkaar.'), L('<b>Commando-checks:</b> RzSense laat de agent een commando uitvoeren dat jij in een check hebt gezet, en vergelijkt het antwoord. Staat dit op <i>als root</i>, dan mag zo\'n commando alles; de regel krijgt dan een waarschuwing. <b>Tijdelijk sudo:</b> RzSense voert niets uit, maar geeft een gebruiker op de server voor korte tijd sudo, zodat die zelf iets als root kan doen. Het gaat vanzelf weer weg. <b>Wat verder als root draait:</b> zelf herstellen (alleen een service of container herstarten, of een script dat je zelf in <code>/etc/rzmon-agent/heal.d/</code> zet), updates installeren (de pakketbeheerder van de server) en de diagnose voor AI-advies (een vaste lijst die alleen leest). Daarbij kan RzSense geen eigen commando meesturen. <b>Op de server zelf</b> heb je altijd het laatste woord: <code>COMMANDS=0</code>, <code>SUDO_JIT=0</code> of <code>HEAL=0</code> in <code>/etc/default/rzmon-agent</code>.'), 'am-grp-xp')],
   ['upd', L('Updates'), ['patch']],
@@ -21,6 +21,7 @@ function amHidden(h) {
   if (h.mode === 'agent' && !h.snmp) out.add('snmp');
   if (h.mode === 'agent' && isHaHost(h)) ['ransom', 'sudo', 'cmd', 'relay'].forEach((k) => out.add(k));
   if (h.mode !== 'agent') out.add('relay');
+  if (h.mode !== 'agent' || h.os === 'windows' || isHaHost(h)) out.add('goagent');   // 1.339.0: alleen een Linux-server met de bash-agent
   return out;
 }
 
@@ -45,6 +46,7 @@ function amState(h, pk) {
     };
     case 'sec': return { s: `EDR ${onOff(+(h.edr_on ?? 1))}` };
     case 'notify': return { s: `🐕 ${L('Waakhond')} ${+h.watchdog ? L('aan, na {n} min', { n: +h.watchdog_min || 5 }) : L('uit')}` };
+    case 'goagent': return { s: L('de nieuwe agent naast de bash-agent laten meten en vergelijken') };
     case 'snmp': return {
       s: !h.snmp ? L('uit') : h.snmp.use === 'global' ? L('algemene instelling') : L('eigen instellingen (v{v})', { v: esc(h.snmp.v || '?') }),
       own: !!(h.snmp && h.snmp.use !== 'global'),

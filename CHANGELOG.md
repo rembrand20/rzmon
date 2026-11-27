@@ -8,11 +8,25 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.339.0**: **Eén agent in Go, ook voor Linux**: het commando `rzsense` als proef naast de bash-agent, met `rzsense doctor` en een vergelijking van de metingen in de Agent Manager.
 - **1.338.0**: **Dezelfde opbouw op elke pagina**: onder elke titel één zin over hoe het ervoor staat, en grotere aanraakvlakken op telefoon en tablet.
 - **1.337.0**: **Schermmodus en schermlink**: Monitoring als altijd-aan-scherm dat wisselt tussen Monitoring, Netwerk en IDS, ingelogd of via een geheime link zonder inloggen.
 - **1.336.0**: **Beheerportal Eenvoudig of Uitgebreid**: per kaart alleen wat je nodig hebt, met één schakelaar naar alles.
 - **1.335.0**: **Vraag het RzSense en de ochtendsamenvatting**: een vraag in gewone taal in de zoekbalk (met je eigen AI-sleutel), en elke ochtend één alinea over hoe het ervoor staat.
-- **1.334.0**: **Zelf instellen**: één kaart voor wat RzSense zelf aanpast, met ruis dempen, terugdraaien in het logboek en *Weer slim*.
+
+## 1.339.0 – 2026-11-27
+### Nieuw
+- **Eén agent in Go, ook voor Linux: de eerste stap.** De code van de Windows-agent bouwt nu ook het commando **`rzsense`** voor Linux (amd64, arm64, armv7): één bestand zonder afhankelijkheden, gebouwd en ondertekend door GitHub. In deze versie is het een **proef naast de bash-agent**: de bash-agent doet het werk, de Go-agent leest alleen mee.
+- **Proef per server.** In de Agent Manager van een Linux-server staat het blok **🧪 Go-agent (proef)** met het commando om de proef te starten of weg te halen. De Go-agent meet elke minuut hostnaam, opstarttijd, CPU, geheugen en schijven en stuurt dat naar RzSense. RzSense legt het naast wat de bash-agent net meldde en laat zien hoe vaak de twee gelijk zijn en waar ze verschillen.
+- **Er wordt niets overgenomen.** Een proefronde wordt apart bewaard en verandert niets aan de gegevens, de sleutel of het contactmoment van de server. De Go-agent leest de instellingen en de sleutel van de bash-agent, maar schrijft er niets bij. Weghalen kan met één commando; daarna is de server zoals hij was.
+- **Eén commando op de server:** `rzsense status`, `rzsense test` en `rzsense doctor`. *Doctor* loopt alles na (instellingen, adres, sleutel, DNS, verbinding, of RzSense de server herkent, de planning van de bash-agent) en zegt bij elk probleem in gewone taal hoe je het oplost.
+- Het bestand wordt alleen geïnstalleerd als de **handtekening van de ontwikkelaar** klopt, en een proefronde wordt alleen aangenomen als hij versleuteld is met de eigen sleutel van de server.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.8.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Het bestand voor Linux bouwt GitHub ná deze update (workflow *Windows-agent bouwen*). Tot RzSense die versie binnen heeft, zegt het blok dat de Go-agent er nog niet is.
 
 ## 1.338.0 – 2026-11-26
 ### Nieuw

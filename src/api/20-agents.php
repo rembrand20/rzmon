@@ -18,6 +18,13 @@ switch ($action) {
     case 'connections':   // 1.91.0: Instellingen → Systeem → Achtergrondtaken
         out(['inbound' => Tasks::inbound(), 'tasks' => Tasks::list(), 'now' => now()]);
 
+    case 'agent_shadow_get':   // 1.339.0: Agent Manager → Go-agent (proef): de stand en welke bestanden klaarstaan
+        out(AgentShadow::get((int) ($_GET['host_id'] ?? 0)));
+
+    case 'agent_shadow_reset':   // opnieuw beginnen te tellen
+        AgentShadow::reset((int) (input()['host_id'] ?? 0));
+        out(['ok' => true]);
+
     case 'settings_health':
         out(['items' => SetHealth::items()]);
 

@@ -5043,5 +5043,50 @@ foreach ($scOld as $scK => $scV) {
     save_setting($scK, $scV);
 }
 
+section('Proef met de Go-agent (1.339.0)');
+q("INSERT INTO hosts (name, address, mode, enabled) VALUES ('go-unit', '192.0.2.77', 'agent', 1)");
+$goH = (int) db()->lastInsertId();
+$goGb = 1073741824.0;
+AgentData::put($goH, 'cpu', ['pct' => 12.5, 'load' => [0.4, 0.3, 0.2], 'cores' => 4]);
+AgentData::put($goH, 'mem', ['total' => 16 * $goGb, 'avail' => 9 * $goGb, 'swap_total' => 2 * $goGb, 'swap_free' => 2 * $goGb]);
+AgentData::put($goH, 'boot', '1795758947');
+AgentData::put($goH, 'disk:/', ['total' => 100 * $goGb, 'avail' => 40 * $goGb]);
+AgentData::put($goH, 'disk:/data', ['total' => 500 * $goGb, 'avail' => 100 * $goGb]);
+$goCore = ['hostname' => 'go-unit', 'boot' => 1795758947, 'cpu' => ['pct' => 15.0, 'load' => [0.5, 0.3, 0.2], 'cores' => 4],
+    'mem' => ['total' => 16 * $goGb, 'avail' => 9.1 * $goGb, 'swap_total' => 2 * $goGb, 'swap_free' => 2 * $goGb],
+    'disks' => [['mount' => '/', 'total' => 100 * $goGb, 'avail' => 40.2 * $goGb], ['mount' => '/data', 'total' => 500 * $goGb, 'avail' => 100 * $goGb]]];
+$goBash = AgentShadow::bashNow($goH);
+ok(isset($goBash['cpu'], $goBash['mem'], $goBash['boot']) && count($goBash['disks']) === 2, 'de laatste metingen van de bash-agent om mee te vergelijken');
+$goCmp = AgentShadow::compare($goCore, $goBash);
+ok(count($goCmp) >= 12 && !array_filter($goCmp, static fn($i) => !$i['ok']), 'gelijke metingen (met een marge voor CPU en vrije ruimte, die op een ander moment gemeten zijn)');
+$goBad = $goCore;
+$goBad['mem']['total'] = 15.9 * $goGb;
+$goBad['cpu']['cores'] = 8;
+$goBad['disks'][] = ['mount' => '/boot/efi', 'total' => $goGb, 'avail' => $goGb];
+$goBad['disks'][0]['total'] = 99 * $goGb;
+$goDiff = array_column(array_filter(AgentShadow::compare($goBad, $goBash), static fn($i) => !$i['ok']), 'k');
+sort($goDiff);
+ok($goDiff === ['cpu: kernen', 'geheugen: totaal', 'schijf /: grootte', 'schijven: koppelpunten'], 'wat exact hoort te zijn (kernen, grootte, koppelpunten) telt bij elk verschil');
+$goSeen = q('SELECT agent_seen, agent_key, agent_version FROM hosts WHERE id = ?', [$goH])->fetch();
+$goR = AgentShadow::receive(['id' => $goH], ['agent_version' => '0.8.0', 'bash_version' => '1.123.1', 'took_ms' => 2010, 'core' => $goCore, 'doctor' => []]);
+ok($goR['ok'] === true && $goR['same'] === $goR['n'] && $goR['n'] >= 12 && $goR['diffs'] === [], 'een proefronde: alles gelijk');
+$goR2 = AgentShadow::receive(['id' => $goH], ['agent_version' => '0.8.0', 'core' => $goBad, 'doctor' => [['k' => 'timer', 'st' => 'bad', 't' => 'Planning', 'd' => 'loopt niet', 'fix' => 'start hem']]]);
+$goS = AgentShadow::get($goH)['shadow'];
+ok(count($goR2['diffs']) === 4 && $goS['rounds'] === 2 && $goS['rounds_ok'] === 1 && $goS['pct'] === 50.0 && $goS['streak'] === 0 && ($goS['diff_n']['geheugen: totaal'] ?? 0) === 1
+    && $goS['doctor'][0]['k'] === 'timer' && $goS['live'] === true, 'de stand: rondes, hoe vaak gelijk, waar het verschil zat en wat de agent zelf meldde');
+ok(q('SELECT agent_seen, agent_key, agent_version FROM hosts WHERE id = ?', [$goH])->fetch() == $goSeen
+    && AgentData::get($goH, 'mem')['total'] == 16 * $goGb && (int) AgentData::raw($goH, 'boot') === 1795758947, 'een proefronde verandert niets aan de gegevens, de sleutel of het contactmoment van de bash-agent');
+q('UPDATE agent_data SET updated_at = NOW() - INTERVAL 10 MINUTE WHERE host_id = ? AND metric <> ?', [$goH, 'shadow']);
+$goR3 = AgentShadow::receive(['id' => $goH], ['agent_version' => '0.8.0', 'core' => $goCore]);
+$goS3 = AgentShadow::get($goH)['shadow'];
+ok($goR3['n'] === 0 && $goS3['rounds'] === 2 && $goS3['skipped'] === 1, 'zonder verse meting van de bash-agent telt een ronde niet mee');
+ok(AgentShadow::receive(['id' => $goH], ['core' => ['hostname' => 'x']])['ok'] === false, 'een proefronde zonder metingen wordt geweigerd');
+AgentShadow::reset($goH);
+ok(AgentShadow::get($goH)['shadow'] === null && is_array(AgentShadow::get($goH)['archs']), 'opnieuw beginnen te tellen');
+ok(str_ends_with(AgentShadow::file('arm64'), '/agent-win/dist/rzsense-linux-arm64') && str_ends_with(AgentShadow::file('../../etc/passwd'), 'rzsense-linux-amd64'), 'alleen de bekende bestanden worden geleverd');
+ok(str_contains(Stealth::goInstallScript(), "DL_KEY='" . Stealth::dlKey() . "'") && str_contains((string) file_get_contents(SM_ROOT . '/agent/install-rzsense.sh'), 'sig_check "$work/rzsense"'),
+    'het installatiescript krijgt de downloadsleutel mee en controleert de handtekening');
+q('DELETE FROM hosts WHERE id = ?', [$goH]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

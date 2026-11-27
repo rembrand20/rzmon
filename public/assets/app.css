@@ -6477,6 +6477,15 @@ body.sk-s .cs2-ovi { border-color: transparent; box-shadow: var(--shadow); }
   color: var(--primary); cursor: pointer; }
 .hd-empty { margin: 0; padding: .35rem 1.1rem 1.1rem; color: var(--muted); display: flex; align-items: center; gap: .5rem; }
 @media (max-width: 960px) { .hd-duo { grid-template-columns: minmax(0, 1fr); } }
+/* 1.339.0: Agent Manager → Go-agent (proef) */
+.go-sum { display: flex; align-items: center; gap: .9rem; margin: .2rem 0 .7rem; }
+.go-sum > div { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.go-sum small { color: var(--muted); }
+.go-pct { font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 4.5rem; }
+.go-pct.ok { color: var(--ok); } .go-pct.warn { color: var(--warn); } .go-pct.unk { color: var(--muted); }
+.go-tbl tr.go-diff td { background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.go-how { margin-top: .7rem; }
+.go-how summary { cursor: pointer; color: var(--primary); }
 /* 1.338.0: telefoon en tablet. Kleine knoppen en koppelingen krijgen een groter aanraakvlak (onzichtbaar, zonder dat de
    opmaak verschuift), en op Monitoring staat de hoofdactie onder je duim. */
 @media (pointer: coarse) {

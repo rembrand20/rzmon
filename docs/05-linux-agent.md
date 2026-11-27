@@ -675,3 +675,53 @@ In een DMZ mag het netwerk meestal niet naar binnen bellen, maar je eigen netwer
 - De relay levert de agent en het installatiescript zelf uit, dus agents installeren en bijwerken in de DMZ werkt gewoon. De relay zelf werk je bij met een nieuwe bundel (`sudo bash install-relay.sh --src . --update`) of een nieuwe image.
 
 Meer over de relay, ook handmatig installeren als container, staat in [relay/README.md](../relay/README.md).
+
+## Proef: de Go-agent (`rzsense`)
+
+RzSense stapt over op één agent in Go, dezelfde als op Windows: één bestand zonder afhankelijkheden, ondertekend, met
+één commando om hem te bedienen. Dat gaat in stappen. Nu is de Go-agent een **proef naast de bash-agent**: de bash-agent
+doet al het werk, de Go-agent meet mee en RzSense vergelijkt de uitkomsten.
+
+### Wat de proef doet
+
+- Elke minuut meet de Go-agent de hostnaam, de opstarttijd, CPU, geheugen en schijven, op dezelfde manier als de
+  bash-agent, en stuurt dat versleuteld naar RzSense.
+- RzSense legt het naast wat de bash-agent in de laatste 3 minuten meldde. *Gelijk* betekent: exact waar het exact hoort
+  (grootte van geheugen en schijven, aantal kernen, de koppelpunten) en binnen een marge waar de twee op een ander moment
+  meten (CPU-gebruik, vrije ruimte).
+- De Go-agent leest de instellingen (`/etc/default/rzmon-agent`) en de sleutel van de bash-agent, maar schrijft er niets
+  bij. RzSense bewaart een proefronde apart: de gegevens, de sleutel en het contactmoment van de server veranderen niet.
+
+### Starten en weghalen
+
+Open de **Agent Manager** van de server en zoek het blok **🧪 Go-agent (proef)**. Kopieer het commando en voer het uit op
+de server. Het script:
+
+1. kiest het bestand voor de processor (amd64, arm64 of armv7; op een andere processor stopt het en blijft de server op
+   de bash-agent);
+2. controleert de **handtekening van de ontwikkelaar** en installeert niets als die niet klopt;
+3. zet `/usr/local/bin/rzsense` neer en een timer (`rzsense-shadow.timer`, zonder systemd een cronjob) die elke minuut
+   een proefronde draait.
+
+Het tweede commando in het blok (met `--remove`) haalt alles weer weg. De server is daarna precies zoals hij was.
+
+Voorwaarden: de bash-agent is geïnstalleerd en gekoppeld met een koppelcode (een eigen sleutel), en OpenSSL 3 of nieuwer
+voor de handtekening. Met een oudere OpenSSL stopt het script; wil je toch door, voeg dan `--old-openssl` toe.
+
+### De uitkomst lezen
+
+In het blok staat hoeveel proefrondes gelijk waren, de laatste ronde per meting (bash-agent naast Go-agent, met ≠ waar
+het verschilt) en waar het vaakst een verschil zat. Een ronde zonder verse meting van de bash-agent telt niet mee. Met
+*Opnieuw beginnen te tellen* zet je de tellers op nul.
+
+### Het commando `rzsense`
+
+| Commando | Wat het doet |
+|---|---|
+| `rzsense status` | de versies, het adres van RzSense, of de proef loopt en de laatste proefronde |
+| `rzsense test` | kan deze server RzSense bereiken, en herkent RzSense hem? |
+| `rzsense doctor` | loopt alles na: instellingen, adres, sleutel, DNS, verbinding, of RzSense de server herkent en de planning van de bash-agent. Bij elk probleem staat hoe je het oplost |
+| `rzsense collect` | laat zien wat de Go-agent meet, zonder iets te versturen |
+| `rzsense shadow` | één proefronde, met de uitkomst van de vergelijking |
+
+Start ze met `sudo`: de sleutel van de agent is alleen voor root leesbaar.
