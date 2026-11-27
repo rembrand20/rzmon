@@ -178,6 +178,8 @@ func savePins(c *Config, pins map[string]string) {
 var pinSpecRe = regexp.MustCompile(`^sha256//[A-Za-z0-9+/]{43}=(;sha256//[A-Za-z0-9+/]{43}=)*$`)
 
 var sentPkgID string // de uitkomst van het installeren die met dit rapport meeging
+var sentIds idsRun   // 0.29.0: wat er voor het IDS na een aangenomen rapport vastgelegd wordt
+var sentAct bool     // er gingen regels van het logboek mee
 
 // buildRun: het echte rapport, met de namen van de bash-agent. "go": 1 zegt RzSense dat dit de Go-agent is.
 func buildRun(c *Config, t0 time.Time) map[string]any {
@@ -246,6 +248,17 @@ func buildRun(c *Config, t0 time.Time) map[string]any {
 	if db := collectDbLinux(); db != nil { // 0.24.0: databasechecks (alleen lezen)
 		rep["db"] = db
 	}
+	// 0.29.0: het IDS: waarnemen én ingrijpen (firewall, lokaas-poort, proces stoppen, isoleren, account vergrendelen)
+	sentIds = collectIdsLinux(c)
+	if sentIds.ids != nil {
+		rep["ids"] = sentIds.ids
+	}
+	if sentIds.iso != nil {
+		rep["iso"] = sentIds.iso
+	}
+	if len(sentIds.locks) > 0 {
+		rep["userlock"] = sentIds.locks
+	}
 	if c := collectCmdLinux(); c != nil { // 0.18.0: commando-checks
 		rep["cmd"] = c
 	}
@@ -264,6 +277,11 @@ func buildRun(c *Config, t0 time.Time) map[string]any {
 		sentPkgID = r["id"].(string)
 	}
 	rep["timing"] = map[string]any{"total": time.Since(t0).Milliseconds()}
+	sentAct = false
+	if a := actReport(); len(a) > 0 { // 0.29.0: het logboek van wat de agent zelf veranderde
+		rep["act"] = a
+		sentAct = true
+	}
 	return rep
 }
 
@@ -328,6 +346,12 @@ func afterRun(c *Config, r *runReply) {
 	savePins(c, r.URLPins)
 	if r.TestsRev != "" && r.TestsRev != readState("tests.rev") {
 		dropState("tests.rev") // de volgende ronde haalt de lijst opnieuw op
+	}
+	if sentIds.commit != nil { // de nieuwe stand van bewaakte bestanden bewaren, lokaas-treffers uit de set
+		sentIds.commit()
+	}
+	if sentAct {
+		actSent()
 	}
 	if sentPkgID != "" { // de uitkomst is aangekomen
 		if p := pkgResult(); p != nil && p["id"] == sentPkgID {

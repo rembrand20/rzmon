@@ -5,6 +5,14 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.29.0 – 2026-11-27
+- **Linux: het IDS grijpt in, zoals bij de bash-agent.** Als de Go-agent het werk heeft overgenomen, zet hij de eigen firewalltabel (`inet rzmon`) met de blokkades uit RzSense, de netten van bekende aanvallers (ook uitgaand, als dat aan staat) en de lokaas-poort; stopt hij een proces als RzSense daarom vraagt (alleen met de juiste starttijd); isoleert hij de server (`inet rzmon_iso`, vervalt vanzelf op tijd) en vergrendelt hij een account of geeft het weer vrij.
+- **In de proef voert hij daar niets van uit.** Hij berekent alleen welke lijst hij zou zetten en RzSense legt die naast wat de bash-agent zette. Er gaat dan niets naar de firewall.
+- De Go-agent blokkeert nooit het adres van RzSense zelf, stopt nooit een proces van RzSense of de agent, en vergrendelt nooit `root`. `IDS_BLOCK=0` op de server en *alleen detecteren* op TrueNAS gelden ook hier.
+- **Bestanden bewaken**: alleen wat veranderd is gaat naar RzSense, de stand wordt pas bewaard als het rapport is aangenomen, en één keer per dag wordt alles opnieuw gehasht.
+- Wat de agent zelf op de server verandert (de firewall bijwerken), komt in het logboek van de Agent Manager.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.28.0 – 2026-11-27
 - **Linux: IDS als proef, tweede stap: de rest van het waarnemen.** Op een server waar het IDS aan staat, leest de Go-agent in de proef nu ook: webshells (een shell of netwerkprogramma onder een webserver), verdachte verbindingen en waarheen de server naar buiten verbindt, de instellingen voor hardening, SUID-bestanden (elk uur), de pakketcontrole (dagelijks) en de bestanden die je laat bewaken (hash, grootte, rechten, eigenaar).
 - SUID en de pakketcontrole lopen op de achtergrond met lage prioriteit, en starten niet zolang de bash-agent dezelfde controle draait.

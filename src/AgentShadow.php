@@ -510,7 +510,9 @@ final class AgentShadow
                     };
                     $diff = [];
                     foreach (array_intersect_key($bi['hard'], $gi['hard']) as $k => $v) {
-                        if ($norm($v) !== $norm($gi['hard'][$k])) {
+                        // 1.360.0: van bestanden die iedereen mag wijzigen gaan er hooguit vijf mee, en welke vijf hangt af van
+                        // de volgorde waarin de map gelezen wordt: het gaat erom óf ze er zijn
+                        if ($k === 'ww_files' ? ((string) $v === '') !== ((string) $gi['hard'][$k] === '') : $norm($v) !== $norm($gi['hard'][$k])) {
                             $diff[] = (string) $k;
                         }
                     }
@@ -524,6 +526,20 @@ final class AgentShadow
                     $cmp('IDS (proef): pakketcontrole', t('bestanden'), $lst($bi['pkgdiff']), $lst($gi['pkgdiff']), 1);
                 }
                 $cmp('IDS (proef): mappen om te bewaken', t('mappen'), $lst($bi['fimc'] ?? []), $lst($gi['fimc'] ?? []));
+                // 1.360.0: wat de Go-agent in de firewall zou zetten, naast wat de bash-agent zette (de vingerafdruk van de
+                // lijst: blokkades, bekende aanvallers, lokaas-poort). De Go-agent zet in de proef zelf niets.
+                $fw = is_array($gi['fw'] ?? null) ? $gi['fw'] : null;
+                if ($fw !== null && !empty($fw['build']) && (string) ($fw['bash_sig'] ?? '') !== '') {
+                    $ftx = t('{n} blokkades, {k} netten', ['n' => (int) ($fw['n'] ?? 0), 'k' => (int) ($fw['kn'] ?? 0)]) . (($fw['decoy'] ?? '') !== '' ? ' · ' . t('lokaas-poort {p}', ['p' => (string) $fw['decoy']]) : '');
+                    $same = (string) $fw['sig'] === (string) $fw['bash_sig'];
+                    $add('IDS (proef): firewall (wat de Go-agent zou zetten)', $same ? $ftx : t('een andere lijst'), $ftx, $same);
+                }
+                $iso = is_array($gi['iso'] ?? null) ? $gi['iso'] : null;
+                if ($iso !== null && (string) ($iso['bash_sig'] ?? '') !== '') {
+                    $itx = t('{n} adressen blijven open', ['n' => (int) ($iso['n'] ?? 0)]);
+                    $same = (string) ($iso['sig'] ?? '') === (string) $iso['bash_sig'];
+                    $add('IDS (proef): isoleren (wat de Go-agent open zou laten)', $same ? $itx : t('een andere lijst'), $itx, $same);
+                }
                 if (is_array($gi['fim'] ?? null) && is_array($bi['fim_base'] ?? null)) {
                     $gs = (array) ($gi['fim']['sample'] ?? []);
                     $other = array_keys(array_filter($gs, static fn($v, $p) => ($bi['fim_base'][$p] ?? null) !== mb_substr((string) $v, 0, 255), ARRAY_FILTER_USE_BOTH));

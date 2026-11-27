@@ -188,6 +188,55 @@ func cliLinux(args []string) bool {
 		in, _ := io.ReadAll(os.Stdin)
 		b, _ := json.Marshal(idsPkgDiffFrom(string(in), len(os.Args) >= 3 && os.Args[2] == "rpm"))
 		fmt.Println(string(b))
+	case "ids-act": // voor de tests: het ingrijpende deel van het IDS (met namaak-nft, -usermod en -pkill)
+		c, err := loadBashConfig()
+		if err != nil || len(os.Args) < 3 {
+			os.Exit(2)
+		}
+		tests := readText(filepath.Join(bashCachePath(), "tests.cache"))
+		conf, _ := readShellConf(bashConfPath())
+		var v any
+		switch os.Args[2] {
+		case "fw":
+			r := fwApply(tests, c, conf)
+			m := map[string]any{"fw": r.fw, "decoy": r.decoy}
+			if r.decoyErr != "" {
+				m["decoy_err"] = r.decoyErr
+			}
+			if len(os.Args) >= 4 && os.Args[3] == "sent" {
+				decoySent(r)
+			}
+			v = m
+		case "iso":
+			m := map[string]any{}
+			if iso := isoApply(tests, c); iso != nil {
+				m["iso"] = iso
+			}
+			if l := userLocks(tests); len(l) > 0 {
+				m["userlock"] = l
+			}
+			v = m
+		case "kill":
+			v = killWanted(tests)
+		case "dry":
+			m := map[string]any{}
+			idsDryRun(m, c)
+			v = m
+		case "fim":
+			fc := fimParse(tests)
+			if fc == nil || len(os.Args) < 4 {
+				os.Exit(2)
+			}
+			r := fimDelta(fc, os.Args[3])
+			if len(os.Args) >= 5 && os.Args[4] == "commit" {
+				r.commit()
+			}
+			v = r.json
+		case "log":
+			v = actReport()
+		}
+		b, _ := json.Marshal(v)
+		fmt.Println(string(b))
 	case "ids-scan": // de trage controle op de achtergrond (door de agent zelf gestart)
 		if len(os.Args) < 3 {
 			os.Exit(2)
@@ -542,6 +591,7 @@ func cmdShadow(quiet bool) int {
 		}
 	}
 	if obs := collectIdsObsLinux(); obs != nil { // 0.27.0: IDS als proef: alleen waarnemen, nergens ingrijpen
+		idsDryRun(obs, c) // 0.29.0: wat de Go-agent zou blokkeren of open laten (er wordt niets uitgevoerd)
 		core["ids_obs"] = obs
 	}
 	if paths, _ := collectPathLinux(false); paths != nil { // 0.17.0: pad-checks (zonder iperf3)

@@ -5334,6 +5334,9 @@ $tkIc2 = static fn(array $go, array $extra = []) => array_column(AgentShadow::co
 $tkBase = ['fim_base' => ['/etc/a' => 'h1|1|644|root:root', '/etc/b' => 'h2|2|600|root:root'], 'fim_count' => 3];
 $tkR2 = $tkIc2($tkIg2, $tkBase);
 ok(!in_array(false, $tkR2, true) && count($tkR2) === 14, 'IDS-proef, tweede deel: dezelfde waarneming is gelijk (een instelling die alleen de Go-agent stuurt telt niet): ' . json_encode($tkR2, JSON_UNESCAPED_UNICODE));
+ok($tkIc2(['hard' => ['ww_files' => '/etc/b,/etc/c'] + $tkIg2['hard']] + $tkIg2, ['hard' => ['ww_files' => '/etc/a,/etc/b'] + $tkIs2['hard']] + $tkBase)['IDS (proef): hardening']
+    && !$tkIc2(['hard' => ['ww_files' => ''] + $tkIg2['hard']] + $tkIg2, ['hard' => ['ww_files' => '/etc/a'] + $tkIs2['hard']] + $tkBase)['IDS (proef): hardening'],
+    'IDS-proef: bij bestanden die iedereen mag wijzigen telt óf ze er zijn, niet welke vijf voorbeelden meegingen');
 $tkR3 = $tkIc2(['hard' => ['firewall' => 'none'] + $tkIg2['hard'], 'suid' => ['/usr/bin/su', '/tmp/a', '/tmp/b'], 'fimc' => ['/opt'],
     'fim' => ['n' => 9, 'sample' => ['/etc/a' => 'h1|1|644|root:root', '/etc/b' => 'anders|2|600|root:root']]] + $tkIg2, $tkBase);
 ok(!$tkR3['IDS (proef): hardening'] && !$tkR3['IDS (proef): SUID-bestanden'] && !$tkR3['IDS (proef): mappen om te bewaken'] && !$tkR3['IDS (proef): bestanden bewaken'] && $tkR3['IDS (proef): webshells'],
@@ -5385,7 +5388,14 @@ foreach (['auth_events', 'weblog_swag', 'weblog_ha', 'weblog_vw', 'patch_on', 'i
 }
 save_setting('weblog_swag', '1');
 save_setting('ids_enabled', '1');   // logs van webdiensten horen bij het IDS
-ok(!in_array('Logs van webdiensten', AgentTakeover::blockers($tkHost()), true) && in_array('IDS', AgentTakeover::blockers($tkHost()), true), 'logs van webdiensten staan aan, maar deze server heeft er geen: dat is geen blokkade (het IDS zelf wel)');
+ok(!in_array('Logs van webdiensten', AgentTakeover::blockers($tkHost()), true) && !in_array('IDS', AgentTakeover::blockers($tkHost()), true), 'logs van webdiensten staan aan, maar deze server heeft er geen: dat is geen blokkade; het IDS zelf ook niet meer (1.360.0): ' . implode(', ', AgentTakeover::blockers($tkHost())));
+$tkFw = static fn(array $fw, array $iso = []) => array_column(AgentShadow::compare(['ids_obs' => ['fimc' => [], 'fw' => $fw, 'iso' => $iso]], ['ids_obs' => ['has2' => true, 'fimc' => []]]), 'ok', 'k');
+ok(($tkFw(['build' => true, 'sig' => 'abc', 'bash_sig' => 'abc', 'n' => 3, 'kn' => 1, 'decoy' => '2223'])['IDS (proef): firewall (wat de Go-agent zou zetten)'] ?? null) === true
+    && ($tkFw(['build' => true, 'sig' => 'abc', 'bash_sig' => 'xyz', 'n' => 3, 'kn' => 1])['IDS (proef): firewall (wat de Go-agent zou zetten)'] ?? null) === false
+    && !isset($tkFw(['build' => true, 'sig' => 'abc', 'bash_sig' => ''])['IDS (proef): firewall (wat de Go-agent zou zetten)'])
+    && !isset($tkFw(['build' => false, 'state' => 'unsupported'])['IDS (proef): firewall (wat de Go-agent zou zetten)'])
+    && ($tkFw([], ['sig' => 'a', 'bash_sig' => 'b', 'n' => 4])['IDS (proef): isoleren (wat de Go-agent open zou laten)'] ?? null) === false,
+    'IDS-proef: de firewall die de Go-agent zou zetten telt alleen mee als de bash-agent er ook een zette, en moet dan dezelfde lijst zijn');
 q("INSERT INTO weblog_state (host_id, src, path, seen_at) VALUES (?, 'swag', '/opt/swag/config/log/nginx', ?)", [$tkH, now()]);
 ok(in_array('Logs van webdiensten', AgentTakeover::blockers($tkHost()), true), 'heeft de server wel zo\'n log, dan houdt dat het overnemen tegen: ' . json_encode(AgentTakeover::blockers($tkHost()), JSON_UNESCAPED_UNICODE));
 q('DELETE FROM weblog_state WHERE host_id = ?', [$tkH]);

@@ -782,9 +782,14 @@ gaat via de omgeving naar de client, nooit op de opdrachtregel. Ook WireGuard-pe
 netwerkkaarten stuurt hij mee, net als de wifi-meting van een server met een wifi-kaart. Hij zoekt certificaatbestanden
 om uit te kiezen, beantwoordt 🧪 Test uit de Agent Manager, kan het meetpunt van buitenaf zijn en levert de diagnose
 voor AI-advies (een vaste set commando's die alleen lezen). Wat overblijft is het beveiligingsblok.
+Het IDS doet de Go-agent zoals de bash-agent: dezelfde firewalltabel (`inet rzmon`) met blokkades, bekende aanvallers en
+de lokaas-poort, een proces stoppen, de server isoleren, een account vergrendelen en bestanden bewaken. In de proef
+voert hij daar niets van uit: hij berekent welke lijst hij zou zetten, en RzSense legt die naast wat de bash-agent zette
+(*IDS (proef): firewall* en *IDS (proef): isoleren*). Pas na het overnemen zet hij de firewall zelf. Het adres van
+RzSense blokkeert hij nooit, en `IDS_BLOCK=0` geldt ook voor de Go-agent.
 Dit houdt overnemen tegen zolang het voor de server aan staat: logs van webdiensten (met het IDS aan, en alleen
-op een server waar zo'n log gevonden is); IDS en endpoint-sensoren;
-Kwetsbaarheden; Realtime; Home Assistant-checks (die horen bij de add-on); de relay; en vaker dan elke minuut rapporteren.
+op een server waar zo'n log gevonden is); endpoint-sensoren (EDR); ransomware-detectie; Programma's; tijdelijk sudo;
+de reverse proxy; Realtime; Home Assistant-checks (die horen bij de add-on); de relay; en vaker dan elke minuut rapporteren.
 
 **Wat er gebeurt.** Bij de volgende proefronde zet de Go-agent de timer van de bash-agent en zijn bewaker uit (de
 bash-agent blijft geïnstalleerd, met zijn instellingen en sleutel), haalt de testlijst op en stuurt het echte rapport.

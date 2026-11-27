@@ -8,11 +8,27 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.360.0**: **De Go-agent kan het IDS overnemen**: dezelfde firewall, lokaas-poort, isoleren en bestanden bewaken als de bash-agent; in de proef blijft het een dry-run.
 - **1.359.0**: **IDS in de Go-agent, dry-run compleet**: ook webshells, verbindingen, hardening, SUID, pakketcontrole en bestanden bewaken worden naast de bash-agent gelegd.
 - **1.358.0**: **Let's Encrypt zonder reverse proxy**: RzSense vraagt zelf een geldig certificaat aan voor je domein, koppelt het en vernieuwt het, met een stappenplan voor DNS, router en firewall.
 - **1.357.0**: **IDS in de Go-agent als dry-run**: de Go-agent neemt waar wat het IDS nodig heeft en RzSense vergelijkt het; er wordt niets geblokkeerd.
 - **1.356.0**: **De Go-agent is compleet op het beveiligingsblok na**: ook wifi, certificaten zoeken, 🧪 Test, het meetpunt van buitenaf en de AI-diagnose.
-- **1.355.0**: **De Go-agent doet databasechecks, WireGuard en netwerkverkeer**: alleen lezen, het wachtwoord nooit op de opdrachtregel.
+
+## 1.360.0 – 2026-11-27
+### Nieuw
+- **De Go-agent kan het IDS helemaal overnemen.** Hij zet dezelfde firewalltabel als de bash-agent (blokkades, bekende aanvallers, lokaas-poort), stopt een proces, isoleert de server, vergrendelt een account en bewaakt bestanden. Het IDS houdt het overnemen daarom niet meer tegen.
+- **In de proef blijft het een dry-run.** Nieuwe regels in het blok *Go-agent*: *IDS (proef): firewall (wat de Go-agent zou zetten)* en *IDS (proef): isoleren (wat de Go-agent open zou laten)*. De Go-agent zet dan zelf niets; RzSense vergelijkt zijn lijst met wat de bash-agent zette.
+- Overnemen blijft vastzitten aan een goede proef: 60 rondes, 98% gelijk, met alle regels van het IDS erbij.
+
+### Opgelost
+- **Proef, hardening: bestanden die iedereen mag wijzigen gaven een verschil.** Er gaan hooguit vijf voorbeelden mee, en welke vijf verschilt per agent. RzSense vergelijkt nu alleen óf ze er zijn.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.29.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Dit houdt overnemen nog tegen: Realtime, endpoint-sensoren (EDR), ransomware-detectie, logs van webdiensten (alleen waar zo'n log gevonden is), Programma's, tijdelijk sudo, de reverse proxy met WAF en antivirus, de relay en Home Assistant-checks.
+- Na het overnemen bouwt de Go-agent de firewalltabel één keer opnieuw op. De inhoud is dezelfde; alleen de tellers per adres beginnen opnieuw.
 
 ## 1.359.0 – 2026-11-27
 ### Nieuw

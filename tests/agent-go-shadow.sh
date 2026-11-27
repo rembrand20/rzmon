@@ -1174,7 +1174,9 @@ for r in ('1', '2'):
     ha, hg = a['hard'], g['hard']
     for k in sorted(set(ha) | set(hg)):
         va, vg = ha.get(k), hg.get(k)
-        if k in ('ww_files', 'sudo_nopw') and va is not None and vg is not None:
+        if k == 'ww_files' and va is not None and vg is not None:
+            va, vg = bool(va), bool(vg)   # hooguit vijf voorbeelden; welke hangt af van de volgorde in de map
+        if k == 'sudo_nopw' and va is not None and vg is not None:
             va, vg = sorted(va.split(',')), sorted(vg.split(','))
         if va != vg:
             bad.append('ronde %s hardening %s: bash %r, go %r' % (r, k, va, vg))
@@ -1197,6 +1199,251 @@ if bad or names1 != want or web != [('curl', 'user:apache', 'apache'), ('sh', 'p
 print('✔ IDS als proef, tweede deel: %d webshells, %d verdachte verbindingen, %d uitgaande adressen, hardening (%d instellingen), SUID, pakketcontrole en bestanden bewaken (%d bestanden; uitzonderingen, jokertekens, een ongewijzigde tijd): gelijk aan de bash-agent'
       % (len(a1['web']), len(a1['conns']), len(a1['out']), len(a1['hard']), a1['fim']['n']))
 PY
+
+# 1.360.0 (Go-agent 0.29.0): het IDS grijpt in: firewall, lokaas-poort, proces stoppen, isoleren en een account
+# vergrendelen. De echte bash-code en de Go-agent krijgen dezelfde namaak-nft, -usermod, -pkill en -getent; vergeleken
+# wordt wat ze naar nft sturen, wat ze melden en wat ze onthouden. Er wordt hier niets echt geblokkeerd.
+K="$work/ids3"; mkdir -p "$K/bin" "$K/b" "$K/g/gc" "$K/g/gd"
+cat >"$K/bin/nft" <<'EOF'
+#!/bin/bash
+# namaak-nft: NFT_DIR houdt bij welke tabellen er zijn en wat er gezet is
+d=${NFT_DIR:?}; mkdir -p "$d"
+case "$*" in
+    "-f -")
+        script=$(cat)
+        if [ -f "$d/fail" ]; then echo "Error: boem, dit gaat niet" >&2; printf 'MISLUKT\n%s\n' "$script" >>"$d/log"; exit 1; fi
+        if [ -f "$d/nocounter" ] && [[ "$script" == *"counter;"* ]]; then echo "Error: counter kan hier niet" >&2; printf 'MISLUKT\n%s\n' "$script" >>"$d/log"; exit 1; fi
+        printf 'GEZET\n%s\n' "$script" >>"$d/log"
+        if [[ "$script" == *"table inet rzmon_iso {"* ]]; then : >"$d/table.rzmon_iso"; else : >"$d/table.rzmon"; fi ;;
+    "list table inet rzmon") [ -f "$d/table.rzmon" ] || exit 1; cat "$d/list.txt" 2>/dev/null ;;
+    "list table inet rzmon_iso") [ -f "$d/table.rzmon_iso" ] || exit 1 ;;
+    "list set inet rzmon dc4") cat "$d/dc4.txt" 2>/dev/null ;;
+    "list set inet rzmon dc6") cat "$d/dc6.txt" 2>/dev/null ;;
+    "delete table inet rzmon") mv -f "$d/table.rzmon" "$d/table.weg" 2>/dev/null; echo "WEG rzmon" >>"$d/log" ;;
+    "delete table inet rzmon_iso") mv -f "$d/table.rzmon_iso" "$d/table.weg" 2>/dev/null; echo "WEG rzmon_iso" >>"$d/log" ;;
+    "delete element"*) echo "ELEMENT $(echo "$*" | tr -d ' ')" >>"$d/log" ;;
+    *) exit 1 ;;
+esac
+EOF
+cat >"$K/bin/ss" <<'EOF'
+#!/bin/sh
+case "$*" in *"sport = :2222"*) echo 'LISTEN 0 128 0.0.0.0:2222 0.0.0.0:*' ;; esac
+EOF
+cat >"$K/bin/getent" <<'EOF'
+#!/bin/sh
+case "$1 $2" in
+    "ahosts rz.test") printf '192.0.2.10     STREAM rz.test\n192.0.2.10     DGRAM\n2001:db8::10    STREAM\n' ;;
+    "ahosts reserve.test") printf '192.0.2.20     STREAM reserve.test\n' ;;
+    "passwd piet"|"passwd jan") echo "$2:x:1000:1000::/home/$2:/bin/bash" ;;
+    *) exit 2 ;;
+esac
+EOF
+cat >"$K/bin/usermod" <<'EOF'
+#!/bin/sh
+echo "usermod $*" >>"${NFT_DIR:?}/users"
+case "$*" in *jan*) exit 1 ;; esac
+EOF
+cat >"$K/bin/pkill" <<'EOF'
+#!/bin/sh
+echo "pkill $*" >>"${NFT_DIR:?}/users"
+EOF
+chmod +x "$K/bin/"*
+flag() {  # flag aan|uit <naam>: een vlag voor de namaak-nft van beide kanten
+    local side
+    for side in b g; do
+        mkdir -p "$K/$side/nft"
+        if [ "$1" = aan ]; then : >"$K/$side/nft/$2"; else mv -f "$K/$side/nft/$2" "$K/$side/nft/$2.uit" 2>/dev/null || true; fi
+    done
+}
+act_bash() {  # act_bash fw|iso|kill <uitvoer> [IDS_BLOCK] [sent]: de echte code van de bash-agent
+    (
+        export PATH="$K/bin:$PATH" NFT_DIR="$K/b/nft"
+        HA_MODE=0; MONITOR_URL="https://rz.test:8443/rzsense"; MONITOR_URL_FALLBACK="https://reserve.test"; IDS_BLOCK=${3-1}
+        t_dir="$K/b"; t_cache="$K/b/tests.cache"; i_dir="$K/b/ids"; mkdir -p "$i_dir"
+        ids_mode=$(awk -F'\t' '$1 == "0" && $2 == "ids" { print $3; exit }' "$t_cache")
+        lap() { :; }; id() { echo 0; }
+        act_log() { printf '%s|%s|%s|%s\n' "$1" "$2" "$3" "${4-}" >>"$K/b/act"; }
+        # shellcheck disable=SC1090
+        source <(sed -n '/^json_escape() {/,/^}/p; /^json_text() {/,/^}/p' agent/src/15-realtime.sh)
+        case "$1" in
+            fw) ids_json='{"x":0,'
+                # shellcheck disable=SC1090
+                source <(sed -n '/^fw_json=""; decoy_json=""/,/^lap weblogs$/p' agent/src/60-ids-en-edr.sh)
+                printf '%s' "${ids_json%,}" >"$2"
+                if [ "${4-}" = sent ]; then
+                    # shellcheck disable=SC1090
+                    source <(sed -n '/nft delete element inet rzmon dc[46] /p' agent/src/90-versturen.sh)
+                fi ;;
+            iso)
+                # shellcheck disable=SC1090
+                source <(sed -n '/^iso_json=""$/,/^fi$/p' agent/src/60-ids-en-edr.sh)
+                printf '{%s}' "${iso_json%,}" >"$2" ;;
+            kill)
+                # shellcheck disable=SC1090
+                source <(sed -n '/^    killed_json=""$/,/^    fi$/p' agent/src/60-ids-en-edr.sh)
+                printf '[%s]' "${killed_json%,}" >"$2" ;;
+        esac
+    ) || fail "de bash-code voor het ingrijpen van het IDS faalde ($1)"
+}
+act_go() {  # act_go fw|iso|kill|dry|log <uitvoer> [IDS_BLOCK] [sent]
+    printf 'MONITOR_URL="https://rz.test:8443/rzsense"\nMONITOR_URL_FALLBACK="https://reserve.test"\nIDS_BLOCK=%s\n' "${3-1}" >"$K/g/conf"
+    # shellcheck disable=SC2086
+    PATH="$K/bin:$PATH" NFT_DIR="$K/g/nft" RZSENSE_BASH_CONF="$K/g/conf" RZSENSE_BASH_CACHE="$K/g/gc" RZSENSE_DATA="$K/g/gd" RZSENSE_TEST_ROOT=1 \
+        "$work/rzsense" ids-act "$1" ${4-} >"$2" || fail "de Go-agent kon het ingrijpen van het IDS niet uitvoeren ($1)"
+}
+act_both() {  # act_both <naam> fw|iso [IDS_BLOCK] [sent]: beide kanten draaien en alles naast elkaar leggen
+    act_bash "$2" "$K/$1.bash.json" "${3-1}" "${4-}"; act_go "$2" "$K/$1.go.json" "${3-1}" "${4-}"
+    python3 -I - "$K" "$1" <<'PY' || fail "het IDS grijpt anders in dan de bash-agent ($1)"
+import json, os, sys
+K, name = sys.argv[1:3]
+a, g = [json.load(open('%s/%s.%s.json' % (K, name, w))) for w in ('bash', 'go')]
+a.pop('x', None)
+def rd(p): return open(p).read() if os.path.exists(p) else ''
+bad = []
+if a != g: bad.append('gemeld:\n  bash %s\n  go   %s' % (json.dumps(a, sort_keys=True), json.dumps(g, sort_keys=True)))
+for f, what in (('nft/log', 'naar nft gestuurd'), ('nft/users', 'accounts')):
+    if rd('%s/b/%s' % (K, f)) != rd('%s/g/%s' % (K, f)): bad.append('%s:\n--- bash\n%s\n--- go\n%s' % (what, rd('%s/b/%s' % (K, f))[-1500:], rd('%s/g/%s' % (K, f))[-1500:]))
+for fb, fg, what in (('b/ids/fw.sig', 'g/gd/ids/fw.sig', 'vingerafdruk van de firewall'), ('b/iso/sig', 'g/gd/iso/sig', 'vingerafdruk van het isoleren')):
+    if rd(K + '/' + fb) != rd(K + '/' + fg): bad.append('%s: bash %r, go %r' % (what, rd(K + '/' + fb), rd(K + '/' + fg)))
+if bad: print('\n'.join(bad)); sys.exit(1)
+PY
+}
+# shellcheck disable=SC2059
+set_tests() { printf "$@" >"$K/b/tests.cache"; cp "$K/b/tests.cache" "$K/g/gc/tests.cache"; }
+soon=$(( $(date +%s) + 3600 )); past=$(( $(date +%s) - 60 ))
+for side in b g; do mkdir -p "$K/$side/nft"; printf 'table inet rzmon {\n\tset bl4 {\n\t\ttype ipv4_addr\n\t\tcounter\n\t\telements = { 198.51.100.7 counter packets 12 bytes 720,\n\t\t\t     198.51.100.8 counter packets 0 bytes 0 }\n\t}\n}\n' >"$K/$side/nft/list.txt"; done
+# A: blokkeren: dubbel, verlopen, ongeldig, het adres van RzSense zelf (nooit), IPv6, bekende aanvallers, uitgaand, lokaas-poort
+set_tests '0\ttick\t30\n0\tids\tblock\n0\tblock\t198.51.100.7\t0\n0\tblock\t198.51.100.8\t%s\n0\tblock\t198.51.100.7\t0\n0\tblock\t198.51.100.9\t%s\n0\tblock\t192.0.2.10\t0\n0\tblock\trz.test\t0\n0\tblock\t2001:db8::bad\t0\n0\tblock\t2001:db8::10\t0\n0\tblock\tniet;een adres\t0\n0\tknet\t203.0.113.0/24\n0\tknet\t198.18.0.1-198.18.0.9\n0\tknet\t2001:db8:dead::/48\n0\tknet\tfout!\n0\toutblock\t1\n0\tdecoy\t2223\n' "$soon" "$past"
+act_go dry "$K/dry0.json"   # in de proef, vóór de bash-agent iets zette
+[ ! -e "$K/g/nft/log" ] || fail "de dry-run hoort niets naar nft te sturen: $(cat "$K/g/nft/log")"
+act_both A fw
+act_go dry "$K/dry1.json"
+grep -q '198.51.100.7, 198.51.100.8 }' "$K/b/nft/log" && ! grep -q '192.0.2.10\|198.51.100.9\|rz.test' "$K/b/nft/log" && grep -q 'chain out_fw' "$K/b/nft/log" && grep -q 'tcp dport 2223 add @dc4' "$K/b/nft/log" \
+    || fail "de namaak-firewall kreeg niet wat verwacht werd: $(cat "$K/b/nft/log")"
+python3 -I - "$K" <<'PY' || fail "de dry-run van de firewall klopt niet"
+import json, sys
+K = sys.argv[1]
+d0, d1 = [json.load(open('%s/dry%d.json' % (K, i)))['fw'] for i in (0, 1)]
+sig = open(K + '/b/ids/fw.sig').read().strip()
+if not (d0['build'] and d0['bash_sig'] == '' and d0['sig'] == sig and d1['sig'] == sig and d1['n'] == 3 and d1['kn'] == 3 and d1['decoy'] == '2223'):
+    print('dry-run: %s / %s, bash zette %s' % (d0, d1, sig)); sys.exit(1)
+PY
+[ "$(grep -c GEZET "$K/g/nft/log")" = 1 ] || fail "de dry-run hoort niets naar nft te sturen"
+act_both A2 fw   # dezelfde lijst: niets opnieuw zetten
+[ "$(grep -c GEZET "$K/b/nft/log")" = 1 ] || fail "een ongewijzigde lijst hoort niet opnieuw gezet te worden"
+# B: een nft zonder tellers per adres: daarna zonder; C: nft weigert alles; D: IDS_BLOCK=0 met lokaas-poort
+flag aan nocounter
+set_tests '0\ttick\t30\n0\tids\tblock\n0\tblock\t198.51.100.7\t0\n'
+act_both B fw
+[ "$(grep -c MISLUKT "$K/b/nft/log")" = 1 ] && [ "$(grep -c GEZET "$K/b/nft/log")" = 2 ] || fail "zonder tellers hoort de tabel alsnog gezet te worden"
+flag uit nocounter; flag aan fail
+set_tests '0\ttick\t30\n0\tids\tblock\n0\tblock\t198.51.100.99\t0\n'
+act_both C fw; act_both C2 fw
+grep -q '"state": *"error"' "$K/C.go.json" && grep -q boem "$K/C.go.json" || fail "een weigerende nft hoort als fout gemeld te worden: $(cat "$K/C.go.json")"
+flag uit fail
+set_tests '0\ttick\t30\n0\tids\tblock\n0\tblock\t198.51.100.7\t0\n0\tdecoy\t2223\n'
+act_both D fw 0
+grep -q '"disabled"' "$K/D.go.json" && ! tail -n 12 "$K/g/nft/log" | grep -q '198.51.100.7' || fail "met IDS_BLOCK=0 hoort er niets geblokkeerd te worden: $(cat "$K/D.go.json")"
+# E: leren met een lokaas-poort die in gebruik is; F: leren met lokaas-treffers, die na het rapport uit de set gaan
+set_tests '0\ttick\t30\n0\tids\tlearn\n0\tblock\t198.51.100.7\t0\n0\tdecoy\t2222\n'
+act_both E fw
+grep -q 'in gebruik' "$K/E.go.json" || fail "een lokaas-poort die in gebruik is hoort gemeld te worden: $(cat "$K/E.go.json")"
+for side in b g; do printf 'table inet rzmon {\n\tset dc4 {\n\t\ttype ipv4_addr\n\t\tflags dynamic,timeout\n\t\ttimeout 1h\n\t\telements = { 203.0.113.5 expires 59m, 203.0.113.6 expires 12m }\n\t}\n}\n' >"$K/$side/nft/dc4.txt"
+    printf 'table inet rzmon {\n\tset dc6 {\n\t\telements = { 2001:db8::5 expires 3m }\n\t}\n}\n' >"$K/$side/nft/dc6.txt"; : >"$K/$side/nft/table.rzmon"; done
+set_tests '0\ttick\t30\n0\tids\tlearn\n0\tdecoy\t2223\n'
+act_both F fw 1 sent
+grep -q '203.0.113.5' "$K/F.go.json" && grep -q 'ELEMENT.*dc4.*203.0.113.5,203.0.113.6' "$K/g/nft/log" && grep -q 'ELEMENT.*dc6' "$K/g/nft/log" || fail "lokaas-treffers: $(cat "$K/F.go.json") $(tail -n 3 "$K/g/nft/log")"
+# G: leren zonder lokaas-poort: de tabel gaat weg; H: TrueNAS: alleen detecteren, tenzij RzSense het toestaat
+set_tests '0\ttick\t30\n0\tids\tlearn\n'
+act_both G fw
+grep -q 'WEG rzmon' "$K/g/nft/log" && [ ! -e "$K/g/nft/table.rzmon" ] && [ ! -e "$K/g/gd/ids/fw.sig" ] || fail "zonder blokkeren hoort de tabel weg te gaan"
+printf '#!/bin/sh\nexit 0\n' >"$K/bin/midclt"; chmod +x "$K/bin/midclt"
+set_tests '0\ttick\t30\n0\tids\tblock\n0\tblock\t198.51.100.7\t0\n0\tdecoy\t2223\n'
+act_both H fw
+grep -q '"unsupported"' "$K/H.go.json" || fail "TrueNAS hoort alleen te detecteren: $(cat "$K/H.go.json")"
+set_tests '0\ttick\t30\n0\tids\tblock\n0\tblock\t198.51.100.7\t0\n0\ttruenas_fw\t1\n'
+act_both H2 fw
+grep -q '"active"' "$K/H2.go.json" || fail "TrueNAS met toestemming hoort te blokkeren: $(cat "$K/H2.go.json")"
+mv -f "$K/bin/midclt" "$K/midclt.uit"
+# het logboek: dezelfde meldingen (onderdeel, uitkomst, tekst)
+act_go log "$K/act.go.json"
+python3 -I - "$K" <<'PY' || fail "het logboek van de Go-agent wijkt af van dat van de bash-agent"
+import json, sys
+K = sys.argv[1]
+a = [l.rstrip('\n').split('|', 3) for l in open(K + '/b/act')]
+g = [[e['m'], str(e['ok']), e['a'], e['d']] for e in json.load(open(K + '/act.go.json'))]
+if a != g or len(a) < 5:
+    print('bash %s\ngo   %s' % (a, g)); sys.exit(1)
+PY
+# isoleren: alleen RzSense, het reserve-adres, de DNS-servers en de netwerken uit RzSense blijven open; vervalt op tijd
+set_tests '0\ttick\t30\n0\tisolate\t%s\t192.168.1.0/24 10.0.0.5 fd00::/8 onzin 10.0.0.5\n0\tuserlock\tpiet\tlock\n0\tuserlock\tjan\tlock\n0\tuserlock\troot\tlock\n0\tuserlock\tonbekend\tlock\n0\tuserlock\tPiet\tlock\n0\tuserlock\tpiet\tkapot\n' "$soon"
+act_go dry "$K/drys0.json"
+act_both I iso; act_both I2 iso
+act_go dry "$K/drys1.json"
+grep -q '"active"' "$K/I.go.json" && grep -q '192.168.1.0/24, 10.0.0.5, 192.0.2.10, 192.0.2.20' "$K/g/nft/log" && grep -q 'usermod -L -e 1 piet' "$K/g/nft/users" && grep -q 'pkill -KILL -u piet' "$K/g/nft/users" \
+    && ! grep -q 'root\|Piet' "$K/g/nft/users" && grep -q '"fout"' "$K/I.go.json" && grep -q '"onbekend"' "$K/I.go.json" && [ "$(cat "$K/I2.go.json")" != "$(cat "$K/I.go.json")" ] \
+    || fail "isoleren of vergrendelen: $(cat "$K/I.go.json") | $(cat "$K/g/nft/users") | $(tail -n 9 "$K/g/nft/log")"
+python3 -I - "$K" <<'PY' || fail "de dry-run van het isoleren klopt niet"
+import json, sys
+K = sys.argv[1]
+d0, d1 = [json.load(open('%s/drys%d.json' % (K, i)))['iso'] for i in (0, 1)]
+sig = open(K + '/b/iso/sig').read().strip()
+if not (d0['sig'] == sig and d1['sig'] == sig):
+    print('dry-run: %s / %s, bash zette %s' % (d0, d1, sig)); sys.exit(1)
+PY
+set_tests '0\ttick\t30\n0\tisolate\t%s\t192.168.1.0/24\n0\tuserlock\tpiet\tunlock\n' "$past"
+act_both J iso; act_both J2 iso
+grep -q '"off"' "$K/J.go.json" && grep -q 'WEG rzmon_iso' "$K/g/nft/log" && grep -q "usermod -U -e  piet" "$K/g/nft/users" || fail "isoleren hoort op tijd te vervallen: $(cat "$K/J.go.json") $(cat "$K/g/nft/users")"
+# een proces stoppen: alleen met de juiste starttijd; een nummer dat niet (meer) klopt blijft staan
+sleep 300 & k1=$!; sleep 300 & k2=$!; sleep 300 & k3=$!
+disown "$k1" "$k2" "$k3" 2>/dev/null || true
+st() { awk '{ print $22 }' "/proc/$1/stat"; }
+printf '0\tids\tblock\n0\tkill\t%s\t%s\n0\tkill\t%s\t1\n0\tkill\t4000000\t5\n0\tkill\tx\t5\n' "$k1" "$(st "$k1")" "$k3" >"$K/b/tests.cache"
+printf '0\tids\tblock\n0\tkill\t%s\t%s\n0\tkill\t%s\t1\n0\tkill\t4000000\t5\n0\tkill\tx\t5\n' "$k2" "$(st "$k2")" "$k3" >"$K/g/gc/tests.cache"
+act_bash kill "$K/kill.bash.json"; act_go kill "$K/kill.go.json"
+act_bash kill "$K/kill2.bash.json"; act_go kill "$K/kill2.go.json"
+sleep 0.3
+python3 -I - "$K" "$k1" "$k2" "$k3" <<'PY' || { kill "$k1" "$k2" "$k3" 2>/dev/null; fail "een proces stoppen gaat anders dan bij de bash-agent"; }
+import json, os, sys
+K, k1, k2, k3 = sys.argv[1], *map(int, sys.argv[2:5])
+a, g, a2, g2 = [json.load(open('%s/%s.json' % (K, n))) for n in ('kill.bash', 'kill.go', 'kill2.bash', 'kill2.go')]
+alive = lambda p: os.path.exists('/proc/%d' % p) and open('/proc/%d/stat' % p).read().split()[2] != 'Z'
+res = lambda l: [r[2] for r in l]
+if res(a) != res(g) or res(a) != ['ok', 'weg', 'weg'] or a2 != [] or g2 != [] or alive(k1) or alive(k2) or not alive(k3) or g[0][0] != k2:
+    print('bash %s %s, go %s %s, leeft: %s %s %s' % (a, a2, g, g2, alive(k1), alive(k2), alive(k3))); sys.exit(1)
+PY
+kill "$k3" 2>/dev/null || true
+# bestanden bewaken: alleen de wijzigingen (dezelfde bestanden als hierboven): veranderd, weg, een nieuw bewaakt pad,
+# niet meer bewaakt, en alles opnieuw na een nieuwe basismeting in RzSense
+fim_cmp() {  # fim_cmp <naam> <bash-json> <go-json>
+    python3 -I - "$1" "$2" "$3" <<'PY' || fail "bestanden bewaken ($1): de Go-agent meldt iets anders dan de bash-agent"
+import json, sys
+name, a, g = sys.argv[1], json.load(open(sys.argv[2]))['fim'], json.load(open(sys.argv[3]))
+bad = [k for k in ('n', 'full') if a[k] != g[k]] + [k for k in ('c', 'b', 'd', 'u') if sorted(map(json.dumps, a[k])) != sorted(map(json.dumps, g[k]))]
+if bad:
+    print('%s: verschil in %s\n  bash %s\n  go   %s' % (name, bad, json.dumps(a)[:1500], json.dumps(g)[:1500])); sys.exit(1)
+print(name, a['full'], len(a['c']), len(a['b']), len(a['d']), len(a['u']))
+PY
+}
+mkdir -p "$J/gf"; cp "$J/b/ids/fim/state" "$J/b/ids/fim/meta" "$J/b/ids/fim/roots" "$J/gf/"
+fim_go() { RZSENSE_BASH_CONF="$K/g/conf" RZSENSE_BASH_CACHE="$J/gc" RZSENSE_DATA="$J/gd" "$work/rzsense" ids-act fim "$J/gf" commit >"$1" || fail "de Go-agent kon de wijzigingen in bewaakte bestanden niet bepalen"; }
+fim_commit() { cp "$J/b/ids/fim/state.new" "$J/b/ids/fim/state"; cp "$J/b/ids/fim/meta.new" "$J/b/ids/fim/meta"; cp "$J/b/ids/fim/roots.new" "$J/b/ids/fim/roots"; }
+fim_go "$J/fim2.go.json"
+got=$(fim_cmp wijzigingen "$J/bash2.json" "$J/fim2.go.json") || { echo "$got"; exit 1; }
+[ "$got" = "wijzigingen 0 2 0 1 0" ] || fail "bestanden bewaken: onverwachte wijzigingen: $got"
+fim_commit
+fim_cfg=$(printf 'e\t1700000001\np\t2\t%s\np\t1\t%s\np\t2\t%s\nx\t*.log\nx\tcache/\n' "$J/w/etc/app" "$J/w/srv/los.bin" "$J/w/srv/c.txt")
+printf '0\tids\tlearn\n0\tfim\t%s\n' "$(printf '%s' "$fim_cfg" | base64 -w0)" >"$J/b/tests.cache"; cp "$J/b/tests.cache" "$J/gc/tests.cache"
+ids_bash "$J/bash3.json"; fim_go "$J/fim3.go.json"
+got=$(fim_cmp paden "$J/bash3.json" "$J/fim3.go.json") || { echo "$got"; exit 1; }
+[ "$got" = "paden 0 0 1 0 1" ] || fail "bestanden bewaken: een nieuw en een vervallen pad: $got"
+fim_commit
+fim_cfg=$(printf 'e\t1700000999\np\t2\t%s\nx\t*.log\n' "$J/w/etc/app")
+printf '0\tids\tlearn\n0\tfim\t%s\n' "$(printf '%s' "$fim_cfg" | base64 -w0)" >"$J/b/tests.cache"; cp "$J/b/tests.cache" "$J/gc/tests.cache"
+ids_bash "$J/bash4.json"; fim_go "$J/fim4.go.json"
+got=$(fim_cmp basismeting "$J/bash4.json" "$J/fim4.go.json") || { echo "$got"; exit 1; }
+[ "${got#basismeting 1 }" != "$got" ] && [ "${got##* 0 0 0}" = "" ] || fail "bestanden bewaken: een nieuwe basismeting stuurt alles opnieuw: $got"
+echo "✔ het IDS grijpt in zoals de bash-agent: firewall (blokkades, bekende aanvallers, uitgaand, lokaas-poort, nooit RzSense zelf), TrueNAS, IDS_BLOCK=0, een proces stoppen, isoleren en een account vergrendelen, het logboek, en bestanden bewaken (alleen wijzigingen); de dry-run stuurt niets naar nft"
 
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in

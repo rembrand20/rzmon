@@ -12326,4 +12326,8 @@ return [
     '{n} instellingen' => '{n} settings',
     'mappen' => 'folders',
     'andere waarde: {l}' => 'different value: {l}',
+    '{n} blokkades, {k} netten' => '{n} blocks, {k} networks',
+    'lokaas-poort {p}' => 'decoy port {p}',
+    'een andere lijst' => 'a different list',
+    '{n} adressen blijven open' => '{n} addresses stay open',
 ];

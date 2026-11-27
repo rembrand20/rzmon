@@ -613,6 +613,8 @@ func idsScanRun(name string) int {
 	_ = syscall.Setpriority(syscall.PRIO_PROCESS, 0, 19)
 	var list []string
 	switch name {
+	case "rehash":
+		return fimRehash()
 	case "suid":
 		list = idsSuidScan("")
 	case "pkgdiff":
