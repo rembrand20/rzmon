@@ -12110,4 +12110,11 @@ return [
     '1 dienst' => '1 service',
     '{n} diensten' => '{n} services',
     'Op de server draait Go-agent {a}; RzSense heeft {b}. Voer het installatiecommando hieronder opnieuw uit om bij te werken: de nieuwe meet meer.' => 'The server runs Go agent {a}; RzSense has {b}. Run the install command below again to update: the new one measures more.',
+    '1 certificaat' => '1 certificate',
+    '{n} certificaten' => '{n} certificates',
+    'keten {n}' => 'chain {n}',
+    'draait niet' => 'not running',
+    '{n}× · pid {p} · {c}% · {m}' => '{n}× · pid {p} · {c}% · {m}',
+    'niet gemeten' => 'not measured',
+    '{n} namen' => '{n} names',
 ];

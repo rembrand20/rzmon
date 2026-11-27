@@ -685,11 +685,15 @@ doet al het werk, de Go-agent meet mee en RzSense vergelijkt de uitkomsten.
 ### Wat de proef doet
 
 - Elke minuut meet de Go-agent de hostnaam, de opstarttijd, CPU, geheugen, schijven, de luisterende poorten (poort,
-  adres en proces) en de status van de diensten waar je een check op hebt, op dezelfde manier als de bash-agent, en
-  stuurt dat versleuteld naar RzSense.
+  adres en proces), de status van de diensten waar je een check op hebt, de certificaten (bestanden en `host:poort`),
+  de proces-checks en de lijst met processen, op dezelfde manier als de bash-agent, en stuurt dat versleuteld naar
+  RzSense. Certificaten leest hij hooguit eens per uur opnieuw, net als de bash-agent.
 - RzSense legt het naast wat de bash-agent in de laatste 3 minuten meldde. *Gelijk* betekent: exact waar het exact hoort
   (grootte van geheugen en schijven, aantal kernen, de koppelpunten, de poorten met hun adres en proces, de diensten en
-  hun status) en binnen een marge waar de twee op een ander moment meten (CPU-gebruik, vrije ruimte).
+  hun status, de naam, uitgever, vervaldatum en keten van een certificaat, het aantal en de PID's van een proces-check)
+  en binnen een marge waar de twee op een ander moment meten (CPU-gebruik, vrije ruimte, geheugen van een proces). Bij
+  een certificaat tellen *vertrouwd* en *fout* als ja of nee, omdat de tekst per programma verschilt. De lijst met
+  processen mag een paar namen verschillen: processen komen en gaan.
 - De Go-agent leest de instellingen (`/etc/default/rzmon-agent`), de sleutel en de testlijst van de bash-agent, maar
   schrijft er niets bij. RzSense bewaart een proefronde apart: de gegevens, de sleutel en het contactmoment van de server veranderen niet.
 

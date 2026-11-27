@@ -66,7 +66,7 @@ final class AgentShadow
     {
         $out = ['disks' => []];
         $min = time() - self::FRESH;
-        foreach (q("SELECT metric, value, updated_at FROM agent_data WHERE host_id = ? AND (metric IN ('cpu', 'mem', 'boot', 'ports') OR metric LIKE 'disk:%' OR metric LIKE 'service:%')", [$hostId]) as $r) {
+        foreach (q("SELECT metric, value, updated_at FROM agent_data WHERE host_id = ? AND (metric IN ('cpu', 'mem', 'boot', 'ports', 'proclist') OR metric LIKE 'disk:%' OR metric LIKE 'service:%' OR metric LIKE 'cert:%' OR metric LIKE 'proc:%')", [$hostId]) as $r) {
             if (strtotime((string) $r['updated_at']) < $min) {
                 continue;
             }
@@ -75,6 +75,11 @@ final class AgentShadow
                 $out['boot'] = (int) $r['value'];
             } elseif (str_starts_with($m, 'service:')) {   // 1.340.0: de status van een dienst (systemctl is-active)
                 $out['services'][substr($m, 8)] = (string) $r['value'];
+            } elseif (str_starts_with($m, 'cert:') || str_starts_with($m, 'proc:')) {   // 1.341.0: certificaten en proces-checks
+                $d = json_decode((string) $r['value'], true);
+                if (is_array($d)) {
+                    $out[str_starts_with($m, 'cert:') ? 'certs' : 'procs'][substr($m, 5)] = $d;
+                }
             } elseif (str_starts_with($m, 'disk:')) {
                 $d = json_decode((string) $r['value'], true);
                 if (is_array($d)) {
@@ -187,6 +192,61 @@ final class AgentShadow
                 if (isset($bs[$name], $gs[$name])) {
                     $add("dienst $name", $bs[$name], $gs[$name], $bs[$name] === $gs[$name]);
                 }
+            }
+        }
+        // 1.341.0: certificaten (per bron), proces-checks (per check) en de lijst met processen om uit te kiezen
+        if (is_array($bash['certs'] ?? null) && $bash['certs'] && is_array($go['certs'] ?? null)) {
+            $gc = [];
+            foreach ($go['certs'] as $c) {
+                if (is_array($c) && isset($c['source'])) {
+                    $gc[(string) $c['source']] = $c;
+                }
+            }
+            $bc = $bash['certs'];
+            $onlyB = array_keys(array_diff_key($bc, $gc));
+            $onlyG = array_keys(array_diff_key($gc, $bc));
+            $n = static fn(array $m): string => count($m) === 1 ? t('1 certificaat') : t('{n} certificaten', ['n' => count($m)]);
+            $add('certificaten: lijst', $n($bc) . ($onlyB ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyB, 0, 5))]) : ''),
+                $n($gc) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 5))]) : ''), !$onlyB && !$onlyG);
+            // Gelijk: naam, uitgever, vervaldatum en de keten exact; "vertrouwd" en "fout" alleen ja of nee (de tekst komt
+            // bij de bash-agent van openssl en verschilt dus altijd)
+            $sig = static fn(array $c): array => [(string) ($c['cn'] ?? ''), (string) ($c['issuer'] ?? ''), is_numeric($c['not_after'] ?? null) ? (int) $c['not_after'] : null,
+                (int) ($c['chain_n'] ?? 0), is_numeric($c['chain_min'] ?? null) ? (int) $c['chain_min'] : null, (string) ($c['chain_cn'] ?? ''),
+                ($c['verify'] ?? null) === null ? null : ($c['verify'] === 'ok'), (string) ($c['error'] ?? '') !== ''];
+            $txt = static fn(array $c): string => (string) ($c['error'] ?? '') !== '' ? t('fout: {e}', ['e' => mb_substr((string) $c['error'], 0, 80)])
+                : implode(' · ', array_filter([(string) ($c['cn'] ?? ''), (string) ($c['issuer'] ?? ''), is_numeric($c['not_after'] ?? null) ? date('Y-m-d H:i', (int) $c['not_after']) : '',
+                    t('keten {n}', ['n' => (int) ($c['chain_n'] ?? 0)]) . (($c['chain_cn'] ?? '') !== '' ? ' (' . $c['chain_cn'] . ')' : ''),
+                    ($c['verify'] ?? null) === null ? '' : ($c['verify'] === 'ok' ? t('vertrouwd') : t('niet vertrouwd'))]));
+            foreach (array_intersect_key($bc, $gc) as $src => $b) {
+                $add('certificaat ' . mb_substr((string) $src, 0, 80), $txt($b), $txt($gc[$src]), $sig($b) === $sig($gc[$src]));
+            }
+        }
+        if (is_array($bash['procs'] ?? null) && $bash['procs'] && is_array($go['procs'] ?? null)) {
+            $txt = static fn(array $p): string => (int) ($p['n'] ?? 0) === 0 ? t('draait niet') : t('{n}× · pid {p} · {c}% · {m}', ['n' => (int) $p['n'], 'p' => mb_substr((string) ($p['pids'] ?? ''), 0, 40),
+                'c' => round((float) ($p['cpu'] ?? 0), 1), 'm' => Checks::bytes((float) ($p['rss'] ?? 0) * 1024)]);
+            foreach ($bash['procs'] as $id => $b) {
+                $g = $go['procs'][$id] ?? null;
+                if (!is_array($g)) {
+                    $add("proces-check #$id", $txt($b), t('niet gemeten'), false);
+                    continue;
+                }
+                $ok = (int) ($b['n'] ?? 0) === (int) ($g['n'] ?? -1) && (string) ($b['pids'] ?? '') === (string) ($g['pids'] ?? '')
+                    && $near($b['rss'] ?? 0, $g['rss'] ?? 0, max(8192, 0.1 * (float) ($b['rss'] ?? 0))) && $near($b['cpu'] ?? 0, $g['cpu'] ?? 0, 5)
+                    && (($b['start'] ?? null) === null ? ($g['start'] ?? null) === null : $near($b['start'], $g['start'] ?? null, 3));
+                $add("proces-check #$id", $txt($b), $txt($g), $ok);
+            }
+        }
+        if (is_array($bash['proclist'] ?? null) && $bash['proclist'] && is_array($go['proc_list'] ?? null)) {
+            $names = static fn(array $l): array => array_values(array_unique(array_filter(array_map(static fn($e) => is_array($e) ? (string) ($e[0] ?? '') : '', $l))));
+            [$bn, $gn] = [$names($bash['proclist']), $names($go['proc_list'])];
+            $onlyB = array_values(array_diff($bn, $gn));
+            $onlyG = array_values(array_diff($gn, $bn));
+            // Processen komen en gaan tussen de twee metingen: een klein verschil is geen verschil. Bij 200 of meer namen kapt
+            // de bash-agent de lijst willekeurig af; dan valt er niets te vergelijken.
+            $tol = max(3, (int) ceil(0.1 * max(count($bn), count($gn))));
+            if (count($bn) < 200 && count($gn) < 200) {
+                $add('processen: lijst', t('{n} namen', ['n' => count($bn)]) . ($onlyB ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyB, 0, 6))]) : ''),
+                    t('{n} namen', ['n' => count($gn)]) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 6))]) : ''), count($onlyB) + count($onlyG) <= $tol);
             }
         }
         return $out;

@@ -124,7 +124,7 @@ Nice=10
 TimeoutStartSec=90
 NoNewPrivileges=yes
 ProtectSystem=strict
-ProtectHome=yes
+ProtectHome=read-only
 PrivateTmp=yes
 ReadWritePaths=$DATA
 EOF

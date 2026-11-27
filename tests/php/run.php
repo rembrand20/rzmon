@@ -5119,5 +5119,48 @@ unset($gpCore['ports'], $gpCore['services']);
 ok(!array_filter(AgentShadow::compare($gpCore, $gpBash), static fn($i) => str_starts_with($i['k'], 'poort') || str_starts_with($i['k'], 'dienst')), 'een Go-agent zonder poorten en diensten (0.8.0) wordt daar niet op afgerekend');
 q('DELETE FROM hosts WHERE id = ?', [$gpH]);
 
+section('Proef met de Go-agent: certificaten en processen (1.341.0)');
+q("INSERT INTO hosts (name, address, mode, enabled) VALUES ('go-unit3', '192.0.2.79', 'agent', 1)");
+$gcH = (int) db()->lastInsertId();
+$gcNa = time() + 60 * 86400;
+$gcCa = time() + 20 * 86400;
+AgentData::put($gcH, 'cpu', ['pct' => 5.0, 'load' => [0.1, 0.1, 0.1], 'cores' => 2]);
+AgentData::put($gcH, 'mem', ['total' => 4 * 1073741824, 'avail' => 2 * 1073741824, 'swap_total' => 0, 'swap_free' => 0]);
+AgentData::put($gcH, 'cert:/etc/ssl/nas.pem', ['cn' => 'nas.voorbeeld', 'issuer' => "Let's Encrypt", 'not_after' => $gcNa, 'verify' => null, 'error' => '', 'chain_n' => 2, 'chain_min' => $gcCa, 'chain_cn' => 'R11']);
+AgentData::put($gcH, 'cert:mail.voorbeeld:993', ['cn' => 'mail.voorbeeld', 'issuer' => 'Eigen CA', 'not_after' => $gcNa, 'verify' => 'self-signed certificate in certificate chain', 'error' => '', 'chain_n' => 1, 'chain_min' => $gcNa, 'chain_cn' => 'mail.voorbeeld']);
+AgentData::put($gcH, 'cert:weg.voorbeeld:443', ['cn' => '', 'issuer' => '', 'not_after' => null, 'verify' => null, 'error' => 'geen TLS-verbinding: poort dicht (verbinding geweigerd)', 'chain_n' => 0, 'chain_min' => null, 'chain_cn' => '']);
+AgentData::put($gcH, 'proc:41', ['n' => 2, 'pids' => '400 401', 'cpu' => 3.3, 'rss' => 50000, 'start' => time() - 900]);
+AgentData::put($gcH, 'proc:42', ['n' => 0, 'pids' => '', 'cpu' => 0.0, 'rss' => 0, 'start' => null]);
+AgentData::put($gcH, 'proclist', [['cron', 1, 'root', '/usr/sbin/cron -f'], ['nginx', 2, 'root', 'nginx: master'], ['sshd', 1, 'root', 'sshd: /usr/sbin/sshd -D'], ['systemd', 1, 'root', '/sbin/init']]);
+$gcCore = ['cpu' => ['pct' => 5.0, 'load' => [0.1, 0.1, 0.1], 'cores' => 2], 'mem' => ['total' => 4 * 1073741824, 'avail' => 2 * 1073741824, 'swap_total' => 0, 'swap_free' => 0], 'disks' => [],
+    'certs' => [
+        ['source' => 'mail.voorbeeld:993', 'cn' => 'mail.voorbeeld', 'issuer' => 'Eigen CA', 'not_after' => $gcNa, 'verify' => 'x509: certificate signed by unknown authority', 'error' => '', 'chain_n' => 1, 'chain_min' => $gcNa, 'chain_cn' => 'mail.voorbeeld'],
+        ['source' => '/etc/ssl/nas.pem', 'cn' => 'nas.voorbeeld', 'issuer' => "Let's Encrypt", 'not_after' => $gcNa, 'verify' => null, 'error' => '', 'chain_n' => 2, 'chain_min' => $gcCa, 'chain_cn' => 'R11'],
+        ['source' => 'weg.voorbeeld:443', 'cn' => '', 'issuer' => '', 'not_after' => null, 'verify' => null, 'error' => 'geen TLS-verbinding: server onbereikbaar', 'chain_n' => 0, 'chain_min' => null, 'chain_cn' => '']],
+    'procs' => ['41' => ['n' => 2, 'pids' => '400 401', 'cpu' => 3.4, 'rss' => 50400, 'start' => time() - 899], '42' => ['n' => 0, 'pids' => '', 'cpu' => 0, 'rss' => 0, 'start' => null]],
+    'proc_list' => [['cron', 1, 'root', 'x'], ['nginx', 2, 'root', 'x'], ['sshd', 1, 'root', 'x'], ['systemd', 1, 'root', 'x'], ['sleep', 1, 'root', 'sleep 5']]];
+$gcBash = AgentShadow::bashNow($gcH);
+ok(count($gcBash['certs'] ?? []) === 3 && count($gcBash['procs'] ?? []) === 2 && count($gcBash['proclist'] ?? []) === 4, 'certificaten, proces-checks en de proceslijst van de bash-agent');
+$gcCmp = array_column(AgentShadow::compare($gcCore, $gcBash), null, 'k');
+ok(isset($gcCmp['certificaten: lijst'], $gcCmp['certificaat /etc/ssl/nas.pem'], $gcCmp['certificaat mail.voorbeeld:993'], $gcCmp['certificaat weg.voorbeeld:443'], $gcCmp['proces-check #41'], $gcCmp['proces-check #42'], $gcCmp['processen: lijst'])
+    && !array_filter($gcCmp, static fn($i) => !$i['ok']), 'gelijk: zelfde certificaat en keten; "niet vertrouwd" en "fout" tellen als ja of nee, ook met een andere tekst; een proces meer of minder is geen verschil');
+ok(str_contains($gcCmp['certificaat mail.voorbeeld:993']['go'], 'niet vertrouwd') && str_contains($gcCmp['certificaat /etc/ssl/nas.pem']['bash'], 'keten 2 (R11)') && $gcCmp['proces-check #42']['bash'] === 'draait niet', 'leesbaar: naam, uitgever, vervaldatum, keten en of het vertrouwd is');
+$gcBad = $gcCore;
+$gcBad['certs'][0]['verify'] = 'ok';                 // de Go-agent vertrouwt wat de bash-agent niet vertrouwt
+$gcBad['certs'][1]['issuer'] = 'R11';                // de naam in plaats van de organisatie van de uitgever
+$gcBad['certs'][2]['error'] = '';                    // de ene heeft een fout, de andere niet
+$gcBad['certs'][] = ['source' => 'extra:443', 'cn' => 'x', 'issuer' => 'y', 'not_after' => $gcNa, 'verify' => 'ok', 'error' => '', 'chain_n' => 1, 'chain_min' => $gcNa, 'chain_cn' => 'x'];
+$gcBad['procs']['41']['pids'] = '400';
+$gcBad['procs']['41']['n'] = 1;
+unset($gcBad['procs']['42']);
+$gcBad['proc_list'] = [['heel', 1, '', ''], ['anders', 1, '', ''], ['dan', 1, '', ''], ['de', 1, '', ''], ['bash', 1, '', '']];
+$gcD = array_keys(array_column(array_filter(AgentShadow::compare($gcBad, $gcBash), static fn($i) => !$i['ok']), null, 'k'));
+sort($gcD);
+ok($gcD === ['certificaat /etc/ssl/nas.pem', 'certificaat mail.voorbeeld:993', 'certificaat weg.voorbeeld:443', 'certificaten: lijst', 'proces-check #41', 'proces-check #42', 'processen: lijst'],
+    'een andere uitgever, wel of niet vertrouwd, wel of geen fout, een extra bron, een ander aantal processen, een niet gemeten check en een heel andere lijst vallen elk op');
+unset($gcCore['certs'], $gcCore['procs'], $gcCore['proc_list']);
+ok(!array_filter(AgentShadow::compare($gcCore, $gcBash), static fn($i) => str_starts_with($i['k'], 'certific') || str_starts_with($i['k'], 'proces')), 'een oudere Go-agent zonder certificaten en processen wordt daar niet op afgerekend');
+q('DELETE FROM hosts WHERE id = ?', [$gcH]);
+
 echo "\n" . ($fails ? "✘ $fails van $n mislukt\n" : "✔ alle $n tests geslaagd\n");
 exit($fails ? 1 : 0);

@@ -5,6 +5,12 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.10.0 – 2026-11-27
+- **Linux: certificaten.** Per bron uit `CERTS` en uit de testlijst van de bash-agent: een PEM-bestand (ook met jokertekens) of `host:poort`. Dezelfde velden als de bash-agent: naam, uitgever (de organisatie, anders de naam), vervaldatum, of het vertrouwd wordt, en de hele keten met het certificaat dat het eerst verloopt. Zonder het programma `openssl`. De uitkomst wordt een uur bewaard (`CERT_INTERVAL`), net als bij de bash-agent.
+- **Linux: processen.** Per proces-check het aantal, de PID's, CPU, geheugen en wanneer het oudste proces startte, en de lijst met wat er draait om uit te kiezen. Rechtstreeks uit `/proc`, met dezelfde regels als de bash-agent (geen kernelprocessen, niet de agent zelf; zoeken op naam, op het programma uit de opdrachtregel of op een patroon).
+- **Linux:** de timer van de proef mag certificaten onder `/home` en `/root` lezen (alleen lezen), zoals de bash-agent.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.9.0 – 2026-11-27
 - **Linux: luisterende poorten.** De Go-agent meldt de luisterende TCP-poorten met adres en proces, met dezelfde uitkomst als `ss -tlnp` in de bash-agent: `0.0.0.0`, `::` (alleen IPv6), `*` (IPv4 en IPv6 samen) en een adres aan een interface (`127.0.0.53%lo`). De gegevens komen rechtstreeks van de kernel; het programma `ss` is niet meer nodig.
 - **Linux: diensten.** De status (`systemctl is-active`) van de diensten waar RzSense een check op heeft. De lijst komt uit de testlijst die de bash-agent al bewaart en uit `SERVICES`; de Go-agent leest die alleen.

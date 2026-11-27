@@ -263,13 +263,17 @@ func coreCollect(wait time.Duration) map[string]any {
 		}
 		load[i], _ = strconv.ParseFloat(s, 64)
 	}
+	procs, procNames := collectProcsLinux() // 0.10.0
 	return map[string]any{
-		"hostname": host,
-		"boot":     bootTime(s2),
-		"cpu":      map[string]any{"pct": float64(int(pct*10+0.5)) / 10, "load": load, "cores": cpuCores(s2)},
-		"mem":      memInfo(readText("/proc/meminfo")),
-		"disks":    diskList(parseMounts(readText("/proc/self/mounts"))),
-		"ports":    collectPortsLinux(),    // 0.9.0
-		"services": collectServicesLinux(), // 0.9.0
+		"certs":     collectCertsLinux(), // 0.10.0
+		"procs":     procs,
+		"proc_list": procNames,
+		"hostname":  host,
+		"boot":      bootTime(s2),
+		"cpu":       map[string]any{"pct": float64(int(pct*10+0.5)) / 10, "load": load, "cores": cpuCores(s2)},
+		"mem":       memInfo(readText("/proc/meminfo")),
+		"disks":     diskList(parseMounts(readText("/proc/self/mounts"))),
+		"ports":     collectPortsLinux(),    // 0.9.0
+		"services":  collectServicesLinux(), // 0.9.0
 	}
 }
