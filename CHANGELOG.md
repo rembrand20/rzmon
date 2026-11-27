@@ -8,11 +8,25 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.356.0**: **De Go-agent is compleet op het beveiligingsblok na**: ook wifi, certificaten zoeken, 🧪 Test, het meetpunt van buitenaf en de AI-diagnose.
 - **1.355.0**: **De Go-agent doet databasechecks, WireGuard en netwerkverkeer**: alleen lezen, het wachtwoord nooit op de opdrachtregel.
 - **1.354.0**: **De Go-agent leest Proxmox en TrueNAS uit**: guests, opslag, ZFS, back-ups en apps, gelijk aan de bash-agent.
 - **1.353.0**: **De Go-agent heeft de waakhond**: een bericht via Pushover of ntfy als RzSense onbereikbaar is, en wachten tijdens een update.
 - **1.352.0**: **De Go-agent kan zelf herstellen**: een dienst herstarten, een container starten of een eigen herstelcommando, met dezelfde grenzen als de bash-agent.
-- **1.351.0**: **De Go-agent leest containers en heartbeats**: Podman en Docker (ook rootless), gelijk aan de bash-agent.
+
+## 1.356.0 – 2026-11-27
+### Nieuw
+- **De Go-agent stuurt nu ook de wifi-meting mee**, zoekt certificaatbestanden (*Opnieuw zoeken* bij een SSL-check), beantwoordt **🧪 Test** uit de Agent Manager, kan het **meetpunt van buitenaf** zijn en levert de **diagnose voor AI-advies**.
+
+### Opgelost
+- **Overnemen door de Go-agent: 🧪 Test, het meetpunt van buitenaf en een AI-diagnose stonden onder een verkeerde naam in de lijst van wat mag.** Een klik op 🧪 Test zou een server waar de Go-agent het werk doet daardoor terug hebben gezet naar de bash-agent. Niemand had dit kunnen raken: op geen enkele server deed de Go-agent al het werk.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.25.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Daarmee stuurt de Go-agent alles mee wat de bash-agent meestuurt, **behalve het beveiligingsblok**: Realtime, IDS (met blokkeren, isoleren en lokaas), endpoint-sensoren, ransomware-detectie, programma's, jagen op sporen, tijdelijk sudo, en wat bij de reverse proxy hoort (WAF, antivirus, Suricata). Staat daarvan iets aan voor een server, dan blijft de bash-agent daar het werk doen.
+- De relay en de Home Assistant-add-on blijven bij de bash-agent.
 
 ## 1.355.0 – 2026-11-27
 ### Nieuw

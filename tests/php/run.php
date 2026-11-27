@@ -5290,6 +5290,12 @@ ok($tkWg([['id' => 'wg0:Zz99', 'endpoint' => '', 'hs' => -1], ['id' => 'wg0:AbCd
 q("INSERT INTO checks (host_id, name, type, target, enabled) VALUES (?, 'db', 'mysql', 'localhost', 1), (?, 'vpn', 'vpn', 'wg0:AbCd', 1), (?, 'verkeer', 'traffic', '', 1)", [$tkH, $tkH, $tkH]);
 ok(!preg_match('/mysql|vpn|traffic|Databasechecks/', implode(' ', AgentTakeover::blockers($tkHost()))), 'checks op een database, VPN en netwerkverkeer houden het overnemen niet meer tegen (1.355.0): ' . implode(', ', AgentTakeover::blockers($tkHost())));
 q("DELETE FROM checks WHERE host_id = ? AND type IN ('mysql', 'vpn', 'traffic')", [$tkH]);
+q('UPDATE hosts SET certscan_req = 5 WHERE id = ?', [$tkH]);
+AgentData::put($tkH, 'selftest_req', ['id' => 123, 'at' => time()]);
+$tkLines = agent_tests_text($tkH, true);
+ok(!preg_match('/selftest|certscan|“/u', implode(' ', AgentTakeover::blockers($tkHost()))), 'Opnieuw zoeken naar certificaten en 🧪 Test houden het overnemen niet tegen (1.356.0): ' . implode(', ', AgentTakeover::blockers($tkHost())) . ' | ' . str_replace(["\t", "\n"], [' ', ' / '], $tkLines));
+q('UPDATE hosts SET certscan_req = 0 WHERE id = ?', [$tkH]);
+AgentData::put($tkH, 'selftest_req', null);
 $tkCt = ['name' => 'web', 'user' => 'root', 'pod' => '', 'image' => 'nginx:1.27', 'state' => 'running', 'health' => 'healthy', 'exit_code' => 0, 'restarts' => 2];
 $tkC4 = array_column(AgentShadow::compare(['podman' => ['containers' => [$tkCt, ['name' => 'db', 'user' => 'piet', 'state' => 'exited'] + $tkCt, ['name' => 'extra'] + $tkCt]]],
     ['containers' => ['web' => $tkCt, 'piet/db' => ['name' => 'db', 'user' => 'piet', 'state' => 'running'] + $tkCt]]), null, 'k');

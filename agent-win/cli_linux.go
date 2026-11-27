@@ -146,6 +146,27 @@ func cliLinux(args []string) bool {
 		}
 		b, _ := json.Marshal(collectDbLinux())
 		fmt.Println(string(b))
+	case "extra-test": // voor de tests: certs | selftest | exprobe | diag
+		var v any
+		switch {
+		case len(os.Args) < 3:
+			os.Exit(2)
+		case os.Args[2] == "wifi" && len(os.Args) > 3: // iw-uitvoer op stdin
+			in, _ := io.ReadAll(os.Stdin)
+			v = parseWifi(os.Args[3], string(in))
+		case os.Args[2] == "certs":
+			v = collectCertFoundLinux()
+		case os.Args[2] == "selftest":
+			if c, err := loadBashConfig(); err == nil {
+				v = collectSelftestLinux(c)
+			}
+		case os.Args[2] == "exprobe":
+			v = collectExprobeLinux()
+		case os.Args[2] == "diag":
+			v = collectDiagLinux()
+		}
+		b, _ := json.Marshal(v)
+		fmt.Println(string(b))
 	case "ctr-check": // voor de tests: containers en heartbeats zoals ze in het rapport komen
 		p, busy := collectContainersLinux(nil)
 		b, _ := json.Marshal(map[string]any{"podman": p, "busy": busy, "hb": collectHeartbeatsLinux()})

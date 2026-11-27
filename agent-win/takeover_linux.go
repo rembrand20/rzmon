@@ -232,6 +232,17 @@ func buildRun(c *Config, t0 time.Time) map[string]any {
 	if b := logBrowseLinux(); b != nil {
 		rep["log_browse"] = b
 	}
+	// 0.25.0: gevonden certificaatbestanden, en wat RzSense één keer vraagt: de zelftest, het meetpunt van buitenaf, de diagnose
+	rep["cert_found"] = collectCertFoundLinux()
+	if st := collectSelftestLinux(c); st != nil {
+		rep["selftest"] = st
+	}
+	if xp := collectExprobeLinux(); xp != nil {
+		rep["exprobe"] = xp
+	}
+	if dg := collectDiagLinux(); dg != nil {
+		rep["diag"] = dg
+	}
 	if db := collectDbLinux(); db != nil { // 0.24.0: databasechecks (alleen lezen)
 		rep["db"] = db
 	}

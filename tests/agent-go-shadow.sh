@@ -956,6 +956,69 @@ if bad or sorted(d) != ['aaaaaaaaaaa%d' % i for i in (1, 2, 3, 4, 5, 6)] or d['a
 print('✔ databases (%d verbindingen: MariaDB en PostgreSQL, lokaal en in een container, replicatie, grootte, een fout), %d WireGuard-peers en het netwerkverkeer: gelijk aan de bash-agent; het wachtwoord ging via de omgeving' % (len(d), len(wa)))
 PY
 
+# 1.356.0 (Go-agent 0.25.0): wifi, certificaten zoeken, het meetpunt van buitenaf en de diagnose: de echte bash-code en
+# de Go-agent; de zelftest heeft de Go-agent in zijn eigen vorm (andere agent, andere controles)
+X="$work/ex"
+mkdir -p "$X/zoek/site/live" "$X/zoek/node_modules/pkg" "$X/zoek/app/tests" "$X/zoek/diep/a/b" "$X/bt" "$X/gd" "$X/gc"
+cp "$work/certs/fullchain.pem" "$X/zoek/site/live/fullchain.pem"; cp "$work/certs/leaf.pem" "$X/zoek/site/cert.CRT"; cp "$work/certs/ca.pem" "$X/zoek/diep/a/b/ca.cer"
+cp "$work/certs/leaf.pem" "$X/zoek/node_modules/pkg/x.pem"; cp "$work/certs/leaf.pem" "$X/zoek/app/tests/t.pem"; cp "$work/certs/leaf.key" "$X/zoek/site/privkey.pem"
+cp "$work/certs/leaf.pem" "$X/zoek/site/geen-extensie"; cp "$work/certs/ca.pem" "$X/zoek/cacert.pem"; ln -s "$X/zoek/site/cert.CRT" "$X/zoek/link.pem"
+for _ in $(seq 25); do cat "$work/certs/ca.pem"; done >"$X/zoek/site/bundel.pem"; printf 'geen certificaat\n' >"$X/zoek/site/leeg.crt"
+IW_OUT='Connected to aa:bb:cc:dd:ee:ff (on wlan0)
+	SSID: Thuis "5G" netwerk
+	freq: 5500
+	RX: 123456 bytes (789 packets)
+	signal: -52 dBm
+	rx bitrate: 866.7 MBit/s VHT-MCS 9 80MHz short GI VHT-NSS 2
+	tx bitrate: 1201.0 MBit/s 80MHz HE-MCS 11 HE-NSS 2 HE-GI 0 HE-DCM 0'
+printf '0\ttick\t60\n0\tcertdirs\t%s /bestaat/niet relatief\n0\tcertscan\t4\n0\texprobe\t77\t127.0.0.1\t22,80\n0\texprobe\t77\t192.168.1.1\t22\n0\texprobe\t77\t203.0.113.1\t9,7\n0\texprobe\t77\traar;ip\t1\n0\tdiag\t88\tdisk\t%s\n' "$X/zoek" "$X/zoek" >"$X/tests.cache"; cp "$X/tests.cache" "$X/gc/tests.cache"
+(
+    t_dir="$X/bt"; t_cache="$X/tests.cache"; export CACHE_DIRECTORY="$X/bt"; TEST=0; HA_MODE=0; COMMANDS=""; CERT_DIRS=""
+    id() { if [ "${1-}" = -u ] && [ $# = 1 ]; then echo 1; else command id "$@"; fi; }   # geen root: dan ook geen dmesg
+    lap() { :; }
+    # shellcheck disable=SC1090
+    source <(sed -n '/^json_escape() {/,/^}/p; /^json_text() {/,/^}/p' agent/src/15-realtime.sh)
+    # shellcheck disable=SC1090
+    source <(sed -n '/^cert_line() {/,/^collect_certs() {/p' agent/src/75-certificaten-processen-software.sh | sed '$d')
+    # shellcheck disable=SC1090
+    source <(sed -n '/^cert_found=""/,/^# -\{10,\} Processen/p' agent/src/75-certificaten-processen-software.sh | sed '$d')
+    # shellcheck disable=SC1090
+    source agent/src/89-buitenprobe.sh
+    # shellcheck disable=SC1090
+    source agent/src/87-diagnose.sh
+    # shellcheck disable=SC1090
+    source <(sed -n '/^wifi_parse() {/,/^}/p' agent/src/85-meesturen.sh)
+    printf '{"certs":[%s],"exprobe":%s,"diag":%s,"wifi":%s}' "${cert_found%,}" "${exprobe_json:-null}" "${diag_json:-null}" "$(printf '%s\n' "$IW_OUT" | wifi_parse wlan0)" >"$X/bash.json"
+) || fail "de bash-code voor certificaten zoeken, het meetpunt of de diagnose faalde"
+printf 'MONITOR_URL="%s"\nCERT_DIRS=""\n' "$BASE" >"$X/conf"
+go_x() { RZSENSE_BASH_CONF="$X/conf" RZSENSE_BASH_CACHE="$X/gc" RZSENSE_DATA="$X/gd" RZSENSE_TEST_ROOT=0 "$work/rzsense" extra-test "$@"; }
+printf '{"certs":%s,"exprobe":%s,"diag":%s,"wifi":%s}' "$(go_x certs)" "$(go_x exprobe)" "$(go_x diag)" "$(printf '%s\n' "$IW_OUT" | go_x wifi wlan0)" >"$X/go.json"
+python3 -I - "$X/bash.json" "$X/go.json" <<'PY' || fail "de Go-agent doet certificaten zoeken, het meetpunt, de diagnose of wifi anders dan de bash-agent"
+import json, sys
+a, g = [json.load(open(p)) for p in sys.argv[1:3]]
+bad = []
+ca, cg = [sorted(d['certs'], key=lambda c: c['path']) for d in (a, g)]
+if ca != cg:
+    bad.append('certificaten:\n bash %s\n go   %s' % (json.dumps(ca, ensure_ascii=False), json.dumps(cg, ensure_ascii=False)))
+for k in ('exprobe', 'wifi'):
+    if a[k] != g[k]:
+        bad.append('%s:\n bash %s\n go   %s' % (k, json.dumps(a[k], ensure_ascii=False), json.dumps(g[k], ensure_ascii=False)))
+da, dg = [{i['k']: i['out'] for i in d['diag']['items']} for d in (a, g)]
+dg.pop('dmesg', None); da.pop('dmesg', None)   # alleen als root (de bash-kant draait hier zonder root)
+if sorted(da) != sorted(dg) or da.get('df') != dg.get('df') or da.get('du') != dg.get('du') or a['diag']['id'] != g['diag']['id']:
+    bad.append('diagnose:\n bash %s\n go   %s' % (json.dumps(da, ensure_ascii=False)[:800], json.dumps(dg, ensure_ascii=False)[:800]))
+names = sorted(c['path'].rsplit('/', 1)[1] for c in ca)
+if bad or names != ['ca.cer', 'cert.CRT', 'fullchain.pem', 'link.pem'] or sorted(a['exprobe']['res']) != ['203.0.113.1'] or a['wifi']['std'] != 'ax' or a['wifi']['chan'] != 100 or 'df' not in da:
+    print('\n'.join(bad) or 'onverwachte testgegevens: %s' % json.dumps(a, ensure_ascii=False)[:1500]); sys.exit(1)
+print('✔ certificaten zoeken (%d gevonden; bundels, sleutels en testmappen overgeslagen), het meetpunt van buitenaf (alleen openbare adressen), de diagnose (%d onderdelen) en wifi: gelijk aan de bash-agent' % (len(ca), len(da)))
+PY
+# De zelftest van de Go-agent: één keer per vraag, met zijn eigen controles
+printf '0\ttick\t60\n0\tselftest\t99\n' >"$X/gc/tests.cache"
+got=$(go_x selftest | python3 -I -c 'import json,sys; d=json.load(sys.stdin); print(d["id"], " ".join(sorted(i["k"] + ":" + i["ok"] for i in d["items"] if i["k"] in ("url", "queue", "tools", "disk"))))')
+[ "$got" = "99 disk:ok queue:ok tools:ok url:ok" ] || fail "de zelftest van de Go-agent gaf iets onverwachts: $got"
+[ "$(go_x selftest)" = null ] || fail "de zelftest hoort maar één keer per vraag te draaien"
+echo "✔ de zelftest van de Go-agent: RzSense bereikbaar, vrije ruimte en de rest; één keer per vraag"
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.

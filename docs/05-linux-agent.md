@@ -773,7 +773,9 @@ geen metingen in een wachtrij. Op een Proxmox-host leest hij de guests, opslag, 
 de meldingen, taken, apps, temperaturen en of er een update is; in beide gevallen alleen lezen. Databasechecks
 (MariaDB/MySQL en PostgreSQL, lokaal of in een container) doet hij met dezelfde alleen-lezen query's; het wachtwoord
 gaat via de omgeving naar de client, nooit op de opdrachtregel. Ook WireGuard-peers en het netwerkverkeer van de
-netwerkkaarten stuurt hij mee. De wifi-meting van een server stuurt hij nog niet mee.
+netwerkkaarten stuurt hij mee, net als de wifi-meting van een server met een wifi-kaart. Hij zoekt certificaatbestanden
+om uit te kiezen, beantwoordt 🧪 Test uit de Agent Manager, kan het meetpunt van buitenaf zijn en levert de diagnose
+voor AI-advies (een vaste set commando's die alleen lezen). Wat overblijft is het beveiligingsblok.
 Dit houdt overnemen tegen zolang het voor de server aan staat: logs van webdiensten (met het IDS aan, en alleen
 op een server waar zo'n log gevonden is); IDS en endpoint-sensoren;
 Kwetsbaarheden; Realtime; Home Assistant-checks (die horen bij de add-on); de relay; en vaker dan elke minuut rapporteren.
@@ -792,8 +794,6 @@ logboek van de server en bij de meldingen staat wanneer de Go-agent het overnam.
   en in `rzsense status`;
 - op de server zelf met `sudo rzsense back`. Zet het overnemen dan ook in RzSense uit, anders neemt de Go-agent het na
   een uur weer over.
-
-Zolang de Go-agent het werk doet, werken 🧪 Test en *Opnieuw zoeken* naar certificaten niet.
 
 ### Het commando `rzsense`
 

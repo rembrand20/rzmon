@@ -5,6 +5,14 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.25.0 – 2026-11-27
+- **Linux: wifi.** SSID, access point, band, kanaal, kanaalbreedte, signaal en verbindingssnelheid van de eigen wifi-kaart (`iw`), voor *Netwerk → Netwerksnelheid*.
+- **Linux: certificaten zoeken.** Bestanden met een certificaat in `CERT_DIRS` en de mappen uit RzSense, om bij een SSL-check uit te kiezen; één keer per dag, of meteen bij *Opnieuw zoeken*. CA-lijsten, bundels, testmappen en sleutels worden overgeslagen.
+- **Linux: 🧪 Test** uit de Agent Manager: de Go-agent test zichzelf (planning, instellingen, DNS, het adres van RzSense, de klok, vrije ruimte, fouten in zijn log). Alleen vaste controles die lezen.
+- **Linux: meetpunt van buitenaf**: gewone TCP-verbindingen naar de openbare adressen en poorten die RzSense opgeeft, zonder gegevens te versturen; privé-adressen worden geweigerd.
+- **Linux: diagnose voor AI-advies**: een vaste set commando's die alleen lezen. RzSense stuurt alleen de soort en het doel, nooit een commando; `COMMANDS=0` blokkeert het.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.24.0 – 2026-11-27
 - **Linux: databasechecks** voor MariaDB/MySQL en PostgreSQL, lokaal of in een container: status, verbindingen, lopende query's, replicatie en grootte. Alleen lezen, nooit data, met letterlijk dezelfde query's als de bash-agent. Een wachtwoord komt alleen versleuteld van RzSense en gaat via de omgeving naar de client, nooit op de opdrachtregel.
 - **Linux: WireGuard**: per peer de laatste handshake, het verkeer en het endpoint (alleen als root).

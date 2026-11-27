@@ -15,7 +15,7 @@ final class AgentTakeover
     public const OS = 'linux-go'; // hosts.os zolang de Go-agent het werk doet
 
     /** Regels in de testlijst die de Go-agent uitvoert, of die alleen een losse vraag zijn (dan gebeurt er even niets) */
-    private const LINES_OK = ['auth', 'cmd', 'db', 'heal', 'watchdog', 'log', 'logsrc', 'logship', 'logscan', 'logpause', 'logdirs', 'logbrowse', 'patch', 'path', 'pathtp', 'iperfs', 'tick', 'ival', 'svc', 'ports', 'url', 'port', 'cert', 'certdirs', 'certscan', 'proc', 'tselftest', 'texprobe'];
+    private const LINES_OK = ['auth', 'cmd', 'db', 'heal', 'watchdog', 'log', 'logsrc', 'logship', 'logscan', 'logpause', 'logdirs', 'logbrowse', 'patch', 'path', 'pathtp', 'iperfs', 'tick', 'ival', 'svc', 'ports', 'url', 'port', 'cert', 'certdirs', 'certscan', 'proc', 'selftest', 'exprobe', 'diag'];
     /** Agent-checks die de Go-agent meet; andere soorten die van de agent komen, houden het overnemen tegen */
     private const CHECKS_BLOCK = ['ha'];
 
@@ -31,13 +31,13 @@ final class AgentTakeover
             $type === 'watchdog' => t('De waakhond'),
             str_starts_with($type, 'log') => t('Logs verzamelen of doorzoeken'),
             $type === 'cmd' => t('Commando-checks'),
-            in_array($type, ['apps', 'appctl', 'tappblock'], true) => t('Programma\'s'),
-            str_starts_with($type, 'tioc') || $type === 'ioc' => t('Jagen op sporen'),
+            in_array($type, ['apps', 'appctl', 'appblock'], true) => t('Programma\'s'),
+            str_starts_with($type, 'ioc') => t('Jagen op sporen'),
             str_starts_with($type, 'ransom') => t('Ransomware herkennen'),
             $type === 'patch' => t('Updates'),
-            in_array($type, ['relay', 'trelay', 'rchk'], true) => t('Relay'),
+            in_array($type, ['relay', 'rchk'], true) => t('Relay'),
             $type === 'sudo' => t('Tijdelijk sudo'),
-            str_starts_with($type, 'proxy') || $type === 'tproxy' => t('Reverse proxy beschermen'),
+            str_starts_with($type, 'proxy') => t('Reverse proxy beschermen'),
             str_starts_with($type, 'waf') => t('WAF'),
             str_starts_with($type, 'av') => t('Antivirus (ClamAV)'),
             $type === 'nids' => t('Suricata'),
