@@ -5,6 +5,13 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.20.0 – 2026-11-27
+- **Linux: containers (Podman en Docker).** Per container de status, health, herstarts, CPU, geheugen, netwerk, schijf, grootte en volumes; verder de pods (bij Docker: compose-projecten) en de opslag. Ook rootless containers van andere gebruikers, zoals de bash-agent (`PODMAN_USERS`). Alleen lezen.
+- Antwoordt podman of docker niet binnen 8 seconden, of loopt één commando af, dan slaat de agent de containeronderdelen die ronde over; de rest van het rapport gaat door.
+- **Linux: heartbeats.** De regels die `rzmon-hb` in de wachtrij zet, gaan mee met het rapport en verdwijnen pas als RzSense ze heeft. `rzmon-hb` zelf blijft werken zoals het was.
+- In de proef leest de Go-agent de containers eens per 10 minuten mee, zodat RzSense ze kan vergelijken. Heartbeats raakt hij in de proef niet aan.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.19.0 – 2026-11-27
 - **Linux: log-checks.** De nieuwe regels van een logbestand of de journal doorzoeken op een patroon, met het aantal treffers, de laatste regels en de IP-adressen die het vaakst voorkomen.
 - **Linux: logs verzamelen.** De nieuwe regels van de gekozen bronnen (bestanden, journal, een systemd-dienst, een container) gaan in pakketjes versleuteld naar RzSense, met een wachtrij als RzSense even niet bereikbaar is.

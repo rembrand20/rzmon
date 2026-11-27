@@ -91,7 +91,7 @@ final class AgentShadow
         if ($inv) {
             $out['inventory'] = ['list' => json_decode((string) $inv['packages'], true) ?: [], 'exposed' => json_decode((string) $inv['exposed'], true) ?: []] + $inv;
         }
-        foreach (q("SELECT metric, value, updated_at FROM agent_data WHERE host_id = ? AND (metric IN ('cpu', 'mem', 'boot', 'ports', 'proclist', 'svclist', 'patch', 'time', 'smart', 'ups') OR metric LIKE 'path:%' OR metric LIKE 'disk:%' OR metric LIKE 'service:%' OR metric LIKE 'cert:%' OR metric LIKE 'proc:%'
+        foreach (q("SELECT metric, value, updated_at FROM agent_data WHERE host_id = ? AND (metric IN ('cpu', 'mem', 'boot', 'ports', 'proclist', 'svclist', 'patch', 'time', 'smart', 'ups') OR metric LIKE 'path:%' OR metric LIKE 'container:%' OR metric LIKE 'disk:%' OR metric LIKE 'service:%' OR metric LIKE 'cert:%' OR metric LIKE 'proc:%'
                      OR metric LIKE 'svcinfo:%' OR metric LIKE 'svctest:%')", [$hostId]) as $r) {
             $m = (string) $r['metric'];
             if (str_starts_with($m, 'path:')) {   // 1.348.0: een pad-check meet om de paar minuten; de laatste meting telt
@@ -111,7 +111,12 @@ final class AgentShadow
             if (strtotime((string) $r['updated_at']) < $min) {
                 continue;
             }
-            if ($m === 'smart' || $m === 'ups') {   // 1.348.0
+            if (str_starts_with($m, 'container:')) {   // 1.351.0: per container (sleutel: naam, of gebruiker/naam bij rootless)
+                $d = json_decode((string) $r['value'], true);
+                if (is_array($d)) {
+                    $out['containers'][substr($m, 10)] = $d;
+                }
+            } elseif ($m === 'smart' || $m === 'ups') {   // 1.348.0
                 $d = json_decode((string) $r['value'], true);
                 if (is_array($d)) {
                     $out[$m] = $d;
@@ -387,6 +392,28 @@ final class AgentShadow
             $add('diensten om uit te kiezen', t('{n} namen', ['n' => count($bl)]) . ($onlyB ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyB, 0, 6))]) : '')
                 . ($state ? ' · ' . t('andere status: {l}', ['l' => implode(', ', array_slice($state, 0, 6))]) : ''),
                 t('{n} namen', ['n' => count($gl)]) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 6))]) : ''), count($onlyB) + count($onlyG) <= 4 && count($state) <= 2);
+        }
+        // 1.351.0: containers (Podman en Docker): welke er zijn, en per container de status, health, image en pod
+        if (is_array($bash['containers'] ?? null) && $bash['containers'] && is_array($go['podman']['containers'] ?? null)) {
+            $gcx = [];
+            foreach ($go['podman']['containers'] as $c) {
+                if (is_array($c) && ($c['name'] ?? '') !== '') {
+                    $gcx[mb_substr((($c['user'] ?? 'root') !== 'root' ? $c['user'] . '/' : '') . $c['name'], 0, 150)] = $c;
+                }
+            }
+            $bcx = $bash['containers'];
+            $onlyB = array_keys(array_diff_key($bcx, $gcx));
+            $onlyG = array_keys(array_diff_key($gcx, $bcx));
+            $cn = static fn(array $m, array $only): string => t('{n} containers', ['n' => count($m)]) . ($only ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($only, 0, 6))]) : '');
+            $add('containers: lijst', $cn($bcx, $onlyB), $cn($gcx, $onlyG), !$onlyB && !$onlyG);
+            $ct = static fn(array $c): string => implode(' · ', array_filter([(string) ($c['state'] ?? ''), (string) ($c['health'] ?? ''), mb_substr((string) ($c['image'] ?? ''), 0, 60),
+                ($c['pod'] ?? '') !== '' ? 'pod ' . $c['pod'] : '', t('{n} herstarts', ['n' => (int) ($c['restarts'] ?? 0)])]));
+            foreach (array_intersect_key($bcx, $gcx) as $key => $b) {
+                $g = $gcx[$key];
+                $add('container ' . mb_substr((string) $key, 0, 80), $ct($b), $ct($g), (string) ($b['state'] ?? '') === (string) ($g['state'] ?? '') && (string) ($b['health'] ?? '') === (string) ($g['health'] ?? '')
+                    && (string) ($b['image'] ?? '') === (string) ($g['image'] ?? '') && (string) ($b['pod'] ?? '') === (string) ($g['pod'] ?? '') && (int) ($b['restarts'] ?? 0) === (int) ($g['restarts'] ?? 0)
+                    && (int) ($b['exit_code'] ?? 0) === (int) ($g['exit_code'] ?? 0));
+            }
         }
         // 1.348.0: schijfgezondheid, UPS en pad-checks
         if (is_array($bash['smart'] ?? null) && $bash['smart'] && is_array($go['smart'] ?? null)) {

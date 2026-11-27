@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.351.0**: **De Go-agent leest containers en heartbeats**: Podman en Docker (ook rootless), gelijk aan de bash-agent.
 - **1.350.0**: **De Go-agent kan logs**: log-checks, logs verzamelen en logs vinden, met dezelfde veiligheidsregels als de bash-agent.
 - **1.349.0**: **De Go-agent voert commando-checks uit**: kale omgeving, time-out, standaard als nobody, met de noodrem `COMMANDS=0` op de server.
 - **1.348.0**: **De Go-agent meet schijfgezondheid, UPS en pad-checks**: gelijk aan de bash-agent, met de doorvoertest.
 - **1.347.0**: **De Go-agent stuurt de softwarelijst en de klok**: Kwetsbaarheden en de check Tijd werken ook als de Go-agent het werk doet.
-- **1.346.0**: **De Go-agent kan Updates**: de lijst met klaarstaande updates en het installeren op verzoek, gelijk aan de bash-agent.
+
+## 1.351.0 – 2026-11-27
+### Nieuw
+- **De Go-agent leest nu ook containers (Podman en Docker) en stuurt heartbeats door.** Checks op een container, op Podman en heartbeat-checks houden het overnemen niet meer tegen.
+- **In de proef vergeleken:** het blok *Go-agent* krijgt de regels *containers: lijst* en *container …* (status, health, image, pod, herstarts), eens per 10 minuten.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.20.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- **Zelf herstellen** (een container of dienst laten herstarten) doet de Go-agent nog niet. Staat dat voor een check aan, dan houdt het overnemen tegen.
+- Wat overnemen verder nog tegenhoudt: Realtime, IDS, endpoint-sensoren, ransomware-detectie, Proxmox en TrueNAS, en checks op databases, VPN en netwerkverkeer.
 
 ## 1.350.0 – 2026-11-27
 ### Nieuw

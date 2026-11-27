@@ -109,6 +109,7 @@ type runReply struct {
 	Gz             int               `json:"gz"`
 	TestsRev       string            `json:"tests_rev"`
 	AgentKey       string            `json:"agent_key"`
+	HbUnknown      []string          `json:"hb_unknown"`      // 0.20.0: heartbeats zonder check in RzSense
 	PackagesOK     bool              `json:"packages_ok"`     // 0.16.0: RzSense heeft de softwarelijst
 	PackagesResend bool              `json:"packages_resend"` // RzSense wil de hele lijst opnieuw
 	PkgUpgrade     *pkgOrder         `json:"pkg_upgrade"`     // 0.15.0: updates installeren
@@ -174,7 +175,18 @@ var sentPkgID string // de uitkomst van het installeren die met dit rapport meeg
 
 // buildRun: het echte rapport, met de namen van de bash-agent. "go": 1 zegt RzSense dat dit de Go-agent is.
 func buildRun(c *Config, t0 time.Time) map[string]any {
-	rep := coreCollect(2 * time.Second)
+	// 0.20.0: containers: twee metingen met de rest van de ronde ertussen (zo kost het CPU-gebruik per container geen extra tijd)
+	var rep map[string]any
+	podman, busy := collectContainersLinux(func() { rep = coreCollect(2 * time.Second) })
+	if podman != nil {
+		rep["podman"] = podman
+	}
+	if busy != "" {
+		rep["ctr_busy"] = busy
+	}
+	if hb := collectHeartbeatsLinux(); len(hb) > 0 { // heartbeats van rzmon-hb
+		rep["hb"] = hb
+	}
 	rep["agent_version"] = Version
 	rep["os"] = "linux"
 	rep["go"] = 1
@@ -279,6 +291,10 @@ func afterRun(c *Config, r *runReply) {
 	if r.GoBack {
 		backToBash("gevraagd vanuit RzSense", false)
 		return
+	}
+	heartbeatsSent() // 0.20.0: RzSense heeft ze
+	if len(r.HbUnknown) > 0 {
+		writeState("hb.unknown", time.Now().Format("2006-01-02 15:04:05")+" RzSense heeft geen heartbeat-check met de naam "+strings.Join(r.HbUnknown, ", ")+" op deze server (＋ Check → Heartbeat)")
 	}
 	shipLogsLinux(c) // 0.19.0: logs verzamelen: los van het rapport, in pakketjes
 	softwareReply(r.PackagesOK, r.PackagesResend)

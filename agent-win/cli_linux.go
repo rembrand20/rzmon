@@ -106,6 +106,10 @@ func cliLinux(args []string) bool {
 		}
 		b, _ := json.Marshal(v)
 		fmt.Println(string(b))
+	case "ctr-check": // voor de tests: containers en heartbeats zoals ze in het rapport komen
+		p, busy := collectContainersLinux(nil)
+		b, _ := json.Marshal(map[string]any{"podman": p, "busy": busy, "hb": collectHeartbeatsLinux()})
+		fmt.Println(string(b))
 	case "cmd-check": // voor de tests: de commando-checks uit de testlijst meten, zoals in het rapport
 		b, _ := json.Marshal(collectCmdLinux())
 		fmt.Println(string(b))
@@ -433,6 +437,13 @@ func cmdShadow(quiet bool) int {
 	core := coreCollect(2 * time.Second)
 	if p := collectPatchLinux(false); p != nil { // 0.15.0: vlak nadat de bash-agent keek, uit de cache van de pakketbeheerder
 		core["patch"] = p
+	}
+	// 0.20.0: containers, eens per 10 minuten (alleen lezen), zodat RzSense ze naast die van de bash-agent kan leggen
+	if last := int64(atoiDef(readState("ctr.cmp"), 0)); time.Now().Unix()-last >= 600 {
+		writeState("ctr.cmp", fmt.Sprint(time.Now().Unix()))
+		if p, _ := collectContainersLinux(nil); p != nil {
+			core["podman"] = p
+		}
 	}
 	if paths, _ := collectPathLinux(false); paths != nil { // 0.17.0: pad-checks (zonder iperf3)
 		core["path"] = paths

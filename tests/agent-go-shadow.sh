@@ -487,6 +487,98 @@ read -r lt_hits lt_files lt_browse lt_lines <<<"$got"
 { [ "$lt_hits" -ge 4 ] && [ "$lt_files" -ge 3 ] && [ "$lt_browse" -ge 2 ] && [ "$lt_lines" -ge 6 ]; } || fail "logs: onverwacht weinig gevonden ($got)"
 echo "✔ logs: welke bestanden mogen (${#LT_PATHS[@]} paden), $lt_hits treffers van log-checks, $lt_files gevonden logs, een map doorbladeren en $lt_lines regels in de pakketjes: gelijk aan de bash-agent"
 
+# 1.351.0 (Go-agent 0.20.0): containers (Podman en Docker) en heartbeats: de echte bash-code en de Go-agent met dezelfde
+# namaak-podman en namaak-docker (vaste uitvoer; de tweede meting van "stats" geeft hogere tellers)
+C="$work/ct"
+mkdir -p "$C/bin" "$C/vol/data" "$C/vol/leeg" "$C/bcache" "$C/gdata" "$C/hb"
+head -c 5000 /dev/zero >"$C/vol/data/bestand"
+cat >"$C/bin/podman" <<EOS
+#!/bin/sh
+n="\$CT_MARK"
+case "\$*" in
+    "ps -q") echo aaa ;;
+    "version --format"*) echo 5.2.2 ;;
+    stats*) if [ -e "\$n" ]; then printf 'aaa111|2500000000|4000000000|104857600|1073741824|27.2MB / 25.1kB|4096|8192|12\nbbb222|900000000|4000000000|5242880|0|0B / 0B|0|0|1\n'
+            else : >"\$n"; printf 'aaa111|1500000000|2000000000|104857600|1073741824|27.1MB / 25kB|4096|8192|12\nbbb222|800000000|2000000000|5242880|0|0B / 0B|0|0|1\n'; fi ;;
+    "ps -a --pod"*) printf 'aaa111|web|docker.io/library/nginx:1.27|running|Up 3 hours (healthy)|0|2|webpod|false|1795000000|11.8kB (virtual 8.12MB)\nbbb222|db "prod"|quay.io/x/postgres:16|running|Up 3 hours (unhealthy)|0|0||false|1795000100|2.5MB (virtual 300MB)\nccc333|oud|alpine|exited|Exited (137) 2 days ago|137|5||false|1794000000|0B (virtual 7MB)\nddd444|infra|k8s.gcr.io/pause|running|Up 3 hours|0|0|webpod|true|1795000000|0B\n' ;;
+    "pod ps"*) printf 'webpod|Running|2\n' ;;
+    "system df"*) printf 'Images|812000000|300000000|7|3\nContainers|2511800|0|4|3\nLocal Volumes|5000|0|2|1\n' ;;
+    "ps -aq --no-trunc") printf 'aaa111\nbbb222\nccc333\nddd444\n' ;;
+    inspect*) printf 'aaa111|$C/vol/data;$C/vol/leeg;\nbbb222|$C/vol/data;\nccc333|\nddd444|\n' ;;
+    *) exit 1 ;;
+esac
+EOS
+cat >"$C/bin/docker" <<EOS
+#!/bin/sh
+case "\$*" in
+    "--version") echo "Docker version 27.3.1, build ce12230" ;;
+    info|"ps -q") echo ok ;;
+    "ps -q --no-trunc"|"ps -aq --no-trunc") printf 'eee555\nfff666\n' ;;
+    stats*) printf 'eee555|1.25%%|12.5MiB / 1.5GiB|1.2kB / 3.4MB|0B / 4.1MB|3\n' ;;
+    "version --format"*) echo 27.3.1 ;;
+    inspect*) printf 'eee555|0|1|2026-11-20T10:00:00.123456789Z|$C/vol/data;\nfff666|1|0|2026-11-19T08:30:00Z|\n' ;;
+    "ps -a --size"*) printf 'eee555|proj-web-1|nginx:latest|running|Up 2 days (starting)|proj|1.09kB (virtual 133MB)\nfff666|los|busybox|exited|Exited (1) 3 days ago||0B (virtual 4.26MB)\n' ;;
+    "ps -a --format"*) printf 'proj|running\n|exited\n' ;;
+    "system df"*) printf 'Images|1.2GB|600MB (50%%)|5|2\nContainers|1.09kB|0B (0%%)|2|1\nLocal Volumes|5kB|0B (0%%)|1|1\nBuild Cache|0B|0B|0|0\n' ;;
+    *) exit 1 ;;
+esac
+EOS
+chmod 755 "$C/bin/podman" "$C/bin/docker"
+# Heartbeats: geschreven door het echte rzmon-hb, plus een ongeldig bestand en een symlink (die horen niet mee te gaan)
+for hbset in b g; do
+    mkdir -p "$C/hb/$hbset"
+    HB_DIR="$C/hb/$hbset" bash agent/rzmon-agent.sh --hb backup-db ok "klaar in 12 s" --value 3.5 || fail "rzmon-hb faalde"
+    sleep 0.05
+    HB_DIR="$C/hb/$hbset" bash agent/rzmon-agent.sh --hb nacht.taak fail 'fout: "schijf vol" \ einde' || fail "rzmon-hb faalde"
+    printf '{"n":"x","s":"ok","t":1,"m":"","extra":"; rm -rf /"}\n' >"$C/hb/$hbset/hb.ongeldig"
+    ln -s /etc/passwd "$C/hb/$hbset/hb.link"
+done
+(
+    PATH="$C/bin:$PATH"; export CACHE_DIRECTORY="$C/bcache" CT_MARK="$C/mark.bash"; PODMAN=1; DOCKER=1; PODMAN_USERS=""; HA_MODE=0; hb_dir="$C/hb/b"
+    lap() { :; }
+    # shellcheck disable=SC1090
+    source <(sed -n '/^ctr_busy=""/,/^# Agent 1.67.0: PID van deze run/p' agent/src/40-basis-meten.sh | sed '$d')
+    # shellcheck disable=SC1090
+    source <(sed -n '/^# -\{10,\} Podman: voorbereiding/,/^pod_stats_a=""/p' agent/src/40-basis-meten.sh)
+    pod_stats_a=$(podman_stats a)
+    # shellcheck disable=SC1090
+    source <(sed -n '/^podman_json=""/,/^# -\{10,\} Proxmox VE/p' agent/src/70-containers-en-proxmox.sh | sed '$d')
+    # shellcheck disable=SC1090
+    source <(sed -n '/^hb_json=""; hb_files=()/,/^# -\{10,\} Zelf herstellen en waakhond/p' agent/src/85-meesturen.sh | sed '$d')
+    printf '{"podman":%s,"busy":"%s","hb":[%s]}' "${podman_json:-null}" "$ctr_busy" "$hb_json" >"$C/bash.json"
+) || fail "de bash-code voor containers en heartbeats faalde"
+printf 'MONITOR_URL="%s"\nPODMAN_USERS=""\nHB_DIR="%s"\n' "$BASE" "$C/hb/g" >"$C/conf"
+PATH="$C/bin:$PATH" CT_MARK="$C/mark.go" RZSENSE_BASH_CONF="$C/conf" RZSENSE_DATA="$C/gdata" "$work/rzsense" ctr-check >"$C/go.json" || fail "de Go-agent kon de containers niet lezen"
+python3 -I - "$C/bash.json" "$C/go.json" <<'PY' || fail "de Go-agent leest containers of heartbeats anders dan de bash-agent"
+import json, sys
+a, g = [json.load(open(p)) for p in sys.argv[1:3]]
+bad = []
+pa, pg = a['podman'], g['podman']
+for d in (pa, pg):
+    d['pods'] = sorted(d['pods'], key=lambda p: (p['user'], p['name']))
+    d['containers'] = sorted(d['containers'], key=lambda c: (c['user'], c['name']))
+for k in sorted(set(pa) | set(pg)):
+    if k == 'containers':
+        for x, y in zip(pa[k], pg[k]):
+            for f in sorted(set(x) | set(y)):
+                if x.get(f) != y.get(f):
+                    bad.append('container %s, %s: bash %r, go %r' % (x.get('name'), f, x.get(f), y.get(f)))
+        if len(pa[k]) != len(pg[k]):
+            bad.append('aantal containers: bash %d, go %d' % (len(pa[k]), len(pg[k])))
+    elif pa.get(k) != pg.get(k):
+        bad.append('%s: bash %s, go %s' % (k, json.dumps(pa.get(k), ensure_ascii=False), json.dumps(pg.get(k), ensure_ascii=False)))
+if a['busy'] != g['busy']:
+    bad.append('ctr_busy: bash %r, go %r' % (a['busy'], g['busy']))
+ha, hg = [[{k: v for k, v in h.items() if k != 't'} for h in d['hb']] for d in (a, g)]
+if ha != hg:
+    bad.append('heartbeats:\n bash %s\n go   %s' % (json.dumps(ha, ensure_ascii=False), json.dumps(hg, ensure_ascii=False)))
+web = [c for c in pa['containers'] if c['name'] == 'web']
+if bad or len(pa['containers']) != 5 or not web or web[0]['cpu'] != 50.0 or web[0]['volumes'] <= 0 or len(ha) != 2:
+    print('\n'.join(bad) or 'onverwachte testgegevens: %s' % json.dumps(pa, ensure_ascii=False)); sys.exit(1)
+print('✔ containers: %d containers (Podman en Docker), CPU, geheugen, netwerk, volumes, pods en opslag, en %d heartbeats: gelijk aan de bash-agent' % (len(pa['containers']), len(ha)))
+PY
+for hbset in b g; do { [ ! -e "$C/hb/$hbset/hb.ongeldig" ] && [ -L "$C/hb/$hbset/hb.link" ] && [ "$(find "$C/hb/$hbset" -name 'hb.*' -type f | wc -l)" = 2 ]; } || fail "heartbeats ($hbset): een ongeldig bestand hoort weg te gaan, een symlink blijft staan, geldige regels blijven tot RzSense ze heeft"; done
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.
@@ -524,6 +616,7 @@ printf 'AUTH_SOURCE="file"\nAUTH_LOGS="%s"\n' "$work/auth.log" >>"$work/rzmon-ag
 # 1.350.0: logs verzamelen en een log-check, uit een eigen map (LOG_DIRS)
 mkdir -p "$work/applog"; printf 'oud\n' >"$work/applog/app.log"
 printf 'LOG_DIRS="%s"\n' "$work/applog" >>"$work/rzmon-agent"
+mkdir -p "$work/hbq"; printf 'HB_DIR="%s"\nPODMAN="0"\nDOCKER="0"\n' "$work/hbq" >>"$work/rzmon-agent"   # 1.351.0: heartbeats (containers hier uit)
 echo "Oct 21 10:00:01 nas sshd[1]: Accepted password for oud from 192.0.2.1 port 1 ssh2" >"$work/auth.log"
 export RZSENSE_AUTHSTATE="$work/cache/authstate"
 unset RZSENSE_BASH_CACHE   # na het overnemen haalt de Go-agent de testlijst zelf op (in zijn eigen map)
@@ -596,6 +689,14 @@ case "$got" in "2 "[1-9]*" ok") ;; *) fail "de logs kwamen niet goed aan bij RzS
 [ -z "$(ls "$work/keys/logship/"b*.gz 2>/dev/null)" ] || fail "een bevestigd pakketje bleef in de wachtrij staan"
 [ "$(cat "$work/keys/agent.key")" = "$key" ] || fail "de sleutel is veranderd door de logs"
 echo "✔ logs: 2 treffers van de log-check en de pakketjes kwamen bij RzSense aan; de wachtrij is leeg"
+
+# Heartbeats (1.351.0): een regel van rzmon-hb gaat mee met het rapport en verdwijnt pas als RzSense hem heeft
+HB_DIR="$work/hbq" bash agent/rzmon-agent.sh --hb e2e-taak ok "klaar" || fail "rzmon-hb faalde"
+[ "$(find "$work/hbq" -name 'hb.*' -type f | wc -l)" = 1 ] || fail "rzmon-hb zette geen regel in de wachtrij"
+"$work/rzsense" shadow --quiet || fail "de ronde met een heartbeat mislukte"
+[ "$(find "$work/hbq" -name 'hb.*' -type f | wc -l)" = 0 ] || fail "de heartbeat bleef in de wachtrij staan nadat RzSense het rapport aannam"
+grep -q 'e2e-taak' "$work/data/hb.unknown" || fail "RzSense meldde niet dat er geen check met die naam is (of de Go-agent bewaarde het niet)"
+echo "✔ heartbeats: de regel van rzmon-hb ging mee en is uit de wachtrij; RzSense meldt dat er nog geen check met die naam is"
 
 # Softwarelijst (1.347.0): de hele lijst ging één keer mee; daarna alleen het controlegetal
 got=$(take '$v = q("SELECT mgr, packages, hash FROM vuln_inventory WHERE host_id = ?", [$id])->fetch(); echo $v ? ((count((array) json_decode((string) $v["packages"], true)) > 50 ? "lijst" : "leeg") . " " . (preg_match("/^[0-9a-f]{16}$/", (string) $v["hash"]) ? "hash" : "geen-hash")) : "niets";')
