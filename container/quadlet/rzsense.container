@@ -1,6 +1,7 @@
 # RzSense zelf (1.281.0). Plaats in /etc/containers/systemd/ samen met rzsense-db.container, dan:
 #   sudo systemctl daemon-reload && sudo systemctl start rzsense
-# Web op poort 8080 (voor je reverse proxy, zoals SWAG), de nooddeur (https, eigen certificaat) op 8443.
+# Web op poort 8080 (voor je reverse proxy, zoals SWAG), de nooddeur (https, eigen certificaat) op 8443,
+# en zonder reverse proxy https met Let's Encrypt op 9443 (RZMON_TLS_PORT; zie rzsense.env.example).
 # Bijwerken: RzSense meldt in de app als er een nieuwe versie is; dan:
 #   sudo podman pull ghcr.io/rembrand20/rzsense:latest && sudo systemctl restart rzsense
 [Unit]

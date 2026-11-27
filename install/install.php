@@ -11,6 +11,8 @@
 //         sudo php install/install.php --https-off   (beheer weer via http: "alleen https" en "inloggen via http weigeren" uit)
 //         sudo php install/install.php --renew-cert   (eigen certificaat van RzSense op poort 443 vernieuwen, 2 jaar geldig;
 //                                                      met vastgezette agents eerst klaarzetten, --activate wisselt, --now meteen)
+//         sudo php install/install.php --acme test|issue <domein> [e-mail]   (Let's Encrypt: proefaanvraag, of aanvragen en koppelen)
+//         sudo php install/install.php --acme renew [--force] | remove | deploy | status   (vernieuwen, loskoppelen, opnieuw koppelen)
 //         sudo php install/install.php --restore <zip> [--with-config] [--password=…]
 //              (database terugzetten; met --with-config, of op een nieuwe server zonder config.php,
 //               ook config.php plus de databasegebruiker)
@@ -292,6 +294,31 @@ if (($argv[1] ?? '') === '--renew-cert') {
     }
     exit('Nieuw certificaat, geldig tot ' . date('d-m-Y', $r['to']) . ' voor: ' . implode(', ', $r['names']) . ".\n"
         . "Agents met een vastgezet certificaat krijgen de nieuwe vingerafdruk vanzelf. Je browser vraagt bij https://<IP> opnieuw om \"toch doorgaan\".\n");
+}
+if (($argv[1] ?? '') === '--acme') {
+    // Let's Encrypt. --helper: aangeroepen door de hulpdienst (of in de container op de achtergrond) na de knop in RzSense.
+    Installer::ensureSchema();
+    I18n::set(I18n::notifyLang());
+    if (in_array('--helper', $argv, true)) {
+        exit(LetsEncrypt::runRequest());
+    }
+    $what = (string) ($argv[2] ?? '');
+    if ($what === 'status') {
+        $st = LetsEncrypt::state();
+        exit($st ? json_encode($st, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n" : "Geen Let's Encrypt-certificaat gekoppeld.\n");
+    }
+    if ($what === 'renew' && in_array('--force', $argv, true)) {
+        $what = 'force';
+    }
+    if (!in_array($what, ['test', 'issue', 'renew', 'force', 'remove', 'deploy'], true)) {
+        exit("Gebruik: sudo php install/install.php --acme test|issue <domein> [e-mail] | renew [--force] | remove | deploy | status\n");
+    }
+    $r = LetsEncrypt::run($what, (string) ($argv[3] ?? ''), (string) ($argv[4] ?? ''), 'terminal');
+    if (!$r['ok']) {
+        fwrite(STDERR, "Mislukt: {$r['error']}" . (!empty($r['hint']) ? "\n{$r['hint']}" : '') . "\n");
+        exit(1);
+    }
+    exit(($r['message'] ?? 'Klaar') . "\n");
 }
 if (($argv[1] ?? '') === '--reset-2fa') {
     Installer::ensureSchema();

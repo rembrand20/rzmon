@@ -1864,7 +1864,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
         <h2>🔒 <?= th('Beheer via https') ?></h2>
         <?= xp(t('Beheer RzSense van buiten alleen via een veilige https-verbinding.'), t('<b>Waarom:</b> open je RzSense via http, dan kan iemand op het netwerk je wachtwoord, je sessie en de pagina zelf (bijvoorbeeld een installatiecommando) zien of veranderen. <b>Wat het doet:</b> met een <b>beheeradres</b> via je reverse proxy (bijvoorbeeld SWAG met Let\'s Encrypt) en <i>Beheer alleen via https</i> gaat de webinterface altijd via https. <b>Goed om te weten:</b> agents en de REST API blijven gewoon werken: hun berichten zijn al versleuteld of hebben een eigen sleutel.')) ?>
         <div id="https-now" class="https-now"></div>
-        <label><?= th('Beheeradres') ?> <span class="hint"><?= th('(https://… via je reverse proxy, bv. https://rzmon.jouwdomein.nl)') ?></span>
+        <label><?= th('Beheeradres') ?> <span class="hint"><?= th('(https://… via je reverse proxy of met Let\'s Encrypt hieronder, bv. https://rzmon.jouwdomein.nl)') ?></span>
           <span class="inline-row"><input id="https-url" type="url" placeholder="https://rzmon.jouwdomein.nl" spellcheck="false"><button type="button" class="btn" id="https-check">🔍 <?= th('Nu controleren') ?></button></span></label>
         <div id="https-cert"></div>
         <h3 class="set-sub">🔐 <?= th('Afdwingen') ?></h3>
@@ -1882,6 +1882,31 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           </ol>
           <pre class="mono small https-conf" id="https-conf"></pre>
           <?= xp(t('Nooddeur: via het IP-adres van RzSense kom je thuis altijd binnen.'), t('<b>Nooddeur:</b> https op het IP-adres van RzSense zelf (met een eigen certificaat; kies in je browser <i>toch doorgaan</i>) blijft vanaf je interne netwerken altijd werken, ook als het certificaat van het beheeradres verlopen is. <b>Buitengesloten?</b> Op de server: <code>sudo php install/install.php --https-off</code>.')) ?>
+        </details>
+        <p class="form-error" hidden></p>
+      </div>
+
+      <!-- 1.358.0: Let's Encrypt-certificaat zelf aanvragen en koppelen (zonder reverse proxy) -->
+      <div data-sk="letsencrypt" class="card need-admin" id="le-card">
+        <h2>🔒 <?= th('Let\'s Encrypt-certificaat') ?></h2>
+        <?= xp(t('Een gratis, geldig certificaat voor je domein, aangevraagd en gekoppeld door RzSense zelf.'), t('<b>Wanneer:</b> RzSense is van buiten bereikbaar zonder reverse proxy (zoals SWAG). Heb je wel een reverse proxy, laat die het certificaat dan regelen. <b>Wat het doet:</b> RzSense vraagt met certbot een certificaat aan voor je domein (bijvoorbeeld <code>rzsense.jouwdomein.nl</code>), koppelt het aan de webserver en vernieuwt het elke 60 dagen vanzelf. Let\'s Encrypt controleert via <b>poort 80</b> dat het domein echt bij deze server hoort. <b>Goed om te weten:</b> het eigen certificaat van RzSense blijft op het IP-adres: agents met een vastgezet certificaat en de nooddeur merken er niets van. Vóór elke wijziging test RzSense de webserver; gaat er iets mis, dan zet het de vorige instelling terug.')) ?>
+        <div id="le-now"></div>
+        <label><?= th('Domein') ?> <span class="hint"><?= th('(de naam waarmee je RzSense van buiten opent)') ?></span>
+          <input id="le-domain" type="text" placeholder="rzsense.jouwdomein.nl" spellcheck="false" autocomplete="off"></label>
+        <label><?= th('E-mailadres') ?> <span class="hint"><?= th('(optioneel; Let\'s Encrypt mailt alleen bij problemen met je account)') ?></span>
+          <input id="le-email" type="email" placeholder="jij@jouwdomein.nl" spellcheck="false"></label>
+        <label class="switch"><input type="checkbox" id="le-tos"><span></span> <span><?= t('Ik ga akkoord met de <a href="https://letsencrypt.org/repository/" target="_blank" rel="noopener">voorwaarden van Let\'s Encrypt</a>') ?></span></label>
+        <div class="btn-row">
+          <button type="button" class="btn" id="le-check">🔍 <?= th('Voorcontrole') ?></button>
+          <button type="button" class="btn" id="le-test">🧪 <?= th('Proefaanvraag') ?></button>
+          <button type="button" class="btn primary" id="le-issue">🔒 <?= th('Aanvragen en koppelen') ?></button>
+          <button type="button" class="btn" id="le-renew" hidden>🔄 <?= th('Nu vernieuwen') ?></button>
+          <button type="button" class="btn danger" id="le-remove" hidden><?= th('Loskoppelen') ?></button>
+        </div>
+        <div id="le-checkout"></div>
+        <div id="le-progress"></div>
+        <details class="adv" id="le-steps"><summary><?= th('Stappenplan: zo maak je RzSense van buiten bereikbaar (wat, hoe en waar)') ?></summary>
+          <div id="le-steps-body"></div>
         </details>
         <p class="form-error" hidden></p>
       </div>

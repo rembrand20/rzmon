@@ -542,6 +542,7 @@ function init() {
   $('#access-form').addEventListener('submit', saveAccess);
   $('#access-form').addEventListener('change', (e) => saveAccess(null, e.target));
   initHttps();
+  initLe();
   initHibp();
 
   refresh();

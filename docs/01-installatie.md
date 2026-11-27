@@ -157,7 +157,9 @@ RzSense draait ook als container, naast de gewone installatie. Het zijn er twee:
   LLDP zoals bij een gewone installatie, en bereiken de agents RzSense op het adres van de server. MariaDB luistert
   alleen op `127.0.0.1`.
 - **Poorten:** **8080** (http) voor je reverse proxy, en **8443** voor de *nooddeur*: https met een eigen certificaat,
-  alleen bereikbaar vanaf je eigen netwerk. Beide stel je in met `RZMON_WEB_PORT` en `RZMON_DOOR_PORT`.
+  alleen bereikbaar vanaf je eigen netwerk. Beide stel je in met `RZMON_WEB_PORT` en `RZMON_DOOR_PORT`. Zonder reverse
+  proxy kan RzSense zelf een Let's Encrypt-certificaat aanvragen; dat komt op **9443** (`RZMON_TLS_PORT`), en de firewall
+  van de host stuurt 80 en 443 door naar de container (zie *Zonder reverse proxy* hieronder).
 - **Gegevens:** in de volumes `rzsense-data` (`config.php`, back-ups, certificaat en sleutels) en `rzsense-db`
   (de database).
 - **Veilig:** RzSense draait als `www-data`, niet als root. Het bestandssysteem is alleen-lezen, behalve het
@@ -200,6 +202,18 @@ aanbevolen manier.
 **Achter SWAG of een andere reverse proxy:** stuur je site door naar `http://<server>:8080`. Zet daarna in RzSense het
 beheeradres, bij *Instellingen → Toegang tot RzSense → Beheer van buiten*. Zie
 [Toegang en beheer](11-toegang-en-beheer.md).
+
+**Zonder reverse proxy, met Let's Encrypt:** stuur in je router poort 80 en 443 door naar de server, en laat de
+firewall van de host ze doorsturen naar de container:
+
+```bash
+sudo firewall-cmd --permanent --add-forward-port=port=80:proto=tcp:toport=8080
+sudo firewall-cmd --permanent --add-forward-port=port=443:proto=tcp:toport=9443
+sudo firewall-cmd --reload
+```
+
+Vraag het certificaat daarna aan op *Instellingen → Toegang tot RzSense → Beheer van buiten → 🔒 Let's
+Encrypt-certificaat*. Zie [Toegang en beheer](11-toegang-en-beheer.md#zonder-reverse-proxy-lets-encrypt-door-rzsense-zelf).
 
 ### Met compose of Docker
 
@@ -610,23 +624,24 @@ toegestane apparaten; zie [Toegang en beheer](11-toegang-en-beheer.md).
 
 ### Let's Encrypt
 
-Hiervoor heb je een domeinnaam nodig die naar je server wijst, en een open poort 80.
+Hiervoor heb je een domeinnaam nodig die naar je server wijst, en poort 80 en 443 die vanaf internet bij RzSense
+uitkomen.
+
+**Met het script (`install-rocky.sh`) of in de container** vraagt RzSense het certificaat zelf aan, koppelt het en
+vernieuwt het: *Instellingen → Toegang tot RzSense → Beheer van buiten → 🔒 Let's Encrypt-certificaat*. Daar staat ook
+een stappenplan voor je domeinprovider, je router en de firewall. Zie
+[Toegang en beheer](11-toegang-en-beheer.md#zonder-reverse-proxy-lets-encrypt-door-rzsense-zelf). Gebruik bij een
+installatie met het script geen `certbot --apache`: `install-rocky.sh` schrijft `/etc/httpd/conf.d/rzmon.conf` bij elke
+run opnieuw, en wat certbot daarin verandert verdwijnt dan.
+
+**Met de hand geïnstalleerd** (bijvoorbeeld op Debian/Ubuntu):
 
 ```bash
-# Rocky/RHEL/Alma (certbot staat in EPEL)
-sudo dnf -y install epel-release
-sudo dnf -y install certbot python3-certbot-apache mod_ssl
-sudo certbot --apache -d rzsense.jouwdomein.nl
-
-# Debian/Ubuntu
 sudo apt install certbot python3-certbot-apache      # of python3-certbot-nginx
 sudo certbot --apache -d rzsense.jouwdomein.nl        # of --nginx
 ```
 
 Certbot vernieuwt het certificaat vanzelf; controleer dat met `systemctl list-timers | grep certbot`.
-
-Let op bij een installatie met het script: `install-rocky.sh` schrijft `/etc/httpd/conf.d/rzmon.conf` bij elke run
-opnieuw, ook bij bijwerken met de knop. Wat je zelf (of certbot) in dat bestand verandert, verdwijnt dan.
 
 ### Eigen certificaat op je netwerk
 

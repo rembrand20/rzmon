@@ -201,6 +201,96 @@ http of https, via je vertrouwde proxy of niet, van binnen of van buiten.
    AdGuard als DNS, dan kan RzSense het certificaat controleren (anders: een regel in `/etc/hosts` van de RzSense-server).
 4. Open RzSense via `https://rzmon.jouwdomein.nl`, vul dat in als **Beheeradres** en klik op **Nu controleren**.
 
+### Zonder reverse proxy: Let's Encrypt door RzSense zelf
+
+Heb je geen reverse proxy, dan kan RzSense zelf een gratis certificaat van Let's Encrypt aanvragen, koppelen en
+vernieuwen. Dat staat op *Instellingen → Toegang tot RzSense → Beheer van buiten*, op de kaart
+**🔒 Let's Encrypt-certificaat**. Het werkt bij de gewone installatie (`install-rocky.sh`, Apache) en in de container.
+Heb je wel een reverse proxy (zoals SWAG), laat die het certificaat dan regelen.
+
+**Wat je nodig hebt, en waar je het regelt:**
+
+1. **Bij je domeinprovider** (TransIP, Cloudflare, Versio …): een **A-record** voor bijvoorbeeld
+   `rzsense.jouwdomein.nl` naar het publieke IP-adres van je internetlijn. Bij Cloudflare zet je de proxy uit (grijze
+   wolk, *DNS only*). Een **AAAA-record** (IPv6) alleen als poort 80 en 443 ook via IPv6 bij RzSense uitkomen; anders
+   weghalen, want Let's Encrypt probeert IPv6 eerst.
+2. **In je router** (*port forwarding*, *poorten doorsturen* of *NAT*): stuur **TCP 80** en **TCP 443** door naar het
+   LAN-IP van RzSense, naar dezelfde poorten. Poort 80 is nodig: daar controleert Let's Encrypt bij elke aanvraag en
+   vernieuwing dat het domein echt bij jouw server hoort.
+3. **Op de server**:
+   - **Gewone installatie:** http en https staan al open in de firewall (`install-rocky.sh` doet dat). Het aanvragen en
+     koppelen doet de **hulpdienst** als root; die installeert `install-rocky.sh` ook. Ontbreekt hij, dan:
+     `sudo bash /var/www/rzmon/install/install-helper.sh`. certbot installeert RzSense zelf als het nog niet op de
+     server staat (uit EPEL).
+   - **Container:** de container draait zonder root en kan daarom niet zelf op poort 80 en 443 luisteren. Laat de
+     firewall van de host ze doorsturen naar de poorten van de container: 80 naar `RZMON_WEB_PORT` (standaard 8080) en
+     443 naar `RZMON_TLS_PORT` (standaard 9443):
+     ```bash
+     sudo firewall-cmd --permanent --add-forward-port=port=80:proto=tcp:toport=8080
+     sudo firewall-cmd --permanent --add-forward-port=port=443:proto=tcp:toport=9443
+     sudo firewall-cmd --reload
+     ```
+     De nooddeur (8443) blijft zoals hij is.
+4. **Thuis** (aangeraden): een **DNS-rewrite** in AdGuard Home (*Filters → DNS-herschrijvingen*):
+   `rzsense.jouwdomein.nl` → het LAN-IP van RzSense. Dan gebruik je thuis hetzelfde adres met hetzelfde certificaat,
+   ook als je router geen *NAT-loopback* kent, en kan RzSense zijn eigen certificaat controleren.
+
+De kaart heeft een **stappenplan** met precies deze stappen, ingevuld met jouw domein, LAN-IP, publieke IP en poorten,
+en de commando's om te kopiëren.
+
+**Aanvragen:**
+
+1. Vul het **domein** in (standaard het beheeradres) en eventueel een **e-mailadres**. Vink aan dat je akkoord gaat met
+   de voorwaarden van Let's Encrypt.
+2. **Voorcontrole**: RzSense kijkt in de openbare DNS (zoals Let's Encrypt die ziet) of het domein naar het publieke
+   IP-adres van je internetlijn wijst, en of er een IPv6-adres is.
+3. **Proefaanvraag**: een echte aanvraag bij de testserver van Let's Encrypt. Daarmee weet je zeker dat poort 80 goed
+   doorgestuurd wordt, zonder hun limieten te raken (vijf mislukte pogingen per uur).
+4. **Aanvragen en koppelen**: het echte certificaat. De voortgang en het logboek zie je op de kaart.
+5. Klik daarna op **Als beheeradres gebruiken**, open RzSense via `https://rzsense.jouwdomein.nl` en zet bij *Beheer via
+   https* **Beheer alleen via https** en **2FA verplicht** aan. Overweeg ook *Onzichtbaar van buiten*.
+
+**Zo werkt het:**
+
+- RzSense vraagt het certificaat aan met **certbot**, met de *webroot*-methode: certbot zet een controlebestand neer en
+  de webserver geeft het op `http://<domein>/.well-known/acme-challenge/`. Certbot verandert zelf niets aan de webserver.
+- Vóór de aanvraag test RzSense zelf of de webserver die controlebestanden geeft. Vóór het koppelen test het de nieuwe
+  instelling (`apachectl configtest` of `nginx -t`); keurt de webserver die af, dan zet RzSense de vorige terug.
+- **Gewone installatie:** een eigen virtuele host op de domeinnaam, in `/etc/httpd/conf.d/zz-rzmon-letsencrypt.conf`,
+  met dezelfde regels als `rzmon.conf`. `install-rocky.sh` maakt hem bij elke update opnieuw, zodat hij gelijk blijft.
+  Het certificaat staat in `/etc/letsencrypt/live/<domein>/`.
+- **Container:** https met het certificaat op `RZMON_TLS_PORT`. Het certificaat staat in het datavolume
+  (`/var/lib/rzmon/letsencrypt`), dus een nieuwe image of een herstart verandert er niets aan.
+- **Vernieuwen gaat vanzelf:** RzSense vraagt certbot elke nacht om te vernieuwen; certbot doet dat vanaf 30 dagen
+  voor het verloopt (een certificaat is 90 dagen geldig). Daarna herlaadt RzSense de webserver. Lukt vernieuwen niet,
+  dan zie je dat op de kaart en krijg je een melding, ruim voordat het certificaat verloopt. **Nu vernieuwen** kan
+  altijd.
+- **De agents en de nooddeur merken er niets van.** Op het IP-adres blijft het eigen certificaat van RzSense, ook voor
+  agents die zonder domeinnaam verbinden: de virtuele host voor het domein geldt alleen voor wie de domeinnaam
+  gebruikt. Agents met een vastgezet certificaat hoef je dus niet aan te passen.
+- **Loskoppelen** (met je wachtwoord) haalt de virtuele host weg en verwijdert het certificaat. Via het domein krijg
+  je dan weer het eigen certificaat van RzSense.
+
+**In de terminal** (gewone installatie, als root):
+
+```bash
+sudo php /var/www/rzmon/install/install.php --acme test rzsense.jouwdomein.nl      # proefaanvraag
+sudo php /var/www/rzmon/install/install.php --acme issue rzsense.jouwdomein.nl     # aanvragen en koppelen (e-mailadres erachter mag)
+sudo php /var/www/rzmon/install/install.php --acme renew --force                   # nu vernieuwen
+sudo php /var/www/rzmon/install/install.php --acme status
+sudo php /var/www/rzmon/install/install.php --acme remove                          # loskoppelen
+```
+
+**Gaat het mis?** De kaart vertaalt de foutmelding van Let's Encrypt in gewone taal, met wat je kunt doen:
+
+| Melding | Oorzaak en oplossing |
+|---|---|
+| *Let's Encrypt kan poort 80 niet bereiken* | Poort 80 staat niet door in je router, of de firewall van de server houdt hem tegen. |
+| *Let's Encrypt kwam ergens anders uit dan bij RzSense* | Poort 80 gaat naar een ander apparaat, of een AAAA-record wijst naar iets anders. |
+| *Staat niet (goed) in de openbare DNS* | Het A-record ontbreekt of wijst naar een ander adres. Een nieuw record kan tot een uur duren. |
+| *Te veel aanvragen* | De limiet van Let's Encrypt. Wacht een uur en gebruik intussen de proefaanvraag. |
+| *De hulpdienst reageert niet* | Op de server: `systemctl status rzmon-acme.path`, of installeer de hulpdienst opnieuw. |
+
 Draait je proxy op een andere machine en stuurt hij het verkeer via http door, dan gaat het laatste stuk onversleuteld
 over je netwerk. *Status* waarschuwt daarvoor en toont de regels voor SWAG om te kopiëren:
 
@@ -218,8 +308,9 @@ is. Je ziet ook of de naam vanaf de RzSense-server intern wijst (de DNS-rewrite 
 
 RzSense controleert het certificaat elke dag:
 
-- een **info**-melding **14 dagen** voordat het verloopt. SWAG vernieuwt normaal rond 30 dagen van tevoren, dus deze
-  melding betekent: vernieuwen lukt niet. Kijk in de log van SWAG;
+- een **info**-melding **14 dagen** voordat het verloopt. SWAG (of RzSense zelf, met Let's Encrypt hierboven) vernieuwt
+  normaal rond 30 dagen van tevoren, dus deze melding betekent: vernieuwen lukt niet. Kijk in de log van SWAG, of op de
+  kaart *Let's Encrypt-certificaat*;
 - een **warning** als het verlopen of ongeldig is (verkeerde naam, niet vertrouwd, geen verbinding), en een melding als
   het weer in orde is.
 

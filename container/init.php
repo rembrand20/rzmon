@@ -6,7 +6,8 @@ declare(strict_types=1);
  *  1. config.php in het datavolume (/var/lib/rzmon) aanmaken bij de eerste start (database uit de omgeving);
  *  2. wachten tot de database er is;
  *  3. eerste start: tabellen en de eerste beheerder; een nieuwe versie: eerst een snelle back-up, dan de database bijwerken;
- *  4. het certificaat van de nooddeur aanmaken of vernieuwen.
+ *  4. het certificaat van de nooddeur aanmaken of vernieuwen;
+ *  5. Let's Encrypt: het nginx-blok voor het domein terugzetten (1.358.0).
  * Wachtwoorden komen uit RZMON_DB_PASS / RZMON_ADMIN_PASS of uit een bestand (…_FILE, zoals Podman-secrets).
  */
 
@@ -128,4 +129,14 @@ if ($left < 30 * 86400) {
     rename("$key.tmp", $key);
     rename("$crt.tmp", $crt);
     say('certificaat van de nooddeur aangemaakt (' . implode(', ', $names) . ')');
+}
+
+// 5. Let's Encrypt (1.358.0): de map voor de controlebestanden, en het nginx-blok voor het domein als er een certificaat is
+@mkdir(DATA . '/acme/.well-known/acme-challenge', 0755, true);
+try {
+    if ($msg = LetsEncrypt::boot()) {
+        say($msg);
+    }
+} catch (Throwable $e) {
+    say("Let's Encrypt niet gekoppeld: " . $e->getMessage());
 }

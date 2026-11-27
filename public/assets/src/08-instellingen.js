@@ -90,7 +90,8 @@ function renderHttps() {
   let html = '';
   if (h.admin_url && s.admin) {
     const dns = s.dns ? (s.dns.ips.length ? (s.dns.private ? `<div class="small"><span class="good">✔ ${L('DNS: {host} wijst intern naar {ip}', { host: esc(host), ip: esc(s.dns.ips.join(', ')) })}</span></div>`
-      : `<div class="small"><span class="warn-txt">⚠️ ${L('DNS: {host} wijst naar {ip} (openbaar). Zet in AdGuard Home een DNS-rewrite naar het LAN-IP van SWAG.', { host: esc(host), ip: esc(s.dns.ips.join(', ')) })}</span></div>`)
+      : h.le_domain === host ? `<div class="small"><span class="muted">ℹ️ ${L('DNS: {host} wijst naar {ip} (openbaar, voor Let\'s Encrypt). Tip: zet thuis in AdGuard Home een DNS-rewrite naar het LAN-IP van RzSense.', { host: esc(host), ip: esc(s.dns.ips.join(', ')) })}</span></div>`
+        : `<div class="small"><span class="warn-txt">⚠️ ${L('DNS: {host} wijst naar {ip} (openbaar). Zet in AdGuard Home een DNS-rewrite naar het LAN-IP van SWAG.', { host: esc(host), ip: esc(s.dns.ips.join(', ')) })}</span></div>`)
       : `<div class="small"><span class="bad">✘ ${L('DNS: {host} is vanaf de RzSense-server niet te vinden', { host: esc(host) })}</span></div>`) : '';
     html += certBlock('🌍 ' + L('Beheeradres'), s.admin, dns);
   } else if (h.admin_url) html += `<p class="muted small">${L('Nog niet gecontroleerd: klik op Nu controleren.')}</p>`;
@@ -844,7 +845,7 @@ const SET_NAV = [
     ['reports', L('Rapporten'), ['reports', 'morning'], L('Alle overzichten die RzSense per e-mail of push verstuurt, het Maandoverzicht en de ochtendsamenvatting.')]]],
   ['toegang', SET_IC('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'), L('Toegang tot RzSense'), [
     ['access', L('Inloggen'), ['access'], L('Lokaal netwerk, uitloggen en blokkeren na mislukte pogingen.')],
-    ['outside', L('Beheer van buiten'), ['https', 'outside'], L('Veilig beheren van buiten je netwerk: https, toegestane apparaten en de noodlink.')],
+    ['outside', L('Beheer van buiten'), ['https', 'letsencrypt', 'outside'], L('Veilig beheren van buiten je netwerk: https, een Let\'s Encrypt-certificaat, toegestane apparaten en de noodlink.')],
     ['users', L('Gebruikers'), ['users', 'confirmpw'], L('Accounts, rollen, tweestapsverificatie en bevestigen bij acties.')],
     ['hibp', L('Datalekken'), ['hibp'], L('Welke e-mailadressen RzSense controleert op datalekken. De lekken zelf staan bij IDS → Datalekken.')]]],   // 1.330.0
   ['bescherming', SET_IC('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'), L('IDS en EDR'), [
@@ -1799,6 +1800,7 @@ async function loadSettings() {
   loadSecurity();
   loadAccess();
   loadHttps();
+  loadLe();
   loadHibp();
   loadDbInfo();
   loadNetscanSettings();
