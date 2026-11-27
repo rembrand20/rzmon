@@ -61,6 +61,13 @@ func cliLinux(args []string) bool {
 		os.Exit(cmdTest())
 	case "doctor":
 		os.Exit(cmdDoctor(has("--json")))
+	case "watch": // 0.30.0: de dienst voor Realtime en de endpoint-sensoren (door de agent zelf gestart)
+		os.Exit(cmdWatch())
+	case "run": // een ronde nu (de watcher start die bij een gebeurtenis); alleen als de Go-agent het werk doet
+		if !modeActive() {
+			os.Exit(0)
+		}
+		os.Exit(cmdRun(has("--quiet")))
 	case "shadow":
 		// 0.13.0: dezelfde timer voor beide: doet de Go-agent het werk, dan is dit de echte ronde
 		if modeActive() {
@@ -237,6 +244,11 @@ func cliLinux(args []string) bool {
 		}
 		b, _ := json.Marshal(v)
 		fmt.Println(string(b))
+	case "edr-parse": // voor de tests: de parsers van de endpoint-sensoren (zoals rzmon-agent.sh --edr-parse)
+		if len(os.Args) < 3 {
+			os.Exit(2)
+		}
+		os.Exit(edrParseCLI(os.Args[2]))
 	case "ids-scan": // de trage controle op de achtergrond (door de agent zelf gestart)
 		if len(os.Args) < 3 {
 			os.Exit(2)
@@ -593,6 +605,10 @@ func cmdShadow(quiet bool) int {
 	if obs := collectIdsObsLinux(); obs != nil { // 0.27.0: IDS als proef: alleen waarnemen, nergens ingrijpen
 		idsDryRun(obs, c) // 0.29.0: wat de Go-agent zou blokkeren of open laten (er wordt niets uitgevoerd)
 		core["ids_obs"] = obs
+	}
+	// 0.30.0: staan de endpoint-sensoren aan, dan de stand van de sensoren op deze server (de Go-agent verandert hier niets)
+	if conf, _ := readShellConf(bashConfPath()); edrWanted(readText(filepath.Join(bashCachePath(), "tests.cache")), conf) {
+		core["edr_obs"] = edrInfo(conf, false)
 	}
 	if paths, _ := collectPathLinux(false); paths != nil { // 0.17.0: pad-checks (zonder iperf3)
 		core["path"] = paths

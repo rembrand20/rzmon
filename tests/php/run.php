@@ -5389,6 +5389,16 @@ foreach (['auth_events', 'weblog_swag', 'weblog_ha', 'weblog_vw', 'patch_on', 'i
 save_setting('weblog_swag', '1');
 save_setting('ids_enabled', '1');   // logs van webdiensten horen bij het IDS
 ok(!in_array('Logs van webdiensten', AgentTakeover::blockers($tkHost()), true) && !in_array('IDS', AgentTakeover::blockers($tkHost()), true), 'logs van webdiensten staan aan, maar deze server heeft er geen: dat is geen blokkade; het IDS zelf ook niet meer (1.360.0): ' . implode(', ', AgentTakeover::blockers($tkHost())));
+AgentData::put($tkH, 'shadow', ['at' => now(), 'rounds' => 1, 'rounds_ok' => 1]);
+AgentShadow::noteBashEdr($tkH, ['audit' => 'ok', 'file' => 'ok', 'ctr' => 'none', 'fam' => 'rhel', 'epel' => 1, 'systemd' => 1, 'yara' => 'missing', 'queue' => 4, 'ysha' => 'x']);
+$tkEb = AgentShadow::bashNow($tkH)['edr_obs'] ?? [];
+$tkEc = static fn(array $go) => array_column(AgentShadow::compare(['edr_obs' => $go], ['edr_obs' => $tkEb]), 'ok', 'k')['EDR (proef): sensoren'] ?? null;
+ok(!isset($tkEb['queue']) && $tkEc(['audit' => 'ok', 'file' => 'ok', 'ctr' => 'none', 'fam' => 'rhel', 'epel' => 1, 'systemd' => 1, 'yara' => 'missing']) === true
+    && $tkEc(['audit' => 'locked', 'file' => 'ok', 'ctr' => 'none', 'fam' => 'rhel', 'epel' => 1, 'systemd' => 1, 'yara' => 'missing']) === false,
+    'EDR-proef: de stand van de sensoren wordt vergeleken (zonder de wachtrij), en regels die er niet staan zijn een verschil');
+ok(!array_intersect(['Realtime', 'Endpoint-sensoren (EDR)'], AgentTakeover::blockers(['realtime' => 1] + $tkHost())), 'Realtime en de endpoint-sensoren houden het overnemen niet meer tegen (1.361.0): ' . implode(', ', AgentTakeover::blockers(['realtime' => 1] + $tkHost())));
+AgentData::put($tkH, 'shadow', null);
+AgentData::put($tkH, 'edr_obs_bash', null);
 $tkFw = static fn(array $fw, array $iso = []) => array_column(AgentShadow::compare(['ids_obs' => ['fimc' => [], 'fw' => $fw, 'iso' => $iso]], ['ids_obs' => ['has2' => true, 'fimc' => []]]), 'ok', 'k');
 ok(($tkFw(['build' => true, 'sig' => 'abc', 'bash_sig' => 'abc', 'n' => 3, 'kn' => 1, 'decoy' => '2223'])['IDS (proef): firewall (wat de Go-agent zou zetten)'] ?? null) === true
     && ($tkFw(['build' => true, 'sig' => 'abc', 'bash_sig' => 'xyz', 'n' => 3, 'kn' => 1])['IDS (proef): firewall (wat de Go-agent zou zetten)'] ?? null) === false
@@ -5410,7 +5420,7 @@ ok(AgentTakeover::blockers($tkHost()) === [], 'een uitgeschakelde check telt nie
 q('UPDATE hosts SET agent_tick = 30 WHERE id = ?', [$tkH]);
 ok(count(AgentTakeover::blockers($tkHost())) === 1, 'vaker dan elke minuut rapporteren houdt het tegen');
 q('UPDATE hosts SET agent_tick = NULL, realtime = 1 WHERE id = ?', [$tkH]);
-ok(AgentTakeover::blockers($tkHost()) === ['Realtime'], 'realtime houdt het tegen');
+ok(AgentTakeover::blockers($tkHost()) === [], 'Realtime houdt het overnemen niet meer tegen (1.361.0: de Go-agent heeft een eigen watcher)');
 q('UPDATE hosts SET realtime = 0 WHERE id = ?', [$tkH]);
 $tkC = AgentTakeover::check($tkH);
 ok(!$tkC['can'] && $tkC['proof'] !== [] && isset(AgentTakeover::request($tkH, true)['error']) && (int) $tkHost()['go_want'] === 0, 'zonder proef kan overnemen niet, en de vraag wordt niet bewaard');

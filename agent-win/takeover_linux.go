@@ -73,6 +73,11 @@ func backToBash(reason string, hold bool) {
 	stamp := time.Now().Format("2006-01-02 15:04:05")
 	err := systemctlDo("enable", "--now", bashTimer)
 	_ = systemctlDo("enable", "--now", bashGuard) // bestaat pas vanaf bash-agent 1.118.0
+	watchStop()
+	if readState("bash.watch") == "1" { // 0.30.0: de watcher van de bash-agent weer aan
+		_ = systemctlDo("enable", "--now", bashWatch)
+		dropState("bash.watch")
+	}
 	writeState("mode", "shadow")
 	dropState("fails")
 	if hold {
@@ -121,6 +126,8 @@ type runReply struct {
 	PkgUpgrade     *pkgOrder         `json:"pkg_upgrade"`     // 0.15.0: updates installeren
 	GoBack         bool              `json:"go_back"`
 	URLPins        map[string]string `json:"url_pins"`
+	EdrYara        string            `json:"edr_yara"` // 0.30.0: nieuwe YARA-regels (base64)
+	EdrKill        [][]int64         `json:"edr_kill"` // processen die RzSense meteen wil laten stoppen: [[pid, starttijd] …]
 	GoUpdate       *struct {
 		Version string `json:"version"`
 		SHA     string `json:"sha256"`
@@ -180,6 +187,7 @@ var pinSpecRe = regexp.MustCompile(`^sha256//[A-Za-z0-9+/]{43}=(;sha256//[A-Za-z
 var sentPkgID string // de uitkomst van het installeren die met dit rapport meeging
 var sentIds idsRun   // 0.29.0: wat er voor het IDS na een aangenomen rapport vastgelegd wordt
 var sentAct bool     // er gingen regels van het logboek mee
+var sentEdr edrRun   // 0.30.0: de wachtrij van de endpoint-sensoren die met dit rapport meeging
 
 // buildRun: het echte rapport, met de namen van de bash-agent. "go": 1 zegt RzSense dat dit de Go-agent is.
 func buildRun(c *Config, t0 time.Time) map[string]any {
@@ -247,6 +255,15 @@ func buildRun(c *Config, t0 time.Time) map[string]any {
 	}
 	if db := collectDbLinux(); db != nil { // 0.24.0: databasechecks (alleen lezen)
 		rep["db"] = db
+	}
+	// 0.30.0: Realtime (de stand van de watcher) en de endpoint-sensoren (de wachtrij en de stand)
+	ownPidsNote()
+	if rt := realtimeReport(); rt != nil {
+		rep["realtime"] = rt
+	}
+	sentEdr = collectEdrLinux()
+	if sentEdr.json != nil {
+		rep["edr"] = sentEdr.json
 	}
 	// 0.29.0: het IDS: waarnemen én ingrijpen (firewall, lokaas-poort, proces stoppen, isoleren, account vergrendelen)
 	sentIds = collectIdsLinux(c)
@@ -347,6 +364,13 @@ func afterRun(c *Config, r *runReply) {
 	if r.TestsRev != "" && r.TestsRev != readState("tests.rev") {
 		dropState("tests.rev") // de volgende ronde haalt de lijst opnieuw op
 	}
+	if sentEdr.commit != nil && sentEdr.json != nil { // de verstuurde gebeurtenissen uit de wachtrij
+		sentEdr.commit()
+		conf, _ := readShellConf(bashConfPath())
+		edrYaraUpdate(r.EdrYara)
+		edrKillNow(r.EdrKill, conf)
+	}
+	watchEnsure()              // de watcher aan of uit, naar wat RzSense voor deze server wil
 	if sentIds.commit != nil { // de nieuwe stand van bewaakte bestanden bewaren, lokaas-treffers uit de set
 		sentIds.commit()
 	}
@@ -388,9 +412,6 @@ func takeOver(c *Config) error {
 			return fmt.Errorf("deze server is er niet klaar voor (%s); voer het installatiecommando uit RzSense opnieuw uit", k)
 		}
 	}
-	if active, _ := systemctlActive("rzmon-watch.service"); active {
-		return fmt.Errorf("de realtime-watcher van de bash-agent draait; zet Realtime in RzSense eerst uit")
-	}
 	dropState("tests.rev")
 	if _, err := fetchTests(c); err != nil {
 		return fmt.Errorf("testlijst niet opgehaald: %w", err)
@@ -400,6 +421,15 @@ func takeOver(c *Config) error {
 	if err := systemctlDo("disable", "--now", bashTimer); err != nil {
 		_ = systemctlDo("enable", "--now", bashGuard)
 		return err
+	}
+	// 0.30.0: de watcher van de bash-agent uit (die zou anders rondes van de bash-agent blijven starten); de Go-agent start
+	// zijn eigen watcher als Realtime of de endpoint-sensoren aan staan. Bij teruggaan komt die van de bash-agent terug.
+	if out, _ := run(5*time.Second, "systemctl", "is-enabled", bashWatch); strings.TrimSpace(out) == "enabled" {
+		writeState("bash.watch", "1")
+		_ = systemctlDo("disable", "--now", bashWatch)
+	} else if active, _ := systemctlActive(bashWatch); active {
+		writeState("bash.watch", "1")
+		_ = systemctlDo("stop", bashWatch)
 	}
 	for i := 0; i < 30; i++ { // tot een minuut wachten op een ronde van de bash-agent die nog loopt
 		if out, _ := run(5*time.Second, "systemctl", "is-active", "rzmon-agent.service"); strings.TrimSpace(out) != "activating" && strings.TrimSpace(out) != "active" {

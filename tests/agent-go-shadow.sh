@@ -1445,6 +1445,184 @@ got=$(fim_cmp basismeting "$J/bash4.json" "$J/fim4.go.json") || { echo "$got"; e
 [ "${got#basismeting 1 }" != "$got" ] && [ "${got##* 0 0 0}" = "" ] || fail "bestanden bewaken: een nieuwe basismeting stuurt alles opnieuw: $got"
 echo "✔ het IDS grijpt in zoals de bash-agent: firewall (blokkades, bekende aanvallers, uitgaand, lokaas-poort, nooit RzSense zelf), TrueNAS, IDS_BLOCK=0, een proces stoppen, isoleren en een account vergrendelen, het logboek, en bestanden bewaken (alleen wijzigingen); de dry-run stuurt niets naar nft"
 
+# 1.361.0 (Go-agent 0.30.0): de endpoint-sensoren (EDR). De parsers krijgen dezelfde testgegevens als de bash-agent; het
+# onderdeel "edr" van het rapport, de auditd-regels, de netwerksensor en de bestandssensor draaien naast de echte bash-code
+# met een namaak-auditctl, -pidof en -ss.
+E="$work/edr"; mkdir -p "$E/bin" "$E/b" "$E/g/gc" "$E/g/gd"
+for kind in audit eve; do
+    CACHE_DIRECTORY="$E/b" EDR_ROOT=/opt/rzmon EDR_USER=www-data EDR_MARK=0123456789abcdef01234567 bash agent/rzmon-agent.sh --edr-parse "$kind" <"tests/data/$( [ "$kind" = audit ] && echo audit.log || echo eve.json)" >"$E/$kind.bash" || fail "de bash-parser faalde ($kind)"
+    RZSENSE_DATA="$E/g/gd" EDR_ROOT=/opt/rzmon EDR_USER=www-data EDR_MARK=0123456789abcdef01234567 "$work/rzsense" edr-parse "$kind" <"tests/data/$( [ "$kind" = audit ] && echo audit.log || echo eve.json)" >"$E/$kind.go" || fail "de Go-parser faalde ($kind)"
+    cmp -s "$E/$kind.bash" "$E/$kind.go" || fail "endpoint-sensoren: de parser ($kind) geeft iets anders dan de bash-agent: $(diff "$E/$kind.bash" "$E/$kind.go" | head -n 6)"
+done
+[ "$(wc -l <"$E/audit.go")" -ge 10 ] && grep -q '"own":"agent"' "$E/audit.go" && grep -q '"k":"a"' "$E/audit.go" && grep -q '"sc":"execve"' "$E/audit.go" || fail "de audit-parser gaf te weinig: $(head -c 600 "$E/audit.go")"
+cat >"$E/bin/auditctl" <<'EOF'
+#!/bin/bash
+# namaak-auditctl: houdt de regels bij in AUD_DIR/rules
+d=${AUD_DIR:?}; mkdir -p "$d"; touch "$d/rules"
+echo "auditctl $*" >>"$d/log"
+[ -f "$d/locked" ] && [ "$1" != -l ] && exit 1
+case "$1" in
+    -l) cat "$d/rules" ;;
+    -D) grep -v "key=$3\$" "$d/rules" >"$d/rules.tmp"; mv -f "$d/rules.tmp" "$d/rules" ;;
+    -a|-w) echo "-regel $* key=${*: -1}" >>"$d/rules" ;;
+esac
+exit 0
+EOF
+cat >"$E/bin/pidof" <<'EOF'
+#!/bin/sh
+[ "$1" = auditd ] && [ ! -f "${AUD_DIR:?}/stopped" ] && { echo 321; exit 0; }
+exit 1
+EOF
+cat >"$E/bin/inotifywait" <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+cat >"$E/bin/yara" <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+cat >"$E/bin/ss" <<EOF
+#!/bin/sh
+case "\$*" in *established*) cat "$E/ss-e.txt" ;; *) cat "$E/ss-l.txt" ;; esac
+EOF
+chmod +x "$E/bin/"*
+printf 'MONITOR_URL="https://198.51.100.200"\nPODMAN="0"\nDOCKER="0"\nSURICATA_EVE="%s"\n' "$E/eve.json" >"$E/g/conf"
+edr_bash() {  # edr_bash report|net|file <uitvoer> [argument]: de echte code van de bash-agent
+    (
+        set +u   # de bash-agent draait zonder set -u
+        export PATH="$E/bin:$PATH" AUD_DIR="$E/b/aud" CACHE_DIRECTORY="$E/b"
+        HA_MODE=0; TEST=0; EDR=""; PODMAN=0; DOCKER=0; SURICATA_EVE="$E/eve.json"; MONITOR_URL="https://198.51.100.200"; MONITOR_URL_FALLBACK=""
+        t_dir="$E/b"; t_cache="$E/b/tests.cache"; i_dir="$E/b/ids"
+        lap() { :; }; id() { echo 0; }
+        act_log() { printf '%s|%s|%s|%s\n' "$1" "$2" "$3" "${4-}" >>"$E/b/act"; }
+        # shellcheck disable=SC1090
+        source <(sed -n '/^json_escape() {/,/^}/p; /^json_text() {/,/^}/p' agent/src/15-realtime.sh; sed -n '/^ss_listen() {/,/^}/p' agent/src/00-kop.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^EDR="\${EDR-}"$/,/^# Testen zonder RzSense/p' agent/src/10-edr-sensoren.sh)
+        case "$1" in
+            report)
+                # shellcheck disable=SC1090
+                source <(sed -n '/^edr_json=""$/,/^fi$/p' agent/src/60-ids-en-edr.sh)
+                printf '%s' "${edr_json:-null}" >"$2"
+                if [ "${3-}" = commit ] && [ -n "$edr_json" ]; then
+                    # shellcheck disable=SC1090
+                    source <(sed -n '/if \[ -n "\$edr_json" \] && \[ -s "\$edr_dir\/edr.sending" \]; then/,/^    fi$/p; /eve.pos.new" \] && mv/p' agent/src/90-versturen.sh)
+                fi ;;
+            net)
+                EDR_ROOT=""; EDR_USER=""; EDR_RZIPS=" 198.51.100.200 198.51.100.200 "
+                edr_emit() { printf '%s\n' "$1"; }
+                rm -f "$E/b/ss_t"
+                edr_net_once "${3-0}" >"$2" ;;
+            file)
+                edr_emit() { printf '%s\n' "$1"; }
+                edr_file "$3" >"$2" ;;
+        esac
+    ) || fail "de bash-code van de endpoint-sensoren faalde ($1)"
+}
+edr_go() {  # edr_go report|net|file|info <uitvoer> [argument]
+    # shellcheck disable=SC2086
+    PATH="$E/bin:$PATH" AUD_DIR="$E/g/aud" RZSENSE_BASH_CONF="$E/g/conf" RZSENSE_BASH_CACHE="$E/g/gc" RZSENSE_DATA="$E/g/gd" RZSENSE_TEST_ROOT=1 \
+        "$work/rzsense" edr-parse "$1" ${3-} >"$2" || fail "de Go-agent kon de endpoint-sensoren niet uitvoeren ($1)"
+}
+edr_same() {  # edr_same <naam> <bash> <go>: dezelfde JSON (de tijd in een gebeurtenis telt niet)
+    python3 -I - "$1" "$2" "$3" <<'PY' || fail "endpoint-sensoren ($1): de Go-agent meldt iets anders dan de bash-agent"
+import json, sys
+def load(p):
+    t = open(p).read().strip()
+    if t.startswith('{"k"'):   # een rij gebeurtenissen, één per regel
+        l = [json.loads(x) for x in t.splitlines()]
+        for e in l: e.pop('t', None)
+        return sorted(json.dumps(e, sort_keys=True) for e in l)
+    return json.loads(t) if t else None
+a, g = load(sys.argv[2]), load(sys.argv[3])
+if a != g:
+    print('%s:\n  bash %s\n  go   %s' % (sys.argv[1], json.dumps(a, sort_keys=True)[:1800], json.dumps(g, sort_keys=True)[:1800])); sys.exit(1)
+PY
+}
+edr_tests() { printf '%b' "$1" >"$E/b/tests.cache"; cp "$E/b/tests.cache" "$E/g/gc/tests.cache"; }
+both_files() { for side in "$E/b" "$E/g/gd"; do mkdir -p "$side"; printf '%b' "$2" >"$side/$1"; done; }
+# 1: aan: de regels worden gezet, de wachtrij gaat mee (alleen geldige regels), Suricata legt de eerste keer alleen vast
+edr_tests '0\ttick\t30\n0\tedr\t1\n0\tedrself\t/opt/rzmon\twww-data\t0123456789abcdef01234567\n'
+printf '{"timestamp":"2026-11-27T10:00:00.1+0100","event_type":"alert","src_ip":"203.0.113.9","src_port":4444,"dest_ip":"10.0.0.5","dest_port":22,"proto":"TCP","alert":{"action":"allowed","signature_id":2001219,"signature":"ET SCAN \\"Potential\\" SSH Scan","category":"Attempted Information Leak","severity":2}}\n' >"$E/eve.json"
+both_files edr.spool '{"k":"n","t":1,"dir":"out","pid":5,"comm":"curl"}\nkapotte regel\n{"k":"f","t":2,"path":"/tmp/x"}\n'
+both_files watch.state 'active 1795000000 ok ok ok\n'
+edr_bash report "$E/r1.bash.json" commit; edr_go report "$E/r1.go.json" commit
+edr_same "eerste rapport" "$E/r1.bash.json" "$E/r1.go.json"
+cmp -s "$E/b/aud/log" "$E/g/aud/log" || fail "auditd-regels: de Go-agent roept auditctl anders aan: $(diff "$E/b/aud/log" "$E/g/aud/log" | head -n 8)"
+grep -q -- '-S execve -k rzmon_exec' "$E/g/aud/log" && grep -q '"audit": *"ok"' "$E/r1.go.json" && grep -q '"watch": *"on"' "$E/r1.go.json" && [ ! -e "$E/g/gd/edr.sending" ] && [ ! -e "$E/b/edr.sending" ] \
+    || fail "het eerste EDR-rapport: $(cat "$E/r1.go.json") $(tail -n 3 "$E/g/aud/log")"
+# 2: nieuwe alerts van Suricata, een nieuwe gebeurtenis, en de regels staan er al (niets opnieuw zetten)
+printf '{"timestamp":"2026-11-27T10:01:00.1+0100","event_type":"flow","src_ip":"1.1.1.1"}\n{"timestamp":"2026-11-27T10:02:00.1+0100","event_type":"alert","src_ip":"203.0.113.10","src_port":1,"dest_ip":"10.0.0.5","dest_port":80,"proto":"TCP","alert":{"action":"blocked","signature_id":7,"signature":"x\\\\y","category":"c","severity":1}}\n' >>"$E/eve.json"
+both_files edr.spool '{"k":"c","t":3,"rt":"docker","act":"exec","name":"web"}\n'
+edr_bash report "$E/r2.bash.json" commit; edr_go report "$E/r2.go.json" commit
+edr_same "tweede rapport" "$E/r2.bash.json" "$E/r2.go.json"
+cmp -s "$E/b/aud/log" "$E/g/aud/log" && grep -q '203.0.113.10' "$E/r2.go.json" && ! grep -q '203.0.113.9' "$E/r2.go.json" || fail "het tweede EDR-rapport: $(cat "$E/r2.go.json")"
+# 3: een rapport dat niet aankomt: de gebeurtenissen blijven liggen en gaan de volgende keer mee
+both_files edr.spool '{"k":"n","t":4,"dir":"listen","pid":9,"comm":"nc","lp":4444}\n'
+edr_bash report "$E/r3.bash.json"; edr_go report "$E/r3.go.json"
+both_files edr.spool '{"k":"n","t":5,"dir":"listen","pid":10,"comm":"nc","lp":4445}\n'
+edr_bash report "$E/r4.bash.json" commit; edr_go report "$E/r4.go.json" commit
+edr_same "na een mislukt rapport" "$E/r4.bash.json" "$E/r4.go.json"
+grep -q '4444' "$E/r4.go.json" && grep -q '4445' "$E/r4.go.json" || fail "een gebeurtenis ging verloren na een mislukt rapport: $(cat "$E/r4.go.json")"
+# 4: auditd vergrendeld (regels zetten lukt niet), en auditd gestopt
+for side in "$E/b/aud" "$E/g/aud"; do : >"$side/rules"; : >"$side/locked"; done
+edr_bash report "$E/r5.bash.json" commit; edr_go report "$E/r5.go.json" commit
+edr_same "auditd vergrendeld" "$E/r5.bash.json" "$E/r5.go.json"
+grep -q '"audit": *"locked"' "$E/r5.go.json" || fail "een vergrendelde auditd hoort gemeld te worden: $(cat "$E/r5.go.json")"
+for side in "$E/b/aud" "$E/g/aud"; do mv -f "$side/locked" "$side/locked.uit"; : >"$side/stopped"; done
+edr_bash report "$E/r6.bash.json" commit; edr_go report "$E/r6.go.json" commit
+edr_same "auditd gestopt" "$E/r6.bash.json" "$E/r6.go.json"
+for side in "$E/b/aud" "$E/g/aud"; do mv -f "$side/stopped" "$side/stopped.uit"; done
+edr_bash report "$E/r7.bash.json" commit; edr_go report "$E/r7.go.json" commit   # de regels er weer in
+# 5: uit in RzSense: de regels gaan weg en de wachtrij is leeg
+both_files edr.spool '{"k":"n","t":6}\n'
+edr_tests '0\ttick\t30\n'
+edr_bash report "$E/r8.bash.json"; edr_go report "$E/r8.go.json"
+cmp -s "$E/b/aud/log" "$E/g/aud/log" && [ ! -s "$E/g/aud/rules" ] && [ ! -e "$E/g/gd/edr.spool" ] && [ "$(cat "$E/r8.go.json")" = null ] || fail "EDR uit: de regels of de wachtrij bleven staan: $(cat "$E/r8.go.json") $(cat "$E/g/aud/rules")"
+python3 -I - "$E" <<'PY' || fail "het logboek van de endpoint-sensoren wijkt af van dat van de bash-agent"
+import json, subprocess, sys
+E = sys.argv[1]
+a = [l.rstrip('\n').split('|', 3) for l in open(E + '/b/act')]
+g = [[e['m'], str(e['ok']), e['a'], e['d']] for e in map(json.loads, open(E + '/g/gd/act.log'))]
+if a != g or len(a) < 3:
+    print('bash %s\ngo   %s' % (a, g)); sys.exit(1)
+PY
+# de netwerksensor: de eerste keer alleen vastleggen; daarna nieuwe verbindingen naar buiten en nieuwe luisterpoorten
+printf 'LISTEN 0 128 0.0.0.0:22 0.0.0.0:* users:(("sshd",pid=800,fd=3))\n' >"$E/ss-l.txt"
+printf '0 0 192.168.1.10:22 192.168.1.50:51234 users:(("sshd",pid=900,fd=4))\n0 0 192.168.1.10:44322 203.0.113.7:443 users:(("curl",pid=910,fd=5))\n' >"$E/ss-e.txt"
+edr_tests '0\ttick\t30\n0\tedr\t1\n'
+edr_bash net "$E/n1.bash" 1; edr_go net "$E/n1.go" first
+[ ! -s "$E/n1.bash" ] && [ ! -s "$E/n1.go" ] || fail "de netwerksensor hoort de eerste keer alleen vast te leggen: $(cat "$E/n1.go")"
+printf 'LISTEN 0 128 0.0.0.0:22 0.0.0.0:* users:(("sshd",pid=800,fd=3))\nLISTEN 0 5 [::]:4444 [::]:* users:(("nc",pid=4000001,fd=3))\n' >"$E/ss-l.txt"
+printf '0 0 192.168.1.10:44322 203.0.113.7:443 users:(("curl",pid=910,fd=5))\n0 0 192.168.1.10:50000 198.51.100.200:443 users:(("php",pid=4000002,fd=5))\n0 0 [2001:db8::1]:50001 [2001:db8::99]:6667 users:(("irc bot",pid=4000003,fd=3),("x",pid=1,fd=2))\n0 0 127.0.0.1:50002 127.0.0.1:5432 users:(("php",pid=1,fd=3))\n0 0 192.168.1.10:50003 [::ffff:203.0.113.8]:80 users:(("wget",pid=4000004,fd=3))\n' >"$E/ss-e.txt"
+edr_bash net "$E/n2.bash" 0; edr_go net "$E/n2.go"
+edr_same "netwerksensor" "$E/n2.bash" "$E/n2.go"
+[ "$(wc -l <"$E/n2.go")" = 4 ] && grep -q '"own":"net"' "$E/n2.go" && grep -q '"dir":"listen"' "$E/n2.go" && grep -q '"rip":"203.0.113.8"' "$E/n2.go" || fail "de netwerksensor gaf iets onverwachts: $(cat "$E/n2.go")"
+edr_bash net "$E/n3.bash" 0; edr_go net "$E/n3.go"
+[ ! -s "$E/n3.bash" ] && [ ! -s "$E/n3.go" ] || fail "dezelfde verbinding hoort maar één keer per uur gemeld te worden: $(cat "$E/n3.go")"
+# de bestandssensor: een programma en een script in /tmp, en een webshell in een webmap
+ft=$(mktemp -d /tmp/rzproef-edr.XXXXXX); fw="${HOME:?}/.cache/rzproef-web.$$"; mkdir -p "$fw"   # buiten /tmp: daar gelden de regels voor webmappen
+cp "$(type -P true)" "$ft/prog"; printf '#!/bin/sh\nid\n' >"$ft/s.sh"; chmod +x "$ft/s.sh"; printf 'tekst\n' >"$ft/notitie.txt"; cp "$(type -P true)" "$ft/lib.so"; printf 'x\n' >"$ft/niet-uitvoerbaar.sh"
+printf '<?php\n$a = "x";\neval(base64_decode($_POST["c"]));\nSYSTEM($_GET["x"]);\n' >"$fw/shell.php"; printf '<?php echo "hallo";\n' >"$fw/gewoon.php"; printf 'eval($_POST[1]);\n' >"$fw/notitie.txt"
+for f in "$ft/prog" "$ft/s.sh" "$ft/notitie.txt" "$ft/lib.so" "$ft/niet-uitvoerbaar.sh" "$fw/shell.php" "$fw/gewoon.php" "$fw/notitie.txt" "$ft/bestaat-niet"; do
+    edr_bash file "$E/f.bash" "$f"; edr_go file "$E/f.go" "$f"
+    [ -s "$E/f.go" ] && [ "$(cat "$E/f.go")" = "" ] && : >"$E/f.go"
+    edr_same "bestand $f" "$E/f.bash" "$E/f.go"
+    case "$f" in */prog|*/s.sh|*/shell.php) [ -s "$E/f.bash" ] || fail "de bestandssensor hoort $f te melden" ;; *) [ ! -s "$E/f.bash" ] || fail "de bestandssensor hoort $f niet te melden: $(cat "$E/f.bash")" ;; esac
+done
+edr_bash file "$E/f.bash" "$fw/shell.php"
+grep -q '"susp":"base64_decode,eval,system"' "$E/f.bash" || fail "de webshell gaf andere kenmerken dan verwacht: $(cat "$E/f.bash")"
+mv -f "$fw" "$ft/web.weg"
+# de stand van de sensoren voor de proef: alleen kijken (geen auditctl die iets verandert)
+n0=$(wc -l <"$E/g/aud/log"); edr_go info "$E/info.json"
+[ "$(grep -c -v -- 'auditctl -l' <(tail -n +"$((n0 + 1))" "$E/g/aud/log"))" = 0 ] && grep -q '"file": *"ok"' "$E/info.json" || fail "in de proef hoort de Go-agent niets aan auditd te veranderen: $(tail -n 4 "$E/g/aud/log")"
+printf '{"Name":"web","Image":"docker.io/library/nginx:1.27","Status":"exec","Type":"container"}\n' | "$work/rzsense" edr-parse ctr podman >"$E/ctr.out"
+printf '{"status":"exec_start: sh -c id","id":"abc","from":"nginx","Type":"container","Action":"exec_start: sh -c id","Actor":{"ID":"abc","Attributes":{"execID":"e1","image":"nginx:1.27","name":"web"}}}\n{"Action":"start","Actor":{"Attributes":{"image":"redis","name":"cache"}}}\n' | "$work/rzsense" edr-parse ctr docker >>"$E/ctr.out"
+[ "$(cat "$E/ctr.out")" = "web|docker.io/library/nginx:1.27|exec|
+web|nginx:1.27|exec|sh -c id
+cache|redis|start|" ] || fail "containergebeurtenissen: $(cat "$E/ctr.out")"
+echo "✔ endpoint-sensoren (EDR): de parsers (auditd, Suricata), het rapport met de wachtrij (ook na een mislukt rapport), de auditd-regels (zetten, vergrendeld, gestopt, weghalen), de netwerksensor, de bestandssensor (programma, script, webshell) en containers: gelijk aan de bash-agent"
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.
@@ -1457,6 +1635,7 @@ case "\$1" in
     is-active) [ -e "\$U/\$2" ] && { echo active; exit 0; }; echo inactive; exit 3 ;;
     enable) for u in "\$@"; do case "\$u" in *.timer) : >"\$U/\$u" ;; esac; done ;;
     disable) for u in "\$@"; do case "\$u" in *.timer) rm -f "\$U/\$u" ;; esac; done ;;
+    stop) [ -e "\$U/\$2" ] && mv -f "\$U/\$2" "$work/gestopt.\$2" ;;
 esac
 exit 0
 EOS
@@ -1465,6 +1644,7 @@ chmod 755 "$work/bin/systemctl"
 # 1.346.0: updates installeren start de Go-agent via systemd-run; hier voert een namaak het commando gewoon uit
 cat >"$work/bin/systemd-run" <<'EOS'
 #!/bin/sh
+case "$*" in *" watch") echo "$*" >>"${RZ_E2E_WORK:?}/systemd-run.log"; : >"${RZ_E2E_WORK:?}/units/rzsense-watch.service"; exit 0 ;; esac
 while [ $# -gt 0 ]; do
     case "$1" in
         -p) shift 2 ;;
@@ -1569,6 +1749,39 @@ got=$(take '$v = q("SELECT mgr, packages, hash FROM vuln_inventory WHERE host_id
 [ "$got" = "lijst hash" ] || fail "de softwarelijst kwam niet bij RzSense aan: $got $(head -c 300 "$work/data/pkgs.json")"
 [ -s "$work/data/pkgs.sent" ] || fail "de Go-agent onthield niet dat RzSense de softwarelijst heeft (zou hem elke minuut opnieuw sturen)"
 echo "✔ softwarelijst: aangekomen bij RzSense; daarna gaat alleen het controlegetal mee"
+
+# Realtime (1.361.0, Go-agent 0.30.0): staat het in RzSense aan, dan vraagt de Go-agent zijn eigen watcher aan; die start
+# bij een login meteen een ronde, en RzSense krijgt de stand van de watcher. Gaat het uit, dan stopt de watcher.
+export RZ_E2E_WORK="$work" RZSENSE_TEST_WATCH=1
+take 'q("UPDATE hosts SET realtime = 1 WHERE id = ?", [$id]);'
+"$work/rzsense" shadow --quiet || fail "de ronde na het aanzetten van Realtime mislukte"
+"$work/rzsense" shadow --quiet || fail "de ronde met de nieuwe testlijst mislukte"
+grep -q "$(printf '^0\trealtime\t1')" "$work/data/tests.cache" || fail "de regel voor Realtime staat niet in de testlijst van de Go-agent"
+grep -q 'rzsense-watch.service.* watch$' "$work/systemd-run.log" 2>/dev/null || fail "de Go-agent vroeg zijn watcher niet aan: $(cat "$work/systemd-run.log" 2>/dev/null)"
+printf '#!/bin/sh\nsleep 2\necho "Nov 27 10:00:00 host sshd[4123]: Accepted password for piet from 192.0.2.5 port 50022 ssh2"\nsleep 600\n' >"$work/bin/journalctl"; chmod 755 "$work/bin/journalctl"
+before=$(cat "$work/data/last_ok")
+sleep 1
+"$work/rzsense" watch & w_pid=$!
+disown "$w_pid" 2>/dev/null || true
+(sleep 3; echo "Nov 27 10:00:01 host sshd[4124]: Accepted password for piet from 192.0.2.5 port 50023 ssh2" >>"$work/auth.log") &
+for _ in $(seq 1 40); do
+    [ "$(cat "$work/data/last_ok")" != "$before" ] && grep -q '^active ' "$work/data/watch.state" 2>/dev/null && break
+    sleep 0.5
+done
+state=$(cat "$work/data/watch.state" 2>/dev/null); after=$(cat "$work/data/last_ok")
+kill "$w_pid" 2>/dev/null || true
+[ "$after" != "$before" ] || fail "de watcher startte geen ronde na een login (stand: $state)"
+case "$state" in "active "*" ok "*) ;; *) fail "de watcher meldt een onverwachte stand: $state" ;; esac
+"$work/rzsense" shadow --quiet || fail "de ronde na de watcher mislukte"
+got=$(take 'echo (string) q("SELECT value FROM agent_data WHERE host_id = ? AND metric = ?", [$id, "realtime"])->fetchColumn();')
+grep -q '"state":"\(active\|off\)"' <<<"$got" && grep -q '"journal"' <<<"$got" || fail "RzSense kreeg de stand van de watcher niet: $got"
+for _ in $(seq 1 20); do grep -q '^off ' "$work/data/watch.state" && break; sleep 0.25; done
+grep -q '^off ' "$work/data/watch.state" || fail "de watcher hoort bij stoppen zijn stand op uit te zetten: $(cat "$work/data/watch.state")"
+take 'q("UPDATE hosts SET realtime = 0 WHERE id = ?", [$id]);'
+"$work/rzsense" shadow --quiet && "$work/rzsense" shadow --quiet || fail "de ronde na het uitzetten van Realtime mislukte"
+[ ! -e "$work/units/rzsense-watch.service" ] && [ -e "$work/gestopt.rzsense-watch.service" ] || fail "na het uitzetten van Realtime hoort de Go-agent zijn watcher te stoppen"
+unset RZSENSE_TEST_WATCH
+echo "✔ Realtime: de Go-agent vraagt zijn eigen watcher aan, een login start meteen een ronde, RzSense krijgt de stand, en uitzetten stopt de watcher"
 
 # Updates (1.346.0): de lijst kwam met het echte rapport mee; op verzoek installeert de Go-agent en meldt hij de uitkomst
 got=$(take '$p = AgentData::get($id, "patch"); echo ($p["mgr"] ?? "?") . " " . ($p["avail"] ?? "?") . " " . ($p["sec"] ?? "?") . " " . (empty($p["rb"]) ? "nee" : "herstart");')

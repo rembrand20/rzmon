@@ -5,6 +5,14 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.30.0 – 2026-11-27
+- **Linux: Realtime.** Als de Go-agent het werk doet en Realtime voor de server aan staat, start hij een eigen watcher (`rzsense-watch`, een tijdelijke systemd-dienst die vanzelf terugkomt). Die volgt het systemlog (logins, sudo, su, en de diensten die RzSense bewaakt) en de 🔴-paden van *Bestanden bewaken*, en start bij een gebeurtenis meteen een ronde: hooguit één per 10 seconden.
+- **Linux: endpoint-sensoren (EDR).** Dezelfde sensoren als de bash-agent: processen en bewaakte paden via auditd (de regels `rzmon_*` worden gezet en weer weggehaald), nieuwe verbindingen naar buiten en nieuwe luisterpoorten, nieuwe programma's in `/tmp` en webshells in webmappen (met YARA als dat er is), containers, en alerts van Suricata. De gebeurtenissen wachten in een rij tot RzSense ze heeft.
+- Een proces dat RzSense meteen wil laten stoppen, stopt de Go-agent alleen met de juiste starttijd, en nooit iets van RzSense of de agent zelf.
+- Bij het overnemen gaat de watcher van de bash-agent (`rzmon-watch`) uit; bij teruggaan komt hij terug.
+- **In de proef** start de Go-agent geen watcher en zet hij geen auditd-regels. Hij meldt alleen wat er op de server is om mee te werken.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.29.0 – 2026-11-27
 - **Linux: het IDS grijpt in, zoals bij de bash-agent.** Als de Go-agent het werk heeft overgenomen, zet hij de eigen firewalltabel (`inet rzmon`) met de blokkades uit RzSense, de netten van bekende aanvallers (ook uitgaand, als dat aan staat) en de lokaas-poort; stopt hij een proces als RzSense daarom vraagt (alleen met de juiste starttijd); isoleert hij de server (`inet rzmon_iso`, vervalt vanzelf op tijd) en vergrendelt hij een account of geeft het weer vrij.
 - **In de proef voert hij daar niets van uit.** Hij berekent alleen welke lijst hij zou zetten en RzSense legt die naast wat de bash-agent zette. Er gaat dan niets naar de firewall.

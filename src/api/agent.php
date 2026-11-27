@@ -558,6 +558,9 @@ if ($action === 'agent') {
     Perf::part('rapport:weblogs');
     // 1.110.0: endpoint-sensoren (processen, netwerk, bestanden, containers)
     $edrResp = is_array($in['edr'] ?? null) ? Edr::process($host, $in['edr']) : [];
+    if (!$goAgent && is_array($in['edr']['info'] ?? null)) {
+        AgentShadow::noteBashEdr((int) $host['id'], $in['edr']['info']);   // 1.361.0: voor de proef met de Go-agent (alleen als die loopt)
+    }
     // 1.111.0: vormen de signalen van deze server (regels, afwijkingen, IDS) samen een keten?
     Perf::part('rapport:edr');
     Chain::check($host);

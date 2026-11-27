@@ -17,7 +17,9 @@ final class AgentTakeover
     /** Regels in de testlijst die de Go-agent uitvoert, of die alleen een losse vraag zijn (dan gebeurt er even niets) */
     private const LINES_OK = ['auth', 'cmd', 'db', 'heal', 'watchdog', 'log', 'logsrc', 'logship', 'logscan', 'logpause', 'logdirs', 'logbrowse', 'patch', 'path', 'pathtp', 'iperfs', 'tick', 'ival', 'svc', 'ports', 'url', 'port', 'cert', 'certdirs', 'certscan', 'proc', 'selftest', 'exprobe', 'diag',
         // 1.360.0 (Go-agent 0.29.0): het IDS, met blokkeren, de lokaas-poort, een proces stoppen, isoleren en bestanden bewaken
-        'ids', 'block', 'knet', 'outblock', 'decoy', 'kill', 'isolate', 'userlock', 'fim', 'truenas_fw'];
+        'ids', 'block', 'knet', 'outblock', 'decoy', 'kill', 'isolate', 'userlock', 'fim', 'truenas_fw',
+        // 1.361.0 (Go-agent 0.30.0): Realtime en de endpoint-sensoren (de eigen watcher van de Go-agent)
+        'realtime', 'edr', 'edrself'];
     /** Agent-checks die de Go-agent meet; andere soorten die van de agent komen, houden het overnemen tegen */
     private const CHECKS_BLOCK = ['ha'];
 

@@ -109,6 +109,25 @@ final class AgentShadow
     }
 
     /**
+     * 1.361.0: endpoint-sensoren als proef: de stand van de sensoren die de bash-agent meldde, om naast de Go-agent te leggen
+     * @param array<string, mixed> $info
+     */
+    public static function noteBashEdr(int $hostId, array $info): void
+    {
+        $s = AgentData::get($hostId, 'shadow');
+        if ($s === null || strtotime((string) ($s['at'] ?? '')) < time() - 600) {
+            return;
+        }
+        $keep = [];
+        foreach (['audit', 'file', 'ctr', 'fam', 'epel', 'systemd', 'yara'] as $k) {
+            if (isset($info[$k]) && is_scalar($info[$k])) {
+                $keep[$k] = mb_substr((string) $info[$k], 0, 20);
+            }
+        }
+        AgentData::put($hostId, 'edr_obs_bash', ['at' => time()] + $keep);
+    }
+
+    /**
      * Heeft RzSense een nieuwere Go-agent voor deze processor dan de agent nu heeft?
      * @return array{version: string, sha256: string}|null
      */
@@ -128,6 +147,10 @@ final class AgentShadow
     {
         $out = ['disks' => []];
         $min = time() - self::FRESH;
+        $edrB = AgentData::get($hostId, 'edr_obs_bash');
+        if (is_array($edrB) && (int) ($edrB['at'] ?? 0) >= $min) {
+            $out['edr_obs'] = $edrB;
+        }
         $idsB = AgentData::get($hostId, 'ids_obs_bash');
         if (is_array($idsB) && (int) ($idsB['at'] ?? 0) >= $min) {
             $out['ids_obs'] = $idsB;
@@ -450,6 +473,18 @@ final class AgentShadow
             $add('diensten om uit te kiezen', t('{n} namen', ['n' => count($bl)]) . ($onlyB ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyB, 0, 6))]) : '')
                 . ($state ? ' · ' . t('andere status: {l}', ['l' => implode(', ', array_slice($state, 0, 6))]) : ''),
                 t('{n} namen', ['n' => count($gl)]) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 6))]) : ''), count($onlyB) + count($onlyG) <= 4 && count($state) <= 2);
+        }
+        // 1.361.0: endpoint-sensoren als proef: wat er op deze server is om mee te werken (auditd met de regels, inotify,
+        // containers, YARA). De Go-agent zet in de proef zelf geen regels en start geen sensoren.
+        if (is_array($bash['edr_obs'] ?? null) && is_array($go['edr_obs'] ?? null)) {
+            $diff = [];
+            foreach (['audit', 'file', 'ctr', 'fam', 'epel', 'systemd', 'yara'] as $k) {
+                if (isset($bash['edr_obs'][$k], $go['edr_obs'][$k]) && (string) $bash['edr_obs'][$k] !== (string) $go['edr_obs'][$k]) {
+                    $diff[] = $k;
+                }
+            }
+            $et = static fn(array $i) => $diff ? implode(', ', array_map(static fn($k) => $k . '=' . (string) $i[$k], $diff)) : t('auditd {a}, bestanden {f}, containers {c}', ['a' => (string) ($i['audit'] ?? '?'), 'f' => (string) ($i['file'] ?? '?'), 'c' => (string) ($i['ctr'] ?? '?')]);
+            $add('EDR (proef): sensoren', $et($bash['edr_obs']), $et($go['edr_obs']), !$diff);
         }
         // 1.357.0: IDS als proef: wat de twee agents waarnemen (er wordt niets geblokkeerd of gestopt)
         if (is_array($bash['ids_obs'] ?? null) && is_array($go['ids_obs'] ?? null)) {

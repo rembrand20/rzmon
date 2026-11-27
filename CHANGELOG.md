@@ -8,11 +8,24 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.361.0**: **De Go-agent doet Realtime en EDR**: een eigen watcher en dezelfde endpoint-sensoren als de bash-agent.
 - **1.360.0**: **De Go-agent kan het IDS overnemen**: dezelfde firewall, lokaas-poort, isoleren en bestanden bewaken als de bash-agent; in de proef blijft het een dry-run.
 - **1.359.0**: **IDS in de Go-agent, dry-run compleet**: ook webshells, verbindingen, hardening, SUID, pakketcontrole en bestanden bewaken worden naast de bash-agent gelegd.
 - **1.358.0**: **Let's Encrypt zonder reverse proxy**: RzSense vraagt zelf een geldig certificaat aan voor je domein, koppelt het en vernieuwt het, met een stappenplan voor DNS, router en firewall.
 - **1.357.0**: **IDS in de Go-agent als dry-run**: de Go-agent neemt waar wat het IDS nodig heeft en RzSense vergelijkt het; er wordt niets geblokkeerd.
-- **1.356.0**: **De Go-agent is compleet op het beveiligingsblok na**: ook wifi, certificaten zoeken, 🧪 Test, het meetpunt van buitenaf en de AI-diagnose.
+
+## 1.361.0 – 2026-11-27
+### Nieuw
+- **De Go-agent doet Realtime en de endpoint-sensoren (EDR).** Hij heeft een eigen watcher die bij een login, een dienst die stopt of een gewijzigd bewaakt bestand meteen een ronde start, en dezelfde sensoren als de bash-agent (auditd, netwerk, bestanden, containers, Suricata). Realtime en EDR houden het overnemen daarom niet meer tegen.
+- **In de proef** komt er een regel *EDR (proef): sensoren* bij in het blok *Go-agent*: of auditd met de regels, inotify, containers en YARA er voor beide agents hetzelfde uitzien. De Go-agent start in de proef geen sensoren.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.30.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Dit houdt overnemen nog tegen: ransomware-detectie, logs van webdiensten (alleen waar zo'n log gevonden is), Programma's, tijdelijk sudo, de reverse proxy met WAF en antivirus, de relay en Home Assistant-checks.
+- De watcher van de Go-agent is een tijdelijke systemd-dienst. Na een herstart van de server start de eerstvolgende ronde hem weer; tot die tijd (hooguit een minuut) is er geen Realtime.
+- Een verbinding zonder bekend programma meldt de Go-agent met het juiste adres. De bash-agent schoof de velden daar één plaats op.
 
 ## 1.360.0 – 2026-11-27
 ### Nieuw

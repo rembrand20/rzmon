@@ -787,9 +787,14 @@ de lokaas-poort, een proces stoppen, de server isoleren, een account vergrendele
 voert hij daar niets van uit: hij berekent welke lijst hij zou zetten, en RzSense legt die naast wat de bash-agent zette
 (*IDS (proef): firewall* en *IDS (proef): isoleren*). Pas na het overnemen zet hij de firewall zelf. Het adres van
 RzSense blokkeert hij nooit, en `IDS_BLOCK=0` geldt ook voor de Go-agent.
+Realtime en de endpoint-sensoren (EDR) doet de Go-agent met een eigen watcher, `rzsense-watch`. Dat is een tijdelijke
+systemd-dienst die de Go-agent start zodra Realtime of EDR voor de server aan staat, en stopt als ze uit gaan. De
+watcher van de bash-agent (`rzmon-watch`) gaat bij het overnemen uit en komt bij teruggaan terug. In de proef start de
+Go-agent geen watcher en zet hij geen auditd-regels; RzSense vergelijkt alleen wat er op de server is om mee te werken
+(*EDR (proef): sensoren*).
 Dit houdt overnemen tegen zolang het voor de server aan staat: logs van webdiensten (met het IDS aan, en alleen
-op een server waar zo'n log gevonden is); endpoint-sensoren (EDR); ransomware-detectie; Programma's; tijdelijk sudo;
-de reverse proxy; Realtime; Home Assistant-checks (die horen bij de add-on); de relay; en vaker dan elke minuut rapporteren.
+op een server waar zo'n log gevonden is); ransomware-detectie; Programma's; tijdelijk sudo;
+de reverse proxy; Home Assistant-checks (die horen bij de add-on); de relay; en vaker dan elke minuut rapporteren.
 
 **Wat er gebeurt.** Bij de volgende proefronde zet de Go-agent de timer van de bash-agent en zijn bewaker uit (de
 bash-agent blijft geïnstalleerd, met zijn instellingen en sleutel), haalt de testlijst op en stuurt het echte rapport.

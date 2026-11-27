@@ -12330,4 +12330,5 @@ return [
     'lokaas-poort {p}' => 'decoy port {p}',
     'een andere lijst' => 'a different list',
     '{n} adressen blijven open' => '{n} addresses stay open',
+    'auditd {a}, bestanden {f}, containers {c}' => 'auditd {a}, files {f}, containers {c}',
 ];
