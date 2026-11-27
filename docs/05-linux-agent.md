@@ -737,13 +737,14 @@ In het blok **🧪 Go-agent** staat de knop **Overnemen** zodra het veilig kan. 
 
 - de proef minstens 60 vergeleken rondes liep (een uur) en minstens 98% daarvan gelijk was aan de bash-agent;
 - de Go-agent op de server de nieuwste versie is en er nog proefrondes binnenkomen;
-- de bash-agent via systemd draait en het bewakertje voor de terugval er staat (anders: voer het installatiecommando
-  opnieuw uit);
+- de bash-agent via systemd draait, het bewakertje voor de terugval er staat en de Go-agent in de sleutelmap en de
+  cachemap van de bash-agent mag schrijven (anders: voer het installatiecommando opnieuw uit);
 - de server **niets gebruikt wat de Go-agent nog niet meet**. Anders zou dat onderdeel stilvallen.
 
 Kan het nog niet, dan staat in het blok precies wat het tegenhoudt. De Go-agent meet CPU, geheugen, schijven, de
-opstarttijd, poorten, diensten (met details en extra tests), certificaten en processen. Dit houdt overnemen tegen zolang
-het voor de server aan staat: logins, sudo en su; Updates; logs van webdiensten; IDS en endpoint-sensoren;
+opstarttijd, poorten, diensten (met details en extra tests), certificaten en processen, en leest logins, sudo en su
+(met dezelfde bladwijzer in het log als de bash-agent, zodat er bij het wisselen niets verloren gaat of dubbel komt).
+Dit houdt overnemen tegen zolang het voor de server aan staat: Updates; logs van webdiensten; IDS en endpoint-sensoren;
 Kwetsbaarheden; Realtime; checks op containers (Podman), Proxmox, TrueNAS, logs, commando's, paden, heartbeats, schijfgezondheid, UPS,
 klok, databases, VPN en netwerkverkeer; zelf herstellen en de waakhond; de relay; en vaker dan elke minuut rapporteren.
 

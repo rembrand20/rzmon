@@ -12175,4 +12175,5 @@ return [
     'De Go-agent het werk laten doen op {name}? De bash-agent wordt uitgezet, niet weggehaald. Gaat het mis, dan komt hij vanzelf terug.' => 'Let the Go agent do the work on {name}? The bash agent is switched off, not removed. If something goes wrong, it returns by itself.',
     'Gevraagd: de Go-agent neemt het bij de volgende proefronde over' => 'Requested: the Go agent takes over at the next trial round',
     'Gevraagd: de bash-agent neemt het werk weer over' => 'Requested: the bash agent takes the work back',
+    'de Go-agent mag niet in de map van de bash-agent schrijven (voor de stand van de logins): voer het installatiecommando opnieuw uit' => 'the Go agent may not write to the bash agent\'s directory (for the login cursor): run the install command again',
 ];

@@ -137,6 +137,23 @@ st=$("$work/rzsense" status)
 grep -q 'Eigen sleutel: true' <<<"$st" || fail "rzsense status toont de sleutel niet: $st"
 echo "✔ rzsense status"
 
+# 1.345.0 (Go-agent 0.14.0): logins, sudo en su lezen: dezelfde regels door de echte bash-code en door de Go-agent
+CACHE_DIRECTORY="$work/cache" bash agent/rzmon-agent.sh --auth-parse <tests/data/auth-go.lines >"$work/auth.bash.json" || fail "de bash-agent kon de logins niet lezen"
+"$work/rzsense" auth-parse <tests/data/auth-go.lines >"$work/auth.go.json" || fail "de Go-agent kon de logins niet lezen"
+python3 -I - "$work/auth.bash.json" "$work/auth.go.json" <<'PY' || fail "de Go-agent leest logins anders dan de bash-agent"
+import json, sys
+a, b = [json.load(open(p))['auth'] for p in sys.argv[1:3]]
+for d in (a, b):
+    d['fails'] = sorted(d['fails'], key=lambda f: json.dumps(f, sort_keys=True))   # bash telt op in willekeurige volgorde
+for k in ('events', 'fails', 'tries'):
+    for x, y in zip(a[k], b[k]):
+        if x != y:
+            print('verschil in', k, '\n bash', json.dumps(x, ensure_ascii=False), '\n go  ', json.dumps(y, ensure_ascii=False))
+if a != b or len(a['events']) < 8 or len(a['fails']) < 8 or len(a['tries']) < 16:
+    sys.exit(1)
+print('✔ logins, sudo en su: %d gebeurtenissen, %d soorten mislukte pogingen en %d losse pogingen, gelijk aan de bash-agent' % (len(a['events']), len(a['fails']), len(a['tries'])))
+PY
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.
@@ -155,12 +172,17 @@ EOS
 chmod 755 "$work/bin/systemctl"
 : >"$work/units/rzmon-agent.timer"; : >"$work/units/rzmon-agent-guard.timer"; : >"$work/fallback.timer"
 export PATH="$work/bin:$PATH" RZSENSE_FALLBACK_UNIT="$work/fallback.timer"
+# 1.345.0 (Go-agent 0.14.0): logins uit een logbestand, met de stand in het bestand van de bash-agent
+printf 'AUTH_SOURCE="file"\nAUTH_LOGS="%s"\n' "$work/auth.log" >>"$work/rzmon-agent"
+echo "Oct 21 10:00:01 nas sshd[1]: Accepted password for oud from 192.0.2.1 port 1 ssh2" >"$work/auth.log"
+export RZSENSE_AUTHSTATE="$work/cache/authstate"
 unset RZSENSE_BASH_CACHE   # na het overnemen haalt de Go-agent de testlijst zelf op (in zijn eigen map)
 SETFILE="$work/settings.json" php -r '
 require "src/bootstrap.php";
-$names = ["auth_events", "weblog_swag", "weblog_ha", "weblog_vw", "patch_on", "ids_enabled", "vuln_enabled"];
+$names = ["weblog_swag", "weblog_ha", "weblog_vw", "patch_on", "ids_enabled", "vuln_enabled"];
 $old = [];
 foreach ($names as $n) { $old[$n] = setting($n); save_setting($n, "0"); }
+$old["auth_events"] = setting("auth_events"); save_setting("auth_events", "1");   // 1.345.0: logins kan de Go-agent zelf
 file_put_contents(getenv("SETFILE"), json_encode($old));'
 restore() { SETFILE="$work/settings.json" php -r '
 require "src/bootstrap.php";
@@ -191,6 +213,16 @@ echo "✔ overgenomen: de timers van de bash-agent staan uit, RzSense kreeg het 
 grep -q 'doet het werk' <<<"$("$work/rzsense" status)" || fail "rzsense status zegt niet dat de Go-agent het werk doet"
 [ "$(cat "$work/keys/agent.key")" = "$key" ] || fail "de sleutel van de bash-agent is veranderd"
 echo "✔ de Go-agent rapporteert elke ronde; de sleutel van de bash-agent is ongemoeid"
+
+# Logins: een nieuwe regel in het auth-log komt bij RzSense aan; wat er al stond niet, en niets komt dubbel
+printf '%s\n' "Oct 21 10:05:00 nas sshd[77]: Accepted publickey for rehman from 192.168.2.5 port 51544 ssh2: ED25519 SHA256:abc" \
+    "Oct 21 10:05:01 nas sshd[78]: Failed password for root from 203.0.113.7 port 50212 ssh2" >>"$work/auth.log"
+"$work/rzsense" shadow --quiet || fail "de ronde met logins mislukte"
+"$work/rzsense" shadow --quiet || fail "de ronde na de logins mislukte"
+got=$(take 'echo implode(" ", array_map(static fn($r) => ($r["ok"] ? "ok" : "fail") . ":" . $r["username"] . ":" . $r["port"], q("SELECT ok, username, port FROM ssh_events WHERE host_id = ? ORDER BY id", [$id])->fetchAll()));')
+[ "$got" = "ok:rehman:51544 fail:root:50212" ] || fail "de logins kwamen niet (of dubbel, of met oude regels) aan bij RzSense: $got"
+grep -q '^file|[0-9]*|[0-9]*$' "$work/cache/authstate" || fail "de stand van de logins staat niet in het bestand van de bash-agent"
+echo "✔ logins: een gelukte en een mislukte SSH-login kwamen één keer aan; de stand staat in het bestand van de bash-agent"
 
 # Een onversleuteld rapport dat zich voordoet als de Go-agent wordt geweigerd
 code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -H "X-Agent-Token: nep" --data '{"go":1,"os":"linux","agent_version":"9.9.9"}' "$BASE/api.php?action=agent")

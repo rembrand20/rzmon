@@ -1,0 +1,33 @@
+1793700001	sshd	Invalid user bob from 203.0.113.7 port 50211
+1793700001	sshd	Failed password for invalid user bob from 203.0.113.7 port 50211 ssh2
+1793700002	sshd	Failed password for root from 203.0.113.7 port 50212 ssh2
+1793700003	sshd-session	Failed password for admin from 203.0.113.7 port 50213 ssh2
+1793700010	sshd	Accepted publickey for rehman from 192.168.2.5 port 51544 ssh2: ED25519 SHA256:abc
+1793700900	sshd-session	Disconnected from user rehman 192.168.2.5 port 51544
+1793700905	sudo	  rehman : TTY=pts/0 ; PWD=/home/rehman ; USER=root ; COMMAND=/usr/bin/mysql -pGeheim
+garbage line without tabs
+1793701000	sshd	Invalid user  from 198.51.100.9 port 4000
+1793701001	sshd	Invalid user oracle from 198.51.100.9
+1793701002	sshd	Failed publickey for git from 2001:db8::5 port 2222 ssh2
+1793701003	login	pam_unix(login:session): session opened for user piet(uid=1000) by LOGIN(uid=0)
+1793701004	login	pam_unix(login:auth): authentication failure; logname=LOGIN uid=0 euid=0 tty=/dev/tty1 ruser= rhost=  user=piet
+1793701005	sudo	    piet : 3 incorrect password attempts ; TTY=pts/1 ; PWD=/home/piet ; USER=root ; COMMAND=/usr/bin/cat /etc/shadow
+1793701006	sudo	    piet : user NOT in sudoers ; TTY=pts/1 ; PWD=/home/piet ; USER=root ; COMMAND=/usr/bin/id
+1793701007	sudo	  rehman : TTY=pts/0 ; PWD=/srv/app met spatie ; USER=www-data ; ENV=FOO=bar ; COMMAND=/usr/bin/curl -H "X: 1" --password hunter2 https://x/?token=abc123&a=b
+1793701008	sudo	  rehman : TTY=pts/0 ; PWD=/root ; USER=root ; COMMAND=/bin/sh -c mysqldump -u root -pS3cret db | gzip > /tmp/x; echo PASSWORD=Hallo
+1793701009	su	pam_unix(su:session): session opened for user root(uid=0) by rehman(uid=1000)
+1793701010	su-l	pam_unix(su-l:session): session opened for user postgres(uid=26) by (uid=0)
+1793701011	su	pam_unix(su:auth): authentication failure; logname=piet uid=1000 euid=0 tty=/dev/pts/1 ruser=piet rhost=  user=root
+1793701012	sudo	  émile : TTY=pts/2 ; PWD=/home/émile ; USER=root ; COMMAND=/usr/bin/echo "tab	here" \\ einde
+abc	sshd	Accepted password for x from 1.2.3.4 port 1 ssh2
+1793701013	cron	pam_unix(cron:session): session opened for user root
+1793701021	sshd	Failed password for user1 from 203.0.113.50 port 6001 ssh2
+1793701022	sshd	Failed password for user2 from 203.0.113.50 port 6002 ssh2
+1793701023	sshd	Failed password for user3 from 203.0.113.50 port 6003 ssh2
+1793701024	sshd	Failed password for user4 from 203.0.113.50 port 6004 ssh2
+1793701025	sshd	Failed password for user5 from 203.0.113.50 port 6005 ssh2
+1793701026	sshd	Failed password for user6 from 203.0.113.50 port 6006 ssh2
+1793701027	sshd	Failed password for user7 from 203.0.113.50 port 6007 ssh2
+1793701028	sshd	Failed password for user8 from 203.0.113.50 port 6008 ssh2
+1793701029	sshd	Failed password for user9 from 203.0.113.50 port 6009 ssh2
+1793701030	sshd	Failed password for user10 from 203.0.113.50 port 6010 ssh2

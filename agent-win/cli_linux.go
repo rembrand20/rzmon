@@ -17,6 +17,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -65,6 +66,10 @@ func cliLinux(args []string) bool {
 			os.Exit(cmdRun(has("--quiet")))
 		}
 		os.Exit(cmdShadow(has("--quiet")))
+	case "auth-parse": // voor de tests: regels op stdin → wat er naar RzSense zou gaan (zoals rzmon-agent.sh --auth-parse)
+		in, _ := io.ReadAll(os.Stdin)
+		b, _ := json.Marshal(map[string]any{"auth": authParse(string(in))})
+		fmt.Println(string(b))
 	case "back":
 		os.Exit(cmdBack())
 	default:

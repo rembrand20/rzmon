@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.345.0**: **De Go-agent leest logins, sudo en su**: gelijk aan de bash-agent, zonder dubbele of gemiste logins bij het overnemen.
 - **1.344.0**: **Overnemen per server**: de Go-agent doet het werk als de proef goed was en niets het tegenhoudt, en valt vanzelf terug op de bash-agent.
 - **1.343.0**: **De proef met de Go-agent werkt zichzelf bij**: alleen met een geldige handtekening van de ontwikkelaar.
 - **1.342.0**: **Proef met de Go-agent: details per dienst**: poorten, een passende test en logfouten per dienst, extra tests en de dienstenlijst.
 - **1.341.0**: **Proef met de Go-agent: certificaten en processen**: uitgelezen zonder openssl en ps, en vergeleken met de bash-agent.
-- **1.340.0**: **Proef met de Go-agent: poorten en diensten**: de Go-agent meet ze zoals de bash-agent, en RzSense laat zien waar ze verschillen.
+
+## 1.345.0 – 2026-11-27
+### Nieuw
+- **De Go-agent leest nu ook logins, sudo en su.** Dat stond standaard aan en hield het overnemen daarom op bijna elke server tegen. Vanaf Go-agent 0.14.0 is het geen blokkade meer: logins komen bij *Meldingen* en *Toegang* binnen zoals van de bash-agent.
+- Bij het overnemen en teruggaan gaat er geen login verloren en komt er geen dubbel: beide agents gebruiken dezelfde bladwijzer in het log.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.14.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Wat overnemen op een standaardinstallatie nu nog tegenhoudt: **Updates** en **logs van webdiensten** (allebei standaard aan), en IDS, endpoint-sensoren en Kwetsbaarheden als je die gebruikt. Die volgen.
+- Voer op een server waar de proef al loopt het installatiecommando nog **één keer** opnieuw uit.
 
 ## 1.344.0 – 2026-11-27
 ### Nieuw

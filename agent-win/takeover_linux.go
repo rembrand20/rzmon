@@ -50,12 +50,13 @@ func takeoverReady(c *Config) map[string]any {
 	_, fbErr := os.Stat(fb)
 	keyDir := c.extra["key_dir"]
 	return map[string]any{
-		"systemd":    known,
-		"bash_timer": timer || modeActive(), // na het overnemen staat hij bewust uit
-		"fallback":   fbErr == nil,
-		"key_write":  keyDir != "" && unix.Access(keyDir, unix.W_OK) == nil,
-		"mode":       map[bool]string{true: "active", false: "shadow"}[modeActive()],
-		"note":       readState("takeover.last"),
+		"systemd":     known,
+		"bash_timer":  timer || modeActive(), // na het overnemen staat hij bewust uit
+		"fallback":    fbErr == nil,
+		"key_write":   keyDir != "" && unix.Access(keyDir, unix.W_OK) == nil,
+		"cache_write": unix.Access(filepath.Dir(authStatePath()), unix.W_OK) == nil, // 0.14.0: de stand van de logins delen met de bash-agent
+		"mode":        map[bool]string{true: "active", false: "shadow"}[modeActive()],
+		"note":        readState("takeover.last"),
 	}
 }
 
@@ -178,6 +179,9 @@ func buildRun(c *Config, t0 time.Time) map[string]any {
 	rep["update"] = map[string]any{"via": "go"}
 	rep["ready"] = takeoverReady(c)
 	rep["update_last"] = readState("update.last")
+	if auth := collectAuthLinux(); auth != nil { // 0.14.0: logins, sudo en su
+		rep["auth"] = auth
+	}
 	rep["timing"] = map[string]any{"total": time.Since(t0).Milliseconds()}
 	return rep
 }
@@ -248,7 +252,7 @@ func takeOver(c *Config) error {
 		return fmt.Errorf("de Go-agent viel minder dan een uur geleden terug op de bash-agent; hij probeert het daarna opnieuw")
 	}
 	ready := takeoverReady(c)
-	for _, k := range []string{"systemd", "bash_timer", "fallback", "key_write"} {
+	for _, k := range []string{"systemd", "bash_timer", "fallback", "key_write", "cache_write"} {
 		if ready[k] != true {
 			return fmt.Errorf("deze server is er niet klaar voor (%s); voer het installatiecommando uit RzSense opnieuw uit", k)
 		}

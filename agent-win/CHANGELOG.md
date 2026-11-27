@@ -5,6 +5,13 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.14.0 – 2026-11-27
+- **Linux: logins, sudo en su.** Doet de Go-agent het werk, dan leest hij de nieuwe regels van het auth-log (journal, anders `/var/log/secure` of `/var/log/auth.log`) en stuurt hij gelukte logins, sudo, su, het einde van een SSH-sessie en de mislukte pogingen naar RzSense, precies zoals de bash-agent. Wachtwoorden in sudo-commando's worden op de server al gemaskeerd.
+- De Go-agent houdt *waar was ik gebleven* bij in hetzelfde bestand als de bash-agent. Bij het overnemen en bij het teruggaan gaat er zo geen login verloren en komt er geen dubbel.
+- `AUTH_EVENTS=0`, `AUTH_SOURCE=file` en `AUTH_LOGS` in de instellingen van de agent werken zoals bij de bash-agent.
+- De timer mag daarvoor in `/var/cache/rzmon-agent` schrijven: voer het installatiecommando één keer opnieuw uit.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.13.0 – 2026-11-27
 - **Linux: de Go-agent kan het werk van de bash-agent overnemen**, per server, als je dat in RzSense vraagt. Hij zet de timer van de bash-agent en zijn bewaker uit (niet weg), haalt zelf de testlijst op en stuurt het echte rapport. Pas als RzSense dat rapport aanneemt, geldt de overname; anders gaat alles terug zoals het was.
 - **Terugval op de bash-agent, vanzelf:** na 5 mislukte rapporten achter elkaar, als RzSense het terugvraagt, of (door een los bewakertje, `rzsense-fallback.timer`) als er 10 minuten geen rapport is aangekomen, ook als het bestand van de Go-agent zelf stuk is. Na een terugval wacht de Go-agent een uur voor hij het opnieuw probeert.

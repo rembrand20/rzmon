@@ -15,7 +15,7 @@ final class AgentTakeover
     public const OS = 'linux-go'; // hosts.os zolang de Go-agent het werk doet
 
     /** Regels in de testlijst die de Go-agent uitvoert, of die alleen een losse vraag zijn (dan gebeurt er even niets) */
-    private const LINES_OK = ['tick', 'ival', 'svc', 'ports', 'url', 'port', 'cert', 'certdirs', 'certscan', 'proc', 'tselftest', 'texprobe'];
+    private const LINES_OK = ['auth', 'tick', 'ival', 'svc', 'ports', 'url', 'port', 'cert', 'certdirs', 'certscan', 'proc', 'tselftest', 'texprobe'];
     /** Agent-checks die de Go-agent meet; andere soorten die van de agent komen, houden het overnemen tegen */
     private const CHECKS_BLOCK = ['podman', 'container', 'pve', 'truenas', 'path', 'log', 'command', 'ha', 'heartbeat', 'ntp', 'smart', 'ups', 'mysql', 'vpn', 'traffic'];
 
@@ -122,7 +122,8 @@ final class AgentTakeover
         if ($s !== [] && !$active) {
             foreach (['systemd' => t('de server gebruikt geen systemd'), 'bash_timer' => t('de bash-agent draait niet via zijn timer (rzmon-agent.timer)'),
                 'fallback' => t('het bewakertje voor de terugval ontbreekt: voer het installatiecommando opnieuw uit'),
-                'key_write' => t('de Go-agent mag niet in de sleutelmap schrijven: voer het installatiecommando opnieuw uit')] as $k => $why) {
+                'key_write' => t('de Go-agent mag niet in de sleutelmap schrijven: voer het installatiecommando opnieuw uit'),
+                'cache_write' => t('de Go-agent mag niet in de map van de bash-agent schrijven (voor de stand van de logins): voer het installatiecommando opnieuw uit')] as $k => $why) {
                 if (empty($ready[$k])) {
                     $need[] = $why;
                 }
@@ -171,7 +172,7 @@ final class AgentTakeover
     {
         $in = is_array($in) ? $in : [];
         $out = ['mode' => ($in['mode'] ?? '') === 'active' ? 'active' : 'shadow', 'note' => mb_substr((string) ($in['note'] ?? ''), 0, 300)];
-        foreach (['systemd', 'bash_timer', 'fallback', 'key_write'] as $k) {
+        foreach (['systemd', 'bash_timer', 'fallback', 'key_write', 'cache_write'] as $k) {
             $out[$k] = !empty($in[$k]);
         }
         return $out;

@@ -133,7 +133,7 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=yes
-ReadWritePaths=$DATA /usr/local/bin $KDIR
+ReadWritePaths=$DATA /usr/local/bin $KDIR -/var/cache/rzmon-agent
 EOF
     # Het bewakertje (een shellscript, los van de Go-agent): doet de Go-agent het werk en kwam er 10 minuten geen rapport
     # aan, dan gaat de bash-agent weer aan. Zo zit de server nooit zonder agent, ook als het Go-bestand stuk is.

@@ -5240,7 +5240,7 @@ ok(AgentCrypto::capVersion('0.13.0', 'linux-go') === AgentCrypto::PINURL_MIN && 
 save_setting('auth_events', '1');
 save_setting('patch_on', '1');
 $tkB = AgentTakeover::blockers($tkHost());
-ok(in_array('Logins, sudo en su', $tkB, true) && in_array('Updates', $tkB, true), 'logins en updates houden het overnemen tegen: ' . implode(', ', $tkB));
+ok(in_array('Updates', $tkB, true) && !in_array('Logins, sudo en su', $tkB, true), 'updates houden het overnemen tegen, logins niet meer (1.345.0): ' . implode(', ', $tkB));
 foreach (['auth_events', 'weblog_swag', 'weblog_ha', 'weblog_vw', 'patch_on', 'ids_enabled', 'vuln_enabled'] as $tkK) {
     save_setting($tkK, '0');
 }
@@ -5257,7 +5257,7 @@ ok(AgentTakeover::blockers($tkHost()) === ['Realtime'], 'realtime houdt het tege
 q('UPDATE hosts SET realtime = 0 WHERE id = ?', [$tkH]);
 $tkC = AgentTakeover::check($tkH);
 ok(!$tkC['can'] && $tkC['proof'] !== [] && isset(AgentTakeover::request($tkH, true)['error']) && (int) $tkHost()['go_want'] === 0, 'zonder proef kan overnemen niet, en de vraag wordt niet bewaard');
-$tkReady = ['systemd' => true, 'bash_timer' => true, 'fallback' => true, 'key_write' => true, 'mode' => 'shadow', 'note' => ''];
+$tkReady = ['systemd' => true, 'bash_timer' => true, 'fallback' => true, 'key_write' => true, 'cache_write' => true, 'mode' => 'shadow', 'note' => ''];
 $tkShadow = ['at' => now(), 'since' => now(), 'version' => AGENT_WIN_LATEST, 'rounds' => 59, 'rounds_ok' => 59, 'same' => 5, 'n' => 5, 'items' => [], 'ready' => $tkReady];
 AgentData::put($tkH, 'shadow', $tkShadow);
 ok(!AgentTakeover::check($tkH)['can'], '59 proefrondes is nog niet genoeg');
