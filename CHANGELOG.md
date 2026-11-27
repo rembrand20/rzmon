@@ -8,11 +8,24 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.352.0**: **De Go-agent kan zelf herstellen**: een dienst herstarten, een container starten of een eigen herstelcommando, met dezelfde grenzen als de bash-agent.
 - **1.351.0**: **De Go-agent leest containers en heartbeats**: Podman en Docker (ook rootless), gelijk aan de bash-agent.
 - **1.350.0**: **De Go-agent kan logs**: log-checks, logs verzamelen en logs vinden, met dezelfde veiligheidsregels als de bash-agent.
 - **1.349.0**: **De Go-agent voert commando-checks uit**: kale omgeving, time-out, standaard als nobody, met de noodrem `COMMANDS=0` op de server.
 - **1.348.0**: **De Go-agent meet schijfgezondheid, UPS en pad-checks**: gelijk aan de bash-agent, met de doorvoertest.
-- **1.347.0**: **De Go-agent stuurt de softwarelijst en de klok**: Kwetsbaarheden en de check Tijd werken ook als de Go-agent het werk doet.
+
+## 1.352.0 – 2026-11-27
+### Nieuw
+- **De Go-agent kan nu ook zelf herstellen** (✎ → 🩹 *Zelf herstellen* bij een check): een dienst herstarten, een container starten, of een eigen herstelcommando van de server uitvoeren. Dat houdt het overnemen niet meer tegen.
+- De grenzen zijn dezelfde als bij de bash-agent: hooguit één poging per 10 minuten en 3 per dag per check, en `HEAL=0` op de server zet het uit.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.21.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Zelf herstellen wordt **niet** in de proef vergeleken: de Go-agent herstart pas iets als hij het werk doet.
+- De **waakhond** (een melding via Pushover of ntfy als RzSense onbereikbaar is) doet de Go-agent nog niet; staat die voor een server aan, dan houdt het overnemen tegen.
+- Wat overnemen verder nog tegenhoudt: Realtime, IDS, endpoint-sensoren, ransomware-detectie, Proxmox en TrueNAS, en checks op databases, VPN en netwerkverkeer.
 
 ## 1.351.0 – 2026-11-27
 ### Nieuw

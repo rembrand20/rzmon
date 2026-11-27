@@ -764,11 +764,12 @@ commando twee keer lopen. Hetzelfde geldt voor logs: log-checks, logs verzamelen
 doet hij met dezelfde regels als de bash-agent (alleen binnen `LOG_DIRS`, of logs in een map uit RzSense binnen
 `LOG_DIRS_MAX`; nooit sleutels, wachtwoorden of instellingen) en met dezelfde bladwijzers en wachtrij, zodat er bij het
 wisselen geen regel verloren gaat of dubbel telt. Containers (Podman en Docker, ook rootless) leest hij zoals de
-bash-agent, en heartbeats van `rzmon-hb` stuurt hij door; een container of dienst zelf herstarten (*Zelf herstellen*)
-doet hij nog niet.
+bash-agent, en heartbeats van `rzmon-hb` stuurt hij door. *Zelf herstellen* doet hij ook: een dienst herstarten, een
+container starten of een eigen herstelcommando uit `HEAL_DIR` uitvoeren, met dezelfde grenzen (één poging per 10 minuten,
+3 per dag per check; `HEAL=0` zet het uit). De waakhond doet hij nog niet.
 Dit houdt overnemen tegen zolang het voor de server aan staat: logs van webdiensten (met het IDS aan, en alleen
 op een server waar zo'n log gevonden is); IDS en endpoint-sensoren;
-Kwetsbaarheden; Realtime; checks op Proxmox, TrueNAS, databases, VPN en netwerkverkeer; zelf herstellen en de waakhond; de relay; en vaker dan elke minuut rapporteren.
+Kwetsbaarheden; Realtime; checks op Proxmox, TrueNAS, databases, VPN en netwerkverkeer; de waakhond; de relay; en vaker dan elke minuut rapporteren.
 
 **Wat er gebeurt.** Bij de volgende proefronde zet de Go-agent de timer van de bash-agent en zijn bewaker uit (de
 bash-agent blijft geïnstalleerd, met zijn instellingen en sleutel), haalt de testlijst op en stuurt het echte rapport.

@@ -5280,6 +5280,12 @@ $tkC4 = array_column(AgentShadow::compare(['podman' => ['containers' => [$tkCt, 
     ['containers' => ['web' => $tkCt, 'piet/db' => ['name' => 'db', 'user' => 'piet', 'state' => 'running'] + $tkCt]]), null, 'k');
 ok(!$tkC4['containers: lijst']['ok'] && str_contains($tkC4['containers: lijst']['go'], 'extra') && $tkC4['container web']['ok'] && !$tkC4['container piet/db']['ok'],
     'proef: containers per naam vergeleken (rootless als gebruiker/naam); een andere status of een extra container is een verschil');
+q("INSERT INTO checks (host_id, name, type, target, heal, enabled) VALUES (?, 'sshd', 'service', 'sshd', 'restart', 1)", [$tkH]);
+ok(str_contains(agent_tests_text($tkH, true), "\theal\tsvc\tsshd") && !preg_match('/herstellen|“heal”/u', implode(' ', AgentTakeover::blockers($tkHost()))), 'zelf herstellen staat in de testlijst en houdt het overnemen niet meer tegen (1.352.0)');
+q('UPDATE hosts SET watchdog = 1 WHERE id = ?', [$tkH]);
+ok(in_array('De waakhond', AgentTakeover::blockers($tkHost()), true), 'de waakhond houdt het overnemen nog wel tegen');
+q('UPDATE hosts SET watchdog = 0 WHERE id = ?', [$tkH]);
+q("DELETE FROM checks WHERE host_id = ? AND name = 'sshd'", [$tkH]);
 q("INSERT INTO checks (host_id, name, type, target, enabled) VALUES (?, 'ctr', 'container', 'web', 1), (?, 'pm', 'podman', '', 1), (?, 'hb', 'heartbeat', 'backup', 1)", [$tkH, $tkH, $tkH]);
 ok(!preg_match('/container|podman|heartbeat/', implode(' ', AgentTakeover::blockers($tkHost()))), 'checks op containers, Podman en heartbeats houden het overnemen niet meer tegen (1.351.0): ' . implode(', ', AgentTakeover::blockers($tkHost())));
 q("DELETE FROM checks WHERE host_id = ? AND type IN ('container', 'podman', 'heartbeat')", [$tkH]);

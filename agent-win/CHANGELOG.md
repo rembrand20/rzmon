@@ -5,6 +5,13 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.21.0 – 2026-11-27
+- **Linux: zelf herstellen.** Een dienst die *failed* of *inactive* is, herstart de agent; een container die gestopt is, start hij. Per check aan te zetten in RzSense, vóór de metingen van die ronde, zodat een gelukte herstart meteen als *draait* meetelt.
+- **Eigen herstelcommando's** voert de agent alleen uit op verzoek van RzSense, in een versleuteld antwoord, en alleen een bestand uit `HEAL_DIR` op de server zelf dat uitvoerbaar is, van root en niet door anderen te wijzigen. RzSense stuurt alleen de naam.
+- Dezelfde grenzen als de bash-agent: hooguit één poging per 10 minuten en 3 per dag per check; `HEAL=0` zet het op de server uit. De telling staat in dezelfde map als bij de bash-agent, zodat de grens ook bij overnemen en teruggaan geldt.
+- Alleen als de Go-agent het werk doet; in de proef herstart hij niets.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.20.0 – 2026-11-27
 - **Linux: containers (Podman en Docker).** Per container de status, health, herstarts, CPU, geheugen, netwerk, schijf, grootte en volumes; verder de pods (bij Docker: compose-projecten) en de opslag. Ook rootless containers van andere gebruikers, zoals de bash-agent (`PODMAN_USERS`). Alleen lezen.
 - Antwoordt podman of docker niet binnen 8 seconden, of loopt één commando af, dan slaat de agent de containeronderdelen die ronde over; de rest van het rapport gaat door.

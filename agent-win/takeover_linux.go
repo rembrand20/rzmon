@@ -109,6 +109,7 @@ type runReply struct {
 	Gz             int               `json:"gz"`
 	TestsRev       string            `json:"tests_rev"`
 	AgentKey       string            `json:"agent_key"`
+	HealRun        [][]any           `json:"heal_run"`        // 0.21.0: herstelcommando's uitvoeren: [[check-id, naam] …]
 	HbUnknown      []string          `json:"hb_unknown"`      // 0.20.0: heartbeats zonder check in RzSense
 	PackagesOK     bool              `json:"packages_ok"`     // 0.16.0: RzSense heeft de softwarelijst
 	PackagesResend bool              `json:"packages_resend"` // RzSense wil de hele lijst opnieuw
@@ -175,6 +176,7 @@ var sentPkgID string // de uitkomst van het installeren die met dit rapport meeg
 
 // buildRun: het echte rapport, met de namen van de bash-agent. "go": 1 zegt RzSense dat dit de Go-agent is.
 func buildRun(c *Config, t0 time.Time) map[string]any {
+	runHealLinux() // 0.21.0: zelf herstellen: vóór de metingen, zodat een gelukte herstart meteen als "draait" meetelt
 	// 0.20.0: containers: twee metingen met de rest van de ronde ertussen (zo kost het CPU-gebruik per container geen extra tijd)
 	var rep map[string]any
 	podman, busy := collectContainersLinux(func() { rep = coreCollect(2 * time.Second) })
@@ -183,6 +185,14 @@ func buildRun(c *Config, t0 time.Time) map[string]any {
 	}
 	if busy != "" {
 		rep["ctr_busy"] = busy
+	}
+	if heal, cmds := healReport(); len(heal) > 0 || len(cmds) > 0 { // 0.21.0: uitkomsten van herstelpogingen en de herstelcommando's hier
+		if len(heal) > 0 {
+			rep["heal"] = heal
+		}
+		if len(cmds) > 0 {
+			rep["heal_cmds"] = cmds
+		}
 	}
 	if hb := collectHeartbeatsLinux(); len(hb) > 0 { // heartbeats van rzmon-hb
 		rep["hb"] = hb
@@ -255,12 +265,15 @@ func runOnce(c *Config) (*runReply, error) {
 	}
 	body, code, err := sealedCall(c, "agent", plain, nil, 50*time.Second)
 	if err != nil {
+		healSent(false)
 		return nil, fmt.Errorf("rapport niet verstuurd: %w", err)
 	}
 	var r runReply
 	if code != 200 || json.Unmarshal(body, &r) != nil || !r.OK {
+		healSent(false)
 		return nil, fmt.Errorf("rapport niet aangenomen (HTTP %d): %s", code, shortErr(body))
 	}
+	healSent(true)
 	return &r, nil
 }
 
@@ -296,7 +309,8 @@ func afterRun(c *Config, r *runReply) {
 	if len(r.HbUnknown) > 0 {
 		writeState("hb.unknown", time.Now().Format("2006-01-02 15:04:05")+" RzSense heeft geen heartbeat-check met de naam "+strings.Join(r.HbUnknown, ", ")+" op deze server (＋ Check → Heartbeat)")
 	}
-	shipLogsLinux(c) // 0.19.0: logs verzamelen: los van het rapport, in pakketjes
+	runHealCommands(r.HealRun) // 0.21.0: alleen een bestand uit HEAL_DIR op de server zelf
+	shipLogsLinux(c)           // 0.19.0: logs verzamelen: los van het rapport, in pakketjes
 	softwareReply(r.PackagesOK, r.PackagesResend)
 	if r.PkgUpgrade != nil {
 		startUpgrade(*r.PkgUpgrade)

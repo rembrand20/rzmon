@@ -12127,7 +12127,7 @@ return [
     'Op de server draait Go-agent {a}; RzSense heeft {b}. Vanaf 0.12.0 werkt de Go-agent zichzelf bij; een oudere werk je bij door het installatiecommando hieronder opnieuw uit te voeren.' => 'The server runs Go agent {a}; RzSense has {b}. From 0.12.0 the Go agent updates itself; update an older one by running the install command below again.',
     'Logins, sudo en su' => 'Logins, sudo and su',
     'Endpoint-sensoren (EDR)' => 'Endpoint sensors (EDR)',
-    'Zelf herstellen en de waakhond' => 'Self-healing and the watchdog',
+    'De waakhond' => 'The watchdog',
     'Logs verzamelen of doorzoeken' => 'Collecting or searching logs',
     'Reverse proxy beschermen' => 'Protecting the reverse proxy',
     'Antivirus (ClamAV)' => 'Antivirus (ClamAV)',

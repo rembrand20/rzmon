@@ -106,6 +106,21 @@ func cliLinux(args []string) bool {
 		}
 		b, _ := json.Marshal(v)
 		fmt.Println(string(b))
+	case "heal-test": // voor de tests: run | report | sent | cmd <id> <naam>
+		switch {
+		case len(os.Args) < 3:
+			os.Exit(2)
+		case os.Args[2] == "run":
+			runHealLinux()
+		case os.Args[2] == "sent":
+			healSent(true)
+		case os.Args[2] == "cmd" && len(os.Args) >= 5:
+			runHealCommands([][]any{{float64(atoiDef(os.Args[3], -1)), os.Args[4]}})
+		default:
+			res, cmds := healReport()
+			b, _ := json.Marshal(map[string]any{"heal": res, "heal_cmds": cmds})
+			fmt.Println(string(b))
+		}
 	case "ctr-check": // voor de tests: containers en heartbeats zoals ze in het rapport komen
 		p, busy := collectContainersLinux(nil)
 		b, _ := json.Marshal(map[string]any{"podman": p, "busy": busy, "hb": collectHeartbeatsLinux()})

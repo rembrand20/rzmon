@@ -15,7 +15,7 @@ final class AgentTakeover
     public const OS = 'linux-go'; // hosts.os zolang de Go-agent het werk doet
 
     /** Regels in de testlijst die de Go-agent uitvoert, of die alleen een losse vraag zijn (dan gebeurt er even niets) */
-    private const LINES_OK = ['auth', 'cmd', 'log', 'logsrc', 'logship', 'logscan', 'logpause', 'logdirs', 'logbrowse', 'patch', 'path', 'pathtp', 'iperfs', 'tick', 'ival', 'svc', 'ports', 'url', 'port', 'cert', 'certdirs', 'certscan', 'proc', 'tselftest', 'texprobe'];
+    private const LINES_OK = ['auth', 'cmd', 'heal', 'log', 'logsrc', 'logship', 'logscan', 'logpause', 'logdirs', 'logbrowse', 'patch', 'path', 'pathtp', 'iperfs', 'tick', 'ival', 'svc', 'ports', 'url', 'port', 'cert', 'certdirs', 'certscan', 'proc', 'tselftest', 'texprobe'];
     /** Agent-checks die de Go-agent meet; andere soorten die van de agent komen, houden het overnemen tegen */
     private const CHECKS_BLOCK = ['pve', 'truenas', 'ha', 'mysql', 'vpn', 'traffic'];
 
@@ -28,7 +28,7 @@ final class AgentTakeover
             in_array($type, ['ids', 'block', 'unblock', 'isolate', 'userlock', 'decoy', 'fim', 'canary', 'knet', 'outblock', 'net'], true) => t('IDS'),
             str_starts_with($type, 'edr') => t('Endpoint-sensoren (EDR)'),
             in_array($type, ['weblog', 'web'], true) => t('Logs van webdiensten'),
-            in_array($type, ['watchdog', 'heal', 'heal_cmds'], true) => t('Zelf herstellen en de waakhond'),
+            $type === 'watchdog' => t('De waakhond'),
             str_starts_with($type, 'log') => t('Logs verzamelen of doorzoeken'),
             $type === 'cmd' => t('Commando-checks'),
             in_array($type, ['apps', 'appctl', 'tappblock'], true) => t('Programma\'s'),

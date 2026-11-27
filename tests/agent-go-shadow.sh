@@ -579,6 +579,106 @@ print('✔ containers: %d containers (Podman en Docker), CPU, geheugen, netwerk,
 PY
 for hbset in b g; do { [ ! -e "$C/hb/$hbset/hb.ongeldig" ] && [ -L "$C/hb/$hbset/hb.link" ] && [ "$(find "$C/hb/$hbset" -name 'hb.*' -type f | wc -l)" = 2 ]; } || fail "heartbeats ($hbset): een ongeldig bestand hoort weg te gaan, een symlink blijft staan, geldige regels blijven tot RzSense ze heeft"; done
 
+# 1.352.0 (Go-agent 0.21.0): zelf herstellen: de echte bash-code en de Go-agent met dezelfde namaak-systemctl en -podman
+H="$work/heal"
+mkdir -p "$H/bin" "$H/cmd" "$H/bt" "$H/gstate"
+cat >"$H/bin/systemctl" <<'EOS'
+#!/bin/sh
+# namaak: de status per dienst staat in $HEAL_STATE/svc.<naam> (standaard active); "kapot" laat zich niet herstarten
+f="$HEAL_STATE/svc.$2"
+case "$1" in
+    is-active) st=$(cat "$f" 2>/dev/null || echo active); echo "$st"; [ "$st" = active ] ;;
+    restart) echo "$2" >>"$HEAL_STATE/restarts"; [ "$2" = kapot ] && exit 1; echo active >"$f" ;;
+esac
+EOS
+cat >"$H/bin/podman" <<'EOS'
+#!/bin/sh
+case "$1" in
+    ps) echo x ;;
+    inspect) cat "$HEAL_STATE/ctr.$4" 2>/dev/null || exit 1 ;;
+    start) echo "$2" >>"$HEAL_STATE/starts"; [ "$2" = stuk ] && exit 1; echo running >"$HEAL_STATE/ctr.$2" ;;
+    *) exit 1 ;;
+esac
+EOS
+printf '#!/bin/sh\necho "cache geleegd"\necho tweede regel\n' >"$H/cmd/ok.sh"; printf '#!/bin/sh\necho "kan niet" >&2\nexit 3\n' >"$H/cmd/fout.sh"
+printf '#!/bin/sh\necho open\n' >"$H/cmd/open.sh"; printf '#!/bin/sh\necho x\n' >"$H/cmd/niet-uitvoerbaar"; ln -s "$H/cmd/ok.sh" "$H/cmd/link.sh"
+chmod 755 "$H/bin/systemctl" "$H/bin/podman" "$H/cmd/ok.sh" "$H/cmd/fout.sh"; chmod 777 "$H/cmd/open.sh"; chmod 644 "$H/cmd/niet-uitvoerbaar"
+printf '0\ttick\t60\n71\theal\tsvc\tweb\n72\theal\tsvc\tkapot\n73\theal\tsvc\tgoed\n74\theal\tctr\troot/app\n75\theal\tctr\troot/stuk\n76\theal\tsvc\traar;naam\n77\theal\tctr\tbestaat-niet-xyz/x\n78\theal\tctr\troot/draait\n' >"$H/tests.cache"
+heal_state() { mkdir -p "$1"; echo failed >"$1/svc.web"; echo inactive >"$1/svc.kapot"; echo exited >"$1/ctr.app"; echo dead >"$1/ctr.stuk"; echo running >"$1/ctr.draait"; }
+heal_state "$H/bstate"; heal_state "$H/gstate"
+bash_heal() {   # bash_heal <uitvoer>: herstellen, de herstelcommando's uit het antwoord, en wat er met het rapport meegaat
+    (
+        PATH="$H/bin:$PATH"; export HEAL_STATE="$H/bstate"; t_dir="$H/bt"; t_cache="$H/tests.cache"; HEAL=1; TEST=0; HA_MODE=0; HEAL_DIR="$H/cmd"; seal_n=x; podman_ctx=(root)
+        id() { if [ "${1-}" = -u ] && [ $# = 1 ]; then echo 0; else command id "$@"; fi; }
+        sleep() { :; }; lap() { :; }
+        # shellcheck disable=SC1090
+        source <(sed -n '/^json_escape() {/,/^}/p' agent/src/15-realtime.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^ctr_busy=""/,/^# Agent 1.67.0: PID van deze run/p' agent/src/40-basis-meten.sh | sed '$d')
+        # shellcheck disable=SC1090
+        source <(sed -n '/^pm() {/,/^}/p' agent/src/40-basis-meten.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^heal_dir="\$t_dir\/heal"/,/^# -\{10,\} Services/p' agent/src/40-basis-meten.sh | sed '$d')
+        resp='{"ok":true,"heal_run":[[81,"ok.sh"],[82,"open.sh"],[83,"fout.sh"],[84,"bestaat-niet"],[85,"link.sh"]]}'
+        # shellcheck disable=SC1090
+        source <({ sed -n '/^    if \[ -n "\$seal_n" \] && \[ "\$HEAL" != 0 \]/,/tr -d .\[\]./p' agent/src/90-versturen.sh; echo fi; })
+        # shellcheck disable=SC1090
+        source <(sed -n '/^heal_json=""; heal_cmds=""/,/^# Agent 1.89.0: logboek/p' agent/src/85-meesturen.sh | sed '$d')
+        printf '{"heal":[%s],"heal_cmds":[%s]}' "$heal_json" "$heal_cmds" >"$1"
+    )
+}
+go_heal() {
+    (
+        export PATH="$H/bin:$PATH" HEAL_STATE="$H/gstate" RZSENSE_BASH_CACHE="$H" RZSENSE_BASH_STATE="$H/gt" RZSENSE_BASH_CONF="$H/conf" RZSENSE_DATA="$H/gd" RZSENSE_TEST_FAST=1 RZSENSE_TEST_ROOT=1
+        "$work/rzsense" heal-test run
+        for o in "81 ok.sh" "82 open.sh" "83 fout.sh" "84 bestaat-niet" "85 link.sh"; do
+            # shellcheck disable=SC2086
+            "$work/rzsense" heal-test cmd $o
+        done
+        "$work/rzsense" heal-test report >"$1"
+    )
+}
+printf 'MONITOR_URL="%s"\nHEAL_DIR="%s"\nPODMAN_USERS=""\nDOCKER="0"\n' "$BASE" "$H/cmd" >"$H/conf"
+cmp_heal() {
+    python3 -I - "$H/bash$1.json" "$H/go$1.json" "$H/bstate" "$H/gstate" "$H/bt/heal" "$H/gt/heal" <<'PY'
+import glob, json, os, sys
+a, g = [json.load(open(p)) for p in sys.argv[1:3]]
+bad = []
+strip = lambda l: sorted((h['id'], h['ok'], h['m'].replace('/gstate', '/S').replace('/bstate', '/S')) for h in l or [])
+if strip(a['heal']) != strip(g['heal']):
+    bad.append('uitkomsten:\n bash %s\n go   %s' % (json.dumps(strip(a['heal']), ensure_ascii=False), json.dumps(strip(g['heal']), ensure_ascii=False)))
+if sorted(a['heal_cmds'] or []) != sorted(g['heal_cmds'] or []):
+    bad.append('herstelcommando\'s: bash %r, go %r' % (a['heal_cmds'], g['heal_cmds']))
+for f in ('restarts', 'starts'):
+    x, y = [open(os.path.join(d, f)).read() if os.path.exists(os.path.join(d, f)) else '' for d in sys.argv[3:5]]
+    if x != y:
+        bad.append('%s: bash %r, go %r' % (f, x, y))
+tr = [sorted((os.path.basename(p), len(open(p).read().split())) for p in glob.glob(d + '/*.tries')) for d in sys.argv[5:7]]
+if tr[0] != tr[1]:
+    bad.append('pogingen: bash %r, go %r' % (tr[0], tr[1]))
+if bad:
+    print('\n'.join(bad)); sys.exit(1)
+print(len(a['heal']), len(a['heal_cmds'] or []), open(os.path.join(sys.argv[3], 'restarts')).read().split(), json.dumps(strip(a['heal']), ensure_ascii=False))
+PY
+}
+bash_heal "$H/bash1.json" || fail "de bash-code voor zelf herstellen faalde"
+go_heal "$H/go1.json" || fail "de Go-agent kon niet herstellen"
+got=$(cmp_heal 1) || fail "zelf herstellen: de Go-agent doet het anders dan de bash-agent: $got"
+case "$got" in *'web'*'kapot'*) ;; *) fail "zelf herstellen: web en kapot horen een herstartpoging te krijgen: $got" ;; esac
+grep -q 'herstart gelukt' <<<"$got" && grep -q 'herstart mislukt' <<<"$got" && grep -q 'container app was exited, gestart' <<<"$got" || fail "zelf herstellen: onverwachte uitkomsten: $got"
+[ "$(cat "$H/gstate/svc.web")" = active ] || fail "de dienst web is niet herstart"
+[ ! -e "$H/gstate/svc.goed" ] || fail "een dienst die draait is toch aangeraakt"
+! grep -qx draait "$H/gstate/starts" || fail "een container die draait is toch gestart"
+lt_first=$got
+# Meteen nog een ronde: binnen 10 minuten geen nieuwe poging voor wat nog stuk is
+for d in "$H/bt/heal" "$H/gt/heal"; do rm -f "$d/done" "$d/done.sending"; done
+bash_heal "$H/bash2.json" || fail "de bash-code voor zelf herstellen faalde (ronde 2)"
+go_heal "$H/go2.json" || fail "de Go-agent kon niet herstellen (ronde 2)"
+got=$(cmp_heal 2) || fail "zelf herstellen, ronde 2: de Go-agent doet het anders dan de bash-agent: $got"
+[ "${got%% *}" = 0 ] || fail "binnen 10 minuten hoort er geen nieuwe poging te komen: $got"
+[ "$(grep -c kapot "$H/gstate/restarts")" = 1 ] || fail "kapot is binnen 10 minuten twee keer herstart"
+echo "✔ zelf herstellen: ${lt_first%% *} uitkomsten (dienst herstart, container gestart, mislukte pogingen, herstelcommando's) en de grens van één poging per 10 minuten: gelijk aan de bash-agent"
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.
