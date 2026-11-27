@@ -469,7 +469,8 @@ def batches(d):
             body.append('\t'.join(c))
         out.append([h[0], h[3], h[4]] + body)
     return out
-qa, qg = batches(sys.argv[3]), batches(sys.argv[4])
+# gesorteerd op inhoud: twee pakketjes uit dezelfde seconde hebben een willekeurige volgorde (de naam eindigt op een toevalsgetal)
+qa, qg = sorted(batches(sys.argv[3])), sorted(batches(sys.argv[4]))
 if qa != qg:
     fa, fg = [r for b in qa for r in b], [r for b in qg for r in b]
     bad.append('pakketjes (%d en %d):\n alleen bash %s\n alleen go   %s' % (len(qa), len(qg), json.dumps([r for r in fa if r not in fg], ensure_ascii=False), json.dumps([r for r in fg if r not in fa], ensure_ascii=False)))

@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.353.0**: **De Go-agent heeft de waakhond**: een bericht via Pushover of ntfy als RzSense onbereikbaar is, en wachten tijdens een update.
 - **1.352.0**: **De Go-agent kan zelf herstellen**: een dienst herstarten, een container starten of een eigen herstelcommando, met dezelfde grenzen als de bash-agent.
 
+## 1.356.1 – 2026-11-27
+### Opgelost
+- Een automatische test van logs verzamelen kon falen als twee pakketjes in dezelfde seconde gemaakt werden: hun volgorde is dan willekeurig. Geen wijziging in de werking.
+
 ## 1.356.0 – 2026-11-27
 ### Nieuw
 - **De Go-agent stuurt nu ook de wifi-meting mee**, zoekt certificaatbestanden (*Opnieuw zoeken* bij een SSL-check), beantwoordt **🧪 Test** uit de Agent Manager, kan het **meetpunt van buitenaf** zijn en levert de **diagnose voor AI-advies**.
