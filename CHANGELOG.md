@@ -8,11 +8,26 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.357.0**: **IDS in de Go-agent als dry-run**: de Go-agent neemt waar wat het IDS nodig heeft en RzSense vergelijkt het; er wordt niets geblokkeerd.
 - **1.356.0**: **De Go-agent is compleet op het beveiligingsblok na**: ook wifi, certificaten zoeken, 🧪 Test, het meetpunt van buitenaf en de AI-diagnose.
 - **1.355.0**: **De Go-agent doet databasechecks, WireGuard en netwerkverkeer**: alleen lezen, het wachtwoord nooit op de opdrachtregel.
 - **1.354.0**: **De Go-agent leest Proxmox en TrueNAS uit**: guests, opslag, ZFS, back-ups en apps, gelijk aan de bash-agent.
 - **1.353.0**: **De Go-agent heeft de waakhond**: een bericht via Pushover of ntfy als RzSense onbereikbaar is, en wachten tijdens een update.
-- **1.352.0**: **De Go-agent kan zelf herstellen**: een dienst herstarten, een container starten of een eigen herstelcommando, met dezelfde grenzen als de bash-agent.
+
+## 1.357.0 – 2026-11-27
+### Nieuw
+- **IDS in de Go-agent, eerste stap: een dry-run.** Op een server waar het IDS aan staat en de proef loopt, neemt de Go-agent hetzelfde waar als de bash-agent, en RzSense legt de twee naast elkaar. In het blok *Go-agent* komen de regels *IDS (proef): gevoelige bestanden*, *gebruikers*, *groepen met rechten*, *kernelmodules*, *verdachte processen* en *diensten die automatisch starten*.
+- **Er wordt niets geblokkeerd, vergrendeld of gestopt door de Go-agent.** Het IDS blijft het werk van de bash-agent, en het IDS houdt het overnemen nog steeds tegen.
+
+### Opgelost
+- **Proef met de Go-agent kwam op een trage server niet meer aan.** Na *Opnieuw beginnen te tellen* bleef er *Op deze server loopt nog geen proef* staan: de Go-agent wachtte te lang op de bash-agent en de ronde werd afgebroken. Hij wacht nu hooguit 15 seconden (Go-agent 0.27.0; hij werkt zichzelf bij als er nog af en toe een ronde aankomt, anders het installatiecommando opnieuw draaien).
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.27.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Voor deze vergelijking bewaart RzSense, alleen zolang de proef loopt, wat de bash-agent waarnam: van bestanden alleen de SHA-256, nooit de inhoud.
+- Nog niet in de dry-run: verdachte verbindingen, webshells, SUID-bestanden, de pakketcontrole, hardening en bestanden bewaken. Die volgen, daarna pas het ingrijpen.
 
 ## 1.356.2 – 2026-11-27
 ### Opgelost

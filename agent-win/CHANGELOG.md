@@ -5,6 +5,12 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.27.0 – 2026-11-27
+- **Linux: IDS als proef, eerste stap: alleen waarnemen.** Op een server waar het IDS aan staat, leest de Go-agent in de proef mee wat de bash-agent voor het IDS leest: de SHA-256 van gevoelige bestanden (inlog, sudo, SSH, cron, systemd-units, PAM; nooit de inhoud), gebruikers, leden van groepen met rechten, kernelmodules, verdachte processen en de diensten die automatisch starten.
+- De Go-agent grijpt hierbij nergens in: geen firewall, geen gebruikers, geen processen. Het IDS zelf blijft bij de bash-agent.
+- **Opgelost (Linux):** op een trage server (één kern) kon het wachten op de bash-agent zo lang duren dat de proefronde werd afgebroken en er niets meer bij RzSense aankwam (*Op deze server loopt nog geen proef*). De Go-agent wacht nu hooguit 15 seconden.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.26.0 – 2026-11-27
 Uit de tweede proefronde op een echte server (Rocky/RHEL, één kern):
 - **Linux: het proces bij een poort klopte niet bij een dienst die systemd via een socket start.** Bij cockpit op poort 9090 noemde de Go-agent `systemd`, de bash-agent `cockpit-tls`. `ss` noemt het proces met het hoogste pid als eerste; de Go-agent kiest nu hetzelfde.

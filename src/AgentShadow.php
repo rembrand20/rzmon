@@ -67,6 +67,30 @@ final class AgentShadow
     }
 
     /**
+     * 1.357.0: IDS als proef. Wat de bash-agent voor het IDS waarnam, bewaren om naast de Go-agent te leggen. Alleen als
+     * de proef op deze server loopt, en alleen wat vergeleken wordt: van bestanden de SHA-256 (nooit inhoud), gebruikers,
+     * groepen, kernelmodules, verdachte processen en de diensten die automatisch starten.
+     * @param array<string, mixed> $ids
+     */
+    public static function noteBashIds(int $hostId, array $ids): void
+    {
+        $s = AgentData::get($hostId, 'shadow');
+        if ($s === null || strtotime((string) ($s['at'] ?? '')) < time() - 600) {
+            return;
+        }
+        $prev = AgentData::get($hostId, 'ids_obs_bash') ?? [];
+        AgentData::put($hostId, 'ids_obs_bash', [
+            'at' => time(),
+            'files' => array_slice(array_filter((array) ($ids['files'] ?? []), static fn($h) => is_string($h) && preg_match('/^[0-9a-f]{64}$/', $h)), 0, 1000, true),
+            'users' => array_slice((array) ($ids['users'] ?? []), 0, 2000), 'groups' => (array) ($ids['groups'] ?? []),
+            'modules' => array_slice((array) ($ids['modules'] ?? []), 0, 2000),
+            'procs' => array_map(static fn($p) => ['pid' => (int) ($p['pid'] ?? 0), 'exe' => mb_substr((string) ($p['exe'] ?? ''), 0, 300)], array_slice(array_filter((array) ($ids['procs'] ?? []), 'is_array'), 0, 20)),
+            // de bash-agent stuurt de lijst met diensten maar eens per 10 minuten: de vorige bewaren
+            'units' => isset($ids['units']) && is_array($ids['units']) ? array_slice($ids['units'], 0, 500) : ($prev['units'] ?? null),
+        ]);
+    }
+
+    /**
      * Heeft RzSense een nieuwere Go-agent voor deze processor dan de agent nu heeft?
      * @return array{version: string, sha256: string}|null
      */
@@ -86,6 +110,10 @@ final class AgentShadow
     {
         $out = ['disks' => []];
         $min = time() - self::FRESH;
+        $idsB = AgentData::get($hostId, 'ids_obs_bash');
+        if (is_array($idsB) && (int) ($idsB['at'] ?? 0) >= $min) {
+            $out['ids_obs'] = $idsB;
+        }
         // 1.347.0: de softwarelijst die de bash-agent stuurde (Kwetsbaarheden of End-of-life aan)
         $inv = q('SELECT mgr, os_id, os_version, packages, exposed, kernel_running, kernel_latest FROM vuln_inventory WHERE host_id = ?', [$hostId])->fetch();
         if ($inv) {
@@ -404,6 +432,48 @@ final class AgentShadow
             $add('diensten om uit te kiezen', t('{n} namen', ['n' => count($bl)]) . ($onlyB ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyB, 0, 6))]) : '')
                 . ($state ? ' · ' . t('andere status: {l}', ['l' => implode(', ', array_slice($state, 0, 6))]) : ''),
                 t('{n} namen', ['n' => count($gl)]) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 6))]) : ''), count($onlyB) + count($onlyG) <= 4 && count($state) <= 2);
+        }
+        // 1.357.0: IDS als proef: wat de twee agents waarnemen (er wordt niets geblokkeerd of gestopt)
+        if (is_array($bash['ids_obs'] ?? null) && is_array($go['ids_obs'] ?? null)) {
+            [$bi, $gi] = [$bash['ids_obs'], $go['ids_obs']];
+            $bf = (array) ($bi['files'] ?? []);
+            $gf = (array) ($gi['files'] ?? []);
+            $onlyB = array_keys(array_diff_key($bf, $gf));
+            $onlyG = array_keys(array_diff_key($gf, $bf));
+            $other = array_keys(array_filter(array_intersect_key($bf, $gf), static fn($h, $p) => $h !== $gf[$p], ARRAY_FILTER_USE_BOTH));
+            $ft = static fn(array $m, array $only) => t('{n} bestanden', ['n' => count($m)]) . ($only ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($only, 0, 5))]) : '')
+                . ($other ? ' · ' . t('andere inhoud: {l}', ['l' => implode(', ', array_slice($other, 0, 5))]) : '');
+            // Een bestand dat net tussen de twee metingen verandert (bv. resolv.conf) is geen verschil van de agent: één mag
+            $add('IDS (proef): gevoelige bestanden', $ft($bf, $onlyB), $ft($gf, $onlyG), !$onlyB && !$onlyG && count($other) <= 1);
+            $lst = static function (mixed $l): array {
+                $m = array_map(static fn($x) => is_array($x) ? implode(':', array_map('strval', $x)) : (string) $x, is_array($l) ? $l : []);
+                sort($m);
+                return $m;
+            };
+            $cmp = static function (string $name, string $unit, array $b, array $g, int $tol = 0) use ($add): void {
+                $ob = array_values(array_diff($b, $g));
+                $og = array_values(array_diff($g, $b));
+                $tx = static fn(array $m, array $only) => count($m) . ' ' . $unit . ($only ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($only, 0, 6))]) : '');
+                $add($name, $tx($b, $ob), $tx($g, $og), count($ob) + count($og) <= $tol);
+            };
+            $cmp('IDS (proef): gebruikers', t('gebruikers'), $lst($bi['users'] ?? []), $lst($gi['users'] ?? []));
+            $grp = static function (mixed $g): array {
+                $m = [];
+                foreach (is_array($g) ? $g : [] as $name => $members) {
+                    $mm = array_map('strval', (array) $members);
+                    sort($mm);
+                    $m[] = $name . '=' . implode(',', $mm);
+                }
+                sort($m);
+                return $m;
+            };
+            $cmp('IDS (proef): groepen met rechten', t('groepen'), $grp($bi['groups'] ?? []), $grp($gi['groups'] ?? []));
+            $cmp('IDS (proef): kernelmodules', t('modules'), $lst($bi['modules'] ?? []), $lst($gi['modules'] ?? []), 1);
+            $pr = static fn(mixed $l): array => array_values(array_unique(array_map(static fn($p) => (string) ($p['exe'] ?? ''), array_filter(is_array($l) ? $l : [], 'is_array'))));
+            $cmp('IDS (proef): verdachte processen', t('processen'), $pr($bi['procs'] ?? []), $pr($gi['procs'] ?? []), 1);
+            if (is_array($bi['units'] ?? null) && is_array($gi['units'] ?? null)) {
+                $cmp('IDS (proef): diensten die automatisch starten', t('diensten'), $lst($bi['units']), $lst($gi['units']));
+            }
         }
         // 1.355.0: WireGuard: welke peers er zijn en hun endpoint (de handshake en het verkeer lopen door en tellen niet)
         if (is_array($bash['wg'] ?? null) && is_array($go['wg'] ?? null)) {

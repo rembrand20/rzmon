@@ -540,6 +540,9 @@ if ($action === 'agent') {
     UpdateWindow::note($host, $in);   // 1.295.0: was er net een update (dnf, apt)? Dan is dat geen aanval
     if (is_array($in['ids'] ?? null)) {
         Ids::process($host, $in['ids'], (array) ($in['auth'] ?? []), (array) ($in['ports'] ?? []));
+        if (!$goAgent) {
+            AgentShadow::noteBashIds((int) $host['id'], $in['ids']);   // 1.357.0: voor de proef met de Go-agent (alleen als die loopt)
+        }
     }
     // Isoleren en gebruikers vergrendelen (agent 1.57.0): de stand bij de agent
     Ids::agentState($host, $in);

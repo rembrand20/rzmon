@@ -1020,6 +1020,40 @@ got=$(go_x selftest | python3 -I -c 'import json,sys; d=json.load(sys.stdin); pr
 [ "$(go_x selftest)" = null ] || fail "de zelftest hoort maar één keer per vraag te draaien"
 echo "✔ de zelftest van de Go-agent: RzSense bereikbaar, vrije ruimte en de rest; één keer per vraag"
 
+# 1.357.0 (Go-agent 0.27.0): IDS als proef (alleen waarnemen): de echte bash-code en de Go-agent lezen dezelfde
+# gevoelige bestanden (SHA-256), gebruikers, groepen, kernelmodules en verdachte processen van deze machine
+I="$work/ids"; mkdir -p "$I"
+cp "$(command -v sleep)" /tmp/rzproef-ids-verdacht 2>/dev/null && (/tmp/rzproef-ids-verdacht 40 >/dev/null 2>&1 & echo $! >"$I/pid")
+(
+    # shellcheck disable=SC1090
+    source <(sed -n '/^json_escape() {/,/^}/p; /^json_text() {/,/^}/p' agent/src/15-realtime.sh)
+    # shellcheck disable=SC1090
+    source <(sed -n '/^    shopt -s nullglob$/,/^    mods_json=/p' agent/src/60-ids-en-edr.sh)
+    # shellcheck disable=SC1090
+    source <(sed -n '/^    procs_json=""; n_procs=0$/,/^    done$/p' agent/src/60-ids-en-edr.sh)
+    printf '{"files":{%s},"users":[%s],"groups":{%s},"modules":[%s],"procs":[%s]}' "${files_json%,}" "${users_json%,}" "${groups_json%,}" "${mods_json%,}" "${procs_json%,}" >"$I/bash.json"
+) || fail "de bash-code voor het IDS faalde"
+"$work/rzsense" ids-obs >"$I/go.json" || fail "de Go-agent kon niet waarnemen voor het IDS"
+kill "$(cat "$I/pid" 2>/dev/null)" 2>/dev/null || true; rm -f /tmp/rzproef-ids-verdacht
+python3 -I - "$I/bash.json" "$I/go.json" <<'PY' || fail "de Go-agent neemt voor het IDS iets anders waar dan de bash-agent"
+import json, sys
+a, g = [json.load(open(p)) for p in sys.argv[1:3]]
+bad = []
+for k in ('files', 'users', 'groups', 'modules'):
+    if a[k] != g[k]:
+        x, y = a[k], g[k]
+        if isinstance(x, dict):
+            bad.append('%s: alleen bash %s, alleen go %s, anders %s' % (k, sorted(set(x) - set(y))[:5], sorted(set(y) - set(x))[:5], [p for p in x if p in y and x[p] != y[p]][:5]))
+        else:
+            bad.append('%s: bash %s\n go %s' % (k, json.dumps(x)[:400], json.dumps(y)[:400]))
+pa, pg = [sorted((p['exe'], p['user']) for p in d['procs'] if 'rzproef-ids' in p['exe']) for d in (a, g)]
+if pa != pg or len(pa) != 1:
+    bad.append('verdachte processen: bash %s, go %s' % (json.dumps(a['procs'])[:500], json.dumps(g['procs'])[:500]))
+if bad or len(a['files']) < 5 or len(a['users']) < 3:
+    print('\n'.join(bad) or 'te weinig gelezen: %d bestanden, %d gebruikers' % (len(a['files']), len(a['users']))); sys.exit(1)
+print('✔ IDS als proef (alleen waarnemen): %d gevoelige bestanden (SHA-256), %d gebruikers, %d groepen, %d kernelmodules en een proces uit /tmp: gelijk aan de bash-agent' % (len(a['files']), len(a['users']), len(a['groups']), len(a['modules'])))
+PY
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.

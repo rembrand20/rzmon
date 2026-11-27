@@ -702,6 +702,10 @@ per server **het werk laten overnemen** (zie [Overnemen](#overnemen-de-go-agent-
 - Ook schijfgezondheid, UPS en pad-checks meet de Go-agent in de proef mee (zonder iperf3). Bij een pad-check telt het
   pad zelf: netwerkkaart, adres, gateway, snelheid en of het doel bereikbaar is. De vertraging per hop verschilt per
   meting en telt niet.
+- Staat het IDS voor de server aan, dan neemt de Go-agent in de proef mee waar wat het IDS nodig heeft: de SHA-256 van
+  gevoelige bestanden (nooit de inhoud), gebruikers, groepen met rechten, kernelmodules, verdachte processen en de
+  diensten die automatisch starten. Dit is een dry-run: de Go-agent blokkeert, vergrendelt en stopt niets, en het IDS
+  zelf blijft bij de bash-agent.
 - Eens per 10 minuten leest de Go-agent ook de containers mee: welke er zijn, en per container de status, health, image,
   pod en het aantal herstarts.
 - Eens per uur, vlak nadat de bash-agent gekeken heeft, kijkt de Go-agent welke updates er klaarstaan (zonder zelf iets

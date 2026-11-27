@@ -5300,6 +5300,24 @@ $tkSv = static fn(array $go) => array_column(AgentShadow::compare(['svc' => ['x'
     ['svc' => ['x' => ['sub' => 'running', 'type' => 'simple', 'pid' => 10, 'since' => 1000, 'ports' => []]]]), null, 'k')['dienst x: details']['ok'];
 ok($tkSv(['pid' => 10, 'since' => 1005]) && !$tkSv(['pid' => 10, 'since' => 1100]), 'proef: "sinds" mag een paar seconden schelen (de klok is na het opstarten gelijkgezet), geen minuten');
 ok($tkSv(['pid' => 77, 'since' => 5000]) && !$tkSv(['pid' => 77, 'since' => 1000]), 'proef: een dienst die opnieuw gestart is sinds de meting van de bash-agent is geen verschil; een ander hoofdproces zonder herstart wel');
+$tkIb = ['files' => ['/etc/passwd' => str_repeat('a', 64), '/etc/shadow' => str_repeat('b', 64), '/etc/hosts' => 'geen-hash'], 'users' => [['root', 0], ['piet', 1000]], 'groups' => ['wheel' => ['piet', 'jan']],
+    'modules' => ['ext4', 'nf_tables'], 'procs' => [['pid' => 5, 'exe' => '/tmp/x', 'user' => 'piet', 'cmd' => 'geheim --token abc']], 'units' => ['sshd.service', 'cron.service']];
+AgentShadow::noteBashIds($tkH, $tkIb);
+ok(AgentData::get($tkH, 'ids_obs_bash') === null, 'zonder lopende proef bewaart RzSense niets van het IDS voor de vergelijking');
+AgentData::put($tkH, 'shadow', ['at' => now(), 'rounds' => 1, 'rounds_ok' => 1]);
+AgentShadow::noteBashIds($tkH, $tkIb);
+$tkIs = AgentData::get($tkH, 'ids_obs_bash');
+ok(count($tkIs['files']) === 2 && !isset($tkIs['procs'][0]['cmd']) && $tkIs['procs'][0]['exe'] === '/tmp/x', 'bewaard voor de proef: alleen geldige SHA-256\'s, en van processen niet de opdrachtregel');
+AgentShadow::noteBashIds($tkH, ['units' => null] + $tkIb);
+ok(AgentData::get($tkH, 'ids_obs_bash')['units'] === ['sshd.service', 'cron.service'], 'de lijst met diensten (eens per 10 minuten) blijft bewaard tot de volgende');
+$tkIg = ['files' => ['/etc/passwd' => str_repeat('a', 64), '/etc/shadow' => str_repeat('b', 64)], 'users' => [['piet', 1000], ['root', 0]], 'groups' => ['wheel' => ['jan', 'piet']],
+    'modules' => ['nf_tables', 'ext4'], 'procs' => [['pid' => 5, 'exe' => '/tmp/x']], 'units' => ['cron.service', 'sshd.service']];
+$tkIc = static fn(array $go) => array_column(AgentShadow::compare(['ids_obs' => $go], ['ids_obs' => $tkIs]), 'ok', 'k');
+ok(!in_array(false, $tkIc($tkIg), true) && count($tkIc($tkIg)) === 6, 'IDS-proef: dezelfde waarneming (andere volgorde) is gelijk: ' . json_encode($tkIc($tkIg), JSON_UNESCAPED_UNICODE));
+$tkId = $tkIc(['users' => [['root', 0], ['piet', 1000], ['achterdeur', 0]], 'files' => ['/etc/passwd' => str_repeat('a', 64)]] + $tkIg);
+ok(!$tkId['IDS (proef): gebruikers'] && !$tkId['IDS (proef): gevoelige bestanden'] && $tkId['IDS (proef): kernelmodules'], 'IDS-proef: een gebruiker meer of een bestand minder is een verschil');
+AgentData::put($tkH, 'shadow', null);
+AgentData::put($tkH, 'ids_obs_bash', null);
 $tkCt = ['name' => 'web', 'user' => 'root', 'pod' => '', 'image' => 'nginx:1.27', 'state' => 'running', 'health' => 'healthy', 'exit_code' => 0, 'restarts' => 2];
 $tkC4 = array_column(AgentShadow::compare(['podman' => ['containers' => [$tkCt, ['name' => 'db', 'user' => 'piet', 'state' => 'exited'] + $tkCt, ['name' => 'extra'] + $tkCt]]],
     ['containers' => ['web' => $tkCt, 'piet/db' => ['name' => 'db', 'user' => 'piet', 'state' => 'running'] + $tkCt]]), null, 'k');

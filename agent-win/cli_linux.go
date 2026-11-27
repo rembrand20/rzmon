@@ -167,6 +167,10 @@ func cliLinux(args []string) bool {
 		}
 		b, _ := json.Marshal(v)
 		fmt.Println(string(b))
+	case "ids-obs": // voor de tests: wat de Go-agent voor het IDS waarneemt
+		b, _ := json.Marshal(map[string]any{"files": idsFileHashes(""), "users": idsUsers(readText("/etc/passwd")), "groups": idsGroups(readText("/etc/group")),
+			"modules": idsModules(readText("/proc/modules")), "procs": idsSuspectProcs()})
+		fmt.Println(string(b))
 	case "ctr-check": // voor de tests: containers en heartbeats zoals ze in het rapport komen
 		p, busy := collectContainersLinux(nil)
 		b, _ := json.Marshal(map[string]any{"podman": p, "busy": busy, "hb": collectHeartbeatsLinux()})
@@ -496,11 +500,12 @@ func cmdShadow(quiet bool) int {
 	}
 	// 0.26.0: niet meten terwijl de bash-agent zijn ronde draait. Op een server met één kern meten de twee anders elkaars
 	// werk mee (het CPU-gebruik leek dan 100%), en de CPU-meting van de bash-agent zelf hoort niet hoger te worden door de proef.
-	for i := 0; i < 40; i++ {
-		if out, _ := run(5*time.Second, "systemctl", "is-active", "rzmon-agent.service"); strings.TrimSpace(out) != "activating" {
+	// 0.27.0: hooguit 15 seconden op de klok. Op een trage server kostte het wachten zelf zoveel tijd dat systemd de proefronde
+	// na 90 seconden afbrak, en dan kwam er niets meer aan.
+	for wait := time.Now().Add(15 * time.Second); time.Now().Before(wait); time.Sleep(time.Second) {
+		if out, _ := run(3*time.Second, "systemctl", "is-active", "rzmon-agent.service"); strings.TrimSpace(out) != "activating" {
 			break
 		}
-		time.Sleep(time.Second)
 	}
 	t0 := time.Now()
 	core := coreCollect(2 * time.Second)
@@ -513,6 +518,9 @@ func cmdShadow(quiet bool) int {
 		if p, _ := collectContainersLinux(nil); p != nil {
 			core["podman"] = p
 		}
+	}
+	if obs := collectIdsObsLinux(); obs != nil { // 0.27.0: IDS als proef: alleen waarnemen, nergens ingrijpen
+		core["ids_obs"] = obs
 	}
 	if paths, _ := collectPathLinux(false); paths != nil { // 0.17.0: pad-checks (zonder iperf3)
 		core["path"] = paths

@@ -12191,4 +12191,8 @@ return [
     '{n} guests' => '{n} guests',
     '{n} apps' => '{n} apps',
     'nog geen handshake' => 'no handshake yet',
+    'andere inhoud: {l}' => 'different content: {l}',
+    'modules' => 'modules',
+    'processen' => 'processes',
+    'diensten' => 'services',
 ];
