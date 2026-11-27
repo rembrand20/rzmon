@@ -256,8 +256,22 @@ func buildRun(c *Config, t0 time.Time) map[string]any {
 	if db := collectDbLinux(); db != nil { // 0.24.0: databasechecks (alleen lezen)
 		rep["db"] = db
 	}
-	if rs := collectRansomLinux(); rs != nil { // 0.31.0: ransomware herkennen (lokaasbestanden, wijzigingen, kenmerken)
+	// 0.31.0: ransomware herkennen (lokaasbestanden, wijzigingen, kenmerken). 0.32.0: buiten de afscherming van de eigen
+	// dienst, want de lokaasbestanden staan in je eigen mappen
+	if rs := outsideJSON(60*time.Second, func() any { return collectRansomLinux() }, "ransom-test"); rs != nil {
 		rep["ransom"] = rs
+	}
+	// 0.32.0: tijdelijk sudo (een eigen bestand in /etc/sudoers.d: ook buiten de afscherming), Programma's en sporen zoeken
+	if sd := outsideJSON(45*time.Second, func() any { return collectSudoLinux() }, "sudo-test"); sd != nil && string(sd) != "[]" {
+		rep["sudo"] = sd
+	}
+	if apps, ioc := collectAppsLinux(); apps != nil || ioc != nil {
+		if apps != nil {
+			rep["apps"] = apps
+		}
+		if ioc != nil {
+			rep["ioc"] = ioc
+		}
 	}
 	// 0.30.0: Realtime (de stand van de watcher) en de endpoint-sensoren (de wachtrij en de stand)
 	ownPidsNote()

@@ -253,6 +253,13 @@ func cliLinux(args []string) bool {
 		}
 		b, _ := json.Marshal(v)
 		fmt.Println(string(b))
+	case "sudo-test": // tijdelijk sudo (ook zo gestart door de agent zelf, buiten de afscherming van zijn dienst)
+		b, _ := json.Marshal(collectSudoLinux())
+		fmt.Println(string(b))
+	case "apps-test": // voor de tests: Programma's en sporen zoeken zoals ze in het rapport komen
+		apps, ioc := collectAppsLinux()
+		b, _ := json.Marshal(map[string]any{"apps": apps, "ioc": ioc})
+		fmt.Println(string(b))
 	case "edr-parse": // voor de tests: de parsers van de endpoint-sensoren (zoals rzmon-agent.sh --edr-parse)
 		if len(os.Args) < 3 {
 			os.Exit(2)
@@ -617,6 +624,9 @@ func cmdShadow(quiet bool) int {
 	}
 	if rs := ransomObserve(); rs != nil { // 0.31.0: welke mappen de Go-agent zou bewaken (hij plaatst hier geen lokaas)
 		core["ransom_obs"] = rs
+	}
+	if hasLinePrefix(readText(filepath.Join(bashCachePath(), "tests.cache")), "0\tapps\t") && isRoot() { // 0.32.0: hoeveel programma's er nu draaien
+		core["apps_obs"] = map[string]any{"n": len(appsRunning())}
 	}
 	// 0.30.0: staan de endpoint-sensoren aan, dan de stand van de sensoren op deze server (de Go-agent verandert hier niets)
 	if conf, _ := readShellConf(bashConfPath()); edrWanted(readText(filepath.Join(bashCachePath(), "tests.cache")), conf) {

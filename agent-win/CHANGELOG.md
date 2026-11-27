@@ -5,6 +5,13 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.32.0 – 2026-11-27
+- **Linux: Programma's.** Elke ronde de programma's die draaien (niet in containers); een nieuw of veranderd programma krijgt een vingerafdruk en het pakket waar het bij hoort. Staat de vingerafdruk op de blokkeerlijst en staat stoppen aan, dan stopt de agent dat programma.
+- **Linux: jagen op sporen.** Eén keer per opdracht: bestaan de gezochte paden, en heeft een draaiend programma of een bestand op de gebruikelijke plekken een gezochte vingerafdruk?
+- **Linux: tijdelijk sudo.** Een eigen bestand in `/etc/sudoers.d`, eerst door `visudo` gecontroleerd, met een timer die het op tijd weghaalt. Alleen de eigen `rzsense-jit`-bestanden worden aangeraakt; nooit voor `root`.
+- **Schrijven buiten de afscherming.** De dienst van de Go-agent mag bijna nergens schrijven. Lokaasbestanden, tijdelijk sudo en het vergrendelen van een account voert hij daarom uit in een tijdelijke systemd-eenheid; de rest van de ronde blijft afgeschermd.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.31.0 – 2026-11-27
 - **Linux: ransomware herkennen**, zoals de bash-agent: lokaasbestanden in de mappen die je kiest, tellen wat er sinds de vorige ronde veranderde, bekende ransomware-extensies, losgeldbriefjes en tekst die niet meer te comprimeren is. Bij een sterk signaal, als je dat aanzette: een snapshot (ZFS of btrfs) en de schrijvende processen stoppen.
 - De stand van de lokaasbestanden deelt de Go-agent met de bash-agent. Overnemen of teruggaan geeft daardoor geen vals alarm en er komen geen dubbele lokaasbestanden.

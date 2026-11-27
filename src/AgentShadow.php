@@ -127,6 +127,15 @@ final class AgentShadow
         AgentData::put($hostId, 'edr_obs_bash', ['at' => time()] + $keep);
     }
 
+    /** 1.363.0: Programma's als proef: hoeveel programma's de bash-agent zag draaien */
+    public static function noteBashApps(int $hostId, int $n): void
+    {
+        $s = AgentData::get($hostId, 'shadow');
+        if ($s !== null && strtotime((string) ($s['at'] ?? '')) >= time() - 600) {
+            AgentData::put($hostId, 'apps_obs_bash', ['at' => time(), 'n' => max(0, $n)]);
+        }
+    }
+
     /**
      * 1.362.0: ransomware als proef: welke mappen de bash-agent bewaakt en welke hij te kiezen geeft
      * @param array<string, mixed> $ransom
@@ -162,6 +171,10 @@ final class AgentShadow
     {
         $out = ['disks' => []];
         $min = time() - self::FRESH;
+        $apB = AgentData::get($hostId, 'apps_obs_bash');
+        if (is_array($apB) && (int) ($apB['at'] ?? 0) >= $min) {
+            $out['apps_obs'] = $apB;
+        }
         $rsB = AgentData::get($hostId, 'ransom_obs_bash');
         if (is_array($rsB) && (int) ($rsB['at'] ?? 0) >= $min) {
             $out['ransom_obs'] = $rsB;
@@ -492,6 +505,12 @@ final class AgentShadow
             $add('diensten om uit te kiezen', t('{n} namen', ['n' => count($bl)]) . ($onlyB ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyB, 0, 6))]) : '')
                 . ($state ? ' · ' . t('andere status: {l}', ['l' => implode(', ', array_slice($state, 0, 6))]) : ''),
                 t('{n} namen', ['n' => count($gl)]) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 6))]) : ''), count($onlyB) + count($onlyG) <= 4 && count($state) <= 2);
+        }
+        // 1.363.0: Programma's als proef: hoeveel programma's er draaien. Er start en stopt altijd wel iets tussen de twee
+        // metingen: 10% mag verschillen (minstens 4).
+        if (is_array($bash['apps_obs'] ?? null) && is_array($go['apps_obs'] ?? null)) {
+            [$an, $gn] = [(int) ($bash['apps_obs']['n'] ?? 0), (int) ($go['apps_obs']['n'] ?? 0)];
+            $add("Programma's (proef): draaiende programma's", (string) $an, (string) $gn, abs($an - $gn) <= max(4, intdiv(max($an, $gn), 10)));
         }
         // 1.362.0: ransomware als proef: welke mappen bewaakt worden en welke er te kiezen zijn. De Go-agent plaatst in de
         // proef geen lokaasbestanden.

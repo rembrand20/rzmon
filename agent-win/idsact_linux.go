@@ -647,11 +647,11 @@ func userLocks(tests string) [][]string {
 		if _, rc := run(10*time.Second, "getent", "passwd", name); rc != 0 {
 			res = "onbekend"
 		} else if act == "lock" {
-			if _, rc := run(20*time.Second, "usermod", "-L", "-e", "1", name); rc == 0 {
+			if _, rc := runOutside(20*time.Second, "usermod", "-L", "-e", "1", name); rc == 0 { // buiten de afscherming: /etc is daar alleen-lezen
 				_, _ = run(20*time.Second, "pkill", "-KILL", "-u", name)
 				res = "ok"
 			}
-		} else if _, rc := run(20*time.Second, "usermod", "-U", "-e", "", name); rc == 0 {
+		} else if _, rc := runOutside(20*time.Second, "usermod", "-U", "-e", "", name); rc == 0 {
 			res = "ok"
 		}
 		for _, a := range []string{"lock", "unlock"} {

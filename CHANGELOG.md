@@ -8,11 +8,24 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.363.0**: **De Go-agent doet Programma's, sporen zoeken en tijdelijk sudo**: alleen de reverse proxy en logs van webdiensten ontbreken nog.
 - **1.362.0**: **De Go-agent herkent ransomware**: lokaasbestanden, kenmerken, snapshot en processen stoppen, gelijk aan de bash-agent.
 - **1.361.0**: **De Go-agent doet Realtime en EDR**: een eigen watcher en dezelfde endpoint-sensoren als de bash-agent.
 - **1.360.0**: **De Go-agent kan het IDS overnemen**: dezelfde firewall, lokaas-poort, isoleren en bestanden bewaken als de bash-agent; in de proef blijft het een dry-run.
 - **1.359.0**: **IDS in de Go-agent, dry-run compleet**: ook webshells, verbindingen, hardening, SUID, pakketcontrole en bestanden bewaken worden naast de bash-agent gelegd.
-- **1.358.0**: **Let's Encrypt zonder reverse proxy**: RzSense vraagt zelf een geldig certificaat aan voor je domein, koppelt het en vernieuwt het, met een stappenplan voor DNS, router en firewall.
+
+## 1.363.0 – 2026-11-27
+### Nieuw
+- **De Go-agent doet Programma's, jagen op sporen en tijdelijk sudo.** Die drie houden het overnemen niet meer tegen.
+- **In de proef** komt er een regel *Programma's (proef): draaiende programma's* bij: het aantal programma's dat beide agents zien draaien.
+- De proefronde en de ronde van de Go-agent mogen nu 5 minuten duren (was 90 seconden). Dat geldt na het opnieuw draaien van het installatiecommando uit het blok *Go-agent*.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.32.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Dit houdt overnemen nog tegen: logs van webdiensten (alleen waar zo'n log gevonden is), de reverse proxy met WAF en antivirus, en Home Assistant-checks. De relay blijft de bash-agent: die draait in zijn eigen container, zonder systemd.
+- Lokaasbestanden, tijdelijk sudo en een account vergrendelen doet de Go-agent buiten de afscherming van zijn dienst, omdat hij binnen die afscherming niet in `/etc` of in je eigen mappen mag schrijven.
 
 ## 1.362.0 – 2026-11-27
 ### Nieuw

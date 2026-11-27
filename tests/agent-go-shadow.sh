@@ -1288,7 +1288,7 @@ act_bash() {  # act_bash fw|iso|kill <uitvoer> [IDS_BLOCK] [sent]: de echte code
 act_go() {  # act_go fw|iso|kill|dry|log <uitvoer> [IDS_BLOCK] [sent]
     printf 'MONITOR_URL="https://rz.test:8443/rzsense"\nMONITOR_URL_FALLBACK="https://reserve.test"\nIDS_BLOCK=%s\n' "${3-1}" >"$K/g/conf"
     # shellcheck disable=SC2086
-    PATH="$K/bin:$PATH" NFT_DIR="$K/g/nft" RZSENSE_BASH_CONF="$K/g/conf" RZSENSE_BASH_CACHE="$K/g/gc" RZSENSE_DATA="$K/g/gd" RZSENSE_TEST_ROOT=1 \
+    env -u INVOCATION_ID PATH="$K/bin:$PATH" NFT_DIR="$K/g/nft" RZSENSE_BASH_CONF="$K/g/conf" RZSENSE_BASH_CACHE="$K/g/gc" RZSENSE_DATA="$K/g/gd" RZSENSE_TEST_ROOT=1 \
         "$work/rzsense" ids-act "$1" ${4-} >"$2" || fail "de Go-agent kon het ingrijpen van het IDS niet uitvoeren ($1)"
 }
 act_both() {  # act_both <naam> fw|iso [IDS_BLOCK] [sent]: beide kanten draaien en alles naast elkaar leggen
@@ -1748,6 +1748,166 @@ rs_tests '0\ttick\t30\n'
 rs_same uit
 grep -q '"on": *0' "$R/uit.go.json" && [ "$(find "$R/g/gt/ransom" -type f ! -name cand | wc -l)" = "$(find "$R/b/ransom" -type f ! -name cand | wc -l)" ] || fail "ransomware uit: de stand bleef staan: $(ls "$R/g/gt/ransom" "$R/b/ransom")"
 echo "✔ ransomware herkennen: lokaasbestanden (plaatsen, gewijzigd, weg, opruimen), extensies, losgeldbriefjes en versleutelde tekst, snapshot van het juiste dataset, het schrijvende proces stoppen, en het logboek: gelijk aan de bash-agent; in de proef raakt de Go-agent niets aan"
+
+# 1.363.0 (Go-agent 0.32.0): Programma's, jagen op sporen en tijdelijk sudo. De echte bash-code en de Go-agent draaien
+# naast elkaar; het geblokkeerde programma is een eigen kopie van bash, tijdelijk sudo werkt in een eigen map met een
+# namaak-visudo en -id.
+A="$work/apps"; mkdir -p "$A/bin" "$A/b" "$A/g/gc" "$A/g/gd" "$A/g/gt" "$A/sdb" "$A/sdg"
+ioc_dir=$(mktemp -d /tmp/rzproef-ioc.XXXXXX); printf 'kwaadaardig spoor\n' >"$ioc_dir/spoor.bin"; printf 'onschuldig\n' >"$ioc_dir/gewoon.txt"
+ioc_sha=$(sha256sum "$ioc_dir/spoor.bin" | cut -d' ' -f1)
+cp "$(type -P bash)" "$A/rzproef-app"; app_sha=$(sha256sum "$A/rzproef-app" | cut -d' ' -f1)
+app_start() { "$A/rzproef-app" -c 'sleep 300; :' >/dev/null 2>&1 & echo $! >"$A/app.pid"; disown $! 2>/dev/null || true; sleep 0.3; }
+ap_tests() { printf '%b' "$1" >"$A/b/tests.cache"; cp "$A/b/tests.cache" "$A/g/gc/tests.cache"; }
+ap_bash() {  # ap_bash <uitvoer>: de echte code van de bash-agent
+    (
+        set +u
+        HA_MODE=0; APPCTL=1; t_dir="$A/b"; t_cache="$A/b/tests.cache"
+        lap() { :; }; id() { echo 0; }
+        act_log() { printf '%s|%s|%s|%s\n' "$1" "$2" "$3" "${4-}" >>"$A/b/act"; }
+        # shellcheck disable=SC1090
+        source <(sed -n '/^json_escape() {/,/^}/p; /^json_text() {/,/^}/p' agent/src/15-realtime.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^pkg_owners() {/,$p' agent/src/64-programmas.sh)
+        printf '{"apps":%s,"ioc":%s}' "${apps_json:-null}" "${ioc_json:-null}" >"$1"
+    ) || fail "de bash-code voor Programma's faalde"
+}
+ap_go() {
+    printf 'MONITOR_URL="https://rz.test"\n' >"$A/g/conf"
+    env -u INVOCATION_ID RZSENSE_BASH_CONF="$A/g/conf" RZSENSE_BASH_CACHE="$A/g/gc" RZSENSE_BASH_STATE="$A/g/gt" RZSENSE_DATA="$A/g/gd" RZSENSE_TEST_ROOT=1 \
+        "$work/rzsense" apps-test >"$1" || fail "de Go-agent kon Programma's niet uitvoeren"
+}
+ap_cmp() {  # ap_cmp <naam> <verwachting in Python over a (bash) en g (go), beperkt tot onze eigen bestanden>
+    python3 -I - "$A" "$1" "$app_sha" "$ioc_sha" "$ioc_dir" "$2" <<'PY' || fail "Programma's ($1): de Go-agent doet iets anders dan de bash-agent"
+import json, sys
+A, name, app_sha, ioc_sha, ioc_dir, expect = sys.argv[1:7]
+def load(w):
+    d = json.load(open('%s/%s.%s.json' % (A, name, w)))
+    ap = d['apps'] or {}
+    mine = lambda l: sorted(json.dumps({k: v for k, v in e.items() if k != 'cmd'}, sort_keys=True) for e in l if e.get('p') == A + '/rzproef-app')
+    ioc = d['ioc']
+    if ioc:
+        ioc = {'id': ioc['id'], 'hits': sorted(json.dumps(h, sort_keys=True) for h in ioc['hits'] if ioc_dir in h['p'] or h['t'] == 'path'), 'files': ioc['files'] > 0}
+    return {'on': ap.get('on'), 'kill': ap.get('kill'), 'new': mine(ap.get('new', [])), 'blk': mine(ap.get('blk', [])), 'run': app_sha in ap.get('run', []), 'n': ap.get('n', 0), 'ioc': ioc}
+a, g = load('bash'), load('go')
+na, ng = a.pop('n'), g.pop('n')
+if a != g or abs(na - ng) > 6 or not eval(expect):
+    print('%s:\n  bash %s (n=%s)\n  go   %s (n=%s)' % (name, json.dumps(a), na, json.dumps(g), ng)); sys.exit(1)
+PY
+}
+# 1: aan, zonder stoppen: het eigen programma is nieuw (zonder pakket) en draait; de blokkeerlijst meldt het, maar stopt niets
+app_start
+ap_tests "0\ttick\t30\n0\tapps\t0\n0\tappblock\t$app_sha\n0\tappblock\tgeen-sha\n"
+ap_bash "$A/r1.bash.json"; ap_go "$A/r1.go.json"
+ap_cmp r1 "len(a['new']) == 1 and '\"ch\": 0' in a['new'][0] and '\"pkg\": \"\"' in a['new'][0] and a['run'] and '\"killed\": 0' in a['blk'][0] and a['kill'] == 0"
+kill -0 "$(cat "$A/app.pid")" 2>/dev/null || fail "zonder stoppen hoort het geblokkeerde programma te blijven draaien"
+# 2: tweede ronde: niets nieuws meer; 3: het programma is veranderd (een andere vingerafdruk)
+ap_bash "$A/r2.bash.json"; ap_go "$A/r2.go.json"
+ap_cmp r2 "a['new'] == [] and a['run']"
+kill "$(cat "$A/app.pid")" 2>/dev/null || true; sleep 0.2
+printf '\n# gewijzigd\n' >>"$A/rzproef-app"; app_sha2=$(sha256sum "$A/rzproef-app" | cut -d' ' -f1); app_start
+ap_tests "0\ttick\t30\n0\tapps\t0\n"
+ap_bash "$A/r3.bash.json"; ap_go "$A/r3.go.json"
+app_sha_old=$app_sha; app_sha=$app_sha2
+ap_cmp r3 "len(a['new']) == 1 and '\"ch\": 1' in a['new'][0] and a['blk'] == []"
+# 4: stoppen aan en de nieuwe vingerafdruk op de blokkeerlijst: elk stopt het proces dat er dan draait
+ap_tests "0\ttick\t30\n0\tapps\t1\n0\tappblock\t$app_sha\n"
+ap_bash "$A/r4.bash.json"; sleep 0.2
+kill -0 "$(cat "$A/app.pid")" 2>/dev/null && fail "de bash-agent hoort het geblokkeerde programma te stoppen"
+app_start
+ap_go "$A/r4.go.json"; sleep 0.2
+kill -0 "$(cat "$A/app.pid")" 2>/dev/null && { kill "$(cat "$A/app.pid")"; fail "de Go-agent hoort het geblokkeerde programma te stoppen"; }
+ap_cmp r4 "len(a['blk']) == 1 and '\"killed\": 1' in a['blk'][0] and a['kill'] == 1"
+# 5: jagen op sporen: een pad dat bestaat, een pad dat niet bestaat, en een bestand met de gezochte vingerafdruk; één keer
+ap_tests "0\ttick\t30\n0\tiochunt\t77\n0\tiocpath\t$(printf '%s' "$ioc_dir/gewoon.txt" | base64 -w0)\n0\tiocpath\t$(printf '/bestaat/niet' | base64 -w0)\n0\tiocpath\t$(printf 'relatief' | base64 -w0)\n0\tiocsha\t$ioc_sha\n0\tiocsha\t$app_sha_old\n"
+ap_bash "$A/r5.bash.json"; ap_go "$A/r5.go.json"
+ap_cmp r5 "a['ioc']['id'] == 77 and len(a['ioc']['hits']) == 2 and a['ioc']['files'] and a['on'] is None"
+ap_bash "$A/r6.bash.json"; ap_go "$A/r6.go.json"
+ap_cmp r6 "a['ioc'] is None"
+python3 -I - "$A" <<'PY' || fail "het logboek van Programma's wijkt af van dat van de bash-agent"
+import json, re, sys
+A = sys.argv[1]
+norm = lambda s: re.sub(r'doorzocht in [0-9]+ s', 'doorzocht in N s', re.sub(r'[0-9]+ bestanden', 'N bestanden', re.sub(r'pid [0-9]+', 'pid N', s)))
+a = [norm(l.rstrip('\n')) for l in open(A + '/b/act')]
+g = [norm('|'.join([e['m'], str(e['ok']), e['a'], e['d']])) for e in map(json.loads, open(A + '/g/gd/act.log'))]
+if a != g or len(a) != 2:
+    print('bash %s\ngo   %s' % (a, g)); sys.exit(1)
+PY
+mv -f "$ioc_dir" "$A/ioc.weg"
+# tijdelijk sudo, in een eigen map: gegeven, blijft staan, een onbekende gebruiker, root nooit, visudo keurt af, ingetrokken, verlopen
+cat >"$A/bin/visudo" <<'EOF'
+#!/bin/sh
+# namaak-visudo: keurt een bestand voor "kapot" af, en de hele configuratie als er een bestand voor "stuk" ligt
+case "$1" in
+    -cqf) grep -q '^kapot ' "$2" && exit 1; exit 0 ;;
+    -cq) [ -e "${SD_DIR:?}/rzsense-jit-stuk" ] && exit 1; exit 0 ;;
+esac
+exit 1
+EOF
+cat >"$A/bin/id" <<'EOF'
+#!/bin/sh
+[ "$1" = -u ] && [ -n "$2" ] && { case "$2" in piet|kapot|stuk|root) echo 1000; exit 0 ;; *) exit 1 ;; esac; }
+exec /usr/bin/id "$@"
+EOF
+cat >"$A/bin/systemd-run" <<'EOF'
+#!/bin/sh
+echo "$*" | sed 's/--on-active=[0-9]*/--on-active=N/; s#/[^ ]*/rzsense-jit-#/SD/rzsense-jit-#' >>"${SD_DIR:?}/../timers.$(basename "$SD_DIR")"
+EOF
+chmod +x "$A/bin/"*
+for d in "$A/sdb" "$A/sdg"; do printf '# niet van RzSense\n' >"$d/zz-ander"; done
+sd_bash() {
+    (
+        set +u
+        export PATH="$A/bin:$PATH" SD_DIR="$A/sdb"
+        HA_MODE=0; SUDO_JIT=1; t_dir="$A/b"; t_cache="$A/b/tests.cache"
+        lap() { :; }
+        id() { if [ "${1-}" = -u ] && [ -n "${2-}" ]; then command id "$@"; else echo 0; fi; }
+        act_log() { printf '%s|%s|%s|%s\n' "$1" "$2" "$3" "${4-}" >>"$A/b/sudo.act"; }
+        # shellcheck disable=SC1090
+        source <(sed -n '/^sudo_json=""$/,/^fi$/p' agent/src/68-sudo.sh | sed "s|^sd_dir=/etc/sudoers.d\$|sd_dir='$A/sdb'|")
+        printf '[%s]' "${sudo_json%,}" >"$1"
+    ) || fail "de bash-code voor tijdelijk sudo faalde"
+}
+sd_go() {
+    env -u INVOCATION_ID PATH="$A/bin:$PATH" SD_DIR="$A/sdg" RZSENSE_TEST_SUDOERS="$A/sdg" RZSENSE_BASH_CONF="$A/g/conf" RZSENSE_BASH_CACHE="$A/g/gc" RZSENSE_BASH_STATE="$A/g/gt" RZSENSE_DATA="$A/g/gd" RZSENSE_TEST_ROOT=1 \
+        "$work/rzsense" sudo-test >"$1" || fail "de Go-agent kon tijdelijk sudo niet uitvoeren"
+}
+sd_same() {
+    sd_bash "$A/$1.bash.json"; sd_go "$A/$1.go.json"
+    python3 -I - "$A" "$1" <<'PY' || fail "tijdelijk sudo ($1): de Go-agent doet iets anders dan de bash-agent"
+import json, os, sys
+A, name = sys.argv[1:3]
+a, g = [json.load(open('%s/%s.%s.json' % (A, name, w))) or [] for w in ('bash', 'go')]
+key = lambda l: sorted(json.dumps(x, sort_keys=True) for x in l)
+def files(d): return {f: open(os.path.join(d, f)).read() for f in sorted(os.listdir(d))}
+def rd(p): return open(p).read() if os.path.exists(p) else ''
+bad = []
+if key(a) != key(g): bad.append('gemeld: bash %s, go %s' % (a, g))
+if files(A + '/sdb') != files(A + '/sdg'): bad.append('bestanden: bash %s\n  go %s' % (files(A + '/sdb'), files(A + '/sdg')))
+if rd(A + '/timers.sdb') != rd(A + '/timers.sdg'): bad.append('timers: bash %r, go %r' % (rd(A + '/timers.sdb'), rd(A + '/timers.sdg')))
+if bad: print('\n'.join(bad)); sys.exit(1)
+PY
+}
+sd_until=$(( $(date +%s) + 600 ))
+ap_tests "0\ttick\t30\n0\tsudo\t41\tpiet\t$sd_until\n0\tsudo\t42\troot\t$sd_until\n0\tsudo\t43\tbestaatniet\t$sd_until\n0\tsudo\t44\tkapot\t$sd_until\n0\tsudo\t45\tstuk\t$sd_until\n0\tsudo\t46\tPiet\t$sd_until\n0\tsudo\t47\tpiet\tgeen-tijd\n"
+sd_same s1; sd_same s2
+grep -qx 'piet ALL=(ALL:ALL) ALL' "$A/sdg/rzsense-jit-piet" && [ "$(stat -c %a "$A/sdg/rzsense-jit-piet")" = 440 ] && [ ! -e "$A/sdg/rzsense-jit-root" ] && [ ! -e "$A/sdg/rzsense-jit-kapot" ] && [ ! -e "$A/sdg/rzsense-jit-stuk" ] \
+    && [ "$(cat "$A/s2.go.json")" = '[{"id":41,"st":"active"}]' ] && grep -q 'rzsense-jit-piet-41 --on-active=N /bin/rm -f -- /SD/rzsense-jit-piet' "$A/timers.sdg" && ! ls "$A/sdg"/.rzsense-jit.* >/dev/null 2>&1 \
+    || fail "tijdelijk sudo: $(cat "$A/s1.go.json") $(cat "$A/s2.go.json") $(ls -a "$A/sdg") $(cat "$A/timers.sdg" 2>/dev/null)"
+ap_tests "0\ttick\t30\n"
+sd_same s3
+[ ! -e "$A/sdg/rzsense-jit-piet" ] && [ -f "$A/sdg/zz-ander" ] && grep -q '"removed"' "$A/s3.go.json" || fail "ingetrokken sudo hoort weg te zijn, andere bestanden blijven: $(ls "$A/sdg")"
+ap_tests "0\ttick\t30\n0\tsudo\t48\tpiet\t$(( $(date +%s) - 5 ))\n"
+sd_same s4
+[ "$(cat "$A/s4.go.json")" = "[]" ] || [ "$(cat "$A/s4.go.json")" = "null" ] || fail "een verlopen aanvraag hoort niets te geven: $(cat "$A/s4.go.json")"
+python3 -I - "$A" <<'PY' || fail "het logboek van tijdelijk sudo wijkt af van dat van de bash-agent"
+import json, sys
+A = sys.argv[1]
+a = [l.rstrip('\n') for l in open(A + '/b/sudo.act')]
+g = ['|'.join([e['m'], str(e['ok']), e['a'], e['d']]) for e in map(json.loads, open(A + '/g/gd/act.log')) if e['m'] == 'sudo']
+if a != g or len(a) != 5:
+    print('bash %s\ngo   %s' % (a, g)); sys.exit(1)
+PY
+echo "✔ Programma's (nieuw, veranderd, zonder pakket, geblokkeerd en gestopt), jagen op sporen (pad en vingerafdruk, één keer per opdracht) en tijdelijk sudo (gegeven, onbekend, afgekeurd, ingetrokken, verlopen, nooit root): gelijk aan de bash-agent"
 
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in

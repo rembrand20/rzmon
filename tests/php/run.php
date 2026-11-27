@@ -5404,9 +5404,13 @@ ok($tkRc(['paths' => ['/home', '/srv/share'], 'cand' => ['home /home', 'smb /srv
     && $tkRc(['paths' => ['/home'], 'cand' => ['home /home', 'smb /srv/share']])['Ransomware (proef): bewaakte mappen'] === false,
     'ransomware-proef: dezelfde bewaakte mappen en dezelfde keuzes zijn gelijk; een map minder is een verschil');
 ok(!in_array('Ransomware', array_map('strval', AgentTakeover::blockers($tkHost())), true), 'ransomware-detectie houdt het overnemen niet meer tegen (1.362.0)');
+AgentShadow::noteBashApps($tkH, 60);
+$tkAc = static fn(int $n) => array_column(AgentShadow::compare(['apps_obs' => ['n' => $n]], ['apps_obs' => AgentShadow::bashNow($tkH)['apps_obs'] ?? []]), 'ok', 'k')["Programma's (proef): draaiende programma's"] ?? null;
+ok($tkAc(63) === true && $tkAc(57) === true && $tkAc(75) === false, "Programma's-proef: een paar programma's meer of minder is geen verschil, een kwart meer wel");
 AgentData::put($tkH, 'shadow', null);
 AgentData::put($tkH, 'edr_obs_bash', null);
 AgentData::put($tkH, 'ransom_obs_bash', null);
+AgentData::put($tkH, 'apps_obs_bash', null);
 $tkFw = static fn(array $fw, array $iso = []) => array_column(AgentShadow::compare(['ids_obs' => ['fimc' => [], 'fw' => $fw, 'iso' => $iso]], ['ids_obs' => ['has2' => true, 'fimc' => []]]), 'ok', 'k');
 ok(($tkFw(['build' => true, 'sig' => 'abc', 'bash_sig' => 'abc', 'n' => 3, 'kn' => 1, 'decoy' => '2223'])['IDS (proef): firewall (wat de Go-agent zou zetten)'] ?? null) === true
     && ($tkFw(['build' => true, 'sig' => 'abc', 'bash_sig' => 'xyz', 'n' => 3, 'kn' => 1])['IDS (proef): firewall (wat de Go-agent zou zetten)'] ?? null) === false
