@@ -1993,6 +1993,153 @@ wl_tests '0\ttick\t30\n0\tweblog\tswag\t@S@/bestaat/niet.log\n'
 wl_same onleesbaar "a['swag']['err'].startswith('niet leesbaar') and a['swag']['ips'] == {}"
 echo "✔ logs van webdiensten: SWAG (met en zonder site), Nginx Proxy Manager, Home Assistant en Vaultwarden; alleen nieuwe regels, ook na roteren; geheimen in adressen weggelakt; zelf zoeken met de container erbij: gelijk aan de bash-agent"
 
+# 1.365.0 (Go-agent 0.34.0): de reverse proxy beschermen. De echte bash-code en de Go-agent werken elk in een eigen kopie
+# van dezelfde configmap (SWAG en Nginx Proxy Manager), met een namaak-podman (ps, inspect, exec nginx) en -curl.
+# Vergeleken wordt elk bestand in de configmap (byte voor byte), wat ze melden, wat ze onthouden en het logboek.
+P="$work/px"; mkdir -p "$P/bin"
+cat >"$P/bin/podman" <<'EOF'
+#!/bin/bash
+# namaak-podman: één proxy-container (PX_KIND: swag of npm) met de configmap van deze kant
+side=${PX_SIDE:?}
+case "$1" in
+    ps) case "$*" in *-q*) echo abc ;; *) if [ "${PX_KIND:-swag}" = npm ]; then echo "npm docker.io/jc21/nginx-proxy-manager:latest"; else echo "swag lscr.io/linuxserver/swag:latest"; fi ;; esac ;;
+    inspect)
+        case "$*" in
+            *Mounts*) if [ "${PX_KIND:-swag}" = npm ]; then echo "/data $side/data"; else echo "/config $side/config"; fi ;;
+            *Env*) echo "PUID=1000"; echo "URL=Voorbeeld.NL" ;;
+            *) exit 0 ;;
+        esac ;;
+    exec)
+        shift 2
+        echo "exec $*" >>"$side/exec.log"
+        if [ "$1 $2" = "nginx -t" ] && [ -f "$side/nginx-kapot" ]; then printf 'nginx: [emerg] unknown directive "x" in /config/nginx/a.conf:3\nnginx: configuration file /etc/nginx/nginx.conf test failed\n'; exit 1; fi
+        if [ "$1 $2 $3" = "nginx -s reload" ]; then echo geladen >>"$side/reloads"; fi ;;
+    *) exit 1 ;;
+esac
+EOF
+cat >"$P/bin/curl" <<'EOF'
+#!/bin/bash
+# namaak-curl: de code per site staat in PX_SIDE/codes (site code-voor code-na); na het herladen telt de tweede
+side=${PX_SIDE:?}; url=${*: -1}; host=${url#https://}; host=${host%%:*}
+n=0; [ -f "$side/reloads" ] && n=$(wc -l <"$side/reloads")
+awk -v h="$host" -v n="$n" -v base="${PX_BASE:-0}" '$1 == h { print (n > base ? $3 : $2); f = 1 } END { if (!f) print "200" }' "$side/codes" 2>/dev/null | tr -d '\n'
+EOF
+chmod +x "$P/bin/"*
+px_tree() {  # een verse configmap voor beide kanten
+    for side in b g; do
+        mv -f "$P/$side" "$P/weg.$side.$RANDOM" 2>/dev/null || true
+        C="$P/$side/config/nginx"; D="$P/$side/data"
+        mkdir -p "$C/site-confs" "$C/proxy-confs" "$D/nginx/proxy_host" "$P/$side/gc" "$P/$side/gd" "$P/$side/gt" "$P/$side/cache"
+        printf '# ssl.conf van SWAG\nssl_certificate /x;\n\n' >"$C/ssl.conf"
+        for app in vault blog ha rz; do printf 'server {\n    listen 443 ssl;\n    server_name %s.* %s-alt.voorbeeld.nl %s.*;\n    include /config/nginx/ssl.conf;\n    set $upstream_app %s;\n    set $upstream_port 80%s;\n}\n' "$app" "$app" "$app" "$app" "${#app}" >"$C/proxy-confs/$app.subdomain.conf"; done
+        printf 'server {\n    server_name _;\n}\n' >"$C/site-confs/default.conf"
+        cp "$C/proxy-confs/blog.subdomain.conf" "$C/proxy-confs/oud.subdomain.conf.sample"
+        printf 'server {\n  set $forward_scheme http;\n  set $server "192.168.1.9";\n  set $port 8080;\n  server_name wiki.voorbeeld.nl WWW.Voorbeeld.nl;\n}\n' >"$D/nginx/proxy_host/1.conf"
+        printf 'vault.voorbeeld.nl 200 200\nblog.voorbeeld.nl 302 302\n' >"$P/$side/codes"
+    done
+}
+px_tests() { for side in b g; do printf '%b' "$1" >"$P/$side/cache/tests.cache"; cp "$P/$side/cache/tests.cache" "$P/$side/gc/tests.cache"; done; }
+px_bash() {  # px_bash <uitvoer> <swag|npm>
+    (
+        set +u
+        export PATH="$P/bin:$PATH" PX_SIDE="$P/b" PX_KIND="$2" PX_BASE="${PX_BASE:-0}"
+        HA_MODE=0; PROXY_GUARD=1; t_dir="$P/b/cache"; t_cache="$P/b/cache/tests.cache"; ctr_busy=""; PROXY_CTR=""; PROXY_CPATH=""; PROXY_HTTPS_PORT=""
+        lap() { :; }; id() { echo 0; }; sleep() { :; }
+        act_log() { printf '%s|%s|%s|%s\n' "$1" "$2" "$3" "${4-}" >>"$P/b/act"; }
+        # shellcheck disable=SC1090
+        source <(sed -n '/^json_escape() {/,/^}/p' agent/src/15-realtime.sh; sed -n '/^ctr_ok() {/,/^}/p; /^ctrx() {/,/^}/p' agent/src/40-basis-meten.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^proxy_json=""$/,/^fi$/p' agent/src/69-proxy.sh)
+        printf '%s' "${proxy_json:-null}" >"$1"
+    ) || fail "de bash-code voor de reverse proxy faalde"
+}
+px_go() {  # px_go <uitvoer> <swag|npm> [obs]
+    printf 'MONITOR_URL="https://rz.test"\n' >"$P/g/conf"
+    env -u INVOCATION_ID PATH="$P/bin:$PATH" PX_SIDE="$P/g" PX_KIND="$2" PX_BASE="${PX_BASE:-0}" RZSENSE_BASH_CONF="$P/g/conf" RZSENSE_BASH_CACHE="$P/g/gc" RZSENSE_BASH_STATE="$P/g/cache" RZSENSE_DATA="$P/g/gd" \
+        RZSENSE_TEST_ROOT=1 RZSENSE_TEST_FAST=1 "$work/rzsense" proxy-test ${3-} >"$1" || fail "de Go-agent kon de reverse proxy niet beschermen"
+}
+px_same() {  # px_same <naam> <swag|npm> <verwachting in Python over a (gemeld), t (bestanden) en st (onthouden)>
+    px_bash "$P/$1.bash.json" "$2"; px_go "$P/$1.go.json" "$2"
+    python3 -I - "$P" "$1" "$3" <<'PY' || fail "reverse proxy ($1): de Go-agent doet iets anders dan de bash-agent"
+import json, os, re, sys
+P, name, expect = sys.argv[1:4]
+def load(side, ext): return json.loads(open('%s/%s.%s.json' % (P, name, ext)).read().replace(P + '/' + side, '@S@'))
+def tree(side):
+    out = {}
+    for sub in ('config', 'data'):
+        for d, _, fs in os.walk('%s/%s/%s' % (P, side, sub)):
+            for f in fs:
+                p = os.path.join(d, f)
+                out[p.replace(P + '/' + side, '')] = open(p).read().replace(P + '/' + side, '@S@')
+    return out
+def state(side):
+    d = '%s/%s/cache' % (P, side); out = {}
+    for f in ('proxy.applied', 'proxy.tpl', 'proxy.failmsg'):
+        out[f] = open(d + '/' + f).read().strip() if os.path.exists(d + '/' + f) else None
+    out['failed'] = (open(d + '/proxy.failed').read().split() or [None])[0] if os.path.exists(d + '/proxy.failed') else None
+    return out
+def rd(p): return open(p).read().replace(P + '/b', '@S@').replace(P + '/g', '@S@') if os.path.exists(p) else ''
+a, g, t, tg, st, sg = load('b', 'bash'), load('g', 'go'), tree('b'), tree('g'), state('b'), state('g')
+bad = []
+if a != g: bad.append('gemeld:\n  bash %s\n  go   %s' % (json.dumps(a, sort_keys=True, ensure_ascii=False), json.dumps(g, sort_keys=True, ensure_ascii=False)))
+if t != tg:
+    for f in sorted(set(t) | set(tg)):
+        if t.get(f) != tg.get(f):
+            x, y = (t.get(f) or '').splitlines(), (tg.get(f) or '').splitlines()
+            d = next((i for i in range(max(len(x), len(y))) if (x[i] if i < len(x) else None) != (y[i] if i < len(y) else None)), -1)
+            bad.append('bestand %s verschilt (regel %d):\n  bash %r\n  go   %r' % (f, d + 1, x[d] if 0 <= d < len(x) else None, y[d] if 0 <= d < len(y) else None))
+if st != sg: bad.append('onthouden: bash %s, go %s' % (st, sg))
+la = rd(P + '/b/act').splitlines()
+lg = ['|'.join([e['m'], str(e['ok']), e['a'], e['d']]) for e in map(json.loads, rd(P + '/g/gd/act.log').splitlines())]
+if la != lg: bad.append('logboek:\n  bash %s\n  go   %s' % (la[-3:], lg[-3:]))
+if rd(P + '/b/exec.log') != rd(P + '/g/exec.log'): bad.append('nginx in de container:\n  bash %r\n  go   %r' % (rd(P + '/b/exec.log')[-300:], rd(P + '/g/exec.log')[-300:]))
+if not bad and not eval(expect): bad.append('onverwacht: %s | %s | %s' % (json.dumps(a, ensure_ascii=False)[:900], st, sorted(t)))
+if bad: print('\n'.join(bad)); sys.exit(1)
+PY
+}
+tag1=0123456789abcdef0123456789abcdef; tag2=fedcba9876543210fedcba9876543210
+policy="0\ttick\t30\n0\tproxy\ton\n0\tproxylan\t192.168.1.0/24 fd00::/8 onzin 10.0.0.0/8\n0\tproxysite\tvault.*\tpaths\t/admin,/api/config/,/a.b~c,/../x,/fout pad\tstrict\t1\n0\tproxysite\tblog.*\tsite\t-\tnormal\t0\n0\tproxysite\tha.*\toff\t-\tapp\t1\n0\tproxysite\trz.*\tpaths\t-\toff\t0\n0\tproxysite\tfout naam\tsite\t-\tnormal\t0\n0\tproxysite\twiki.voorbeeld.nl\tsite\t-\tgeen\t0\n0\tproxytags\trz.*\t$tag1,geen-tag,$tag2\n0\tproxytags\tonbekend.*\t$tag1\n0\tproxytrust\t$tag1,$tag2,x\n0\tproxydev\tha.*\n0\tproxydev\tonbekend.*\n0\tproxypass\trz.*\t/ack.php,/status/,/../y\n0\tproxyblock\t*\t/.env,/wp-login.php\n0\tproxyblock\tvault.*\t/api/kapot.v1\n0\tproxyblock\tonbekend.*\t/x\n"
+# 1: SWAG: het beleid doorvoeren; 2: een tweede ronde verandert niets en herlaadt niet
+px_tree; px_tests "$policy"
+px_same swag swag "a['state'] == 'ok' and a['hook'] == 1 and a['kind'] == 'swag' and len(a['sites']) == 4 and a['sites'][3]['names'] == ['vault-alt.voorbeeld.nl', 'vault.*'] and a['sites'][3]['up'] == 'vault:805' and st['proxy.tpl'] == '3' and '/config/nginx/site-confs/rzsense-http.conf' in t and '/config/nginx/rzsense/server.conf' in t and t['/config/nginx/ssl.conf'].endswith('ssl_certificate /x;\ninclude /config/nginx/rzsense/server.conf; # rzsense-hook\n') and '/config/nginx/proxy-confs/oud.subdomain.conf.sample' in t"
+grep -q '    192.168.1.0/24 1;' "$P/g/config/nginx/site-confs/rzsense-http.conf" && grep -q '    vault.\* s1;' "$P/g/config/nginx/site-confs/rzsense-http.conf" && grep -qF '"~*^s1:/a\.b\~c(/|$)" 1;' "$P/g/config/nginx/site-confs/rzsense-http.conf" \
+    && grep -qF '"~*^[^:]*:/\.env" 1;' "$P/g/config/nginx/site-confs/rzsense-http.conf" && grep -qF "\"s4:$tag2\" 1;" "$P/g/config/nginx/site-confs/rzsense-http.conf" && ! grep -q 'onzin\|fout pad\|\.\./' "$P/g/config/nginx/site-confs/rzsense-http.conf" \
+    && grep -q 'limit_req zone=rzs_app burst=300 nodelay;' "$P/g/config/nginx/rzsense/server.conf" || fail "het beleid van de reverse proxy ziet er anders uit dan verwacht: $(head -n 40 "$P/g/config/nginx/site-confs/rzsense-http.conf")"
+r1=$(wc -l <"$P/g/reloads")
+px_same swag-rustig swag "a['state'] == 'ok' and a['msg'] == 'doorgevoerd'"
+[ "$(wc -l <"$P/g/reloads")" = "$r1" ] && [ "$(wc -l <"$P/b/reloads")" = "$r1" ] || fail "een ongewijzigd beleid hoort niet opnieuw doorgevoerd of herladen te worden"
+# 3: in de proef kijkt de Go-agent alleen: hij zou precies schrijven wat er staat, en raakt niets aan
+before=$(find "$P/g/config" "$P/g/cache" -type f | sort | xargs sha256sum | sha256sum)
+px_go "$P/obs.json" swag obs
+[ "$(find "$P/g/config" "$P/g/cache" -type f | sort | xargs sha256sum | sha256sum)" = "$before" ] && [ "$(wc -l <"$P/g/reloads")" = "$r1" ] && grep -q '"same_http": *true' "$P/obs.json" && grep -q '"same_srv": *true' "$P/obs.json" \
+    || fail "de proef op de reverse proxy hoort alleen te kijken en hetzelfde beleid te geven: $(cat "$P/obs.json")"
+# 4: een ander beleid dat nginx afkeurt: alles gaat terug zoals het was, en dezelfde versie niet elke minuut opnieuw
+for side in b g; do cp "$P/$side/config/nginx/site-confs/rzsense-http.conf" "$P/$side/http.goed"; : >"$P/$side/nginx-kapot"; done
+px_tests "${policy}0\tproxyblock\t*\t/nieuw-lek\n"
+px_same afgekeurd swag "a['state'] == 'error' and a['msg'].startswith('nginx -t: ') and a['hook'] == 1 and st['failed'] is not None"
+cmp -s "$P/g/config/nginx/site-confs/rzsense-http.conf" "$P/g/http.goed" || fail "na een afgekeurd beleid hoort het vorige terug te staan"
+px_same afgekeurd-weer swag "a['state'] == 'error'"
+for side in b g; do mv -f "$P/$side/nginx-kapot" "$P/$side/nginx-kapot.uit"; mv -f "$P/$side/cache/proxy.failed" "$P/$side/failed.weg"; done
+# 5: een site die na het herladen niet meer antwoordt: terugzetten
+for side in b g; do printf 'vault-alt.voorbeeld.nl 200 502\nblog-alt.voorbeeld.nl 302 302\n' >"$P/$side/codes"; done
+export PX_BASE=$(wc -l <"$P/g/reloads")
+px_same kapot swag "a['state'] == 'error' and 'vault-alt.voorbeeld.nl (200 → 502)' in a['msg']"
+cmp -s "$P/g/config/nginx/site-confs/rzsense-http.conf" "$P/g/http.goed" || fail "als een site daarna niet meer antwoordt hoort het vorige beleid terug te staan"
+for side in b g; do printf 'vault-alt.voorbeeld.nl 200 200\n' >"$P/$side/codes"; mv -f "$P/$side/cache/proxy.failed" "$P/$side/failed.weg2"; done
+px_same hersteld swag "a['state'] == 'ok'"
+grep -qF '/nieuw-lek' "$P/g/config/nginx/site-confs/rzsense-http.conf" || fail "het nieuwe beleid hoort nu doorgevoerd te zijn"
+# 6: uit: alles weg, en ssl.conf is weer zoals eerst
+px_tests "0\ttick\t30\n0\tproxy\toff\n"
+px_same uit swag "a['state'] == 'off' and a['hook'] == 0 and '/config/nginx/site-confs/rzsense-http.conf' not in t and '/config/nginx/rzsense/server.conf' not in t and t['/config/nginx/ssl.conf'] == '# ssl.conf van SWAG\nssl_certificate /x;\n' and st['proxy.applied'] is None"
+px_same uit-rustig swag "a['state'] == 'off' and a['msg'] == ''"
+unset PX_BASE
+# 7: Nginx Proxy Manager: eigen bestanden en twee haken; 8: geen proxy gevonden
+px_tree; px_tests "0\ttick\t30\n0\tproxy\ton\n0\tproxylan\t192.168.1.0/24\n0\tproxysite\twiki.voorbeeld.nl\tsite\t-\tnormal\t1\n"
+px_same npm npm "a['state'] == 'ok' and a['kind'] == 'npm' and a['sites'][0]['up'] == '192.168.1.9:8080' and a['sites'][0]['names'] == ['wiki.voorbeeld.nl', 'www.voorbeeld.nl'] and t['/data/nginx/custom/http.conf'] == 'include /data/rzsense/http.conf; # rzsense-hook\n' and t['/data/nginx/custom/server_proxy.conf'] == 'include /data/rzsense/server.conf; # rzsense-hook\n' and '/data/rzsense/http.conf' in t"
+px_tests "0\ttick\t30\n"
+px_same geen-rol swag "a is None"
+echo "✔ reverse proxy beschermen: SWAG en Nginx Proxy Manager, het beleid byte voor byte gelijk (adminpaden, hele site, bots, rate limit, apparaten, noodlink, virtual patching), terugzetten bij een afgekeurd beleid of een site die niet meer antwoordt, uitzetten, en het logboek: gelijk aan de bash-agent; in de proef kijkt de Go-agent alleen"
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.

@@ -5,6 +5,13 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.34.0 – 2026-11-27
+- **Linux: de reverse proxy beschermen**, zoals de bash-agent: de proxy herkennen (SWAG of Nginx Proxy Manager, in Podman of Docker), de sites uitlezen en het beleid per site doorvoeren: adminpaden of een hele site alleen vanaf je eigen netwerk, slechte bots weren, een rate limit, toegestane apparaten, de noodlink en virtual patching.
+- Even voorzichtig als de bash-agent: alleen eigen bestanden en één gemarkeerde regel in de proxy, eerst `nginx -t`, dan herladen, en terugzetten als een site die eerst werkte daarna niet meer antwoordt.
+- De nginx-bestanden zijn letterlijk dezelfde als die van de bash-agent, en de stand delen de twee agents. Bij overnemen wordt er daarom niets opnieuw doorgevoerd en niets herladen.
+- **In de proef** schrijft, test en herlaadt de Go-agent niets. Hij legt het beleid dat hij zou schrijven naast de bestanden die er staan.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.33.0 – 2026-11-27
 - **Linux: logs van webdiensten.** De access-log van de reverse proxy (SWAG, met of zonder het extra logbestand van RzSense, en Nginx Proxy Manager), mislukte logins bij Home Assistant en bij Vaultwarden: alleen de nieuwe regels, per IP samengevat. Tokens en wachtwoorden in een adres worden weggelakt.
 - De positie in elk logbestand deelt de Go-agent met de bash-agent, en hij bewaart hem pas als RzSense het rapport heeft. Bij overnemen gaat er geen regel verloren of dubbel mee.

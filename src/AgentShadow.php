@@ -506,6 +506,17 @@ final class AgentShadow
                 . ($state ? ' · ' . t('andere status: {l}', ['l' => implode(', ', array_slice($state, 0, 6))]) : ''),
                 t('{n} namen', ['n' => count($gl)]) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 6))]) : ''), count($onlyB) + count($onlyG) <= 4 && count($state) <= 2);
         }
+        // 1.365.0: de reverse proxy als proef: zou de Go-agent precies het beleid schrijven dat de bash-agent schreef? De
+        // Go-agent schrijft, test en herlaadt in de proef niets; hij legt zijn beleid naast de bestanden die er staan.
+        if (is_array($go['proxy_obs'] ?? null) && array_key_exists('same_http', $go['proxy_obs'])) {
+            $po = $go['proxy_obs'];
+            $same = !empty($po['same_http']) && !empty($po['same_srv']);
+            $ptx = t('{k}, {n} sites', ['k' => (string) ($po['kind'] ?? '?'), 'n' => count((array) ($po['sites'] ?? []))]);
+            // Is het beleid net veranderd en heeft de bash-agent het nog niet doorgevoerd, dan zegt een verschil niets
+            if ((string) ($po['applied'] ?? '') === (string) ($po['hash'] ?? '')) {
+                $add('Reverse proxy (proef): het beleid dat de Go-agent zou schrijven', $ptx, $same ? $ptx : t('een ander beleid'), $same);
+            }
+        }
         // 1.363.0: Programma's als proef: hoeveel programma's er draaien. Er start en stopt altijd wel iets tussen de twee
         // metingen: 10% mag verschillen (minstens 4).
         if (is_array($bash['apps_obs'] ?? null) && is_array($go['apps_obs'] ?? null)) {

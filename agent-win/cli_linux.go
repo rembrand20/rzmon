@@ -253,6 +253,15 @@ func cliLinux(args []string) bool {
 		}
 		b, _ := json.Marshal(v)
 		fmt.Println(string(b))
+	case "proxy-test": // de reverse proxy beschermen (ook zo gestart door de agent zelf, buiten de afscherming); "obs" = zoals in de proef
+		var v any
+		if len(os.Args) >= 3 && os.Args[2] == "obs" {
+			v = proxyObserve()
+		} else {
+			v = collectProxyLinux()
+		}
+		b, _ := json.Marshal(v)
+		fmt.Println(string(b))
 	case "sudo-test": // tijdelijk sudo (ook zo gestart door de agent zelf, buiten de afscherming van zijn dienst)
 		b, _ := json.Marshal(collectSudoLinux())
 		fmt.Println(string(b))
@@ -621,6 +630,9 @@ func cmdShadow(quiet bool) int {
 	if obs := collectIdsObsLinux(); obs != nil { // 0.27.0: IDS als proef: alleen waarnemen, nergens ingrijpen
 		idsDryRun(obs, c) // 0.29.0: wat de Go-agent zou blokkeren of open laten (er wordt niets uitgevoerd)
 		core["ids_obs"] = obs
+	}
+	if px := proxyObserve(); px != nil { // 0.34.0: welk beleid de Go-agent op de reverse proxy zou schrijven (hij schrijft hier niets)
+		core["proxy_obs"] = px
 	}
 	if rs := ransomObserve(); rs != nil { // 0.31.0: welke mappen de Go-agent zou bewaken (hij plaatst hier geen lokaas)
 		core["ransom_obs"] = rs

@@ -5404,6 +5404,12 @@ ok($tkRc(['paths' => ['/home', '/srv/share'], 'cand' => ['home /home', 'smb /srv
     && $tkRc(['paths' => ['/home'], 'cand' => ['home /home', 'smb /srv/share']])['Ransomware (proef): bewaakte mappen'] === false,
     'ransomware-proef: dezelfde bewaakte mappen en dezelfde keuzes zijn gelijk; een map minder is een verschil');
 ok(!in_array('Ransomware', array_map('strval', AgentTakeover::blockers($tkHost())), true), 'ransomware-detectie houdt het overnemen niet meer tegen (1.362.0)');
+$tkPx = static fn(array $o) => array_column(AgentShadow::compare(['proxy_obs' => $o], []), 'ok', 'k')['Reverse proxy (proef): het beleid dat de Go-agent zou schrijven'] ?? null;
+ok($tkPx(['kind' => 'swag', 'sites' => ['a', 'b'], 'hash' => 'abc', 'applied' => 'abc', 'same_http' => true, 'same_srv' => true]) === true
+    && $tkPx(['kind' => 'swag', 'sites' => [], 'hash' => 'abc', 'applied' => 'abc', 'same_http' => false, 'same_srv' => true]) === false
+    && $tkPx(['kind' => 'swag', 'sites' => [], 'hash' => 'nieuw', 'applied' => 'abc', 'same_http' => false, 'same_srv' => true]) === null
+    && $tkPx(['kind' => 'none', 'sites' => [], 'hash' => 'abc']) === null,
+    'reverse-proxy-proef: hetzelfde beleid is gelijk, een ander beleid een verschil; een beleid dat de bash-agent nog niet doorvoerde telt niet');
 AgentShadow::noteBashApps($tkH, 60);
 $tkAc = static fn(int $n) => array_column(AgentShadow::compare(['apps_obs' => ['n' => $n]], ['apps_obs' => AgentShadow::bashNow($tkH)['apps_obs'] ?? []]), 'ok', 'k')["Programma's (proef): draaiende programma's"] ?? null;
 ok($tkAc(63) === true && $tkAc(57) === true && $tkAc(75) === false, "Programma's-proef: een paar programma's meer of minder is geen verschil, een kwart meer wel");

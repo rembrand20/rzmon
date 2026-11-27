@@ -800,8 +800,11 @@ map (lokaasbestanden, het bestand voor tijdelijk sudo, een account vergrendelen)
 systemd-eenheid, omdat zijn eigen dienst bijna nergens mag schrijven.
 Ook de logs van webdiensten (SWAG, Nginx Proxy Manager, Home Assistant, Vaultwarden) leest de Go-agent; de positie in
 elk logbestand delen de twee agents.
-Dit houdt overnemen tegen zolang het voor de server aan staat: de reverse proxy beschermen (met WAF, antivirus en
-Suricata); Home Assistant-checks (die horen bij de add-on); de relay
+De reverse proxy beschermt de Go-agent zoals de bash-agent: dezelfde nginx-bestanden, eerst `nginx -t`, dan herladen,
+en terugzetten als een site daarna niet meer antwoordt. In de proef schrijft hij niets; RzSense laat zien of hij
+hetzelfde beleid zou schrijven (*Reverse proxy (proef)*).
+Dit houdt overnemen tegen zolang het voor de server aan staat: de WAF, antivirus en Suricata op de reverse proxy;
+Home Assistant-checks (die horen bij de add-on); de relay
 (die draait in zijn eigen container en blijft de bash-agent); en vaker dan elke minuut rapporteren.
 
 **Wat er gebeurt.** Bij de volgende proefronde zet de Go-agent de timer van de bash-agent en zijn bewaker uit (de

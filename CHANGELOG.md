@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.365.0**: **De Go-agent beschermt de reverse proxy**: hetzelfde beleid, byte voor byte, met testen en terugzetten zoals de bash-agent.
 - **1.364.0**: **De Go-agent leest de logs van webdiensten**, en mislukte logins bij Vaultwarden worden nu echt geteld.
 - **1.363.0**: **De Go-agent doet Programma's, sporen zoeken en tijdelijk sudo**: alleen de reverse proxy en logs van webdiensten ontbreken nog.
 - **1.362.0**: **De Go-agent herkent ransomware**: lokaasbestanden, kenmerken, snapshot en processen stoppen, gelijk aan de bash-agent.
 - **1.361.0**: **De Go-agent doet Realtime en EDR**: een eigen watcher en dezelfde endpoint-sensoren als de bash-agent.
-- **1.360.0**: **De Go-agent kan het IDS overnemen**: dezelfde firewall, lokaas-poort, isoleren en bestanden bewaken als de bash-agent; in de proef blijft het een dry-run.
+
+## 1.365.0 – 2026-11-27
+### Nieuw
+- **De Go-agent beschermt de reverse proxy.** SWAG en Nginx Proxy Manager, met hetzelfde beleid en dezelfde voorzichtigheid als de bash-agent (eerst testen, dan herladen, en terugzetten als een site daarna niet meer antwoordt). *Reverse proxy beschermen* houdt het overnemen niet meer tegen.
+- **In de proef** komt er een regel *Reverse proxy (proef): het beleid dat de Go-agent zou schrijven* bij. Die is gelijk als de Go-agent byte voor byte dezelfde nginx-bestanden zou schrijven als er nu staan.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.34.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Dit houdt overnemen nog tegen: de WAF, antivirus (ClamAV) en Suricata op de reverse proxy, en Home Assistant-checks. De relay blijft de bash-agent.
+- Bij het overnemen op een reverse proxy wordt het beleid niet opnieuw doorgevoerd: de Go-agent ziet dat het er al staat.
 
 ## 1.364.0 – 2026-11-27
 ### Nieuw

@@ -12331,4 +12331,6 @@ return [
     'een andere lijst' => 'a different list',
     '{n} adressen blijven open' => '{n} addresses stay open',
     'auditd {a}, bestanden {f}, containers {c}' => 'auditd {a}, files {f}, containers {c}',
+    '{k}, {n} sites' => '{k}, {n} sites',
+    'een ander beleid' => 'a different policy',
 ];

@@ -256,6 +256,10 @@ func buildRun(c *Config, t0 time.Time) map[string]any {
 	if db := collectDbLinux(); db != nil { // 0.24.0: databasechecks (alleen lezen)
 		rep["db"] = db
 	}
+	// 0.34.0: de reverse proxy beschermen (buiten de afscherming: het beleid staat in de configmap van de proxy)
+	if px := outsideJSON(120*time.Second, func() any { return collectProxyLinux() }, "proxy-test"); px != nil {
+		rep["proxy"] = px
+	}
 	if wl := collectWeblogLinux(); wl != nil { // 0.33.0: logs van webdiensten (alleen de nieuwe regels, per IP samengevat)
 		rep["weblog"] = wl
 	}
