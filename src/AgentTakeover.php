@@ -15,9 +15,9 @@ final class AgentTakeover
     public const OS = 'linux-go'; // hosts.os zolang de Go-agent het werk doet
 
     /** Regels in de testlijst die de Go-agent uitvoert, of die alleen een losse vraag zijn (dan gebeurt er even niets) */
-    private const LINES_OK = ['auth', 'cmd', 'patch', 'path', 'pathtp', 'iperfs', 'tick', 'ival', 'svc', 'ports', 'url', 'port', 'cert', 'certdirs', 'certscan', 'proc', 'tselftest', 'texprobe'];
+    private const LINES_OK = ['auth', 'cmd', 'log', 'logsrc', 'logship', 'logscan', 'logpause', 'logdirs', 'logbrowse', 'patch', 'path', 'pathtp', 'iperfs', 'tick', 'ival', 'svc', 'ports', 'url', 'port', 'cert', 'certdirs', 'certscan', 'proc', 'tselftest', 'texprobe'];
     /** Agent-checks die de Go-agent meet; andere soorten die van de agent komen, houden het overnemen tegen */
-    private const CHECKS_BLOCK = ['podman', 'container', 'pve', 'truenas', 'log', 'ha', 'heartbeat', 'mysql', 'vpn', 'traffic'];
+    private const CHECKS_BLOCK = ['podman', 'container', 'pve', 'truenas', 'ha', 'heartbeat', 'mysql', 'vpn', 'traffic'];
 
     /** Wat een regel in de testlijst voor de gebruiker is */
     private static function lineLabel(string $type): string

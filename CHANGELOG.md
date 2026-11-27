@@ -8,11 +8,26 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.350.0**: **De Go-agent kan logs**: log-checks, logs verzamelen en logs vinden, met dezelfde veiligheidsregels als de bash-agent.
 - **1.349.0**: **De Go-agent voert commando-checks uit**: kale omgeving, time-out, standaard als nobody, met de noodrem `COMMANDS=0` op de server.
 - **1.348.0**: **De Go-agent meet schijfgezondheid, UPS en pad-checks**: gelijk aan de bash-agent, met de doorvoertest.
 - **1.347.0**: **De Go-agent stuurt de softwarelijst en de klok**: Kwetsbaarheden en de check Tijd werken ook als de Go-agent het werk doet.
 - **1.346.0**: **De Go-agent kan Updates**: de lijst met klaarstaande updates en het installeren op verzoek, gelijk aan de bash-agent.
-- **1.345.0**: **De Go-agent leest logins, sudo en su**: gelijk aan de bash-agent, zonder dubbele of gemiste logins bij het overnemen.
+
+## 1.350.0 – 2026-11-27
+### Nieuw
+- **De Go-agent kan nu ook logs:** log-checks, logs verzamelen (*Logs*), logs vinden en een map doorbladeren in de Agent Manager. Die onderdelen houden het overnemen niet meer tegen.
+- De veiligheidsregels zijn dezelfde als bij de bash-agent: alleen bestanden binnen `LOG_DIRS`, of logs in een map uit RzSense binnen `LOG_DIRS_MAX`; nooit sleutels, wachtwoorden of instellingen.
+
+### Opgelost
+- **Bash-agent: een logbestand dat een symlink is, werd verkeerd gelezen** (agent 1.123.2). De agent nam de grootte van de link in plaats van die van het bestand. Dat kwam aan het licht bij het vergelijken met de Go-agent.
+
+### Nieuwe agent
+- Nieuwe bash-agent 1.123.2 en nieuwe Go-agent 0.19.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Logs worden **niet** in de proef vergeleken: de Go-agent leest ze pas als hij het werk doet (anders zou elke regel twee keer tellen). Ze zijn getest door dezelfde bestanden door de bash-code en door de Go-agent te laten lezen.
+- Wat overnemen nu nog tegenhoudt: Realtime, IDS, endpoint-sensoren, ransomware-detectie, containers, Proxmox en TrueNAS, en checks op heartbeats, databases, VPN en netwerkverkeer.
 
 ## 1.349.0 – 2026-11-27
 ### Nieuw

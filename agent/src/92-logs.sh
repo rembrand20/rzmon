@@ -52,7 +52,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlogsrc\t' "$t_cache" && [ "${LOG_S
                     s_files=$((s_files + 1))
                     f_st="$st.$(printf '%s' "$f" | md5sum | cut -c1-16)"
                     prev=$(cat "$f_st" 2>/dev/null)
-                    inode=$(stat -c %i "$f"); size=$(stat -c %s "$f")
+                    inode=$(stat -L -c %i "$f"); size=$(stat -L -c %s "$f")
                     p_inode=${prev%%|*}; p_pos=${prev##*|}
                     if [ -z "$prev" ]; then pos=$size   # nieuw: bij het einde beginnen
                     elif [ "$p_inode" != "$inode" ] || ! [[ "$p_pos" =~ ^[0-9]+$ ]] || [ "$p_pos" -gt "$size" ]; then pos=0   # geroteerd

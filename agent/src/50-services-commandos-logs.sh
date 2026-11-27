@@ -404,7 +404,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^[0-9]*\tlog\t' "$t_cache"; then
                 else
                     # Bestand: verder lezen waar we gebleven waren (inode|positie); nieuw of geroteerd bestand
                     # → vanaf het begin; de eerste keer vanaf het einde (oude regels tellen niet mee)
-                    inode=$(stat -c %i "$l_src"); size=$(stat -c %s "$l_src")
+                    inode=$(stat -L -c %i "$l_src"); size=$(stat -L -c %s "$l_src")
                     p_inode=${prev%%|*}; p_pos=${prev##*|}
                     if [ -z "$prev" ]; then pos=$size
                     elif [ "$p_inode" != "$inode" ] || ! [[ "$p_pos" =~ ^[0-9]+$ ]] || [ "$p_pos" -gt "$size" ]; then pos=0

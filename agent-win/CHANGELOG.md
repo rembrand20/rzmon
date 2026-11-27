@@ -5,6 +5,15 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.19.0 – 2026-11-27
+- **Linux: log-checks.** De nieuwe regels van een logbestand of de journal doorzoeken op een patroon, met het aantal treffers, de laatste regels en de IP-adressen die het vaakst voorkomen.
+- **Linux: logs verzamelen.** De nieuwe regels van de gekozen bronnen (bestanden, journal, een systemd-dienst, een container) gaan in pakketjes versleuteld naar RzSense, met een wachtrij als RzSense even niet bereikbaar is.
+- **Linux: logs vinden en een map doorbladeren**, om in RzSense een bron te kiezen. Alleen namen, groottes en tijden, nooit de inhoud.
+- **Dezelfde regels voor welke bestanden gelezen mogen worden:** alleen binnen `LOG_DIRS` van de server, of in een map uit RzSense die binnen `LOG_DIRS_MAX` valt, en daar alleen bestanden die op een log lijken en geen geheim kunnen zijn. Nooit de hele schijf. Bestanden worden alleen gelezen.
+- De Go-agent gebruikt dezelfde bladwijzers en dezelfde wachtrij als de bash-agent: bij het overnemen en teruggaan gaat er geen regel verloren en telt er geen dubbel.
+- Alleen als de Go-agent het werk doet; in de proef leest hij geen logs.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.18.0 – 2026-11-27
 - **Linux: commando-checks.** De Go-agent voert de commando's van commando-checks uit zoals de bash-agent: in een kale omgeving, met een time-out, standaard als `nobody`. Uitvoer en exitcode gaan naar RzSense.
 - De noodrem op de server blijft: `COMMANDS=0` in `/etc/default/rzmon-agent` blokkeert alles, `COMMANDS=nobody` staat nooit root toe.

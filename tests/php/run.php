@@ -5282,6 +5282,12 @@ q("INSERT INTO checks (host_id, name, type, target, command, enabled) VALUES (?,
 $tkCmdOld = [setting('agent_commands')];
 save_setting('agent_commands', 'nobody');
 ok(str_contains(agent_tests_text($tkH, true), "\tcmd\t") && !preg_match('/command|Commando/', implode(' ', AgentTakeover::blockers($tkHost()))), 'een commando-check staat in de testlijst en houdt het overnemen niet meer tegen (1.349.0)');
+q("INSERT INTO checks (host_id, name, type, target, options, enabled) VALUES (?, 'fouten', 'log', '/var/log/syslog', ?, 1)", [$tkH, json_encode(['pattern' => 'error'])]);
+q("INSERT INTO log_sources (host_id, name, kind, spec, level) VALUES (?, 'syslog', 'file', '/var/log/syslog', 0)", [$tkH]);
+ok(str_contains(agent_tests_text($tkH, true), "\tlogsrc\t") && str_contains(agent_tests_text($tkH, true), "\tlog\t") && !preg_match('/Logs verzamelen|“log”/u', implode(' ', AgentTakeover::blockers($tkHost()))),
+    'een log-check en een logbron staan in de testlijst en houden het overnemen niet meer tegen (1.350.0): ' . implode(', ', AgentTakeover::blockers($tkHost())));
+q("DELETE FROM checks WHERE host_id = ? AND type = 'log'", [$tkH]);
+q('DELETE FROM log_sources WHERE host_id = ?', [$tkH]);
 $tkCmdOld[0] === null ? q("DELETE FROM settings WHERE name = 'agent_commands'") : save_setting('agent_commands', (string) $tkCmdOld[0]);
 unset($GLOBALS['rz_settings']);
 q("DELETE FROM checks WHERE host_id = ? AND type = 'command'", [$tkH]);

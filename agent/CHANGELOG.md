@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.123.2 – 2026-11-27
+- **Een logbestand dat een symlink is, werd verkeerd gelezen.** De agent nam de grootte van de link in plaats van die van het bestand: de eerste keer begon hij midden in een regel, en daarna las hij het bestand steeds opnieuw vanaf het begin. Dat gold voor log-checks, logs verzamelen, het auth-log (`AUTH_SOURCE=file`), de logs van webdiensten en het log van Suricata. Nu volgt hij de link. Zo'n bestand wordt na deze update één keer opnieuw vanaf het begin gelezen.
+
 ## 1.123.1 – 2026-11-26
 - **WAF startte niet ("de WAF antwoordt na … minuten nog niet").** CrowdSec stopte steeds bij het laden van de AppSec-instellingen van RzSense. De agent laat CrowdSec die nu rechtstreeks uit een eigen bestand laden (`appsec_config_path`), in plaats van ze via de hub op naam op te zoeken; de container wordt daarvoor één keer opnieuw aangemaakt.
 - **WAF: je eigen netwerk werd niet herkend.** De regel "eigen netwerk nooit tegenhouden" keek naar het adres van SWAG in plaats van dat van de bezoeker. Nu naar het echte IP-adres van de bezoeker.

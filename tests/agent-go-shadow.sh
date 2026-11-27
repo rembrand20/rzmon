@@ -373,6 +373,120 @@ python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); sys.exit(0 if d and a
 [ ! -d "$work/cdata2/cmdstate" ] || [ -z "$(ls "$work/cdata2/cmdstate")" ] || fail "met COMMANDS=0 is er toch iets uitgevoerd"
 echo "✔ commando-checks: met COMMANDS=0 op de server voert de Go-agent niets uit"
 
+# 1.350.0 (Go-agent 0.19.0): logs. Een map met logs, geheimen en gedraaide bestanden; de echte bash-code en de Go-agent
+# lezen dezelfde bestanden, elk met hun eigen bladwijzers.
+L="$work/lt"
+mkdir -p "$L/var/log/app" "$L/var/log/journal" "$L/var/log/private" "$L/opt/dienst/logs" "$L/opt/dienst/.ssh" "$L/opt/dienst/secrets" "$L/opt/ander" "$L/elders" "$L/bt" "$L/gt" "$L/bk" "$L/gk" "$L/gd"
+printf 'oud\n' >"$L/var/log/app/app.log"; printf 'oud\n' >"$L/var/log/syslog"; printf 'x\n' >"$L/var/log/app/app.log.1"; printf 'x\n' >"$L/var/log/app/oud.log.gz"
+printf 'x\n' >"$L/var/log/app/app-20260101.log"; printf 'a\0b\n' >"$L/var/log/binair.log"; printf 'x\n' >"$L/var/log/wtmp"; printf 'x\n' >"$L/var/log/journal/j.log"; printf 'x\n' >"$L/var/log/private/p.log"
+printf 'oud\n' >"$L/opt/dienst/logs/dienst.log"; printf 'x\n' >"$L/opt/dienst/logs/uitvoer.txt"; printf 'geheim\n' >"$L/opt/dienst/logs/wachtwoord-passwd.log"; printf 'k\n' >"$L/opt/dienst/logs/server.key"
+printf 'k\n' >"$L/opt/dienst/.ssh/id_rsa"; printf 'k\n' >"$L/opt/dienst/secrets/x.log"; printf 'x\n' >"$L/opt/dienst/instellingen.conf"; printf 'x\n' >"$L/opt/dienst/data.bin"; printf 'x\n' >"$L/opt/dienst/.verborgen.log"
+printf 'x\n' >"$L/opt/ander/a.log"; printf 'x\n' >"$L/elders/buiten.log"; ln -s "$L/elders/buiten.log" "$L/var/log/link-naar-buiten.log"; ln -s "$L/var/log/syslog" "$L/elders/link-naar-binnen.log"
+printf 'MONITOR_URL="http://127.0.0.1:1"\nLOG_DIRS="%s"\nLOG_DIRS_MAX="%s %s"\n' "$L/var/log" "$L/opt" "$L/bestaat-niet" >"$L/conf"
+printf '%s\n' "$key" >"$L/gk/agent.key"
+{
+    printf '0\ttick\t60\n0\tlogdirs\t%s %s %s relatief /etc/../etc\n' "$L/opt/dienst" "$L/elders" "$L/opt/dienst/secrets"
+    printf '51\tlog\t%s\tfout|error\n52\tlog\t%s\tFailed password\n53\tlog\t%s\tx\n54\tlog\t%s\tx\n55\tlog\t%s\t[ongeldig\n56\tlog\traar:bron\tx\n57\tlog\t%s\tfout\n58\tival\t3600\n58\tlog\t%s\tfout\n59\tlog\tha:core\tx\n' \
+        "$L/var/log/app/app.log" "$L/var/log/syslog" "$L/elders/buiten.log" "$L/var/log/bestaat-niet.log" "$L/var/log/app/app.log" "$L/opt/dienst/logs/wachtwoord-passwd.log" "$L/opt/dienst/logs/dienst.log"
+    printf '61\tlogsrc\tfile\t%s\t0\n62\tlogsrc\tfile\t%s\t2\n63\tlogsrc\tfile\t%s\t3\n64\tlogsrc\tfile\t%s\t1\n65\tlogsrc\tfile\t%s\t0\n66\tlogsrc\tha\tcore\t0\n67\tlogsrc\traar\t-\t0\n68\tlogsrc\tfile\t%s\t0\n0\tlogship\t60\n' \
+        "$L/var/log/app/*.log" "$L/var/log/syslog" "$L/var/log/syslog" "$L/opt/dienst/logs/dienst.log" "$L/elders/*.log" "$L/var/log/geen-*.log"
+    printf '0\tlogscan\t3\n0\tlogbrowse\t7\t%s\n' "$L/opt/dienst"
+} >"$L/tests.cache"
+LT_PATHS=("$L/var/log/app/app.log" "$L/var/log/link-naar-buiten.log" "$L/elders/link-naar-binnen.log" "$L/elders/buiten.log" "$L/opt/dienst/logs/dienst.log" "$L/opt/dienst/logs/uitvoer.txt"
+    "$L/opt/dienst/logs/wachtwoord-passwd.log" "$L/opt/dienst/logs/server.key" "$L/opt/dienst/.ssh/id_rsa" "$L/opt/dienst/secrets/x.log" "$L/opt/dienst/instellingen.conf" "$L/opt/dienst/data.bin"
+    "$L/opt/dienst/.verborgen.log" "$L/opt/ander/a.log" "$L/var/log/nieuw-bestaat-nog-niet.log" "$L/var/log/../../elders/buiten.log" "/etc/shadow" "/" "$L/opt/dienst/logs/Token.LOG" "$L/opt/dienst/logs/app.env.log" "$L/opt/dienst/logs/db.sqlite3")
+bash_logs() {   # bash_logs <uitvoerbestand>: één ronde van de echte bash-code (log-checks, logs vinden, doorbladeren, verzamelen)
+    (
+        t_dir="$L/bt"; t_cache="$L/tests.cache"; k_dir="$L/bk"; HA_MODE=0; TEST=0; LOG_DIRS="$L/var/log"; LOG_DIRS_MAX="$L/opt $L/bestaat-niet"; LOG_SHIP=1; enc_key=""
+        declare -A ival_by_id=([58]=3600)
+        lap() { :; }
+        ctrx() { shift; "$@"; }
+        # shellcheck disable=SC1090
+        source <(sed -n '/^json_escape() {/,/^}/p' agent/src/15-realtime.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^due_cached() {/,/^}/p' agent/src/40-basis-meten.sh)
+        # shellcheck disable=SC1090
+        source <(sed -n '/^log_results=""/,$p' agent/src/50-services-commandos-logs.sh)
+        for p in "${LT_PATHS[@]}"; do
+            printf '%d %d %d\t%s\n' "$(log_allowed "$p" && echo 1 || echo 0)" "$(log_secret "$p" && echo 1 || echo 0)" "$(log_like "$p" && echo 1 || echo 0)" "$p"
+        done >"$1.allowed"
+        # shellcheck disable=SC1090
+        source <(docker() { return 127; }; cat agent/src/78-logs-vinden.sh)
+        # shellcheck disable=SC1090
+        source agent/src/92-logs.sh 2>/dev/null
+        printf '{"logs":{%s},"scan":%s,"browse":%s}' "${log_results%,}" "${logscan_json:-null}" "${logbrowse_json:-null}" >"$1"
+    )
+}
+go_logs() {   # go_logs <uitvoerbestand>: hetzelfde door de Go-agent
+    (
+        export RZSENSE_BASH_CONF="$L/conf" RZSENSE_BASH_CACHE="$L" RZSENSE_BASH_STATE="$L/gt" RZSENSE_BASH_KEYS="$L/gk" RZSENSE_DATA="$L/gd"
+        "$work/rzsense" log-test allowed "${LT_PATHS[@]}" >"$1.allowed"
+        printf '{"logs":%s,"scan":%s,"browse":%s}' "$("$work/rzsense" log-test check)" "$("$work/rzsense" log-test scan)" "$("$work/rzsense" log-test browse)" >"$1"
+        "$work/rzsense" log-test ship
+    )
+}
+cmp_logs() {   # cmp_logs <ronde>: de twee uitkomsten en de pakketjes in de wachtrij vergelijken
+    python3 -I - "$L/bash$1.json" "$L/go$1.json" "$L/bk/logship" "$L/gk/logship" "$1" <<'PY'
+import glob, gzip, json, sys
+a, g = [json.load(open(p)) for p in sys.argv[1:3]]
+bad = []
+if open(sys.argv[1] + '.allowed').read() != open(sys.argv[2] + '.allowed').read():
+    bad.append('welke bestanden mogen:\n bash\n%s go\n%s' % (open(sys.argv[1] + '.allowed').read(), open(sys.argv[2] + '.allowed').read()))
+for k in sorted(set(a['logs']) | set(g['logs'])):
+    if a['logs'].get(k) != g['logs'].get(k):
+        bad.append('log-check #%s:\n bash %s\n go   %s' % (k, json.dumps(a['logs'].get(k), ensure_ascii=False), json.dumps(g['logs'].get(k), ensure_ascii=False)))
+sa, sg = a['scan'], g['scan']
+if (sa is None) != (sg is None):
+    bad.append('logs vinden: bash %s, go %s' % ('ja' if sa else 'nee', 'ja' if sg else 'nee'))
+elif sa:
+    for d in (sa, sg):
+        d.pop('at'); d.pop('units'); d.pop('docker'); d['files'] = sorted(d['files']); d['noread'] = sorted(d['noread'])
+    if sa != sg:
+        bad.append('logs vinden:\n bash %s\n go   %s' % (json.dumps(sa, ensure_ascii=False), json.dumps(sg, ensure_ascii=False)))
+ba, bg = a['browse'], g['browse']
+for d in (ba, bg):
+    if d:
+        d['dirs'] = sorted(d['dirs']); d['files'] = sorted(d['files'])
+if ba != bg:
+    bad.append('doorbladeren:\n bash %s\n go   %s' % (json.dumps(ba, ensure_ascii=False), json.dumps(bg, ensure_ascii=False)))
+def batches(d):
+    out = []
+    for f in sorted(glob.glob(d + '/b*.gz')):
+        rows = gzip.open(f, 'rt', encoding='utf-8', errors='replace').read().split('\n')
+        h = rows[0].split('\t')
+        body = []
+        for r in rows[1:]:
+            c = r.split('\t')
+            if c[0] == 'L':
+                c[2] = 'T'
+            body.append('\t'.join(c))
+        out.append([h[0], h[3], h[4]] + body)
+    return out
+qa, qg = batches(sys.argv[3]), batches(sys.argv[4])
+if qa != qg:
+    fa, fg = [r for b in qa for r in b], [r for b in qg for r in b]
+    bad.append('pakketjes (%d en %d):\n alleen bash %s\n alleen go   %s' % (len(qa), len(qg), json.dumps([r for r in fa if r not in fg], ensure_ascii=False), json.dumps([r for r in fg if r not in fa], ensure_ascii=False)))
+if bad:
+    print('\n'.join(bad)); sys.exit(1)
+print('%d %d %d %d' % (sum(v.get('new', 0) for v in a['logs'].values()), len(sa['files']) if sa else -1, len(ba['files']) + len(ba['dirs']) if ba else -1, sum(len([r for r in b if r.startswith('L\t')]) for b in qa)))
+PY
+}
+bash_logs "$L/bash1.json" || fail "de bash-code voor logs faalde (ronde 1)"
+go_logs "$L/go1.json" || fail "de Go-agent kon de logs niet lezen (ronde 1)"
+got=$(cmp_logs 1) || fail "logs, ronde 1: de Go-agent doet het anders dan de bash-agent: $got"
+[ "${got%% *}" = 0 ] || fail "logs, ronde 1: oude regels horen niet mee te tellen: $got"
+# Nieuwe regels: treffers, IP-adressen, een halve regel, vreemde tekens, niveaus
+printf 'Fout bij verbinden met 203.0.113.7\nalles goed\nERROR 203.0.113.7 time-out\nfout vanaf 198.51.100.9 \033[31mrood\033[0m\ndebug: detail\nhalve regel zonder einde' >>"$L/var/log/app/app.log"
+printf 'Oct 21 10:00:01 nas sshd[1]: Failed password for root from 203.0.113.7 port 1 ssh2\nOct 21 10:00:02 nas kernel: warning: iets\nOct 21 10:00:03 nas app: connection refused\r\nOct 21 10:00:04 nas app: gewoon\n' >>"$L/var/log/syslog"
+printf 'INFO gestart\nTRACE diep\nfout in dienst\n' >>"$L/opt/dienst/logs/dienst.log"
+rm -f "$L/bk/logship/last" "$L/gk/logship/last" "$L/bt/logscan.cache" "$L/gd/logscan.cache"; rm -f "$L/bt/logbrowse.done" "$L/gd/logbrowse.done"
+bash_logs "$L/bash2.json" || fail "de bash-code voor logs faalde (ronde 2)"
+go_logs "$L/go2.json" || fail "de Go-agent kon de logs niet lezen (ronde 2)"
+got=$(cmp_logs 2) || fail "logs, ronde 2: de Go-agent doet het anders dan de bash-agent: $got"
+read -r lt_hits lt_files lt_browse lt_lines <<<"$got"
+{ [ "$lt_hits" -ge 4 ] && [ "$lt_files" -ge 3 ] && [ "$lt_browse" -ge 2 ] && [ "$lt_lines" -ge 6 ]; } || fail "logs: onverwacht weinig gevonden ($got)"
+echo "✔ logs: welke bestanden mogen (${#LT_PATHS[@]} paden), $lt_hits treffers van log-checks, $lt_files gevonden logs, een map doorbladeren en $lt_lines regels in de pakketjes: gelijk aan de bash-agent"
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.
@@ -407,6 +521,9 @@ chmod 755 "$work/bin/systemd-run"
 export PATH="$work/bin:$work/pbin:$PATH" RZSENSE_FALLBACK_UNIT="$work/fallback.timer" DNF_LOG="$work/dnf.log"
 # 1.345.0 (Go-agent 0.14.0): logins uit een logbestand, met de stand in het bestand van de bash-agent
 printf 'AUTH_SOURCE="file"\nAUTH_LOGS="%s"\n' "$work/auth.log" >>"$work/rzmon-agent"
+# 1.350.0: logs verzamelen en een log-check, uit een eigen map (LOG_DIRS)
+mkdir -p "$work/applog"; printf 'oud\n' >"$work/applog/app.log"
+printf 'LOG_DIRS="%s"\n' "$work/applog" >>"$work/rzmon-agent"
 echo "Oct 21 10:00:01 nas sshd[1]: Accepted password for oud from 192.0.2.1 port 1 ssh2" >"$work/auth.log"
 export RZSENSE_AUTHSTATE="$work/cache/authstate"
 unset RZSENSE_BASH_CACHE   # na het overnemen haalt de Go-agent de testlijst zelf op (in zijn eigen map)
@@ -462,6 +579,23 @@ echo "✔ logins: een gelukte en een mislukte SSH-login kwamen één keer aan; d
 # Een onversleuteld rapport dat zich voordoet als de Go-agent wordt geweigerd
 code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -H "X-Agent-Token: nep" --data '{"go":1,"os":"linux","agent_version":"9.9.9"}' "$BASE/api.php?action=agent")
 [ "$code" != 200 ] || fail "een rapport zonder sleutel werd aangenomen"
+
+# Logs (1.350.0): een log-check en een bron om te verzamelen; nieuwe regels komen als treffer en als pakketje bij RzSense
+export APPLOG="$work/applog/app.log"
+take 'q("DELETE FROM log_sources WHERE host_id = ?", [$id]); q("INSERT INTO log_sources (host_id, name, kind, spec, level) VALUES (?, ?, ?, ?, 0)", [$id, "app", "file", getenv("APPLOG")]);
+q("INSERT INTO checks (host_id, name, type, target, options, interval_sec, enabled) VALUES (?, ?, ?, ?, ?, 60, 1)", [$id, "fouten", "log", getenv("APPLOG"), json_encode(["pattern" => "fout"])]);' || fail "kon de logbron niet aanmaken"
+"$work/rzsense" shadow --quiet || fail "de ronde met de nieuwe logbron mislukte"
+"$work/rzsense" shadow --quiet || fail "de eerste ronde met logs mislukte"
+printf 'een fout van 203.0.113.7\ngewoon\nnog een FOUT\n' >>"$work/applog/app.log"
+rm -f "$work/keys/logship/last"
+find "$work/cache/logstate" -type f -exec touch -d '5 minutes ago' {} +   # de check is weer aan de beurt
+"$work/rzsense" shadow --quiet || fail "de ronde met nieuwe logregels mislukte"
+got=$(take '$c = (int) q("SELECT id FROM checks WHERE host_id = ? AND type = ?", [$id, "log"])->fetchColumn(); $r = AgentData::get($id, "logrun:" . $c);
+echo array_sum(array_map(static fn($h) => (int) ($h[1] ?? 0), (array) ($r["hist"] ?? []))) . " " . (int) q("SELECT COUNT(*) FROM log_batches WHERE host_id = ?", [$id])->fetchColumn() . " " . (string) q("SELECT status FROM log_sources WHERE host_id = ?", [$id])->fetchColumn();')
+case "$got" in "2 "[1-9]*" ok") ;; *) fail "de logs kwamen niet goed aan bij RzSense (treffers, pakketjes, status van de bron): $got" ;; esac
+[ -z "$(ls "$work/keys/logship/"b*.gz 2>/dev/null)" ] || fail "een bevestigd pakketje bleef in de wachtrij staan"
+[ "$(cat "$work/keys/agent.key")" = "$key" ] || fail "de sleutel is veranderd door de logs"
+echo "✔ logs: 2 treffers van de log-check en de pakketjes kwamen bij RzSense aan; de wachtrij is leeg"
 
 # Softwarelijst (1.347.0): de hele lijst ging één keer mee; daarna alleen het controlegetal
 got=$(take '$v = q("SELECT mgr, packages, hash FROM vuln_inventory WHERE host_id = ?", [$id])->fetch(); echo $v ? ((count((array) json_decode((string) $v["packages"], true)) > 50 ? "lijst" : "leeg") . " " . (preg_match("/^[0-9a-f]{16}$/", (string) $v["hash"]) ? "hash" : "geen-hash")) : "niets";')

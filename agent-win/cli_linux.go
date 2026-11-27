@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -75,6 +76,36 @@ func cliLinux(args []string) bool {
 			os.Exit(2)
 		}
 		os.Exit(cmdRunOne(os.Args[2]))
+	case "log-test": // voor de tests: log-allowed <pad…> | check | scan | browse | ship
+		conf, _ := readShellConf(bashConfPath())
+		if conf == nil {
+			conf = map[string]string{}
+		}
+		tests := readText(filepath.Join(bashCachePath(), "tests.cache"))
+		var v any
+		switch {
+		case len(os.Args) < 3:
+			os.Exit(2)
+		case os.Args[2] == "allowed":
+			rules := loadLogRules(conf, tests)
+			for _, p := range os.Args[3:] {
+				fmt.Printf("%d %d %d\t%s\n", map[bool]int{true: 1}[rules.allowed(p)], map[bool]int{true: 1}[logSecret(p)], map[bool]int{true: 1}[logLike(p)], p)
+			}
+			return true
+		case os.Args[2] == "check":
+			v = collectLogChecksLinux()
+		case os.Args[2] == "scan":
+			v = logScanLinux(true)
+		case os.Args[2] == "browse":
+			v = logBrowseLinux()
+		case os.Args[2] == "ship":
+			if c, err := loadBashConfig(); err == nil {
+				shipLogsLinux(c)
+			}
+			return true
+		}
+		b, _ := json.Marshal(v)
+		fmt.Println(string(b))
 	case "cmd-check": // voor de tests: de commando-checks uit de testlijst meten, zoals in het rapport
 		b, _ := json.Marshal(collectCmdLinux())
 		fmt.Println(string(b))

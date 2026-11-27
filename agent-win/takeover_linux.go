@@ -190,6 +190,15 @@ func buildRun(c *Config, t0 time.Time) map[string]any {
 	if p := collectPatchLinux(true); p != nil { // 0.15.0: welke updates er klaarstaan (eens per uur)
 		rep["patch"] = p
 	}
+	if l := collectLogChecksLinux(); l != nil { // 0.19.0: log-checks, logs vinden en een map doorbladeren
+		rep["logs"] = l
+	}
+	if s := logScanLinux(false); s != nil {
+		rep["log_scan"] = s
+	}
+	if b := logBrowseLinux(); b != nil {
+		rep["log_browse"] = b
+	}
 	if c := collectCmdLinux(); c != nil { // 0.18.0: commando-checks
 		rep["cmd"] = c
 	}
@@ -271,6 +280,7 @@ func afterRun(c *Config, r *runReply) {
 		backToBash("gevraagd vanuit RzSense", false)
 		return
 	}
+	shipLogsLinux(c) // 0.19.0: logs verzamelen: los van het rapport, in pakketjes
 	softwareReply(r.PackagesOK, r.PackagesResend)
 	if r.PkgUpgrade != nil {
 		startUpgrade(*r.PkgUpgrade)

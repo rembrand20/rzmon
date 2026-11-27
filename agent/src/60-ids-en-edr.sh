@@ -22,7 +22,7 @@ if [ "$HA_MODE" = 0 ] && [ "$AUTH_EVENTS" != 0 ] && [ -r "${t_cache-}" ] && grep
         for a_file in $AUTH_LOGS; do
             [ -r "$a_file" ] || continue
             # Verder lezen waar we gebleven waren (inode|positie); de eerste keer vanaf het einde
-            inode=$(stat -c %i "$a_file"); size=$(stat -c %s "$a_file")
+            inode=$(stat -L -c %i "$a_file"); size=$(stat -L -c %s "$a_file")
             p_inode=$(cut -d'|' -f2 <<<"$a_prev"); p_pos=$(cut -d'|' -f3 <<<"$a_prev")
             if [[ "$a_prev" != file\|* ]]; then pos=$size
             elif [ "$p_inode" != "$inode" ] || ! [[ "$p_pos" =~ ^[0-9]+$ ]] || [ "$p_pos" -gt "$size" ]; then pos=0
@@ -486,7 +486,7 @@ if [ -r "${t_cache-}" ] && grep -q $'^0\tweblog\t' "$t_cache"; then
     w_dir="$t_dir/weblog"; mkdir -p "$w_dir" 2>/dev/null
     wl_file_new() {  # wl_file_new <naam> <bestand>: nieuwe regels (inode + positie); de eerste keer alleen vastleggen
         local f=$2 st="$w_dir/$1.pos" ino size pino pos
-        ino=$(stat -c %i "$f" 2>/dev/null) && size=$(stat -c %s "$f" 2>/dev/null) || return 1
+        ino=$(stat -L -c %i "$f" 2>/dev/null) && size=$(stat -L -c %s "$f" 2>/dev/null) || return 1
         read -r pino pos 2>/dev/null <"$st"
         [ -n "$pino" ] || { echo "$ino $size" >"$st"; return 0; }
         echo "$ino $size" >"$st.new"   # agent 1.87.0: pas na een geslaagd rapport de nieuwe positie (anders gaan regels verloren)
@@ -740,7 +740,7 @@ if [ "$edr_want" = 1 ] && [ "$TEST" != 1 ]; then
         e_eve="${SURICATA_EVE:-/var/log/suricata/eve.json}"
         if [ -r "$e_eve" ]; then
             e_sur=ok
-            e_ino=$(stat -c %i "$e_eve" 2>/dev/null); e_size=$(stat -c %s "$e_eve" 2>/dev/null)
+            e_ino=$(stat -L -c %i "$e_eve" 2>/dev/null); e_size=$(stat -L -c %s "$e_eve" 2>/dev/null)
             read -r e_pino e_pos 2>/dev/null <"$edr_dir/eve.pos"
             if [ -n "$e_pino" ]; then
                 if [ "$e_pino" != "$e_ino" ] || [ "${e_pos:-0}" -gt "${e_size:-0}" ]; then e_pos=0; fi
