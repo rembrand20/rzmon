@@ -68,8 +68,13 @@ final class AgentTakeover
             defined('RZ_API') || define('RZ_API', true);   // buiten de API (cron, tests)
             require_once __DIR__ . '/api/functies.php';
         }
+        // 1.345.1: logs van webdiensten staan standaard voor elke server aan, maar tellen alleen waar de bash-agent zo'n log vond
+        $web = q("SELECT src FROM weblog_state WHERE host_id = ? AND path IS NOT NULL AND path <> ''", [$id])->fetchAll(PDO::FETCH_COLUMN);
         foreach (explode("\n", agent_tests_text($id, false)) as $line) {
             $f = explode("\t", $line);
+            if (count($f) >= 3 && $f[1] === 'weblog' && !in_array($f[2], $web, true)) {
+                continue;
+            }
             if (count($f) >= 3 && !in_array($f[1], self::LINES_OK, true) && !($f[1] === 'apps' && $f[2] === '0')) {   // apps 0: Programma's staat uit
                 $out[] = self::lineLabel($f[1]);
             }

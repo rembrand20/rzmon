@@ -5244,6 +5244,14 @@ ok(in_array('Updates', $tkB, true) && !in_array('Logins, sudo en su', $tkB, true
 foreach (['auth_events', 'weblog_swag', 'weblog_ha', 'weblog_vw', 'patch_on', 'ids_enabled', 'vuln_enabled'] as $tkK) {
     save_setting($tkK, '0');
 }
+save_setting('weblog_swag', '1');
+save_setting('ids_enabled', '1');   // logs van webdiensten horen bij het IDS
+ok(!in_array('Logs van webdiensten', AgentTakeover::blockers($tkHost()), true) && in_array('IDS', AgentTakeover::blockers($tkHost()), true), 'logs van webdiensten staan aan, maar deze server heeft er geen: dat is geen blokkade (het IDS zelf wel)');
+q("INSERT INTO weblog_state (host_id, src, path, seen_at) VALUES (?, 'swag', '/opt/swag/config/log/nginx', ?)", [$tkH, now()]);
+ok(in_array('Logs van webdiensten', AgentTakeover::blockers($tkHost()), true), 'heeft de server wel zo\'n log, dan houdt dat het overnemen tegen: ' . json_encode(AgentTakeover::blockers($tkHost()), JSON_UNESCAPED_UNICODE));
+q('DELETE FROM weblog_state WHERE host_id = ?', [$tkH]);
+save_setting('weblog_swag', '0');
+save_setting('ids_enabled', '0');
 ok(AgentTakeover::blockers($tkHost()) === [], 'zonder die onderdelen houdt niets het tegen: ' . implode(', ', AgentTakeover::blockers($tkHost())));
 q("INSERT INTO checks (host_id, name, type, target, enabled) VALUES (?, 'cpu', 'cpu', '', 1), (?, 'nginx', 'service', 'nginx', 1), (?, 'log', 'command', '', 1)", [$tkH, $tkH, $tkH]);
 $tkB = AgentTakeover::blockers($tkHost());

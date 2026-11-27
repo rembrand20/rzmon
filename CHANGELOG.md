@@ -14,6 +14,11 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.342.0**: **Proef met de Go-agent: details per dienst**: poorten, een passende test en logfouten per dienst, extra tests en de dienstenlijst.
 - **1.341.0**: **Proef met de Go-agent: certificaten en processen**: uitgelezen zonder openssl en ps, en vergeleken met de bash-agent.
 
+## 1.345.1 – 2026-11-27
+### Opgelost
+- **Overnemen door de Go-agent: logs van webdiensten hielden het met het IDS aan op elke server tegen**, ook op servers zonder SWAG, Home Assistant of Vaultwarden. Dat telt nu alleen nog op een server waar de bash-agent zo'n log echt gevonden heeft.
+- Ter verduidelijking van 1.345.0: zonder IDS houdt op een standaardinstallatie alleen **Updates** het overnemen nog tegen.
+
 ## 1.345.0 – 2026-11-27
 ### Nieuw
 - **De Go-agent leest nu ook logins, sudo en su.** Dat stond standaard aan en hield het overnemen daarom op bijna elke server tegen. Vanaf Go-agent 0.14.0 is het geen blokkade meer: logins komen bij *Meldingen* en *Toegang* binnen zoals van de bash-agent.
