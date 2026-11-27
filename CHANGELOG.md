@@ -28,6 +28,16 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **Container:** de nieuwe image bevat certbot en een extra https-poort, **9443** (`RZMON_TLS_PORT`). Laat de firewall van de host 80 doorsturen naar 8080 en 443 naar 9443 (de commando's staan op de kaart). Het certificaat staat in het datavolume.
 - Heb je een reverse proxy zoals SWAG, laat die het certificaat dan gewoon regelen; daar verandert niets.
 
+## 1.357.2 – 2026-11-27
+### Opgelost
+- **De proef met de Go-agent telde niet door en verdween steeds uit beeld.** Bij elk rapport van de bash-agent ruimde RzSense de stand van de proef mee op. De teller kwam daardoor nooit verder dan één ronde, en na *Opnieuw beginnen te tellen* stond er meestal *Op deze server loopt nog geen proef*, terwijl de rondes gewoon aankwamen. De stand blijft nu staan. Hiervoor is geen nieuwe agent nodig.
+- Daardoor kon overnemen (60 rondes nodig) op geen enkele server beschikbaar komen; dat kan nu wel.
+
+## 1.357.1 – 2026-11-27
+### Opgelost
+- **`sudo rzsense status` gaf *command not found* op Rocky, RHEL en Alma.** Daar zoekt sudo niet in `/usr/local/bin`. Het installatiecommando van de Go-agent zet nu ook een verwijzing in `/usr/bin` (en haalt die bij verwijderen weer weg). Draai het installatiecommando opnieuw; tot die tijd werkt `/usr/local/bin/rzsense status`.
+- Een test van de IDS-proef hing af van hoe het systeem `sleep` levert; de werking verandert niet.
+
 ## 1.357.0 – 2026-11-27
 ### Nieuw
 - **IDS in de Go-agent, eerste stap: een dry-run.** Op een server waar het IDS aan staat en de proef loopt, neemt de Go-agent hetzelfde waar als de bash-agent, en RzSense legt de twee naast elkaar. In het blok *Go-agent* komen de regels *IDS (proef): gevoelige bestanden*, *gebruikers*, *groepen met rechten*, *kernelmodules*, *verdachte processen* en *diensten die automatisch starten*.
