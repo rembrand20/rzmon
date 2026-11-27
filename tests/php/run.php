@@ -5296,6 +5296,10 @@ $tkLines = agent_tests_text($tkH, true);
 ok(!preg_match('/selftest|certscan|“/u', implode(' ', AgentTakeover::blockers($tkHost()))), 'Opnieuw zoeken naar certificaten en 🧪 Test houden het overnemen niet tegen (1.356.0): ' . implode(', ', AgentTakeover::blockers($tkHost())) . ' | ' . str_replace(["\t", "\n"], [' ', ' / '], $tkLines));
 q('UPDATE hosts SET certscan_req = 0 WHERE id = ?', [$tkH]);
 AgentData::put($tkH, 'selftest_req', null);
+$tkSv = static fn(array $go) => array_column(AgentShadow::compare(['svc' => ['x' => $go + ['sub' => 'running', 'type' => 'simple', 'ports' => []]]],
+    ['svc' => ['x' => ['sub' => 'running', 'type' => 'simple', 'pid' => 10, 'since' => 1000, 'ports' => []]]]), null, 'k')['dienst x: details']['ok'];
+ok($tkSv(['pid' => 10, 'since' => 1005]) && !$tkSv(['pid' => 10, 'since' => 1100]), 'proef: "sinds" mag een paar seconden schelen (de klok is na het opstarten gelijkgezet), geen minuten');
+ok($tkSv(['pid' => 77, 'since' => 5000]) && !$tkSv(['pid' => 77, 'since' => 1000]), 'proef: een dienst die opnieuw gestart is sinds de meting van de bash-agent is geen verschil; een ander hoofdproces zonder herstart wel');
 $tkCt = ['name' => 'web', 'user' => 'root', 'pod' => '', 'image' => 'nginx:1.27', 'state' => 'running', 'health' => 'healthy', 'exit_code' => 0, 'restarts' => 2];
 $tkC4 = array_column(AgentShadow::compare(['podman' => ['containers' => [$tkCt, ['name' => 'db', 'user' => 'piet', 'state' => 'exited'] + $tkCt, ['name' => 'extra'] + $tkCt]]],
     ['containers' => ['web' => $tkCt, 'piet/db' => ['name' => 'db', 'user' => 'piet', 'state' => 'running'] + $tkCt]]), null, 'k');

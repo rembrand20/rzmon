@@ -357,9 +357,16 @@ final class AgentShadow
                         'manual' => $set($b['manual'] ?? []) === $set($g['manual'] ?? []), 'sockets' => $set($b['sockets'] ?? []) === $set($g['sockets'] ?? []),
                         'sockets_fail' => count((array) ($b['sockets_fail'] ?? [])) === count((array) ($g['sockets_fail'] ?? [])),
                         'probe' => (string) ($b['probe'] ?? '') === (string) ($g['probe'] ?? ''), 'probe_rc' => ($b['probe_rc'] ?? null) === ($g['probe_rc'] ?? null),
-                        'since' => ($b['since'] ?? null) === null ? ($g['since'] ?? null) === null : $near($b['since'], $g['since'] ?? null, 3),
+                        // 1.356.2: de bash-agent bewaart de details een tijd; is de klok na het opstarten gelijkgezet, dan scheelt
+                        // "sinds" een paar seconden: 15 seconden marge
+                        'since' => ($b['since'] ?? null) === null ? ($g['since'] ?? null) === null : $near($b['since'], $g['since'] ?? null, 15),
                         'log_errors' => ((int) ($b['log_errors'] ?? 0) > 0) === ((int) ($g['log_errors'] ?? 0) > 0),
                     ];
+                    // 1.356.2: is de dienst opnieuw gestart sinds de (bewaarde) meting van de bash-agent, dan zijn een ander
+                    // hoofdproces en een later begin geen verschil
+                    if (!$parts['pid'] && is_numeric($b['since'] ?? null) && is_numeric($g['since'] ?? null) && (int) $g['since'] > (int) $b['since'] + 15) {
+                        $parts['pid'] = $parts['since'] = $parts['restarts'] = true;
+                    }
                     foreach ($parts as $k => $same) {
                         if (!$same) {
                             $why[$k] = [mb_substr($j($b[$k] ?? null), 0, 120), mb_substr($j($g[$k] ?? null), 0, 120)];

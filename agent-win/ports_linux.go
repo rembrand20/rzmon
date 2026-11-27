@@ -164,8 +164,9 @@ func procListen(tcp4, tcp6 string) []listenSock {
 
 var sockLinkRe = regexp.MustCompile(`^socket:\[(\d+)\]$`)
 
-// socketOwners: per socket (inode) de naam van het proces met het laagste pid dat hem open heeft, zoals ss -p de eerste
-// noemt. Alleen te zien als root.
+// socketOwners: per socket (inode) de naam van het proces dat ss -p als eerste noemt. Dat is het proces met het HOOGSTE
+// pid dat hem open heeft (0.26.0; gemeten op een echte server en nagebootst met een gedeelde socket): bij een dienst die
+// systemd via een socket start (bv. cockpit op 9090) is dat de dienst zelf, niet systemd. Alleen te zien als root.
 func socketOwners(want map[uint32]bool) map[uint32]string {
 	out := map[uint32]string{}
 	if len(want) == 0 {
@@ -178,7 +179,7 @@ func socketOwners(want map[uint32]bool) map[uint32]string {
 			pids = append(pids, n)
 		}
 	}
-	sort.Ints(pids)
+	sort.Sort(sort.Reverse(sort.IntSlice(pids)))
 	for _, pid := range pids {
 		fds, err := os.ReadDir(fmt.Sprintf("/proc/%d/fd", pid))
 		if err != nil {

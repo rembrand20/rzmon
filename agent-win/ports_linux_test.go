@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"sort"
 	"strings"
@@ -136,4 +137,35 @@ func portsVsSs(t *testing.T) string {
 		return fmt.Sprintf("poorten verschillen van ss:\n  ss: %s\n  go: %s", keys(want), keys(got))
 	}
 	return ""
+}
+
+// Een socket die twee processen open hebben (zoals bij een dienst die systemd via een socket start): ss noemt het proces
+// met het hoogste pid als eerste, en dat neemt de bash-agent. De Go-agent hoort dezelfde te kiezen.
+func TestSharedSocketOwner(t *testing.T) {
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Skip("kan niet luisteren")
+	}
+	defer ln.Close()
+	f, err := ln.(*net.TCPListener).File()
+	if err != nil {
+		t.Skip(err)
+	}
+	defer f.Close()
+	child := exec.Command("sleep", "20")
+	child.ExtraFiles = []*os.File{f}
+	if err := child.Start(); err != nil {
+		t.Skip(err)
+	}
+	defer func() { _ = child.Process.Kill(); _ = child.Wait() }()
+	port := ln.Addr().(*net.TCPAddr).Port
+	for _, p := range collectPortsLinux() {
+		if p["port"] == port {
+			if p["proc"] != "sleep" {
+				t.Fatalf("poort %d: de Go-agent noemt %q; ss noemt het proces met het hoogste pid (sleep, pid %d)", port, p["proc"], child.Process.Pid)
+			}
+			return
+		}
+	}
+	t.Fatalf("poort %d niet gevonden", port)
 }

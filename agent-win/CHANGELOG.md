@@ -5,6 +5,12 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.26.0 – 2026-11-27
+Uit de tweede proefronde op een echte server (Rocky/RHEL, één kern):
+- **Linux: het proces bij een poort klopte niet bij een dienst die systemd via een socket start.** Bij cockpit op poort 9090 noemde de Go-agent `systemd`, de bash-agent `cockpit-tls`. `ss` noemt het proces met het hoogste pid als eerste; de Go-agent kiest nu hetzelfde.
+- **Linux: de proef meet niet meer terwijl de bash-agent zijn ronde draait.** Op een server met één kern maten de twee agents elkaars werk mee: het CPU-gebruik leek 100%. De Go-agent wacht nu (hooguit 40 seconden) tot de bash-agent klaar is. Zo wordt ook de CPU-meting van de bash-agent zelf niet hoger door de proef.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.25.0 – 2026-11-27
 - **Linux: wifi.** SSID, access point, band, kanaal, kanaalbreedte, signaal en verbindingssnelheid van de eigen wifi-kaart (`iw`), voor *Netwerk → Netwerksnelheid*.
 - **Linux: certificaten zoeken.** Bestanden met een certificaat in `CERT_DIRS` en de mappen uit RzSense, om bij een SSL-check uit te kiezen; één keer per dag, of meteen bij *Opnieuw zoeken*. CA-lijsten, bundels, testmappen en sleutels worden overgeslagen.

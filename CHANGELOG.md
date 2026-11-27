@@ -14,6 +14,16 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.353.0**: **De Go-agent heeft de waakhond**: een bericht via Pushover of ntfy als RzSense onbereikbaar is, en wachten tijdens een update.
 - **1.352.0**: **De Go-agent kan zelf herstellen**: een dienst herstarten, een container starten of een eigen herstelcommando, met dezelfde grenzen als de bash-agent.
 
+## 1.356.2 – 2026-11-27
+### Opgelost
+Uit de tweede proefronde op een echte server:
+- **Proef met de Go-agent: *dienst …: details* verschilde op "sinds" met een paar seconden.** De bash-agent bewaart die details een tijd; is de klok na het opstarten gelijkgezet, dan scheelt het begin van een dienst een paar seconden. Dat telt niet meer (15 seconden marge).
+- **Een dienst die opnieuw gestart is sinds de bewaarde meting van de bash-agent** (ander hoofdproces, later begin) telt niet meer als verschil.
+- Het proces bij een poort en het CPU-gebruik: opgelost in Go-agent 0.26.0 (zie de changelog van de Go-agent).
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.26.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
 ## 1.356.1 – 2026-11-27
 ### Opgelost
 - Een automatische test van logs verzamelen kon falen als twee pakketjes in dezelfde seconde gemaakt werden: hun volgorde is dan willekeurig. Geen wijziging in de werking.

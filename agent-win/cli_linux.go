@@ -494,6 +494,14 @@ func cmdShadow(quiet bool) int {
 		fmt.Fprintln(os.Stderr, "✘", msg)
 		return 1
 	}
+	// 0.26.0: niet meten terwijl de bash-agent zijn ronde draait. Op een server met één kern meten de twee anders elkaars
+	// werk mee (het CPU-gebruik leek dan 100%), en de CPU-meting van de bash-agent zelf hoort niet hoger te worden door de proef.
+	for i := 0; i < 40; i++ {
+		if out, _ := run(5*time.Second, "systemctl", "is-active", "rzmon-agent.service"); strings.TrimSpace(out) != "activating" {
+			break
+		}
+		time.Sleep(time.Second)
+	}
 	t0 := time.Now()
 	core := coreCollect(2 * time.Second)
 	if p := collectPatchLinux(false); p != nil { // 0.15.0: vlak nadat de bash-agent keek, uit de cache van de pakketbeheerder
