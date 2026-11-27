@@ -70,6 +70,13 @@ func cliLinux(args []string) bool {
 		in, _ := io.ReadAll(os.Stdin)
 		b, _ := json.Marshal(map[string]any{"auth": authParse(string(in))})
 		fmt.Println(string(b))
+	case "software-check": // voor de tests: de softwarelijst zoals die naar RzSense gaat
+		sw, _, ok := buildSoftware()
+		b, _ := json.Marshal(sw)
+		fmt.Println(string(b))
+		if !ok {
+			os.Exit(1)
+		}
 	case "patch-check": // voor de tests: wat er klaarstaat, zoals het in het rapport komt
 		p, ok := availableUpdates(has("--cache"))
 		b, _ := json.Marshal(p)
@@ -381,6 +388,9 @@ func cmdShadow(quiet bool) int {
 	core := coreCollect(2 * time.Second)
 	if p := collectPatchLinux(false); p != nil { // 0.15.0: vlak nadat de bash-agent keek, uit de cache van de pakketbeheerder
 		core["patch"] = p
+	}
+	if sw := softwareForShadow(); sw != nil { // 0.16.0: de softwarelijst, kort nadat hij opnieuw gemaakt is
+		core["packages"] = sw
 	}
 	rep := map[string]any{"agent_version": Version, "os": "linux", "arch": goArch(), "bash_version": bashAgentVersion(), "core": core,
 		"took_ms": time.Since(t0).Milliseconds(), "doctor": diagnoseBrief(), "update_last": readState("update.last"), "ready": takeoverReady(c)}

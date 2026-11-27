@@ -8,11 +8,22 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.347.0**: **De Go-agent stuurt de softwarelijst en de klok**: Kwetsbaarheden en de check Tijd werken ook als de Go-agent het werk doet.
 - **1.346.0**: **De Go-agent kan Updates**: de lijst met klaarstaande updates en het installeren op verzoek, gelijk aan de bash-agent.
 - **1.345.0**: **De Go-agent leest logins, sudo en su**: gelijk aan de bash-agent, zonder dubbele of gemiste logins bij het overnemen.
 - **1.344.0**: **Overnemen per server**: de Go-agent doet het werk als de proef goed was en niets het tegenhoudt, en valt vanzelf terug op de bash-agent.
 - **1.343.0**: **De proef met de Go-agent werkt zichzelf bij**: alleen met een geldige handtekening van de ontwikkelaar.
-- **1.342.0**: **Proef met de Go-agent: details per dienst**: poorten, een passende test en logfouten per dienst, extra tests en de dienstenlijst.
+
+## 1.347.0 – 2026-11-27
+### Nieuw
+- **De Go-agent stuurt nu ook de softwarelijst en de klok.** *Kwetsbaarheden* en de check *Tijd* houden het overnemen daarom niet meer tegen.
+- **In de proef vergeleken:** het blok *Go-agent* krijgt de regels *klok*, *software: pakketten*, *software: systeem* en *software: bereikbaar via het netwerk*. De softwareregels verschijnen als Kwetsbaarheden of End-of-life aan staat, kort nadat de lijst opnieuw gemaakt is (eens per dag, of na een update).
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.16.0 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
+### Goed om te weten
+- Wat overnemen nu nog tegenhoudt: Realtime, IDS, endpoint-sensoren, ransomware-detectie, logs verzamelen of doorzoeken, containers, Proxmox en TrueNAS, en checks op commando's, paden, schijfgezondheid (SMART), UPS, heartbeats, databases, VPN en netwerkverkeer.
 
 ## 1.346.1 – 2026-11-27
 ### Opgelost

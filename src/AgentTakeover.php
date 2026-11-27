@@ -17,7 +17,7 @@ final class AgentTakeover
     /** Regels in de testlijst die de Go-agent uitvoert, of die alleen een losse vraag zijn (dan gebeurt er even niets) */
     private const LINES_OK = ['auth', 'patch', 'tick', 'ival', 'svc', 'ports', 'url', 'port', 'cert', 'certdirs', 'certscan', 'proc', 'tselftest', 'texprobe'];
     /** Agent-checks die de Go-agent meet; andere soorten die van de agent komen, houden het overnemen tegen */
-    private const CHECKS_BLOCK = ['podman', 'container', 'pve', 'truenas', 'path', 'log', 'command', 'ha', 'heartbeat', 'ntp', 'smart', 'ups', 'mysql', 'vpn', 'traffic'];
+    private const CHECKS_BLOCK = ['podman', 'container', 'pve', 'truenas', 'path', 'log', 'command', 'ha', 'heartbeat', 'smart', 'ups', 'mysql', 'vpn', 'traffic'];
 
     /** Wat een regel in de testlijst voor de gebruiker is */
     private static function lineLabel(string $type): string
@@ -83,9 +83,6 @@ final class AgentTakeover
             if (in_array($type, self::CHECKS_BLOCK, true)) {
                 $out[] = t('een check van de soort “{x}”', ['x' => (string) $type]);
             }
-        }
-        if (Vulns::enabled() && !in_array($id, Vulns::excluded(), true)) {
-            $out[] = t('Kwetsbaarheden (de softwarelijst van deze server)');
         }
         return array_values(array_unique($out));
     }

@@ -5,6 +5,12 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.16.0 – 2026-11-27
+- **Linux: de softwarelijst voor Kwetsbaarheden.** De geïnstalleerde pakketten (dpkg of rpm) met de distributie, de draaiende en de nieuwste kernel, diensten die een herstart nodig hebben en de pakketten van programma's die op een poort luisteren. De hele lijst gaat één keer per dag mee of als de pakketdatabase verandert; anders alleen het controlegetal. Zelfde inhoud als de bash-agent.
+- **Linux: de klok** (chrony of systemd-timesyncd): gesynchroniseerd en hoeveel ms hij afwijkt, voor de check *Tijd*.
+- In de proef vergelijkt RzSense de klok elke ronde, en de softwarelijst kort nadat die opnieuw gemaakt is.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.15.1 – 2026-11-27
 - Alleen voor de tests: de controle *draait als root* voor Updates is in de automatische tests na te bootsen. Geen wijziging in de werking.
 

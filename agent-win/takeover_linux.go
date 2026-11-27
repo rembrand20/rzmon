@@ -104,15 +104,17 @@ func fetchTests(c *Config) (string, error) {
 }
 
 type runReply struct {
-	OK         bool              `json:"ok"`
-	Error      string            `json:"error"`
-	Gz         int               `json:"gz"`
-	TestsRev   string            `json:"tests_rev"`
-	AgentKey   string            `json:"agent_key"`
-	PkgUpgrade *pkgOrder         `json:"pkg_upgrade"` // 0.15.0: updates installeren
-	GoBack     bool              `json:"go_back"`
-	URLPins    map[string]string `json:"url_pins"`
-	GoUpdate   *struct {
+	OK             bool              `json:"ok"`
+	Error          string            `json:"error"`
+	Gz             int               `json:"gz"`
+	TestsRev       string            `json:"tests_rev"`
+	AgentKey       string            `json:"agent_key"`
+	PackagesOK     bool              `json:"packages_ok"`     // 0.16.0: RzSense heeft de softwarelijst
+	PackagesResend bool              `json:"packages_resend"` // RzSense wil de hele lijst opnieuw
+	PkgUpgrade     *pkgOrder         `json:"pkg_upgrade"`     // 0.15.0: updates installeren
+	GoBack         bool              `json:"go_back"`
+	URLPins        map[string]string `json:"url_pins"`
+	GoUpdate       *struct {
 		Version string `json:"version"`
 		SHA     string `json:"sha256"`
 	} `json:"go_update"`
@@ -188,6 +190,9 @@ func buildRun(c *Config, t0 time.Time) map[string]any {
 	if p := collectPatchLinux(true); p != nil { // 0.15.0: welke updates er klaarstaan (eens per uur)
 		rep["patch"] = p
 	}
+	if sw := collectSoftwareLinux(); sw != nil { // 0.16.0: de softwarelijst (Kwetsbaarheden)
+		rep["packages"] = sw
+	}
 	if r := pkgResult(); r != nil { // de uitkomst van het installeren
 		rep["pkg_result"] = r
 		sentPkgID = r["id"].(string)
@@ -256,6 +261,7 @@ func afterRun(c *Config, r *runReply) {
 		backToBash("gevraagd vanuit RzSense", false)
 		return
 	}
+	softwareReply(r.PackagesOK, r.PackagesResend)
 	if r.PkgUpgrade != nil {
 		startUpgrade(*r.PkgUpgrade)
 	}

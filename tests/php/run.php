@@ -5261,6 +5261,14 @@ save_setting('auth_events', '1');
 save_setting('patch_on', '1');
 $tkB = AgentTakeover::blockers($tkHost());
 ok(!in_array('Updates', $tkB, true) && !in_array('Logins, sudo en su', $tkB, true), 'logins (1.345.0) en updates (1.346.0) houden het overnemen niet meer tegen: ' . implode(', ', $tkB));
+$tkK2 = array_column(AgentShadow::compare(['time' => ['src' => 'chrony', 'sync' => true, 'offset_ms' => 0.4], 'packages' => ['mgr' => 'rpm', 'os' => ['id' => 'Rocky', 'version' => '9.5'], 'kernel' => ['running' => '5.14.0-503', 'latest' => '5.14.0-503'],
+        'exposed' => [['openssh-server', 22, 'tcp']], 'list' => [['bash', '5.1.8', 'x86_64', 'bash', '5.1.8'], ['openssl', '3.2.2', 'x86_64', 'openssl', '3.2.2']]]],
+    ['time' => ['src' => 'chrony', 'sync' => true, 'offset_ms' => -0.2], 'inventory' => ['mgr' => 'rpm', 'os_id' => 'rocky', 'os_version' => '9.5', 'kernel_running' => '5.14.0-503', 'kernel_latest' => '5.14.0-503',
+        'exposed' => [['openssh-server', 22, 'tcp']], 'list' => [['openssl', '3.2.2', 'x86_64', 'openssl', '3.2.2'], ['bash', '5.1.8', 'x86_64', 'bash', '5.1.8'], ['zlib', '1.2', 'x86_64', 'zlib', '1.2']]]]), null, 'k');
+ok($tkK2['klok']['ok'] && $tkK2['software: systeem']['ok'] && $tkK2['software: bereikbaar via het netwerk']['ok'], 'proef: klok, systeem en bereikbare pakketten gelijk');
+ok(!$tkK2['software: pakketten']['ok'] && str_contains($tkK2['software: pakketten']['bash'], 'zlib'), 'proef: een pakket dat de Go-agent mist is een verschil: ' . $tkK2['software: pakketten']['bash']);
+save_setting('vuln_enabled', '1');
+ok(!in_array('Kwetsbaarheden (de softwarelijst van deze server)', AgentTakeover::blockers($tkHost()), true), 'Kwetsbaarheden houdt het overnemen niet meer tegen (1.347.0)');
 ok(Patch::agentOk(['os' => 'linux-go', 'agent_version' => '0.15.0', 'id' => $tkH]) && !Patch::agentOk(['os' => 'linux', 'agent_version' => '1.50.0', 'id' => $tkH]), 'de Go-agent die het werk doet kan updates; een oude bash-agent niet');
 $tkCmp = array_column(AgentShadow::compare(['patch' => ['mgr' => 'rpm', 'avail' => 2, 'sec' => 1, 'rb' => 0, 'list' => [['tzdata', '2025a', 0], ['openssl', '3.2.2', 1]]]],
     ['patch' => ['mgr' => 'rpm', 'avail' => 2, 'sec' => 1, 'rb' => false, 'list' => [['openssl', '3.2.2', 1, ''], ['tzdata', '2025a', 0, '']]]]), null, 'k');

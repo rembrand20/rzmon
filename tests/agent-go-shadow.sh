@@ -191,6 +191,40 @@ if a != b or a['avail'] != 4 or a['sec'] != 2 or a['rb'] != 1 or a['mgr'] != 'rp
 print('✔ updates: %d klaar, %d beveiliging, herstart nodig: gelijk aan de bash-agent' % (a['avail'], a['sec']))
 PY
 
+# 1.347.0 (Go-agent 0.16.0): de softwarelijst van deze machine zelf: de echte bash-code en de Go-agent
+mkdir -p "$work/swcache"
+(
+    t_dir="$work/swcache"; HA_MODE=0; TEST=0
+    id() { if [ "${1-}" = -u ]; then echo 0; else command id "$@"; fi; }
+    # shellcheck disable=SC1090
+    source <(sed -n '/^json_escape() {/,/^}/p' agent/src/15-realtime.sh)
+    # shellcheck disable=SC1090
+    source <(sed -n '/^ss_listen() {/,/^}/p' agent/src/00-kop.sh)
+    # shellcheck disable=SC1090
+    source <(sed -n '/^pkg_owners() {/,/^}/p' agent/src/64-programmas.sh)
+    # shellcheck disable=SC1090
+    source <(sed -n '/^pkgs_json=""; pk_hash=""; pk_mgr=""/,/^# Uitkomst van "pakketten bijwerken"/p' agent/src/75-certificaten-processen-software.sh | sed '$d')
+) || fail "de bash-code voor de softwarelijst faalde"
+[ -s "$work/swcache/pkgs/list.json" ] || fail "de bash-code maakte geen softwarelijst"
+"$work/rzsense" software-check >"$work/sw.go.json" || fail "de Go-agent kon de softwarelijst niet maken"
+python3 -I - "$work/swcache/pkgs/list.json" "$work/sw.go.json" <<'PY' || fail "de Go-agent maakt een andere softwarelijst dan de bash-agent"
+import json, sys
+a, b = [json.load(open(p)) for p in sys.argv[1:3]]
+bad = []
+for k in ('mgr', 'os', 'kernel', 'restart'):
+    if a[k] != b[k]:
+        bad.append('%s: bash %r, go %r' % (k, a[k], b[k]))
+la, lb = sorted(map(tuple, a['list'])), sorted(map(tuple, b['list']))
+if la != lb:
+    bad.append('pakketten: bash %d, go %d; alleen bash %r; alleen go %r' % (len(la), len(lb), sorted(set(la) - set(lb))[:3], sorted(set(lb) - set(la))[:3]))
+ea, eb = sorted(set(map(tuple, a['exposed']))), sorted(set(map(tuple, b['exposed'])))
+if ea != eb:
+    bad.append('bereikbaar: bash %r, go %r' % (ea, eb))
+if bad or len(la) < 50:
+    print('\n'.join(bad) or 'te weinig pakketten'); sys.exit(1)
+print('✔ softwarelijst: %d pakketten, %d bereikbaar via het netwerk, systeem en kernel: gelijk aan de bash-agent' % (len(la), len(ea)))
+PY
+
 # ---------------------------------------------------------------- 1.344.0: overnemen per server
 # systemd is er hier niet: een namaak-systemctl houdt bij welke timers aan staan. De rest is echt: RzSense vraagt het in
 # het antwoord op een proefronde, de Go-agent haalt de testlijst op en stuurt het echte rapport, en RzSense neemt dat aan.
@@ -230,11 +264,12 @@ export RZSENSE_AUTHSTATE="$work/cache/authstate"
 unset RZSENSE_BASH_CACHE   # na het overnemen haalt de Go-agent de testlijst zelf op (in zijn eigen map)
 SETFILE="$work/settings.json" php -r '
 require "src/bootstrap.php";
-$names = ["weblog_swag", "weblog_ha", "weblog_vw", "ids_enabled", "vuln_enabled"];
+$names = ["weblog_swag", "weblog_ha", "weblog_vw", "ids_enabled"];
 $old = [];
 foreach ($names as $n) { $old[$n] = setting($n); save_setting($n, "0"); }
 $old["auth_events"] = setting("auth_events"); save_setting("auth_events", "1");   // 1.345.0: logins kan de Go-agent zelf
 $old["patch_on"] = setting("patch_on"); save_setting("patch_on", "1");            // 1.346.0: updates ook
+$old["vuln_enabled"] = setting("vuln_enabled"); save_setting("vuln_enabled", "1");  // 1.347.0: en de softwarelijst
 file_put_contents(getenv("SETFILE"), json_encode($old));'
 restore() { SETFILE="$work/settings.json" php -r '
 require "src/bootstrap.php";
@@ -279,6 +314,12 @@ echo "✔ logins: een gelukte en een mislukte SSH-login kwamen één keer aan; d
 # Een onversleuteld rapport dat zich voordoet als de Go-agent wordt geweigerd
 code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -H "X-Agent-Token: nep" --data '{"go":1,"os":"linux","agent_version":"9.9.9"}' "$BASE/api.php?action=agent")
 [ "$code" != 200 ] || fail "een rapport zonder sleutel werd aangenomen"
+
+# Softwarelijst (1.347.0): de hele lijst ging één keer mee; daarna alleen het controlegetal
+got=$(take '$v = q("SELECT mgr, packages, hash FROM vuln_inventory WHERE host_id = ?", [$id])->fetch(); echo $v ? ((count((array) json_decode((string) $v["packages"], true)) > 50 ? "lijst" : "leeg") . " " . (preg_match("/^[0-9a-f]{16}$/", (string) $v["hash"]) ? "hash" : "geen-hash")) : "niets";')
+[ "$got" = "lijst hash" ] || fail "de softwarelijst kwam niet bij RzSense aan: $got $(head -c 300 "$work/data/pkgs.json")"
+[ -s "$work/data/pkgs.sent" ] || fail "de Go-agent onthield niet dat RzSense de softwarelijst heeft (zou hem elke minuut opnieuw sturen)"
+echo "✔ softwarelijst: aangekomen bij RzSense; daarna gaat alleen het controlegetal mee"
 
 # Updates (1.346.0): de lijst kwam met het echte rapport mee; op verzoek installeert de Go-agent en meldt hij de uitkomst
 got=$(take '$p = AgentData::get($id, "patch"); echo ($p["mgr"] ?? "?") . " " . ($p["avail"] ?? "?") . " " . ($p["sec"] ?? "?") . " " . (empty($p["rb"]) ? "nee" : "herstart");')

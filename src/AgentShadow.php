@@ -86,7 +86,12 @@ final class AgentShadow
     {
         $out = ['disks' => []];
         $min = time() - self::FRESH;
-        foreach (q("SELECT metric, value, updated_at FROM agent_data WHERE host_id = ? AND (metric IN ('cpu', 'mem', 'boot', 'ports', 'proclist', 'svclist', 'patch') OR metric LIKE 'disk:%' OR metric LIKE 'service:%' OR metric LIKE 'cert:%' OR metric LIKE 'proc:%'
+        // 1.347.0: de softwarelijst die de bash-agent stuurde (Kwetsbaarheden of End-of-life aan)
+        $inv = q('SELECT mgr, os_id, os_version, packages, exposed, kernel_running, kernel_latest FROM vuln_inventory WHERE host_id = ?', [$hostId])->fetch();
+        if ($inv) {
+            $out['inventory'] = ['list' => json_decode((string) $inv['packages'], true) ?: [], 'exposed' => json_decode((string) $inv['exposed'], true) ?: []] + $inv;
+        }
+        foreach (q("SELECT metric, value, updated_at FROM agent_data WHERE host_id = ? AND (metric IN ('cpu', 'mem', 'boot', 'ports', 'proclist', 'svclist', 'patch', 'time') OR metric LIKE 'disk:%' OR metric LIKE 'service:%' OR metric LIKE 'cert:%' OR metric LIKE 'proc:%'
                      OR metric LIKE 'svcinfo:%' OR metric LIKE 'svctest:%')", [$hostId]) as $r) {
             $m = (string) $r['metric'];
             if ($m === 'patch') {   // 1.346.0: de bash-agent kijkt eens per uur; de Go-agent vlak daarna
@@ -99,7 +104,12 @@ final class AgentShadow
             if (strtotime((string) $r['updated_at']) < $min) {
                 continue;
             }
-            if ($m === 'boot') {
+            if ($m === 'time') {
+                $d = json_decode((string) $r['value'], true);
+                if (is_array($d)) {
+                    $out['time'] = $d;
+                }
+            } elseif ($m === 'boot') {
                 $out['boot'] = (int) $r['value'];
             } elseif (str_starts_with($m, 'service:')) {   // 1.340.0: de status van een dienst (systemctl is-active)
                 $out['services'][substr($m, 8)] = (string) $r['value'];
@@ -365,6 +375,47 @@ final class AgentShadow
             $add('diensten om uit te kiezen', t('{n} namen', ['n' => count($bl)]) . ($onlyB ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyB, 0, 6))]) : '')
                 . ($state ? ' · ' . t('andere status: {l}', ['l' => implode(', ', array_slice($state, 0, 6))]) : ''),
                 t('{n} namen', ['n' => count($gl)]) . ($onlyG ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($onlyG, 0, 6))]) : ''), count($onlyB) + count($onlyG) <= 4 && count($state) <= 2);
+        }
+        // 1.347.0: de klok (bron, gesynchroniseerd, afwijking) en de softwarelijst voor Kwetsbaarheden
+        if (is_array($bash['time'] ?? null) && is_array($go['time'] ?? null)) {
+            $tt = static fn(array $x): string => (string) ($x['src'] ?? '?') . ' · ' . (!empty($x['sync']) ? t('gesynchroniseerd') : t('niet gesynchroniseerd'))
+                . (is_numeric($x['offset_ms'] ?? null) ? ' · ' . round((float) $x['offset_ms'], 3) . ' ms' : '');
+            $add('klok', $tt($bash['time']), $tt($go['time']), (string) ($bash['time']['src'] ?? '') === (string) ($go['time']['src'] ?? '') && !empty($bash['time']['sync']) === !empty($go['time']['sync'])
+                && (is_numeric($bash['time']['offset_ms'] ?? null) ? $near($bash['time']['offset_ms'], $go['time']['offset_ms'] ?? null, 50) : !is_numeric($go['time']['offset_ms'] ?? null)));
+        }
+        if (is_array($bash['inventory'] ?? null) && is_array($go['packages'] ?? null)) {
+            [$bi, $gp] = [$bash['inventory'], $go['packages']];
+            $rows = static function (mixed $l): array {
+                $m = [];
+                foreach (is_array($l) ? $l : [] as $r) {
+                    if (is_array($r) && isset($r[0], $r[1])) {
+                        $m[] = $r[0] . ' ' . $r[1] . ' ' . ($r[2] ?? '');
+                    }
+                }
+                sort($m);
+                return array_values(array_unique($m));
+            };
+            [$bl, $gl] = [$rows($bi['list']), $rows($gp['list'] ?? [])];
+            $onlyB = array_values(array_diff($bl, $gl));
+            $onlyG = array_values(array_diff($gl, $bl));
+            $st = static fn(array $l, array $only): string => t('{n} pakketten', ['n' => count($l)]) . ($only ? ' · ' . t('alleen hier: {l}', ['l' => implode(', ', array_slice($only, 0, 5))]) : '');
+            $add('software: pakketten', $st($bl, $onlyB), $st($gl, $onlyG), !$onlyB && !$onlyG);
+            $sys = static fn(string $mgr, string $id, string $ver, string $run, string $latest): string => "$mgr · $id $ver · kernel $run" . ($latest !== '' && $latest !== $run ? " (→ $latest)" : '');
+            $bs = $sys((string) $bi['mgr'], (string) $bi['os_id'], (string) $bi['os_version'], (string) $bi['kernel_running'], (string) $bi['kernel_latest']);
+            $gs = $sys((string) ($gp['mgr'] ?? ''), strtolower((string) ($gp['os']['id'] ?? '')), (string) ($gp['os']['version'] ?? ''), (string) ($gp['kernel']['running'] ?? ''), (string) ($gp['kernel']['latest'] ?? ''));
+            $add('software: systeem', $bs, $gs, $bs === $gs);
+            $exp = static function (mixed $l): array {
+                $m = [];
+                foreach (is_array($l) ? $l : [] as $e) {
+                    if (is_array($e) && isset($e[0])) {
+                        $m[] = $e[0] . ':' . (int) ($e[1] ?? 0) . '/' . (($e[2] ?? '') === 'udp' ? 'udp' : 'tcp');
+                    }
+                }
+                sort($m);
+                return array_values(array_unique($m));
+            };
+            [$be, $ge] = [$exp($bi['exposed']), $exp($gp['exposed'] ?? [])];
+            $add('software: bereikbaar via het netwerk', implode(', ', array_slice($be, 0, 12)) ?: '–', implode(', ', array_slice($ge, 0, 12)) ?: '–', $be === $ge);
         }
         // 1.346.0: welke updates er klaarstaan (pakket, versie, beveiliging ja of nee) en of een herstart nodig is
         if (is_array($bash['patch'] ?? null) && is_array($go['patch'] ?? null)) {

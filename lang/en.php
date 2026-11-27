@@ -12177,4 +12177,6 @@ return [
     'Gevraagd: de bash-agent neemt het werk weer over' => 'Requested: the bash agent takes the work back',
     'de Go-agent mag niet in de map van de bash-agent schrijven (voor de stand van de logins): voer het installatiecommando opnieuw uit' => 'the Go agent may not write to the bash agent\'s directory (for the login cursor): run the install command again',
     '{n} updates, {s} beveiliging' => '{n} updates, {s} security',
+    'gesynchroniseerd' => 'synchronised',
+    'niet gesynchroniseerd' => 'not synchronised',
 ];

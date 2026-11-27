@@ -696,6 +696,9 @@ per server **het werk laten overnemen** (zie [Overnemen](#overnemen-de-go-agent-
   en binnen een marge waar de twee op een ander moment meten (CPU-gebruik, vrije ruimte, geheugen van een proces). Bij
   een certificaat tellen *vertrouwd* en *fout* als ja of nee, omdat de tekst per programma verschilt. De lijst met
   processen mag een paar namen verschillen: processen komen en gaan.
+- Elke ronde vergelijkt RzSense ook de klok (bron, gesynchroniseerd, afwijking). Staat Kwetsbaarheden of End-of-life
+  aan, dan legt RzSense de softwarelijst van de Go-agent naast die van de bash-agent, kort nadat die opnieuw gemaakt is:
+  de pakketten met hun versie, het systeem en de kernel, en welke pakketten via het netwerk bereikbaar zijn.
 - Eens per uur, vlak nadat de bash-agent gekeken heeft, kijkt de Go-agent welke updates er klaarstaan (zonder zelf iets
   te verversen) en vergelijkt RzSense de twee lijsten: pakket, versie, beveiliging ja of nee, en *herstart nodig*.
 - De Go-agent leest de instellingen (`/etc/default/rzmon-agent`), de sleutel en de testlijst van de bash-agent, maar
@@ -748,10 +751,12 @@ opstarttijd, poorten, diensten (met details en extra tests), certificaten en pro
 (met dezelfde bladwijzer in het log als de bash-agent, zodat er bij het wisselen niets verloren gaat of dubbel komt).
 Ook Updates doet hij: eens per uur welke updates er klaarstaan, en installeren als je daar in *Updates* om vraagt
 (alleen het vaste commando van de pakketbeheerder, nooit een herstart, nooit op TrueNAS, niet met `COMMANDS=0`).
+Verder stuurt hij de softwarelijst voor *Kwetsbaarheden* (één keer per dag, of als er iets geïnstalleerd is) en de
+stand van de klok voor de check *Tijd*.
 Dit houdt overnemen tegen zolang het voor de server aan staat: logs van webdiensten (met het IDS aan, en alleen
 op een server waar zo'n log gevonden is); IDS en endpoint-sensoren;
 Kwetsbaarheden; Realtime; checks op containers (Podman), Proxmox, TrueNAS, logs, commando's, paden, heartbeats, schijfgezondheid, UPS,
-klok, databases, VPN en netwerkverkeer; zelf herstellen en de waakhond; de relay; en vaker dan elke minuut rapporteren.
+databases, VPN en netwerkverkeer; zelf herstellen en de waakhond; de relay; en vaker dan elke minuut rapporteren.
 
 **Wat er gebeurt.** Bij de volgende proefronde zet de Go-agent de timer van de bash-agent en zijn bewaker uit (de
 bash-agent blijft geïnstalleerd, met zijn instellingen en sleutel), haalt de testlijst op en stuurt het echte rapport.
@@ -768,8 +773,7 @@ logboek van de server en bij de meldingen staat wanneer de Go-agent het overnam.
 - op de server zelf met `sudo rzsense back`. Zet het overnemen dan ook in RzSense uit, anders neemt de Go-agent het na
   een uur weer over.
 
-Zolang de Go-agent het werk doet, komt er van die server geen netwerkverkeer per netwerkkaart en geen klokafwijking
-binnen, en werken 🧪 Test en *Opnieuw zoeken* naar certificaten niet.
+Zolang de Go-agent het werk doet, komt er van die server geen netwerkverkeer per netwerkkaart binnen, en werken 🧪 Test en *Opnieuw zoeken* naar certificaten niet.
 
 ### Het commando `rzsense`
 
