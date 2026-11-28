@@ -1105,7 +1105,7 @@ function contactHtml(h, mode = 'full') {
   const slow = c.rhythm && c.n >= 5 && c.rhythm > c.tick * 1.5;
   const rhythm = mode !== 'full' || !c.rhythm || c.n < 5 ? ''
     : `<div class="small ${slow ? 'warn-txt' : 'muted'}" title="${esc(slow ? L('De agent komt minder vaak dan ingesteld. Draait hij via cron (minimaal elke minuut) in plaats van de systemd-timer, of duurt een ronde langer dan het ritme?') : L('Gemeten over de laatste {n} contacten', { n: c.n }))}">${slow ? '⚠️ ' + L('werkelijk elke {r} (ingesteld {t})', { r: durText(c.rhythm), t: durText(c.tick) }) : L('ritme: elke {r}', { r: durText(c.rhythm) })}</div>`;
-  return `<span class="contact-live" data-host="${h.id}" data-mode="${mode}" data-seen="${c.seen}" data-every="${contactEvery(c)}" data-stale="${c.stale}" data-rt="${c.realtime ? 1 : 0}">${contactText(c.seen, contactEvery(c), c.stale, c.realtime, mode)}</span>${rhythm}`;
+  return `<span class="contact-live notranslate" translate="no" data-host="${h.id}" data-mode="${mode}" data-seen="${c.seen}" data-every="${contactEvery(c)}" data-stale="${c.stale}" data-rt="${c.realtime ? 1 : 0}">${contactText(c.seen, contactEvery(c), c.stale, c.realtime, mode)}</span>${rhythm}`;
 }
 function contactText(seen, every, stale, rt, mode) {
   const now = nowS();

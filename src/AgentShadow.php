@@ -280,7 +280,11 @@ final class AgentShadow
         if (is_array($bash['cpu'] ?? null) && is_array($go['cpu'] ?? null)) {
             $add('cpu: kernen', (int) ($bash['cpu']['cores'] ?? 0), (int) ($go['cpu']['cores'] ?? 0), (int) ($bash['cpu']['cores'] ?? 0) === (int) ($go['cpu']['cores'] ?? -1));
             // Gemeten op een ander moment (elk over 2 seconden): ruime marge
-            $add('cpu: gebruik (%)', round((float) ($bash['cpu']['pct'] ?? 0), 1), round((float) ($go['cpu']['pct'] ?? 0), 1), $near($bash['cpu']['pct'] ?? null, $go['cpu']['pct'] ?? null, 25));
+            // 1.367.3: meldt de Go-agent dat de bash-agent (of een eigen trage controle) bezig was tijdens zijn meting, dan
+            // telt het verschil niet: op een server met één kern meet hij dan het werk van de ander mee
+            $busy = !empty($go['cpu_disturbed']);
+            $add('cpu: gebruik (%)', round((float) ($bash['cpu']['pct'] ?? 0), 1), round((float) ($go['cpu']['pct'] ?? 0), 1) . ($busy ? ' · ' . t('de bash-agent was bezig tijdens de meting') : ''),
+                $busy || $near($bash['cpu']['pct'] ?? null, $go['cpu']['pct'] ?? null, 25));
             $add('cpu: belasting (1 min)', round((float) ($bash['cpu']['load'][0] ?? 0), 2), round((float) ($go['cpu']['load'][0] ?? 0), 2),
                 $near($bash['cpu']['load'][0] ?? null, $go['cpu']['load'][0] ?? null, max(1.0, 0.5 * (float) ($bash['cpu']['load'][0] ?? 0))));
         }

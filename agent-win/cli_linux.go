@@ -518,6 +518,26 @@ func cmdDoctor(asJSON bool) int {
 	return 0
 }
 
+// cpuDisturbed: draait er nu een ronde van de bash-agent, of een trage controle van de Go-agent zelf (SUID, pakketcontrole,
+// opnieuw hashen)?
+func cpuDisturbed() bool {
+	if out, _ := run(3*time.Second, "systemctl", "is-active", "rzmon-agent.service"); strings.TrimSpace(out) == "activating" {
+		return true
+	}
+	ents, _ := os.ReadDir("/proc")
+	for _, e := range ents {
+		if !digitsRe.MatchString(e.Name()) || e.Name() == fmt.Sprint(os.Getpid()) {
+			continue
+		}
+		cmd := strings.ReplaceAll(readText("/proc/"+e.Name()+"/cmdline"), "\x00", " ")
+		// een ronde van de bash-agent (ook een die zijn watcher startte), niet de watcher zelf: die draait altijd
+		if strings.Contains(cmd, "rzsense ids-scan") || (strings.Contains(cmd, "rzmon-agent") && !strings.Contains(cmd, "--watch")) {
+			return true
+		}
+	}
+	return false
+}
+
 // ---------------------------------------------------------------- status en test
 
 func cmdStatus() int {
@@ -625,7 +645,13 @@ func cmdShadow(quiet bool) int {
 		}
 	}
 	t0 := time.Now()
+	busyBefore := cpuDisturbed()
 	core := coreCollect(2 * time.Second)
+	// 0.36.3: was de bash-agent (of een eigen controle op de achtergrond) bezig tijdens de twee seconden van de CPU-meting,
+	// dan zegt het verschil niets: op een server met één kern meet de Go-agent dan het werk van de ander mee
+	if busyBefore || cpuDisturbed() {
+		core["cpu_disturbed"] = 1
+	}
 	if p := collectPatchLinux(false); p != nil { // 0.15.0: vlak nadat de bash-agent keek, uit de cache van de pakketbeheerder
 		core["patch"] = p
 	}

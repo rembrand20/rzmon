@@ -14,6 +14,15 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.364.0**: **De Go-agent leest de logs van webdiensten**, en mislukte logins bij Vaultwarden worden nu echt geteld.
 - **1.363.0**: **De Go-agent doet Programma's, sporen zoeken en tijdelijk sudo**: alleen de reverse proxy en logs van webdiensten ontbreken nog.
 
+## 1.367.3 – 2026-11-28
+### Opgelost
+- **Proef met de Go-agent: 0% gelijk door het CPU-gebruik.** Op een server met één kern mat de Go-agent het werk van de bash-agent mee (100% tegenover een paar procent), en elke ronde telde daardoor als ongelijk. Was de bash-agent bezig tijdens de meting, dan telt *cpu: gebruik* niet meer als verschil; in de tabel staat het erbij. Druk daarna op *Opnieuw beginnen te tellen*.
+
+- **Losse tekens in de knop *Agent Manager*** (een rij als `0s 0s 0s`). Dat komt van de vertaalfunctie van de browser: die raakt in de war van de teller *volgende over … s*, die elke seconde ververst. De teller is nu gemarkeerd als *niet vertalen*. RzSense heeft zelf Engels (de taalkeuze bij de instellingen); zet daarvoor de vertaling van de browser uit.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.36.3 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
 ## 1.367.2 – 2026-11-28
 ### Opgelost
 - **Proef met de Go-agent: *via http, maar deze server mag alleen via https verbinden*.** Op een server waar in de instellingen van de agent nog een http-adres staat en RzSense de bash-agent later een https-adres gaf, gebruikte de Go-agent het oude adres en werd hij geweigerd. Hij gebruikt nu hetzelfde adres als de bash-agent. Draai het installatiecommando uit het blok *Go-agent* opnieuw.

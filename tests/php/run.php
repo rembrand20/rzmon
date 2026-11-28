@@ -5404,6 +5404,8 @@ ok($tkRc(['paths' => ['/home', '/srv/share'], 'cand' => ['home /home', 'smb /srv
     && $tkRc(['paths' => ['/home'], 'cand' => ['home /home', 'smb /srv/share']])['Ransomware (proef): bewaakte mappen'] === false,
     'ransomware-proef: dezelfde bewaakte mappen en dezelfde keuzes zijn gelijk; een map minder is een verschil');
 ok(!in_array('Ransomware', array_map('strval', AgentTakeover::blockers($tkHost())), true), 'ransomware-detectie houdt het overnemen niet meer tegen (1.362.0)');
+$tkCpu = static fn(array $go) => array_column(AgentShadow::compare($go + ['cpu' => ['pct' => 100, 'cores' => 1, 'load' => [1, 1, 1]]], ['cpu' => ['pct' => 1.5, 'cores' => 1, 'load' => [1, 1, 1]]]), 'ok', 'k')['cpu: gebruik (%)'];
+ok($tkCpu([]) === false && $tkCpu(['cpu_disturbed' => 1]) === true, 'proef: een CPU-meting terwijl de bash-agent bezig was telt niet als verschil; zonder die melding wel');
 $tkPx = static fn(array $o) => array_column(AgentShadow::compare(['proxy_obs' => $o], []), 'ok', 'k')['Reverse proxy (proef): het beleid dat de Go-agent zou schrijven'] ?? null;
 ok($tkPx(['kind' => 'swag', 'sites' => ['a', 'b'], 'hash' => 'abc', 'applied' => 'abc', 'same_http' => true, 'same_srv' => true]) === true
     && $tkPx(['kind' => 'swag', 'sites' => [], 'hash' => 'abc', 'applied' => 'abc', 'same_http' => false, 'same_srv' => true]) === false

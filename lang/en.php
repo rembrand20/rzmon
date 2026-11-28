@@ -12333,4 +12333,5 @@ return [
     'auditd {a}, bestanden {f}, containers {c}' => 'auditd {a}, files {f}, containers {c}',
     '{k}, {n} sites' => '{k}, {n} sites',
     'een ander beleid' => 'a different policy',
+    'de bash-agent was bezig tijdens de meting' => 'the bash agent was busy during the measurement',
 ];
