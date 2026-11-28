@@ -14,6 +14,10 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.364.0**: **De Go-agent leest de logs van webdiensten**, en mislukte logins bij Vaultwarden worden nu echt geteld.
 - **1.363.0**: **De Go-agent doet Programma's, sporen zoeken en tijdelijk sudo**: alleen de reverse proxy en logs van webdiensten ontbreken nog.
 
+## 1.367.4 – 2026-11-28
+### Opgelost
+- **Losse tijden in de knop *Agent Manager*** (een rij als `1s 0s 1s 0s`) bij het vertalen van de pagina door Chrome of Edge. De vertaalfunctie raakt in de war van tekst die elke seconde verandert (*… s geleden*) en laat stukjes daarvan op andere plekken achter. Alle tellers die doorlopen worden nu niet meer door de browser vertaald; de vorige versie deed dat alleen voor de teller *volgende over*. RzSense heeft zelf een Engelse interface (de taalkeuze bij de instellingen), zodat de vertaalfunctie van de browser niet nodig is.
+
 ## 1.367.3 – 2026-11-28
 ### Opgelost
 - **Proef met de Go-agent: 0% gelijk door het CPU-gebruik.** Op een server met één kern mat de Go-agent het werk van de bash-agent mee (100% tegenover een paar procent), en elke ronde telde daardoor als ongelijk. Was de bash-agent bezig tijdens de meting, dan telt *cpu: gebruik* niet meer als verschil; in de tabel staat het erbij. Druk daarna op *Opnieuw beginnen te tellen*.

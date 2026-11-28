@@ -1914,7 +1914,7 @@ function renderLiveFlow(d, box) {
   else {
     html.push(`<section class="af-live" aria-label="Live Attack Flow">
       <div class="af-lhead"><h2>Live Attack Flow</h2>
-        <span class="af-pill-live" title="${esc(L('Wordt elke {n} seconden bijgewerkt', { n: (AM_WIN[amOpt.win] || AM_WIN['15m']).refresh }))}"><i class="af-blink"></i>LIVE · <span class="af-ago"></span></span>
+        <span class="af-pill-live" title="${esc(L('Wordt elke {n} seconden bijgewerkt', { n: (AM_WIN[amOpt.win] || AM_WIN['15m']).refresh }))}"><i class="af-blink"></i>LIVE · <span translate="no" class="notranslate af-ago"></span></span>
         <span class="af-win">${esc(d.flow ? L('{n} live · {m} uit de top 10 van de {p}', { n: fd.nlive || 0, m: nOld, p: pool }) : AM_WIN_LBL[amOpt.win]())}</span>
         <div class="af-opts small"><label class="switch small"><input type="checkbox" data-af-opt="inferred" ${afOpt.inferred ? 'checked' : ''}><span></span> ${L('Afgeleide verbanden tonen')}</label>
           <label class="switch small"><input type="checkbox" data-af-opt="group" ${afOpt.group ? 'checked' : ''}><span></span> ${L('Samenvoegen per IP')}</label></div>

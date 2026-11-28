@@ -1073,9 +1073,11 @@ function withMorph(fn) {
     set(v) { if ((morphOn || (this.dataset && this.dataset.morph !== undefined && this.firstChild)) && this.isConnected) morph(this, String(v)); else d.set.call(this, v); },
   });
 })();
-/** "12 s geleden" telt gewoon door: <span class="ago" data-ts="…"> */
-const agoSpan = (dt) => (dt ? `<span class="ago" data-ts="${esc(dt)}">${ago(dt)}</span>` : ago(dt));
-setInterval(() => { if (!document.hidden) $$('.ago[data-ts]').forEach((e) => { const t = ago(e.dataset.ts); if (e.textContent !== t) e.textContent = t; }); }, 1000);
+/** "12 s geleden" telt gewoon door: <span class="ago" data-ts="…">. 1.367.4: niet door de browser laten vertalen. De vertaalfunctie
+ *  van Chrome raakt in de war van tekst die elke seconde verandert en laat dan stukjes ("1s", "0s") op andere plekken achter,
+ *  zoals in de knop Agent Manager. RzSense vertaalt deze teksten zelf (Engels bij de taalkeuze). */
+const agoSpan = (dt) => (dt ? `<span class="ago notranslate" translate="no" data-ts="${esc(dt)}">${ago(dt)}</span>` : ago(dt));
+setInterval(() => { if (!document.hidden) $$('.ago[data-ts]').forEach((e) => { const t = ago(e.dataset.ts); if (e.textContent !== t) { e.translate = false; e.textContent = t; } }); }, 1000);
 
 function toast(msg, type = 'ok', onClick = null) {
   const el = document.createElement(onClick ? 'button' : 'div');
@@ -1134,6 +1136,7 @@ setInterval(async () => {
   }
   els.forEach((el) => {
     const d = el.dataset;
+    el.translate = false;
     el.innerHTML = contactText(+d.seen, +d.every, +d.stale, d.rt === '1', d.mode);
   });
 }, 1000);
