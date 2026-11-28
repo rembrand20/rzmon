@@ -107,3 +107,26 @@ func TestExplain(t *testing.T) {
 type errString string
 
 func (e errString) Error() string { return string(e) }
+
+// Het adres dat RzSense de bash-agent gaf (keys/url) gaat voor op MONITOR_URL, zolang het bij dat adres hoort
+func TestLoadBashConfigURLFromRzSense(t *testing.T) {
+	dir := t.TempDir()
+	conf := filepath.Join(dir, "conf")
+	_ = os.WriteFile(conf, []byte("MONITOR_URL=\"http://192.0.2.7/\"\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(dir, "agent.key"), []byte(strings.Repeat("ab", 32)+"\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(dir, "url"), []byte("https://192.0.2.7\nhttp://192.0.2.7\nhttps://reserve.test/\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(dir, "url.pins"), []byte("https://192.0.2.7 sha256//abc=\n"), 0o600)
+	t.Setenv("RZSENSE_BASH_CONF", conf)
+	t.Setenv("RZSENSE_BASH_KEYS", dir)
+	c, err := loadBashConfig()
+	if err != nil || c.URL != "https://192.0.2.7" || c.URLFallback != "https://reserve.test" || c.Pin != "sha256//abc=" {
+		t.Fatalf("het adres van RzSense hoort te gelden, met zijn vingerafdruk: %+v %v", c, err)
+	}
+	_ = os.WriteFile(filepath.Join(dir, "url"), []byte("https://192.0.2.7\nhttp://oud.test\n\n"), 0o600)
+	if c, _ := loadBashConfig(); c.URL != "http://192.0.2.7" {
+		t.Errorf("hoort het bewaarde adres bij een ander adres uit de instellingen, dan geldt MONITOR_URL: %s", c.URL)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "url")); err != nil {
+		t.Error("de Go-agent hoort het bestand van de bash-agent te laten staan")
+	}
+}

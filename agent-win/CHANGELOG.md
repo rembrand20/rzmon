@@ -5,6 +5,10 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.36.2 – 2026-11-28
+- **Linux: het adres dat RzSense de bash-agent gaf, gebruikt de Go-agent nu ook.** Staat in de instellingen nog een http-adres en gaf RzSense de bash-agent later een https-adres, dan bleef de Go-agent het oude http-adres gebruiken. RzSense weigerde hem dan (*via http, maar deze server mag alleen via https verbinden*). Hij leest het bewaarde adres nu mee (alleen lezen), met de vingerafdruk van het certificaat erbij.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.36.1 – 2026-11-27
 - **Linux: een lichte eerste ronde na het overnemen.** De Go-agent neemt de stand van de bash-agent over: de vingerafdrukken van bewaakte bestanden en de vingerafdruk van de firewall en van het isoleren. Bewaakte bestanden worden daardoor niet opnieuw gehasht en de firewalltabel wordt niet opnieuw geladen.
 - **Bestanden bewaken: een ronde blijft kort.** Nieuwe vingerafdrukken maken mag per ronde hooguit een minuut duren (in de proef 20 seconden). Wat dan nog niet klaar is, volgt de volgende ronde; een bestand dat al bekend was wordt intussen nooit als verdwenen gemeld.

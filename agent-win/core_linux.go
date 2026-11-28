@@ -91,6 +91,19 @@ func loadBashConfig() (*Config, error) {
 		if len(key) >= 64 && hexKeyRe.MatchString(key[:64]) {
 			c.Key = key[:64]
 			c.extra["key_dir"] = dir
+			// 0.36.2: het adres dat RzSense de bash-agent gaf (bv. https in plaats van http): regel 1 het adres, regel 2 het
+			// adres uit de instellingen waar het voor in de plaats komt, regel 3 het reserve-adres. Alleen lezen; is
+			// MONITOR_URL met de hand gewijzigd, dan gaat dat voor (de bash-agent ruimt het bestand zelf op).
+			if l := strings.Split(readText(filepath.Join(dir, "url")), "\n"); len(l) >= 2 && strings.TrimSpace(l[0]) != "" && strings.TrimRight(strings.TrimSpace(l[1]), "/") == c.URL {
+				c.URL = strings.TrimRight(strings.TrimSpace(l[0]), "/")
+				c.URLFallback = ""
+				if len(l) >= 3 {
+					c.URLFallback = strings.TrimRight(strings.TrimSpace(l[2]), "/")
+				}
+			}
+			if c.URLFallback == c.URL {
+				c.URLFallback = ""
+			}
 			// Hoe elk adres gecontroleerd wordt: "adres <spatie> sha256//… of system" (url.pins van de bash-agent)
 			if pins, err := os.ReadFile(filepath.Join(dir, "url.pins")); err == nil {
 				for _, line := range strings.Split(string(pins), "\n") {

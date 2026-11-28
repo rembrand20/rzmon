@@ -14,6 +14,13 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.364.0**: **De Go-agent leest de logs van webdiensten**, en mislukte logins bij Vaultwarden worden nu echt geteld.
 - **1.363.0**: **De Go-agent doet Programma's, sporen zoeken en tijdelijk sudo**: alleen de reverse proxy en logs van webdiensten ontbreken nog.
 
+## 1.367.2 – 2026-11-28
+### Opgelost
+- **Proef met de Go-agent: *via http, maar deze server mag alleen via https verbinden*.** Op een server waar in de instellingen van de agent nog een http-adres staat en RzSense de bash-agent later een https-adres gaf, gebruikte de Go-agent het oude adres en werd hij geweigerd. Hij gebruikt nu hetzelfde adres als de bash-agent. Draai het installatiecommando uit het blok *Go-agent* opnieuw.
+
+### Nieuwe agent
+- Nieuwe Go-agent 0.36.2 (Windows en Linux). Voor Windows verandert er niets in de werking.
+
 ## 1.367.1 – 2026-11-27
 ### Opgelost
 - **Overnemen op een server met veel bewaakte bestanden kon de eerste ronde te lang maken.** De Go-agent begon met een lege stand en maakte van elk bewaakt bestand opnieuw een vingerafdruk. Hij neemt nu de stand van de bash-agent over, en begrenst het werk per ronde.
