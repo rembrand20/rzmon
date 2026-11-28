@@ -12334,4 +12334,13 @@ return [
     '{k}, {n} sites' => '{k}, {n} sites',
     'een ander beleid' => 'a different policy',
     'de bash-agent was bezig tijdens de meting' => 'the bash agent was busy during the measurement',
+    'Server toevoegen op de pagina Servers' => 'Add a server on the Servers page',
+    'Server bewerken, checks en wat de agent nieuw vond: op de pagina Servers' => 'Edit the server, its checks and what the agent newly found: on the Servers page',
+    'Op Servers' => 'On Servers',
+    'Zonder agent' => 'Without agent',
+    'Servers die RzSense van buitenaf bewaakt: ping, poorten, webpagina\'s of SNMP.' => 'Servers that RzSense monitors from outside: ping, ports, web pages or SNMP.',
+    'Het IDS staat uit: er wordt niets gedetecteerd of geblokkeerd.' => 'The IDS is off: nothing is detected or blocked.',
+    'Er zijn kritieke incidenten die je nog moet bekijken.' => 'There are critical incidents you still need to review.',
+    'Er zijn open incidenten (waarschuwingen) die je nog moet bekijken.' => 'There are open incidents (warnings) you still need to review.',
+    'Geen open incidenten: er is niets wat je nog moet bekijken. Aanvallen die het IDS tegenhield of al afhandelde, tellen hier niet mee.' => 'No open incidents: there is nothing you still need to review. Attacks the IDS blocked or already handled do not count here.',
 ];

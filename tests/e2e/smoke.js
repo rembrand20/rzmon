@@ -27,7 +27,7 @@ const BASE = process.env.BASE || 'http://127.0.0.1:8099';
   const moved = { 'settings/agents': 'tab-servers', 'settings/actlog': 'tab-logboek', 'settings/nis2': 'tab-compliance', 'vulns/patch': 'tab-updates',
     'ids/inc': 'tab-ids', 'ids/prot': 'tab-settings', 'settings/quiet': 'tab-settings', 'settings/ids_ti': 'tab-settings',
     // 1.330.0: nieuwe indeling
-    'dashboard/paths': 'tab-net', 'incidents/ids': 'tab-ids', 'settings/allchecks': 'tab-dashboard', 'settings/nis2set': 'tab-compliance', 'settings/ids_hunt': 'tab-ids', 'settings/unifi': 'tab-settings' };
+    'dashboard/paths': 'tab-net', 'incidents/ids': 'tab-ids', 'settings/allchecks': 'tab-servers', 'dashboard/allchecks': 'tab-servers', 'settings/nis2set': 'tab-compliance', 'settings/ids_hunt': 'tab-ids', 'settings/unifi': 'tab-settings' };
   for (const [from, to] of Object.entries(moved)) {
     await pg.evaluate((h) => showTab(h), from);
     await pg.waitForTimeout(800);

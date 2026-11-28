@@ -366,9 +366,8 @@ const avMean = (a) => { const v = a.filter((x) => x !== null && x !== undefined)
 
 function setMonSub(s) {
   if (s === 'paths') { showTab('net/paths'); return; }   // 1.330.0: Netwerkpaden staat bij Netwerk → Paden
-  monSub = s === 'avail' || s === 'cont' || s === 'shelly' || (s === 'allchecks' && isAdmin()) ? s : 'checks';
-  $('#tab-dashboard').classList.toggle('mon-ac', monSub === 'allchecks');   // 1.330.0: Alle checks (was in de portal)
-  if (monSub === 'allchecks') withPageWait('dashboard', loadAllChecks);
+  if (s === 'allchecks') { showTab('servers/checks'); return; }   // 1.368.0: Alle checks staat bij Servers
+  monSub = s === 'avail' || s === 'cont' || s === 'shelly' ? s : 'checks';
   $('#tab-dashboard').classList.toggle('mon-sh', monSub === 'shelly');   // 1.321.0
   if (monSub === 'shelly') withPageWait('dashboard', shLoad);
   $('#tab-dashboard').classList.toggle('mon-av', monSub === 'avail');
@@ -2527,14 +2526,13 @@ function detailBar(h) {
         <button class="btn need-user" data-act="maint-host" data-id="${h.id}">🔧 ${L('Onderhoud')}</button>
         <button class="btn need-user" data-act="quiet-host" data-id="${h.id}">🌙 ${h.quiet_eff && h.quiet_eff.src === 'host_now' ? L('Stil tot {t}', { t: fmtUntil(h.quiet_eff.now) }) : L('Nu stil')}</button>
         <button class="btn need-admin" data-act="add-check" data-id="${h.id}">＋ Check</button>
-        ${+h.discover_n ? `<button class="btn need-admin discover-btn" data-act="discover" data-id="${h.id}" title="${esc(L('Nog niet bewaakt: disks, services, containers, certificaten en poorten die de agent ziet'))}">💡 ${+h.discover_n === 1 ? L('1 nieuw gevonden') : L('{n} nieuw gevonden', { n: h.discover_n })}</button>` : ''}
         <button class="btn need-user" data-act="scan" data-id="${h.id}">🔍 ${L('Poorten')}</button>
         ${h.snmp ? `<button class="btn need-admin" data-act="snmp" data-id="${h.id}">📡 ${L('SNMP-checks')}</button>` : ''}
         ${hostKind(h) === 'camera' ? `<button class="btn need-admin" data-act="cam-rec" data-id="${h.id}">${L('＋ Aanbevolen checks')}</button>` : ''}
         ${h.metrics.includes('podman') ? `<button class="btn" data-act="podman" data-id="${h.id}">📦 Containers</button>` : ''}
         ${isPveHost(h) ? `<button class="btn" data-act="pve" data-id="${h.id}">🖥️ Proxmox</button>` : ''}
         ${isTnHost(h) ? `<button class="btn" data-act="truenas" data-id="${h.id}">🗄️ TrueNAS</button>` : ''}
-        <button class="btn need-admin" data-act="edit-host" data-id="${h.id}">✎ ${L('Bewerken')}</button>
+        <a class="btn need-admin" href="#servers" data-act="srv-host" data-id="${h.id}" title="${esc(L('Server bewerken, checks en wat de agent nieuw vond: op de pagina Servers'))}">⚙️ ${L('Op Servers')}</a>
         ${agentInfo ? `<span class="spacer"></span>${agentInfo}` : ''}
       </div>`;
 }
@@ -3058,6 +3056,7 @@ async function onHostsClick(e) {
     }
     case 'add-check': return checkForm(null, findHost(id));
     case 'edit-host': return hostForm(findHost(id));
+    case 'srv-host': e.preventDefault(); showTab('servers'); return srvFocus(id);   // 1.368.0
     case 'edit-check': { const [c, h] = findCheck(id); return checkForm(c, h); }
     case 'history': { const [c, h] = findCheck(id); return showHistory(c, h); }
     case 'agent': return agentInstructions(findHost(id));

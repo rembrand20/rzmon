@@ -13,9 +13,56 @@ async function loadSecurity() {
  * Agents-overzicht (1.121.0), zoals het dashboard: tegels, wat aandacht nodig heeft en een kaart per agent. De instellingen
  * per agent (versleuteling, vastzetten, IP-slot, https) staan in de Agent Manager; die stonden hier dubbel.
  */
+// 1.368.0: wat op Servers per server kan (was op Monitoring): bewerken, een check toevoegen, en wat de agent nieuw vond
+let srvSub = 'list';
+function setSrvSub(s) {
+  srvSub = s === 'checks' ? 'checks' : 'list';
+  const tab = $('#tab-servers');
+  if (!tab) return;
+  tab.classList.toggle('srv-ac', srvSub === 'checks');
+  $$('#srv-tabs [data-ssub]').forEach((b) => { const on = b.dataset.ssub === srvSub; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+  if (srvSub === 'checks') withPageWait('servers', loadAllChecks);
+}
+/** Knoppen voor één server; de gegevens (checks, wat nieuw gevonden is) komen uit de gewone serverlijst */
+function srvButtons(id) {
+  const h = state.hosts ? findHost(id) : null;
+  if (!h) return '';
+  const n = +h.discover_n || 0;
+  return `<button type="button" class="btn small-btn" data-srv-edit="${h.id}">✎ ${L('Bewerken')}</button>
+          <button type="button" class="btn small-btn" data-srv-check="${h.id}">＋ ${L('Check')}</button>
+          ${n ? `<button type="button" class="btn small-btn discover-btn" data-srv-disc="${h.id}" title="${esc(L('Nog niet bewaakt: disks, services, containers, certificaten en poorten die de agent ziet'))}">💡 ${n === 1 ? L('1 nieuw gevonden') : L('{n} nieuw gevonden', { n })}</button>` : ''}`;
+}
+/** Servers zonder agent (ping, poort- of webcheck, SNMP): een compacte lijst onder de agents */
+function otherHostsHtml() {
+  if (!state.hosts) return '';
+  const hs = state.hosts.filter((h) => h.mode !== 'agent').sort((a, b) => a.name.localeCompare(b.name));
+  if (!hs.length) return '';
+  const st = { 0: 's0', 1: 's1', 2: 's2', 3: 's3', 4: 's3' };
+  return `<div class="sec-h hosts-h ag-h"><h2>${L('Zonder agent')}</h2><span>${hs.length}</span></div>
+    <p class="muted small">${L('Servers die RzSense van buitenaf bewaakt: ping, poorten, webpagina\'s of SNMP.')}</p>
+    <div class="ag-other">${hs.map((h) => {
+      const k = KIND_INFO[hostKind(h)] || KIND_INFO.other;
+      const nc = h.checks.filter((c) => +c.enabled).length;
+      return `<div class="ag-orow" data-srv-row="${h.id}"><i class="adot ${st[hostStatus(h)] || 's3'}"></i><b class="a-srv">${esc(h.name)}</b>
+        <span class="ag-oinfo small muted">${k[0]} ${esc(k[1]())}${h.address ? ' · ' + esc(h.address) : ''} · ${nc === 1 ? L('1 check') : L('{n} checks', { n: nc })}${+h.enabled ? '' : ' · ' + L('uit')}</span>
+        <span class="ag-oacts">${srvButtons(h.id)}</span></div>`;
+    }).join('')}</div>`;
+}
+/** Vanaf Monitoring: de server op Servers laten zien (en even oplichten) */
+function srvFocus(id) {
+  setSrvSub('list');
+  setTimeout(() => {
+    const el = $(`#enc-hosts [data-am="${id}"]`)?.closest('.ag-card') || $(`#enc-hosts [data-srv-row="${id}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('flash-row');
+    setTimeout(() => el.classList.remove('flash-row'), 2000);
+  }, 600);
+}
+
 function agentOverview(keyText) {
   const hs = secInfo.hosts;
-  if (!hs.length) return `<p class="muted">${L('Nog geen agents. Voeg een server toe met het type <i>Remote met agent</i>.')}</p>`;
+  if (!hs.length) return `<p class="muted">${L('Nog geen agents. Voeg een server toe met het type <i>Remote met agent</i>.')}</p>` + otherHostsHtml();
   const now = nowS();
   const online = (h) => h.contact && h.contact.seen && now - h.contact.seen <= h.contact.stale;
   const newest = secInfo.agent_latest || state.agent_latest;   // 1.131.3: uit het overzicht zelf (de rest kan nog laden)
@@ -54,7 +101,7 @@ function agentOverview(keyText) {
     <div class="ag-cards">${sorted.filter((h) => !h.truenas).map((h) => agCard(h)).join('')}</div>
     ${sorted.some((h) => h.truenas) ? `<div class="sec-h hosts-h ag-h ag-tn-h"><h2>🗄️ TrueNAS</h2><span>${sorted.filter((h) => h.truenas).length}</span></div>
       <p class="muted small ag-tn-note">${L('TrueNAS SCALE draait de agent op de pool, gestart door een cronjob van TrueNAS zelf. Bijwerken van pakketten gaat via een TrueNAS-update; het IDS blokkeert alleen als je dat per server aanzet.')}</p>
-      <div class="ag-cards">${sorted.filter((h) => h.truenas).map((h) => agCard(h)).join('')}</div>` : ''}`;
+      <div class="ag-cards">${sorted.filter((h) => h.truenas).map((h) => agCard(h)).join('')}</div>` : ''}${otherHostsHtml()}`;
   function agCard(h) {
       const iss = issues(h).length;
       return `<article class="ag-card ${!online(h) ? 's2' : iss ? 's1' : 's0'}">
@@ -70,6 +117,7 @@ function agentOverview(keyText) {
           ${h.agent_ips ? badge(null, '🌐 ' + esc(h.agent_ips), L('Bekend IP-adres')) : ''}
         </div>
         <div class="ag-acts"><button type="button" class="btn small-btn primary" data-am="${h.id}">${L('Agent Manager')}</button>
+          ${srvButtons(h.id)}
           <button type="button" class="btn small-btn" data-pair="${h.id}" title="${esc(L('Koppelcode maken en de agent (opnieuw) koppelen'))}">🔗 ${L('Koppelen')}</button>
           <button type="button" class="btn small-btn" data-url-host="${h.id}" title="${esc(L('Adres van RzSense voor deze agent wijzigen'))}">🌐 ${L('Adres')}</button></div>
       </article>`;
@@ -166,6 +214,12 @@ function initSecurity() {
     }
     const am = e.target.closest('[data-am]');
     if (am) return agentInstructions(findHost(+am.dataset.am));
+    const se = e.target.closest('[data-srv-edit]');
+    if (se) return hostForm(findHost(+se.dataset.srvEdit));
+    const sc = e.target.closest('[data-srv-check]');
+    if (sc) return checkForm(null, findHost(+sc.dataset.srvCheck));
+    const sd = e.target.closest('[data-srv-disc]');
+    if (sd) return discoverDialog(findHost(+sd.dataset.srvDisc));
     if (e.target.closest('#ag-cleanup')) return agentsCleanupDialog();
     const agu = e.target.closest('[data-ag-update]');
     if (agu) {

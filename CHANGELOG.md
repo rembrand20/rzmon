@@ -8,11 +8,23 @@ en MAJOR bij wijzigingen waarvoor je zelf iets moet aanpassen.
 Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-version.sh` (zie [CLAUDE.md](CLAUDE.md)).
 
 ## ✨ Highlights (de laatste 5 versies)
+- **1.368.0**: **Servers toevoegen en beheren op de pagina Servers**, met *Alle checks*, bewerken per server en een groep voor servers zonder agent.
 - **1.367.0**: **De Go-agent doet alles wat de bash-agent doet**: ook uploads scannen met ClamAV en Suricata op het proxynetwerk.
 - **1.366.0**: **De Go-agent beheert de WAF**, en de OWASP-regelset wordt in de stand *alleen zeker* nu echt geladen.
 - **1.365.0**: **De Go-agent beschermt de reverse proxy**: hetzelfde beleid, byte voor byte, met testen en terugzetten zoals de bash-agent.
 - **1.364.0**: **De Go-agent leest de logs van webdiensten**, en mislukte logins bij Vaultwarden worden nu echt geteld.
-- **1.363.0**: **De Go-agent doet Programma's, sporen zoeken en tijdelijk sudo**: alleen de reverse proxy en logs van webdiensten ontbreken nog.
+
+## 1.368.0 – 2026-11-28
+### Nieuw
+- **Servers toevoegen en beheren gebeurt op de pagina *Servers*.** Daar staan nu de knop **＋ Server toevoegen** en het tabblad **Alle checks** (waren op *Monitoring*). *Monitoring* is voor kijken en reageren; *Servers* voor inrichten.
+- **Op de kaart van elke agent-server**: **✎ Bewerken**, **＋ Check** en **💡 … nieuw gevonden** (wat de agent ziet maar nog niet bewaakt wordt), naast de *Agent Manager*.
+- **Nieuwe groep *Zonder agent*** op *Servers*: servers die RzSense van buitenaf bewaakt (ping, poorten, webpagina's, SNMP), met de soort, het adres, het aantal checks en **✎ Bewerken** en **＋ Check**.
+- Op *Monitoring* blijft een klein knopje **＋ Server**; dat opent de pagina *Servers* met het formulier. In de balk onder een server staat **⚙️ Op Servers** in plaats van *✎ Bewerken* en *💡 nieuw gevonden*. *＋ Check* blijft er ook staan.
+- Een oud adres (`#dashboard/allchecks`, ook in een bladwijzer) gaat vanzelf naar *Servers → Alle checks*.
+- Het label *Rustig* op de pagina *Aanvallen* (en de andere toestanden) heeft nu uitleg als je erop staat: het gaat over open incidenten, niet over het aantal aanvallen.
+
+### Opgelost
+- Twee tests van de WAF hadden een vaste datum en faalden vanaf 28 november; ze rekenen nu vanaf vandaag.
 
 ## 1.367.4 – 2026-11-28
 ### Opgelost

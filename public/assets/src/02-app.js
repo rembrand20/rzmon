@@ -59,7 +59,10 @@ function init() {
     e.target.disabled = false;
   };
   if ($('#logout')) $('#logout').onclick = async () => { try { sessionStorage.removeItem('rzs-ids-cache'); } catch (ex) { /* geen opslag */ } await api('logout', {}); location.reload(); };
-  $('#add-host').onclick = () => hostForm();
+  // 1.368.0: servers toevoegen gebeurt op de pagina Servers; het knopje op Monitoring brengt je daarheen
+  $('#add-host').onclick = () => { showTab('servers'); hostForm(); };
+  if ($('#srv-add-host')) $('#srv-add-host').onclick = () => hostForm();
+  if ($('#srv-tabs')) $('#srv-tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-ssub]'); if (b) { setSrvSub(b.dataset.ssub); location.hash = b.dataset.ssub === 'checks' ? 'servers/checks' : 'servers'; } });
   $('#run-all').onclick = async (e) => {
     e.target.disabled = true;
     try { const r = await api('run_all', {}); toast(L('{n} checks uitgevoerd', { n: r.count })); await refresh(); }
@@ -601,7 +604,7 @@ function showTab(name) {
   const MOVED = { 'settings/agents': 'servers', 'settings/actlog': 'logboek', 'settings/changelog': 'logboek', 'settings/nis2': 'compliance',
     'vulns/patch': 'updates', 'ids/prot': 'settings/prot', 'settings/quiet': 'settings/rules',
     // 1.330.0: nieuwe indeling
-    'dashboard/paths': 'net/paths', 'incidents/ids': 'ids/inc', 'vulns/leak': 'ids/leak', 'settings/allchecks': 'dashboard/allchecks', 'settings/nis2set': 'compliance/set', 'settings/ids_hunt': 'ids/hunt' };
+    'dashboard/paths': 'net/paths', 'incidents/ids': 'ids/inc', 'vulns/leak': 'ids/leak', 'settings/allchecks': 'servers/checks', 'dashboard/allchecks': 'servers/checks', 'settings/nis2set': 'compliance/set', 'settings/ids_hunt': 'ids/hunt' };
   if (MOVED[name] && !(name === 'ids/inc' && document.body.dataset.role === 'readonly')) {
     if (name === 'settings/quiet') setTab.rules = 'stil';
     name = MOVED[name];
@@ -610,7 +613,9 @@ function showTab(name) {
   // 1.197.0: diepe links (o.a. vanuit de Home Assistant-kaart): #net/map, #net/list, #net/disc en #dashboard/paths, /avail, /cont
   let netReq = null, monReq = null;
   if (/^net\/(map|list|disc|speed|paths|ext)$/.test(name)) { netReq = name.slice(4); name = 'net'; }   // 1.328.0: ook Netwerksnelheid; 1.330.0: Paden
-  if (/^dashboard\/(allchecks|avail|cont|shelly|checks)$/.test(name)) { monReq = name.slice(10); name = 'dashboard'; }
+  if (/^dashboard\/(avail|cont|shelly|checks)$/.test(name)) { monReq = name.slice(10); name = 'dashboard'; }
+  let srvReq = null;
+  if (/^servers\/(list|checks)$/.test(name)) { srvReq = name.slice(8); name = 'servers'; }   // 1.368.0: Alle checks staat op Servers
   if (name === 'compliance/set') { compTab = 'set'; name = 'compliance'; }   // 1.330.0: de NIS2-instellingen
   // 1.325.2: IDS vanuit het menu (of een andere pagina) opent altijd op Aanvallen; een link als #ids/live blijft werken
   if (name === 'ids' && ($('.tab-panel:not([hidden])') || {}).id !== 'tab-ids') idsTab = 'inc';
@@ -656,7 +661,7 @@ function showTab(name) {
   if (name === 'analytics') loadAnalytics();
   if (name === 'logs') loadLogsPage();   // 1.211.0
   if (name === 'incidents') { loadIncidents(); incSrcShow(); }
-  if (name === 'servers') { loadSecurity(); renderAgentUpdates(); }   // 1.276.0: de Agent Manager als pagina
+  if (name === 'servers') { loadSecurity(); renderAgentUpdates(); setSrvSub(srvReq || srvSub); }   // 1.276.0: de Agent Manager als pagina
   if (name === 'updates') loadPatch();
   if (name === 'logboek') loadActLog();
   if (name === 'compliance') loadNis2();

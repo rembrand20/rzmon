@@ -6879,9 +6879,20 @@ label.check-row input[type=checkbox], label.check-row input[type=radio] { width:
 /* 1.330.0: Monitoring → Alle checks (was in de beheerportal) */
 #tab-dashboard.mon-ac > .dash-counters, #tab-dashboard.mon-ac > .pg-tools, #tab-dashboard.mon-ac > .pgrid { display: none; }
 #tab-dashboard:not(.mon-ac) > #allchecks-page { display: none; }
+/* 1.368.0: Servers: tabbladen Servers en Alle checks */
+#tab-servers.srv-ac > #agents-card { display: none; }
+#tab-servers:not(.srv-ac) > #allchecks-page { display: none; }
+.srv-bar { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-bottom: .75rem; }
+.srv-bar .spacer { flex: 1; }
+.ag-other { display: flex; flex-direction: column; gap: .35rem; margin-bottom: 1rem; }
+.ag-orow { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; padding: .5rem .75rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
+.ag-orow .a-srv { min-width: 9rem; }
+.ag-orow .ag-oinfo { flex: 1; min-width: 12rem; }
+.ag-orow .ag-oacts { display: flex; gap: .4rem; flex-wrap: wrap; }
 .nis2-set { display: flex; flex-direction: column; gap: .6rem; max-width: 640px; }
 #comp-tabs { margin-bottom: 1rem; }
 
 /* 1.331.0: Netwerk → Van buitenaf */
 #tab-net.net-ex > .dash-counters, #tab-net.net-ex > .pg-tools, #tab-net.net-ex > .pgrid, #tab-net.net-ex > .xp-net-list { display: none; }
 #tab-net:not(.net-ex) > #net-exposure-card, #tab-net:not(.net-ex) > .xp-net-ext { display: none; }
+.flash-row { outline: 2px solid var(--primary); outline-offset: 2px; transition: outline-color .4s; }

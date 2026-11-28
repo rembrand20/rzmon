@@ -21,7 +21,7 @@ worden dan *onbekend*. De agent installeer je zoals beschreven in [Linux-agent](
 
 ## Een server toevoegen
 
-1. Open de pagina *Monitoring* en klik rechtsboven op **＋ Server**.
+1. Open de pagina *Servers* en klik rechtsboven op **＋ Server toevoegen**. (Het knopje **＋ Server** op *Monitoring* brengt je daar ook.)
 2. Vul in:
    - **Naam**, bijvoorbeeld "NAS" of "Webserver".
    - **Hostname / IP-adres**. Je kunt ook kiezen uit de apparaten die de netwerkscan vond.
@@ -550,7 +550,7 @@ Een sjabloon is een vaste set checks, met drempels, interval en meldregels, die 
 - **Per server invullen:** gebruik `{adres}` en `{naam}` in het doel of de naam, bv. `https://{adres}/` of
   `Certificaat {naam}`.
 - **Startsjablonen:** *Linux-server (agent)*, *Website* en *Netwerkapparaat*. Pas ze gerust aan of verwijder ze.
-- **Koppelen:** bij het sjabloon (**＋ Server koppelen…**) of bij **✎ Bewerken** van de server, onderdeel **📋 Sjablonen**.
+- **Koppelen:** bij het sjabloon (**＋ Server koppelen…**) of bij **✎ Bewerken** van de server (op de pagina *Servers*), onderdeel **📋 Sjablonen**.
   Een server kan meerdere sjablonen hebben. Heeft hij al een check van dezelfde soort (zelfde type en doel), dan neemt het
   sjabloon die over.
 - **Aanpassen:** wijzig je een check in het sjabloon, dan gaat dat meteen naar alle gekoppelde servers. Pas je een
@@ -561,7 +561,7 @@ Een sjabloon is een vaste set checks, met drempels, interval en meldregels, die 
 
 ## Alle checks tegelijk bewerken
 
-*Monitoring → Alle checks* toont alle checks van alle servers in één lijst, te doorzoeken op naam, doel of
+*Servers → Alle checks* toont alle checks van alle servers in één lijst, te doorzoeken op naam, doel of
 server en te filteren op server en type.
 
 - **Vink checks aan** en pas ze tegelijk aan: ⏱ interval, 🎚 drempels (alleen bij hetzelfde type), 🔔 melden (na hoeveel
@@ -577,7 +577,7 @@ Op een agent-server ziet RzSense wat de agent meldt maar nog geen check heeft: d
 starten, containers, certificaten en poorten die van buiten de server bereikbaar zijn. Systeemservices zoals `systemd-*`,
 `getty`, `dbus` en `cron` tellen niet mee.
 
-1. Bij de server staat dan bijvoorbeeld **💡 3 nieuw gevonden**. Klik erop.
+1. Op de pagina *Servers* staat dan op de kaart van de server bijvoorbeeld **💡 3 nieuw gevonden**. Klik erop.
 2. Vink aan wat je wilt bewaken en kies **Checks toevoegen**. Ze krijgen gangbare drempels; poorten staan standaard uit.
 3. Wil je iets nooit bewaken, kies dan **🙈 Gekozen negeren**. *Weer tonen* zet alles terug.
 

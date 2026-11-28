@@ -927,7 +927,7 @@ function setFind(id) {
 function showSettingsSection(id, focusEl) {
   xpClose();
   // 1.276.0: deze onderdelen zijn eigen pagina's in het hoofdmenu geworden
-  const MAIN = { agents: 'servers', actlog: 'logboek', changelog: 'logboek', nis2: 'compliance', nis2set: 'compliance/set', allchecks: 'dashboard/allchecks', ids_hunt: 'ids/hunt' };   // 1.330.0
+  const MAIN = { agents: 'servers', actlog: 'logboek', changelog: 'logboek', nis2: 'compliance', nis2set: 'compliance/set', allchecks: 'servers/checks', ids_hunt: 'ids/hunt' };   // 1.330.0
   if (MAIN[id]) {
     // 1.277.2: niet onthouden als laatste onderdeel, anders opent Instellingen voortaan deze pagina
     if (setSection === id) setSection = 'overview';
@@ -2934,7 +2934,7 @@ function initAllChecks() {
   $('#ac-bulk').addEventListener('click', (e) => { const b = e.target.closest('[data-bulk]'); if (b) acBulk(b.dataset.bulk); });
   // Na een venster (check bewerkt, sjabloon aangepast): de lijst bijwerken
   $('#modal').addEventListener('close', () => {
-    if (monSub === 'allchecks' && !$('#tab-dashboard').hidden) setTimeout(loadAllChecks, 300);   // 1.330.0: Alle checks staat op Monitoring
+    if (srvSub === 'checks' && !$('#tab-servers').hidden) setTimeout(loadAllChecks, 300);   // 1.368.0: Alle checks staat op Servers
   });
 }
 

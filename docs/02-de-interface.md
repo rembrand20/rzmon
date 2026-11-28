@@ -37,7 +37,7 @@ telefoon in een balk onderaan het scherm (met *Meer* voor de rest).
 | Groep | Pagina's |
 |---|---|
 | **Overzicht** | **Dashboard** (de startpagina) · **Meldingen** |
-| **Monitoring** | **Monitoring** (al je servers en checks, *Alle checks*, containers, Shelly's en beschikbaarheid) · **Servers** (de Agent Manager, alleen beheerders) |
+| **Monitoring** | **Monitoring** (al je servers en checks, containers, Shelly's en beschikbaarheid) · **Servers** (servers toevoegen en beheren, de Agent Manager en *Alle checks*; alleen beheerders) |
 | **Beveiliging** | **Incidenten** · **IDS** (ook *Toegang* en *Datalekken*) · **Kwetsbaarheden** · **Updates** · **Reverse proxy** (alleen beheerders) |
 | **Netwerk** | **Netwerk** (de netwerkkaart, apparaten, ontdekken, netwerksnelheid, paden en, voor beheerders, van buitenaf) |
 | **Analyse** | **Analyse** · **Logs** · **Logboek** · **Compliance** (NIS2 met zijn instellingen, alleen beheerders) |
@@ -87,7 +87,7 @@ instellingen, met bovenaan **← Terug naar RzSense**. Op een telefoon is het me
 | **Agents** | Standaard voor alle agents · Netwerken en relays · Tijdelijk sudo · Commando-checks · Home Assistant (MQTT) |
 | **Systeem** | Weergave · Bijwerken · Back-up · Reserve-RzSense · Database en server · Prestaties en fouten · Achtergrondtaken · AI-advies · REST API · Statuspagina en schermlink · Exporteren en importeren |
 
-*Alle checks* staat als tabblad op de pagina **Monitoring**, de NIS2-instellingen op het tabblad **Instellingen** van
+*Alle checks* staat als tabblad op de pagina **Servers**, de NIS2-instellingen op het tabblad **Instellingen** van
 **Compliance**. Een oud adres (bijvoorbeeld in een melding of een bladwijzer) gaat vanzelf naar de nieuwe plek.
 
 Beheerders zien alles. Gewone gebruikers zien alleen *Status en functies*, *Rapporten* en een deel van *Slimme drempels
@@ -299,7 +299,7 @@ niets. Daaronder volgen de kerncijfers, de zoek- en filterbalk en de lijst; deta
 **Op een telefoon of tablet** staan tabellen als kaartjes onder elkaar en valt geen pagina buiten het scherm. Kleine
 knoppen en koppelingen (het kruimelpad, *Meer info*, de regels van het Logboek, de labels in Logs) hebben een groter
 aanraakvlak, zodat je ze met je duim raakt. Op *Monitoring* staat **＋ Server** rechtsonder, boven de balk met de
-pagina's.
+pagina's; die brengt je naar de pagina *Servers*.
 
 **Detailpaneel.** Klik je op een item (een server, check, incident, IDS-treffer, apparaat, logregel, container, advies,
 melding, regel van het Logboek …), dan openen de details in een **venster over de pagina**, precies zo breed als de
@@ -316,10 +316,22 @@ Weergave → Vensters* **Rechts**. Knoppen in een rij (✔ Bevestig, 🔧, ＋) 
 - Met *Vensters: Rechts* staat het paneel op een scherm van 1920 pixels of breder naast de lijst, zodat je kunt
   doorklikken. Op een telefoon of tablet vult het venster het scherm (van onderen omhoog), wat je ook kiest.
 
+## De pagina Servers
+
+**Servers** (alleen beheerders) is de plek om je servers in te richten en te beheren; *Monitoring* is om te kijken en te
+reageren. Bovenaan staan twee tabbladen, **Servers** en **Alle checks**, en de knop **＋ Server toevoegen**.
+
+- **Met agent**: een kaart per server met de stand van de agent, en de knoppen **Agent Manager**, **✎ Bewerken**,
+  **＋ Check**, **💡 … nieuw gevonden** (als de agent iets ziet wat nog niet bewaakt wordt), **🔗 Koppelen** en **🌐 Adres**.
+- **Zonder agent**: een compacte lijst van servers die RzSense van buitenaf bewaakt (ping, poorten, webpagina's, SNMP), met
+  de soort, het adres, het aantal checks en **✎ Bewerken** en **＋ Check**.
+- **Alle checks**: alle checks van alle servers in één lijst, om ze samen te bewerken (zie [Servers en checks](04-servers-en-checks.md)).
+
+Op *Monitoring* brengt **⚙️ Op Servers** (in de balk onder een server) je naar de kaart van die server.
+
 ## De pagina Monitoring
 
-**Monitoring** toont al je servers en checks. Bovenaan staan tabbladen: **Checks** (de gewone pagina), **Alle checks**
-(alleen beheerders, zie [Servers en checks](04-servers-en-checks.md)), **Containers** (zie [Linux-agent](05-linux-agent.md)),
+**Monitoring** toont al je servers en checks. Bovenaan staan tabbladen: **Checks** (de gewone pagina), **Containers** (zie [Linux-agent](05-linux-agent.md)),
 **Shelly's** en **Beschikbaarheid** (zie hieronder). De netwerkpaden staan bij *Netwerk → Paden*. Op een telefoon is er ook **mDS**: een compact overzicht van al je servers en
 apparaten per soort.
 
@@ -345,7 +357,7 @@ Op het tabblad *Checks*, van boven naar beneden:
 - **Werkbalk**: zoeken (zoek je op een checknaam, dan klapt de server vanzelf open), **filterchips** per soort apparaat
   (alleen soorten die je hebt, met een rood bolletje bij een open probleem), **sorteren** (*Ergste eerst*, *Op naam*,
   *Hoogste CPU*, *Hoogste RAM*, *Volste disk*), het menu **⋯** met *🔧 Onderhoud* (alle meldingen pauzeren), *↻ Alles nu
-  checken* en *⊞ Alles openen*, en **＋ Server**.
+  checken* en *⊞ Alles openen*, en **＋ Server** (opent de pagina *Servers* met het formulier om een server toe te voegen).
 - **De servers**, per soort apparaat in drie groepen: *Met open problemen*, **✔ Bevestigd** (alles al bevestigd: je
   weet ervan) en *Alles in orde*.
 

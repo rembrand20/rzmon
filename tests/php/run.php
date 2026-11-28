@@ -3355,7 +3355,7 @@ ok($wl[0] === "0\twaf\ton\tsure\t0" && in_array("0\twafsite\tnextcloud.*\tdetect
 ok(Waf::wouldBlock('sure', 'inherit', true) && !Waf::wouldBlock('sure', 'inherit', false) && Waf::wouldBlock('strict', 'inherit', false) && !Waf::wouldBlock('strict', 'detect', true) && !Waf::wouldBlock('detect', 'inherit', true),
     'WAF: wat tegengehouden wordt volgt de slider en de site');
 $alerts = [
-    ['id' => 11, 'scenario' => 'crowdsecurity/vpatch-CVE-2017-9841', 'source' => ['ip' => '198.51.100.7'], 'created_at' => '2026-11-14T10:00:00Z',
+    ['id' => 11, 'scenario' => 'crowdsecurity/vpatch-CVE-2017-9841', 'source' => ['ip' => '198.51.100.7'], 'created_at' => gmdate('Y-m-d\TH:i:s\Z', time() - 86400),
         'events' => [['meta' => [['key' => 'target_uri', 'value' => '/vendor/x/eval-stdin.php'], ['key' => 'target_host', 'value' => 'blog.example.nl']]]]],
     ['id' => 12, 'scenario' => 'crowdsecurity/crowdsec-appsec-outofband', 'source' => ['ip' => '198.51.100.8'],
         'events' => [['meta' => [['key' => 'target_uri', 'value' => "/?q=1' OR 1=1"], ['key' => 'target_host', 'value' => 'nextcloud.example.nl'], ['key' => 'rule_name', 'value' => '942100']]]]],

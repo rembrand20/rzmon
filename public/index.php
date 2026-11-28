@@ -274,7 +274,7 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
       <!-- 1.169.0: Checks (zoals altijd) of Beschikbaarheid per groep -->
       <div class="subtabs mon-tabs" role="tablist" aria-label="<?= th('Monitoring') ?>" id="mon-tabs">
         <button type="button" class="seg-btn active" data-msub="checks" role="tab" aria-selected="true"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><?= th('Monitoring') ?></button>
-        <?php if ($role === 'admin'): ?><button type="button" class="seg-btn" data-msub="allchecks" role="tab" aria-selected="false"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 6 1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M11 6h9M11 12h9M11 18h9"/></svg><?= th('Alle checks') ?></button><?php endif; ?>
+        <?php if ($role === 'admin'): ?><?php endif; ?>
         <button type="button" class="seg-btn" data-msub="cont" role="tab" aria-selected="false"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg><?= th('Containers') ?></button>
         <button type="button" class="seg-btn" data-msub="shelly" role="tab" aria-selected="false"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><?= th("Shelly's") ?></button>
         <button type="button" class="seg-btn" data-msub="avail" role="tab" aria-selected="false"><svg class="st-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V14M10 20V9M16 20V12M22 20V5"/></svg><?= th('Beschikbaarheid') ?></button>
@@ -303,25 +303,13 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
             <button id="toggle-all" type="button" role="menuitem" hidden>⊞ <?= th('Alles openen') ?></button>
           </div>
         </div>
-        <button class="btn primary need-admin" id="add-host">＋ <?= th('Server') ?></button>
+        <button class="btn need-admin" id="add-host" type="button" title="<?= th('Server toevoegen op de pagina Servers') ?>">＋ <?= th('Server') ?></button>
       </div></div>
       <div class="pcard" data-pk="hosts" data-pw="12" data-pt="<?= th('Servers') ?>"><div id="hosts" class="hosts"></div></div>
       </div>
       <div id="avail" class="avail" aria-live="polite"></div>
       <div id="containers" class="containers"></div>
       <div id="shellys" class="shellys"></div><!-- 1.321.0 -->
-      <!-- 1.330.0: Alle checks (was in de beheerportal) -->
-      <div id="allchecks-page" class="allchecks-page">
-        <div class="card need-admin" id="allchecks-card">
-          <h2>☑️ <?= th('Alle checks') ?></h2>
-          <?= xp(t('Alle checks in één lijst; vink er meer aan om ze samen te bewerken.'), t('Vink checks aan om ze tegelijk aan te passen: interval, drempels, melden, onderhoud, aan of uit, kopiëren naar andere servers of verwijderen. Klik op een naam om die ene check te bewerken.')) ?>
-          <div class="ac-bar"><input type="search" id="ac-q" placeholder="<?= th('🔍 Zoek check, doel of server…') ?>" autocomplete="off">
-            <select id="ac-host"><option value=""><?= th('Alle servers') ?></option></select>
-            <select id="ac-type"><option value=""><?= th('Alle types') ?></option></select></div>
-          <div id="ac-bulk" class="ac-bulk" hidden></div>
-          <div id="ac-list"><p class="muted"><?= th('Laden…') ?></p></div>
-        </div>
-      </div>
     </section>
 
     <section id="tab-alerts" class="tab-panel" role="tabpanel" hidden>
@@ -688,6 +676,12 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
     <?php if ($role === 'admin'): ?>
     <section id="tab-servers" class="tab-panel" role="tabpanel" hidden>
       <!-- 1.276.0: de Agent Manager uit de beheerportal: dagelijks werk in het hoofdmenu -->
+      <!-- 1.368.0: Servers en hun checks beheren (was op Monitoring); Monitoring is kijken en reageren -->
+      <div class="dash-bar srv-bar"><div class="subtabs srv-tabs" role="tablist" aria-label="<?= th('Servers') ?>" id="srv-tabs">
+          <button type="button" class="seg-btn active" data-ssub="list" role="tab" aria-selected="true">🖥️ <?= th('Servers') ?></button>
+          <button type="button" class="seg-btn" data-ssub="checks" role="tab" aria-selected="false">☑️ <?= th('Alle checks') ?></button></div>
+        <span class="spacer"></span>
+        <button class="btn primary" id="srv-add-host" type="button">＋ <?= th('Server toevoegen') ?></button></div>
       <?= xp(t('Al je servers en agents: status, versie en verbinding. Klik op een server voor alles per server (checks, logs, updates, IDS, SNMP).'), t('<b>Wat het doet:</b> elke server met een agent staat hier, met wat aandacht nodig heeft. <b>Zo gebruik je het:</b> open een server voor zijn eigen instellingen (de Agent Manager), werk agents bij of zet onderdelen per server aan of uit. <b>Goed om te weten:</b> wat voor <i>alle</i> agents geldt (bijwerken, ritme, versleuteling) stel je in bij Instellingen → Agents.')) ?>
         <div class="card" id="agents-card">
           <h2>🖥️ <?= th('Servers en agents') ?></h2>
@@ -697,6 +691,18 @@ $bodyCls = array_filter([($sidePrefs['side'] ?? '') === 'mini' ? 'side-mini' : '
           <p class="small" id="agents-status">…</p>
           <button type="button" class="btn" id="agents-update-all" hidden><?= th('⬆ Alle verouderde agents bijwerken') ?></button>
         </div>
+      <!-- 1.330.0: Alle checks (was in de beheerportal); 1.368.0: op Servers -->
+      <div id="allchecks-page" class="allchecks-page">
+        <div class="card need-admin" id="allchecks-card">
+          <h2>☑️ <?= th('Alle checks') ?></h2>
+          <?= xp(t('Alle checks in één lijst; vink er meer aan om ze samen te bewerken.'), t('Vink checks aan om ze tegelijk aan te passen: interval, drempels, melden, onderhoud, aan of uit, kopiëren naar andere servers of verwijderen. Klik op een naam om die ene check te bewerken.')) ?>
+          <div class="ac-bar"><input type="search" id="ac-q" placeholder="<?= th('🔍 Zoek check, doel of server…') ?>" autocomplete="off">
+            <select id="ac-host"><option value=""><?= th('Alle servers') ?></option></select>
+            <select id="ac-type"><option value=""><?= th('Alle types') ?></option></select></div>
+          <div id="ac-bulk" class="ac-bulk" hidden></div>
+          <div id="ac-list"><p class="muted"><?= th('Laden…') ?></p></div>
+        </div>
+      </div>
     </section>
     <?php endif; ?>
 

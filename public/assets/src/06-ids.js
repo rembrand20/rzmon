@@ -1311,8 +1311,12 @@ function renderIds() {
     + cnt('sx2', d.blocks.length, '⛔ ' + L('Geblokkeerd'), 'data-igo="blk"') + cnt('si', accOk, '🔑 ' + L('Logins 24 u'), 'data-igo="acc"')
     + cnt('sx', accFail, '❌ ' + L('Mislukt 24 u'), 'data-igo="acc" data-fail="1"');
   // 1.266.0: één woord voor de toestand, vooraan de statusregel
-  $('#ids-state').innerHTML = !d.enabled ? `<span class="ids-st off">⏸ ${esc(L('IDS staat uit'))}</span>`
-    : o2 ? `<span class="ids-st bad">🔴 ${esc(L('Actie nodig'))}</span>` : open.length ? `<span class="ids-st warn">🟠 ${esc(L('Aandacht'))}</span>` : `<span class="ids-st ok">🟢 ${esc(L('Rustig'))}</span>`;
+  // 1.367.5: met uitleg: het label gaat over open incidenten, niet over het aantal aanvallen (die worden geblokkeerd of gemeld)
+  const stTip = (t) => ` title="${esc(t)}"`;
+  $('#ids-state').innerHTML = !d.enabled ? `<span class="ids-st off"${stTip(L('Het IDS staat uit: er wordt niets gedetecteerd of geblokkeerd.'))}>⏸ ${esc(L('IDS staat uit'))}</span>`
+    : o2 ? `<span class="ids-st bad"${stTip(L('Er zijn kritieke incidenten die je nog moet bekijken.'))}>🔴 ${esc(L('Actie nodig'))}</span>`
+      : open.length ? `<span class="ids-st warn"${stTip(L('Er zijn open incidenten (waarschuwingen) die je nog moet bekijken.'))}>🟠 ${esc(L('Aandacht'))}</span>`
+        : `<span class="ids-st ok"${stTip(L('Geen open incidenten: er is niets wat je nog moet bekijken. Aanvallen die het IDS tegenhield of al afhandelde, tellen hier niet mee.'))}>🟢 ${esc(L('Rustig'))}</span>`;
   // Serverchips: per server met open incidenten één chip; klik = alleen die server in de lijst
   const busyHosts = d.hosts.filter((h) => !h.ha && h.open && (h.open[1] + h.open[2] > 0));
   if (idsHost && !busyHosts.some((h) => +h.id === +idsHost)) idsHost = 0;

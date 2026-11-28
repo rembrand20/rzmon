@@ -1371,7 +1371,10 @@ function init() {
     e.target.disabled = false;
   };
   if ($('#logout')) $('#logout').onclick = async () => { try { sessionStorage.removeItem('rzs-ids-cache'); } catch (ex) { /* geen opslag */ } await api('logout', {}); location.reload(); };
-  $('#add-host').onclick = () => hostForm();
+  // 1.368.0: servers toevoegen gebeurt op de pagina Servers; het knopje op Monitoring brengt je daarheen
+  $('#add-host').onclick = () => { showTab('servers'); hostForm(); };
+  if ($('#srv-add-host')) $('#srv-add-host').onclick = () => hostForm();
+  if ($('#srv-tabs')) $('#srv-tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-ssub]'); if (b) { setSrvSub(b.dataset.ssub); location.hash = b.dataset.ssub === 'checks' ? 'servers/checks' : 'servers'; } });
   $('#run-all').onclick = async (e) => {
     e.target.disabled = true;
     try { const r = await api('run_all', {}); toast(L('{n} checks uitgevoerd', { n: r.count })); await refresh(); }
@@ -1913,7 +1916,7 @@ function showTab(name) {
   const MOVED = { 'settings/agents': 'servers', 'settings/actlog': 'logboek', 'settings/changelog': 'logboek', 'settings/nis2': 'compliance',
     'vulns/patch': 'updates', 'ids/prot': 'settings/prot', 'settings/quiet': 'settings/rules',
     // 1.330.0: nieuwe indeling
-    'dashboard/paths': 'net/paths', 'incidents/ids': 'ids/inc', 'vulns/leak': 'ids/leak', 'settings/allchecks': 'dashboard/allchecks', 'settings/nis2set': 'compliance/set', 'settings/ids_hunt': 'ids/hunt' };
+    'dashboard/paths': 'net/paths', 'incidents/ids': 'ids/inc', 'vulns/leak': 'ids/leak', 'settings/allchecks': 'servers/checks', 'dashboard/allchecks': 'servers/checks', 'settings/nis2set': 'compliance/set', 'settings/ids_hunt': 'ids/hunt' };
   if (MOVED[name] && !(name === 'ids/inc' && document.body.dataset.role === 'readonly')) {
     if (name === 'settings/quiet') setTab.rules = 'stil';
     name = MOVED[name];
@@ -1922,7 +1925,9 @@ function showTab(name) {
   // 1.197.0: diepe links (o.a. vanuit de Home Assistant-kaart): #net/map, #net/list, #net/disc en #dashboard/paths, /avail, /cont
   let netReq = null, monReq = null;
   if (/^net\/(map|list|disc|speed|paths|ext)$/.test(name)) { netReq = name.slice(4); name = 'net'; }   // 1.328.0: ook Netwerksnelheid; 1.330.0: Paden
-  if (/^dashboard\/(allchecks|avail|cont|shelly|checks)$/.test(name)) { monReq = name.slice(10); name = 'dashboard'; }
+  if (/^dashboard\/(avail|cont|shelly|checks)$/.test(name)) { monReq = name.slice(10); name = 'dashboard'; }
+  let srvReq = null;
+  if (/^servers\/(list|checks)$/.test(name)) { srvReq = name.slice(8); name = 'servers'; }   // 1.368.0: Alle checks staat op Servers
   if (name === 'compliance/set') { compTab = 'set'; name = 'compliance'; }   // 1.330.0: de NIS2-instellingen
   // 1.325.2: IDS vanuit het menu (of een andere pagina) opent altijd op Aanvallen; een link als #ids/live blijft werken
   if (name === 'ids' && ($('.tab-panel:not([hidden])') || {}).id !== 'tab-ids') idsTab = 'inc';
@@ -1968,7 +1973,7 @@ function showTab(name) {
   if (name === 'analytics') loadAnalytics();
   if (name === 'logs') loadLogsPage();   // 1.211.0
   if (name === 'incidents') { loadIncidents(); incSrcShow(); }
-  if (name === 'servers') { loadSecurity(); renderAgentUpdates(); }   // 1.276.0: de Agent Manager als pagina
+  if (name === 'servers') { loadSecurity(); renderAgentUpdates(); setSrvSub(srvReq || srvSub); }   // 1.276.0: de Agent Manager als pagina
   if (name === 'updates') loadPatch();
   if (name === 'logboek') loadActLog();
   if (name === 'compliance') loadNis2();
@@ -2663,9 +2668,8 @@ const avMean = (a) => { const v = a.filter((x) => x !== null && x !== undefined)
 
 function setMonSub(s) {
   if (s === 'paths') { showTab('net/paths'); return; }   // 1.330.0: Netwerkpaden staat bij Netwerk → Paden
-  monSub = s === 'avail' || s === 'cont' || s === 'shelly' || (s === 'allchecks' && isAdmin()) ? s : 'checks';
-  $('#tab-dashboard').classList.toggle('mon-ac', monSub === 'allchecks');   // 1.330.0: Alle checks (was in de portal)
-  if (monSub === 'allchecks') withPageWait('dashboard', loadAllChecks);
+  if (s === 'allchecks') { showTab('servers/checks'); return; }   // 1.368.0: Alle checks staat bij Servers
+  monSub = s === 'avail' || s === 'cont' || s === 'shelly' ? s : 'checks';
   $('#tab-dashboard').classList.toggle('mon-sh', monSub === 'shelly');   // 1.321.0
   if (monSub === 'shelly') withPageWait('dashboard', shLoad);
   $('#tab-dashboard').classList.toggle('mon-av', monSub === 'avail');
@@ -4824,14 +4828,13 @@ function detailBar(h) {
         <button class="btn need-user" data-act="maint-host" data-id="${h.id}">🔧 ${L('Onderhoud')}</button>
         <button class="btn need-user" data-act="quiet-host" data-id="${h.id}">🌙 ${h.quiet_eff && h.quiet_eff.src === 'host_now' ? L('Stil tot {t}', { t: fmtUntil(h.quiet_eff.now) }) : L('Nu stil')}</button>
         <button class="btn need-admin" data-act="add-check" data-id="${h.id}">＋ Check</button>
-        ${+h.discover_n ? `<button class="btn need-admin discover-btn" data-act="discover" data-id="${h.id}" title="${esc(L('Nog niet bewaakt: disks, services, containers, certificaten en poorten die de agent ziet'))}">💡 ${+h.discover_n === 1 ? L('1 nieuw gevonden') : L('{n} nieuw gevonden', { n: h.discover_n })}</button>` : ''}
         <button class="btn need-user" data-act="scan" data-id="${h.id}">🔍 ${L('Poorten')}</button>
         ${h.snmp ? `<button class="btn need-admin" data-act="snmp" data-id="${h.id}">📡 ${L('SNMP-checks')}</button>` : ''}
         ${hostKind(h) === 'camera' ? `<button class="btn need-admin" data-act="cam-rec" data-id="${h.id}">${L('＋ Aanbevolen checks')}</button>` : ''}
         ${h.metrics.includes('podman') ? `<button class="btn" data-act="podman" data-id="${h.id}">📦 Containers</button>` : ''}
         ${isPveHost(h) ? `<button class="btn" data-act="pve" data-id="${h.id}">🖥️ Proxmox</button>` : ''}
         ${isTnHost(h) ? `<button class="btn" data-act="truenas" data-id="${h.id}">🗄️ TrueNAS</button>` : ''}
-        <button class="btn need-admin" data-act="edit-host" data-id="${h.id}">✎ ${L('Bewerken')}</button>
+        <a class="btn need-admin" href="#servers" data-act="srv-host" data-id="${h.id}" title="${esc(L('Server bewerken, checks en wat de agent nieuw vond: op de pagina Servers'))}">⚙️ ${L('Op Servers')}</a>
         ${agentInfo ? `<span class="spacer"></span>${agentInfo}` : ''}
       </div>`;
 }
@@ -5355,6 +5358,7 @@ async function onHostsClick(e) {
     }
     case 'add-check': return checkForm(null, findHost(id));
     case 'edit-host': return hostForm(findHost(id));
+    case 'srv-host': e.preventDefault(); showTab('servers'); return srvFocus(id);   // 1.368.0
     case 'edit-check': { const [c, h] = findCheck(id); return checkForm(c, h); }
     case 'history': { const [c, h] = findCheck(id); return showHistory(c, h); }
     case 'agent': return agentInstructions(findHost(id));
@@ -8220,9 +8224,56 @@ async function loadSecurity() {
  * Agents-overzicht (1.121.0), zoals het dashboard: tegels, wat aandacht nodig heeft en een kaart per agent. De instellingen
  * per agent (versleuteling, vastzetten, IP-slot, https) staan in de Agent Manager; die stonden hier dubbel.
  */
+// 1.368.0: wat op Servers per server kan (was op Monitoring): bewerken, een check toevoegen, en wat de agent nieuw vond
+let srvSub = 'list';
+function setSrvSub(s) {
+  srvSub = s === 'checks' ? 'checks' : 'list';
+  const tab = $('#tab-servers');
+  if (!tab) return;
+  tab.classList.toggle('srv-ac', srvSub === 'checks');
+  $$('#srv-tabs [data-ssub]').forEach((b) => { const on = b.dataset.ssub === srvSub; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+  if (srvSub === 'checks') withPageWait('servers', loadAllChecks);
+}
+/** Knoppen voor één server; de gegevens (checks, wat nieuw gevonden is) komen uit de gewone serverlijst */
+function srvButtons(id) {
+  const h = state.hosts ? findHost(id) : null;
+  if (!h) return '';
+  const n = +h.discover_n || 0;
+  return `<button type="button" class="btn small-btn" data-srv-edit="${h.id}">✎ ${L('Bewerken')}</button>
+          <button type="button" class="btn small-btn" data-srv-check="${h.id}">＋ ${L('Check')}</button>
+          ${n ? `<button type="button" class="btn small-btn discover-btn" data-srv-disc="${h.id}" title="${esc(L('Nog niet bewaakt: disks, services, containers, certificaten en poorten die de agent ziet'))}">💡 ${n === 1 ? L('1 nieuw gevonden') : L('{n} nieuw gevonden', { n })}</button>` : ''}`;
+}
+/** Servers zonder agent (ping, poort- of webcheck, SNMP): een compacte lijst onder de agents */
+function otherHostsHtml() {
+  if (!state.hosts) return '';
+  const hs = state.hosts.filter((h) => h.mode !== 'agent').sort((a, b) => a.name.localeCompare(b.name));
+  if (!hs.length) return '';
+  const st = { 0: 's0', 1: 's1', 2: 's2', 3: 's3', 4: 's3' };
+  return `<div class="sec-h hosts-h ag-h"><h2>${L('Zonder agent')}</h2><span>${hs.length}</span></div>
+    <p class="muted small">${L('Servers die RzSense van buitenaf bewaakt: ping, poorten, webpagina\'s of SNMP.')}</p>
+    <div class="ag-other">${hs.map((h) => {
+      const k = KIND_INFO[hostKind(h)] || KIND_INFO.other;
+      const nc = h.checks.filter((c) => +c.enabled).length;
+      return `<div class="ag-orow" data-srv-row="${h.id}"><i class="adot ${st[hostStatus(h)] || 's3'}"></i><b class="a-srv">${esc(h.name)}</b>
+        <span class="ag-oinfo small muted">${k[0]} ${esc(k[1]())}${h.address ? ' · ' + esc(h.address) : ''} · ${nc === 1 ? L('1 check') : L('{n} checks', { n: nc })}${+h.enabled ? '' : ' · ' + L('uit')}</span>
+        <span class="ag-oacts">${srvButtons(h.id)}</span></div>`;
+    }).join('')}</div>`;
+}
+/** Vanaf Monitoring: de server op Servers laten zien (en even oplichten) */
+function srvFocus(id) {
+  setSrvSub('list');
+  setTimeout(() => {
+    const el = $(`#enc-hosts [data-am="${id}"]`)?.closest('.ag-card') || $(`#enc-hosts [data-srv-row="${id}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('flash-row');
+    setTimeout(() => el.classList.remove('flash-row'), 2000);
+  }, 600);
+}
+
 function agentOverview(keyText) {
   const hs = secInfo.hosts;
-  if (!hs.length) return `<p class="muted">${L('Nog geen agents. Voeg een server toe met het type <i>Remote met agent</i>.')}</p>`;
+  if (!hs.length) return `<p class="muted">${L('Nog geen agents. Voeg een server toe met het type <i>Remote met agent</i>.')}</p>` + otherHostsHtml();
   const now = nowS();
   const online = (h) => h.contact && h.contact.seen && now - h.contact.seen <= h.contact.stale;
   const newest = secInfo.agent_latest || state.agent_latest;   // 1.131.3: uit het overzicht zelf (de rest kan nog laden)
@@ -8261,7 +8312,7 @@ function agentOverview(keyText) {
     <div class="ag-cards">${sorted.filter((h) => !h.truenas).map((h) => agCard(h)).join('')}</div>
     ${sorted.some((h) => h.truenas) ? `<div class="sec-h hosts-h ag-h ag-tn-h"><h2>🗄️ TrueNAS</h2><span>${sorted.filter((h) => h.truenas).length}</span></div>
       <p class="muted small ag-tn-note">${L('TrueNAS SCALE draait de agent op de pool, gestart door een cronjob van TrueNAS zelf. Bijwerken van pakketten gaat via een TrueNAS-update; het IDS blokkeert alleen als je dat per server aanzet.')}</p>
-      <div class="ag-cards">${sorted.filter((h) => h.truenas).map((h) => agCard(h)).join('')}</div>` : ''}`;
+      <div class="ag-cards">${sorted.filter((h) => h.truenas).map((h) => agCard(h)).join('')}</div>` : ''}${otherHostsHtml()}`;
   function agCard(h) {
       const iss = issues(h).length;
       return `<article class="ag-card ${!online(h) ? 's2' : iss ? 's1' : 's0'}">
@@ -8277,6 +8328,7 @@ function agentOverview(keyText) {
           ${h.agent_ips ? badge(null, '🌐 ' + esc(h.agent_ips), L('Bekend IP-adres')) : ''}
         </div>
         <div class="ag-acts"><button type="button" class="btn small-btn primary" data-am="${h.id}">${L('Agent Manager')}</button>
+          ${srvButtons(h.id)}
           <button type="button" class="btn small-btn" data-pair="${h.id}" title="${esc(L('Koppelcode maken en de agent (opnieuw) koppelen'))}">🔗 ${L('Koppelen')}</button>
           <button type="button" class="btn small-btn" data-url-host="${h.id}" title="${esc(L('Adres van RzSense voor deze agent wijzigen'))}">🌐 ${L('Adres')}</button></div>
       </article>`;
@@ -8373,6 +8425,12 @@ function initSecurity() {
     }
     const am = e.target.closest('[data-am]');
     if (am) return agentInstructions(findHost(+am.dataset.am));
+    const se = e.target.closest('[data-srv-edit]');
+    if (se) return hostForm(findHost(+se.dataset.srvEdit));
+    const sc = e.target.closest('[data-srv-check]');
+    if (sc) return checkForm(null, findHost(+sc.dataset.srvCheck));
+    const sd = e.target.closest('[data-srv-disc]');
+    if (sd) return discoverDialog(findHost(+sd.dataset.srvDisc));
     if (e.target.closest('#ag-cleanup')) return agentsCleanupDialog();
     const agu = e.target.closest('[data-ag-update]');
     if (agu) {
@@ -12065,8 +12123,12 @@ function renderIds() {
     + cnt('sx2', d.blocks.length, '⛔ ' + L('Geblokkeerd'), 'data-igo="blk"') + cnt('si', accOk, '🔑 ' + L('Logins 24 u'), 'data-igo="acc"')
     + cnt('sx', accFail, '❌ ' + L('Mislukt 24 u'), 'data-igo="acc" data-fail="1"');
   // 1.266.0: één woord voor de toestand, vooraan de statusregel
-  $('#ids-state').innerHTML = !d.enabled ? `<span class="ids-st off">⏸ ${esc(L('IDS staat uit'))}</span>`
-    : o2 ? `<span class="ids-st bad">🔴 ${esc(L('Actie nodig'))}</span>` : open.length ? `<span class="ids-st warn">🟠 ${esc(L('Aandacht'))}</span>` : `<span class="ids-st ok">🟢 ${esc(L('Rustig'))}</span>`;
+  // 1.367.5: met uitleg: het label gaat over open incidenten, niet over het aantal aanvallen (die worden geblokkeerd of gemeld)
+  const stTip = (t) => ` title="${esc(t)}"`;
+  $('#ids-state').innerHTML = !d.enabled ? `<span class="ids-st off"${stTip(L('Het IDS staat uit: er wordt niets gedetecteerd of geblokkeerd.'))}>⏸ ${esc(L('IDS staat uit'))}</span>`
+    : o2 ? `<span class="ids-st bad"${stTip(L('Er zijn kritieke incidenten die je nog moet bekijken.'))}>🔴 ${esc(L('Actie nodig'))}</span>`
+      : open.length ? `<span class="ids-st warn"${stTip(L('Er zijn open incidenten (waarschuwingen) die je nog moet bekijken.'))}>🟠 ${esc(L('Aandacht'))}</span>`
+        : `<span class="ids-st ok"${stTip(L('Geen open incidenten: er is niets wat je nog moet bekijken. Aanvallen die het IDS tegenhield of al afhandelde, tellen hier niet mee.'))}>🟢 ${esc(L('Rustig'))}</span>`;
   // Serverchips: per server met open incidenten één chip; klik = alleen die server in de lijst
   const busyHosts = d.hosts.filter((h) => !h.ha && h.open && (h.open[1] + h.open[2] > 0));
   if (idsHost && !busyHosts.some((h) => +h.id === +idsHost)) idsHost = 0;
@@ -15258,7 +15320,7 @@ function setFind(id) {
 function showSettingsSection(id, focusEl) {
   xpClose();
   // 1.276.0: deze onderdelen zijn eigen pagina's in het hoofdmenu geworden
-  const MAIN = { agents: 'servers', actlog: 'logboek', changelog: 'logboek', nis2: 'compliance', nis2set: 'compliance/set', allchecks: 'dashboard/allchecks', ids_hunt: 'ids/hunt' };   // 1.330.0
+  const MAIN = { agents: 'servers', actlog: 'logboek', changelog: 'logboek', nis2: 'compliance', nis2set: 'compliance/set', allchecks: 'servers/checks', ids_hunt: 'ids/hunt' };   // 1.330.0
   if (MAIN[id]) {
     // 1.277.2: niet onthouden als laatste onderdeel, anders opent Instellingen voortaan deze pagina
     if (setSection === id) setSection = 'overview';
@@ -17265,7 +17327,7 @@ function initAllChecks() {
   $('#ac-bulk').addEventListener('click', (e) => { const b = e.target.closest('[data-bulk]'); if (b) acBulk(b.dataset.bulk); });
   // Na een venster (check bewerkt, sjabloon aangepast): de lijst bijwerken
   $('#modal').addEventListener('close', () => {
-    if (monSub === 'allchecks' && !$('#tab-dashboard').hidden) setTimeout(loadAllChecks, 300);   // 1.330.0: Alle checks staat op Monitoring
+    if (srvSub === 'checks' && !$('#tab-servers').hidden) setTimeout(loadAllChecks, 300);   // 1.368.0: Alle checks staat op Servers
   });
 }
 
@@ -20996,7 +21058,7 @@ function ccMonitoring(d, c) {
   return ccCard('monitoring', `${ccHead(L('Monitoring') + ' · ' + CC_PERIODS.find(([k]) => k === ccPeriod)[1](), `<span class="cc-mu small">${esc(ccPrevLbl())}</span>`)}
     <div class="cc-mon">
       <div class="cc-nums cc-nums-5">
-        <button type="button" class="cc-num" data-hm-go="dashboard/allchecks"><span class="cc-mu small">${esc(L('Actieve checks'))}</span><b>${hmNum(m.active)}</b>
+        <button type="button" class="cc-num" data-hm-go="servers/checks"><span class="cc-mu small">${esc(L('Actieve checks'))}</span><b>${hmNum(m.active)}</b>
           <span class="small cc-mu">${esc(m.types.slice(0, 3).map((t) => `${t.n} ${t.type}`).join(' · '))}</span></button>
         <div class="cc-num"><span class="cc-mu small">${esc(L('Uitgevoerd'))}</span><b>${hmNum(m.runs.n)}</b><span class="small">${ccDelta(m.runs.n, m.runs.prev, false)} <span class="cc-mu">${esc(L('{n} checks liepen', { n: m.checks_ran }))}</span></span></div>
         <div class="cc-num ${m.fails.n ? 'warn' : 'ok'}"><span class="cc-mu small">${esc(L('Fout gegaan'))}</span><b>${hmNum(m.fails.n)}</b><span class="small">${ccDelta(m.fails.n, m.fails.prev)} <span class="cc-mu">${esc(L('warning of critical'))}</span></span></div>

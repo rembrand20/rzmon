@@ -29,7 +29,7 @@ Assistant geen meldingen meer kan sturen.
 
 ### Installeren
 
-1. **In RzSense:** klik op **＋ Server**. Naam bv. *Home Assistant*, adres het IP-adres van Home Assistant, type
+1. **In RzSense:** klik op de pagina *Servers* op **＋ Server toevoegen**. Naam bv. *Home Assistant*, adres het IP-adres van Home Assistant, type
    **Remote met agent**.
 2. Open de *Agent Manager* van die server, tabblad **🏠 Home Assistant OS**, en klik op **🔗 Koppelcode maken**. De code is
    eenmalig en 15 minuten geldig.
