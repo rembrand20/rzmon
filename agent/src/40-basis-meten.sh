@@ -287,6 +287,18 @@ heal_log() {  # heal_log <check-id> <ok: 0/1> <bericht>: poging onthouden, en de
 # sudo …). Elke regel krijgt een eigen kenmerk; hij gaat mee met het volgende rapport en blijft bewaard tot RzSense hem heeft
 # (hooguit 2000 regels; daarboven de oudste weg). RzSense toont hem in de Agent Manager (Logboek).
 act_n=0
+# Agent 1.123.6: een vaste schrijfactie buiten de afscherming van de eigen dienst. De service draait met ProtectSystem=full,
+# waardoor /etc alleen-lezen is: tijdelijk sudo (/etc/sudoers.d) en een account vergrendelen (usermod: /etc/shadow) lukten
+# daardoor niet onder systemd. Alleen die commando's lopen via een tijdelijke systemd-eenheid; de rest van de ronde blijft
+# afgeschermd. Zonder systemd (cron, TrueNAS) of als /etc gewoon schrijfbaar is: rechtstreeks.
+# OUTSIDE_PROBE is er alleen voor de tests (een map die niet schrijfbaar is).
+outside() {  # outside <commando> <argumenten…>
+    if [ -n "${INVOCATION_ID-}" ] && command -v systemd-run >/dev/null 2>&1 && [ ! -w "${OUTSIDE_PROBE:-/etc}" ]; then
+        systemd-run --quiet --collect --wait --pipe "$@" </dev/null
+    else
+        "$@"
+    fi
+}
 act_log() {  # act_log <onderdeel> <ok: 1 gelukt, 0 mislukt, 2 info> <actie> [detail]
     act_n=$(( act_n + 1 ))
     printf '{"id":"%s","t":%s,"m":"%s","ok":%s,"a":"%s","d":"%s"}\n' "$(date +%s)-$$-$act_n-$RANDOM" "$(date +%s)" "$(printf '%s' "$1" | tr -dc 'a-z')" \

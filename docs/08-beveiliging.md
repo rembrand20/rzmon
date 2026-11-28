@@ -850,7 +850,9 @@ blijvende rechten betekent minder kans op misbruik.
 
 **Wat de agent doet**: hij zet een eigen bestand `/etc/sudoers.d/rzsense-jit-<gebruiker>` neer (eerst gecontroleerd met
 `visudo`) en een **systemd-timer** die het op tijd weghaalt, ook als de agent stopt. Andere sudo-regels raakt hij nooit
-aan.
+aan. Omdat de dienst van de agent zelf niet in `/etc` mag schrijven, zet hij dat ene bestand neer via een tijdelijke
+systemd-eenheid; hetzelfde geldt voor het vergrendelen van een account door het IDS. Lukt het niet, dan zie je de reden bij
+de aanvraag en in het logboek.
 
 **Intrekken** met de knop bij de aanvraag. **Overzicht** van alle aanvragen, en het maximum, bij *Instellingen → Agents en
 koppelingen → Tijdelijk sudo*. **Uitzetten**: daar, of op de server `SUDO_JIT=0` in `/etc/default/rzmon-agent`. De agent

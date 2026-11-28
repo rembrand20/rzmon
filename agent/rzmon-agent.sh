@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.123.5"
+AGENT_VERSION="1.123.6"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -1891,6 +1891,18 @@ heal_log() {  # heal_log <check-id> <ok: 0/1> <bericht>: poging onthouden, en de
 # sudo …). Elke regel krijgt een eigen kenmerk; hij gaat mee met het volgende rapport en blijft bewaard tot RzSense hem heeft
 # (hooguit 2000 regels; daarboven de oudste weg). RzSense toont hem in de Agent Manager (Logboek).
 act_n=0
+# Agent 1.123.6: een vaste schrijfactie buiten de afscherming van de eigen dienst. De service draait met ProtectSystem=full,
+# waardoor /etc alleen-lezen is: tijdelijk sudo (/etc/sudoers.d) en een account vergrendelen (usermod: /etc/shadow) lukten
+# daardoor niet onder systemd. Alleen die commando's lopen via een tijdelijke systemd-eenheid; de rest van de ronde blijft
+# afgeschermd. Zonder systemd (cron, TrueNAS) of als /etc gewoon schrijfbaar is: rechtstreeks.
+# OUTSIDE_PROBE is er alleen voor de tests (een map die niet schrijfbaar is).
+outside() {  # outside <commando> <argumenten…>
+    if [ -n "${INVOCATION_ID-}" ] && command -v systemd-run >/dev/null 2>&1 && [ ! -w "${OUTSIDE_PROBE:-/etc}" ]; then
+        systemd-run --quiet --collect --wait --pipe "$@" </dev/null
+    else
+        "$@"
+    fi
+}
 act_log() {  # act_log <onderdeel> <ok: 1 gelukt, 0 mislukt, 2 info> <actie> [detail]
     act_n=$(( act_n + 1 ))
     printf '{"id":"%s","t":%s,"m":"%s","ok":%s,"a":"%s","d":"%s"}\n' "$(date +%s)-$$-$act_n-$RANDOM" "$(date +%s)" "$(printf '%s' "$1" | tr -dc 'a-z')" \
@@ -3469,8 +3481,9 @@ if [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && [ "$(id -u)" = 0 ]; then
         [ -f "$iso_dir/ul.$u_name.$u_act" ] && continue   # al gedaan
         if ! getent passwd "$u_name" >/dev/null; then u_res=onbekend
         elif [ "$u_act" = lock ]; then
-            if usermod -L -e 1 "$u_name" 2>/dev/null; then pkill -KILL -u "$u_name" 2>/dev/null; u_res=ok; else u_res=fout; fi
-        elif usermod -U -e '' "$u_name" 2>/dev/null; then u_res=ok
+            # agent 1.123.6: usermod buiten de afscherming van de dienst (/etc is daar alleen-lezen)
+            if outside usermod -L -e 1 "$u_name" >/dev/null 2>&1; then pkill -KILL -u "$u_name" 2>/dev/null; u_res=ok; else u_res=fout; fi
+        elif outside usermod -U -e '' "$u_name" >/dev/null 2>&1; then u_res=ok
         else u_res=fout; fi
         rm -f "$iso_dir/ul.$u_name."*; : >"$iso_dir/ul.$u_name.$u_act"
         ul_json+="[\"$u_name\",\"$u_act\",\"$u_res\"],"
@@ -4061,14 +4074,30 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${SUDO_JIT:-1}" != 0 ] && [ -d
             act_log sudo 0 "Tijdelijk sudo mislukt" "$sd_user: gebruiker bestaat niet op deze server"
             sudo_json+="{\"id\":$sd_id,\"st\":\"error\",\"d\":\"gebruiker bestaat niet\"},"; sd_fail "$sd_id"; continue
         fi
-        sd_tmp=$(mktemp "$sd_dir/.rzsense-jit.XXXXXX" 2>/dev/null) || continue
+        # Agent 1.123.6: eerst in de eigen map (die is schrijfbaar), dan als verborgen bestand naar /etc/sudoers.d (sudo leest
+        # geen bestanden met een punt in de naam) en daar pas hernoemen. Buiten de afscherming van de dienst: zie outside().
+        sd_tmp="$t_dir/sudo.new"
         sd_when=$(date -d "@$sd_until" '+%Y-%m-%d %H:%M' 2>/dev/null || echo "$sd_until")
-        printf '# rzsense-jit id=%s until=%s\n# Tijdelijk sudo via RzSense tot %s; wordt vanzelf weggehaald.\n%s ALL=(ALL:ALL) ALL\n' \
-            "$sd_id" "$sd_until" "$sd_when" "$sd_user" >"$sd_tmp"
+        if ! (umask 077; printf '# rzsense-jit id=%s until=%s\n# Tijdelijk sudo via RzSense tot %s; wordt vanzelf weggehaald.\n%s ALL=(ALL:ALL) ALL\n' \
+            "$sd_id" "$sd_until" "$sd_when" "$sd_user" >"$sd_tmp") 2>/dev/null; then
+            act_log sudo 0 "Tijdelijk sudo mislukt" "$sd_user: kan geen tijdelijk bestand maken in $t_dir"
+            sudo_json+="{\"id\":$sd_id,\"st\":\"error\",\"d\":\"geen tijdelijk bestand\"},"; continue
+        fi
         chmod 0440 "$sd_tmp"
-        if visudo -cqf "$sd_tmp" >/dev/null 2>&1 && mv -f "$sd_tmp" "$sd_f"; then
+        sd_hid="$sd_dir/.rzsense-jit.$sd_user"
+        if ! visudo -cqf "$sd_tmp" >/dev/null 2>&1; then
+            rm -f -- "$sd_tmp"
+            act_log sudo 0 "Tijdelijk sudo mislukt" "$sd_user: visudo keurt het bestand niet goed"
+            sudo_json+="{\"id\":$sd_id,\"st\":\"error\",\"d\":\"visudo keurt het niet goed\"},"; sd_fail "$sd_id"
+        elif ! sd_err=$(outside install -m 0440 "$sd_tmp" "$sd_hid" 2>&1) || ! outside mv -f -- "$sd_hid" "$sd_f" >/dev/null 2>&1; then
+            # Kon het bestand niet in /etc/sudoers.d zetten: niet stil doorgaan, maar melden (en niet elke ronde opnieuw)
+            rm -f -- "$sd_tmp"; outside rm -f -- "$sd_hid" >/dev/null 2>&1
+            act_log sudo 0 "Tijdelijk sudo mislukt" "$sd_user: kan $sd_dir niet schrijven${sd_err:+ ($(head -c 150 <<<"$sd_err" | tr '\n' ' '))}"
+            sudo_json+="{\"id\":$sd_id,\"st\":\"error\",\"d\":\"kan $sd_dir niet schrijven\"},"; sd_fail "$sd_id"
+        else
+            rm -f -- "$sd_tmp"
             if ! visudo -cq >/dev/null 2>&1; then
-                rm -f -- "$sd_f"
+                outside rm -f -- "$sd_f" >/dev/null 2>&1
                 act_log sudo 0 "Tijdelijk sudo mislukt" "$sd_user: de sudo-configuratie klopte daarna niet; meteen weggehaald"
                 sudo_json+="{\"id\":$sd_id,\"st\":\"error\",\"d\":\"visudo keurt de configuratie af\"},"; sd_fail "$sd_id"; continue
             fi
@@ -4077,10 +4106,6 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${SUDO_JIT:-1}" != 0 ] && [ -d
                 --on-active="$(( sd_until - sd_now + 30 ))" /bin/rm -f -- "$sd_f" >/dev/null 2>&1
             act_log sudo 1 "Tijdelijk sudo gegeven" "$sd_user tot $sd_when"
             sudo_json+="{\"id\":$sd_id,\"st\":\"active\"},"
-        else
-            rm -f -- "$sd_tmp"
-            act_log sudo 0 "Tijdelijk sudo mislukt" "$sd_user: visudo keurt het bestand niet goed"
-            sudo_json+="{\"id\":$sd_id,\"st\":\"error\",\"d\":\"visudo keurt het niet goed\"},"; sd_fail "$sd_id"
         fi
     done < <(awk -F'\t' '$1 == "0" && $2 == "sudo"' "${t_cache:-/dev/null}" 2>/dev/null | head -n 20)
     # Weghalen: tijd voorbij, ingetrokken of niet meer gevraagd (alleen onze eigen bestanden)
@@ -4090,12 +4115,14 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${SUDO_JIT:-1}" != 0 ] && [ -d
         sd_until=$(sed -n 's/^# rzsense-jit id=[0-9]* until=\([0-9]*\)$/\1/p' "$sd_f" | head -n 1)
         sd_id=$(sed -n 's/^# rzsense-jit id=\([0-9]*\) until=[0-9]*$/\1/p' "$sd_f" | head -n 1)
         if [[ "$sd_keep" != *" $sd_user "* ]] || [ "${sd_until:-0}" -le "$sd_now" ]; then
-            rm -f -- "$sd_f"
+            outside rm -f -- "$sd_f" >/dev/null 2>&1
             act_log sudo 1 "Tijdelijk sudo weggehaald" "$sd_user$([ "${sd_until:-0}" -le "$sd_now" ] && echo ' (tijd voorbij)' || echo ' (ingetrokken)')"
             sudo_json+="{\"id\":${sd_id:-0},\"st\":\"removed\"},"
         fi
     done
-    rm -f "$sd_dir"/.rzsense-jit.* 2>/dev/null
+    for sd_f in "$sd_dir"/.rzsense-jit.*; do   # achtergebleven verborgen bestanden van een afgebroken ronde
+        [ -f "$sd_f" ] && outside rm -f -- "$sd_f" >/dev/null 2>&1
+    done
 fi
 # ---------------------------------------------------------------- Reverse proxy beschermen (agent 1.97.0, RzSense 1.254.0)
 lap proxy

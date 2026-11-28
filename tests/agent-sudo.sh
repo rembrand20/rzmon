@@ -21,7 +21,7 @@ fn() { awk -v n="$1" '$0 ~ "^" n "\\(\\) \\{" {f=1} f{print} f&&/^\}/{exit}' age
 {
     echo "HA_MODE=0; t_dir='$work/cache'; t_cache='$work/cache/tests.cache'; act_n=0"
     echo 'lap() { :; }'
-    fn json_escape; fn act_log
+    fn json_escape; fn act_log; fn outside   # agent 1.123.6
     echo "systemd-run() { :; }"   # geen echte timer in de test
     fn ctr_ok; fn ctrx   # agent 1.113.0
     echo ". '$work/mod.sh'"

@@ -27,14 +27,30 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${SUDO_JIT:-1}" != 0 ] && [ -d
             act_log sudo 0 "Tijdelijk sudo mislukt" "$sd_user: gebruiker bestaat niet op deze server"
             sudo_json+="{\"id\":$sd_id,\"st\":\"error\",\"d\":\"gebruiker bestaat niet\"},"; sd_fail "$sd_id"; continue
         fi
-        sd_tmp=$(mktemp "$sd_dir/.rzsense-jit.XXXXXX" 2>/dev/null) || continue
+        # Agent 1.123.6: eerst in de eigen map (die is schrijfbaar), dan als verborgen bestand naar /etc/sudoers.d (sudo leest
+        # geen bestanden met een punt in de naam) en daar pas hernoemen. Buiten de afscherming van de dienst: zie outside().
+        sd_tmp="$t_dir/sudo.new"
         sd_when=$(date -d "@$sd_until" '+%Y-%m-%d %H:%M' 2>/dev/null || echo "$sd_until")
-        printf '# rzsense-jit id=%s until=%s\n# Tijdelijk sudo via RzSense tot %s; wordt vanzelf weggehaald.\n%s ALL=(ALL:ALL) ALL\n' \
-            "$sd_id" "$sd_until" "$sd_when" "$sd_user" >"$sd_tmp"
+        if ! (umask 077; printf '# rzsense-jit id=%s until=%s\n# Tijdelijk sudo via RzSense tot %s; wordt vanzelf weggehaald.\n%s ALL=(ALL:ALL) ALL\n' \
+            "$sd_id" "$sd_until" "$sd_when" "$sd_user" >"$sd_tmp") 2>/dev/null; then
+            act_log sudo 0 "Tijdelijk sudo mislukt" "$sd_user: kan geen tijdelijk bestand maken in $t_dir"
+            sudo_json+="{\"id\":$sd_id,\"st\":\"error\",\"d\":\"geen tijdelijk bestand\"},"; continue
+        fi
         chmod 0440 "$sd_tmp"
-        if visudo -cqf "$sd_tmp" >/dev/null 2>&1 && mv -f "$sd_tmp" "$sd_f"; then
+        sd_hid="$sd_dir/.rzsense-jit.$sd_user"
+        if ! visudo -cqf "$sd_tmp" >/dev/null 2>&1; then
+            rm -f -- "$sd_tmp"
+            act_log sudo 0 "Tijdelijk sudo mislukt" "$sd_user: visudo keurt het bestand niet goed"
+            sudo_json+="{\"id\":$sd_id,\"st\":\"error\",\"d\":\"visudo keurt het niet goed\"},"; sd_fail "$sd_id"
+        elif ! sd_err=$(outside install -m 0440 "$sd_tmp" "$sd_hid" 2>&1) || ! outside mv -f -- "$sd_hid" "$sd_f" >/dev/null 2>&1; then
+            # Kon het bestand niet in /etc/sudoers.d zetten: niet stil doorgaan, maar melden (en niet elke ronde opnieuw)
+            rm -f -- "$sd_tmp"; outside rm -f -- "$sd_hid" >/dev/null 2>&1
+            act_log sudo 0 "Tijdelijk sudo mislukt" "$sd_user: kan $sd_dir niet schrijven${sd_err:+ ($(head -c 150 <<<"$sd_err" | tr '\n' ' '))}"
+            sudo_json+="{\"id\":$sd_id,\"st\":\"error\",\"d\":\"kan $sd_dir niet schrijven\"},"; sd_fail "$sd_id"
+        else
+            rm -f -- "$sd_tmp"
             if ! visudo -cq >/dev/null 2>&1; then
-                rm -f -- "$sd_f"
+                outside rm -f -- "$sd_f" >/dev/null 2>&1
                 act_log sudo 0 "Tijdelijk sudo mislukt" "$sd_user: de sudo-configuratie klopte daarna niet; meteen weggehaald"
                 sudo_json+="{\"id\":$sd_id,\"st\":\"error\",\"d\":\"visudo keurt de configuratie af\"},"; sd_fail "$sd_id"; continue
             fi
@@ -43,10 +59,6 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${SUDO_JIT:-1}" != 0 ] && [ -d
                 --on-active="$(( sd_until - sd_now + 30 ))" /bin/rm -f -- "$sd_f" >/dev/null 2>&1
             act_log sudo 1 "Tijdelijk sudo gegeven" "$sd_user tot $sd_when"
             sudo_json+="{\"id\":$sd_id,\"st\":\"active\"},"
-        else
-            rm -f -- "$sd_tmp"
-            act_log sudo 0 "Tijdelijk sudo mislukt" "$sd_user: visudo keurt het bestand niet goed"
-            sudo_json+="{\"id\":$sd_id,\"st\":\"error\",\"d\":\"visudo keurt het niet goed\"},"; sd_fail "$sd_id"
         fi
     done < <(awk -F'\t' '$1 == "0" && $2 == "sudo"' "${t_cache:-/dev/null}" 2>/dev/null | head -n 20)
     # Weghalen: tijd voorbij, ingetrokken of niet meer gevraagd (alleen onze eigen bestanden)
@@ -56,10 +68,12 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ "${SUDO_JIT:-1}" != 0 ] && [ -d
         sd_until=$(sed -n 's/^# rzsense-jit id=[0-9]* until=\([0-9]*\)$/\1/p' "$sd_f" | head -n 1)
         sd_id=$(sed -n 's/^# rzsense-jit id=\([0-9]*\) until=[0-9]*$/\1/p' "$sd_f" | head -n 1)
         if [[ "$sd_keep" != *" $sd_user "* ]] || [ "${sd_until:-0}" -le "$sd_now" ]; then
-            rm -f -- "$sd_f"
+            outside rm -f -- "$sd_f" >/dev/null 2>&1
             act_log sudo 1 "Tijdelijk sudo weggehaald" "$sd_user$([ "${sd_until:-0}" -le "$sd_now" ] && echo ' (tijd voorbij)' || echo ' (ingetrokken)')"
             sudo_json+="{\"id\":${sd_id:-0},\"st\":\"removed\"},"
         fi
     done
-    rm -f "$sd_dir"/.rzsense-jit.* 2>/dev/null
+    for sd_f in "$sd_dir"/.rzsense-jit.*; do   # achtergebleven verborgen bestanden van een afgebroken ronde
+        [ -f "$sd_f" ] && outside rm -f -- "$sd_f" >/dev/null 2>&1
+    done
 fi

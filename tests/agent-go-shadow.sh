@@ -1264,6 +1264,8 @@ act_bash() {  # act_bash fw|iso|kill <uitvoer> [IDS_BLOCK] [sent]: de echte code
         lap() { :; }; id() { echo 0; }
         act_log() { printf '%s|%s|%s|%s\n' "$1" "$2" "$3" "${4-}" >>"$K/b/act"; }
         # shellcheck disable=SC1090
+        source <(sed -n '/^outside() {/,/^}/p' agent/src/40-basis-meten.sh)   # agent 1.123.6: usermod buiten de afscherming
+        # shellcheck disable=SC1090
         source <(sed -n '/^json_escape() {/,/^}/p; /^json_text() {/,/^}/p' agent/src/15-realtime.sh)
         case "$1" in
             fw) ids_json='{"x":0,'
@@ -1850,6 +1852,12 @@ exec /usr/bin/id "$@"
 EOF
 cat >"$A/bin/systemd-run" <<'EOF'
 #!/bin/sh
+# een opdracht buiten de afscherming (--wait): uitvoeren, en tellen; een timer: alleen bijhouden
+case " $* " in
+    *" --wait "*) echo "$*" | sed "s#${SD_DIR:?}#/SD#g" >>"${SD_DIR:?}/../outside.$(basename "$SD_DIR")"
+        while [ $# -gt 0 ]; do case "$1" in --*) shift ;; *) break ;; esac; done
+        exec "$@" ;;
+esac
 echo "$*" | sed 's/--on-active=[0-9]*/--on-active=N/; s#/[^ ]*/rzsense-jit-#/SD/rzsense-jit-#' >>"${SD_DIR:?}/../timers.$(basename "$SD_DIR")"
 EOF
 chmod +x "$A/bin/"*
@@ -1862,6 +1870,8 @@ sd_bash() {
         lap() { :; }
         id() { if [ "${1-}" = -u ] && [ -n "${2-}" ]; then command id "$@"; else echo 0; fi; }
         act_log() { printf '%s|%s|%s|%s\n' "$1" "$2" "$3" "${4-}" >>"$A/b/sudo.act"; }
+        # shellcheck disable=SC1090
+        source <(sed -n '/^outside() {/,/^}/p' agent/src/40-basis-meten.sh)   # agent 1.123.6
         # shellcheck disable=SC1090
         source <(sed -n '/^sudo_json=""$/,/^fi$/p' agent/src/68-sudo.sh | sed "s|^sd_dir=/etc/sudoers.d\$|sd_dir='$A/sdb'|")
         printf '[%s]' "${sudo_json%,}" >"$1"
@@ -1907,6 +1917,17 @@ g = ['|'.join([e['m'], str(e['ok']), e['a'], e['d']]) for e in map(json.loads, o
 if a != g or len(a) != 5:
     print('bash %s\ngo   %s' % (a, g)); sys.exit(1)
 PY
+# 1.369.0 (agent 1.123.6): de dienst van de bash-agent ziet /etc alleen-lezen (ProtectSystem=full). Dan moet elke schrijfactie
+# naar /etc/sudoers.d via systemd-run lopen. Hier nagebootst met INVOCATION_ID en een map die niet schrijfbaar is.
+ap_tests "0\ttick\t30\n0\tsudo\t51\tpiet\t$(( $(date +%s) + 600 ))\n"
+(INVOCATION_ID=proef OUTSIDE_PROBE=/bestaat/niet; export INVOCATION_ID OUTSIDE_PROBE; sd_bash "$A/s5.bash.json")
+grep -qx 'piet ALL=(ALL:ALL) ALL' "$A/sdb/rzsense-jit-piet" && grep -q '"active"' "$A/s5.bash.json" && grep -q -- '--wait --pipe install -m 0440 .* /SD/.rzsense-jit.piet' "$A/outside.sdb" \
+    && grep -q -- '--wait --pipe mv -f -- /SD/.rzsense-jit.piet /SD/rzsense-jit-piet' "$A/outside.sdb" && ! ls "$A/sdb"/.rzsense-jit.* >/dev/null 2>&1 \
+    || fail "tijdelijk sudo onder systemd hoort via systemd-run te schrijven: $(cat "$A/s5.bash.json") | $(cat "$A/outside.sdb" 2>/dev/null)"
+ap_tests "0\ttick\t30\n"
+(INVOCATION_ID=proef OUTSIDE_PROBE=/bestaat/niet; export INVOCATION_ID OUTSIDE_PROBE; sd_bash "$A/s6.bash.json")
+[ ! -e "$A/sdb/rzsense-jit-piet" ] && grep -q -- '--wait --pipe rm -f -- /SD/rzsense-jit-piet' "$A/outside.sdb" || fail "weghalen onder systemd hoort ook via systemd-run te gaan"
+echo "✔ tijdelijk sudo onder systemd (/etc alleen-lezen voor de dienst): plaatsen en weghalen via systemd-run"
 echo "✔ Programma's (nieuw, veranderd, zonder pakket, geblokkeerd en gestopt), jagen op sporen (pad en vingerafdruk, één keer per opdracht) en tijdelijk sudo (gegeven, onbekend, afgekeurd, ingetrokken, verlopen, nooit root): gelijk aan de bash-agent"
 
 # 1.364.0 (Go-agent 0.33.0): logs van webdiensten. De echte bash-code en de Go-agent lezen elk een eigen kopie van

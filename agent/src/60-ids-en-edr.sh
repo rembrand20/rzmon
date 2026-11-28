@@ -830,8 +830,9 @@ if [ "$HA_MODE" = 0 ] && [ -r "${t_cache-}" ] && [ "$(id -u)" = 0 ]; then
         [ -f "$iso_dir/ul.$u_name.$u_act" ] && continue   # al gedaan
         if ! getent passwd "$u_name" >/dev/null; then u_res=onbekend
         elif [ "$u_act" = lock ]; then
-            if usermod -L -e 1 "$u_name" 2>/dev/null; then pkill -KILL -u "$u_name" 2>/dev/null; u_res=ok; else u_res=fout; fi
-        elif usermod -U -e '' "$u_name" 2>/dev/null; then u_res=ok
+            # agent 1.123.6: usermod buiten de afscherming van de dienst (/etc is daar alleen-lezen)
+            if outside usermod -L -e 1 "$u_name" >/dev/null 2>&1; then pkill -KILL -u "$u_name" 2>/dev/null; u_res=ok; else u_res=fout; fi
+        elif outside usermod -U -e '' "$u_name" >/dev/null 2>&1; then u_res=ok
         else u_res=fout; fi
         rm -f "$iso_dir/ul.$u_name."*; : >"$iso_dir/ul.$u_name.$u_act"
         ul_json+="[\"$u_name\",\"$u_act\",\"$u_res\"],"

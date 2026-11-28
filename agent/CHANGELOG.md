@@ -5,6 +5,10 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.123.6 – 2026-11-28
+- **Tijdelijk sudo en een account vergrendelen werkten niet op servers met systemd.** De dienst van de agent draait afgeschermd (`ProtectSystem=full`), en dan is `/etc` alleen-lezen. Het bestand in `/etc/sudoers.d` kon daardoor niet geschreven worden, en `usermod` kon `/etc/shadow` niet aanpassen. Alleen die schrijfacties lopen nu via een tijdelijke systemd-eenheid; de rest van de ronde blijft afgeschermd. Met cron of op TrueNAS veranderde er niets: daar werkte het al.
+- **Een mislukte aanvraag voor tijdelijk sudo bleef stil.** Kon de agent het bestand niet maken, dan ging hij gewoon door zonder melding. Nu meldt hij het aan RzSense en in het logboek, met de reden.
+
 ## 1.123.5 – 2026-11-27
 - **WAF: de OWASP-regelset stond verkeerd in de configuratie van CrowdSec.** De lijst met regels die alleen melden stond dubbel op één regel (`- crowdsecurity/crs  - crowdsecurity/crs`). CrowdSec kreeg daardoor een regel met een naam die niet bestaat: in de stand *alleen zeker* werd de OWASP-regelset niet geladen, in de stand *detecteren* stond er een onzinregel tussen. De lijst staat nu goed; de WAF herstart één keer om de nieuwe configuratie te laden.
 
