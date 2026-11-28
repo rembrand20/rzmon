@@ -14,6 +14,13 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.365.0**: **De Go-agent beschermt de reverse proxy**: hetzelfde beleid, byte voor byte, met testen en terugzetten zoals de bash-agent.
 - **1.364.0**: **De Go-agent leest de logs van webdiensten**, en mislukte logins bij Vaultwarden worden nu echt geteld.
 
+## 1.368.4 – 2026-11-28
+### Opgelost
+- **Valse melding "Docker-socket voor iedereen schrijfbaar" bij IDS → hardening** (agent 1.123.9 nodig). Op servers waar `/var/run/docker.sock` een snelkoppeling is (bijvoorbeeld podman met podman-docker) keek de agent naar de rechten van de snelkoppeling in plaats van de socket zelf. Daardoor gaf de proef met de Go-agent bovendien elke ronde een verschil bij *IDS (proef): hardening*, zodat hij op zo'n server nooit telde.
+
+### Nieuwe agent
+- Nieuwe agent 1.123.9.
+
 ## 1.368.3 – 2026-11-28
 ### Opgelost
 - **Programma's zag op Linux-servers met systemd vrijwel niets** (agent 1.123.8 nodig). De agent telde alleen programma's in zijn eigen afgeschermde omgeving, en dat waren bijna alleen zijn eigen processen. Na het bijwerken meldt hij één keer alle programma's die draaien; heb je *Programma's* aan, verwacht dan na de leerperiode een paar nieuwe programma's om te beoordelen. Dezelfde fout zat in de Go-agent en gaf in de proef steeds een verschil bij *draaiende programma's*.

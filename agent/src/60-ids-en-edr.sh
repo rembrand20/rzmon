@@ -219,7 +219,7 @@ if [ -n "$ids_mode" ]; then
             printf 'open_db=%s\n' "$(ss_listen t | awk '{ a = $4; p = a; sub(/.*:/, "", p); h = a; sub(/:[0-9]+$/, "", h)
                 if (p ~ /^(3306|5432|6379|27017|9200|11211|5984|8086)$/ && h ~ /^(0\.0\.0\.0|\*|\[::\]|::)$/) print p }' | sort -un | paste -sd, -)"
             h_dk=ok
-            [ -S /var/run/docker.sock ] && [[ "$(stat -c %A /var/run/docker.sock 2>/dev/null)" == ????????w? ]] && h_dk=world
+            [ -S /var/run/docker.sock ] && [[ "$(stat -L -c %A /var/run/docker.sock 2>/dev/null)" == ????????w? ]] && h_dk=world
             ss_listen t | awk '{ print $4 }' | grep -qE ':2375$' && h_dk=tcp
             printf 'docker_sock=%s\n' "$h_dk"
             if findmnt -no OPTIONS /tmp 2>/dev/null | grep -q noexec; then printf 'tmp_noexec=yes\n'; else printf 'tmp_noexec=no\n'; fi

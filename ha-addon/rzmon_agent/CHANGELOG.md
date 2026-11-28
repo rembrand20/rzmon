@@ -5,6 +5,9 @@ Deze lijst staat ook in de add-on: Home Assistant toont hem bij een update. Wat 
 
 Tot en met 1.45.0 liep het nummer gelijk met RzMon. Wat er tot dan aan de agent op Linux-servers veranderde, staat in de changelog van RzMon; hieronder staat tot dan alleen wat de add-on betreft.
 
+## 1.123.9 – 2026-11-28
+- **Valse melding "Docker-socket voor iedereen schrijfbaar" (IDS, hardening).** Is `/var/run/docker.sock` een snelkoppeling, zoals bij podman-docker, dan las de agent de rechten van de snelkoppeling zelf (die staan altijd open) in plaats van die van de socket. Hij kijkt nu naar de socket waar de snelkoppeling naar wijst.
+
 ## 1.123.8 – 2026-11-28
 - **Programma's zag op servers met systemd vrijwel niets.** Om containers over te slaan telt de agent alleen programma's in dezelfde omgeving, maar hij vergeleek met zijn eigen omgeving. De dienst draait met een eigen `/tmp` (`PrivateTmp`) en heeft daardoor een eigen omgeving, dus hij zag bijna alleen zijn eigen processen. Hij vergelijkt nu met de omgeving van de server zelf. Na het bijwerken meldt hij één keer alle programma's die draaien.
 
