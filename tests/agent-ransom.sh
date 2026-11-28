@@ -12,6 +12,7 @@ trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/share/docs" "$work/cache"
 for i in $(seq 1 30); do yes "regel $i met gewone tekst die je goed kunt comprimeren" | head -n 300 >"$work/share/docs/doc$i.txt"; done
 awk '/^# -+ Ransomware herkennen/{f=1} f&&/^# -+ /&&!/Ransomware/{exit} f{print}' agent/rzmon-agent.sh >"$work/mod.sh"
+fn() { awk -v n="$1" '$0 ~ "^" n "\\(\\) \\{" {f=1} f{print} f&&/^\}/{exit}' agent/rzmon-agent.sh; }
 {
     echo "HA_MODE=0; t_dir='$work/cache'; t_cache='$work/cache/tests.cache'"
     echo 'lap() { :; }'

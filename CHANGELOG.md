@@ -14,6 +14,13 @@ Het versienummer staat in [`VERSION`](VERSION). Verhogen gaat met `tools/bump-ve
 - **1.365.0**: **De Go-agent beschermt de reverse proxy**: hetzelfde beleid, byte voor byte, met testen en terugzetten zoals de bash-agent.
 - **1.364.0**: **De Go-agent leest de logs van webdiensten**, en mislukte logins bij Vaultwarden worden nu echt geteld.
 
+## 1.368.2 – 2026-11-28
+### Opgelost
+- De test voor ransomware in GitHub Actions faalde na 1.368.1: hij vond het logboek van de agent niet meer door een andere volgorde in de code. De werking van de agent was in orde.
+
+### Nieuwe agent
+- Nieuwe agent 1.123.7.
+
 ## 1.368.1 – 2026-11-28
 ### Opgelost
 - **Tijdelijk sudo en een account vergrendelen (IDS) werkten niet op Linux-servers met systemd** (agent 1.123.6 nodig). De dienst van de agent mocht niet in `/etc` schrijven, dus het sudo-bestand en het vergrendelen van het account kwamen er niet. Een mislukte aanvraag voor tijdelijk sudo werd bovendien niet gemeld; nu wel, met de reden. Werk de agents bij (*Servers → Bijwerken*).

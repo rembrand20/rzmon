@@ -21,7 +21,7 @@
 # Verbindingstest:  sudo rzmon-agent.sh --test
 
 # Versie: wordt bijgewerkt door tools/bump-version.sh (gelijk aan VERSION van RzSense)
-AGENT_VERSION="1.123.6"
+AGENT_VERSION="1.123.7"
 
 TEST=0
 [ "${1-}" = "--test" ] && TEST=1
@@ -1887,10 +1887,6 @@ heal_log() {  # heal_log <check-id> <ok: 0/1> <bericht>: poging onthouden, en de
     tail -n 5 "$heal_dir/$1.tries" >"$heal_dir/$1.tmp" 2>/dev/null && mv -f "$heal_dir/$1.tmp" "$heal_dir/$1.tries"
     printf '{"id":%s,"ok":%s,"t":%s,"m":"%s"}\n' "$1" "$2" "$(date +%s)" "$(json_escape "$(printf '%s' "$3" | tr '\n\t' '  ' | cut -c1-200)")" >>"$heal_dir/done"
 }
-# Agent 1.89.0: logboek van wat de agent zelf op deze server verandert (firewall, EDR-regels, en later ransomware, updates,
-# sudo …). Elke regel krijgt een eigen kenmerk; hij gaat mee met het volgende rapport en blijft bewaard tot RzSense hem heeft
-# (hooguit 2000 regels; daarboven de oudste weg). RzSense toont hem in de Agent Manager (Logboek).
-act_n=0
 # Agent 1.123.6: een vaste schrijfactie buiten de afscherming van de eigen dienst. De service draait met ProtectSystem=full,
 # waardoor /etc alleen-lezen is: tijdelijk sudo (/etc/sudoers.d) en een account vergrendelen (usermod: /etc/shadow) lukten
 # daardoor niet onder systemd. Alleen die commando's lopen via een tijdelijke systemd-eenheid; de rest van de ronde blijft
@@ -1903,6 +1899,10 @@ outside() {  # outside <commando> <argumenten…>
         "$@"
     fi
 }
+# Agent 1.89.0: logboek van wat de agent zelf op deze server verandert (firewall, EDR-regels, en later ransomware, updates,
+# sudo …). Elke regel krijgt een eigen kenmerk; hij gaat mee met het volgende rapport en blijft bewaard tot RzSense hem heeft
+# (hooguit 2000 regels; daarboven de oudste weg). RzSense toont hem in de Agent Manager (Logboek).
+act_n=0
 act_log() {  # act_log <onderdeel> <ok: 1 gelukt, 0 mislukt, 2 info> <actie> [detail]
     act_n=$(( act_n + 1 ))
     printf '{"id":"%s","t":%s,"m":"%s","ok":%s,"a":"%s","d":"%s"}\n' "$(date +%s)-$$-$act_n-$RANDOM" "$(date +%s)" "$(printf '%s' "$1" | tr -dc 'a-z')" \
