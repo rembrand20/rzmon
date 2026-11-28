@@ -80,7 +80,9 @@ type appProc struct {
 // appsRunning: de programma's die nu draaien, één per programma (niet in een container: die heeft een eigen
 // mount-namespace). Programma's zonder bestand of met een verwijderd bestand ziet het IDS al.
 func appsRunning() []appProc {
-	self, _ := os.Readlink("/proc/self/ns/mnt")
+	// 0.36.4: de omgeving van de server zelf (proces 1), niet die van de agent: de dienst draait met PrivateTmp en heeft
+	// daardoor een eigen omgeving (dan zag hij vrijwel alleen zijn eigen processen). Containers hebben een andere.
+	self, _ := os.Readlink("/proc/1/ns/mnt")
 	ents, _ := os.ReadDir("/proc")
 	pids := []string{}
 	for _, e := range ents {

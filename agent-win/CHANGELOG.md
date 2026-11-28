@@ -5,6 +5,10 @@ Windows en, vanaf 0.8.0, het commando `rzsense` voor Linux (als proef naast de b
 De Go-agent heeft een eigen versienummer (`agent-win/VERSION`), los van RzSense en van de bash-agent voor Linux.
 Bijwerken: `tools/bump-version.sh agentwin patch|minor|major` (zie [CLAUDE.md](../CLAUDE.md)).
 
+## 0.36.4 – 2026-11-28
+- **Linux, Programma's: dezelfde fout als in de bash-agent.** De Go-agent vergeleek met de omgeving van zijn eigen dienst (met een eigen `/tmp`) en zag daardoor vrijwel alleen zijn eigen processen. Hij vergelijkt nu met de omgeving van de server zelf.
+- **Windows:** geen wijzigingen in de werking.
+
 ## 0.36.3 – 2026-11-28
 - **Linux, proef: het CPU-gebruik gaf op een server met één kern steeds een verschil.** Liep er tijdens de twee seconden van de meting een ronde van de bash-agent (of een trage controle van de Go-agent zelf), dan mat de Go-agent dat werk mee en kwam hij op 100%. Hij meldt dat nu erbij, zodat RzSense het niet als verschil telt.
 - **Windows:** geen wijzigingen in de werking.

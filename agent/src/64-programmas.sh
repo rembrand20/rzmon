@@ -49,7 +49,9 @@ if [ "$HA_MODE" = 0 ] && [ "$(id -u)" = 0 ] && [ -r "${t_cache-}" ]; then
     [ -n "$ap_hunt" ] && [ "$ap_hunt" = "$(cat "$ap_dir/ioc.done" 2>/dev/null)" ] && ap_hunt=""
     if [ -n "$ap_line" ] || [ -n "$ap_hunt" ]; then
         # Wat er nu draait (niet in een container: die hebben een eigen mount-namespace)
-        ap_mnt=$(readlink /proc/self/ns/mnt 2>/dev/null)
+        # Agent 1.123.8: de omgeving van de server zelf (proces 1), niet die van de agent: de dienst draait met PrivateTmp en
+        # heeft daardoor een eigen omgeving, waardoor hij vrijwel alleen zijn eigen processen zag
+        ap_mnt=$(readlink /proc/1/ns/mnt 2>/dev/null)
         : >"$ap_dir/cur.new"
         for ap_p in /proc/[0-9]*; do
             ap_exe=$(readlink "$ap_p/exe" 2>/dev/null) || continue
